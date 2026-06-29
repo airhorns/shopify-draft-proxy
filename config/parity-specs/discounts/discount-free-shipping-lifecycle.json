@@ -47,6 +47,7 @@
         "selectedPaths": [
           "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.__typename",
           "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.title",
+          "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.summary",
           "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.asyncUsageCount",
           "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.discountClasses",
           "$.discountCodeFreeShippingCreate.codeDiscountNode.codeDiscount.combinesWith",
@@ -70,6 +71,7 @@
         "selectedPaths": [
           "$.discountAutomaticFreeShippingCreate.automaticDiscountNode.automaticDiscount.__typename",
           "$.discountAutomaticFreeShippingCreate.automaticDiscountNode.automaticDiscount.title",
+          "$.discountAutomaticFreeShippingCreate.automaticDiscountNode.automaticDiscount.summary",
           "$.discountAutomaticFreeShippingCreate.automaticDiscountNode.automaticDiscount.asyncUsageCount",
           "$.discountAutomaticFreeShippingCreate.automaticDiscountNode.automaticDiscount.discountClasses",
           "$.discountAutomaticFreeShippingCreate.automaticDiscountNode.automaticDiscount.combinesWith",
@@ -89,6 +91,7 @@
         "selectedPaths": [
           "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.__typename",
           "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.title",
+          "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.summary",
           "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.destinationSelection",
           "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.maximumShippingPrice",
           "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.appliesOncePerCustomer",
@@ -118,6 +121,7 @@
         "selectedPaths": [
           "$.discountAutomaticFreeShippingUpdate.automaticDiscountNode.automaticDiscount.__typename",
           "$.discountAutomaticFreeShippingUpdate.automaticDiscountNode.automaticDiscount.title",
+          "$.discountAutomaticFreeShippingUpdate.automaticDiscountNode.automaticDiscount.summary",
           "$.discountAutomaticFreeShippingUpdate.automaticDiscountNode.automaticDiscount.destinationSelection",
           "$.discountAutomaticFreeShippingUpdate.automaticDiscountNode.automaticDiscount.maximumShippingPrice",
           "$.discountAutomaticFreeShippingUpdate.automaticDiscountNode.automaticDiscount.appliesOnOneTimePurchase",
@@ -296,5 +300,5 @@
       }
     ]
   },
-  "notes": "Promoted from captured-fixture to executable proxy comparison for 2026-04 DiscountCodeFreeShipping and DiscountAutomaticFreeShipping create, update, shared activate/deactivate/delete cleanup, and singular downstream reads. Targets compare deterministic selected fields from the captured fixture while leaving live IDs, timestamps, generated summaries, pre-existing catalog rows, and opaque cursors out of the contract."
+  "notes": "Promoted from captured-fixture to executable proxy comparison for 2026-04 DiscountCodeFreeShipping and DiscountAutomaticFreeShipping create, update, shared activate/deactivate/delete cleanup, and singular downstream reads. Targets compare deterministic selected fields from the captured fixture, including Shopify's computed summary strings, while leaving live IDs, timestamps, pre-existing catalog rows, and opaque cursors out of the contract."
 }

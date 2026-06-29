@@ -1,0 +1,19 @@
+mutation ProductUpdateMediaMissingMediaAggregation($productId: ID!, $media: [UpdateMediaInput!]!) {
+  productUpdateMedia(productId: $productId, media: $media) {
+    media {
+      id
+      alt
+      mediaContentType
+      status
+    }
+    userErrors {
+      field
+      message
+    }
+    mediaUserErrors {
+      field
+      message
+      code
+    }
+  }
+}

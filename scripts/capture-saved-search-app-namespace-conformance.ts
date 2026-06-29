@@ -180,6 +180,7 @@ try {
       variables: deleteVariables,
       payload: cleanupDelete.payload,
     },
+    upstreamCalls: [],
   };
 
   await mkdir(outputDir, { recursive: true });

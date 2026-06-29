@@ -1,8 +1,15 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
+use sha2::{Digest, Sha256};
+
+fn sha256_hex(value: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(value.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
 
 fn assert_no_staged_markets(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(proxy);
     let staged_markets = &state["stagedState"]["markets"];
     assert!(
         staged_markets.is_null()
@@ -14,7 +21,7 @@ fn assert_no_staged_markets(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
 }
 
 fn assert_no_staged_web_presences(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(proxy);
     let staged_web_presences = &state["stagedState"]["webPresences"];
     assert!(
         staged_web_presences.is_null()
@@ -26,7 +33,7 @@ fn assert_no_staged_web_presences(proxy: &shopify_draft_proxy::proxy::DraftProxy
 }
 
 fn assert_no_staged_catalogs(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(proxy);
     let staged_catalogs = &state["stagedState"]["catalogs"];
     assert!(
         staged_catalogs.is_null()
@@ -301,10 +308,7 @@ fn singular_metafield_delete_removes_staged_owner_metafields_by_id() {
     );
 
     let missing_id = "gid://shopify/Metafield/170099";
-    let log_len_before_missing = proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .len();
+    let log_len_before_missing = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
     let missing = proxy.process_request(json_graphql_request(
         delete_query,
         json!({"input": {"id": missing_id}}),
@@ -320,7 +324,7 @@ fn singular_metafield_delete_removes_staged_owner_metafields_by_id() {
         .unwrap()
         .contains_key("code"));
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().unwrap();
     assert_eq!(entries.len(), log_len_before_missing);
     assert_eq!(entries.len(), 4);
@@ -860,6 +864,238 @@ fn metafields_set_stages_owner_metafield_connections_for_product_and_customer_re
 }
 
 #[test]
+fn metafields_set_preserves_custom_namespace_type_named_keys() {
+    let mut proxy = snapshot_proxy();
+    let owner_id = "gid://shopify/Product/1741";
+    let json_value = "{\"a\":1}";
+    let rating_value = "{\"scale_min\":\"1.0\",\"scale_max\":\"5.0\",\"value\":\"4.5\"}";
+    let money_value = "{\"amount\":\"12.34\",\"currency_code\":\"USD\"}";
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomNamespaceTypedKeys($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields {
+              id
+              namespace
+              key
+              type
+              value
+              jsonValue
+              compareDigest
+              createdAt
+              updatedAt
+              ownerType
+              owner { __typename ... on Product { id } }
+            }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": "custom", "key": "json", "type": "json", "value": json_value},
+            {"ownerId": owner_id, "namespace": "custom", "key": "rating", "type": "rating", "value": rating_value},
+            {"ownerId": owner_id, "namespace": "custom", "key": "money", "type": "money", "value": money_value}
+        ]}),
+    ));
+
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+    let metafields = set.body["data"]["metafieldsSet"]["metafields"]
+        .as_array()
+        .unwrap();
+    assert_eq!(metafields.len(), 3);
+    assert_eq!(metafields[0]["namespace"], json!("custom"));
+    assert_eq!(metafields[0]["key"], json!("json"));
+    assert_eq!(metafields[0]["type"], json!("json"));
+    assert_eq!(metafields[0]["value"], json!(json_value));
+    assert_eq!(metafields[0]["jsonValue"], json!({"a": 1}));
+    assert_eq!(
+        metafields[0]["compareDigest"],
+        json!(sha256_hex(json_value))
+    );
+    assert_eq!(metafields[0]["ownerType"], json!("PRODUCT"));
+    assert_eq!(metafields[0]["owner"]["id"], json!(owner_id));
+    assert!(
+        metafields[0]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("gid://shopify/Metafield/")),
+        "expected a real metafield id, got {:?}",
+        metafields[0]["id"]
+    );
+    assert!(metafields[0]["createdAt"].is_string());
+    assert!(metafields[0]["updatedAt"].is_string());
+    assert_eq!(metafields[1]["value"], json!(rating_value));
+    assert_eq!(
+        metafields[1]["jsonValue"],
+        json!({"scale_min": "1.0", "scale_max": "5.0", "value": "4.5"})
+    );
+    assert_eq!(
+        metafields[1]["compareDigest"],
+        json!(sha256_hex(rating_value))
+    );
+    assert_eq!(metafields[2]["value"], json!(money_value));
+    assert_eq!(
+        metafields[2]["jsonValue"],
+        json!({"amount": "12.34", "currency_code": "USD"})
+    );
+    assert_eq!(
+        metafields[2]["compareDigest"],
+        json!(sha256_hex(money_value))
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomNamespaceTypedKeysRead($id: ID!) {
+          product(id: $id) {
+            jsonField: metafield(namespace: "custom", key: "json") { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType }
+            ratingField: metafield(namespace: "custom", key: "rating") { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType }
+            moneyField: metafield(namespace: "custom", key: "money") { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType }
+          }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["product"]["jsonField"]["value"],
+        json!(json_value)
+    );
+    assert_eq!(
+        read.body["data"]["product"]["jsonField"]["jsonValue"],
+        json!({"a": 1})
+    );
+    assert_eq!(
+        read.body["data"]["product"]["jsonField"]["compareDigest"],
+        json!(sha256_hex(json_value))
+    );
+    assert_eq!(
+        read.body["data"]["product"]["ratingField"]["jsonValue"],
+        json!({"scale_min": "1.0", "scale_max": "5.0", "value": "4.5"})
+    );
+    assert_eq!(
+        read.body["data"]["product"]["moneyField"]["jsonValue"],
+        json!({"amount": "12.34", "currency_code": "USD"})
+    );
+}
+
+#[test]
+fn metafields_set_accepts_shopify_date_time_offsets_and_fractional_seconds() {
+    let mut proxy = snapshot_proxy();
+    let owner_id = "gid://shopify/Product/987654451";
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DateTimeFormatsMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value jsonValue }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": "date_time_formats", "key": "trailing_z", "type": "date_time", "value": "2026-06-25T10:11:12Z"},
+            {"ownerId": owner_id, "namespace": "date_time_formats", "key": "offset_positive", "type": "date_time", "value": "2026-06-25T10:11:12+05:30"},
+            {"ownerId": owner_id, "namespace": "date_time_formats", "key": "fractional_z", "type": "date_time", "value": "2026-06-25T10:11:12.123Z"},
+            {"ownerId": owner_id, "namespace": "date_time_formats", "key": "offset_negative", "type": "date_time", "value": "2026-06-25T10:11:12-04:00"}
+        ]}),
+    ));
+
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["metafields"],
+        json!([
+            {
+                "namespace": "date_time_formats",
+                "key": "trailing_z",
+                "type": "date_time",
+                "value": "2026-06-25T10:11:12+00:00",
+                "jsonValue": "2026-06-25T10:11:12+00:00"
+            },
+            {
+                "namespace": "date_time_formats",
+                "key": "offset_positive",
+                "type": "date_time",
+                "value": "2026-06-25T10:11:12+05:30",
+                "jsonValue": "2026-06-25T10:11:12+05:30"
+            },
+            {
+                "namespace": "date_time_formats",
+                "key": "fractional_z",
+                "type": "date_time",
+                "value": "2026-06-25T10:11:12+00:00",
+                "jsonValue": "2026-06-25T10:11:12+00:00"
+            },
+            {
+                "namespace": "date_time_formats",
+                "key": "offset_negative",
+                "type": "date_time",
+                "value": "2026-06-25T10:11:12-04:00",
+                "jsonValue": "2026-06-25T10:11:12-04:00"
+            }
+        ])
+    );
+}
+
+#[test]
+fn metafields_set_resolves_owner_type_from_non_product_gids() {
+    let mut proxy = snapshot_proxy();
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NonProductOwnerTypeMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields {
+              namespace
+              key
+              ownerType
+              owner { __typename id }
+            }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": "gid://shopify/Page/1003", "namespace": "owner_type_gid", "key": "page", "type": "single_line_text_field", "value": "Page subtitle"},
+            {"ownerId": "gid://shopify/Location/1004", "namespace": "owner_type_gid", "key": "location", "type": "single_line_text_field", "value": "Location label"},
+            {"ownerId": "gid://shopify/Market/1005", "namespace": "owner_type_gid", "key": "market", "type": "single_line_text_field", "value": "Market label"},
+            {"ownerId": "gid://shopify/Article/1006", "namespace": "owner_type_gid", "key": "article", "type": "single_line_text_field", "value": "Article label"}
+        ]}),
+    ));
+
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["metafields"],
+        json!([
+            {
+                "namespace": "owner_type_gid",
+                "key": "page",
+                "ownerType": "PAGE",
+                "owner": {"__typename": "Page", "id": "gid://shopify/Page/1003"}
+            },
+            {
+                "namespace": "owner_type_gid",
+                "key": "location",
+                "ownerType": "LOCATION",
+                "owner": {"__typename": "Location", "id": "gid://shopify/Location/1004"}
+            },
+            {
+                "namespace": "owner_type_gid",
+                "key": "market",
+                "ownerType": "MARKET",
+                "owner": {"__typename": "Market", "id": "gid://shopify/Market/1005"}
+            },
+            {
+                "namespace": "owner_type_gid",
+                "key": "article",
+                "ownerType": "ARTICLE",
+                "owner": {"__typename": "Article", "id": "gid://shopify/Article/1006"}
+            }
+        ])
+    );
+}
+
+#[test]
 fn owner_scoped_metafields_do_not_leak_between_products() {
     let mut proxy = snapshot_proxy();
 
@@ -1229,9 +1465,9 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
     assert_eq!(
         multi.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en", "url": "https://harry-test-heelo.myshopify.com/en-intl/"},
-            {"locale": "de", "url": "https://harry-test-heelo.myshopify.com/de-intl/"},
-            {"locale": "fr", "url": "https://harry-test-heelo.myshopify.com/fr-intl/"}
+            {"locale": "en", "url": "https://shopify-draft-proxy.local/en-intl/"},
+            {"locale": "de", "url": "https://shopify-draft-proxy.local/de-intl/"},
+            {"locale": "fr", "url": "https://shopify-draft-proxy.local/fr-intl/"}
         ])
     );
 }
@@ -1304,9 +1540,9 @@ fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
     assert_eq!(
         subfolder.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en", "url": "https://harry-test-heelo.myshopify.com/en-intl/"},
-            {"locale": "de", "url": "https://harry-test-heelo.myshopify.com/de-intl/"},
-            {"locale": "fr", "url": "https://harry-test-heelo.myshopify.com/fr-intl/"}
+            {"locale": "en", "url": "https://shopify-draft-proxy.local/en-intl/"},
+            {"locale": "de", "url": "https://shopify-draft-proxy.local/de-intl/"},
+            {"locale": "fr", "url": "https://shopify-draft-proxy.local/fr-intl/"}
         ])
     );
 
@@ -1316,13 +1552,13 @@ fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
     ));
     assert_eq!(
         domain.body["data"]["webPresenceCreate"]["webPresence"]["domain"],
-        json!({"id": "gid://shopify/Domain/1000", "host": "acme.myshopify.com", "url": "https://acme.myshopify.com", "sslEnabled": true})
+        json!({"id": "gid://shopify/Domain/1000", "host": "shopify-draft-proxy.local", "url": "https://shopify-draft-proxy.local", "sslEnabled": true})
     );
     assert_eq!(
         domain.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en", "url": "https://acme.myshopify.com/"},
-            {"locale": "fr", "url": "https://acme.myshopify.com/fr/"}
+            {"locale": "en", "url": "https://shopify-draft-proxy.local/"},
+            {"locale": "fr", "url": "https://shopify-draft-proxy.local/fr/"}
         ])
     );
     assert_eq!(
@@ -1357,9 +1593,9 @@ fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
     assert_eq!(
         normalized.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en-US", "url": "https://harry-test-heelo.myshopify.com/en-us/"},
-            {"locale": "pt-BR", "url": "https://harry-test-heelo.myshopify.com/pt-us/"},
-            {"locale": "zh-Hant-TW", "url": "https://harry-test-heelo.myshopify.com/zh-us/"}
+            {"locale": "en-US", "url": "https://shopify-draft-proxy.local/en-us/"},
+            {"locale": "pt-BR", "url": "https://shopify-draft-proxy.local/pt-us/"},
+            {"locale": "zh-Hant-TW", "url": "https://shopify-draft-proxy.local/zh-us/"}
         ])
     );
 
@@ -1680,6 +1916,85 @@ fn market_web_presence_locale_catalog_accepts_supported_languages_beyond_legacy_
 }
 
 #[test]
+fn market_create_region_nodes_include_country_identity_fields_in_payload_and_reads() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation RustMarketCreateRegionNodeShape($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market {
+              id
+              conditions {
+                regionsCondition {
+                  regions(first: 10) {
+                    nodes { id name __typename ... on MarketRegionCountry { code } }
+                  }
+                }
+              }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Canada Region Shape", "conditions": {"regionsCondition": {"regions": [{"countryCode": "CA"}]}}}}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["marketCreate"]["userErrors"], json!([]));
+    let expected_nodes = json!([{
+        "__typename": "MarketRegionCountry",
+        "id": "gid://shopify/Market/Region/1",
+        "name": "Canada",
+        "code": "CA"
+    }]);
+    assert_eq!(
+        create.body["data"]["marketCreate"]["market"]["conditions"]["regionsCondition"]["regions"]
+            ["nodes"],
+        expected_nodes
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustMarketCreateRegionNodeShapeRead($id: ID!) {
+          market(id: $id) {
+            id
+            conditions {
+              regionsCondition {
+                regions(first: 10) {
+                  nodes { id name __typename ... on MarketRegionCountry { code } }
+                }
+              }
+            }
+          }
+          markets(first: 10) {
+            nodes {
+              id
+              conditions {
+                regionsCondition {
+                  regions(first: 10) {
+                    nodes { id name __typename ... on MarketRegionCountry { code } }
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/Market/1"}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["market"]["conditions"]["regionsCondition"]["regions"]["nodes"],
+        expected_nodes
+    );
+    assert_eq!(
+        read.body["data"]["markets"]["nodes"][0]["conditions"]["regionsCondition"]["regions"]
+            ["nodes"],
+        expected_nodes
+    );
+}
+
+#[test]
 fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests() {
     // Ports old Gleam proxy tests around marketCreate validation/staging:
     // - status/enabled mismatch and partial-input defaults
@@ -1869,24 +2184,37 @@ fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tes
             json!({"baseCurrency": {"currencyCode": code, "currencyName": name}, "localCurrencies": false, "roundingEnabled": false})
         );
     }
-    let unknown_currency = currency_proxy.process_request(json_graphql_request(
+    let unknown_currency = snapshot_proxy().process_request(json_graphql_request(
         create_query,
         json!({"input": {"name": "Unknown Currency", "currencySettings": {"baseCurrency": "ZZZ"}}}),
     ));
+    assert_eq!(unknown_currency.body["data"]["marketCreate"], Value::Null);
     assert_eq!(
-        unknown_currency.body["data"]["marketCreate"]["market"]["currencySettings"],
-        json!({"baseCurrency": {"currencyCode": "ZZZ", "currencyName": "Unknown Currency"}, "localCurrencies": false, "roundingEnabled": false})
+        unknown_currency.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert!(
+        unknown_currency.body["errors"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("Expected \"ZZZ\" to be one of"),
+        "unexpected invalid currency error: {:?}",
+        unknown_currency.body
     );
 
-    for input in [
-        json!({"name": "Currency", "currencySettings": {"baseCurrency": "XXX"}}),
-        json!({"name": "Currency", "currencySettings": {"baseCurrency": "XAF"}}),
-    ] {
-        let response = snapshot_proxy()
-            .process_request(json_graphql_request(create_query, json!({"input": input})));
+    for code in ["XXX", "XAF"] {
+        let response = currency_proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": {"name": format!("{code} Currency"), "currencySettings": {"baseCurrency": code}}}),
+        ));
         assert_eq!(
-            response.body["data"]["marketCreate"]["userErrors"][0],
-            json!({"__typename": "MarketUserError", "field": ["input", "currencySettings", "baseCurrency"], "message": "Base currency is invalid", "code": "INVALID"})
+            response.body["data"]["marketCreate"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            response.body["data"]["marketCreate"]["market"]["currencySettings"]["baseCurrency"]
+                ["currencyCode"],
+            json!(code)
         );
     }
     for input in [
@@ -1926,8 +2254,7 @@ fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tes
         unsupported.body["data"]["marketCreate"]["userErrors"][0],
         json!({"__typename": "MarketUserError", "field": ["input", "regions", "1", "countryCode"], "message": "CU is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"})
     );
-    assert!(!region_proxy
-        .get_state_snapshot()
+    assert!(!state_snapshot(&region_proxy)
         .to_string()
         .contains("Unsupported"));
 
@@ -1969,7 +2296,7 @@ fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tes
         json!({"__typename": "MarketUserError", "field": ["input", "name"], "message": "Name has already been taken", "code": "TAKEN"})
     );
     assert_eq!(
-        duplicate_name_proxy.get_log_snapshot()["entries"]
+        log_snapshot(&duplicate_name_proxy)["entries"]
             .as_array()
             .unwrap()
             .len(),
@@ -2132,7 +2459,7 @@ fn market_update_applies_scalar_inputs_and_keeps_partial_fields() {
         json!(false)
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 4);
     assert!(log["entries"][1]["rawBody"]
         .as_str()
@@ -2172,7 +2499,7 @@ fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
             "userErrors": [{"__typename": "MarketUserError", "field": ["input", "regions", "0", "countryCode"], "message": "KP is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"}]
         })
     );
-    assert_eq!(kp_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&kp_proxy)["entries"], json!([]));
     assert_no_staged_markets(&kp_proxy);
     let kp_read = kp_proxy.process_request(json_graphql_request(read_query, json!({})));
     assert_eq!(kp_read.body["data"]["markets"]["nodes"], json!([]));
@@ -2189,7 +2516,7 @@ fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
             "userErrors": [{"__typename": "MarketUserError", "field": ["input", "regions", "1", "countryCode"], "message": "KP is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"}]
         })
     );
-    assert_eq!(mixed_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&mixed_proxy)["entries"], json!([]));
     assert_no_staged_markets(&mixed_proxy);
 
     let mut conditions_proxy = snapshot_proxy();
@@ -2204,7 +2531,7 @@ fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
             "userErrors": [{"__typename": "MarketUserError", "field": ["input", "regions", "0", "countryCode"], "message": "KP is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"}]
         })
     );
-    assert_eq!(conditions_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&conditions_proxy)["entries"], json!([]));
     assert_no_staged_markets(&conditions_proxy);
 
     let mut supported_proxy = snapshot_proxy();
@@ -2235,7 +2562,7 @@ fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
         2
     );
     assert_eq!(
-        supported_proxy.get_log_snapshot()["entries"]
+        log_snapshot(&supported_proxy)["entries"]
             .as_array()
             .expect("supported mutation log entries")
             .len(),
@@ -2246,8 +2573,8 @@ fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
 #[test]
 fn catalog_create_unknown_market_returns_market_not_found_without_staging() {
     let mut proxy = snapshot_proxy();
-    let state_before = proxy.get_state_snapshot();
-    let log_before = proxy.get_log_snapshot();
+    let state_before = state_snapshot(&proxy);
+    let log_before = log_snapshot(&proxy);
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -2283,8 +2610,8 @@ fn catalog_create_unknown_market_returns_market_not_found_without_staging() {
             }]
         })
     );
-    assert_eq!(proxy.get_state_snapshot(), state_before);
-    assert_eq!(proxy.get_log_snapshot(), log_before);
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
     assert_no_staged_catalogs(&proxy);
 }
 
@@ -3406,10 +3733,7 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
         json!([])
     );
 
-    let log_len_before_delete = proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .len();
+    let log_len_before_delete = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
     let unknown = proxy.process_request(json_graphql_request(
         market_delete_query,
         json!({"id": "gid://shopify/Market/9999999"}),
@@ -3419,10 +3743,7 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
         json!({"deletedId": null, "userErrors": [{"__typename": "MarketUserError", "field": ["id"], "message": "Market does not exist", "code": "MARKET_NOT_FOUND"}]})
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         log_len_before_delete,
         "unknown marketDelete should not stage a commit replay entry"
     );
@@ -3464,7 +3785,7 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
         json!([])
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let delete_entry = log["entries"].as_array().unwrap().last().unwrap();
     assert_eq!(
         delete_entry["interpreted"]["rootFields"],
@@ -3750,6 +4071,95 @@ fn price_list_create_update_delete_ported_gleam_helpers_stage_and_validate() {
 }
 
 #[test]
+fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write() {
+    let mut proxy = snapshot_proxy();
+    let market = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketsOverlayColdFieldMarketCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "Cold Field Market", "regions": [{"countryCode": "CA"}]}}),
+    ));
+    assert_eq!(market.body["data"]["marketCreate"]["userErrors"], json!([]));
+    let market_id = market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketsOverlayColdFieldCatalogCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id title status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Cold Field Catalog",
+                "status": "ACTIVE",
+                "context": { "driverType": "MARKET", "marketIds": [market_id] }
+            }
+        }),
+    ));
+    assert_eq!(
+        catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let catalog_id = catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketsOverlayColdFieldsAfterWrite {
+          catalogsCount(type: MARKET, limit: 10) {
+            count
+            precision
+          }
+          marketsResolvedValues(buyerSignal: { countryCode: CA }) {
+            currencyCode
+            priceInclusivity { dutiesIncluded taxesIncluded }
+            catalogs(first: 5) {
+              nodes { id title status }
+            }
+            webPresences(first: 5) {
+              edges { node { id } }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["catalogsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["marketsResolvedValues"]["currencyCode"],
+        json!("USD")
+    );
+    assert_eq!(
+        read.body["data"]["marketsResolvedValues"]["priceInclusivity"],
+        json!({ "dutiesIncluded": false, "taxesIncluded": false })
+    );
+    assert_eq!(
+        read.body["data"]["marketsResolvedValues"]["catalogs"]["nodes"],
+        json!([{ "id": catalog_id, "title": "Cold Field Catalog", "status": "ACTIVE" }])
+    );
+    assert_eq!(
+        read.body["data"]["marketsResolvedValues"]["webPresences"]["edges"],
+        json!([])
+    );
+}
+
+#[test]
 fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
     let create_query = r#"
         mutation RustPriceListLocalRuntimeCreate($input: PriceListCreateInput!) {
@@ -3811,7 +4221,7 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
             "path": ["priceListCreate"]
         })
     );
-    assert_eq!(wrong_type_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&wrong_type_proxy)["entries"], json!([]));
 
     let mut proxy = snapshot_proxy();
     proxy.process_request(json_graphql_request(
@@ -5446,8 +5856,8 @@ fn product_change_status_stages_archived_status_and_downstream_read_lag() {
                 "status": "ARCHIVED",
                 "updatedAt": "2026-04-28T22:43:34Z"
             },
-            "products": { "nodes": [{ "id": "gid://shopify/Product/10173064872242", "status": "ARCHIVED" }] },
-            "productsCount": { "count": 1, "precision": "EXACT" }
+            "products": { "nodes": [] },
+            "productsCount": { "count": 0, "precision": "EXACT" }
         })
     );
 }
@@ -6347,7 +6757,7 @@ fn product_duplicate_respects_new_status_override_and_validates_invalid_status()
         json!("ACTIVE")
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
+        log_snapshot(&proxy)["entries"]
             .as_array()
             .map(Vec::len)
             .unwrap_or_default(),
@@ -6417,7 +6827,7 @@ fn product_duplicate_respects_new_status_override_and_validates_invalid_status()
         })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
+        log_snapshot(&proxy)["entries"]
             .as_array()
             .map(Vec::len)
             .unwrap_or_default(),

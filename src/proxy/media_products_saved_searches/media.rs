@@ -53,12 +53,12 @@ impl DraftProxy {
 
         if inputs.len() > 250 {
             return MutationOutcome::response(ok_json(json!({
-                "errors": [{
-                    "message": format!("The input array size of {} is greater than the maximum allowed of 250.", inputs.len()),
-                    "locations": [{"line": 2, "column": 3}],
-                    "path": ["fileCreate", "files"],
-                    "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
-                }]
+                "errors": [max_input_size_exceeded_error(
+                    ["fileCreate", "files"],
+                    inputs.len(),
+                    250,
+                    Some(json!([{"line": 2, "column": 3}]))
+                )]
             })));
         }
 
@@ -353,7 +353,7 @@ impl DraftProxy {
                     file["url"] = json!(source);
                 }
             }
-            file["updatedAt"] = json!("2024-01-01T00:00:59.000Z");
+            file["updatedAt"] = json!(self.next_product_timestamp());
             self.store
                 .staged
                 .media_files
@@ -600,7 +600,7 @@ impl DraftProxy {
         {
             return id.to_string();
         }
-        let numeric_id = id.trim_start_matches("gid://shopify/Video/");
+        let numeric_id = shopify_gid_tail_for_type(id, "Video").unwrap_or(id);
         let media_image_id = shopify_gid("MediaImage", numeric_id);
         if self.store.staged.media_files.contains_key(&media_image_id) {
             media_image_id
@@ -948,7 +948,7 @@ fn media_object_list_arg(
     key: &str,
 ) -> Vec<BTreeMap<String, ResolvedValue>> {
     let arguments = root_field_arguments(query, variables).unwrap_or_default();
-    list_object_field(&arguments, key)
+    resolved_object_list_field(&arguments, key)
 }
 
 fn media_string_list_arg(
@@ -1114,11 +1114,11 @@ fn validate_file_update_required_fields(
         .filter(|value| !value.is_empty())
         .is_none()
     {
-        return Some(json!({
-            "field": ["files", index.to_string(), "id"],
-            "message": "File id is required",
-            "code": "REQUIRED"
-        }));
+        return Some(user_error(
+            ["files", index.to_string().as_str(), "id"],
+            "File id is required",
+            Some("REQUIRED"),
+        ));
     }
     None
 }
@@ -1488,14 +1488,14 @@ pub(super) fn media_file_record_from_node(node: &Value) -> Option<Value> {
     let created_at = node
         .get("createdAt")
         .and_then(Value::as_str)
-        .unwrap_or("2024-01-01T00:00:00.000Z")
-        .to_string();
+        .map(str::to_string)
+        .unwrap_or_else(default_product_timestamp);
     let updated_at = node
         .get("updatedAt")
         .and_then(Value::as_str)
         .or_else(|| node.get("createdAt").and_then(Value::as_str))
-        .unwrap_or("2024-01-01T00:00:00.000Z")
-        .to_string();
+        .map(str::to_string)
+        .unwrap_or_else(default_product_timestamp);
     let file_status = node
         .get("fileStatus")
         .and_then(Value::as_str)
@@ -1579,23 +1579,6 @@ fn filename_from_source(source: &str) -> String {
         .filter(|value| !value.is_empty())
         .unwrap_or("file")
         .to_string()
-}
-
-fn file_extension(value: &str) -> String {
-    // Mirror Gleam derive_filename + file_extension: first reduce to the last
-    // non-empty path segment (after stripping query/fragment), then take the
-    // substring after that segment's final dot. A URL like
-    // `https://www.w3.org/.../dummy` must yield "" — not "org/.../dummy" — even
-    // though the host contains dots.
-    let path = value.split(['?', '#']).next().unwrap_or(value);
-    let filename = path
-        .rsplit('/')
-        .find(|segment| !segment.is_empty())
-        .unwrap_or("");
-    match filename.rsplit_once('.') {
-        Some((_, extension)) => extension.to_ascii_lowercase(),
-        None => String::new(),
-    }
 }
 
 // Shopify infers FileContentType from the source/filename extension when the

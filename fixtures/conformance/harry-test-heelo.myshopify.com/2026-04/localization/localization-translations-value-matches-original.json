@@ -1,0 +1,855 @@
+{
+  "scenarioId": "localization-translations-value-matches-original",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-06-27T06:46:54.383Z",
+  "setup": {
+    "locale": "es",
+    "localeSetup": {
+      "variables": {
+        "locale": "es"
+      },
+      "response": {
+        "data": {
+          "shopLocaleEnable": {
+            "shopLocale": null,
+            "userErrors": [
+              {
+                "field": ["locale"],
+                "message": "Locale has already been taken"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "marketsRead": {
+      "variables": {
+        "first": 10
+      },
+      "response": {
+        "data": {
+          "markets": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Market/97997685042",
+                "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+                "handle": "draft-proxy-currency-settings-20260507164352-manual-rate",
+                "status": "DRAFT",
+                "type": "NONE"
+              },
+              {
+                "id": "gid://shopify/Market/97997816114",
+                "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate",
+                "handle": "draft-proxy-currency-settings-20260507164435-manual-rate",
+                "status": "DRAFT",
+                "type": "NONE"
+              },
+              {
+                "id": "gid://shopify/Market/97997947186",
+                "name": "Draft Proxy Currency Settings 20260507164530 Manual Rate",
+                "handle": "draft-proxy-currency-settings-20260507164530-manual-rate",
+                "status": "DRAFT",
+                "type": "NONE"
+              },
+              {
+                "id": "gid://shopify/Market/98515026226",
+                "name": "Draft Proxy Currency Settings 20260613200520 Manual Rate",
+                "handle": "draft-proxy-currency-settings-20260613200520-manual-rate",
+                "status": "DRAFT",
+                "type": "NONE"
+              },
+              {
+                "id": "gid://shopify/Market/98667069746",
+                "name": "Draft Proxy Currency Settings 20260626001542 Manual Rate",
+                "handle": "draft-proxy-currency-settings-20260626001542-manual-rate",
+                "status": "DRAFT",
+                "type": "NONE"
+              },
+              {
+                "id": "gid://shopify/Market/92276785458",
+                "name": "International",
+                "handle": "international",
+                "status": "ACTIVE",
+                "type": "REGION"
+              },
+              {
+                "id": "gid://shopify/Market/92276818226",
+                "name": "Mexico",
+                "handle": "mexico",
+                "status": "ACTIVE",
+                "type": "REGION"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "market": {
+      "id": "gid://shopify/Market/97997685042",
+      "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+      "handle": "draft-proxy-currency-settings-20260507164352-manual-rate",
+      "status": "DRAFT",
+      "type": "NONE"
+    },
+    "productCreate": {
+      "variables": {
+        "product": {
+          "title": "Value matches original fixture yg6b15jw",
+          "handle": "value-matches-original-yg6b15jw",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10222968013106",
+              "title": "Value matches original fixture yg6b15jw",
+              "handle": "value-matches-original-yg6b15jw",
+              "status": "DRAFT"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "readBeforeRegister": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10222968013106",
+      "marketId": "gid://shopify/Market/97997685042",
+      "resourceIds": ["gid://shopify/Product/10222968013106"],
+      "marketsFirst": 10
+    },
+    "response": {
+      "data": {
+        "translatableResource": {
+          "resourceId": "gid://shopify/Product/10222968013106",
+          "translatableContent": [
+            {
+              "key": "title",
+              "value": "Value matches original fixture yg6b15jw",
+              "digest": "5613e73294872967b9102a2b9760369bafbd226eecc7f776af6f5ef1159928a4",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "handle",
+              "value": "value-matches-original-yg6b15jw",
+              "digest": "4d4d7a21d9087edd62494f3bf986c930bb0231e0959dc5377f4c1dbeafdbf69f",
+              "locale": "en",
+              "type": "URI"
+            },
+            {
+              "key": "product_type",
+              "value": "",
+              "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            }
+          ],
+          "translations": []
+        },
+        "byIds": {
+          "nodes": [
+            {
+              "resourceId": "gid://shopify/Product/10222968013106",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Value matches original fixture yg6b15jw",
+                  "digest": "5613e73294872967b9102a2b9760369bafbd226eecc7f776af6f5ef1159928a4",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "value-matches-original-yg6b15jw",
+                  "digest": "4d4d7a21d9087edd62494f3bf986c930bb0231e0959dc5377f4c1dbeafdbf69f",
+                  "locale": "en",
+                  "type": "URI"
+                },
+                {
+                  "key": "product_type",
+                  "value": "",
+                  "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                }
+              ]
+            }
+          ]
+        },
+        "markets": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Market/97997685042",
+              "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260507164352-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/97997816114",
+              "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260507164435-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/97997947186",
+              "name": "Draft Proxy Currency Settings 20260507164530 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260507164530-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/98515026226",
+              "name": "Draft Proxy Currency Settings 20260613200520 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260613200520-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/98667069746",
+              "name": "Draft Proxy Currency Settings 20260626001542 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260626001542-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/92276785458",
+              "name": "International",
+              "handle": "international",
+              "status": "ACTIVE",
+              "type": "REGION"
+            },
+            {
+              "id": "gid://shopify/Market/92276818226",
+              "name": "Mexico",
+              "handle": "mexico",
+              "status": "ACTIVE",
+              "type": "REGION"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "sourceTitle": "Value matches original fixture yg6b15jw",
+  "titleDigest": "5613e73294872967b9102a2b9760369bafbd226eecc7f776af6f5ef1159928a4",
+  "marketOriginalWithoutBaseRegister": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10222968013106",
+      "translations": [
+        {
+          "locale": "es",
+          "key": "title",
+          "value": "Value matches original fixture yg6b15jw",
+          "marketId": "gid://shopify/Market/97997685042",
+          "translatableContentDigest": "5613e73294872967b9102a2b9760369bafbd226eecc7f776af6f5ef1159928a4"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "translationsRegister": {
+          "translations": [
+            {
+              "key": "title",
+              "value": "Value matches original fixture yg6b15jw",
+              "locale": "es",
+              "outdated": false,
+              "market": {
+                "id": "gid://shopify/Market/97997685042"
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "removeMarketOriginal": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10222968013106",
+      "keys": ["title"],
+      "locales": ["es"],
+      "marketIds": ["gid://shopify/Market/97997685042"]
+    },
+    "response": {
+      "data": {
+        "translationsRemove": {
+          "translations": [
+            {
+              "key": "title",
+              "value": "Value matches original fixture yg6b15jw",
+              "locale": "es",
+              "outdated": false,
+              "market": {
+                "id": "gid://shopify/Market/97997685042"
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "shopLevelOriginalRegister": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10222968013106",
+      "translations": [
+        {
+          "locale": "es",
+          "key": "title",
+          "value": "Value matches original fixture yg6b15jw",
+          "translatableContentDigest": "5613e73294872967b9102a2b9760369bafbd226eecc7f776af6f5ef1159928a4"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "translationsRegister": {
+          "translations": [
+            {
+              "key": "title",
+              "value": "Value matches original fixture yg6b15jw",
+              "locale": "es",
+              "outdated": false,
+              "market": null
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "valueMatchesBaseTranslationRegister": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10222968013106",
+      "translations": [
+        {
+          "locale": "es",
+          "key": "title",
+          "value": "Value matches original fixture yg6b15jw",
+          "marketId": "gid://shopify/Market/97997685042",
+          "translatableContentDigest": "5613e73294872967b9102a2b9760369bafbd226eecc7f776af6f5ef1159928a4"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "translationsRegister": {
+          "translations": [],
+          "userErrors": [
+            {
+              "field": ["translations", "0", "value"],
+              "message": "Value cannot match original content",
+              "code": "FAILS_RESOURCE_VALIDATION"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "valueMatchesBaseTranslationInvalidDigestRegister": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10222968013106",
+      "translations": [
+        {
+          "locale": "es",
+          "key": "title",
+          "value": "Value matches original fixture yg6b15jw",
+          "marketId": "gid://shopify/Market/97997685042",
+          "translatableContentDigest": "invalid-5613e73294872967b9102a2b9760369bafbd226eecc7f776af6f5ef1159928a4"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "translationsRegister": {
+          "translations": [],
+          "userErrors": [
+            {
+              "field": ["translations", "0", "value"],
+              "message": "Value cannot match original content",
+              "code": "FAILS_RESOURCE_VALIDATION"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterReject": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10222968013106",
+      "marketId": "gid://shopify/Market/97997685042",
+      "resourceIds": ["gid://shopify/Product/10222968013106"],
+      "marketsFirst": 10
+    },
+    "response": {
+      "data": {
+        "translatableResource": {
+          "resourceId": "gid://shopify/Product/10222968013106",
+          "translatableContent": [
+            {
+              "key": "title",
+              "value": "Value matches original fixture yg6b15jw",
+              "digest": "5613e73294872967b9102a2b9760369bafbd226eecc7f776af6f5ef1159928a4",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "handle",
+              "value": "value-matches-original-yg6b15jw",
+              "digest": "4d4d7a21d9087edd62494f3bf986c930bb0231e0959dc5377f4c1dbeafdbf69f",
+              "locale": "en",
+              "type": "URI"
+            },
+            {
+              "key": "product_type",
+              "value": "",
+              "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            }
+          ],
+          "translations": []
+        },
+        "byIds": {
+          "nodes": [
+            {
+              "resourceId": "gid://shopify/Product/10222968013106",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Value matches original fixture yg6b15jw",
+                  "digest": "5613e73294872967b9102a2b9760369bafbd226eecc7f776af6f5ef1159928a4",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "value-matches-original-yg6b15jw",
+                  "digest": "4d4d7a21d9087edd62494f3bf986c930bb0231e0959dc5377f4c1dbeafdbf69f",
+                  "locale": "en",
+                  "type": "URI"
+                },
+                {
+                  "key": "product_type",
+                  "value": "",
+                  "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                }
+              ]
+            }
+          ]
+        },
+        "markets": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Market/97997685042",
+              "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260507164352-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/97997816114",
+              "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260507164435-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/97997947186",
+              "name": "Draft Proxy Currency Settings 20260507164530 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260507164530-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/98515026226",
+              "name": "Draft Proxy Currency Settings 20260613200520 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260613200520-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/98667069746",
+              "name": "Draft Proxy Currency Settings 20260626001542 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260626001542-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/92276785458",
+              "name": "International",
+              "handle": "international",
+              "status": "ACTIVE",
+              "type": "REGION"
+            },
+            {
+              "id": "gid://shopify/Market/92276818226",
+              "name": "Mexico",
+              "handle": "mexico",
+              "status": "ACTIVE",
+              "type": "REGION"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "differingValueRegister": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10222968013106",
+      "translations": [
+        {
+          "locale": "es",
+          "key": "title",
+          "value": "Valor localizado yg6b15jw",
+          "marketId": "gid://shopify/Market/97997685042",
+          "translatableContentDigest": "5613e73294872967b9102a2b9760369bafbd226eecc7f776af6f5ef1159928a4"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "translationsRegister": {
+          "translations": [
+            {
+              "key": "title",
+              "value": "Valor localizado yg6b15jw",
+              "locale": "es",
+              "outdated": false,
+              "market": {
+                "id": "gid://shopify/Market/97997685042"
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterDifferingValue": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10222968013106",
+      "marketId": "gid://shopify/Market/97997685042",
+      "resourceIds": ["gid://shopify/Product/10222968013106"],
+      "marketsFirst": 10
+    },
+    "response": {
+      "data": {
+        "translatableResource": {
+          "resourceId": "gid://shopify/Product/10222968013106",
+          "translatableContent": [
+            {
+              "key": "title",
+              "value": "Value matches original fixture yg6b15jw",
+              "digest": "5613e73294872967b9102a2b9760369bafbd226eecc7f776af6f5ef1159928a4",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "handle",
+              "value": "value-matches-original-yg6b15jw",
+              "digest": "4d4d7a21d9087edd62494f3bf986c930bb0231e0959dc5377f4c1dbeafdbf69f",
+              "locale": "en",
+              "type": "URI"
+            },
+            {
+              "key": "product_type",
+              "value": "",
+              "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            }
+          ],
+          "translations": [
+            {
+              "key": "title",
+              "value": "Valor localizado yg6b15jw",
+              "locale": "es",
+              "outdated": false,
+              "updatedAt": "2026-06-27T06:46:53Z",
+              "market": {
+                "id": "gid://shopify/Market/97997685042"
+              }
+            }
+          ]
+        },
+        "byIds": {
+          "nodes": [
+            {
+              "resourceId": "gid://shopify/Product/10222968013106",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Value matches original fixture yg6b15jw",
+                  "digest": "5613e73294872967b9102a2b9760369bafbd226eecc7f776af6f5ef1159928a4",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "value-matches-original-yg6b15jw",
+                  "digest": "4d4d7a21d9087edd62494f3bf986c930bb0231e0959dc5377f4c1dbeafdbf69f",
+                  "locale": "en",
+                  "type": "URI"
+                },
+                {
+                  "key": "product_type",
+                  "value": "",
+                  "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                }
+              ]
+            }
+          ]
+        },
+        "markets": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Market/97997685042",
+              "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260507164352-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/97997816114",
+              "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260507164435-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/97997947186",
+              "name": "Draft Proxy Currency Settings 20260507164530 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260507164530-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/98515026226",
+              "name": "Draft Proxy Currency Settings 20260613200520 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260613200520-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/98667069746",
+              "name": "Draft Proxy Currency Settings 20260626001542 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260626001542-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/92276785458",
+              "name": "International",
+              "handle": "international",
+              "status": "ACTIVE",
+              "type": "REGION"
+            },
+            {
+              "id": "gid://shopify/Market/92276818226",
+              "name": "Mexico",
+              "handle": "mexico",
+              "status": "ACTIVE",
+              "type": "REGION"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "translationsRemove": {
+      "data": {
+        "translationsRemove": {
+          "translations": [
+            {
+              "key": "title",
+              "value": "Valor localizado yg6b15jw",
+              "locale": "es",
+              "outdated": false,
+              "market": {
+                "id": "gid://shopify/Market/97997685042"
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "productDelete": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10222968013106",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

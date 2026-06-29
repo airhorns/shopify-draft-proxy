@@ -205,10 +205,8 @@ pub(super) fn oe_next_seq(session: &mut Value) -> i64 {
 pub(super) fn oe_order_currency(order: &Value) -> String {
     if let Some(nodes) = order["lineItems"]["nodes"].as_array() {
         for node in nodes {
-            if let Some(currency) =
-                node["originalUnitPriceSet"]["shopMoney"]["currencyCode"].as_str()
-            {
-                return currency.to_string();
+            if let Some(currency) = money_set_shop_currency(&node["originalUnitPriceSet"]) {
+                return currency;
             }
         }
     }
@@ -217,8 +215,8 @@ pub(super) fn oe_order_currency(order: &Value) -> String {
         "totalPriceSet",
         "currentSubtotalPriceSet",
     ] {
-        if let Some(currency) = order[key]["shopMoney"]["currencyCode"].as_str() {
-            return currency.to_string();
+        if let Some(currency) = money_set_shop_currency(&order[key]) {
+            return currency;
         }
     }
     "CAD".to_string()
@@ -232,11 +230,8 @@ pub(super) fn oe_build_session(order: &Value, calculated_id: &str, session_id: &
         for node in nodes {
             let order_line_id = node["id"].as_str().unwrap_or_default();
             let tail = resource_id_tail(order_line_id);
-            let unit = oe_amount_to_cents(
-                node["originalUnitPriceSet"]["shopMoney"]["amount"]
-                    .as_str()
-                    .unwrap_or("0"),
-            );
+            let unit = (money_set_amount(&node["originalUnitPriceSet"]).unwrap_or(0.0) * 100.0)
+                .round() as i64;
             let historical = node["quantity"].as_i64().unwrap_or(0);
             let current = node["currentQuantity"].as_i64().unwrap_or(historical);
             lines.push(json!({
@@ -274,6 +269,10 @@ pub(super) fn oe_money_obj_cents(input: &BTreeMap<String, ResolvedValue>) -> Opt
 /// A single order-edit `userError`, optionally carrying a `code`.
 pub(super) fn oe_user_error(field: &[&str], message: &str, code: Option<&str>) -> Value {
     user_error_omit_code(field, message, code)
+}
+
+pub(super) fn oe_user_error_null_field(message: &str, code: Option<&str>) -> Value {
+    user_error_omit_code(Value::Null, message, code)
 }
 
 /// A failed order-edit mutation payload: every resource field is null and the

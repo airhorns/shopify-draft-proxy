@@ -183,11 +183,11 @@ function readHoldId(captureResult: GraphqlCapture): string {
   return id;
 }
 
-function holdVariables(order: CreatedOrder, handle: string): JsonRecord {
+function holdVariables(order: CreatedOrder, handle: string, reason = 'OTHER'): JsonRecord {
   return {
     id: order.fulfillmentOrderId,
     fulfillmentHold: {
-      reason: 'OTHER',
+      reason,
       reasonNotes: `Selective release ${handle}`,
       notifyMerchant: false,
       externalId: handle,
@@ -250,7 +250,7 @@ const startedAt = new Date().toISOString();
 const { order, capture: create } = await createOrder();
 const hydrate = await capture(hydrateQuery, { id: order.fulfillmentOrderId });
 
-const firstHold = await capture(holdMutation, holdVariables(order, 'selective-release-first'));
+const firstHold = await capture(holdMutation, holdVariables(order, 'selective-release-first', 'AWAITING_RETURN_ITEMS'));
 assertNoUserErrors(firstHold, 'fulfillmentOrderHold', 'first hold');
 const firstHoldId = readHoldId(firstHold);
 

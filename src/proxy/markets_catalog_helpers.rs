@@ -62,14 +62,7 @@ pub(in crate::proxy) fn catalog_record(
 }
 
 pub(in crate::proxy) fn catalog_market_ids(catalog: &Value) -> Vec<String> {
-    catalog["marketIds"]
-        .as_array()
-        .map(|ids| {
-            ids.iter()
-                .filter_map(|id| id.as_str().map(ToString::to_string))
-                .collect()
-        })
-        .unwrap_or_default()
+    string_array_from_json(&catalog["marketIds"])
 }
 
 pub(in crate::proxy) fn set_catalog_market_ids(
@@ -87,22 +80,19 @@ pub(in crate::proxy) fn set_catalog_market_ids(
 }
 
 pub(in crate::proxy) fn web_presence_market_ids(web_presence: &Value) -> Vec<String> {
-    web_presence["marketIds"]
-        .as_array()
-        .map(|ids| {
-            ids.iter()
-                .filter_map(|id| id.as_str().map(ToString::to_string))
-                .collect()
-        })
-        .or_else(|| {
-            web_presence["markets"]["nodes"].as_array().map(|nodes| {
+    if web_presence["marketIds"].is_array() {
+        string_array_from_json(&web_presence["marketIds"])
+    } else {
+        web_presence["markets"]["nodes"]
+            .as_array()
+            .map(|nodes| {
                 nodes
                     .iter()
                     .filter_map(|node| node["id"].as_str().map(ToString::to_string))
                     .collect()
             })
-        })
-        .unwrap_or_default()
+            .unwrap_or_default()
+    }
 }
 
 pub(in crate::proxy) fn set_web_presence_market_ids(
@@ -165,6 +155,9 @@ pub(in crate::proxy) fn missing_customization_message(ids: &[String]) -> String 
 
 pub(in crate::proxy) const PRICE_LIST_INVALID_ADJUSTMENT_MESSAGE: &str = "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.";
 
+pub(in crate::proxy) type PriceListValidationError =
+    (Vec<&'static str>, &'static str, &'static str);
+
 pub(in crate::proxy) fn price_list_user_error(
     field: Vec<&str>,
     message: &str,
@@ -180,6 +173,59 @@ pub(in crate::proxy) fn price_list_payload_error(
     code: &str,
 ) -> Value {
     payload_error(root_key, vec![price_list_user_error(field, message, code)])
+}
+
+pub(in crate::proxy) fn price_list_adjustment_error(
+    adjustment: &BTreeMap<String, ResolvedValue>,
+) -> Option<PriceListValidationError> {
+    let adjustment_type = resolved_string_field(adjustment, "type").unwrap_or_default();
+    if !matches!(
+        adjustment_type.as_str(),
+        "PERCENTAGE_DECREASE" | "PERCENTAGE_INCREASE"
+    ) {
+        return Some((
+            vec!["input", "parent", "adjustment", "type"],
+            "Type is invalid",
+            "INVALID",
+        ));
+    }
+
+    let adjustment_value = resolved_number_field(adjustment, "value").unwrap_or_default();
+    let invalid_adjustment = adjustment_value < 0.0
+        || (adjustment_type == "PERCENTAGE_DECREASE" && adjustment_value > 100.0)
+        || (adjustment_type == "PERCENTAGE_INCREASE" && adjustment_value > 1000.0);
+    invalid_adjustment.then_some((
+        vec!["input", "parent", "adjustment", "value"],
+        PRICE_LIST_INVALID_ADJUSTMENT_MESSAGE,
+        "INVALID_ADJUSTMENT_VALUE",
+    ))
+}
+
+pub(in crate::proxy) fn price_list_name_error(
+    price_lists: &BTreeMap<String, Value>,
+    name: &str,
+    current_id: Option<&str>,
+) -> Option<PriceListValidationError> {
+    if name.trim().is_empty() {
+        return Some((vec!["input", "name"], "Name can't be blank", "BLANK"));
+    }
+    if name.chars().count() > 255 {
+        return Some((
+            vec!["input", "name"],
+            "Name is too long (maximum is 255 characters)",
+            "TOO_LONG",
+        ));
+    }
+    price_lists
+        .iter()
+        .any(|(id, price_list)| {
+            current_id != Some(id.as_str()) && price_list["name"].as_str() == Some(name)
+        })
+        .then_some((
+            vec!["input", "name"],
+            "Name has already been taken",
+            "TAKEN",
+        ))
 }
 
 pub(in crate::proxy) fn price_list_adjustment_value_json(
@@ -606,11 +652,11 @@ pub(in crate::proxy) fn read_price_list_id(
     arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Option<String> {
     if let Some(id) =
-        resolved_string_arg(arguments, "priceListId").filter(|value| !value.is_empty())
+        resolved_string_field(arguments, "priceListId").filter(|value| !value.is_empty())
     {
         return Some(id);
     }
-    if let Some(id) = resolved_string_arg(arguments, "id").filter(|value| !value.is_empty()) {
+    if let Some(id) = resolved_string_field(arguments, "id").filter(|value| !value.is_empty()) {
         return Some(id);
     }
     resolved_object_field(arguments, "input")
@@ -833,21 +879,7 @@ pub(in crate::proxy) fn fixed_price_input_amount(
     let Some(ResolvedValue::Object(money)) = fields.get(money_field) else {
         return None;
     };
-    resolved_string_field(money, "amount").map(|amount| normalized_money_amount(&amount))
-}
-
-pub(in crate::proxy) fn normalized_money_amount(amount: &str) -> String {
-    if !amount.contains('.') {
-        return amount.to_string();
-    }
-    let mut normalized = amount.to_string();
-    while normalized.ends_with('0') {
-        normalized.pop();
-    }
-    if normalized.ends_with('.') {
-        normalized.push('0');
-    }
-    normalized
+    resolved_string_field(money, "amount").map(|amount| normalize_money_amount(&amount))
 }
 
 pub(in crate::proxy) fn market_status_enabled_mismatch(
@@ -915,6 +947,41 @@ pub(in crate::proxy) fn region_country_codes_from_value(
     }
 }
 
+pub(in crate::proxy) fn market_region_country_nodes(
+    market_id: &str,
+    region_codes: &[String],
+) -> Vec<Value> {
+    region_codes
+        .iter()
+        .enumerate()
+        .map(|(index, code)| market_region_country_node(market_id, index, code))
+        .collect()
+}
+
+fn market_region_country_node(market_id: &str, index: usize, code: &str) -> Value {
+    let code = code.to_ascii_uppercase();
+    let name = country_name_for_code(&code)
+        .map(str::to_string)
+        .unwrap_or_else(|| code.clone());
+    json!({
+        "__typename": "MarketRegionCountry",
+        "id": market_region_country_id(market_id, index),
+        "name": name,
+        "code": code
+    })
+}
+
+fn market_region_country_id(market_id: &str, index: usize) -> String {
+    let tail = resource_id_tail(market_id);
+    match tail.parse::<u64>() {
+        Ok(market_number) => {
+            let region_number = market_number.saturating_sub(1) * 1000 + index as u64 + 1;
+            shopify_gid("Market/Region", region_number)
+        }
+        Err(_) => shopify_gid("Market/Region", format!("{tail}-{}", index + 1)),
+    }
+}
+
 pub(in crate::proxy) fn market_record_from_input(
     id: &str,
     input: &BTreeMap<String, ResolvedValue>,
@@ -939,10 +1006,7 @@ pub(in crate::proxy) fn market_record_from_input(
     } else {
         "REGION"
     };
-    let region_nodes = region_codes
-        .iter()
-        .map(|code| json!({"code": code}))
-        .collect::<Vec<_>>();
+    let region_nodes = market_region_country_nodes(id, region_codes);
     json!({
         "id": id,
         "name": name,
@@ -1143,6 +1207,7 @@ pub(in crate::proxy) fn market_currency_name(code: &str) -> &'static str {
         "VND" => "Vietnamese Dong",
         "VUV" => "Vanuatu Vatu",
         "WST" => "Samoan Tala",
+        "XAF" => "Central African CFA Franc",
         "XCD" => "East Caribbean Dollar",
         "YER" => "Yemeni Rial",
         "ZAR" => "South African Rand",
@@ -1155,146 +1220,179 @@ pub(in crate::proxy) fn market_user_error(field: Vec<&str>, message: &str, code:
     user_error_typed_with_code_value("MarketUserError", field, message, code)
 }
 
+static DEFAULT_AVAILABLE_LOCALES: std::sync::LazyLock<BTreeMap<String, String>> =
+    std::sync::LazyLock::new(|| {
+        BTreeMap::from([
+            ("af".to_string(), "Afrikaans".to_string()),
+            ("ak".to_string(), "Akan".to_string()),
+            ("sq".to_string(), "Albanian".to_string()),
+            ("am".to_string(), "Amharic".to_string()),
+            ("ar".to_string(), "Arabic".to_string()),
+            ("hy".to_string(), "Armenian".to_string()),
+            ("as".to_string(), "Assamese".to_string()),
+            ("az".to_string(), "Azerbaijani".to_string()),
+            ("bm".to_string(), "Bambara".to_string()),
+            ("bn".to_string(), "Bangla".to_string()),
+            ("eu".to_string(), "Basque".to_string()),
+            ("be".to_string(), "Belarusian".to_string()),
+            ("bs".to_string(), "Bosnian".to_string()),
+            ("br".to_string(), "Breton".to_string()),
+            ("bg".to_string(), "Bulgarian".to_string()),
+            ("my".to_string(), "Burmese".to_string()),
+            ("ca".to_string(), "Catalan".to_string()),
+            ("ckb".to_string(), "Central Kurdish".to_string()),
+            ("ce".to_string(), "Chechen".to_string()),
+            ("zh-CN".to_string(), "Chinese (Simplified)".to_string()),
+            ("zh-TW".to_string(), "Chinese (Traditional)".to_string()),
+            ("kw".to_string(), "Cornish".to_string()),
+            ("hr".to_string(), "Croatian".to_string()),
+            ("cs".to_string(), "Czech".to_string()),
+            ("da".to_string(), "Danish".to_string()),
+            ("nl".to_string(), "Dutch".to_string()),
+            ("dz".to_string(), "Dzongkha".to_string()),
+            ("en".to_string(), "English".to_string()),
+            ("eo".to_string(), "Esperanto".to_string()),
+            ("et".to_string(), "Estonian".to_string()),
+            ("ee".to_string(), "Ewe".to_string()),
+            ("fo".to_string(), "Faroese".to_string()),
+            ("fil".to_string(), "Filipino".to_string()),
+            ("fi".to_string(), "Finnish".to_string()),
+            ("fr".to_string(), "French".to_string()),
+            ("ff".to_string(), "Fulah".to_string()),
+            ("gl".to_string(), "Galician".to_string()),
+            ("lg".to_string(), "Ganda".to_string()),
+            ("ka".to_string(), "Georgian".to_string()),
+            ("de".to_string(), "German".to_string()),
+            ("el".to_string(), "Greek".to_string()),
+            ("gu".to_string(), "Gujarati".to_string()),
+            ("ha".to_string(), "Hausa".to_string()),
+            ("he".to_string(), "Hebrew".to_string()),
+            ("hi".to_string(), "Hindi".to_string()),
+            ("hu".to_string(), "Hungarian".to_string()),
+            ("is".to_string(), "Icelandic".to_string()),
+            ("ig".to_string(), "Igbo".to_string()),
+            ("id".to_string(), "Indonesian".to_string()),
+            ("ia".to_string(), "Interlingua".to_string()),
+            ("ga".to_string(), "Irish".to_string()),
+            ("it".to_string(), "Italian".to_string()),
+            ("ja".to_string(), "Japanese".to_string()),
+            ("jv".to_string(), "Javanese".to_string()),
+            ("kl".to_string(), "Kalaallisut".to_string()),
+            ("kn".to_string(), "Kannada".to_string()),
+            ("ks".to_string(), "Kashmiri".to_string()),
+            ("kk".to_string(), "Kazakh".to_string()),
+            ("km".to_string(), "Khmer".to_string()),
+            ("ki".to_string(), "Kikuyu".to_string()),
+            ("rw".to_string(), "Kinyarwanda".to_string()),
+            ("ko".to_string(), "Korean".to_string()),
+            ("ku".to_string(), "Kurdish".to_string()),
+            ("ky".to_string(), "Kyrgyz".to_string()),
+            ("lo".to_string(), "Lao".to_string()),
+            ("lv".to_string(), "Latvian".to_string()),
+            ("ln".to_string(), "Lingala".to_string()),
+            ("lt".to_string(), "Lithuanian".to_string()),
+            ("lu".to_string(), "Luba-Katanga".to_string()),
+            ("lb".to_string(), "Luxembourgish".to_string()),
+            ("mk".to_string(), "Macedonian".to_string()),
+            ("mg".to_string(), "Malagasy".to_string()),
+            ("ms".to_string(), "Malay".to_string()),
+            ("ml".to_string(), "Malayalam".to_string()),
+            ("mt".to_string(), "Maltese".to_string()),
+            ("gv".to_string(), "Manx".to_string()),
+            ("mr".to_string(), "Marathi".to_string()),
+            ("mn".to_string(), "Mongolian".to_string()),
+            ("mi".to_string(), "M\u{101}ori".to_string()),
+            ("ne".to_string(), "Nepali".to_string()),
+            ("nd".to_string(), "North Ndebele".to_string()),
+            ("se".to_string(), "Northern Sami".to_string()),
+            ("no".to_string(), "Norwegian".to_string()),
+            ("nb".to_string(), "Norwegian (Bokm\u{e5}l)".to_string()),
+            ("nn".to_string(), "Norwegian Nynorsk".to_string()),
+            ("or".to_string(), "Odia".to_string()),
+            ("om".to_string(), "Oromo".to_string()),
+            ("os".to_string(), "Ossetic".to_string()),
+            ("ps".to_string(), "Pashto".to_string()),
+            ("fa".to_string(), "Persian".to_string()),
+            ("pl".to_string(), "Polish".to_string()),
+            ("pt-BR".to_string(), "Portuguese (Brazil)".to_string()),
+            ("pt-PT".to_string(), "Portuguese (Portugal)".to_string()),
+            ("pa".to_string(), "Punjabi".to_string()),
+            ("qu".to_string(), "Quechua".to_string()),
+            ("ro".to_string(), "Romanian".to_string()),
+            ("rm".to_string(), "Romansh".to_string()),
+            ("rn".to_string(), "Rundi".to_string()),
+            ("ru".to_string(), "Russian".to_string()),
+            ("sg".to_string(), "Sango".to_string()),
+            ("sa".to_string(), "Sanskrit".to_string()),
+            ("sc".to_string(), "Sardinian".to_string()),
+            ("gd".to_string(), "Scottish Gaelic".to_string()),
+            ("sr".to_string(), "Serbian".to_string()),
+            ("sn".to_string(), "Shona".to_string()),
+            ("ii".to_string(), "Sichuan Yi".to_string()),
+            ("sd".to_string(), "Sindhi".to_string()),
+            ("si".to_string(), "Sinhala".to_string()),
+            ("sk".to_string(), "Slovak".to_string()),
+            ("sl".to_string(), "Slovenian".to_string()),
+            ("so".to_string(), "Somali".to_string()),
+            ("es".to_string(), "Spanish".to_string()),
+            ("su".to_string(), "Sundanese".to_string()),
+            ("sw".to_string(), "Swahili".to_string()),
+            ("sv".to_string(), "Swedish".to_string()),
+            ("tg".to_string(), "Tajik".to_string()),
+            ("ta".to_string(), "Tamil".to_string()),
+            ("tt".to_string(), "Tatar".to_string()),
+            ("te".to_string(), "Telugu".to_string()),
+            ("th".to_string(), "Thai".to_string()),
+            ("bo".to_string(), "Tibetan".to_string()),
+            ("ti".to_string(), "Tigrinya".to_string()),
+            ("to".to_string(), "Tongan".to_string()),
+            ("tr".to_string(), "Turkish".to_string()),
+            ("tk".to_string(), "Turkmen".to_string()),
+            ("uk".to_string(), "Ukrainian".to_string()),
+            ("ur".to_string(), "Urdu".to_string()),
+            ("ug".to_string(), "Uyghur".to_string()),
+            ("uz".to_string(), "Uzbek".to_string()),
+            ("vi".to_string(), "Vietnamese".to_string()),
+            ("cy".to_string(), "Welsh".to_string()),
+            ("fy".to_string(), "Western Frisian".to_string()),
+            ("wo".to_string(), "Wolof".to_string()),
+            ("xh".to_string(), "Xhosa".to_string()),
+            ("yi".to_string(), "Yiddish".to_string()),
+            ("yo".to_string(), "Yoruba".to_string()),
+            ("zu".to_string(), "Zulu".to_string()),
+        ])
+    });
+
+pub(in crate::proxy) fn available_locales() -> &'static BTreeMap<String, String> {
+    &DEFAULT_AVAILABLE_LOCALES
+}
+
 pub(in crate::proxy) fn default_available_locales() -> BTreeMap<String, String> {
-    BTreeMap::from([
-        ("af".to_string(), "Afrikaans".to_string()),
-        ("ak".to_string(), "Akan".to_string()),
-        ("sq".to_string(), "Albanian".to_string()),
-        ("am".to_string(), "Amharic".to_string()),
-        ("ar".to_string(), "Arabic".to_string()),
-        ("hy".to_string(), "Armenian".to_string()),
-        ("as".to_string(), "Assamese".to_string()),
-        ("az".to_string(), "Azerbaijani".to_string()),
-        ("bm".to_string(), "Bambara".to_string()),
-        ("bn".to_string(), "Bangla".to_string()),
-        ("eu".to_string(), "Basque".to_string()),
-        ("be".to_string(), "Belarusian".to_string()),
-        ("bs".to_string(), "Bosnian".to_string()),
-        ("br".to_string(), "Breton".to_string()),
-        ("bg".to_string(), "Bulgarian".to_string()),
-        ("my".to_string(), "Burmese".to_string()),
-        ("ca".to_string(), "Catalan".to_string()),
-        ("ckb".to_string(), "Central Kurdish".to_string()),
-        ("ce".to_string(), "Chechen".to_string()),
-        ("zh-CN".to_string(), "Chinese (Simplified)".to_string()),
-        ("zh-TW".to_string(), "Chinese (Traditional)".to_string()),
-        ("kw".to_string(), "Cornish".to_string()),
-        ("hr".to_string(), "Croatian".to_string()),
-        ("cs".to_string(), "Czech".to_string()),
-        ("da".to_string(), "Danish".to_string()),
-        ("nl".to_string(), "Dutch".to_string()),
-        ("dz".to_string(), "Dzongkha".to_string()),
-        ("en".to_string(), "English".to_string()),
-        ("eo".to_string(), "Esperanto".to_string()),
-        ("et".to_string(), "Estonian".to_string()),
-        ("ee".to_string(), "Ewe".to_string()),
-        ("fo".to_string(), "Faroese".to_string()),
-        ("fil".to_string(), "Filipino".to_string()),
-        ("fi".to_string(), "Finnish".to_string()),
-        ("fr".to_string(), "French".to_string()),
-        ("ff".to_string(), "Fulah".to_string()),
-        ("gl".to_string(), "Galician".to_string()),
-        ("lg".to_string(), "Ganda".to_string()),
-        ("ka".to_string(), "Georgian".to_string()),
-        ("de".to_string(), "German".to_string()),
-        ("el".to_string(), "Greek".to_string()),
-        ("gu".to_string(), "Gujarati".to_string()),
-        ("ha".to_string(), "Hausa".to_string()),
-        ("he".to_string(), "Hebrew".to_string()),
-        ("hi".to_string(), "Hindi".to_string()),
-        ("hu".to_string(), "Hungarian".to_string()),
-        ("is".to_string(), "Icelandic".to_string()),
-        ("ig".to_string(), "Igbo".to_string()),
-        ("id".to_string(), "Indonesian".to_string()),
-        ("ia".to_string(), "Interlingua".to_string()),
-        ("ga".to_string(), "Irish".to_string()),
-        ("it".to_string(), "Italian".to_string()),
-        ("ja".to_string(), "Japanese".to_string()),
-        ("jv".to_string(), "Javanese".to_string()),
-        ("kl".to_string(), "Kalaallisut".to_string()),
-        ("kn".to_string(), "Kannada".to_string()),
-        ("ks".to_string(), "Kashmiri".to_string()),
-        ("kk".to_string(), "Kazakh".to_string()),
-        ("km".to_string(), "Khmer".to_string()),
-        ("ki".to_string(), "Kikuyu".to_string()),
-        ("rw".to_string(), "Kinyarwanda".to_string()),
-        ("ko".to_string(), "Korean".to_string()),
-        ("ku".to_string(), "Kurdish".to_string()),
-        ("ky".to_string(), "Kyrgyz".to_string()),
-        ("lo".to_string(), "Lao".to_string()),
-        ("lv".to_string(), "Latvian".to_string()),
-        ("ln".to_string(), "Lingala".to_string()),
-        ("lt".to_string(), "Lithuanian".to_string()),
-        ("lu".to_string(), "Luba-Katanga".to_string()),
-        ("lb".to_string(), "Luxembourgish".to_string()),
-        ("mk".to_string(), "Macedonian".to_string()),
-        ("mg".to_string(), "Malagasy".to_string()),
-        ("ms".to_string(), "Malay".to_string()),
-        ("ml".to_string(), "Malayalam".to_string()),
-        ("mt".to_string(), "Maltese".to_string()),
-        ("gv".to_string(), "Manx".to_string()),
-        ("mr".to_string(), "Marathi".to_string()),
-        ("mn".to_string(), "Mongolian".to_string()),
-        ("mi".to_string(), "M\u{101}ori".to_string()),
-        ("ne".to_string(), "Nepali".to_string()),
-        ("nd".to_string(), "North Ndebele".to_string()),
-        ("se".to_string(), "Northern Sami".to_string()),
-        ("no".to_string(), "Norwegian".to_string()),
-        ("nb".to_string(), "Norwegian (Bokm\u{e5}l)".to_string()),
-        ("nn".to_string(), "Norwegian Nynorsk".to_string()),
-        ("or".to_string(), "Odia".to_string()),
-        ("om".to_string(), "Oromo".to_string()),
-        ("os".to_string(), "Ossetic".to_string()),
-        ("ps".to_string(), "Pashto".to_string()),
-        ("fa".to_string(), "Persian".to_string()),
-        ("pl".to_string(), "Polish".to_string()),
-        ("pt-BR".to_string(), "Portuguese (Brazil)".to_string()),
-        ("pt-PT".to_string(), "Portuguese (Portugal)".to_string()),
-        ("pa".to_string(), "Punjabi".to_string()),
-        ("qu".to_string(), "Quechua".to_string()),
-        ("ro".to_string(), "Romanian".to_string()),
-        ("rm".to_string(), "Romansh".to_string()),
-        ("rn".to_string(), "Rundi".to_string()),
-        ("ru".to_string(), "Russian".to_string()),
-        ("sg".to_string(), "Sango".to_string()),
-        ("sa".to_string(), "Sanskrit".to_string()),
-        ("sc".to_string(), "Sardinian".to_string()),
-        ("gd".to_string(), "Scottish Gaelic".to_string()),
-        ("sr".to_string(), "Serbian".to_string()),
-        ("sn".to_string(), "Shona".to_string()),
-        ("ii".to_string(), "Sichuan Yi".to_string()),
-        ("sd".to_string(), "Sindhi".to_string()),
-        ("si".to_string(), "Sinhala".to_string()),
-        ("sk".to_string(), "Slovak".to_string()),
-        ("sl".to_string(), "Slovenian".to_string()),
-        ("so".to_string(), "Somali".to_string()),
-        ("es".to_string(), "Spanish".to_string()),
-        ("su".to_string(), "Sundanese".to_string()),
-        ("sw".to_string(), "Swahili".to_string()),
-        ("sv".to_string(), "Swedish".to_string()),
-        ("tg".to_string(), "Tajik".to_string()),
-        ("ta".to_string(), "Tamil".to_string()),
-        ("tt".to_string(), "Tatar".to_string()),
-        ("te".to_string(), "Telugu".to_string()),
-        ("th".to_string(), "Thai".to_string()),
-        ("bo".to_string(), "Tibetan".to_string()),
-        ("ti".to_string(), "Tigrinya".to_string()),
-        ("to".to_string(), "Tongan".to_string()),
-        ("tr".to_string(), "Turkish".to_string()),
-        ("tk".to_string(), "Turkmen".to_string()),
-        ("uk".to_string(), "Ukrainian".to_string()),
-        ("ur".to_string(), "Urdu".to_string()),
-        ("ug".to_string(), "Uyghur".to_string()),
-        ("uz".to_string(), "Uzbek".to_string()),
-        ("vi".to_string(), "Vietnamese".to_string()),
-        ("cy".to_string(), "Welsh".to_string()),
-        ("fy".to_string(), "Western Frisian".to_string()),
-        ("wo".to_string(), "Wolof".to_string()),
-        ("xh".to_string(), "Xhosa".to_string()),
-        ("yi".to_string(), "Yiddish".to_string()),
-        ("yo".to_string(), "Yoruba".to_string()),
-        ("zu".to_string(), "Zulu".to_string()),
-    ])
+    available_locales().clone()
+}
+
+pub(in crate::proxy) fn default_available_locale_is_supported(locale: &str) -> bool {
+    available_locales().contains_key(locale)
+}
+
+pub(in crate::proxy) fn default_available_locale_name(locale: &str) -> Option<&'static str> {
+    available_locales().get(locale).map(String::as_str)
+}
+
+pub(in crate::proxy) fn default_available_language_subtag_is_supported(language: &str) -> bool {
+    available_locales()
+        .keys()
+        .any(|locale| locale.split('-').next() == Some(language))
+}
+
+pub(in crate::proxy) fn default_available_language_subtag_name(
+    language: &str,
+) -> Option<&'static str> {
+    available_locales()
+        .iter()
+        .find_map(|(available_locale, name)| {
+            (available_locale.split('-').next() == Some(language)).then_some(name.as_str())
+        })
 }
 
 pub(in crate::proxy) fn shop_locale_record(locale: &str, name: &str, published: bool) -> Value {
@@ -1307,16 +1405,8 @@ pub(in crate::proxy) fn shop_locale_record(locale: &str, name: &str, published: 
     })
 }
 
-pub(in crate::proxy) fn shop_locale_user_error(
-    field: Vec<&str>,
-    message: &str,
-    code: &str,
-) -> Value {
-    user_error(field, message, Some(code))
-}
-
-pub(in crate::proxy) fn is_known_market_web_presence_id(id: &str) -> bool {
-    !id.contains("9999999999") && !id.contains("unknown")
+pub(in crate::proxy) fn shop_locale_user_error(field: Vec<&str>, message: &str) -> Value {
+    user_error_omit_code(field, message, None)
 }
 
 pub(in crate::proxy) fn shop_locale_market_web_presence_record(id: &str) -> Value {

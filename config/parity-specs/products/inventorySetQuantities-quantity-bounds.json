@@ -1,0 +1,149 @@
+{
+  "scenarioId": "inventorySetQuantities-quantity-bounds",
+  "operationNames": ["productSet", "inventorySetQuantities"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "route-version-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventorySetQuantities-quantity-bounds.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventorySetQuantities-name-validation-setup.graphql",
+    "variables": {
+      "input": {
+        "title": "inventorySetQuantities quantity bounds parity seed",
+        "status": "DRAFT",
+        "productOptions": [
+          {
+            "name": "Title",
+            "position": 1,
+            "values": [{ "name": "Default Title" }]
+          }
+        ],
+        "variants": [
+          {
+            "optionValues": [{ "optionName": "Title", "name": "Default Title" }],
+            "inventoryItem": {
+              "tracked": true,
+              "requiresShipping": true
+            },
+            "inventoryQuantities": [
+              {
+                "locationId": "gid://shopify/Location/1",
+                "name": "available",
+                "quantity": 0
+              },
+              {
+                "locationId": "gid://shopify/Location/1",
+                "name": "on_hand",
+                "quantity": 0
+              }
+            ]
+          }
+        ]
+      },
+      "synchronous": true
+    },
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "on-hand-negative-user-errors",
+        "capturePath": "$.cases.onHandNegative.response.data.inventorySetQuantities",
+        "proxyPath": "$.data.inventorySetQuantities",
+        "selectedPaths": ["$.inventoryAdjustmentGroup", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventorySetQuantities-name-validation-2026-04.graphql",
+          "variables": {
+            "input": {
+              "name": "on_hand",
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://inventory-set-quantities/bounds/2026-04/on-hand-negative",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": -5,
+                  "changeFromQuantity": 0
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-set-quantities-bounds-on-hand-negative"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "available-too-low-user-errors",
+        "capturePath": "$.cases.availableTooLow.response.data.inventorySetQuantities",
+        "proxyPath": "$.data.inventorySetQuantities",
+        "selectedPaths": ["$.inventoryAdjustmentGroup", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventorySetQuantities-name-validation-2026-04.graphql",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://inventory-set-quantities/bounds/2026-04/available-too-low",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": -2000000000,
+                  "changeFromQuantity": 0
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-set-quantities-bounds-available-too-low"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "available-negative-within-bounds-payload",
+        "capturePath": "$.cases.availableNegativeWithinBounds.response.data.inventorySetQuantities",
+        "proxyPath": "$.data.inventorySetQuantities",
+        "selectedPaths": [
+          "$.inventoryAdjustmentGroup.reason",
+          "$.inventoryAdjustmentGroup.referenceDocumentUri",
+          "$.inventoryAdjustmentGroup.changes[0].name",
+          "$.inventoryAdjustmentGroup.changes[0].delta",
+          "$.inventoryAdjustmentGroup.changes[1].name",
+          "$.inventoryAdjustmentGroup.changes[1].delta",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventorySetQuantities-name-validation-2026-04.graphql",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://inventory-set-quantities/bounds/2026-04/available-negative-within-bounds",
+              "quantities": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "quantity": -5,
+                  "changeFromQuantity": 0
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-set-quantities-bounds-available-negative"
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Captured 2026-04 inventorySetQuantities quantity-bound behavior for non-available negative rejection, available below-minimum rejection, and accepted in-bounds negative available quantity. The proxy replay uses a public productSet seed and the existing 2026-04 inventorySetQuantities request document, with selected payload paths avoiding volatile live item/location IDs."
+}

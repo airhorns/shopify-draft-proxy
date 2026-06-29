@@ -10,9 +10,8 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "sellingPlanGroup" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.store
@@ -40,11 +39,9 @@ impl DraftProxy {
                 "productsCount" => self.products_count_field(field),
                 "productByIdentifier" => self.product_by_identifier_field(field),
                 "productVariant" => self.product_variant_by_id_field(field),
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+                _ => return None,
+            })
+        })
     }
 
     pub(in crate::proxy) fn selling_plan_group_mutation(
@@ -122,9 +119,8 @@ impl DraftProxy {
         }
 
         let resources = resolved_object_field(&field.arguments, "resources").unwrap_or_default();
-        let product_ids = resolved_string_list_field_unsorted(&resources, "productIds");
-        let product_variant_ids =
-            resolved_string_list_field_unsorted(&resources, "productVariantIds");
+        let product_ids = list_string_field(&resources, "productIds");
+        let product_variant_ids = list_string_field(&resources, "productVariantIds");
         if let Some(error) = self.resource_existence_error(&product_ids, ResourceKind::Product) {
             return fail(
                 self,
@@ -144,12 +140,19 @@ impl DraftProxy {
 
         let id = self.next_proxy_synthetic_gid("SellingPlanGroup");
         let created_at = self.next_product_timestamp();
+        let shop_currency_code = self.store.shop_currency_code();
         let selling_plans = resolved_object_list_field(&input, "sellingPlansToCreate")
             .into_iter()
             .enumerate()
             .map(|(index, plan_input)| {
                 let plan_id = self.next_proxy_synthetic_gid("SellingPlan");
-                selling_plan_record_from_input(plan_id, &created_at, index, &plan_input)
+                selling_plan_record_from_input(
+                    plan_id,
+                    &created_at,
+                    index,
+                    &plan_input,
+                    &shop_currency_code,
+                )
             })
             .collect::<Vec<_>>();
         let name = resolved_string_field(&input, "name").unwrap_or_default();
@@ -164,7 +167,7 @@ impl DraftProxy {
             merchant_code: resolved_string_field(&input, "merchantCode")
                 .unwrap_or_else(|| name.clone()),
             description: resolved_string_field(&input, "description").unwrap_or_default(),
-            options: resolved_string_list_field_unsorted(&input, "options"),
+            options: list_string_field(&input, "options"),
             position: resolved_int_field(&input, "position").unwrap_or(1),
             created_at,
             name,
@@ -221,6 +224,21 @@ impl DraftProxy {
                 "Selling plan group input validation failed; original raw mutation retained for observability.",
             );
         }
+        let user_errors = selling_plan_group_update_model_user_errors(&group, &input);
+        if !user_errors.is_empty() {
+            return self.selling_plan_failed_outcome(
+                &field.name,
+                selling_plan_group_update_payload(
+                    None,
+                    None,
+                    user_errors,
+                    payload_selection,
+                    &field.response_key,
+                    self,
+                ),
+                "Selling plan group update would delete every existing selling plan without a replacement; original raw mutation retained for observability.",
+            );
+        }
 
         if let Some(name) = resolved_string_field(&input, "name") {
             group.name = name;
@@ -235,18 +253,19 @@ impl DraftProxy {
             group.description = description;
         }
         if input.contains_key("options") {
-            group.options = resolved_string_list_field_unsorted(&input, "options");
+            group.options = list_string_field(&input, "options");
         }
         if let Some(position) = resolved_int_field(&input, "position") {
             group.position = position;
         }
 
         let mut deleted_plan_ids = Vec::new();
-        for id in resolved_string_list_field_unsorted(&input, "sellingPlansToDelete") {
+        for id in list_string_field(&input, "sellingPlansToDelete") {
             if let Some(index) = group.selling_plans.iter().position(|plan| plan.id == id) {
                 deleted_plan_ids.push(group.selling_plans.remove(index).id);
             }
         }
+        let shop_currency_code = self.store.shop_currency_code();
         for plan_input in resolved_object_list_field(&input, "sellingPlansToUpdate") {
             let Some(plan_id) = resolved_string_field(&plan_input, "id") else {
                 continue;
@@ -256,7 +275,7 @@ impl DraftProxy {
                 .iter_mut()
                 .find(|plan| plan.id == plan_id)
             {
-                apply_selling_plan_update(plan, &plan_input);
+                apply_selling_plan_update(plan, &plan_input, &shop_currency_code);
             }
         }
         let created_at = group.created_at.clone();
@@ -268,6 +287,7 @@ impl DraftProxy {
                 &created_at,
                 index,
                 &plan_input,
+                &shop_currency_code,
             ));
         }
         self.store.stage_selling_plan_group(group.clone());
@@ -323,7 +343,7 @@ impl DraftProxy {
         resource_kind: ResourceKind,
     ) -> MutationOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let ids = resolved_string_list_field_unsorted(&field.arguments, resource_kind.ids_arg());
+        let ids = list_string_field(&field.arguments, resource_kind.ids_arg());
         let payload_selection = &field.selection;
         let fail = |proxy: &Self, user_errors: Vec<Value>, notes: &'static str| {
             proxy.selling_plan_failed_outcome(
@@ -396,7 +416,7 @@ impl DraftProxy {
         resource_kind: ResourceKind,
     ) -> MutationOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let ids = resolved_string_list_field_unsorted(&field.arguments, resource_kind.ids_arg());
+        let ids = list_string_field(&field.arguments, resource_kind.ids_arg());
         let payload_selection = &field.selection;
         let Some(mut group) = self.store.selling_plan_group_by_id(&id).cloned() else {
             return self.selling_plan_failed_outcome(
@@ -439,8 +459,7 @@ impl DraftProxy {
         is_join: bool,
     ) -> MutationOutcome {
         let resource_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let group_ids =
-            resolved_string_list_field_unsorted(&field.arguments, "sellingPlanGroupIds");
+        let group_ids = list_string_field(&field.arguments, "sellingPlanGroupIds");
         let payload_selection = &field.selection;
         let response = |proxy: &Self, user_errors: Vec<Value>| {
             resource_join_leave_payload(
@@ -546,9 +565,8 @@ impl DraftProxy {
             "sellingPlanGroupCreate" => {
                 let resources =
                     resolved_object_field(&field.arguments, "resources").unwrap_or_default();
-                let product_ids = resolved_string_list_field_unsorted(&resources, "productIds");
-                let variant_ids =
-                    resolved_string_list_field_unsorted(&resources, "productVariantIds");
+                let product_ids = list_string_field(&resources, "productIds");
+                let variant_ids = list_string_field(&resources, "productVariantIds");
                 product_ids
                     .iter()
                     .all(|id| self.has_resource(id, ResourceKind::Product))
@@ -709,7 +727,10 @@ impl DraftProxy {
             "description" => Some(json!(group.description)),
             "options" => Some(json!(group.options)),
             "position" => Some(json!(group.position)),
-            "summary" => Some(json!(selling_plan_group_summary(group))),
+            "summary" => Some(json!(selling_plan_group_summary(
+                group,
+                self.store.shop_money_format().as_deref(),
+            ))),
             "createdAt" => Some(json!(group.created_at)),
             "productsCount" => Some(product_count_json(
                 group.product_ids.len(),
@@ -755,7 +776,7 @@ impl DraftProxy {
                     &products,
                     &selection.arguments,
                     &selection.selection,
-                    product_json,
+                    |product, selections| product_json_with_currency(product, selections, "USD"),
                     |product| product.id.clone(),
                 ))
             }
@@ -914,7 +935,7 @@ fn selling_plan_group_input_user_errors(
     mode: SellingPlanInputMode,
 ) -> Vec<Value> {
     let mut errors = Vec::new();
-    if resolved_string_list_field_unsorted(input, "options").len() > 3 {
+    if list_string_field(input, "options").len() > 3 {
         errors.push(user_error(
             ["input", "options"],
             "Too many selling plan group options (maximum 3 options)",
@@ -926,10 +947,7 @@ fn selling_plan_group_input_user_errors(
             errors.push(position_invalid_error(vec!["input", "position"]));
         }
     }
-    let create_field = match mode {
-        SellingPlanInputMode::Create => "sellingPlansToCreate",
-        SellingPlanInputMode::Update => "sellingPlansToCreate",
-    };
+    let create_field = "sellingPlansToCreate";
     for (index, plan) in resolved_object_list_field(input, create_field)
         .iter()
         .enumerate()
@@ -1002,14 +1020,24 @@ fn selling_plan_group_create_model_user_errors(
         let index = index.to_string();
         if resolved_object_field(plan, "billingPolicy").is_none() {
             errors.push(user_error(
-                json!(["input", "sellingPlansToCreate", index, "billingPolicy"]),
+                [
+                    "input",
+                    "sellingPlansToCreate",
+                    index.as_str(),
+                    "billingPolicy",
+                ],
                 "Selling plans to create billing policy must be present.",
                 Some("SELLING_PLAN_BILLING_POLICY_MISSING"),
             ));
         }
         if resolved_object_field(plan, "deliveryPolicy").is_none() {
             errors.push(user_error(
-                json!(["input", "sellingPlansToCreate", index, "deliveryPolicy"]),
+                [
+                    "input",
+                    "sellingPlansToCreate",
+                    index.as_str(),
+                    "deliveryPolicy",
+                ],
                 "Selling plans to create delivery policy must be present.",
                 Some("SELLING_PLAN_DELIVERY_POLICY_MISSING"),
             ));
@@ -1017,6 +1045,32 @@ fn selling_plan_group_create_model_user_errors(
     }
 
     errors
+}
+
+fn selling_plan_group_update_model_user_errors(
+    group: &SellingPlanGroupRecord,
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Vec<Value> {
+    let plans_to_create = resolved_object_list_field(input, "sellingPlansToCreate");
+    let plan_ids_to_delete = resolved_string_list_field(input, "sellingPlansToDelete");
+    if plans_to_create.is_empty()
+        && !plan_ids_to_delete.is_empty()
+        && !group.selling_plans.is_empty()
+    {
+        let deletes_every_existing_plan = group
+            .selling_plans
+            .iter()
+            .all(|plan| plan_ids_to_delete.iter().any(|id| id == &plan.id));
+        if deletes_every_existing_plan {
+            return vec![user_error(
+                ["input", "sellingPlansToDelete"],
+                "Selling plans to delete can't result in a selling plan group with no selling plan.",
+                Some("SELLING_PLAN_COUNT_LOWER_BOUND"),
+            )];
+        }
+    }
+
+    Vec::new()
 }
 
 fn selling_plan_input_user_errors(
@@ -1027,7 +1081,7 @@ fn selling_plan_input_user_errors(
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     let index = index.to_string();
-    if resolved_string_list_field_unsorted(plan, "options").len() > 3 {
+    if list_string_field(plan, "options").len() > 3 {
         errors.push(user_error(
             vec![
                 "input".to_string(),
@@ -1225,28 +1279,30 @@ fn selling_plan_record_from_input(
     created_at: &str,
     index: usize,
     input: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
 ) -> SellingPlanRecord {
     SellingPlanRecord {
         id,
         name: resolved_string_field(input, "name").unwrap_or_default(),
         description: resolved_string_field(input, "description").unwrap_or_default(),
-        options: resolved_string_list_field_unsorted(input, "options"),
+        options: list_string_field(input, "options"),
         position: resolved_int_field(input, "position").unwrap_or((index + 1) as i64),
         category: resolved_string_field(input, "category").unwrap_or_else(|| "OTHER".to_string()),
         created_at: created_at.to_string(),
         billing_policy: billing_policy_json(&resolved_object_field(input, "billingPolicy")),
         delivery_policy: delivery_policy_json(&resolved_object_field(input, "deliveryPolicy")),
         inventory_policy: inventory_policy_json(&resolved_object_field(input, "inventoryPolicy")),
-        pricing_policies: pricing_policies_json(&resolved_object_list_field(
-            input,
-            "pricingPolicies",
-        )),
+        pricing_policies: pricing_policies_json(
+            &resolved_object_list_field(input, "pricingPolicies"),
+            shop_currency_code,
+        ),
     }
 }
 
 fn apply_selling_plan_update(
     plan: &mut SellingPlanRecord,
     input: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
 ) {
     if let Some(name) = resolved_string_field(input, "name") {
         plan.name = name;
@@ -1255,7 +1311,7 @@ fn apply_selling_plan_update(
         plan.description = description;
     }
     if input.contains_key("options") {
-        plan.options = resolved_string_list_field_unsorted(input, "options");
+        plan.options = list_string_field(input, "options");
     }
     if let Some(position) = resolved_int_field(input, "position") {
         plan.position = position;
@@ -1272,8 +1328,10 @@ fn apply_selling_plan_update(
     if let Some(policy) = resolved_object_field(input, "inventoryPolicy") {
         plan.inventory_policy = inventory_policy_json(&Some(policy));
     }
-    plan.pricing_policies =
-        pricing_policies_json(&resolved_object_list_field(input, "pricingPolicies"));
+    plan.pricing_policies = pricing_policies_json(
+        &resolved_object_list_field(input, "pricingPolicies"),
+        shop_currency_code,
+    );
 }
 
 fn billing_policy_json(policy: &Option<BTreeMap<String, ResolvedValue>>) -> Value {
@@ -1318,7 +1376,10 @@ fn inventory_policy_json(policy: &Option<BTreeMap<String, ResolvedValue>>) -> Va
     })
 }
 
-fn pricing_policies_json(policies: &[BTreeMap<String, ResolvedValue>]) -> Vec<Value> {
+fn pricing_policies_json(
+    policies: &[BTreeMap<String, ResolvedValue>],
+    shop_currency_code: &str,
+) -> Vec<Value> {
     policies
         .iter()
         .filter_map(|policy| {
@@ -1331,7 +1392,7 @@ fn pricing_policies_json(policies: &[BTreeMap<String, ResolvedValue>]) -> Vec<Va
                     json!({
                         "__typename": "MoneyV2",
                         "amount": fixed_value,
-                        "currencyCode": "USD"
+                        "currencyCode": shop_currency_code
                     })
                 } else {
                     json!({
@@ -1371,7 +1432,10 @@ fn selling_plan_json(plan: &SellingPlanRecord, selections: &[SelectedField]) -> 
     })
 }
 
-fn selling_plan_group_summary(group: &SellingPlanGroupRecord) -> String {
+fn selling_plan_group_summary(
+    group: &SellingPlanGroupRecord,
+    shop_money_format: Option<&str>,
+) -> String {
     let plan_count = group.selling_plans.len();
     if plan_count == 0 {
         return String::new();
@@ -1379,6 +1443,7 @@ fn selling_plan_group_summary(group: &SellingPlanGroupRecord) -> String {
 
     let mut percentages = Vec::new();
     let mut fixed_values = Vec::new();
+    let mut fixed_currency_code = None::<String>;
     for policy in group
         .selling_plans
         .iter()
@@ -1395,6 +1460,12 @@ fn selling_plan_group_summary(group: &SellingPlanGroupRecord) -> String {
             .and_then(json_number_value)
         {
             fixed_values.push(fixed_value);
+            if fixed_currency_code.is_none() {
+                fixed_currency_code = policy
+                    .pointer("/adjustmentValue/currencyCode")
+                    .and_then(Value::as_str)
+                    .map(str::to_string);
+            }
         }
     }
 
@@ -1402,7 +1473,11 @@ fn selling_plan_group_summary(group: &SellingPlanGroupRecord) -> String {
     if let Some(piece) = percentage_summary_piece(&percentages) {
         discount_pieces.push(piece);
     }
-    if let Some(piece) = fixed_value_summary_piece(&fixed_values) {
+    if let Some(piece) = fixed_value_summary_piece(
+        &fixed_values,
+        fixed_currency_code.as_deref(),
+        shop_money_format,
+    ) {
         discount_pieces.push(piece);
     }
     let discount = discount_pieces.join("·");
@@ -1421,23 +1496,7 @@ fn resolved_decimal_text_field(
     input: &BTreeMap<String, ResolvedValue>,
     key: &str,
 ) -> Option<String> {
-    match input.get(key) {
-        Some(ResolvedValue::String(value)) => Some(shopify_decimal_text(value)),
-        Some(ResolvedValue::Float(value)) => Some(shopify_decimal_text(&value.to_string())),
-        Some(ResolvedValue::Int(value)) => Some(shopify_decimal_text(&value.to_string())),
-        _ => None,
-    }
-}
-
-fn shopify_decimal_text(value: &str) -> String {
-    let Ok(parsed) = value.parse::<f64>() else {
-        return value.to_string();
-    };
-    let mut formatted = parsed.to_string();
-    if !formatted.contains('.') {
-        formatted.push_str(".0");
-    }
-    formatted
+    resolved_decimal_text(input.get(key))
 }
 
 fn json_number_value(value: &Value) -> Option<f64> {
@@ -1461,15 +1520,23 @@ fn percentage_summary_piece(values: &[f64]) -> Option<String> {
     }
 }
 
-fn fixed_value_summary_piece(values: &[f64]) -> Option<String> {
+fn fixed_value_summary_piece(
+    values: &[f64],
+    currency_code: Option<&str>,
+    shop_money_format: Option<&str>,
+) -> Option<String> {
     let (min, max) = min_max(values)?;
     if (min - max).abs() < f64::EPSILON {
-        Some(format_summary_currency(min))
+        Some(format_summary_currency(
+            min,
+            currency_code,
+            shop_money_format,
+        ))
     } else {
         Some(format!(
             "{}-{}",
-            format_summary_currency(min),
-            format_summary_currency(max)
+            format_summary_currency(min, currency_code, shop_money_format),
+            format_summary_currency(max, currency_code, shop_money_format)
         ))
     }
 }
@@ -1494,8 +1561,25 @@ fn format_summary_percentage(value: f64) -> String {
     formatted
 }
 
-fn format_summary_currency(value: f64) -> String {
-    format!("${:.0}", value.round())
+fn format_summary_currency(
+    value: f64,
+    currency_code: Option<&str>,
+    shop_money_format: Option<&str>,
+) -> String {
+    let formatted_amount = format!("{:.0}", value.round());
+    if let Some(format) = shop_money_format {
+        let rendered = format
+            .replace("{{amount}}", &formatted_amount)
+            .replace("{{ amount }}", &formatted_amount);
+        if rendered != format {
+            return rendered;
+        }
+    }
+    match currency_code {
+        Some("USD") => format!("${formatted_amount}"),
+        Some(code) if !code.is_empty() => format!("{formatted_amount} {code}"),
+        _ => formatted_amount,
+    }
 }
 
 fn selling_plan_group_summary_json(

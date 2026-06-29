@@ -1,0 +1,28 @@
+mutation MetafieldsSetDefinitionValidationSet($metafields: [MetafieldsSetInput!]!) {
+  metafieldsSet(metafields: $metafields) {
+    metafields {
+      id
+      namespace
+      key
+      type
+      value
+      jsonValue
+      compareDigest
+      createdAt
+      updatedAt
+      ownerType
+      owner {
+        __typename
+        ... on Product {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementIndex
+    }
+  }
+}

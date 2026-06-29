@@ -72,7 +72,10 @@ company name length, strip HTML from accepted names, validate `externalId`
 character set, length, and duplicates, reject HTML or overlong notes, and
 reject `companyUpdate(input.customerSince)` without mutating the staged company.
 `companyCreate` can also stage nested company location, contact, and contact
-role setup when those input objects are present.
+role setup when those input objects are present. Its nested
+`input.companyLocation` name follows Shopify's create-time fallback of
+`companyLocation.name` -> company name, without using
+`shippingAddress.address1`.
 
 `companyContactCreate`, `companyContactUpdate`, `companyContactDelete`,
 `companyContactsDelete`, and `companyContactRemoveFromCompany` stage the
@@ -91,11 +94,21 @@ that pointer. Assigning an unknown contact returns `RESOURCE_NOT_FOUND`;
 assigning a contact that exists on another staged company returns
 `INVALID_INPUT` at `["companyContactId"]` without mutating the target company.
 
+`companyContactRevokeRole` and `companyContactRevokeRoles` validate the parent
+contact before revoking assignments. Bulk contact revocation rejects empty
+`roleAssignmentIds` when `revokeAll` is false, emits indexed
+`RESOURCE_NOT_FOUND` errors at `["roleAssignmentIds", i]` for assignments that
+are missing or belong to another contact, and still revokes valid siblings.
+
 `companyLocationCreate`, `companyLocationUpdate`, `companyLocationDelete`, and
 `companyLocationsDelete` stage the company-location lifecycle. Location create
-uses the Shopify-like fallback chain `input.name` -> `shippingAddress.address1`
--> company name. A present blank `companyLocationUpdate(input.name)` returns a
-`BLANK` user error without mutating the staged location. Bulk deletion returns
+rejects standalone address-only input with Shopify-like `NO_INPUT` and no staged
+location. When standalone create includes a non-address location attribute, the
+name fallback remains `input.name` -> `shippingAddress.address1` -> company name.
+The nested `companyCreate(input.companyLocation)` default location does not use
+`shippingAddress.address1` as the name fallback; it falls back from `input.name`
+to the company name. A present blank `companyLocationUpdate(input.name)` returns
+a `BLANK` user error without mutating the staged location. Bulk deletion returns
 per-index `RESOURCE_NOT_FOUND` errors at `["companyLocationIds", i]` while still
 deleting valid staged IDs.
 
@@ -108,10 +121,10 @@ slots and resets `billingSameAsShipping` to `false`.
 
 `companyLocationAssignStaffMembers` and
 `companyLocationRemoveStaffMembers` stage staff assignment rows. Assignment
-dedups already-assigned staff, enforces a maximum of 10 staff members per
-location, and returns indexed `RESOURCE_NOT_FOUND` errors at
-`["staffMemberIds", i]` for unknown staff IDs. Removal returns indexed
-`RESOURCE_NOT_FOUND` errors at
+dedups already-assigned staff, enforces a maximum of 10 observed staff members
+per location, and returns indexed `RESOURCE_NOT_FOUND` errors at
+`["staffMemberIds", i]` for staff IDs that are not present in already observed
+staff-assignment state. Removal returns indexed `RESOURCE_NOT_FOUND` errors at
 `["companyLocationStaffMemberAssignmentIds", i]` for unknown assignment IDs.
 
 `companyLocationAssignRoles` and `companyLocationRevokeRoles` stage
@@ -121,8 +134,10 @@ staged contact and role exist and returns indexed `RESOURCE_NOT_FOUND` errors at
 role-per-contact-per-location rule: an entry whose contact already holds any
 role at the target location returns indexed `LIMIT_REACHED` at
 `["rolesToAssign", i]`, while valid sibling entries in the same request still
-stage and return in `roleAssignments`. Revoke returns indexed
-missing-assignment errors at `["rolesToRevoke", i]`.
+stage and return in `roleAssignments`. Revoke validates the parent location,
+returns `RESOURCE_NOT_FOUND` at `["companyLocationId"]` when it is missing, and
+returns indexed `RESOURCE_NOT_FOUND` errors at `["rolesToRevoke", i]` for
+assignments that are missing or belong to another location.
 
 `companyLocationTaxSettingsUpdate` stages `taxExempt`, `taxRegistrationId`, and
 tax-exemption assignment/removal under `CompanyLocation.taxSettings`. Exemption
@@ -140,10 +155,12 @@ the covered request shape, including `editableShippingAddress`,
 
 - `companyContactSendWelcomeEmail` remains unsupported because it is an outbound
   customer-visible email side effect. The proxy has no no-send model for it.
-- Staff assignment does not synthesize a full staff catalog or support staff
-  catalog reads. The local model accepts structurally valid staged-test staff
-  IDs for assignment rows and returns Shopify-like per-index errors for unknown
-  staff or assignment IDs.
+- Staff assignment does not synthesize a full staff catalog, accept arbitrary
+  numeric StaffMember GIDs, or support staff catalog reads. The current
+  conformance token receives `Access denied for staffMembers field`, so local
+  assignment validity is limited to staff IDs already observed through staged
+  assignment state; unknown staff or assignment IDs return Shopify-like
+  per-index errors.
 - Validation-only B2B parity specs prove guardrail payloads and no-stage
   behavior for those inputs only. They do not make the corresponding mutation
   roots generally supported.
@@ -169,7 +186,9 @@ the covered request shape, including `editableShippingAddress`,
   `config/parity-specs/b2b/b2b-bulk-mutation-field-paths.json`
 - Contact/location-role parity:
   `config/parity-specs/b2b/b2b-contact-location-assignments-tax.json` and
-  `config/parity-specs/b2b/b2b-revoke-role-scope-preconditions.json`
+  `config/parity-specs/b2b/b2b-revoke-role-scope-preconditions.json`.
+  Focused revoke-role scope regression branches are covered by
+  `config/parity-specs/b2b/b2b-revoke-role-scope-regression-branches.json`
 - Company-location tax-settings parity:
   `config/parity-specs/b2b/b2b-company-location-tax-settings-sequential.json`
 - Bulk duplicate role-assignment parity:

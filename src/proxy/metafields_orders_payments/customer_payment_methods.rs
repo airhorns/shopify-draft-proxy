@@ -1,5 +1,5 @@
-use super::returns::return_connection;
 use super::*;
+use base64::Engine as _;
 
 pub(in crate::proxy) fn customer_payment_method_seed_record(
     id: &str,
@@ -69,6 +69,23 @@ pub(in crate::proxy) fn customer_payment_method_billing_address_blank_errors(
     .collect()
 }
 
+fn customer_payment_method_remote_blank_error(
+    input: &BTreeMap<String, ResolvedValue>,
+    input_field: &str,
+    output_field_path: [&str; 3],
+    message_field: &str,
+    code: &str,
+) -> Option<Value> {
+    let value = resolved_string_field(input, input_field).unwrap_or_default();
+    value.trim().is_empty().then(|| {
+        user_error(
+            output_field_path,
+            &format!("{message_field} can't be blank"),
+            Some(code),
+        )
+    })
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn customer_payment_method_local_data(
         &mut self,
@@ -77,7 +94,10 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
         let fields = root_fields(query, variables)?;
-        if !fields.iter().all(|field| {
+        let customer_fields = fields
+            .iter()
+            .filter(|field| field.name != "paymentReminderSend");
+        if !customer_fields.clone().all(|field| {
             matches!(
                 field.name.as_str(),
                 "customer"
@@ -92,12 +112,11 @@ impl DraftProxy {
                     | "customerPaymentMethodPaypalBillingAgreementUpdate"
                     | "customerPaymentMethodRemoteCreate"
                     | "customerPaymentMethodRevoke"
-                    | "paymentReminderSend"
             )
         }) {
             return None;
         }
-        if !fields.iter().any(|field| {
+        if !customer_fields.clone().any(|field| {
             matches!(
                 field.name.as_str(),
                 "customerPaymentMethod"
@@ -110,7 +129,6 @@ impl DraftProxy {
                     | "customerPaymentMethodPaypalBillingAgreementUpdate"
                     | "customerPaymentMethodRemoteCreate"
                     | "customerPaymentMethodRevoke"
-                    | "paymentReminderSend"
             ) || is_customer_payment_method_customer_create_seed(field)
                 || (field.name == "customer"
                     && selection_contains_any(&field.selection, &["paymentMethods"]))
@@ -119,75 +137,88 @@ impl DraftProxy {
         }
 
         self.ensure_customer_payment_method_seed_state();
-        let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
-        for field in fields {
+        let mut early_response = None;
+        let mut missing_required = false;
+        let data = root_payload_json(&fields, |field| {
+            if early_response.is_some() || missing_required {
+                return None;
+            }
             let value = match field.name.as_str() {
-                "customerCreate" => self.customer_payment_method_customer_create(&field),
-                "customer" => self.customer_payment_method_customer_read(&field),
-                "customerPaymentMethod" => self.customer_payment_method_read(&field),
+                "customerCreate" => self.customer_payment_method_customer_create(field),
+                "customer" => self.customer_payment_method_customer_read(field),
+                "customerPaymentMethod" => self.customer_payment_method_read(field),
                 "customerPaymentMethodCreditCardCreate" => {
-                    let (payload, id) = self.customer_payment_method_credit_card_create(&field);
+                    let (payload, id) = self.customer_payment_method_credit_card_create(field);
                     if let Some(id) = id {
                         staged_ids.push(id);
                     }
                     payload
                 }
                 "customerPaymentMethodCreditCardUpdate" => {
-                    self.customer_payment_method_credit_card_update(&field)
+                    self.customer_payment_method_credit_card_update(field)
                 }
                 "customerPaymentMethodRemoteCreate" => {
-                    let (payload, id) = self.customer_payment_method_remote_create(&field);
+                    let (payload, id) = self.customer_payment_method_remote_create(field);
                     if let Some(id) = id {
                         staged_ids.push(id);
                     }
                     payload
                 }
                 "customerPaymentMethodPaypalBillingAgreementCreate" => {
-                    let (payload, id) = self.customer_payment_method_paypal_create(&field);
+                    let (payload, id) = self.customer_payment_method_paypal_create(field);
                     if let Some(id) = id {
                         staged_ids.push(id);
                     }
                     payload
                 }
                 "customerPaymentMethodPaypalBillingAgreementUpdate" => {
-                    self.customer_payment_method_paypal_update(&field)
+                    self.customer_payment_method_paypal_update(field)
                 }
                 "customerPaymentMethodGetDuplicationData" => {
-                    self.customer_payment_method_duplication_data(&field)
+                    self.customer_payment_method_duplication_data(field)
                 }
                 "customerPaymentMethodCreateFromDuplicationData" => {
-                    let (payload, id) =
-                        self.customer_payment_method_create_from_duplication(&field);
+                    let (payload, id) = self.customer_payment_method_create_from_duplication(field);
                     if let Some(id) = id {
                         staged_ids.push(id);
                     }
                     payload
                 }
                 "customerPaymentMethodGetUpdateUrl" => {
-                    self.customer_payment_method_update_url(&field)
+                    self.customer_payment_method_update_url(field)
                 }
                 "customerPaymentMethodRevoke" => {
-                    let (payload, id) = self.customer_payment_method_revoke(&field);
+                    let (payload, id) = self.customer_payment_method_revoke(field);
                     if let Some(id) = id {
                         staged_ids.push(id);
                     }
                     payload
                 }
                 "paymentReminderSend" => {
-                    let reminder = payment_reminder_local_data(
+                    let Some(reminder) = payment_reminder_local_data(
                         query,
                         variables,
                         &mut self.store.staged.payment_reminder_schedule_ids,
-                    )?;
+                    ) else {
+                        missing_required = true;
+                        return None;
+                    };
                     if reminder.get("errors").is_some() {
-                        return Some(reminder);
+                        early_response = Some(reminder);
+                        return None;
                     }
                     reminder["data"][field.response_key.as_str()].clone()
                 }
-                _ => continue,
+                _ => return None,
             };
-            data.insert(field.response_key, value);
+            Some(value)
+        });
+        if let Some(response) = early_response {
+            return Some(response);
+        }
+        if missing_required {
+            return None;
         }
         if !staged_ids.is_empty() {
             self.record_mutation_log_entry(
@@ -198,7 +229,7 @@ impl DraftProxy {
                 staged_ids,
             );
         }
-        Some(json!({ "data": Value::Object(data) }))
+        Some(json!({ "data": data }))
     }
 
     fn ensure_customer_payment_method_seed_state(&mut self) {
@@ -312,10 +343,7 @@ impl DraftProxy {
     }
 
     fn customer_payment_method_customer_create(&mut self, field: &RootFieldSelection) -> Value {
-        let id = format!(
-            "gid://shopify/Customer/{}",
-            self.store.staged.customers.len() + 1
-        );
+        let id = shopify_gid("Customer", self.store.staged.customers.len() + 1);
         let record = json!({ "id": id });
         self.store.staged.customers.insert(id, record.clone());
         selected_json(
@@ -325,7 +353,7 @@ impl DraftProxy {
     }
 
     fn customer_payment_method_customer_read(&self, field: &RootFieldSelection) -> Value {
-        let customer_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let customer_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         // `showRevoked` is an argument on the nested `paymentMethods` connection,
         // not on the `customer` root field, so read it from that selection.
         let show_revoked = field
@@ -367,14 +395,14 @@ impl DraftProxy {
         selected_json(
             &json!({
                 "id": customer_id,
-                "paymentMethods": return_connection(methods)
+                "paymentMethods": { "nodes": methods, "pageInfo": empty_page_info() }
             }),
             &field.selection,
         )
     }
 
     fn customer_payment_method_read(&self, field: &RootFieldSelection) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let show_revoked = matches!(
             field.arguments.get("showRevoked"),
             Some(ResolvedValue::Bool(true))
@@ -392,10 +420,10 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, Option<String>) {
-        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         let billing_address =
             resolved_object_field(&field.arguments, "billingAddress").unwrap_or_default();
-        let session_id = resolved_string_arg(&field.arguments, "sessionId").unwrap_or_default();
+        let session_id = resolved_string_field(&field.arguments, "sessionId").unwrap_or_default();
         // Allocate the payment-method id up front so rejected and processing
         // attempts still consume a counter slot, matching Shopify's behavior
         // where every credit-card create attempt reserves an id even when the
@@ -453,7 +481,7 @@ impl DraftProxy {
     }
 
     fn customer_payment_method_credit_card_update(&mut self, field: &RootFieldSelection) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let billing_address =
             resolved_object_field(&field.arguments, "billingAddress").unwrap_or_default();
         let blank_errors = customer_payment_method_billing_address_blank_errors(&billing_address);
@@ -497,12 +525,25 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, Option<String>) {
-        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         let remote_reference =
             resolved_object_field(&field.arguments, "remoteReference").unwrap_or_default();
+        let selected_gateway_count = [
+            "paypalPaymentMethod",
+            "stripePaymentMethod",
+            "braintreePaymentMethod",
+            "authorizeNetCustomerPaymentProfile",
+            "adyenPaymentMethod",
+        ]
+        .iter()
+        .filter(|gateway| remote_reference.contains_key(**gateway))
+        .count();
         let has_paypal = remote_reference.contains_key("paypalPaymentMethod");
         let has_stripe = remote_reference.contains_key("stripePaymentMethod");
-        if has_paypal && has_stripe {
+        let has_braintree = remote_reference.contains_key("braintreePaymentMethod");
+        let has_authorize_net = remote_reference.contains_key("authorizeNetCustomerPaymentProfile");
+        let has_adyen = remote_reference.contains_key("adyenPaymentMethod");
+        if selected_gateway_count != 1 {
             return (
                 self.customer_payment_method_payload(
                     &field.selection,
@@ -567,6 +608,116 @@ impl DraftProxy {
                 );
             }
         }
+        if has_braintree {
+            let braintree = resolved_object_field(&remote_reference, "braintreePaymentMethod")
+                .unwrap_or_default();
+            if let Some(error) = [
+                customer_payment_method_remote_blank_error(
+                    &braintree,
+                    "customerId",
+                    [
+                        "remote_reference",
+                        "braintree_payment_method",
+                        "customer_id",
+                    ],
+                    "customer_id",
+                    "INVALID",
+                ),
+                customer_payment_method_remote_blank_error(
+                    &braintree,
+                    "paymentMethodToken",
+                    [
+                        "remote_reference",
+                        "braintree_payment_method",
+                        "payment_method_token",
+                    ],
+                    "payment_method_token",
+                    "INVALID",
+                ),
+            ]
+            .into_iter()
+            .flatten()
+            .next()
+            {
+                return (
+                    self.customer_payment_method_payload(
+                        &field.selection,
+                        Value::Null,
+                        None,
+                        vec![error],
+                    ),
+                    None,
+                );
+            }
+        }
+        if has_authorize_net {
+            let authorize_net =
+                resolved_object_field(&remote_reference, "authorizeNetCustomerPaymentProfile")
+                    .unwrap_or_default();
+            if let Some(error) = customer_payment_method_remote_blank_error(
+                &authorize_net,
+                "customerProfileId",
+                [
+                    "remote_reference",
+                    "authorize_net_customer_payment_profile",
+                    "customer_profile_id",
+                ],
+                "customer_profile_id",
+                "INVALID",
+            ) {
+                return (
+                    self.customer_payment_method_payload(
+                        &field.selection,
+                        Value::Null,
+                        None,
+                        vec![error],
+                    ),
+                    None,
+                );
+            }
+        }
+        if has_adyen {
+            let adyen =
+                resolved_object_field(&remote_reference, "adyenPaymentMethod").unwrap_or_default();
+            if let Some(error) = [
+                customer_payment_method_remote_blank_error(
+                    &adyen,
+                    "shopperReference",
+                    [
+                        "remote_reference",
+                        "adyen_payment_method",
+                        "shopper_reference",
+                    ],
+                    "shopper_reference",
+                    "INVALID",
+                ),
+                customer_payment_method_remote_blank_error(
+                    &adyen,
+                    "storedPaymentMethodId",
+                    [
+                        "remote_reference",
+                        "adyen_payment_method",
+                        "stored_payment_method_id",
+                    ],
+                    "stored_payment_method_id",
+                    "INVALID",
+                ),
+            ]
+            .into_iter()
+            .flatten()
+            .next()
+            {
+                return (
+                    self.customer_payment_method_payload(
+                        &field.selection,
+                        Value::Null,
+                        None,
+                        vec![error],
+                    ),
+                    None,
+                );
+            }
+        }
         let id = self.next_customer_payment_method_gid();
         let record = customer_payment_method_seed_record(&id, &customer_id, Value::Null);
         self.stage_customer_payment_method_record(record.clone());
@@ -580,7 +731,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, Option<String>) {
-        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         let id = self.next_customer_payment_method_gid();
         let record = customer_payment_method_seed_record(
             &id,
@@ -599,7 +750,7 @@ impl DraftProxy {
     }
 
     fn customer_payment_method_paypal_update(&mut self, field: &RootFieldSelection) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let record = self
             .store
             .staged
@@ -612,16 +763,16 @@ impl DraftProxy {
 
     fn customer_payment_method_duplication_data(&self, field: &RootFieldSelection) -> Value {
         let source_id =
-            resolved_string_arg(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
         let target_customer_id =
-            resolved_string_arg(&field.arguments, "targetCustomerId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "targetCustomerId").unwrap_or_default();
         let errors = if source_id.contains("base-card") {
             vec![user_error(
                 ["customerPaymentMethodId"],
                 "Invalid instrument",
                 Some("INVALID_INSTRUMENT"),
             )]
-        } else if resolved_string_arg(&field.arguments, "targetShopId").as_deref()
+        } else if resolved_string_field(&field.arguments, "targetShopId").as_deref()
             == Some("gid://shopify/Shop/source")
         {
             vec![user_error(
@@ -640,7 +791,7 @@ impl DraftProxy {
                         base64_urlsafe_no_pad(&json!({
                             "customerPaymentMethodId": source_id,
                             "targetCustomerId": target_customer_id,
-                            "targetShopId": resolved_string_arg(&field.arguments, "targetShopId").unwrap_or_default()
+                            "targetShopId": resolved_string_field(&field.arguments, "targetShopId").unwrap_or_default()
                         }).to_string())
                     ))
                 } else {
@@ -656,7 +807,7 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, Option<String>) {
-        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         let billing_address =
             resolved_object_field(&field.arguments, "billingAddress").unwrap_or_default();
         let errors = customer_payment_method_billing_address_blank_errors(&billing_address);
@@ -668,7 +819,7 @@ impl DraftProxy {
         }
         let id = self.next_customer_payment_method_gid();
         let instrument = self.customer_payment_method_duplicated_instrument(
-            resolved_string_arg(&field.arguments, "encryptedDuplicationData")
+            resolved_string_field(&field.arguments, "encryptedDuplicationData")
                 .as_deref()
                 .unwrap_or_default(),
             &billing_address,
@@ -714,7 +865,7 @@ impl DraftProxy {
 
     fn customer_payment_method_update_url(&self, field: &RootFieldSelection) -> Value {
         let id =
-            resolved_string_arg(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
         let errors = if id.contains("base-card") {
             vec![user_error(
                 ["customerPaymentMethodId"],
@@ -742,7 +893,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> (Value, Option<String>) {
         let id =
-            resolved_string_arg(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
         let Some(record) = self.store.staged.customer_payment_methods.get_mut(&id) else {
             return (
                 selected_json(
@@ -795,9 +946,9 @@ impl DraftProxy {
     }
 
     fn next_customer_payment_method_gid(&mut self) -> String {
-        let id = format!(
-            "gid://shopify/CustomerPaymentMethod/{}",
-            self.store.staged.next_customer_payment_method_id
+        let id = shopify_gid(
+            "CustomerPaymentMethod",
+            self.store.staged.next_customer_payment_method_id,
         );
         self.store.staged.next_customer_payment_method_id += 1;
         id
@@ -818,4 +969,69 @@ impl DraftProxy {
         payload.insert("userErrors".to_string(), json!(user_errors));
         selected_json(&Value::Object(payload), selection)
     }
+}
+
+fn base64_urlsafe_no_pad(input: &str) -> String {
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(input)
+}
+
+fn base64_urlsafe_no_pad_decode(input: &str) -> Option<Vec<u8>> {
+    base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(input)
+        .ok()
+}
+
+/// Recover the source `customerPaymentMethodId` encoded inside an
+/// `encryptedDuplicationData` token produced by
+/// `customer_payment_method_duplication_data`. Returns `None` for any token the
+/// local engine did not mint.
+fn customer_payment_method_duplication_source_id(token: &str) -> Option<String> {
+    let payload = token.strip_prefix("shopify-draft-proxy:customer-payment-method-duplication:")?;
+    let bytes = base64_urlsafe_no_pad_decode(payload)?;
+    let decoded: Value = serde_json::from_slice(&bytes).ok()?;
+    decoded
+        .get("customerPaymentMethodId")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+fn is_customer_payment_method_customer_create_seed(field: &RootFieldSelection) -> bool {
+    if field.name != "customerCreate" {
+        return false;
+    }
+    let Some(ResolvedValue::Object(input)) = field.arguments.get("input") else {
+        return false;
+    };
+    if input.len() != 1
+        || !matches!(
+            input.get("email"),
+            Some(ResolvedValue::String(email)) if !email.trim().is_empty()
+        )
+    {
+        return false;
+    }
+
+    let has_customer_id = field.selection.iter().any(|selection| {
+        selection.name == "customer"
+            && selection
+                .selection
+                .iter()
+                .any(|customer_field| customer_field.name == "id")
+    });
+    let selections_are_seed_shape = field.selection.iter().all(|selection| {
+        matches!(selection.name.as_str(), "customer" | "userErrors")
+            && selection
+                .selection
+                .iter()
+                .all(|child| match selection.name.as_str() {
+                    "customer" => child.name == "id" && child.selection.is_empty(),
+                    "userErrors" => {
+                        matches!(child.name.as_str(), "field" | "code" | "message")
+                            && child.selection.is_empty()
+                    }
+                    _ => false,
+                })
+    });
+
+    has_customer_id && selections_are_seed_shape
 }

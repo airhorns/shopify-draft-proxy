@@ -18,6 +18,20 @@ pub(in crate::proxy) fn empty_page_info() -> Value {
     connection_page_info(false, false, None, None)
 }
 
+pub(in crate::proxy) fn count_object(count: impl serde::Serialize) -> Value {
+    count_object_with_precision(count, "EXACT")
+}
+
+pub(in crate::proxy) fn count_object_with_precision(
+    count: impl serde::Serialize,
+    precision: &str,
+) -> Value {
+    json!({
+        "count": count,
+        "precision": precision
+    })
+}
+
 pub(in crate::proxy) fn connection_window<T, F>(
     records: &[T],
     arguments: &BTreeMap<String, ResolvedValue>,
@@ -101,25 +115,6 @@ pub(in crate::proxy) fn value_id_cursor(record: &Value) -> String {
 
 pub(in crate::proxy) fn connection_nodes(connection: &Value) -> Vec<Value> {
     connection["nodes"].as_array().cloned().unwrap_or_default()
-}
-
-pub(in crate::proxy) fn connection_edges_with_cursor<F>(
-    nodes: &[Value],
-    cursor_for: F,
-) -> Vec<Value>
-where
-    F: Fn(usize, &Value) -> String,
-{
-    nodes
-        .iter()
-        .enumerate()
-        .map(|(index, node)| {
-            json!({
-                "cursor": cursor_for(index, node),
-                "node": node
-            })
-        })
-        .collect()
 }
 
 pub(in crate::proxy) fn connection_json_with_cursor<F>(

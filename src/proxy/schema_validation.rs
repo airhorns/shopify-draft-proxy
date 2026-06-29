@@ -360,8 +360,16 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
     errors.extend(product_media_variable_errors(&document));
     errors.extend(return_reason_invalid_enum_errors(&document));
     errors.extend(metaobject_access_invalid_enum_errors(query, &document));
-    errors.extend(inventory_activation_user_error_code_selection_errors(
-        query, &document,
+    errors.extend(plain_user_error_code_selection_errors(
+        query,
+        &document,
+        &[
+            "inventoryActivate",
+            "inventoryDeactivate",
+            "shopLocaleEnable",
+            "shopLocaleUpdate",
+            "shopLocaleDisable",
+        ],
     ));
     errors
 }
@@ -723,16 +731,14 @@ fn output_field_type(field: &Value) -> Option<OutputFieldType> {
     Some(OutputFieldType { named_type })
 }
 
-fn inventory_activation_user_error_code_selection_errors(
+fn plain_user_error_code_selection_errors(
     query: &str,
     document: &ParsedDocument,
+    root_names: &[&str],
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     for field in &document.root_fields {
-        if !matches!(
-            field.name.as_str(),
-            "inventoryActivate" | "inventoryDeactivate"
-        ) {
+        if !root_names.contains(&field.name.as_str()) {
             continue;
         }
         let Some(user_errors_selection) = field
@@ -746,13 +752,9 @@ fn inventory_activation_user_error_code_selection_errors(
             if selection.name != "code" {
                 continue;
             }
-            let location = inventory_user_error_code_selection_location(
-                query,
-                field,
-                user_errors_selection,
-                selection,
-            )
-            .unwrap_or(SourceLocation { line: 1, column: 1 });
+            let location =
+                user_error_code_selection_location(query, field, user_errors_selection, selection)
+                    .unwrap_or(SourceLocation { line: 1, column: 1 });
             errors.push(json!({
                 "message": "Field 'code' doesn't exist on type 'UserError'",
                 "locations": [{ "line": location.line, "column": location.column }],
@@ -773,7 +775,7 @@ fn inventory_activation_user_error_code_selection_errors(
     errors
 }
 
-fn inventory_user_error_code_selection_location(
+fn user_error_code_selection_location(
     query: &str,
     field: &RootFieldSelection,
     user_errors_selection: &SelectedField,
@@ -1213,7 +1215,6 @@ fn validate_argument_value(
     schema: &AdminInputSchema,
     context: ValidationContext<'_>,
 ) -> Vec<Value> {
-    // Check for blank literal ID values regardless of type lookup
     if type_ref.named_type == "ID" {
         if let RawArgumentValue::String(s) = value {
             if s.trim().is_empty() {
@@ -1225,12 +1226,6 @@ fn validate_argument_value(
             }
         }
     }
-    // Non-null coercion violations apply to *any* non-null argument, regardless
-    // of whether its named type is a registered input object. A null literal or
-    // an unbound/null variable supplied for a non-null argument fails coercion
-    // before the resolver runs (e.g. `customerCreate(input: null)` or an unbound
-    // `$id: ID!`). These checks must run even when the named type is a scalar
-    // (ID) or an input object we intentionally leave unregistered.
     match value {
         RawArgumentValue::Null if type_ref.non_null => {
             return vec![non_null_argument_literal_error(
@@ -1242,14 +1237,13 @@ fn validate_argument_value(
         }
         RawArgumentValue::Variable { name, value } if type_ref.non_null => {
             if matches!(value.as_ref(), None | Some(ResolvedValue::Null)) {
-                let variable_definition = document.variable_definitions.get(name);
-                let variable_type = variable_definition
-                    .map(|definition| definition.type_display.as_str())
-                    .unwrap_or(type_ref.display.as_str());
-                let location = variable_definition
-                    .map(|definition| definition.location)
-                    .unwrap_or(field.location);
-                return vec![non_null_variable_null_error(name, variable_type, location)];
+                let (variable_type, location) = resolve_variable_definition_type(
+                    document,
+                    name,
+                    &type_ref.display,
+                    field.location,
+                );
+                return vec![non_null_variable_null_error(name, &variable_type, location)];
             }
         }
         _ => {}
@@ -1258,19 +1252,25 @@ fn validate_argument_value(
         return Vec::new();
     };
     match value {
-        RawArgumentValue::Object(fields) => validate_raw_input_object(
+        RawArgumentValue::Object(fields) => validate_input_object(
             &type_ref.named_type,
             input_object,
-            fields,
-            &[argument_name.to_string()],
+            InputObjectFields::Raw(fields),
+            &[json!(argument_name)],
             schema,
-            context,
-            inline_argument_value_location(context.query, field, argument_name),
+            InputObjectMode::Raw {
+                context,
+                location: Some(inline_argument_location(
+                    context.query,
+                    field,
+                    argument_name,
+                )),
+            },
         ),
         RawArgumentValue::List(items) if type_ref_is_list(type_ref) => {
             let mut errors = Vec::new();
             for (index, item) in items.iter().enumerate() {
-                let path = vec![argument_name.to_string(), index.to_string()];
+                let path = vec![json!(argument_name), json!(index)];
                 match item {
                     RawArgumentValue::Object(fields) => {
                         let item_location = inline_argument_list_item_object_location(
@@ -1279,17 +1279,19 @@ fn validate_argument_value(
                             argument_name,
                             index,
                         )
-                        .or_else(|| {
-                            inline_argument_value_location(context.query, field, argument_name)
+                        .unwrap_or_else(|| {
+                            inline_argument_location(context.query, field, argument_name)
                         });
-                        errors.extend(validate_raw_input_object(
+                        errors.extend(validate_input_object(
                             &type_ref.named_type,
                             input_object,
-                            fields,
+                            InputObjectFields::Raw(fields),
                             &path,
                             schema,
-                            context,
-                            item_location,
+                            InputObjectMode::Raw {
+                                context,
+                                location: Some(item_location),
+                            },
                         ));
                     }
                     RawArgumentValue::Null if type_ref_has_non_null_list_items(type_ref) => errors
@@ -1305,20 +1307,8 @@ fn validate_argument_value(
             errors
         }
         RawArgumentValue::Variable { name, value } => {
-            let variable_definition = document.variable_definitions.get(name);
-            let variable_type = variable_definition
-                .map(|definition| definition.type_display.as_str())
-                .unwrap_or(type_ref.display.as_str());
-            let location = variable_definition
-                .map(|definition| definition.location)
-                .unwrap_or(field.location);
-            // A required (non-null) argument supplied a null or absent variable
-            // fails coercion at the variable definition. Shopify reports this as
-            // an INVALID_VARIABLE "Expected value to not be null" problem rather
-            // than a missing-argument error.
-            if type_ref.non_null && matches!(value.as_ref(), None | Some(ResolvedValue::Null)) {
-                return vec![non_null_variable_null_error(name, variable_type, location)];
-            }
+            let (variable_type, location) =
+                resolve_variable_definition_type(document, name, &type_ref.display, field.location);
             if type_ref_is_list(type_ref) {
                 let Some(ResolvedValue::List(items)) = value.as_ref() else {
                     return Vec::new();
@@ -1328,13 +1318,15 @@ fn validate_argument_value(
                     let item_path = vec![json!(index)];
                     match item {
                         ResolvedValue::Object(fields) => {
-                            problems.extend(validate_resolved_input_object(
+                            problems.extend(validate_input_object(
                                 &type_ref.named_type,
                                 input_object,
-                                fields,
+                                InputObjectFields::Resolved(fields),
                                 &item_path,
                                 schema,
-                                context.raw_body,
+                                InputObjectMode::Resolved {
+                                    order_source: context.raw_body,
+                                },
                             ));
                         }
                         ResolvedValue::Null if type_ref_has_non_null_list_items(type_ref) => {
@@ -1352,7 +1344,7 @@ fn validate_argument_value(
                 return vec![invalid_variable_error(
                     VariableValidationContext {
                         variable_name: name,
-                        variable_type,
+                        variable_type: &variable_type,
                         location,
                     },
                     &ResolvedValue::List(items.clone()),
@@ -1364,16 +1356,18 @@ fn validate_argument_value(
             };
             let variable_context = VariableValidationContext {
                 variable_name: name,
-                variable_type,
+                variable_type: &variable_type,
                 location,
             };
-            let problems = validate_resolved_input_object(
+            let problems = validate_input_object(
                 &type_ref.named_type,
                 input_object,
-                fields,
+                InputObjectFields::Resolved(fields),
                 &[],
                 schema,
-                context.raw_body,
+                InputObjectMode::Resolved {
+                    order_source: context.raw_body,
+                },
             );
             if problems.is_empty() {
                 Vec::new()
@@ -1385,21 +1379,21 @@ fn validate_argument_value(
                 )]
             }
         }
-        RawArgumentValue::Null if type_ref.non_null => vec![non_null_argument_literal_error(
-            field,
-            argument_name,
-            type_ref,
-            context,
-        )],
-        RawArgumentValue::String(s) if type_ref.named_type == "ID" && s.trim().is_empty() => {
-            vec![blank_id_argument_literal_error(
-                field,
-                argument_name,
-                context,
-            )]
-        }
         _ => Vec::new(),
     }
+}
+
+fn resolve_variable_definition_type(
+    document: &ParsedDocument,
+    variable_name: &str,
+    fallback_type: &str,
+    fallback_location: SourceLocation,
+) -> (String, SourceLocation) {
+    document
+        .variable_definitions
+        .get(variable_name)
+        .map(|definition| (definition.type_display.clone(), definition.location))
+        .unwrap_or_else(|| (fallback_type.to_string(), fallback_location))
 }
 
 fn is_unknown_input_field(
@@ -1411,181 +1405,159 @@ fn is_unknown_input_field(
         && !local_extension_input_field(input_type_name, field_name)
 }
 
-fn validate_raw_input_object(
+#[derive(Clone, Copy)]
+enum InputObjectFields<'a> {
+    Raw(&'a BTreeMap<String, RawArgumentValue>),
+    Resolved(&'a BTreeMap<String, ResolvedValue>),
+}
+
+#[derive(Clone, Copy)]
+enum InputValueRef<'a> {
+    Raw(&'a RawArgumentValue),
+    Resolved(&'a ResolvedValue),
+}
+
+#[derive(Clone, Copy)]
+enum InputObjectMode<'a> {
+    Raw {
+        context: ValidationContext<'a>,
+        location: Option<SourceLocation>,
+    },
+    Resolved {
+        order_source: &'a str,
+    },
+}
+
+impl<'a> InputObjectFields<'a> {
+    fn get(self, field_name: &str) -> Option<InputValueRef<'a>> {
+        match self {
+            Self::Raw(fields) => fields.get(field_name).map(InputValueRef::Raw),
+            Self::Resolved(fields) => fields.get(field_name).map(InputValueRef::Resolved),
+        }
+    }
+}
+
+impl<'a> InputValueRef<'a> {
+    fn is_null(self) -> bool {
+        matches!(
+            self,
+            Self::Raw(RawArgumentValue::Null) | Self::Resolved(ResolvedValue::Null)
+        )
+    }
+
+    fn object_fields(self) -> Option<InputObjectFields<'a>> {
+        match self {
+            Self::Raw(RawArgumentValue::Object(fields)) => Some(InputObjectFields::Raw(fields)),
+            Self::Resolved(ResolvedValue::Object(fields)) => {
+                Some(InputObjectFields::Resolved(fields))
+            }
+            _ => None,
+        }
+    }
+
+    fn list_items(self) -> Option<Vec<InputValueRef<'a>>> {
+        match self {
+            Self::Raw(RawArgumentValue::List(items)) => {
+                Some(items.iter().map(InputValueRef::Raw).collect())
+            }
+            Self::Resolved(ResolvedValue::List(items)) => {
+                Some(items.iter().map(InputValueRef::Resolved).collect())
+            }
+            _ => None,
+        }
+    }
+}
+
+fn validate_input_object(
     input_type_name: &str,
     input_object: &BTreeMap<String, SchemaInputField>,
-    fields: &BTreeMap<String, RawArgumentValue>,
-    path: &[String],
+    fields: InputObjectFields<'_>,
+    path: &[Value],
     schema: &AdminInputSchema,
-    context: ValidationContext<'_>,
-    location: Option<SourceLocation>,
+    mode: InputObjectMode<'_>,
 ) -> Vec<Value> {
     let mut errors = Vec::new();
-    // Unknown-field rejections are reported in the order the fields appear in the
-    // input-object *literal*, not the sorted map order serde/BTreeMap leaves us
-    // with. Recover document order from each field-name token's location.
-    let target_depth = 1 + path.len() as i32;
-    let mut unknown_fields: Vec<&String> = fields
-        .keys()
+    let field_keys: Vec<&String> = match fields {
+        InputObjectFields::Raw(fields) => fields.keys().collect(),
+        InputObjectFields::Resolved(fields) => fields.keys().collect(),
+    };
+    let mut unknown_fields: Vec<&String> = field_keys
+        .into_iter()
         .filter(|field_name| is_unknown_input_field(input_object, input_type_name, field_name))
         .collect();
-    unknown_fields.sort_by_key(|field_name| {
-        inline_input_field_name_location(
-            context.query,
-            context.field_location,
-            target_depth,
-            field_name,
-        )
-        .map(|location| (location.line, location.column))
-        .unwrap_or((usize::MAX, usize::MAX))
-    });
-    for field_name in unknown_fields {
-        errors.push(input_object_argument_not_accepted_error(
-            input_type_name,
-            field_name,
-            path,
-            context,
-        ));
-    }
-    for (field_name, field_schema) in input_object {
-        if field_schema.type_ref.non_null
-            && (!fields.contains_key(field_name)
-                || matches!(fields.get(field_name), Some(RawArgumentValue::Null)))
-        {
-            errors.push(missing_required_input_object_attribute_error(
-                input_type_name,
-                field_name,
-                &field_schema.type_ref,
-                path,
-                context,
-                location.unwrap_or(context.field_location),
-            ));
-        }
-    }
-    for (field_name, field_value) in fields {
-        let Some(field_schema) = input_object.get(field_name) else {
-            continue;
-        };
-        // Scalar coercion: an Int field given a float literal fails coercion.
-        // Shopify anchors the argumentLiteralsIncompatible error at the enclosing
-        // argument value (the input-object literal), with the full path to the
-        // offending field.
-        if let Some(invalid_value) = int_literal_coercion_value(field_value, &field_schema.type_ref)
-        {
-            errors.push(argument_literal_incompatible_error(
-                input_type_name,
-                field_name,
-                &invalid_value,
-                &field_schema.type_ref.display,
-                path,
-                context,
-                location.unwrap_or(context.field_location),
-            ));
-        }
-        if let Some(invalid_value) =
-            enum_literal_coercion_value(field_value, &field_schema.type_ref)
-        {
-            errors.push(argument_literal_incompatible_error(
-                input_type_name,
-                field_name,
-                &invalid_value,
-                &field_schema.type_ref.display,
-                path,
-                context,
-                location.unwrap_or(context.field_location),
-            ));
-        }
-        let Some(nested_input_object) = schema.input_objects.get(&field_schema.type_ref.named_type)
-        else {
-            continue;
-        };
-        match field_value {
-            RawArgumentValue::Object(nested_fields) => {
-                let mut nested_path = path.to_vec();
-                nested_path.push(field_name.clone());
-                // Anchor errors inside the nested object at that object literal's value
-                // (the `{` after `field_name:`), so a missing required attribute reports
-                // its own column rather than falling back to the enclosing field.
-                let nested_location = inline_input_field_value_location(
+    match mode {
+        InputObjectMode::Raw { context, .. } => {
+            let target_depth = 1 + path.len() as i32;
+            unknown_fields.sort_by_key(|field_name| {
+                inline_input_field_name_location(
                     context.query,
                     context.field_location,
                     target_depth,
                     field_name,
-                );
-                errors.extend(validate_raw_input_object(
-                    &field_schema.type_ref.named_type,
-                    nested_input_object,
-                    nested_fields,
-                    &nested_path,
-                    schema,
+                )
+                .map(|location| (location.line, location.column))
+                .unwrap_or((usize::MAX, usize::MAX))
+            });
+        }
+        InputObjectMode::Resolved { order_source } => {
+            unknown_fields.sort_by_key(|field_name| key_order_index(order_source, field_name));
+        }
+    }
+    for field_name in unknown_fields {
+        match mode {
+            InputObjectMode::Raw { context, .. } => {
+                errors.push(input_object_argument_not_accepted_error(
+                    input_type_name,
+                    field_name,
+                    path,
                     context,
-                    nested_location,
+                ))
+            }
+            InputObjectMode::Resolved { .. } => {
+                let mut nested_path = path.to_vec();
+                nested_path.push(json!(field_name));
+                errors.push(variable_problem_value_path(
+                    &nested_path,
+                    &format!("Field is not defined on {input_type_name}"),
                 ));
             }
-            RawArgumentValue::List(items) if type_ref_is_list(&field_schema.type_ref) => {
-                for (index, item) in items.iter().enumerate() {
-                    let RawArgumentValue::Object(nested_fields) = item else {
-                        continue;
-                    };
-                    let mut nested_path = path.to_vec();
-                    nested_path.push(field_name.clone());
-                    nested_path.push(index.to_string());
-                    errors.extend(validate_raw_input_object(
-                        &field_schema.type_ref.named_type,
-                        nested_input_object,
-                        nested_fields,
-                        &nested_path,
-                        schema,
+        }
+    }
+
+    if matches!(mode, InputObjectMode::Raw { .. }) {
+        for (field_name, field_schema) in input_object {
+            if field_schema.type_ref.non_null && fields.get(field_name).is_none_or(|v| v.is_null())
+            {
+                if let InputObjectMode::Raw { context, location } = mode {
+                    errors.push(missing_required_input_object_attribute_error(
+                        input_type_name,
+                        field_name,
+                        &field_schema.type_ref,
+                        path,
                         context,
-                        location,
+                        location.unwrap_or(context.field_location),
                     ));
                 }
             }
-            _ => {}
         }
     }
-    errors
-}
 
-fn validate_resolved_input_object(
-    input_type_name: &str,
-    input_object: &BTreeMap<String, SchemaInputField>,
-    fields: &BTreeMap<String, ResolvedValue>,
-    problem_path: &[Value],
-    schema: &AdminInputSchema,
-    order_source: &str,
-) -> Vec<Value> {
-    let mut problems = Vec::new();
-    // Report unknown-field coercion problems in the order the fields appear in
-    // the request body, not the sorted map order serde/BTreeMap leaves us with.
-    let mut unknown_fields: Vec<&String> = fields
-        .keys()
-        .filter(|field_name| is_unknown_input_field(input_object, input_type_name, field_name))
-        .collect();
-    unknown_fields.sort_by_key(|field_name| key_order_index(order_source, field_name));
-    for field_name in unknown_fields {
-        let mut nested_path = problem_path.to_vec();
-        nested_path.push(json!(field_name));
-        problems.push(variable_problem_value_path(
-            &nested_path,
-            &format!("Field is not defined on {input_type_name}"),
-        ));
-    }
-    // Coerce each schema field in a single pass (BTreeMap key order). Shopify's
-    // GraphQL coercion reports problems in the order it walks the input object's
-    // fields, interleaving "missing required" with "invalid scalar" rather than
-    // emitting all of one kind before the other. Walking the schema fields once
-    // — non-null check first, then scalar, then nested recursion — reproduces
-    // that interleaving (e.g. PriceListCreateInput yields [currency, parent],
-    // not [parent, currency]).
-    for (field_name, field_schema) in input_object {
+    let value_field_names: Vec<&String> = match fields {
+        InputObjectFields::Raw(fields) => fields.keys().collect(),
+        InputObjectFields::Resolved(_) => input_object.keys().collect(),
+    };
+    for field_name in value_field_names {
+        let Some(field_schema) = input_object.get(field_name) else {
+            continue;
+        };
         let provided = fields.get(field_name);
-        let missing_or_null =
-            !fields.contains_key(field_name) || matches!(provided, Some(ResolvedValue::Null));
-        if field_schema.type_ref.non_null && missing_or_null {
-            let mut nested_path = problem_path.to_vec();
+        if matches!(mode, InputObjectMode::Resolved { .. })
+            && field_schema.type_ref.non_null
+            && provided.is_none_or(|value| value.is_null())
+        {
+            let mut nested_path = path.to_vec();
             nested_path.push(json!(field_name));
-            problems.push(variable_problem_value_path(
+            errors.push(variable_problem_value_path(
                 &nested_path,
                 "Expected value to not be null",
             ));
@@ -1594,70 +1566,111 @@ fn validate_resolved_input_object(
         let Some(field_value) = provided else {
             continue;
         };
-        if let Some(problem) = validate_resolved_scalar(field_value, &field_schema.type_ref) {
-            let mut nested_path = problem_path.to_vec();
-            nested_path.push(json!(field_name));
-            if problem.include_message {
-                problems.push(variable_problem_with_message_value_path(
-                    &nested_path,
-                    &problem.explanation,
-                ));
-            } else {
-                problems.push(variable_problem_value_path(
-                    &nested_path,
-                    &problem.explanation,
-                ));
-            }
-        }
-        if let Some(nested_input_object) =
-            schema.input_objects.get(&field_schema.type_ref.named_type)
-        {
-            match field_value {
-                ResolvedValue::Object(nested_fields) => {
-                    let mut nested_path = problem_path.to_vec();
-                    nested_path.push(json!(field_name));
-                    problems.extend(validate_resolved_input_object(
-                        &field_schema.type_ref.named_type,
-                        nested_input_object,
-                        nested_fields,
-                        &nested_path,
-                        schema,
-                        order_source,
+        match (mode, field_value) {
+            (InputObjectMode::Raw { context, location }, InputValueRef::Raw(value)) => {
+                let location = location.unwrap_or(context.field_location);
+                if let Some(invalid_value) =
+                    int_literal_coercion_value(value, &field_schema.type_ref)
+                {
+                    errors.push(argument_literal_incompatible_error(
+                        input_type_name,
+                        field_name,
+                        &invalid_value,
+                        &field_schema.type_ref.display,
+                        path,
+                        context,
+                        location,
                     ));
                 }
-                ResolvedValue::List(items) if type_ref_is_list(&field_schema.type_ref) => {
-                    for (index, item) in items.iter().enumerate() {
-                        let mut nested_path = problem_path.to_vec();
-                        nested_path.push(json!(field_name));
-                        nested_path.push(json!(index));
-                        match item {
-                            ResolvedValue::Object(nested_fields) => {
-                                problems.extend(validate_resolved_input_object(
-                                    &field_schema.type_ref.named_type,
-                                    nested_input_object,
-                                    nested_fields,
-                                    &nested_path,
-                                    schema,
-                                    order_source,
-                                ));
-                            }
-                            ResolvedValue::Null
-                                if type_ref_has_non_null_list_items(&field_schema.type_ref) =>
-                            {
-                                problems.push(variable_problem_value_path(
-                                    &nested_path,
-                                    "Expected value to not be null",
-                                ));
-                            }
-                            _ => {}
-                        }
-                    }
+                if let Some(invalid_value) =
+                    enum_literal_coercion_value(value, &field_schema.type_ref)
+                {
+                    errors.push(argument_literal_incompatible_error(
+                        input_type_name,
+                        field_name,
+                        &invalid_value,
+                        &field_schema.type_ref.display,
+                        path,
+                        context,
+                        location,
+                    ));
                 }
-                _ => {}
+            }
+            (InputObjectMode::Resolved { .. }, InputValueRef::Resolved(value)) => {
+                if let Some(problem) = validate_resolved_scalar(value, &field_schema.type_ref) {
+                    let mut nested_path = path.to_vec();
+                    nested_path.push(json!(field_name));
+                    errors.push(if problem.include_message {
+                        variable_problem_with_message_value_path(&nested_path, &problem.explanation)
+                    } else {
+                        variable_problem_value_path(&nested_path, &problem.explanation)
+                    });
+                }
+            }
+            _ => {}
+        }
+
+        let Some(nested_input_object) = schema.input_objects.get(&field_schema.type_ref.named_type)
+        else {
+            continue;
+        };
+        if let Some(nested_fields) = field_value.object_fields() {
+            let mut nested_path = path.to_vec();
+            nested_path.push(json!(field_name));
+            let nested_mode = match mode {
+                InputObjectMode::Raw { context, .. } => InputObjectMode::Raw {
+                    context,
+                    location: inline_input_field_value_location(
+                        context.query,
+                        context.field_location,
+                        1 + path.len() as i32,
+                        field_name,
+                    ),
+                },
+                InputObjectMode::Resolved { .. } => mode,
+            };
+            errors.extend(validate_input_object(
+                &field_schema.type_ref.named_type,
+                nested_input_object,
+                nested_fields,
+                &nested_path,
+                schema,
+                nested_mode,
+            ));
+            continue;
+        }
+        if !type_ref_is_list(&field_schema.type_ref) {
+            continue;
+        }
+        let Some(items) = field_value.list_items() else {
+            continue;
+        };
+        for (index, item) in items.into_iter().enumerate() {
+            let mut nested_path = path.to_vec();
+            nested_path.push(json!(field_name));
+            nested_path.push(json!(index));
+            if let Some(nested_fields) = item.object_fields() {
+                errors.extend(validate_input_object(
+                    &field_schema.type_ref.named_type,
+                    nested_input_object,
+                    nested_fields,
+                    &nested_path,
+                    schema,
+                    mode,
+                ));
+            } else if matches!(mode, InputObjectMode::Resolved { .. })
+                && item.is_null()
+                && type_ref_has_non_null_list_items(&field_schema.type_ref)
+            {
+                errors.push(variable_problem_value_path(
+                    &nested_path,
+                    "Expected value to not be null",
+                ));
             }
         }
     }
-    problems
+
+    errors
 }
 
 struct ScalarValidationProblem {
@@ -1671,11 +1684,6 @@ fn validate_resolved_scalar(
 ) -> Option<ScalarValidationProblem> {
     match type_ref.named_type.as_str() {
         "ID" => {
-            // Admin GraphQL coerces ID scalars as global ids. A blank string
-            // (e.g. catalogId: "" provided through a variable input object)
-            // fails coercion with the same "Invalid global id ''" problem the
-            // literal-argument path reports, anchored at the variable
-            // definition. Non-blank values are left to the local handler.
             let ResolvedValue::String(raw) = value else {
                 return None;
             };
@@ -1685,10 +1693,6 @@ fn validate_resolved_scalar(
             })
         }
         "Int" => {
-            // Admin GraphQL coerces Int scalars from integer values only. A float
-            // (e.g. recurringCycleLimit: 1.5 provided through a variable) fails
-            // coercion with a "Could not coerce" problem anchored at the variable
-            // definition.
             let ResolvedValue::Float(raw) = value else {
                 return None;
             };
@@ -1782,9 +1786,6 @@ fn root_argument_not_accepted_error(
     argument_name: &str,
     context: ValidationContext<'_>,
 ) -> Value {
-    // Shopify anchors an unaccepted-argument error at the argument name token,
-    // not at the field. For a multi-line mutation each rejected argument points
-    // at its own `name:` position.
     let location = inline_argument_name_location(context.query, field, argument_name)
         .unwrap_or(context.field_location);
     json!({
@@ -1841,10 +1842,6 @@ fn non_null_argument_literal_error(
     type_ref: &SchemaTypeRef,
     context: ValidationContext<'_>,
 ) -> Value {
-    // A `null` literal supplied for a non-null argument fails GraphQL coercion
-    // (it is not a "missing argument" — the argument is present, its value is
-    // invalid). Shopify anchors the argumentLiteralsIncompatible error at the
-    // field token.
     json!({
         "message": format!(
             "Argument '{}' on Field '{}' has an invalid value (null). Expected type '{}'.",
@@ -1881,7 +1878,7 @@ fn argument_literal_incompatible_error(
     argument_name: &str,
     invalid_value: &str,
     expected_type: &str,
-    path: &[String],
+    path: &[Value],
     context: ValidationContext<'_>,
     location: SourceLocation,
 ) -> Value {
@@ -1899,9 +1896,6 @@ fn argument_literal_incompatible_error(
     })
 }
 
-/// Detects an Int-typed field given a float literal, returning the rendered
-/// literal for the error message. Integer literals parse as `Int` and never
-/// reach here.
 fn int_literal_coercion_value(
     value: &RawArgumentValue,
     type_ref: &SchemaTypeRef,
@@ -1936,14 +1930,9 @@ fn enum_literal_coercion_value(
 pub(in crate::proxy) fn input_object_argument_not_accepted_error(
     input_type_name: &str,
     argument_name: &str,
-    path: &[String],
+    path: &[Value],
     context: ValidationContext<'_>,
 ) -> Value {
-    // Shopify anchors the error at the rejected field-name token inside the input-object
-    // literal. The token sits at bracket depth 1 + the nesting (path) depth of its parent
-    // input object: e.g. `themeUpdate(id: …, input: { role: MAIN })` reports `role`, not
-    // `themeUpdate`. Variable-supplied input objects have no literal token, so fall back to
-    // the field location.
     let target_depth = 1 + path.len() as i32;
     let location = inline_input_field_name_location(
         context.query,
@@ -1969,7 +1958,7 @@ fn missing_required_input_object_attribute_error(
     input_type_name: &str,
     argument_name: &str,
     type_ref: &SchemaTypeRef,
-    path: &[String],
+    path: &[Value],
     context: ValidationContext<'_>,
     location: SourceLocation,
 ) -> Value {
@@ -1994,16 +1983,17 @@ fn inline_argument_name_location(
     field: &RootFieldSelection,
     argument_name: &str,
 ) -> Option<SourceLocation> {
-    // A root argument lives at bracket depth 1 (inside the field's `(...)`).
     inline_input_field_name_location(query, field.location, 1, argument_name)
 }
 
-/// Locates the `name:` token of an argument or input-object field at a specific bracket
-/// depth, starting from the root field. Depth 1 is the field's argument list, depth 2 is a
-/// directly-nested input object (`field(arg: { name: ... })`), and so on. Shopify anchors an
-/// argumentNotAccepted error at the rejected name token, not the enclosing field, so nested
-/// input-object fields report their own column. String literals are skipped so a quoted
-/// occurrence of the name is never matched.
+fn inline_argument_location(
+    query: &str,
+    field: &RootFieldSelection,
+    argument_name: &str,
+) -> SourceLocation {
+    inline_argument_value_location(query, field, argument_name).unwrap_or(field.location)
+}
+
 fn inline_input_field_name_location(
     query: &str,
     field_location: SourceLocation,
@@ -2012,8 +2002,6 @@ fn inline_input_field_name_location(
 ) -> Option<SourceLocation> {
     let start = byte_offset_for_location(query, field_location)?;
     let bytes = query.as_bytes();
-    // Find the field's argument list. If a selection set opens first, the field
-    // takes no arguments.
     let mut index = start;
     while index < bytes.len() {
         match bytes[index] {
@@ -2051,12 +2039,12 @@ fn inline_input_field_name_location(
                 }
             }
             _ if depth == target_depth => {
-                let before_ok = index == 0 || !is_graphql_name_byte(bytes[index - 1]);
+                let before_ok = index == 0 || !graphql_name_byte(bytes[index - 1]);
                 if before_ok && query[index..].starts_with(name) {
                     let after = index + name.len();
                     let after_ok = bytes
                         .get(after)
-                        .is_none_or(|next| !is_graphql_name_byte(*next));
+                        .is_none_or(|next| !graphql_name_byte(*next));
                     let followed_by_colon = query[after..].trim_start().starts_with(':');
                     if after_ok && followed_by_colon {
                         return source_location_for_byte_offset(query, index);
@@ -2178,7 +2166,7 @@ fn find_argument_name_with_colon(haystack: &str, argument_name: &str) -> Option<
         let before_ok = haystack[..candidate]
             .chars()
             .next_back()
-            .is_none_or(|ch| !is_graphql_name_char(ch));
+            .is_none_or(|ch| !graphql_name_char(ch));
         let after_name = candidate + argument_name.len();
         let followed_by_colon = haystack[after_name..]
             .chars()
@@ -2198,11 +2186,11 @@ fn find_graphql_name_after(query: &str, start: usize, name: &str) -> Option<usiz
     while search_start < query.len() {
         let relative = query[search_start..].find(name)?;
         let candidate = search_start + relative;
-        let before_ok = candidate == 0 || !is_graphql_name_byte(bytes[candidate - 1]);
+        let before_ok = candidate == 0 || !graphql_name_byte(bytes[candidate - 1]);
         let after = candidate + name.len();
         let after_ok = bytes
             .get(after)
-            .is_none_or(|next| !is_graphql_name_byte(*next));
+            .is_none_or(|next| !graphql_name_byte(*next));
         if before_ok && after_ok {
             return Some(candidate);
         }
@@ -2310,14 +2298,6 @@ pub(in crate::proxy) fn graphql_variable_definition_type(
     None
 }
 
-fn is_graphql_name_char(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || ch == '_'
-}
-
-fn is_graphql_name_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || byte == b'_'
-}
-
 pub(in crate::proxy) fn invalid_variable_error(
     context: VariableValidationContext<'_>,
     value: &ResolvedValue,
@@ -2361,17 +2341,12 @@ pub(in crate::proxy) fn variable_problem_with_message_value_path(
     })
 }
 
-fn input_error_path(context: ValidationContext<'_>, path: &[String], argument_name: &str) -> Value {
+fn input_error_path(context: ValidationContext<'_>, path: &[Value], argument_name: &str) -> Value {
     let mut segments = vec![
         Value::String(context.operation_path.to_string()),
         Value::String(context.response_key.to_string()),
     ];
-    segments.extend(path.iter().map(|segment| {
-        segment
-            .parse::<u64>()
-            .map(Value::from)
-            .unwrap_or_else(|_| Value::String(segment.clone()))
-    }));
+    segments.extend(path.iter().cloned());
     segments.push(Value::String(argument_name.to_string()));
     Value::Array(segments)
 }
@@ -2586,6 +2561,10 @@ fn extend_product_variant_input_schema(schema: &mut AdminInputSchema) {
             (
                 "variants".to_string(),
                 mutation_arg(non_null_list_of_non_null("ProductVariantsBulkInput")),
+            ),
+            (
+                "allowPartialUpdates".to_string(),
+                mutation_arg(named("Boolean")),
             ),
         ]),
     );
@@ -2868,6 +2847,26 @@ fn extend_gift_card_input_schema(schema: &mut AdminInputSchema) {
 }
 
 fn extend_markets_input_schema(schema: &mut AdminInputSchema) {
+    let parsed: Value = serde_json::from_str(include_str!(
+        "../../config/admin-graphql-mutation-schema.json"
+    ))
+    .expect("checked-in Admin GraphQL mutation schema should be valid JSON");
+
+    for input_object_name in [
+        "MarketCurrencySettingsUpdateInput",
+        "MarketCreateInput",
+        "MarketUpdateInput",
+    ] {
+        if let Some((name, fields)) = captured_input_object_fields(&parsed, input_object_name) {
+            schema.input_objects.insert(name, fields);
+        }
+    }
+    for mutation_name in ["marketCreate", "marketUpdate"] {
+        if let Some((name, arguments)) = captured_mutation_arguments(&parsed, mutation_name) {
+            schema.mutation_fields.insert(name, arguments);
+        }
+    }
+
     // CatalogCreateInput on Admin API 2026-04: `context` is a required
     // (non-null) input field. Omitting it must surface a top-level
     // INVALID_VARIABLE coercion error before the local catalog handler runs.

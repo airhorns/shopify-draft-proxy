@@ -1,0 +1,101 @@
+{
+  "capturedAt": "2026-06-25T21:46:31.962Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": "Read-only evidence for direct domain(id:) resolution of the connected shop primary domain. The captured id is deliberately not gid://shopify/Domain/1000.",
+  "captures": {
+    "primaryDomainSeed": {
+      "query": "query AdminPlatformDomainPrimaryDomainSeed {\n  shop {\n    primaryDomain {\n      id\n      host\n      url\n      sslEnabled\n    }\n  }\n}\n",
+      "variables": {},
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "shop": {
+              "primaryDomain": {
+                "id": "gid://shopify/Domain/157391388978",
+                "host": "harry-test-heelo.myshopify.com",
+                "url": "https://harry-test-heelo.myshopify.com",
+                "sslEnabled": true
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "primaryDomainRead": {
+      "query": "query AdminPlatformDomainPrimaryDomainRead($id: ID!) {\n  domain(id: $id) {\n    id\n    host\n    url\n    sslEnabled\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Domain/157391388978"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "domain": {
+              "id": "gid://shopify/Domain/157391388978",
+              "host": "harry-test-heelo.myshopify.com",
+              "url": "https://harry-test-heelo.myshopify.com",
+              "sslEnabled": true
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "AdminPlatformDomainPrimaryDomainRead",
+      "variables": {
+        "id": "gid://shopify/Domain/157391388978"
+      },
+      "query": "query AdminPlatformDomainPrimaryDomainRead($id: ID!) {\n  domain(id: $id) {\n    id\n    host\n    url\n    sslEnabled\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "domain": {
+              "id": "gid://shopify/Domain/157391388978",
+              "host": "harry-test-heelo.myshopify.com",
+              "url": "https://harry-test-heelo.myshopify.com",
+              "sslEnabled": true
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

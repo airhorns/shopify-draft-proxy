@@ -1,0 +1,15 @@
+mutation ProductDeleteMediaMissingMediaAggregation($productId: ID!, $mediaIds: [ID!]!) {
+  productDeleteMedia(productId: $productId, mediaIds: $mediaIds) {
+    deletedMediaIds
+    deletedProductImageIds
+    userErrors {
+      field
+      message
+    }
+    mediaUserErrors {
+      field
+      message
+      code
+    }
+  }
+}

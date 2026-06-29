@@ -34,12 +34,11 @@ impl DraftProxy {
         let Some(fields) = root_fields(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
-        let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
-        for field in fields
-            .iter()
-            .filter(|field| field.name == "shopPolicyUpdate")
-        {
+        let data = root_payload_json(&fields, |field| {
+            if field.name != "shopPolicyUpdate" {
+                return None;
+            }
             let payload = self.shop_policy_update_field_payload(request, field);
             if let Some(id) = payload
                 .get("shopPolicy")
@@ -49,8 +48,8 @@ impl DraftProxy {
             {
                 staged_ids.push(id.to_string());
             }
-            data.insert(field.response_key.clone(), payload);
-        }
+            Some(payload)
+        });
         if !staged_ids.is_empty() {
             self.record_mutation_log_draft(
                 request,
@@ -59,7 +58,7 @@ impl DraftProxy {
                 LogDraft::staged("shopPolicyUpdate", "store-properties", staged_ids),
             );
         }
-        ok_json(json!({ "data": Value::Object(data) }))
+        ok_json(json!({ "data": data }))
     }
 
     fn shop_policy_update_field_payload(
@@ -256,7 +255,7 @@ impl DraftProxy {
         for field in fields {
             match field.name.as_str() {
                 "node" => {
-                    let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     if shopify_gid_resource_type(&id) == Some("ShopPolicy") {
                         saw_shop_policy = true;
                         data.insert(

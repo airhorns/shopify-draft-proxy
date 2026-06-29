@@ -108,6 +108,9 @@ for commit replay. For `requiresShippingMethod`, the local model follows the
 captured public GraphQL default: an omitted argument stages `true` on both
 create and update, while an explicit `false` value remains observable through
 the mutation payload and downstream `fulfillmentService(id:)` reads.
+Callback URL validation allows `mock.shop` hosts and the configured
+`.myshopify.com` Admin origin host when one is present; cold/default proxy
+configuration does not synthesize a `shopify-draft-proxy.local` allowed host.
 The captured 2026-04 public schema does not expose `permitsSkuSharing`,
 `inventorySyncEnabled`, or `fulfillmentOrdersOptIn` on
 `fulfillmentServiceCreate`; those arguments return top-level
@@ -143,7 +146,11 @@ validation branches. Captured public 2026-04 behavior allows
 second open attempt on an already-`OPEN` fulfillment order returns a base
 `userErrors` entry (`field: null`) and leaves the local fulfillment-order
 status, supported actions, and timestamp unchanged; this public `UserError`
-shape exposes `field` / `message` only. Store-backed local staging now covers
+shape exposes `field` / `message` only. Fulfillment holds expose Shopify-like
+localized `displayReason` strings for the public hold reason set, including
+`AWAITING_RETURN_ITEMS` as `Exchange items awaiting return delivery`, and
+unknown or non-visible reasons fall back to `Other`. Store-backed local staging
+now covers
 `fulfillmentCreate` payload `Fulfillment.name` reference numbers as
 `<orderName>-F<n>` for order-backed fulfillment sequences, plus
 `fulfillmentOrderSubmitFulfillmentRequest`,
@@ -220,7 +227,7 @@ with `/endpoints/orders/` and `/endpoints/returns/`.
 - Runtime coverage: `tests/graphql_routes.rs`
 - Shipping/fulfillment parity specs: `config/parity-specs/shipping-fulfillments/*.json`
 - Shipping/fulfillment fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-fulfillments/*.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/*.json`
-- Related order/return shipping specs: `config/parity-specs/orders/return-reverse-logistics-local-staging.json`, `config/parity-specs/orders/return-reverse-logistics-recorded.json`, `config/parity-specs/orders/return-reverse-logistics-dispose-validation.json`, and the order-edit shipping-line specs under `config/parity-specs/orders/`
+- Related order/return shipping specs: `config/parity-specs/orders/fulfillment-state-preconditions.json`, `config/parity-specs/orders/return-reverse-logistics-local-staging.json`, `config/parity-specs/orders/return-reverse-logistics-recorded.json`, `config/parity-specs/orders/return-reverse-logistics-dispose-validation.json`, and the order-edit shipping-line specs under `config/parity-specs/orders/`
 
 ### Validation
 

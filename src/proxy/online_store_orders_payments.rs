@@ -5,13 +5,9 @@ mod fulfillment_orders;
 mod orders;
 mod payments;
 
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::draft_orders::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::fulfillment_orders::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::orders::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::payments::*;
 
 struct OrdersLocalLogEntry<'a> {
@@ -124,7 +120,6 @@ const DRAFT_ORDER_CUSTOMER_HYDRATE_QUERY: &str =
 const DRAFT_ORDER_VARIANT_HYDRATE_QUERY: &str =
     "query OrdersDraftOrderVariantHydrate($id: ID!) {\n  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n}\n";
 const ORDERS_FULFILLMENT_ORDER_HYDRATE_QUERY: &str = "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }";
-const ORDERS_FULFILLMENT_ORDER_COMPACT_HYDRATE_QUERY: &str = "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id status requestStatus fulfillAt fulfillBy updatedAt\n      supportedActions { action }\n      assignedLocation { name location { id name } }\n      fulfillmentHolds { id handle reason reasonNotes displayReason heldByApp { id title } heldByRequestingApp }\n      merchantRequests(first: 10) { nodes { kind message requestOptions } }\n      lineItems(first: 20) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }\n      order { id name displayFulfillmentStatus }\n    }\n  }";
 // Order hydration for `orderMarkAsPaid` operating on an order that was not
 // created locally in this scenario. The proxy forwards this exact query (it is
 // byte-identical to the `OrdersOrderHydrate` recording so the strict cassette

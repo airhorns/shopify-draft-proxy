@@ -305,6 +305,227 @@ fn admin_platform_job_non_job_gid_returns_resource_not_found_error() {
 }
 
 #[test]
+fn domain_id_resolves_from_shop_domains() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    let mut restored = dump.body.clone();
+    restored["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/restored",
+        "name": "Restored shop",
+        "myshopifyDomain": "restored-shop.myshopify.com",
+        "primaryDomain": {
+            "id": "gid://shopify/Domain/987654321",
+            "host": "restored-shop.example",
+            "url": "https://restored-shop.example",
+            "sslEnabled": true
+        },
+        "currencyCode": "USD"
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query DomainFromRestoredShop($id: ID!) {
+          domain(id: $id) {
+            id
+            host
+            url
+            sslEnabled
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Domain/987654321" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["domain"],
+        json!({
+            "id": "gid://shopify/Domain/987654321",
+            "host": "restored-shop.example",
+            "url": "https://restored-shop.example",
+            "sslEnabled": true
+        })
+    );
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownDomainFromRestoredShop($id: ID!) {
+          domain(id: $id) { id host url sslEnabled }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Domain/404404404" }),
+    ));
+    assert_eq!(unknown.status, 200);
+    assert_eq!(unknown.body["data"]["domain"], Value::Null);
+}
+
+#[test]
+fn domain_id_resolves_after_live_hybrid_shop_hydration() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            captured_calls.lock().unwrap().push(query);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "id": "gid://shopify/Shop/live",
+                            "name": "Live hydrated shop",
+                            "myshopifyDomain": "live-hydrated.myshopify.com",
+                            "primaryDomain": {
+                                "id": "gid://shopify/Domain/222333444",
+                                "host": "live-hydrated.example",
+                                "url": "https://live-hydrated.example",
+                                "sslEnabled": true
+                            },
+                            "currencyCode": "CAD"
+                        }
+                    }
+                }),
+            }
+        });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateShopDomain {
+          shop {
+            id
+            name
+            myshopifyDomain
+            primaryDomain { id host url sslEnabled }
+            currencyCode
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(hydrate.status, 200);
+    assert_eq!(
+        hydrate.body["data"]["shop"]["primaryDomain"]["id"],
+        json!("gid://shopify/Domain/222333444")
+    );
+
+    let domain = proxy.process_request(json_graphql_request(
+        r#"
+        query DomainAfterShopHydrate($id: ID!) {
+          domain(id: $id) { id host url sslEnabled }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Domain/222333444" }),
+    ));
+
+    assert_eq!(domain.status, 200);
+    assert_eq!(
+        domain.body["data"]["domain"],
+        json!({
+            "id": "gid://shopify/Domain/222333444",
+            "host": "live-hydrated.example",
+            "url": "https://live-hydrated.example",
+            "sslEnabled": true
+        })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn domain_id_live_hybrid_forwards_cold_domain_reads() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            captured_calls.lock().unwrap().push(body.clone());
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "domain": {
+                            "id": "gid://shopify/Domain/777888999",
+                            "host": "cold-live.example",
+                            "url": "https://cold-live.example",
+                            "sslEnabled": true
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdDomainRead($id: ID!) {
+          domain(id: $id) { id host url sslEnabled }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Domain/777888999" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["domain"],
+        json!({
+            "id": "gid://shopify/Domain/777888999",
+            "host": "cold-live.example",
+            "url": "https://cold-live.example",
+            "sslEnabled": true
+        })
+    );
+    assert_eq!(
+        upstream_calls.lock().unwrap()[0]["variables"],
+        json!({ "id": "gid://shopify/Domain/777888999" })
+    );
+}
+
+#[test]
+fn cold_snapshot_shop_baseline_uses_neutral_identity() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdShopIdentity {
+          shop {
+            id
+            name
+            myshopifyDomain
+            primaryDomain { id host url sslEnabled }
+            currencyCode
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["shop"],
+        json!({
+            "id": "gid://shopify/Shop/0",
+            "name": "Shopify Draft Proxy",
+            "myshopifyDomain": "shopify-draft-proxy.local",
+            "primaryDomain": {
+                "id": "gid://shopify/Domain/1000",
+                "host": "shopify-draft-proxy.local",
+                "url": "https://shopify-draft-proxy.local",
+                "sslEnabled": true
+            },
+            "currencyCode": "USD"
+        })
+    );
+}
+
+#[test]
 fn fulfillment_order_request_and_cancellation_transitions_stage_and_read_back() {
     let mut proxy = snapshot_proxy();
     let (order, fulfillment_order) = create_fulfillment_order_test_order(&mut proxy, 2);
@@ -486,7 +707,7 @@ fn fulfillment_order_request_and_cancellation_transitions_stage_and_read_back() 
         json!("CANCELLATION_REJECTED")
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let operation_names = log["entries"]
         .as_array()
         .unwrap()
@@ -917,6 +1138,15 @@ fn fulfillment_order_split_hydrates_observed_fulfillment_orders_without_order_ow
 #[test]
 fn backup_region_update_uses_staged_market_region_and_computed_coercion_locations() {
     let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    let mut restored = dump.body.clone();
+    restored["state"]["baseState"]["shop"]["shopAddress"]["countryCodeV2"] = json!("CA");
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
 
     let omitted = proxy.process_request(json_graphql_request(
         r#"
@@ -973,6 +1203,41 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
         })
     );
 
+    let current_country = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateCurrentCountry {
+          backupRegionUpdate(region: { countryCode: CA }) {
+            backupRegion { __typename id name ... on MarketRegionCountry { code } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        current_country.body["data"]["backupRegionUpdate"],
+        json!({
+            "backupRegion": {
+                "__typename": "MarketRegionCountry",
+                "id": "gid://shopify/MarketRegionCountry/local-CA",
+                "name": "Canada",
+                "code": "CA"
+            },
+            "userErrors": []
+        })
+    );
+    let current_region = current_country.body["data"]["backupRegionUpdate"]["backupRegion"].clone();
+
+    let current_node = proxy.process_request(json_graphql_request(
+        r#"
+        query BackupRegionCurrentCountryNode($ids: [ID!]!) {
+          nodes(ids: $ids) { __typename ... on MarketRegionCountry { id name code } }
+        }
+        "#,
+        json!({ "ids": [current_region["id"].as_str().unwrap()] }),
+    ));
+    assert_eq!(current_node.body["data"]["nodes"][0], current_region);
+
     let created_market = proxy.process_request(json_graphql_request(
         r#"
         mutation CreateJapanMarket {
@@ -1025,8 +1290,8 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
         .expect("backup region id is selected")
         .to_string();
     assert!(
-        region_id.starts_with("gid://shopify/MarketRegionCountry/local-"),
-        "locally staged market region ids must be synthetic, got {region_id}"
+        region_id.starts_with("gid://shopify/Market/Region/"),
+        "locally staged market region ids must come from the modeled market region node, got {region_id}"
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -2582,7 +2847,7 @@ fn generic_location_edit_stages_location_validates_and_downstream_reads() {
         json!({ "id": primary_id, "name": "Edited Primary" })
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let roots: Vec<_> = log["entries"]
         .as_array()
         .unwrap()
@@ -2844,7 +3109,7 @@ fn generic_location_activate_rejects_non_unique_active_name() {
         })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"],
+        log_snapshot(&proxy)["entries"],
         json!([]),
         "rejected activation must not append a staged mutation log entry"
     );
@@ -3060,7 +3325,7 @@ fn generic_location_delete_stages_tombstone_and_cascades_inventory_levels() {
         })
     );
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["deletedLocationIds"],
+        state_snapshot(&proxy)["stagedState"]["deletedLocationIds"],
         json!([target_id])
     );
 }
@@ -3216,6 +3481,135 @@ fn location_edit_and_delete_are_local_in_live_hybrid_mode() {
         requests[0]["variables"],
         json!({ "id": "gid://shopify/Location/live-base" })
     );
+}
+
+#[test]
+fn location_deactivate_recomputes_inventory_for_hydrated_base_location() {
+    let location_id = "gid://shopify/Location/live-inventory-base";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(body.clone());
+            let requested_ids = body["variables"]["ids"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+            if requested_ids
+                .iter()
+                .any(|id| id.as_str() == Some(location_id))
+            {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "__typename": "Location",
+                                "id": location_id,
+                                "name": "Live Inventory Base",
+                                "isActive": true,
+                                "deactivatable": true,
+                                "deletable": false,
+                                "fulfillsOnlineOrders": false,
+                                "hasActiveInventory": false,
+                                "hasUnfulfilledOrders": false,
+                                "isFulfillmentService": false,
+                                "shipsInventory": true
+                            }]
+                        }
+                    }),
+                }
+            } else if body["variables"]["id"] == location_id {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "location": {
+                                "id": location_id,
+                                "name": "Live Inventory Base",
+                                "isActive": true,
+                                "deactivatable": true,
+                                "deletable": false,
+                                "fulfillsOnlineOrders": false,
+                                "hasActiveInventory": false,
+                                "hasUnfulfilledOrders": false,
+                                "isFulfillmentService": false,
+                                "shipsInventory": true
+                            }
+                        }
+                    }),
+                }
+            } else {
+                Response {
+                    status: 599,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "unexpected upstream call" }] }),
+                }
+            }
+        });
+    let inventory_item_id =
+        create_inventory_item_for_location_test(&mut proxy, "Hydrated location inventory guard");
+
+    let seed_inventory = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedHydratedLocationInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            inventoryAdjustmentGroup { changes { location { id } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "available",
+                "reason": "correction",
+                "ignoreCompareQuantity": true,
+                "quantities": [{
+                    "inventoryItemId": inventory_item_id,
+                    "locationId": location_id,
+                    "quantity": 7
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        seed_inventory.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationDeactivateHydratedInventory($locationId: ID!) {
+          locationDeactivate(locationId: $locationId) @idempotent(key: "hydrated-inventory") {
+            location { id isActive hasActiveInventory }
+            locationDeactivateUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["locationDeactivate"],
+        json!({
+            "location": {
+                "id": location_id,
+                "isActive": true,
+                "hasActiveInventory": true
+            },
+            "locationDeactivateUserErrors": [{
+                "field": ["locationId"],
+                "message": "Location could not be deactivated without specifying where to relocate inventory stocked at the location.",
+                "code": "HAS_ACTIVE_INVENTORY_ERROR"
+            }]
+        })
+    );
+
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0]["variables"], json!({ "ids": [location_id] }));
 }
 
 #[test]
@@ -3613,8 +4007,8 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         r#"
         mutation HoldNumericFulfillmentOrder($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {
           fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
-            fulfillmentHold { id handle reason reasonNotes heldByRequestingApp }
-            fulfillmentOrder { id status fulfillmentHolds { id handle } lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { fulfillableQuantity } } } }
+            fulfillmentHold { id handle reason reasonNotes displayReason heldByRequestingApp }
+            fulfillmentOrder { id status fulfillmentHolds { id handle reason displayReason } lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { fulfillableQuantity } } } }
             remainingFulfillmentOrder { id status lineItems(first: 5) { nodes { totalQuantity remainingQuantity } } }
             userErrors { field message code }
           }
@@ -3623,7 +4017,7 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         json!({
             "id": fulfillment_order_id,
             "fulfillmentHold": {
-                "reason": "OTHER",
+                "reason": "AWAITING_RETURN_ITEMS",
                 "reasonNotes": "wait",
                 "handle": "numeric-hold",
                 "fulfillmentOrderLineItems": [{ "id": line_item_id, "quantity": 1 }]
@@ -3633,7 +4027,19 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
     assert_eq!(hold.status, 200);
     let hold_payload = &hold.body["data"]["fulfillmentOrderHold"];
     assert_eq!(hold_payload["userErrors"], json!([]));
+    assert_eq!(
+        hold_payload["fulfillmentHold"]["reason"],
+        json!("AWAITING_RETURN_ITEMS")
+    );
+    assert_eq!(
+        hold_payload["fulfillmentHold"]["displayReason"],
+        json!("Exchange items awaiting return delivery")
+    );
     assert_eq!(hold_payload["fulfillmentOrder"]["status"], json!("ON_HOLD"));
+    assert_eq!(
+        hold_payload["fulfillmentOrder"]["fulfillmentHolds"][0]["displayReason"],
+        json!("Exchange items awaiting return delivery")
+    );
     assert_eq!(
         hold_payload["fulfillmentOrder"]["lineItems"]["nodes"][0]["remainingQuantity"],
         json!(1)
@@ -3646,9 +4052,9 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
     let after_hold = proxy.process_request(json_graphql_request(
         r#"
         query ReadHeldFulfillmentOrder($orderId: ID!, $fulfillmentOrderId: ID!) {
-          order(id: $orderId) { id fulfillmentOrders(first: 10) { nodes { id status fulfillmentHolds { id handle } } } }
-          fulfillmentOrder(id: $fulfillmentOrderId) { id status }
-          manualHoldsFulfillmentOrders(first: 10) { nodes { id status } }
+          order(id: $orderId) { id fulfillmentOrders(first: 10) { nodes { id status fulfillmentHolds { id handle reason displayReason } } } }
+          fulfillmentOrder(id: $fulfillmentOrderId) { id status fulfillmentHolds { reason displayReason } }
+          manualHoldsFulfillmentOrders(first: 10) { nodes { id status fulfillmentHolds { reason displayReason } } }
         }
         "#,
         json!({ "orderId": order_id, "fulfillmentOrderId": fulfillment_order_id }),
@@ -3660,6 +4066,15 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
     assert_eq!(
         after_hold.body["data"]["manualHoldsFulfillmentOrders"]["nodes"][0]["id"],
         json!(fulfillment_order_id)
+    );
+    assert_eq!(
+        after_hold.body["data"]["fulfillmentOrder"]["fulfillmentHolds"][0]["displayReason"],
+        json!("Exchange items awaiting return delivery")
+    );
+    assert_eq!(
+        after_hold.body["data"]["manualHoldsFulfillmentOrders"]["nodes"][0]["fulfillmentHolds"][0]
+            ["displayReason"],
+        json!("Exchange items awaiting return delivery")
     );
 
     let hold_id = hold_payload["fulfillmentHold"]["id"].as_str().unwrap();
@@ -3702,10 +4117,14 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         after_release.body["data"]["order"]["fulfillmentOrders"]["nodes"][1]["status"],
         json!("CLOSED")
     );
-    assert!(proxy.get_log_snapshot()["entries"][0]["rawBody"]
+    assert!(log_snapshot(&proxy)["entries"][0]["rawBody"]
         .as_str()
         .unwrap()
         .contains("HoldNumericFulfillmentOrder"));
+    assert_eq!(
+        log_snapshot(&proxy)["entries"][0]["variables"]["fulfillmentHold"]["reason"],
+        json!("AWAITING_RETURN_ITEMS")
+    );
 }
 
 #[test]
@@ -4172,7 +4591,7 @@ fn fulfillment_order_open_rejects_already_open_without_mutating_hydrated_order()
             }] }
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -4554,7 +4973,7 @@ fn shop_policy_update_stages_policy_and_downstream_reads_locally() {
     assert_eq!(policy["body"], json!("<p>Hi</p>"));
     assert_eq!(
         policy["url"],
-        json!("https://harry-test-heelo.myshopify.com/policies/1.html?locale=en")
+        json!("https://shopify-draft-proxy.local/policies/1.html?locale=en")
     );
     assert_eq!(policy["translations"], json!([]));
 
@@ -4592,7 +5011,7 @@ fn shop_policy_update_stages_policy_and_downstream_reads_locally() {
     );
     assert_eq!(read.body["data"]["nodePolicy"]["id"], policy["id"]);
     assert_eq!(read.body["data"]["nodes"][0]["url"], policy["url"]);
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(
         log["entries"][0]["stagedResourceIds"],
         json!([policy["id"]])
@@ -4762,7 +5181,7 @@ fn shop_policy_update_rejects_only_privacy_liquid_syntax_errors() {
             }]
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
     let read_after_invalid = proxy.process_request(json_graphql_request(read_query, json!({})));
     assert_eq!(
         read_after_invalid.body["data"]["shop"]["shopPolicies"],
@@ -4843,7 +5262,7 @@ fn shop_policy_update_validation_branches_match_shopify_shapes() {
             "code": null
         }])
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 
     let max_body = "a".repeat(524_287);
     let max_response = proxy.process_request(json_graphql_request(

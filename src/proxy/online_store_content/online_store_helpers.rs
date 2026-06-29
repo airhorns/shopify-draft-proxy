@@ -7,7 +7,7 @@ fn record_matches_type(record: &Value, typename: &str) -> bool {
         || record
             .get("id")
             .and_then(Value::as_str)
-            .is_some_and(|id| id.starts_with(&format!("gid://shopify/{typename}/")))
+            .is_some_and(|id| is_shopify_gid_of_type(id, typename))
 }
 
 pub(in crate::proxy) fn is_online_store_theme_record(record: &Value) -> bool {
@@ -395,7 +395,7 @@ pub(in crate::proxy) fn server_pixel_endpoint_argument_error(
     field: &RootFieldSelection,
 ) -> Option<Value> {
     match field.name.as_str() {
-        "eventBridgeServerPixelUpdate" => match resolved_string_arg(&field.arguments, "arn") {
+        "eventBridgeServerPixelUpdate" => match resolved_string_field(&field.arguments, "arn") {
             None => Some(server_pixel_missing_argument_error(field, "arn")),
             Some(arn) if !is_valid_event_bridge_arn(&arn) => {
                 Some(server_pixel_arn_coercion_error(&arn))
@@ -403,11 +403,11 @@ pub(in crate::proxy) fn server_pixel_endpoint_argument_error(
             Some(_) => None,
         },
         "pubSubServerPixelUpdate" => {
-            let project = resolved_string_arg(&field.arguments, "pubSubProject");
+            let project = resolved_string_field(&field.arguments, "pubSubProject");
             if project.is_none() {
                 return Some(server_pixel_missing_argument_error(field, "pubSubProject"));
             }
-            let topic = resolved_string_arg(&field.arguments, "pubSubTopic");
+            let topic = resolved_string_field(&field.arguments, "pubSubTopic");
             if topic.is_none() {
                 return Some(server_pixel_missing_argument_error(field, "pubSubTopic"));
             }

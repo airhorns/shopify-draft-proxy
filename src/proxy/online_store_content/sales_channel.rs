@@ -18,8 +18,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn online_store_query_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        root_payload_json(fields, |field| {
             let value = if let Some(value) = self.online_store_content_query_value(field) {
                 value
             } else {
@@ -37,7 +36,7 @@ impl DraftProxy {
                                 .unwrap_or(Value::Null)
                         } else {
                             let id =
-                                resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                                resolved_string_field(&field.arguments, "id").unwrap_or_default();
                             self.store
                                 .staged
                                 .online_store_integrations
@@ -117,9 +116,8 @@ impl DraftProxy {
                     _ => Value::Null,
                 }
             };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            Some(value)
+        })
     }
 
     pub(in crate::proxy) fn online_store_mutation(
@@ -129,7 +127,6 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
         // Server-pixel endpoint mutations reject invalid arguments with top-level GraphQL
         // errors (and no `data`) before any local staging: missing required arguments are a
@@ -140,7 +137,7 @@ impl DraftProxy {
                 return ok_json(json!({ "errors": [error] }));
             }
         }
-        for field in fields {
+        let data = root_payload_json(fields, |field| {
             let value = if let Some(value) =
                 self.online_store_content_mutation_value(field, request, &mut staged_ids)
             {
@@ -165,7 +162,7 @@ impl DraftProxy {
                     "themeFilesDelete" => self.theme_files_delete(field, &mut staged_ids),
                     "webPixelCreate" => self.web_pixel_create(field, &mut staged_ids),
                     "webPixelUpdate" => {
-                        let allow_missing_upsert = resolved_string_arg(&field.arguments, "id")
+                        let allow_missing_upsert = resolved_string_field(&field.arguments, "id")
                             .is_some_and(|id| id.contains(SYNTHETIC_MARKER));
                         self.web_pixel_update(field, allow_missing_upsert, &mut staged_ids)
                     }
@@ -180,8 +177,8 @@ impl DraftProxy {
                     _ => Value::Null,
                 }
             };
-            data.insert(field.response_key.clone(), value);
-        }
+            Some(value)
+        });
         if !staged_ids.is_empty() {
             self.record_mutation_log_entry(
                 request,
@@ -194,7 +191,7 @@ impl DraftProxy {
                 staged_ids,
             );
         }
-        ok_json(json!({ "data": Value::Object(data) }))
+        ok_json(json!({ "data": data }))
     }
 
     pub(in crate::proxy) fn next_online_store_id(&mut self, typename: &str) -> String {
@@ -345,7 +342,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(existing) = self
             .store
             .staged
@@ -518,7 +515,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = match field.arguments.get("input") {
             Some(ResolvedValue::Object(input)) => input,
             _ => return script_tag_payload(&field.selection, None, Vec::new()),
@@ -560,7 +557,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let is_staged_script_tag = self
             .store
             .staged
@@ -598,8 +595,8 @@ impl DraftProxy {
         let record = json!({
             "__typename": "OnlineStoreTheme",
             "id": id,
-            "name": resolved_string_arg(&field.arguments, "name").unwrap_or_else(|| "Local preview theme".to_string()),
-            "role": resolved_string_arg(&field.arguments, "role").unwrap_or_else(|| "UNPUBLISHED".to_string()),
+            "name": resolved_string_field(&field.arguments, "name").unwrap_or_else(|| "Local preview theme".to_string()),
+            "role": resolved_string_field(&field.arguments, "role").unwrap_or_else(|| "UNPUBLISHED".to_string()),
             "processing": false,
             "processingFailed": false,
             "files": {"nodes": []}
@@ -620,7 +617,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(existing) = self
             .store
             .staged
@@ -671,7 +668,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(mut theme) = self
             .store
             .staged
@@ -718,7 +715,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(theme) = self
             .store
             .staged
@@ -760,7 +757,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
+        let theme_id = resolved_string_field(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
         if files.len() > THEME_FILES_MAX_FILE_INPUT {
             let payload = json!({
@@ -847,7 +844,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
+        let theme_id = resolved_string_field(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
         if files.len() > THEME_FILES_MAX_FILE_INPUT {
             return selected_json(
@@ -909,7 +906,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
+        let theme_id = resolved_string_field(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_string_list_arg(&field.arguments, "files");
         if files.len() > THEME_FILES_MAX_FILE_LIMIT {
             return selected_json(
@@ -1070,7 +1067,7 @@ impl DraftProxy {
         allow_missing_upsert: bool,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if !allow_missing_upsert
             && !self
                 .store
@@ -1155,7 +1152,7 @@ impl DraftProxy {
             );
         };
         let endpoint = if kind == "arn" {
-            let arn = resolved_string_arg(&field.arguments, "arn").unwrap_or_default();
+            let arn = resolved_string_field(&field.arguments, "arn").unwrap_or_default();
             if !arn.starts_with("arn:aws:events:") || arn.trim().is_empty() {
                 return selected_json(
                     &json!({"serverPixel": null, "userErrors": [user_error_typed("ServerPixelUserError", ["arn"], &format!("Invalid ARN '{arn}'"), Some("INVALID_FIELD_ARGUMENTS"))]}),
@@ -1165,8 +1162,8 @@ impl DraftProxy {
             arn
         } else {
             let project =
-                resolved_string_arg(&field.arguments, "pubSubProject").unwrap_or_default();
-            let topic = resolved_string_arg(&field.arguments, "pubSubTopic").unwrap_or_default();
+                resolved_string_field(&field.arguments, "pubSubProject").unwrap_or_default();
+            let topic = resolved_string_field(&field.arguments, "pubSubTopic").unwrap_or_default();
             let mut errors = Vec::new();
             if project.trim().is_empty() {
                 errors.push(user_error_typed(
@@ -1219,7 +1216,7 @@ impl DraftProxy {
             .unwrap_or_default();
         if title.trim().is_empty() {
             return selected_json(
-                &json!({"storefrontAccessToken": null, "shop": {"id": "gid://shopify/Shop/92891250994"}, "userErrors": [presence_user_error(["input", "title"], "Title")]}),
+                &json!({"storefrontAccessToken": null, "shop": self.store.effective_shop(), "userErrors": [presence_user_error(["input", "title"], "Title")]}),
                 &field.selection,
             );
         }
@@ -1232,7 +1229,7 @@ impl DraftProxy {
             .count();
         if token_count >= 100 {
             return selected_json(
-                &json!({"storefrontAccessToken": null, "shop": {"id": "gid://shopify/Shop/92891250994"}, "userErrors": [user_error(["input"], "apps.admin.graph_api_errors.storefront_access_token_create.reached_limit", Some("REACHED_LIMIT"))]}),
+                &json!({"storefrontAccessToken": null, "shop": self.store.effective_shop(), "userErrors": [user_error(["input"], "apps.admin.graph_api_errors.storefront_access_token_create.reached_limit", Some("REACHED_LIMIT"))]}),
                 &field.selection,
             );
         }
@@ -1252,7 +1249,7 @@ impl DraftProxy {
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
         selected_json(
-            &json!({"storefrontAccessToken": record, "shop": {"id": "gid://shopify/Shop/92891250994"}, "userErrors": []}),
+            &json!({"storefrontAccessToken": record, "shop": self.store.effective_shop(), "userErrors": []}),
             &field.selection,
         )
     }

@@ -1,14 +1,76 @@
 {
   "scenarioId": "localization-translations-market-scoped",
-  "capturedAt": "2026-06-12T21:41:24.719Z",
+  "capturedAt": "2026-06-26T15:42:15.583Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "setup": {
     "disposableProduct": {
-      "id": "gid://shopify/Product/10212147626290",
-      "handle": "market-translation-fixture-e8rfgjvd",
-      "title": "Market translation fixture e8rfgjvd",
+      "id": "gid://shopify/Product/10222226506034",
+      "handle": "market-translation-fixture-6ev4d7xy",
+      "title": "Market translation fixture 6ev4d7xy",
       "status": "DRAFT"
+    },
+    "productCreate": {
+      "variables": {
+        "product": {
+          "title": "Market translation fixture 6ev4d7xy",
+          "handle": "market-translation-fixture-6ev4d7xy",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10222226506034",
+              "handle": "market-translation-fixture-6ev4d7xy",
+              "title": "Market translation fixture 6ev4d7xy",
+              "status": "DRAFT"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "localeSetup": {
+      "variables": {
+        "locale": "es"
+      },
+      "response": {
+        "data": {
+          "shopLocaleEnable": {
+            "shopLocale": null,
+            "userErrors": [
+              {
+                "field": ["locale"],
+                "message": "Locale has already been taken"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
     },
     "market": {
       "id": "gid://shopify/Market/97997685042",
@@ -33,42 +95,42 @@
     "localeWasInitiallyEnabled": true
   },
   "marketScopedTranslationLifecycle": {
-    "resourceId": "gid://shopify/Product/10212147626290",
+    "resourceId": "gid://shopify/Product/10222226506034",
     "locale": "es",
     "marketId": "gid://shopify/Market/97997685042",
-    "titleDigest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834",
+    "titleDigest": "1537a976957e78df4ce20d693d49f4f7af593be8071a854117c7a34104541099",
     "productTypeDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "translationValue": "Titulo de mercado e8rfgjvd",
-    "productTypeTranslationValue": "Tipo de mercado e8rfgjvd",
+    "translationValue": "Titulo de mercado 6ev4d7xy",
+    "productTypeTranslationValue": "Tipo de mercado 6ev4d7xy",
     "readRequest": {
       "variables": {
-        "resourceId": "gid://shopify/Product/10212147626290",
+        "resourceId": "gid://shopify/Product/10222226506034",
         "marketId": "gid://shopify/Market/97997685042",
-        "resourceIds": ["gid://shopify/Product/10212147626290", "gid://shopify/PackingSlipTemplate/4834722098"],
+        "resourceIds": ["gid://shopify/Product/10222226506034", "gid://shopify/PackingSlipTemplate/4834722098"],
         "marketsFirst": 10
       }
     },
-    "fabricatedMarketId": "gid://shopify/Market/999999999999",
+    "fabricatedMarketId": "gid://shopify/Market/424242424242",
     "unknownMarketRegisterRequest": {
       "variables": {
-        "resourceId": "gid://shopify/Product/10212147626290",
+        "resourceId": "gid://shopify/Product/10222226506034",
         "translations": [
           {
             "locale": "es",
             "key": "title",
-            "value": "Mercado faltante e8rfgjvd",
-            "marketId": "gid://shopify/Market/999999999999",
-            "translatableContentDigest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834"
+            "value": "Mercado faltante 6ev4d7xy",
+            "marketId": "gid://shopify/Market/424242424242",
+            "translatableContentDigest": "1537a976957e78df4ce20d693d49f4f7af593be8071a854117c7a34104541099"
           }
         ]
       }
     },
     "unknownMarketRemoveRequest": {
       "variables": {
-        "resourceId": "gid://shopify/Product/10212147626290",
+        "resourceId": "gid://shopify/Product/10222226506034",
         "keys": ["title"],
         "locales": ["es"],
-        "marketIds": ["gid://shopify/Market/999999999999"]
+        "marketIds": ["gid://shopify/Market/424242424242"]
       }
     },
     "packingSlipResourceId": "gid://shopify/PackingSlipTemplate/4834722098",
@@ -80,7 +142,7 @@
           {
             "locale": "es",
             "key": "body",
-            "value": "Packing slip market fixture e8rfgjvd",
+            "value": "Packing slip market fixture 6ev4d7xy",
             "marketId": "gid://shopify/Market/97997685042",
             "translatableContentDigest": "ea2ab2ccee50af5121e81f41cfdbe5eb177b657acd1a49cc2f39503624ea5238"
           }
@@ -89,19 +151,19 @@
     },
     "registerRequest": {
       "variables": {
-        "resourceId": "gid://shopify/Product/10212147626290",
+        "resourceId": "gid://shopify/Product/10222226506034",
         "translations": [
           {
             "locale": "es",
             "key": "title",
-            "value": "Titulo de mercado e8rfgjvd",
+            "value": "Titulo de mercado 6ev4d7xy",
             "marketId": "gid://shopify/Market/97997685042",
-            "translatableContentDigest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834"
+            "translatableContentDigest": "1537a976957e78df4ce20d693d49f4f7af593be8071a854117c7a34104541099"
           },
           {
             "locale": "es",
             "key": "product_type",
-            "value": "Tipo de mercado e8rfgjvd",
+            "value": "Tipo de mercado 6ev4d7xy",
             "marketId": "gid://shopify/Market/97997685042",
             "translatableContentDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           }
@@ -110,7 +172,7 @@
     },
     "removeRequest": {
       "variables": {
-        "resourceId": "gid://shopify/Product/10212147626290",
+        "resourceId": "gid://shopify/Product/10222226506034",
         "keys": ["title", "product_type"],
         "locales": ["es"],
         "marketIds": ["gid://shopify/Market/97997685042"]
@@ -119,19 +181,19 @@
     "readBeforeRegister": {
       "data": {
         "translatableResource": {
-          "resourceId": "gid://shopify/Product/10212147626290",
+          "resourceId": "gid://shopify/Product/10222226506034",
           "translatableContent": [
             {
               "key": "title",
-              "value": "Market translation fixture e8rfgjvd",
-              "digest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834",
+              "value": "Market translation fixture 6ev4d7xy",
+              "digest": "1537a976957e78df4ce20d693d49f4f7af593be8071a854117c7a34104541099",
               "locale": "en",
               "type": "SINGLE_LINE_TEXT_FIELD"
             },
             {
               "key": "handle",
-              "value": "market-translation-fixture-e8rfgjvd",
-              "digest": "b5998904b65a71221e6d21e9f8525070fc1a1df4035cb76cc030c21a1f45697a",
+              "value": "market-translation-fixture-6ev4d7xy",
+              "digest": "8a01f73da49f595ee1dfa51e152edd4ab2ea949a743690693cd2fe3ac17378cc",
               "locale": "en",
               "type": "URI"
             },
@@ -160,19 +222,19 @@
               ]
             },
             {
-              "resourceId": "gid://shopify/Product/10212147626290",
+              "resourceId": "gid://shopify/Product/10222226506034",
               "translatableContent": [
                 {
                   "key": "title",
-                  "value": "Market translation fixture e8rfgjvd",
-                  "digest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834",
+                  "value": "Market translation fixture 6ev4d7xy",
+                  "digest": "1537a976957e78df4ce20d693d49f4f7af593be8071a854117c7a34104541099",
                   "locale": "en",
                   "type": "SINGLE_LINE_TEXT_FIELD"
                 },
                 {
                   "key": "handle",
-                  "value": "market-translation-fixture-e8rfgjvd",
-                  "digest": "b5998904b65a71221e6d21e9f8525070fc1a1df4035cb76cc030c21a1f45697a",
+                  "value": "market-translation-fixture-6ev4d7xy",
+                  "digest": "8a01f73da49f595ee1dfa51e152edd4ab2ea949a743690693cd2fe3ac17378cc",
                   "locale": "en",
                   "type": "URI"
                 },
@@ -211,282 +273,16 @@
               "type": "NONE"
             },
             {
-              "id": "gid://shopify/Market/92276785458",
-              "name": "International",
-              "handle": "international",
-              "status": "ACTIVE",
-              "type": "REGION"
-            },
-            {
-              "id": "gid://shopify/Market/92276818226",
-              "name": "Mexico",
-              "handle": "mexico",
-              "status": "ACTIVE",
-              "type": "REGION"
-            }
-          ]
-        },
-        "allShopLocales": [
-          {
-            "locale": "en",
-            "name": "English",
-            "primary": true,
-            "published": true,
-            "marketWebPresences": [
-              {
-                "id": "gid://shopify/MarketWebPresence/62842765618",
-                "subfolderSuffix": null
-              },
-              {
-                "id": "gid://shopify/MarketWebPresence/69720899890",
-                "subfolderSuffix": "harerhkjdulik"
-              },
-              {
-                "id": "gid://shopify/MarketWebPresence/69720998194",
-                "subfolderSuffix": "harsipqvpnehc"
-              }
-            ]
-          },
-          {
-            "locale": "es",
-            "name": "Spanish",
-            "primary": false,
-            "published": false,
-            "marketWebPresences": []
-          }
-        ]
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 22,
-          "actualQueryCost": 13,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1987,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    "unknownMarketRegister": {
-      "data": {
-        "translationsRegister": {
-          "translations": [],
-          "userErrors": [
-            {
-              "field": ["translations", "0", "marketId"],
-              "message": "The market corresponding to the `marketId` argument doesn't exist",
-              "code": "MARKET_DOES_NOT_EXIST"
-            }
-          ]
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 11,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1989,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    "unknownMarketRemove": {
-      "data": {
-        "translationsRemove": {
-          "translations": null,
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 11,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    "nonCustomizableRegister": {
-      "data": {
-        "translationsRegister": {
-          "translations": [],
-          "userErrors": [
-            {
-              "field": ["translations", "0", "key"],
-              "message": "Key body cannot be customized for a market; it can only be translated.",
-              "code": "RESOURCE_NOT_MARKET_CUSTOMIZABLE"
-            }
-          ]
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 11,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    "register": {
-      "data": {
-        "translationsRegister": {
-          "translations": [
-            {
-              "key": "title",
-              "value": "Titulo de mercado e8rfgjvd",
-              "locale": "es",
-              "outdated": false,
-              "market": {
-                "id": "gid://shopify/Market/97997685042"
-              }
-            },
-            {
-              "key": "product_type",
-              "value": "Tipo de mercado e8rfgjvd",
-              "locale": "es",
-              "outdated": false,
-              "market": {
-                "id": "gid://shopify/Market/97997685042"
-              }
-            }
-          ],
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 11,
-          "actualQueryCost": 11,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1989,
-            "restoreRate": 100
-          }
-        }
-      }
-    },
-    "readAfterRegister": {
-      "data": {
-        "translatableResource": {
-          "resourceId": "gid://shopify/Product/10212147626290",
-          "translatableContent": [
-            {
-              "key": "title",
-              "value": "Market translation fixture e8rfgjvd",
-              "digest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834",
-              "locale": "en",
-              "type": "SINGLE_LINE_TEXT_FIELD"
-            },
-            {
-              "key": "handle",
-              "value": "market-translation-fixture-e8rfgjvd",
-              "digest": "b5998904b65a71221e6d21e9f8525070fc1a1df4035cb76cc030c21a1f45697a",
-              "locale": "en",
-              "type": "URI"
-            },
-            {
-              "key": "product_type",
-              "value": "",
-              "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-              "locale": "en",
-              "type": "SINGLE_LINE_TEXT_FIELD"
-            }
-          ],
-          "translations": [
-            {
-              "key": "title",
-              "value": "Titulo de mercado e8rfgjvd",
-              "locale": "es",
-              "outdated": false,
-              "updatedAt": "2026-06-12T21:41:23Z",
-              "market": {
-                "id": "gid://shopify/Market/97997685042"
-              }
-            },
-            {
-              "key": "product_type",
-              "value": "Tipo de mercado e8rfgjvd",
-              "locale": "es",
-              "outdated": false,
-              "updatedAt": "2026-06-12T21:41:23Z",
-              "market": {
-                "id": "gid://shopify/Market/97997685042"
-              }
-            }
-          ]
-        },
-        "byIds": {
-          "nodes": [
-            {
-              "resourceId": "gid://shopify/PackingSlipTemplate/4834722098",
-              "translatableContent": [
-                {
-                  "key": "body",
-                  "value": "<div class=\"wrapper\">\n  <div class=\"header\">\n    <div class=\"shop-title\">\n      <p class=\"to-uppercase\">\n        {{ shop.name }}\n      </p>\n    </div>\n    <div class=\"order-title\">\n      <p class=\"text-align-right\">\n        Order {{ order.name }}\n      </p>\n      {% if order.po_number != blank %}\n        <p class=\"text-align-right\">\n          PO number #{{ order.po_number }}\n        </p>\n      {% endif %}\n      <p class=\"text-align-right\">\n        {{ order.created_at | date: format: \"date\" }}\n      </p>\n    </div>\n  </div>\n  <div class=\"customer-addresses\">\n    <div class=\"shipping-address\">\n      <p class=\"subtitle-bold to-uppercase\">\n        {% if delivery_method.instructions != blank %}\n          Delivery to\n        {% else %}\n          Ship to\n        {% endif %}\n      </p>\n      <p class=\"address-detail\">\n        {% if shipping_address != blank %}\n          {{ shipping_address.name }}\n          {% if shipping_address.company != blank %}\n            <br>\n            {{ shipping_address.company }}\n          {% endif %}\n          <br>\n          {{ shipping_address.address1 }}\n          {% if shipping_address.address2 != blank %}\n            <br>\n            {{ shipping_address.address2 }}\n          {% endif %}\n          {% if shipping_address.city_province_zip != blank %}\n            <br>\n            {{ shipping_address.city_province_zip }}\n          {% endif %}\n          <br>\n          {{ shipping_address.country }}\n          {% if shipping_address.phone != blank %}\n            <br>\n            {{ shipping_address.phone }}\n          {% endif %}\n        {% else %}\n          No shipping address\n        {% endif %}\n      </p>\n    </div>\n    <div class=\"billing-address\">\n      <p class=\"subtitle-bold to-uppercase\">\n        Bill to\n      </p>\n      <p class=\"address-detail\">\n        {% if billing_address != blank %}\n          {{ billing_address.name }}\n          {% if billing_address.company != blank %}\n            <br>\n            {{ billing_address.company }}\n          {% endif %}\n          <br>\n          {{ billing_address.address1 }}\n          {%  if billing_address.address2 != blank %}\n            <br>\n            {{ billing_address.address2 }}\n          {% endif %}\n          {% if billing_address.city_province_zip != blank %}\n            <br>\n            {{ billing_address.city_province_zip }}\n          {% endif %}\n          <br>\n          {{ billing_address.country }}\n        {% else %}\n          No billing address\n        {% endif %}\n      </p>\n    </div>\n  </div>\n  <hr>\n  <div class=\"order-container\">\n    <div class=\"order-container-header\">\n      <div class=\"order-container-header-left-content\">\n        <p class=\"subtitle-bold to-uppercase\">\n          Items\n        </p>\n      </div>\n      <div class=\"order-container-header-right-content\">\n        <p class=\"subtitle-bold to-uppercase\">\n          Quantity\n        </p>\n      </div>\n    </div>\n\n    {% comment %}\n    To adjust the size of line item images, change desired_image_size.\n    The other variables make sure your images print at high quality.\n    {% endcomment %}\n    {% assign desired_image_size = 58 %}\n    {% assign resolution_adjusted_size = desired_image_size | times: 300 | divided_by: 72 | ceil %}\n    {% capture effective_image_dimensions %}\n      {{ resolution_adjusted_size }}x{{ resolution_adjusted_size }}\n    {% endcapture %}\n\n    {% for line_item in line_items_in_shipment %}\n      <div class=\"flex-line-item\">\n        <div class=\"flex-line-item-img\">\n          {% if line_item.image != blank %}\n            <div class=\"aspect-ratio aspect-ratio-square\" style=\"width: {{ desired_image_size }}px; height: {{ desired_image_size }}px;\">\n              {{ line_item.image | img_url: effective_image_dimensions | img_tag: '', 'aspect-ratio__content' }}\n            </div>\n          {% endif %}\n        </div>\n        <div class=\"flex-line-item-description\">\n          <p>\n            <span class=\"line-item-description-line\">\n              {{ line_item.title }}\n            </span>\n            {% if line_item.variant_title != blank %}\n              <span class=\"line-item-description-line\">\n                {{ line_item.variant_title }}\n              </span>\n            {% endif %}\n            {% if line_item.sku != blank %}\n              <span class=\"line-item-description-line\">\n                {{ line_item.sku }}\n              </span>\n            {% endif %}\n            {% for group in line_item.groups %}\n              {% if group.deliverable? %}\n                <span class=\"line-item-description-line\">\n                  For: {{ group.title }}\n                </span>\n              {% else %}\n                <span class=\"line-item-description-line\">\n                  Part of: {{ group.title }}\n                </span>\n              {% endif %}\n            {% endfor %}\n          </p>\n        </div>\n        <div class=\"flex-line-item-quantity\">\n          <p class=\"text-align-right\">\n            {{ line_item.shipping_quantity }} of {{ line_item.quantity }}\n          </p>\n        </div>\n      </div>\n    {% endfor %}\n  </div>\n  {% unless includes_all_line_items_in_order %}\n    <hr class=\"subdued-separator\">\n    <p class=\"missing-line-items-text \">\n      There are other items from your order not included in this shipment.\n    </p>\n  {% endunless %}\n  <hr>\n  {% if order.note != blank %}\n    <div class=\"notes\">\n      <p class=\"subtitle-bold to-uppercase\">\n        Notes\n      </p>\n      <p class=\"notes-details\">\n        {{ order.note }}\n      </p>\n    </div>\n  {% endif %}\n  {% if delivery_method.instructions != blank %}\n    <div class=\"notes\">\n      <p class=\"subtitle-bold to-uppercase\">\n        Delivery instructions\n      </p>\n      <p class=\"notes-details\">\n        {{ delivery_method.instructions }}\n      </p>\n    </div>\n  {% endif %}\n  <div class=\"footer\">\n    <p>\n      Thank you for shopping with us!\n    </p>\n    <p>\n      <strong>\n        {{ shop.name }}\n      </strong>\n      <br>\n      {{ shop_address.summary }}\n      <br>\n      {{ shop.email }}\n      <br>\n      {{ shop.domain }}\n    </p>\n  </div>\n</div>\n<style type=\"text/css\">\n  body {\n    font-size: 15px;\n  }\n\n  * {\n    box-sizing: border-box;\n  }\n\n  .wrapper {\n    width: 831px;\n    margin: auto;\n    padding: 4em;\n    font-family: \"Noto Sans\", sans-serif;\n    font-weight: 250;\n  }\n\n  .header {\n    width: 100%;\n    display: -webkit-box;\n    display: -webkit-flex;\n    display: flex;\n    flex-direction: row;\n    align-items: top;\n  }\n\n  .header p {\n    margin: 0;\n  }\n\n  .shop-title {\n    -webkit-box-flex: 6;\n    -webkit-flex: 6;\n    flex: 6;\n    font-size: 1.9em;\n  }\n\n  .order-title {\n    -webkit-box-flex: 4;\n    -webkit-flex: 4;\n    flex: 4;\n  }\n\n  .customer-addresses {\n    width: 100%;\n    display: inline-block;\n    margin: 2em 0;\n  }\n\n  .address-detail {\n    margin: 0.7em 0 0;\n    line-height: 1.5;\n  }\n\n  .subtitle-bold {\n    font-weight: bold;\n    margin: 0;\n    font-size: 0.85em;\n  }\n\n  .to-uppercase {\n    text-transform: uppercase;\n  }\n\n  .text-align-right {\n    text-align: right;\n  }\n\n  .shipping-address {\n    float: left;\n    min-width: 18em;\n    max-width: 50%;\n  }\n\n  .billing-address {\n    padding-left: 20em;\n    min-width: 18em;\n  }\n\n  .order-container {\n    padding: 0 0.7em;\n  }\n\n  .order-container-header {\n    display: inline-block;\n    width: 100%;\n    margin-top: 1.4em;\n  }\n\n  .order-container-header-left-content {\n    float: left;\n  }\n\n  .order-container-header-right-content {\n    float: right;\n  }\n\n  .flex-line-item {\n    display: -webkit-box;\n    display: -webkit-flex;\n    display: flex;\n    flex-direction: row;\n    align-items: center;\n    margin: 1.4em 0;\n    page-break-inside: avoid;\n  }\n\n  .flex-line-item-img {\n    margin-right: 1.4em;\n    min-width: {{ desired_image_size }}px;\n  }\n\n  .flex-line-item-description {\n    -webkit-box-flex: 7;\n    -webkit-flex: 7;\n    flex: 7;\n  }\n\n  .line-item-description-line {\n    display: block;\n  }\n\n  .flex-line-item-description p {\n    margin: 0;\n    line-height: 1.5;\n  }\n\n  .flex-line-item-quantity {\n    -webkit-box-flex: 3;\n    -webkit-flex: 3;\n    flex: 3;\n  }\n\n  .subdued-separator {\n    height: 0.07em;\n    border: none;\n    color: lightgray;\n    background-color: lightgray;\n    margin: 0;\n  }\n\n  .missing-line-items-text {\n    margin: 1.4em 0;\n    padding: 0 0.7em;\n  }\n\n  .notes {\n    margin-top: 2em;\n  }\n\n  .notes p {\n    margin-bottom: 0;\n  }\n\n  .notes .notes-details {\n    margin-top: 0.7em;\n  }\n\n  .footer {\n    margin-top: 2em;\n    text-align: center;\n    line-height: 1.5;\n  }\n\n  .footer p {\n    margin: 0;\n    margin-bottom: 1.4em;\n  }\n\n  hr {\n    height: 0.14em;\n    border: none;\n    color: black;\n    background-color: black;\n    margin: 0;\n  }\n\n  .aspect-ratio {\n    position: relative;\n    display: block;\n    background: #fafbfc;\n    padding: 0;\n  }\n\n  .aspect-ratio::before {\n    z-index: 1;\n    content: \"\";\n    position: absolute;\n    top: 0;\n    right: 0;\n    bottom: 0;\n    left: 0;\n    border: 1px solid rgba(195,207,216,0.3);\n  }\n\n  .aspect-ratio--square {\n    width: 100%;\n    padding-bottom: 100%;\n  }\n\n  .aspect-ratio__content {\n    position: absolute;\n    max-width: 100%;\n    max-height: 100%;\n    display: block;\n    top: 0;\n    right: 0;\n    bottom: 0;\n    left: 0;\n    margin: auto;\n  }\n</style>\n",
-                  "digest": "ea2ab2ccee50af5121e81f41cfdbe5eb177b657acd1a49cc2f39503624ea5238",
-                  "locale": "en",
-                  "type": "HTML"
-                }
-              ]
-            },
-            {
-              "resourceId": "gid://shopify/Product/10212147626290",
-              "translatableContent": [
-                {
-                  "key": "title",
-                  "value": "Market translation fixture e8rfgjvd",
-                  "digest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834",
-                  "locale": "en",
-                  "type": "SINGLE_LINE_TEXT_FIELD"
-                },
-                {
-                  "key": "handle",
-                  "value": "market-translation-fixture-e8rfgjvd",
-                  "digest": "b5998904b65a71221e6d21e9f8525070fc1a1df4035cb76cc030c21a1f45697a",
-                  "locale": "en",
-                  "type": "URI"
-                },
-                {
-                  "key": "product_type",
-                  "value": "",
-                  "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-                  "locale": "en",
-                  "type": "SINGLE_LINE_TEXT_FIELD"
-                }
-              ]
-            }
-          ]
-        },
-        "markets": {
-          "nodes": [
-            {
-              "id": "gid://shopify/Market/97997685042",
-              "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
-              "handle": "draft-proxy-currency-settings-20260507164352-manual-rate",
+              "id": "gid://shopify/Market/98515026226",
+              "name": "Draft Proxy Currency Settings 20260613200520 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260613200520-manual-rate",
               "status": "DRAFT",
               "type": "NONE"
             },
             {
-              "id": "gid://shopify/Market/97997816114",
-              "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate",
-              "handle": "draft-proxy-currency-settings-20260507164435-manual-rate",
-              "status": "DRAFT",
-              "type": "NONE"
-            },
-            {
-              "id": "gid://shopify/Market/97997947186",
-              "name": "Draft Proxy Currency Settings 20260507164530 Manual Rate",
-              "handle": "draft-proxy-currency-settings-20260507164530-manual-rate",
+              "id": "gid://shopify/Market/98667069746",
+              "name": "Draft Proxy Currency Settings 20260626001542 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260626001542-manual-rate",
               "status": "DRAFT",
               "type": "NONE"
             },
@@ -548,13 +344,82 @@
         }
       }
     },
-    "remove": {
+    "unknownMarketRegister": {
+      "data": {
+        "translationsRegister": {
+          "translations": [],
+          "userErrors": [
+            {
+              "field": ["translations", "0", "marketId"],
+              "message": "The market corresponding to the `marketId` argument doesn't exist",
+              "code": "MARKET_DOES_NOT_EXIST"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "unknownMarketRemove": {
       "data": {
         "translationsRemove": {
+          "translations": null,
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "nonCustomizableRegister": {
+      "data": {
+        "translationsRegister": {
+          "translations": [],
+          "userErrors": [
+            {
+              "field": ["translations", "0", "key"],
+              "message": "Key body cannot be customized for a market; it can only be translated.",
+              "code": "RESOURCE_NOT_MARKET_CUSTOMIZABLE"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "register": {
+      "data": {
+        "translationsRegister": {
           "translations": [
             {
               "key": "title",
-              "value": "Titulo de mercado e8rfgjvd",
+              "value": "Titulo de mercado 6ev4d7xy",
               "locale": "es",
               "outdated": false,
               "market": {
@@ -563,7 +428,7 @@
             },
             {
               "key": "product_type",
-              "value": "Tipo de mercado e8rfgjvd",
+              "value": "Tipo de mercado 6ev4d7xy",
               "locale": "es",
               "outdated": false,
               "market": {
@@ -580,28 +445,28 @@
           "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1988,
+            "currentlyAvailable": 1989,
             "restoreRate": 100
           }
         }
       }
     },
-    "readAfterRemove": {
+    "readAfterRegister": {
       "data": {
         "translatableResource": {
-          "resourceId": "gid://shopify/Product/10212147626290",
+          "resourceId": "gid://shopify/Product/10222226506034",
           "translatableContent": [
             {
               "key": "title",
-              "value": "Market translation fixture e8rfgjvd",
-              "digest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834",
+              "value": "Market translation fixture 6ev4d7xy",
+              "digest": "1537a976957e78df4ce20d693d49f4f7af593be8071a854117c7a34104541099",
               "locale": "en",
               "type": "SINGLE_LINE_TEXT_FIELD"
             },
             {
               "key": "handle",
-              "value": "market-translation-fixture-e8rfgjvd",
-              "digest": "b5998904b65a71221e6d21e9f8525070fc1a1df4035cb76cc030c21a1f45697a",
+              "value": "market-translation-fixture-6ev4d7xy",
+              "digest": "8a01f73da49f595ee1dfa51e152edd4ab2ea949a743690693cd2fe3ac17378cc",
               "locale": "en",
               "type": "URI"
             },
@@ -613,7 +478,28 @@
               "type": "SINGLE_LINE_TEXT_FIELD"
             }
           ],
-          "translations": []
+          "translations": [
+            {
+              "key": "title",
+              "value": "Titulo de mercado 6ev4d7xy",
+              "locale": "es",
+              "outdated": false,
+              "updatedAt": "2026-06-26T15:42:14Z",
+              "market": {
+                "id": "gid://shopify/Market/97997685042"
+              }
+            },
+            {
+              "key": "product_type",
+              "value": "Tipo de mercado 6ev4d7xy",
+              "locale": "es",
+              "outdated": false,
+              "updatedAt": "2026-06-26T15:42:14Z",
+              "market": {
+                "id": "gid://shopify/Market/97997685042"
+              }
+            }
+          ]
         },
         "byIds": {
           "nodes": [
@@ -630,19 +516,19 @@
               ]
             },
             {
-              "resourceId": "gid://shopify/Product/10212147626290",
+              "resourceId": "gid://shopify/Product/10222226506034",
               "translatableContent": [
                 {
                   "key": "title",
-                  "value": "Market translation fixture e8rfgjvd",
-                  "digest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834",
+                  "value": "Market translation fixture 6ev4d7xy",
+                  "digest": "1537a976957e78df4ce20d693d49f4f7af593be8071a854117c7a34104541099",
                   "locale": "en",
                   "type": "SINGLE_LINE_TEXT_FIELD"
                 },
                 {
                   "key": "handle",
-                  "value": "market-translation-fixture-e8rfgjvd",
-                  "digest": "b5998904b65a71221e6d21e9f8525070fc1a1df4035cb76cc030c21a1f45697a",
+                  "value": "market-translation-fixture-6ev4d7xy",
+                  "digest": "8a01f73da49f595ee1dfa51e152edd4ab2ea949a743690693cd2fe3ac17378cc",
                   "locale": "en",
                   "type": "URI"
                 },
@@ -677,6 +563,20 @@
               "id": "gid://shopify/Market/97997947186",
               "name": "Draft Proxy Currency Settings 20260507164530 Manual Rate",
               "handle": "draft-proxy-currency-settings-20260507164530-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/98515026226",
+              "name": "Draft Proxy Currency Settings 20260613200520 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260613200520-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/98667069746",
+              "name": "Draft Proxy Currency Settings 20260626001542 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260626001542-manual-rate",
               "status": "DRAFT",
               "type": "NONE"
             },
@@ -729,10 +629,214 @@
       "extensions": {
         "cost": {
           "requestedQueryCost": 22,
-          "actualQueryCost": 13,
+          "actualQueryCost": 15,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1987,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "remove": {
+      "data": {
+        "translationsRemove": {
+          "translations": [
+            {
+              "key": "title",
+              "value": "Titulo de mercado 6ev4d7xy",
+              "locale": "es",
+              "outdated": false,
+              "market": {
+                "id": "gid://shopify/Market/97997685042"
+              }
+            },
+            {
+              "key": "product_type",
+              "value": "Tipo de mercado 6ev4d7xy",
+              "locale": "es",
+              "outdated": false,
+              "market": {
+                "id": "gid://shopify/Market/97997685042"
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "readAfterRemove": {
+      "data": {
+        "translatableResource": {
+          "resourceId": "gid://shopify/Product/10222226506034",
+          "translatableContent": [
+            {
+              "key": "title",
+              "value": "Market translation fixture 6ev4d7xy",
+              "digest": "1537a976957e78df4ce20d693d49f4f7af593be8071a854117c7a34104541099",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "handle",
+              "value": "market-translation-fixture-6ev4d7xy",
+              "digest": "8a01f73da49f595ee1dfa51e152edd4ab2ea949a743690693cd2fe3ac17378cc",
+              "locale": "en",
+              "type": "URI"
+            },
+            {
+              "key": "product_type",
+              "value": "",
+              "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            }
+          ],
+          "translations": []
+        },
+        "byIds": {
+          "nodes": [
+            {
+              "resourceId": "gid://shopify/PackingSlipTemplate/4834722098",
+              "translatableContent": [
+                {
+                  "key": "body",
+                  "value": "<div class=\"wrapper\">\n  <div class=\"header\">\n    <div class=\"shop-title\">\n      <p class=\"to-uppercase\">\n        {{ shop.name }}\n      </p>\n    </div>\n    <div class=\"order-title\">\n      <p class=\"text-align-right\">\n        Order {{ order.name }}\n      </p>\n      {% if order.po_number != blank %}\n        <p class=\"text-align-right\">\n          PO number #{{ order.po_number }}\n        </p>\n      {% endif %}\n      <p class=\"text-align-right\">\n        {{ order.created_at | date: format: \"date\" }}\n      </p>\n    </div>\n  </div>\n  <div class=\"customer-addresses\">\n    <div class=\"shipping-address\">\n      <p class=\"subtitle-bold to-uppercase\">\n        {% if delivery_method.instructions != blank %}\n          Delivery to\n        {% else %}\n          Ship to\n        {% endif %}\n      </p>\n      <p class=\"address-detail\">\n        {% if shipping_address != blank %}\n          {{ shipping_address.name }}\n          {% if shipping_address.company != blank %}\n            <br>\n            {{ shipping_address.company }}\n          {% endif %}\n          <br>\n          {{ shipping_address.address1 }}\n          {% if shipping_address.address2 != blank %}\n            <br>\n            {{ shipping_address.address2 }}\n          {% endif %}\n          {% if shipping_address.city_province_zip != blank %}\n            <br>\n            {{ shipping_address.city_province_zip }}\n          {% endif %}\n          <br>\n          {{ shipping_address.country }}\n          {% if shipping_address.phone != blank %}\n            <br>\n            {{ shipping_address.phone }}\n          {% endif %}\n        {% else %}\n          No shipping address\n        {% endif %}\n      </p>\n    </div>\n    <div class=\"billing-address\">\n      <p class=\"subtitle-bold to-uppercase\">\n        Bill to\n      </p>\n      <p class=\"address-detail\">\n        {% if billing_address != blank %}\n          {{ billing_address.name }}\n          {% if billing_address.company != blank %}\n            <br>\n            {{ billing_address.company }}\n          {% endif %}\n          <br>\n          {{ billing_address.address1 }}\n          {%  if billing_address.address2 != blank %}\n            <br>\n            {{ billing_address.address2 }}\n          {% endif %}\n          {% if billing_address.city_province_zip != blank %}\n            <br>\n            {{ billing_address.city_province_zip }}\n          {% endif %}\n          <br>\n          {{ billing_address.country }}\n        {% else %}\n          No billing address\n        {% endif %}\n      </p>\n    </div>\n  </div>\n  <hr>\n  <div class=\"order-container\">\n    <div class=\"order-container-header\">\n      <div class=\"order-container-header-left-content\">\n        <p class=\"subtitle-bold to-uppercase\">\n          Items\n        </p>\n      </div>\n      <div class=\"order-container-header-right-content\">\n        <p class=\"subtitle-bold to-uppercase\">\n          Quantity\n        </p>\n      </div>\n    </div>\n\n    {% comment %}\n    To adjust the size of line item images, change desired_image_size.\n    The other variables make sure your images print at high quality.\n    {% endcomment %}\n    {% assign desired_image_size = 58 %}\n    {% assign resolution_adjusted_size = desired_image_size | times: 300 | divided_by: 72 | ceil %}\n    {% capture effective_image_dimensions %}\n      {{ resolution_adjusted_size }}x{{ resolution_adjusted_size }}\n    {% endcapture %}\n\n    {% for line_item in line_items_in_shipment %}\n      <div class=\"flex-line-item\">\n        <div class=\"flex-line-item-img\">\n          {% if line_item.image != blank %}\n            <div class=\"aspect-ratio aspect-ratio-square\" style=\"width: {{ desired_image_size }}px; height: {{ desired_image_size }}px;\">\n              {{ line_item.image | img_url: effective_image_dimensions | img_tag: '', 'aspect-ratio__content' }}\n            </div>\n          {% endif %}\n        </div>\n        <div class=\"flex-line-item-description\">\n          <p>\n            <span class=\"line-item-description-line\">\n              {{ line_item.title }}\n            </span>\n            {% if line_item.variant_title != blank %}\n              <span class=\"line-item-description-line\">\n                {{ line_item.variant_title }}\n              </span>\n            {% endif %}\n            {% if line_item.sku != blank %}\n              <span class=\"line-item-description-line\">\n                {{ line_item.sku }}\n              </span>\n            {% endif %}\n            {% for group in line_item.groups %}\n              {% if group.deliverable? %}\n                <span class=\"line-item-description-line\">\n                  For: {{ group.title }}\n                </span>\n              {% else %}\n                <span class=\"line-item-description-line\">\n                  Part of: {{ group.title }}\n                </span>\n              {% endif %}\n            {% endfor %}\n          </p>\n        </div>\n        <div class=\"flex-line-item-quantity\">\n          <p class=\"text-align-right\">\n            {{ line_item.shipping_quantity }} of {{ line_item.quantity }}\n          </p>\n        </div>\n      </div>\n    {% endfor %}\n  </div>\n  {% unless includes_all_line_items_in_order %}\n    <hr class=\"subdued-separator\">\n    <p class=\"missing-line-items-text \">\n      There are other items from your order not included in this shipment.\n    </p>\n  {% endunless %}\n  <hr>\n  {% if order.note != blank %}\n    <div class=\"notes\">\n      <p class=\"subtitle-bold to-uppercase\">\n        Notes\n      </p>\n      <p class=\"notes-details\">\n        {{ order.note }}\n      </p>\n    </div>\n  {% endif %}\n  {% if delivery_method.instructions != blank %}\n    <div class=\"notes\">\n      <p class=\"subtitle-bold to-uppercase\">\n        Delivery instructions\n      </p>\n      <p class=\"notes-details\">\n        {{ delivery_method.instructions }}\n      </p>\n    </div>\n  {% endif %}\n  <div class=\"footer\">\n    <p>\n      Thank you for shopping with us!\n    </p>\n    <p>\n      <strong>\n        {{ shop.name }}\n      </strong>\n      <br>\n      {{ shop_address.summary }}\n      <br>\n      {{ shop.email }}\n      <br>\n      {{ shop.domain }}\n    </p>\n  </div>\n</div>\n<style type=\"text/css\">\n  body {\n    font-size: 15px;\n  }\n\n  * {\n    box-sizing: border-box;\n  }\n\n  .wrapper {\n    width: 831px;\n    margin: auto;\n    padding: 4em;\n    font-family: \"Noto Sans\", sans-serif;\n    font-weight: 250;\n  }\n\n  .header {\n    width: 100%;\n    display: -webkit-box;\n    display: -webkit-flex;\n    display: flex;\n    flex-direction: row;\n    align-items: top;\n  }\n\n  .header p {\n    margin: 0;\n  }\n\n  .shop-title {\n    -webkit-box-flex: 6;\n    -webkit-flex: 6;\n    flex: 6;\n    font-size: 1.9em;\n  }\n\n  .order-title {\n    -webkit-box-flex: 4;\n    -webkit-flex: 4;\n    flex: 4;\n  }\n\n  .customer-addresses {\n    width: 100%;\n    display: inline-block;\n    margin: 2em 0;\n  }\n\n  .address-detail {\n    margin: 0.7em 0 0;\n    line-height: 1.5;\n  }\n\n  .subtitle-bold {\n    font-weight: bold;\n    margin: 0;\n    font-size: 0.85em;\n  }\n\n  .to-uppercase {\n    text-transform: uppercase;\n  }\n\n  .text-align-right {\n    text-align: right;\n  }\n\n  .shipping-address {\n    float: left;\n    min-width: 18em;\n    max-width: 50%;\n  }\n\n  .billing-address {\n    padding-left: 20em;\n    min-width: 18em;\n  }\n\n  .order-container {\n    padding: 0 0.7em;\n  }\n\n  .order-container-header {\n    display: inline-block;\n    width: 100%;\n    margin-top: 1.4em;\n  }\n\n  .order-container-header-left-content {\n    float: left;\n  }\n\n  .order-container-header-right-content {\n    float: right;\n  }\n\n  .flex-line-item {\n    display: -webkit-box;\n    display: -webkit-flex;\n    display: flex;\n    flex-direction: row;\n    align-items: center;\n    margin: 1.4em 0;\n    page-break-inside: avoid;\n  }\n\n  .flex-line-item-img {\n    margin-right: 1.4em;\n    min-width: {{ desired_image_size }}px;\n  }\n\n  .flex-line-item-description {\n    -webkit-box-flex: 7;\n    -webkit-flex: 7;\n    flex: 7;\n  }\n\n  .line-item-description-line {\n    display: block;\n  }\n\n  .flex-line-item-description p {\n    margin: 0;\n    line-height: 1.5;\n  }\n\n  .flex-line-item-quantity {\n    -webkit-box-flex: 3;\n    -webkit-flex: 3;\n    flex: 3;\n  }\n\n  .subdued-separator {\n    height: 0.07em;\n    border: none;\n    color: lightgray;\n    background-color: lightgray;\n    margin: 0;\n  }\n\n  .missing-line-items-text {\n    margin: 1.4em 0;\n    padding: 0 0.7em;\n  }\n\n  .notes {\n    margin-top: 2em;\n  }\n\n  .notes p {\n    margin-bottom: 0;\n  }\n\n  .notes .notes-details {\n    margin-top: 0.7em;\n  }\n\n  .footer {\n    margin-top: 2em;\n    text-align: center;\n    line-height: 1.5;\n  }\n\n  .footer p {\n    margin: 0;\n    margin-bottom: 1.4em;\n  }\n\n  hr {\n    height: 0.14em;\n    border: none;\n    color: black;\n    background-color: black;\n    margin: 0;\n  }\n\n  .aspect-ratio {\n    position: relative;\n    display: block;\n    background: #fafbfc;\n    padding: 0;\n  }\n\n  .aspect-ratio::before {\n    z-index: 1;\n    content: \"\";\n    position: absolute;\n    top: 0;\n    right: 0;\n    bottom: 0;\n    left: 0;\n    border: 1px solid rgba(195,207,216,0.3);\n  }\n\n  .aspect-ratio--square {\n    width: 100%;\n    padding-bottom: 100%;\n  }\n\n  .aspect-ratio__content {\n    position: absolute;\n    max-width: 100%;\n    max-height: 100%;\n    display: block;\n    top: 0;\n    right: 0;\n    bottom: 0;\n    left: 0;\n    margin: auto;\n  }\n</style>\n",
+                  "digest": "ea2ab2ccee50af5121e81f41cfdbe5eb177b657acd1a49cc2f39503624ea5238",
+                  "locale": "en",
+                  "type": "HTML"
+                }
+              ]
+            },
+            {
+              "resourceId": "gid://shopify/Product/10222226506034",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Market translation fixture 6ev4d7xy",
+                  "digest": "1537a976957e78df4ce20d693d49f4f7af593be8071a854117c7a34104541099",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "market-translation-fixture-6ev4d7xy",
+                  "digest": "8a01f73da49f595ee1dfa51e152edd4ab2ea949a743690693cd2fe3ac17378cc",
+                  "locale": "en",
+                  "type": "URI"
+                },
+                {
+                  "key": "product_type",
+                  "value": "",
+                  "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                }
+              ]
+            }
+          ]
+        },
+        "markets": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Market/97997685042",
+              "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260507164352-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/97997816114",
+              "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260507164435-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/97997947186",
+              "name": "Draft Proxy Currency Settings 20260507164530 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260507164530-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/98515026226",
+              "name": "Draft Proxy Currency Settings 20260613200520 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260613200520-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/98667069746",
+              "name": "Draft Proxy Currency Settings 20260626001542 Manual Rate",
+              "handle": "draft-proxy-currency-settings-20260626001542-manual-rate",
+              "status": "DRAFT",
+              "type": "NONE"
+            },
+            {
+              "id": "gid://shopify/Market/92276785458",
+              "name": "International",
+              "handle": "international",
+              "status": "ACTIVE",
+              "type": "REGION"
+            },
+            {
+              "id": "gid://shopify/Market/92276818226",
+              "name": "Mexico",
+              "handle": "mexico",
+              "status": "ACTIVE",
+              "type": "REGION"
+            }
+          ]
+        },
+        "allShopLocales": [
+          {
+            "locale": "en",
+            "name": "English",
+            "primary": true,
+            "published": true,
+            "marketWebPresences": [
+              {
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "subfolderSuffix": null
+              },
+              {
+                "id": "gid://shopify/MarketWebPresence/69720899890",
+                "subfolderSuffix": "harerhkjdulik"
+              },
+              {
+                "id": "gid://shopify/MarketWebPresence/69720998194",
+                "subfolderSuffix": "harsipqvpnehc"
+              }
+            ]
+          },
+          {
+            "locale": "es",
+            "name": "Spanish",
+            "primary": false,
+            "published": false,
+            "marketWebPresences": []
+          }
+        ]
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 22,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
             "restoreRate": 100
           }
         }
@@ -753,7 +857,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1988,
             "restoreRate": 100
           }
         }
@@ -762,7 +866,7 @@
     "productDelete": {
       "data": {
         "productDelete": {
-          "deletedProductId": "gid://shopify/Product/10212147626290",
+          "deletedProductId": "gid://shopify/Product/10222226506034",
           "userErrors": []
         }
       },
@@ -772,7 +876,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1988,
             "restoreRate": 100
           }
         }
@@ -783,30 +887,30 @@
     {
       "operationName": "LocalizationTranslationsMarketScopedRead",
       "variables": {
-        "resourceId": "gid://shopify/Product/10212147626290",
+        "resourceId": "gid://shopify/Product/10222226506034",
         "marketId": "gid://shopify/Market/97997685042",
-        "resourceIds": ["gid://shopify/Product/10212147626290", "gid://shopify/PackingSlipTemplate/4834722098"],
+        "resourceIds": ["gid://shopify/Product/10222226506034", "gid://shopify/PackingSlipTemplate/4834722098"],
         "marketsFirst": 10
       },
-      "query": "query LocalizationTranslationsMarketScopedRead(\n  $resourceId: ID!\n  $marketId: ID!\n  $resourceIds: [ID!]!\n  $marketsFirst: Int!\n) {\n  translatableResource(resourceId: $resourceId) {\n    resourceId\n    translatableContent {\n      key\n      value\n      digest\n      locale\n      type\n    }\n    translations(locale: \"es\", marketId: $marketId) {\n      key\n      value\n      locale\n      outdated\n      updatedAt\n      market {\n        id\n      }\n    }\n  }\n  byIds: translatableResourcesByIds(first: 10, resourceIds: $resourceIds) {\n    nodes {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n    }\n  }\n  markets(first: $marketsFirst) {\n    nodes {\n      id\n      name\n      handle\n      status\n      type\n    }\n  }\n  allShopLocales: shopLocales {\n    locale\n    name\n    primary\n    published\n    marketWebPresences {\n      id\n      subfolderSuffix\n    }\n  }\n}\n",
+      "query": "#graphql\n  query LocalizationTranslationsMarketScopedRead(\n    $resourceId: ID!\n    $marketId: ID!\n    $resourceIds: [ID!]!\n    $marketsFirst: Int!\n  ) {\n    translatableResource(resourceId: $resourceId) {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n      translations(locale: \"es\", marketId: $marketId) {\n        key\n        value\n        locale\n        outdated\n        updatedAt\n        market {\n          id\n        }\n      }\n    }\n    byIds: translatableResourcesByIds(first: 10, resourceIds: $resourceIds) {\n      nodes {\n        resourceId\n        translatableContent {\n          key\n          value\n          digest\n          locale\n          type\n        }\n      }\n    }\n    markets(first: $marketsFirst) {\n      nodes {\n        id\n        name\n        handle\n        status\n        type\n      }\n    }\n    allShopLocales: shopLocales {\n      locale\n      name\n      primary\n      published\n      marketWebPresences {\n        id\n        subfolderSuffix\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "translatableResource": {
-              "resourceId": "gid://shopify/Product/10212147626290",
+              "resourceId": "gid://shopify/Product/10222226506034",
               "translatableContent": [
                 {
                   "key": "title",
-                  "value": "Market translation fixture e8rfgjvd",
-                  "digest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834",
+                  "value": "Market translation fixture 6ev4d7xy",
+                  "digest": "1537a976957e78df4ce20d693d49f4f7af593be8071a854117c7a34104541099",
                   "locale": "en",
                   "type": "SINGLE_LINE_TEXT_FIELD"
                 },
                 {
                   "key": "handle",
-                  "value": "market-translation-fixture-e8rfgjvd",
-                  "digest": "b5998904b65a71221e6d21e9f8525070fc1a1df4035cb76cc030c21a1f45697a",
+                  "value": "market-translation-fixture-6ev4d7xy",
+                  "digest": "8a01f73da49f595ee1dfa51e152edd4ab2ea949a743690693cd2fe3ac17378cc",
                   "locale": "en",
                   "type": "URI"
                 },
@@ -835,19 +939,19 @@
                   ]
                 },
                 {
-                  "resourceId": "gid://shopify/Product/10212147626290",
+                  "resourceId": "gid://shopify/Product/10222226506034",
                   "translatableContent": [
                     {
                       "key": "title",
-                      "value": "Market translation fixture e8rfgjvd",
-                      "digest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834",
+                      "value": "Market translation fixture 6ev4d7xy",
+                      "digest": "1537a976957e78df4ce20d693d49f4f7af593be8071a854117c7a34104541099",
                       "locale": "en",
                       "type": "SINGLE_LINE_TEXT_FIELD"
                     },
                     {
                       "key": "handle",
-                      "value": "market-translation-fixture-e8rfgjvd",
-                      "digest": "b5998904b65a71221e6d21e9f8525070fc1a1df4035cb76cc030c21a1f45697a",
+                      "value": "market-translation-fixture-6ev4d7xy",
+                      "digest": "8a01f73da49f595ee1dfa51e152edd4ab2ea949a743690693cd2fe3ac17378cc",
                       "locale": "en",
                       "type": "URI"
                     },
@@ -882,6 +986,20 @@
                   "id": "gid://shopify/Market/97997947186",
                   "name": "Draft Proxy Currency Settings 20260507164530 Manual Rate",
                   "handle": "draft-proxy-currency-settings-20260507164530-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE"
+                },
+                {
+                  "id": "gid://shopify/Market/98515026226",
+                  "name": "Draft Proxy Currency Settings 20260613200520 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260613200520-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE"
+                },
+                {
+                  "id": "gid://shopify/Market/98667069746",
+                  "name": "Draft Proxy Currency Settings 20260626001542 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260626001542-manual-rate",
                   "status": "DRAFT",
                   "type": "NONE"
                 },
@@ -934,13 +1052,52 @@
           "extensions": {
             "cost": {
               "requestedQueryCost": 22,
-              "actualQueryCost": 13,
+              "actualQueryCost": 14,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1986,
                 "restoreRate": 100
               }
             }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "LocalizationMutationTargetsHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Market/424242424242"]
+      },
+      "query": "query LocalizationMutationTargetsHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    ... on Market {\n      id\n      name\n      handle\n      status\n      type\n    }\n    ... on MarketWebPresence {\n      id\n      subfolderSuffix\n      domain {\n        id\n        host\n        url\n        sslEnabled\n      }\n      rootUrls {\n        locale\n        url\n      }\n      defaultLocale {\n        locale\n        name\n        primary\n        published\n      }\n      alternateLocales {\n        locale\n        name\n        primary\n        published\n      }\n      markets(first: 250) {\n        nodes {\n          id\n          name\n          handle\n          status\n          type\n        }\n      }\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "LocalizationMutationTargetsHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Market/97997685042"]
+      },
+      "query": "query LocalizationMutationTargetsHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    ... on Market {\n      id\n      name\n      handle\n      status\n      type\n    }\n    ... on MarketWebPresence {\n      id\n      subfolderSuffix\n      domain {\n        id\n        host\n        url\n        sslEnabled\n      }\n      rootUrls {\n        locale\n        url\n      }\n      defaultLocale {\n        locale\n        name\n        primary\n        published\n      }\n      alternateLocales {\n        locale\n        name\n        primary\n        published\n      }\n      markets(first: 250) {\n        nodes {\n          id\n          name\n          handle\n          status\n          type\n        }\n      }\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Market",
+                "id": "gid://shopify/Market/97997685042",
+                "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+                "handle": "draft-proxy-currency-settings-20260507164352-manual-rate",
+                "status": "DRAFT",
+                "type": "NONE"
+              }
+            ]
           }
         }
       }

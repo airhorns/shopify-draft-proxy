@@ -2416,6 +2416,378 @@ fn metafield_definition_validation_update_gates_later_metafields_set() {
 }
 
 #[test]
+fn metafields_set_and_owner_reads_project_matching_definition() {
+    let mut proxy = snapshot_proxy();
+    let owner_id = "gid://shopify/Product/10173064872243";
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionAssociationCreate($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id namespace key ownerType type { name } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "ownerType": "PRODUCT",
+                "namespace": "custom",
+                "key": "specs",
+                "name": "Specs",
+                "type": "multi_line_text_field"
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    let created_definition = &create.body["data"]["metafieldDefinitionCreate"]["createdDefinition"];
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionAssociationSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields {
+              namespace
+              key
+              definition { id namespace key type { name } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "metafields": [
+                {
+                    "ownerId": owner_id,
+                    "namespace": "custom",
+                    "key": "specs",
+                    "type": "multi_line_text_field",
+                    "value": "hi"
+                },
+                {
+                    "ownerId": owner_id,
+                    "namespace": "unscoped",
+                    "key": "note",
+                    "type": "single_line_text_field",
+                    "value": "loose"
+                }
+            ]
+        }),
+    ));
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["metafields"],
+        json!([
+            {
+                "namespace": "custom",
+                "key": "specs",
+                "definition": {
+                    "id": created_definition["id"].clone(),
+                    "namespace": "custom",
+                    "key": "specs",
+                    "type": { "name": "multi_line_text_field" }
+                }
+            },
+            {
+                "namespace": "unscoped",
+                "key": "note",
+                "definition": null
+            }
+        ])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldDefinitionAssociationRead($id: ID!) {
+          product(id: $id) {
+            defined: metafield(namespace: "custom", key: "specs") {
+              namespace
+              key
+              definition { id namespace key type { name } }
+            }
+            undefined: metafield(namespace: "unscoped", key: "note") {
+              namespace
+              key
+              definition { id }
+            }
+          }
+        }
+        "#,
+        json!({ "id": owner_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["product"]["defined"],
+        json!({
+            "namespace": "custom",
+            "key": "specs",
+            "definition": {
+                "id": created_definition["id"].clone(),
+                "namespace": "custom",
+                "key": "specs",
+                "type": { "name": "multi_line_text_field" }
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["product"]["undefined"],
+        json!({
+            "namespace": "unscoped",
+            "key": "note",
+            "definition": null
+        })
+    );
+}
+
+#[test]
+fn metafield_definition_validation_rules_gate_metafields_set_values() {
+    let mut proxy = snapshot_proxy();
+    let owner_id = "gid://shopify/Product/10173064872244";
+    let namespace = "definition_rule_matrix";
+    let create_query = r#"
+        mutation DefinitionRuleMatrixCreate($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { namespace key ownerType type { name } validations { name value } }
+            userErrors { field message code }
+          }
+        }
+        "#;
+
+    let definitions = vec![
+        json!({"namespace": namespace, "key": "quantity_min", "ownerType": "PRODUCT", "name": "Quantity min", "type": "number_integer", "validations": [{"name": "min", "value": "2"}]}),
+        json!({"namespace": namespace, "key": "quantity_max", "ownerType": "PRODUCT", "name": "Quantity max", "type": "number_integer", "validations": [{"name": "max", "value": "5"}]}),
+        json!({"namespace": namespace, "key": "sku", "ownerType": "PRODUCT", "name": "SKU", "type": "single_line_text_field", "validations": [{"name": "regex", "value": "^[A-Z]{3}$"}]}),
+        json!({"namespace": namespace, "key": "color", "ownerType": "PRODUCT", "name": "Color", "type": "single_line_text_field", "validations": [{"name": "choices", "value": "[\"red\",\"blue\"]"}]}),
+        json!({"namespace": namespace, "key": "rating", "ownerType": "PRODUCT", "name": "Rating", "type": "rating", "validations": [{"name": "scale_min", "value": "1.0"}, {"name": "scale_max", "value": "5.0"}]}),
+        json!({"namespace": namespace, "key": "launch_date", "ownerType": "PRODUCT", "name": "Launch date", "type": "date", "validations": [{"name": "min", "value": "2026-01-01"}, {"name": "max", "value": "2026-12-31"}]}),
+        json!({"namespace": namespace, "key": "starts_at", "ownerType": "PRODUCT", "name": "Starts at", "type": "date_time", "validations": [{"name": "min", "value": "2026-01-01T00:00:00+00:00"}, {"name": "max", "value": "2026-12-31T23:59:59+00:00"}]}),
+    ];
+
+    for definition in definitions {
+        let created = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"definition": definition}),
+        ));
+        assert_eq!(
+            created.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let set_query = r#"
+        mutation DefinitionRuleMatrixSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#;
+    let rejected = proxy.process_request(json_graphql_request(
+        set_query,
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": namespace, "key": "quantity_min", "type": "number_integer", "value": "1"},
+            {"ownerId": owner_id, "namespace": namespace, "key": "quantity_max", "type": "number_integer", "value": "6"},
+            {"ownerId": owner_id, "namespace": namespace, "key": "sku", "type": "single_line_text_field", "value": "abc"},
+            {"ownerId": owner_id, "namespace": namespace, "key": "color", "type": "single_line_text_field", "value": "green"},
+            {"ownerId": owner_id, "namespace": namespace, "key": "rating", "type": "rating", "value": json!({"value": "6.0", "scale_min": "1.0", "scale_max": "10.0"}).to_string()},
+            {"ownerId": owner_id, "namespace": namespace, "key": "launch_date", "type": "date", "value": "2027-01-01"},
+            {"ownerId": owner_id, "namespace": namespace, "key": "starts_at", "type": "date_time", "value": "2027-01-01T00:00:00+00:00"}
+        ]}),
+    ));
+    assert_eq!(
+        rejected.body["data"]["metafieldsSet"]["metafields"],
+        json!([])
+    );
+    let errors = rejected.body["data"]["metafieldsSet"]["userErrors"]
+        .as_array()
+        .unwrap();
+    assert_eq!(errors.len(), 7);
+    let expected_messages = [
+        "Value has a minimum of 2.",
+        "Value has a maximum of 5.",
+        "Value does not match the required pattern.",
+        "Value must be one of the allowed choices.",
+        "Value has a maximum of 5.0.",
+        "Value has a maximum date of 2026-12-31.",
+        "Value has a maximum date-time of 2026-12-31T23:59:59+00:00.",
+    ];
+    for (index, error) in errors.iter().enumerate() {
+        assert_eq!(
+            error["field"],
+            json!(["metafields", index.to_string(), "value"])
+        );
+        assert_eq!(error["code"], json!("INVALID_VALUE"));
+        assert_eq!(error["message"], json!(expected_messages[index]));
+        assert_eq!(error["elementIndex"], Value::Null);
+    }
+
+    let accepted = proxy.process_request(json_graphql_request(
+        set_query,
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": namespace, "key": "quantity_min", "type": "number_integer", "value": "2"},
+            {"ownerId": owner_id, "namespace": namespace, "key": "quantity_max", "type": "number_integer", "value": "5"},
+            {"ownerId": owner_id, "namespace": namespace, "key": "sku", "type": "single_line_text_field", "value": "ABC"},
+            {"ownerId": owner_id, "namespace": namespace, "key": "color", "type": "single_line_text_field", "value": "red"},
+            {"ownerId": owner_id, "namespace": namespace, "key": "rating", "type": "rating", "value": json!({"value": "4.0", "scale_min": "1.0", "scale_max": "10.0"}).to_string()},
+            {"ownerId": owner_id, "namespace": namespace, "key": "launch_date", "type": "date", "value": "2026-06-25"},
+            {"ownerId": owner_id, "namespace": namespace, "key": "starts_at", "type": "date_time", "value": "2026-06-25T10:11:12Z"}
+        ]}),
+    ));
+    assert_eq!(
+        accepted.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        accepted.body["data"]["metafieldsSet"]["metafields"]
+            .as_array()
+            .unwrap()
+            .len(),
+        7
+    );
+}
+
+#[test]
+fn metafield_definition_metaobject_reference_validation_checks_target_definition() {
+    let mut proxy = snapshot_proxy();
+    let title_field = json!({"key": "title", "name": "Title", "type": "single_line_text_field", "required": false});
+    let create_definition_query = r#"
+        mutation CreateMetaobjectDefinitionForMetafieldReference($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id type }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let create_metaobject_definition = |proxy: &mut DraftProxy, meta_type: &str| -> String {
+        let response = proxy.process_request(json_graphql_request(
+            create_definition_query,
+            json!({"definition": {
+                "type": meta_type,
+                "name": meta_type,
+                "displayNameKey": "title",
+                "fieldDefinitions": [title_field.clone()]
+            }}),
+        ));
+        assert_eq!(
+            response.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+            json!([])
+        );
+        response.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    };
+    let allowed_definition_id = create_metaobject_definition(&mut proxy, "allowed_reference_type");
+    create_metaobject_definition(&mut proxy, "disallowed_reference_type");
+
+    let create_metaobject_query = r#"
+        mutation CreateMetaobjectForMetafieldReference($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id type }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let create_metaobject = |proxy: &mut DraftProxy, meta_type: &str, handle: &str| -> String {
+        let response = proxy.process_request(json_graphql_request(
+            create_metaobject_query,
+            json!({"metaobject": {
+                "type": meta_type,
+                "handle": handle,
+                "fields": [{"key": "title", "value": handle}]
+            }}),
+        ));
+        assert_eq!(
+            response.body["data"]["metaobjectCreate"]["userErrors"],
+            json!([])
+        );
+        response.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    };
+    let allowed_metaobject_id =
+        create_metaobject(&mut proxy, "allowed_reference_type", "allowed-reference");
+    let disallowed_metaobject_id = create_metaobject(
+        &mut proxy,
+        "disallowed_reference_type",
+        "disallowed-reference",
+    );
+
+    let namespace = "reference_definition_rule";
+    let definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetaobjectReferenceMetafieldDefinition($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { namespace key ownerType type { name } validations { name value } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "namespace": namespace,
+            "key": "linked",
+            "ownerType": "PRODUCT",
+            "name": "Linked metaobject",
+            "type": "metaobject_reference",
+            "validations": [{"name": "metaobject_definition_id", "value": allowed_definition_id}]
+        }}),
+    ));
+    assert_eq!(
+        definition.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let set_query = r#"
+        mutation SetMetaobjectReferenceMetafield($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key type value }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#;
+    let rejected = proxy.process_request(json_graphql_request(
+        set_query,
+        json!({"metafields": [{
+            "ownerId": "gid://shopify/Product/10173064872245",
+            "namespace": namespace,
+            "key": "linked",
+            "type": "metaobject_reference",
+            "value": disallowed_metaobject_id
+        }]}),
+    ));
+    assert_eq!(
+        rejected.body["data"]["metafieldsSet"],
+        json!({
+            "metafields": [],
+            "userErrors": [{
+                "field": ["metafields", "0", "value"],
+                "message": "Value must belong to the configured metaobject definition.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let accepted = proxy.process_request(json_graphql_request(
+        set_query,
+        json!({"metafields": [{
+            "ownerId": "gid://shopify/Product/10173064872245",
+            "namespace": namespace,
+            "key": "linked",
+            "type": "metaobject_reference",
+            "value": allowed_metaobject_id
+        }]}),
+    ));
+    assert_eq!(
+        accepted.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
 fn metafield_definition_validations_gate_metafields_set_for_non_product_owners() {
     let mut proxy = snapshot_proxy();
     let cases = [
@@ -2607,5 +2979,130 @@ fn standard_metafield_definition_enable_uses_template_registry_and_errors() {
             },
             "userErrors": []
         })
+    );
+}
+
+#[test]
+fn standard_metafield_definition_enable_supports_shopify_material_template() {
+    let mut proxy = snapshot_proxy();
+
+    let enabled = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StandardMetafieldDefinitionEnableMaterial {
+          standardMetafieldDefinitionEnable(ownerType: PRODUCT, namespace: "shopify", key: "material") {
+            createdDefinition {
+              namespace
+              key
+              ownerType
+              name
+              type { name category }
+              validations { name value }
+              constraints {
+                key
+                values(first: 5) { nodes { value } }
+              }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]["namespace"],
+        json!("shopify")
+    );
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"],
+        json!({
+            "namespace": "shopify",
+            "key": "material",
+            "ownerType": "PRODUCT",
+            "name": "Material",
+            "type": { "name": "list.metaobject_reference", "category": "REFERENCE" },
+            "validations": [{
+                "name": "metaobject_definition_id",
+                "value": "gid://shopify/MetaobjectDefinition/standard-material?shopify-draft-proxy=synthetic"
+            }],
+            "constraints": {
+                "key": "category",
+                "values": {
+                    "nodes": [
+                        { "value": "aa-2" },
+                        { "value": "aa-2-14-6" },
+                        { "value": "aa-2-14-6-2" },
+                        { "value": "aa-2-14-6-3" },
+                        { "value": "aa-2-14-6-4" }
+                    ]
+                }
+            }
+        })
+    );
+}
+
+#[test]
+fn standard_metafield_definition_enable_accepts_catalog_template_id_for_fabric() {
+    let mut proxy = snapshot_proxy();
+
+    let enabled = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StandardMetafieldDefinitionEnableFabricById {
+          standardMetafieldDefinitionEnable(
+            ownerType: PRODUCT
+            id: "gid://shopify/StandardMetafieldDefinitionTemplate/12777"
+          ) {
+            createdDefinition {
+              id
+              namespace
+              key
+              name
+              type { name category }
+              validations { name value }
+              constraints { key values(first: 5) { nodes { value } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]["namespace"],
+        json!("shopify")
+    );
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]["key"],
+        json!("fabric")
+    );
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]["name"],
+        json!("Fabric")
+    );
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]["type"],
+        json!({ "name": "list.metaobject_reference", "category": "REFERENCE" })
+    );
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]
+            ["validations"],
+        json!([{
+            "name": "metaobject_definition_id",
+            "value": "gid://shopify/MetaobjectDefinition/standard-fabric?shopify-draft-proxy=synthetic"
+        }])
+    );
+    assert_eq!(
+        enabled.body["data"]["standardMetafieldDefinitionEnable"]["createdDefinition"]
+            ["constraints"],
+        json!({ "key": "category", "values": { "nodes": [] } })
     );
 }

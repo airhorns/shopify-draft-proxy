@@ -1,0 +1,1611 @@
+{
+  "capturedAt": "2026-06-25T13:38:27.038Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "namespace": "validation_values_mqtjsdwd",
+  "ownerNamespace": "owner_type_values_mqtjsdwd",
+  "definitionRules": {
+    "productCreate": {
+      "label": "product owner setup",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "product": {
+            "title": "Metafields validation owner mqtjsdwd",
+            "status": "DRAFT"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10221226918194",
+              "title": "Metafields validation owner mqtjsdwd",
+              "handle": "metafields-validation-owner-mqtjsdwd",
+              "status": "DRAFT"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "createDefinitions": {
+      "label": "metafield definition validation rule setup",
+      "request": {
+        "query": "mutation MetafieldsSetDefinitionValidationCreateDefinitions(\n  $quantityMin: MetafieldDefinitionInput!\n  $quantityMax: MetafieldDefinitionInput!\n  $sku: MetafieldDefinitionInput!\n  $color: MetafieldDefinitionInput!\n  $rating: MetafieldDefinitionInput!\n  $launchDate: MetafieldDefinitionInput!\n  $startsAt: MetafieldDefinitionInput!\n) {\n  quantityMin: metafieldDefinitionCreate(definition: $quantityMin) {\n    createdDefinition {\n      id\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  quantityMax: metafieldDefinitionCreate(definition: $quantityMax) {\n    createdDefinition {\n      id\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  sku: metafieldDefinitionCreate(definition: $sku) {\n    createdDefinition {\n      id\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  color: metafieldDefinitionCreate(definition: $color) {\n    createdDefinition {\n      id\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  rating: metafieldDefinitionCreate(definition: $rating) {\n    createdDefinition {\n      id\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  launchDate: metafieldDefinitionCreate(definition: $launchDate) {\n    createdDefinition {\n      id\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  startsAt: metafieldDefinitionCreate(definition: $startsAt) {\n    createdDefinition {\n      id\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "quantityMin": {
+            "name": "Quantity minimum",
+            "namespace": "validation_values_mqtjsdwd",
+            "key": "quantity_min",
+            "ownerType": "PRODUCT",
+            "type": "number_integer",
+            "validations": [
+              {
+                "name": "min",
+                "value": "2"
+              }
+            ]
+          },
+          "quantityMax": {
+            "name": "Quantity maximum",
+            "namespace": "validation_values_mqtjsdwd",
+            "key": "quantity_max",
+            "ownerType": "PRODUCT",
+            "type": "number_integer",
+            "validations": [
+              {
+                "name": "max",
+                "value": "5"
+              }
+            ]
+          },
+          "sku": {
+            "name": "SKU pattern",
+            "namespace": "validation_values_mqtjsdwd",
+            "key": "sku",
+            "ownerType": "PRODUCT",
+            "type": "single_line_text_field",
+            "validations": [
+              {
+                "name": "regex",
+                "value": "^[A-Z]{3}$"
+              }
+            ]
+          },
+          "color": {
+            "name": "Color choices",
+            "namespace": "validation_values_mqtjsdwd",
+            "key": "color",
+            "ownerType": "PRODUCT",
+            "type": "single_line_text_field",
+            "validations": [
+              {
+                "name": "choices",
+                "value": "[\"red\",\"blue\"]"
+              }
+            ]
+          },
+          "rating": {
+            "name": "Rating scale",
+            "namespace": "validation_values_mqtjsdwd",
+            "key": "rating",
+            "ownerType": "PRODUCT",
+            "type": "rating",
+            "validations": [
+              {
+                "name": "scale_min",
+                "value": "1.0"
+              },
+              {
+                "name": "scale_max",
+                "value": "5.0"
+              }
+            ]
+          },
+          "launchDate": {
+            "name": "Launch date",
+            "namespace": "validation_values_mqtjsdwd",
+            "key": "launch_date",
+            "ownerType": "PRODUCT",
+            "type": "date",
+            "validations": [
+              {
+                "name": "min",
+                "value": "2026-01-01"
+              },
+              {
+                "name": "max",
+                "value": "2026-12-31"
+              }
+            ]
+          },
+          "startsAt": {
+            "name": "Starts at",
+            "namespace": "validation_values_mqtjsdwd",
+            "key": "starts_at",
+            "ownerType": "PRODUCT",
+            "type": "date_time",
+            "validations": [
+              {
+                "name": "min",
+                "value": "2026-01-01T00:00:00+00:00"
+              },
+              {
+                "name": "max",
+                "value": "2026-12-31T23:59:59+00:00"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "quantityMin": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/220614459698",
+              "namespace": "validation_values_mqtjsdwd",
+              "key": "quantity_min",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "number_integer",
+                "category": "NUMBER"
+              },
+              "validations": [
+                {
+                  "name": "min",
+                  "value": "2"
+                }
+              ]
+            },
+            "userErrors": []
+          },
+          "quantityMax": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/220614492466",
+              "namespace": "validation_values_mqtjsdwd",
+              "key": "quantity_max",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "number_integer",
+                "category": "NUMBER"
+              },
+              "validations": [
+                {
+                  "name": "max",
+                  "value": "5"
+                }
+              ]
+            },
+            "userErrors": []
+          },
+          "sku": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/220614525234",
+              "namespace": "validation_values_mqtjsdwd",
+              "key": "sku",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "validations": [
+                {
+                  "name": "regex",
+                  "value": "^[A-Z]{3}$"
+                }
+              ]
+            },
+            "userErrors": []
+          },
+          "color": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/220614558002",
+              "namespace": "validation_values_mqtjsdwd",
+              "key": "color",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "validations": [
+                {
+                  "name": "choices",
+                  "value": "[\"red\",\"blue\"]"
+                }
+              ]
+            },
+            "userErrors": []
+          },
+          "rating": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/220614590770",
+              "namespace": "validation_values_mqtjsdwd",
+              "key": "rating",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "rating",
+                "category": "RATING"
+              },
+              "validations": [
+                {
+                  "name": "scale_min",
+                  "value": "1.0"
+                },
+                {
+                  "name": "scale_max",
+                  "value": "5.0"
+                }
+              ]
+            },
+            "userErrors": []
+          },
+          "launchDate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/220614623538",
+              "namespace": "validation_values_mqtjsdwd",
+              "key": "launch_date",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "date",
+                "category": "DATE_TIME"
+              },
+              "validations": [
+                {
+                  "name": "min",
+                  "value": "2026-01-01"
+                },
+                {
+                  "name": "max",
+                  "value": "2026-12-31"
+                }
+              ]
+            },
+            "userErrors": []
+          },
+          "startsAt": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/220614656306",
+              "namespace": "validation_values_mqtjsdwd",
+              "key": "starts_at",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "date_time",
+                "category": "DATE_TIME"
+              },
+              "validations": [
+                {
+                  "name": "min",
+                  "value": "2026-01-01T00:00:00+00:00"
+                },
+                {
+                  "name": "max",
+                  "value": "2026-12-31T23:59:59+00:00"
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 84,
+            "actualQueryCost": 84,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1909,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "metaobjectDefinitions": {
+      "label": "metaobject definition setup for reference validation",
+      "request": {
+        "query": "mutation MetafieldsSetDefinitionValidationMetaobjectDefinitions(\n  $target: MetaobjectDefinitionCreateInput!\n  $replacement: MetaobjectDefinitionCreateInput!\n) {\n  target: metaobjectDefinitionCreate(definition: $target) {\n    metaobjectDefinition {\n      id\n      type\n      name\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n  replacement: metaobjectDefinitionCreate(definition: $replacement) {\n    metaobjectDefinition {\n      id\n      type\n      name\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "target": {
+            "type": "validation_target_mqtjsdwd",
+            "name": "Metafields target mqtjsdwd",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field"
+              }
+            ]
+          },
+          "replacement": {
+            "type": "validation_replacement_mqtjsdwd",
+            "name": "Metafields replacement mqtjsdwd",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "target": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/19338985778",
+              "type": "validation_target_mqtjsdwd",
+              "name": "Metafields target mqtjsdwd"
+            },
+            "userErrors": []
+          },
+          "replacement": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/19339018546",
+              "type": "validation_replacement_mqtjsdwd",
+              "name": "Metafields replacement mqtjsdwd"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1930,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "replacementMetaobject": {
+      "label": "replacement metaobject setup",
+      "request": {
+        "query": "mutation MetafieldsSetDefinitionValidationMetaobjectCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      type\n      handle\n      fields {\n        key\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "validation_replacement_mqtjsdwd",
+            "handle": "replacement-mqtjsdwd",
+            "fields": [
+              {
+                "key": "title",
+                "value": "Replacement mqtjsdwd"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/202426843442",
+              "type": "validation_replacement_mqtjsdwd",
+              "handle": "replacement-mqtjsdwd",
+              "fields": [
+                {
+                  "key": "title",
+                  "value": "Replacement mqtjsdwd"
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1941,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "referenceDefinition": {
+      "label": "metaobject reference metafield definition setup",
+      "request": {
+        "query": "mutation MetafieldsSetDefinitionValidationReferenceDefinition($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "name": "Linked metaobject",
+            "namespace": "validation_values_mqtjsdwd",
+            "key": "linked",
+            "ownerType": "PRODUCT",
+            "type": "metaobject_reference",
+            "validations": [
+              {
+                "name": "metaobject_definition_id",
+                "value": "gid://shopify/MetaobjectDefinition/19338985778"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/220614754610",
+              "namespace": "validation_values_mqtjsdwd",
+              "key": "linked",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "metaobject_reference",
+                "category": "REFERENCE"
+              },
+              "validations": [
+                {
+                  "name": "metaobject_definition_id",
+                  "value": "gid://shopify/MetaobjectDefinition/19338985778"
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1945,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "listScalarDefinition": {
+      "label": "list scalar metaobject field category setup",
+      "request": {
+        "query": "mutation MetafieldsSetListScalarCategory($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      fieldDefinitions {\n        key\n        type {\n          name\n          category\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "type": "validation_list_category_mqtjsdwd",
+            "name": "Metafields list category mqtjsdwd",
+            "fieldDefinitions": [
+              {
+                "key": "text_values",
+                "name": "Text values",
+                "type": "list.single_line_text_field"
+              },
+              {
+                "key": "numbers",
+                "name": "Numbers",
+                "type": "list.number_integer"
+              },
+              {
+                "key": "dates",
+                "name": "Dates",
+                "type": "list.date"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/19339051314",
+              "type": "validation_list_category_mqtjsdwd",
+              "fieldDefinitions": [
+                {
+                  "key": "text_values",
+                  "type": {
+                    "name": "list.single_line_text_field",
+                    "category": "TEXT"
+                  }
+                },
+                {
+                  "key": "numbers",
+                  "type": {
+                    "name": "list.number_integer",
+                    "category": "NUMBER"
+                  }
+                },
+                {
+                  "key": "dates",
+                  "type": {
+                    "name": "list.date",
+                    "category": "DATE_TIME"
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1947,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidSet": {
+      "label": "metafieldsSet rejected by definition validations",
+      "request": {
+        "query": "mutation MetafieldsSetDefinitionValidationSet($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      id\n      namespace\n      key\n      type\n      value\n      jsonValue\n      compareDigest\n      createdAt\n      updatedAt\n      ownerType\n      owner {\n        __typename\n        ... on Product {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10221226918194",
+              "namespace": "validation_values_mqtjsdwd",
+              "key": "quantity_min",
+              "type": "number_integer",
+              "value": "1"
+            },
+            {
+              "ownerId": "gid://shopify/Product/10221226918194",
+              "namespace": "validation_values_mqtjsdwd",
+              "key": "quantity_max",
+              "type": "number_integer",
+              "value": "6"
+            },
+            {
+              "ownerId": "gid://shopify/Product/10221226918194",
+              "namespace": "validation_values_mqtjsdwd",
+              "key": "sku",
+              "type": "single_line_text_field",
+              "value": "abc"
+            },
+            {
+              "ownerId": "gid://shopify/Product/10221226918194",
+              "namespace": "validation_values_mqtjsdwd",
+              "key": "color",
+              "type": "single_line_text_field",
+              "value": "green"
+            },
+            {
+              "ownerId": "gid://shopify/Product/10221226918194",
+              "namespace": "validation_values_mqtjsdwd",
+              "key": "rating",
+              "type": "rating",
+              "value": "{\"value\":\"6.0\",\"scale_min\":\"1.0\",\"scale_max\":\"10.0\"}"
+            },
+            {
+              "ownerId": "gid://shopify/Product/10221226918194",
+              "namespace": "validation_values_mqtjsdwd",
+              "key": "launch_date",
+              "type": "date",
+              "value": "2027-01-01"
+            },
+            {
+              "ownerId": "gid://shopify/Product/10221226918194",
+              "namespace": "validation_values_mqtjsdwd",
+              "key": "starts_at",
+              "type": "date_time",
+              "value": "2027-01-01T00:00:00+00:00"
+            },
+            {
+              "ownerId": "gid://shopify/Product/10221226918194",
+              "namespace": "validation_values_mqtjsdwd",
+              "key": "linked",
+              "type": "metaobject_reference",
+              "value": "gid://shopify/Metaobject/202426843442"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value has a minimum of 2.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              },
+              {
+                "field": ["metafields", "1", "value"],
+                "message": "Value has a maximum of 5.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              },
+              {
+                "field": ["metafields", "2", "value"],
+                "message": "Value is not the correct format.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              },
+              {
+                "field": ["metafields", "3", "value"],
+                "message": "Value does not exist in provided choices: [\"red\", \"blue\"].",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              },
+              {
+                "field": ["metafields", "4", "value"],
+                "message": "Value min and max on the rating value must be the same as the min and max on the definition.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              },
+              {
+                "field": ["metafields", "5", "value"],
+                "message": "Value has a maximum of 2026-12-31.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              },
+              {
+                "field": ["metafields", "6", "value"],
+                "message": "Value has a maximum of 2026-12-31 23:59:59 +0000.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              },
+              {
+                "field": ["metafields", "7", "value"],
+                "message": "Value must belong to the specified metaobject definition gid://shopify/MetaobjectDefinition/19338985778.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1958,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "validDateTimeSet": {
+      "label": "metafieldsSet accepts date_time offset",
+      "request": {
+        "query": "mutation MetafieldsSetDefinitionValidationSet($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      id\n      namespace\n      key\n      type\n      value\n      jsonValue\n      compareDigest\n      createdAt\n      updatedAt\n      ownerType\n      owner {\n        __typename\n        ... on Product {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10221226918194",
+              "namespace": "validation_values_mqtjsdwd",
+              "key": "starts_at",
+              "type": "date_time",
+              "value": "2026-06-25T10:11:12.123+05:30"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [
+              {
+                "id": "gid://shopify/Metafield/44541687169330",
+                "namespace": "validation_values_mqtjsdwd",
+                "key": "starts_at",
+                "type": "date_time",
+                "value": "2026-06-25T10:11:12+05:30",
+                "jsonValue": "2026-06-25T10:11:12+05:30",
+                "compareDigest": "d606098d858d6f0b5030fc2921d6e4968c4a226d8f0b4a476f9632ac5e699b79",
+                "createdAt": "2026-06-25T13:38:28Z",
+                "updatedAt": "2026-06-25T13:38:28Z",
+                "ownerType": "PRODUCT",
+                "owner": {
+                  "__typename": "Product",
+                  "id": "gid://shopify/Product/10221226918194"
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1959,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "ownerTypes": {
+    "onlineStoreOwners": {
+      "pageId": "gid://shopify/Page/160914604338",
+      "articleId": "gid://shopify/Article/684356567346"
+    },
+    "locationId": "gid://shopify/Location/112829759794",
+    "marketId": "gid://shopify/Market/97997685042",
+    "metafieldsSet": {
+      "label": "metafieldsSet non-product owner types",
+      "request": {
+        "query": "mutation MetafieldsSetNonProductOwnerTypes($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      id\n      namespace\n      key\n      type\n      value\n      compareDigest\n      createdAt\n      updatedAt\n      ownerType\n      owner {\n        __typename\n        ... on Page {\n          id\n        }\n        ... on Location {\n          id\n        }\n        ... on Market {\n          id\n        }\n        ... on Article {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Page/160914604338",
+              "namespace": "owner_type_values_mqtjsdwd",
+              "key": "page",
+              "type": "single_line_text_field",
+              "value": "Page subtitle"
+            },
+            {
+              "ownerId": "gid://shopify/Location/112829759794",
+              "namespace": "owner_type_values_mqtjsdwd",
+              "key": "location",
+              "type": "single_line_text_field",
+              "value": "Location label"
+            },
+            {
+              "ownerId": "gid://shopify/Market/97997685042",
+              "namespace": "owner_type_values_mqtjsdwd",
+              "key": "market",
+              "type": "single_line_text_field",
+              "value": "Market label"
+            },
+            {
+              "ownerId": "gid://shopify/Article/684356567346",
+              "namespace": "owner_type_values_mqtjsdwd",
+              "key": "article",
+              "type": "single_line_text_field",
+              "value": "Article label"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [
+              {
+                "id": "gid://shopify/Metafield/44541687759154",
+                "namespace": "owner_type_values_mqtjsdwd",
+                "key": "page",
+                "type": "single_line_text_field",
+                "value": "Page subtitle",
+                "compareDigest": "6b2e62bde1281de214d24abf9c914781d44bc22a012b8708487ed9fd560a7217",
+                "createdAt": "2026-06-25T13:38:29Z",
+                "updatedAt": "2026-06-25T13:38:29Z",
+                "ownerType": "PAGE",
+                "owner": {
+                  "__typename": "Page",
+                  "id": "gid://shopify/Page/160914604338"
+                }
+              },
+              {
+                "id": "gid://shopify/Metafield/44541687791922",
+                "namespace": "owner_type_values_mqtjsdwd",
+                "key": "location",
+                "type": "single_line_text_field",
+                "value": "Location label",
+                "compareDigest": "71bff762cd3d0a88ec9d35f3f2ce1fd477ca18ae8aad84f910e1151e360a4fac",
+                "createdAt": "2026-06-25T13:38:29Z",
+                "updatedAt": "2026-06-25T13:38:29Z",
+                "ownerType": "LOCATION",
+                "owner": {
+                  "__typename": "Location",
+                  "id": "gid://shopify/Location/112829759794"
+                }
+              },
+              {
+                "id": "gid://shopify/Metafield/44541687824690",
+                "namespace": "owner_type_values_mqtjsdwd",
+                "key": "market",
+                "type": "single_line_text_field",
+                "value": "Market label",
+                "compareDigest": "f441f8274484ea52ef9530a166a20bbb61726a2d7f31bfb0067ca4bab6f4aeec",
+                "createdAt": "2026-06-25T13:38:29Z",
+                "updatedAt": "2026-06-25T13:38:29Z",
+                "ownerType": "MARKET",
+                "owner": {
+                  "__typename": "Market",
+                  "id": "gid://shopify/Market/97997685042"
+                }
+              },
+              {
+                "id": "gid://shopify/Metafield/44541687857458",
+                "namespace": "owner_type_values_mqtjsdwd",
+                "key": "article",
+                "type": "single_line_text_field",
+                "value": "Article label",
+                "compareDigest": "3c3d4aa902a4dcab2a5c2f5048257ee92bf0d3841fd14b9f938f1286659c7915",
+                "createdAt": "2026-06-25T13:38:29Z",
+                "updatedAt": "2026-06-25T13:38:29Z",
+                "ownerType": "ARTICLE",
+                "owner": {
+                  "__typename": "Article",
+                  "id": "gid://shopify/Article/684356567346"
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1973,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "cleanup product metafields",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsMetafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {\n  metafieldsDelete(metafields: $metafields) {\n    deletedMetafields {\n      ownerId\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10221226918194",
+              "namespace": "validation_values_mqtjsdwd",
+              "key": "starts_at"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldsDelete": {
+            "deletedMetafields": [
+              {
+                "ownerId": "gid://shopify/Product/10221226918194",
+                "namespace": "validation_values_mqtjsdwd",
+                "key": "starts_at"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1977,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup online store owner metafields",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsMetafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {\n  metafieldsDelete(metafields: $metafields) {\n    deletedMetafields {\n      ownerId\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Page/160914604338",
+              "namespace": "owner_type_values_mqtjsdwd",
+              "key": "page"
+            },
+            {
+              "ownerId": "gid://shopify/Article/684356567346",
+              "namespace": "owner_type_values_mqtjsdwd",
+              "key": "article"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldsDelete": {
+            "deletedMetafields": [
+              {
+                "ownerId": "gid://shopify/Page/160914604338",
+                "namespace": "owner_type_values_mqtjsdwd",
+                "key": "page"
+              },
+              {
+                "ownerId": "gid://shopify/Article/684356567346",
+                "namespace": "owner_type_values_mqtjsdwd",
+                "key": "article"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1979,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup location and market owner metafields",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsMetafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {\n  metafieldsDelete(metafields: $metafields) {\n    deletedMetafields {\n      ownerId\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Location/112829759794",
+              "namespace": "owner_type_values_mqtjsdwd",
+              "key": "location"
+            },
+            {
+              "ownerId": "gid://shopify/Market/97997685042",
+              "namespace": "owner_type_values_mqtjsdwd",
+              "key": "market"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldsDelete": {
+            "deletedMetafields": [
+              {
+                "ownerId": "gid://shopify/Location/112829759794",
+                "namespace": "owner_type_values_mqtjsdwd",
+                "key": "location"
+              },
+              {
+                "ownerId": "gid://shopify/Market/97997685042",
+                "namespace": "owner_type_values_mqtjsdwd",
+                "key": "market"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup metafieldDefinitionDelete",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsMetafieldDefinitionDelete($id: ID!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n    deletedDefinitionId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/220614459698"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/220614459698",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup metafieldDefinitionDelete",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsMetafieldDefinitionDelete($id: ID!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n    deletedDefinitionId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/220614492466"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/220614492466",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup metafieldDefinitionDelete",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsMetafieldDefinitionDelete($id: ID!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n    deletedDefinitionId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/220614525234"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/220614525234",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup metafieldDefinitionDelete",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsMetafieldDefinitionDelete($id: ID!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n    deletedDefinitionId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/220614558002"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/220614558002",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup metafieldDefinitionDelete",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsMetafieldDefinitionDelete($id: ID!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n    deletedDefinitionId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/220614590770"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/220614590770",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup metafieldDefinitionDelete",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsMetafieldDefinitionDelete($id: ID!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n    deletedDefinitionId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/220614623538"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/220614623538",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup metafieldDefinitionDelete",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsMetafieldDefinitionDelete($id: ID!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n    deletedDefinitionId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/220614656306"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/220614656306",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup metafieldDefinitionDelete",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsMetafieldDefinitionDelete($id: ID!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n    deletedDefinitionId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/220614754610"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/220614754610",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup metaobjectDelete",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsMetaobjectDelete($id: ID!) {\n  metaobjectDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/202426843442"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/202426843442",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup metaobjectDefinitionDelete",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsMetaobjectDefinitionDelete($id: ID!) {\n  metaobjectDefinitionDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/19338985778"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/19338985778",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup metaobjectDefinitionDelete",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsMetaobjectDefinitionDelete($id: ID!) {\n  metaobjectDefinitionDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/19339018546"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/19339018546",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup metaobjectDefinitionDelete",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsMetaobjectDefinitionDelete($id: ID!) {\n  metaobjectDefinitionDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/19339051314"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/19339051314",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup articleDelete",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsArticleDelete($id: ID!) {\n  articleDelete(id: $id) {\n    deletedArticleId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Article/684356567346"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/684356567346",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup pageDelete",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsPageDelete($id: ID!) {\n  pageDelete(id: $id) {\n    deletedPageId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Page/160914604338"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageDelete": {
+            "deletedPageId": "gid://shopify/Page/160914604338",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup blogDelete",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsBlogDelete($id: ID!) {\n  blogDelete(id: $id) {\n    deletedBlogId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Blog/121605194034"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/121605194034",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup productDelete",
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetValidationGapsProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10221226918194"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10221226918194",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "OwnerMetafieldsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10221226918194"]
+      },
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Collection { id title handle metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Customer { id displayName email metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Order { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Company { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10221226918194",
+                "title": "Metafields validation owner mqtjsdwd",
+                "handle": "metafields-validation-owner-mqtjsdwd",
+                "status": "DRAFT",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-06-25T13:38:27Z",
+                "updatedAt": "2026-06-25T13:38:27Z",
+                "metafields": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                  }
+                },
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51369140289842",
+                      "title": "Default Title",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53473982808370",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 28,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OwnerMetafieldsHydrateNodes",
+      "variables": {
+        "ids": [
+          "gid://shopify/Article/684356567346",
+          "gid://shopify/Location/112829759794",
+          "gid://shopify/Market/97997685042",
+          "gid://shopify/Page/160914604338"
+        ]
+      },
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Collection { id title handle metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Customer { id displayName email metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Order { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Company { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Article",
+                "id": "gid://shopify/Article/684356567346"
+              },
+              {
+                "__typename": "Location",
+                "id": "gid://shopify/Location/112829759794"
+              },
+              {
+                "__typename": "Market",
+                "id": "gid://shopify/Market/97997685042"
+              },
+              {
+                "__typename": "Page",
+                "id": "gid://shopify/Page/160914604338"
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 28,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1973,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

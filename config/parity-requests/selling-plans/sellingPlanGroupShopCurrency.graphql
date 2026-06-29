@@ -1,0 +1,9 @@
+query SellingPlanGroupShopCurrency {
+  shop {
+    currencyCode
+    currencyFormats {
+      moneyFormat
+      moneyWithCurrencyFormat
+    }
+  }
+}
