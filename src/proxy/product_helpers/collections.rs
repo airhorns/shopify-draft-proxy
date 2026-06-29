@@ -1270,13 +1270,14 @@ impl DraftProxy {
             return MutationOutcome::response(response);
         }
         self.hydrate_collection_reorder_sort_order(&collection_id);
-        if self
-            .store
-            .collection_by_id(&collection_id)
-            .and_then(|collection| collection.get("sortOrder"))
-            .and_then(Value::as_str)
-            != Some("MANUAL")
-        {
+        let manually_sorted =
+            self.store
+                .collection_by_id(&collection_id)
+                .is_some_and(|collection| {
+                    !collection_is_smart(collection)
+                        && collection.get("sortOrder").and_then(Value::as_str) == Some("MANUAL")
+                });
+        if !manually_sorted {
             return MutationOutcome::response(self.collection_payload_response(
                 query,
                 variables,
@@ -1407,7 +1408,7 @@ impl DraftProxy {
                 vec![collection_user_error(["id"], "Collection does not exist")],
             ));
         };
-        if collection_is_smart(collection) {
+        if root_field != "collectionReorderProducts" && collection_is_smart(collection) {
             let message = if root_field == "collectionRemoveProducts" {
                 "Can't manually remove products from a smart collection"
             } else {

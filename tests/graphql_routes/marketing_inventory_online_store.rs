@@ -778,7 +778,7 @@ fn marketing_external_activity_update_and_upsert_reject_not_external_and_missing
         }
         "#,
         json!({
-            "activityInput": {"id": "gid://shopify/MarketingActivity/native-no-event", "title": "Native no event", "status": "ACTIVE"},
+            "activityInput": {"id": "gid://shopify/MarketingActivity/native-no-event", "title": "Native no event", "remoteId": "native-local", "status": "ACTIVE"},
             "externalInput": {"title": "External", "remoteId": "eventless-remote", "status": "ACTIVE", "remoteUrl": "https://example.com/eventless", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "eventless-remote", "source": "email", "medium": "newsletter"}}
         }),
     ));
@@ -945,44 +945,97 @@ fn marketing_engagements_delete_validates_selectors_and_channel_handles() {
 }
 
 #[test]
-fn marketing_native_activity_lifecycle_stages_update_and_invalid_extension_error() {
+fn marketing_native_activity_lifecycle_stages_create_update_and_invalid_extension_error() {
     let mut proxy = snapshot_proxy();
-    let response = proxy.process_request(json_graphql_request(
+    let create_response = proxy.process_request(json_graphql_request(
         r#"
-        mutation MarketingNativeActivityLifecycle($createInput: MarketingActivityCreateInput!, $updateInput: MarketingActivityUpdateInput!, $invalidExtensionInput: MarketingActivityCreateInput!) {
-          createNative: marketingActivityCreate(input: $createInput) { userErrors { field message } }
-          updateNative: marketingActivityUpdate(input: $updateInput) { marketingActivity { id title status statusLabel isExternal inMainWorkflowVersion marketingEvent { id } } redirectPath userErrors { field message } }
-          invalidExtension: marketingActivityCreate(input: $invalidExtensionInput) { userErrors { field message } }
+        mutation MarketingNativeActivityCreate($createInput: MarketingActivityCreateInput!, $invalidExtensionInput: MarketingActivityCreateInput!) {
+          invalidExtension: marketingActivityCreate(input: $createInput) {
+            marketingActivity { id title status statusLabel isExternal inMainWorkflowVersion urlParameterValue utmParameters { campaign source medium } budget { budgetType total { amount currencyCode } } marketingEvent { id } }
+            redirectPath
+            userErrors { field message }
+          }
+          missingExtension: marketingActivityCreate(input: $invalidExtensionInput) {
+            marketingActivity { id title }
+            userErrors { field message }
+          }
         }
         "#,
         json!({
-            "createInput": {"marketingActivityExtensionId": "gid://shopify/MarketingActivityExtension/har-373-local-extension", "status": "DRAFT"},
-            "updateInput": {"id": "gid://shopify/MarketingActivity/1", "title": "HAR-373 Native Activity Active", "status": "ACTIVE"},
+            "createInput": {"marketingActivityExtensionId": "gid://shopify/MarketingActivityExtension/local-native-extension", "marketingActivityTitle": "Native Activity Draft", "status": "DRAFT", "urlParameterValue": "utm_campaign=native-draft", "utm": {"campaign": "native-draft", "source": "email", "medium": "newsletter"}, "budget": {"budgetType": "DAILY", "total": {"amount": "12.34", "currencyCode": "USD"}}},
             "invalidExtensionInput": {"marketingActivityExtensionId": "gid://shopify/MarketingActivityExtension/00000000-0000-0000-0000-000000000000", "status": "DRAFT"}
         }),
     ));
     assert_eq!(
-        response.body["data"]["createNative"]["userErrors"],
+        create_response.body["data"]["invalidExtension"]["userErrors"],
         json!([])
     );
+    let created = &create_response.body["data"]["invalidExtension"]["marketingActivity"];
+    let created_id = created["id"]
+        .as_str()
+        .expect("native create id")
+        .to_string();
+    assert!(created_id.starts_with("gid://shopify/MarketingActivity/"));
+    assert_ne!(created_id, "gid://shopify/MarketingActivity/1");
     assert_eq!(
-        response.body["data"]["updateNative"]["marketingActivity"],
-        json!({"id": "gid://shopify/MarketingActivity/1", "title": "HAR-373 Native Activity Active", "status": "ACTIVE", "statusLabel": "Sending", "isExternal": false, "inMainWorkflowVersion": true, "marketingEvent": null})
+        created,
+        &json!({"id": created_id.clone(), "title": "Native Activity Draft", "status": "DRAFT", "statusLabel": "DRAFT", "isExternal": false, "inMainWorkflowVersion": true, "urlParameterValue": "utm_campaign=native-draft", "utmParameters": {"campaign": "native-draft", "source": "email", "medium": "newsletter"}, "budget": {"budgetType": "DAILY", "total": {"amount": "12.34", "currencyCode": "USD"}}, "marketingEvent": null})
     );
     assert_eq!(
-        response.body["data"]["invalidExtension"]["userErrors"],
-        json!([{ "field": ["input", "marketingActivityExtensionId"], "message": "Could not find the marketing extension" }])
+        create_response.body["data"]["missingExtension"],
+        json!({"marketingActivity": null, "userErrors": [{ "field": ["input", "marketingActivityExtensionId"], "message": "Could not find the marketing extension" }]})
+    );
+
+    let update_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingNativeActivityUpdate($updateInput: MarketingActivityUpdateInput!) {
+          updateNative: marketingActivityUpdate(input: $updateInput) {
+            marketingActivity { id title status statusLabel isExternal inMainWorkflowVersion urlParameterValue utmParameters { campaign source medium } budget { budgetType total { amount currencyCode } } adSpend { amount currencyCode } marketingEvent { id } }
+            redirectPath
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "updateInput": {"id": created_id.clone(), "title": "Native Activity Updated", "status": "ACTIVE", "urlParameterValue": "utm_campaign=native-updated", "utm": {"campaign": "native-updated", "source": "sms", "medium": "message"}, "budget": {"budgetType": "LIFETIME", "total": {"amount": "98.76", "currencyCode": "USD"}}, "adSpend": {"amount": "7.89", "currencyCode": "USD"}}
+        }),
+    ));
+    assert_eq!(
+        update_response.body["data"]["updateNative"]["marketingActivity"],
+        json!({"id": created_id.clone(), "title": "Native Activity Updated", "status": "ACTIVE", "statusLabel": "Sending", "isExternal": false, "inMainWorkflowVersion": true, "urlParameterValue": "utm_campaign=native-updated", "utmParameters": {"campaign": "native-updated", "source": "sms", "medium": "message"}, "budget": {"budgetType": "LIFETIME", "total": {"amount": "98.76", "currencyCode": "USD"}}, "adSpend": {"amount": "7.89", "currencyCode": "USD"}, "marketingEvent": null})
+    );
+    assert_eq!(
+        update_response.body["data"]["updateNative"]["redirectPath"],
+        json!("/admin/marketing")
+    );
+    assert_eq!(
+        update_response.body["data"]["updateNative"]["userErrors"],
+        json!([])
     );
 
     let read = proxy.process_request(json_graphql_request(
         r#"
-        query MarketingNativeActivityRead($activityId: ID!) { marketingActivity(id: $activityId) { id title status statusLabel isExternal inMainWorkflowVersion marketingEvent { id } } }
+        query MarketingNativeActivityRead($activityId: ID!) {
+          marketingActivity(id: $activityId) { id title status statusLabel isExternal inMainWorkflowVersion urlParameterValue utmParameters { campaign source medium } budget { budgetType total { amount currencyCode } } adSpend { amount currencyCode } marketingEvent { id } }
+          marketingActivities(first: 5, marketingActivityIds: [$activityId]) { nodes { id title status isExternal utmParameters { campaign source medium } budget { total { amount currencyCode } } marketingEvent { id } } }
+        }
         "#,
-        json!({"activityId": "gid://shopify/MarketingActivity/1"}),
+        json!({"activityId": created_id.clone()}),
     ));
     assert_eq!(
         read.body["data"]["marketingActivity"],
-        json!({"id": "gid://shopify/MarketingActivity/1", "title": "HAR-373 Native Activity Active", "status": "ACTIVE", "statusLabel": "Sending", "isExternal": false, "inMainWorkflowVersion": true, "marketingEvent": null})
+        json!({"id": created_id.clone(), "title": "Native Activity Updated", "status": "ACTIVE", "statusLabel": "Sending", "isExternal": false, "inMainWorkflowVersion": true, "urlParameterValue": "utm_campaign=native-updated", "utmParameters": {"campaign": "native-updated", "source": "sms", "medium": "message"}, "budget": {"budgetType": "LIFETIME", "total": {"amount": "98.76", "currencyCode": "USD"}}, "adSpend": {"amount": "7.89", "currencyCode": "USD"}, "marketingEvent": null})
+    );
+    assert_eq!(
+        read.body["data"]["marketingActivities"]["nodes"][0],
+        json!({"id": created_id, "title": "Native Activity Updated", "status": "ACTIVE", "isExternal": false, "utmParameters": {"campaign": "native-updated", "source": "sms", "medium": "message"}, "budget": {"total": {"amount": "98.76", "currencyCode": "USD"}}, "marketingEvent": null})
+    );
+
+    assert_eq!(
+        read.body["data"]["marketingActivity"]
+            .to_string()
+            .contains("HAR-"),
+        false
     );
 }
 
@@ -1477,6 +1530,113 @@ fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field()
         json!("inventoryAdjustQuantities")
     );
     assert_eq!(log["entries"][0]["status"], json!("staged"));
+}
+
+#[test]
+fn inventory_adjust_quantities_all_zero_delta_is_unlogged_noop() {
+    let mut proxy = snapshot_proxy();
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ZeroDeltaAdjust($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+          inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup {
+              id
+              reason
+              changes { name delta quantityAfterChange item { id } location { id name } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "inventory-adjust-zero-delta-noop", "input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/adjust/zero", "changes": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/store-backed", "locationId": "gid://shopify/Location/1", "delta": 0, "changeFromQuantity": 0}
+        ]}}),
+    ));
+
+    assert_eq!(
+        adjust.body["data"]["inventoryAdjustQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": []
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert!(state_snapshot(&proxy)["stagedState"]["inventoryLevels"].is_null());
+}
+
+#[test]
+fn inventory_adjust_quantities_mixed_zero_and_nonzero_delta_stages_nonzero_change() {
+    let mut proxy = snapshot_proxy();
+    let nonzero_item_id = "gid://shopify/InventoryItem/mixed-nonzero";
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MixedDeltaAdjust($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+          inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup {
+              id
+              reason
+              changes { name delta item { id } location { id name } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "inventory-adjust-mixed-delta", "input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/adjust/mixed", "changes": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/mixed-zero", "locationId": "gid://shopify/Location/1", "delta": 0, "changeFromQuantity": 0},
+            {"inventoryItemId": nonzero_item_id, "locationId": "gid://shopify/Location/1", "delta": 3, "changeFromQuantity": 0}
+        ]}}),
+    ));
+
+    let payload = &adjust.body["data"]["inventoryAdjustQuantities"];
+    assert_eq!(payload["userErrors"], json!([]));
+    assert!(payload["inventoryAdjustmentGroup"]["id"]
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/InventoryAdjustmentGroup/")));
+    let changes = payload["inventoryAdjustmentGroup"]["changes"]
+        .as_array()
+        .expect("mixed adjust should return change rows");
+    assert!(changes.iter().all(|change| change["delta"] != json!(0)));
+    assert!(changes.iter().any(|change| {
+        change["name"] == json!("available")
+            && change["delta"] == json!(3)
+            && change["item"]["id"] == json!(nonzero_item_id)
+    }));
+    assert!(changes.iter().any(|change| {
+        change["name"] == json!("on_hand")
+            && change["delta"] == json!(3)
+            && change["item"]["id"] == json!(nonzero_item_id)
+    }));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedDeltaInventoryRead($id: ID!) {
+          inventoryItem(id: $id) {
+            inventoryLevels(first: 5) {
+              nodes {
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": nonzero_item_id}),
+    ));
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"],
+        json!([
+            {"name": "available", "quantity": 3},
+            {"name": "on_hand", "quantity": 3}
+        ])
+    );
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"][0]["status"], json!("staged"));
+    assert_eq!(
+        log["entries"][0]["interpreted"]["operationName"],
+        json!("inventoryAdjustQuantities")
+    );
 }
 
 #[test]

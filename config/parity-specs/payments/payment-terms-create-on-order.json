@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json"],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "comparisonMode": "captured-vs-proxy-request",
   "proxyRequest": {
     "documentPath": "config/parity-requests/payments/payment-terms-create-on-order-create.graphql",
@@ -93,5 +93,5 @@
       }
     ]
   },
-  "notes": "Executable local-runtime parity for HAR-637: an in-memory order is created with CAD presentment money, paymentTermsCreate stages terms on the Order owner without upstream passthrough, and sibling requests assert Shopify-like multiple-schedule plus missing update/delete error codes."
+  "notes": "Executable local-runtime parity: an in-memory order is created with CAD presentment money, paymentTermsCreate stages terms on the Order owner without upstream passthrough, and sibling requests assert Shopify-like multiple-schedule plus missing update/delete error codes. The due-state booleans stay strict because the local payment-terms handler evaluates schedules against its deterministic runtime clock instead of wall time."
 }

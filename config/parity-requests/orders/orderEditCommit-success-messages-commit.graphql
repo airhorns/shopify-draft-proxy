@@ -1,0 +1,24 @@
+mutation OrderEditCommitSuccessMessagesCommit($id: ID!, $notifyCustomer: Boolean, $staffNote: String) {
+  orderEditCommit(id: $id, notifyCustomer: $notifyCustomer, staffNote: $staffNote) {
+    order {
+      id
+      closed
+      closedAt
+      totalOutstandingSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    successMessages
+    userErrors {
+      field
+      message
+    }
+  }
+}

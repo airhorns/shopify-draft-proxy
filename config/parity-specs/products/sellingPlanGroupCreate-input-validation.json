@@ -58,6 +58,15 @@
         }
       },
       {
+        "name": "plan-create-recurring-only-pricing-policies",
+        "capturePath": "$.scenarios.planCreateRecurringOnlyPricingPolicies.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/sellingPlanGroupCreate-input-validation.graphql",
+          "variablesCapturePath": "$.scenarios.planCreateRecurringOnlyPricingPolicies.variables"
+        }
+      },
+      {
         "name": "plan-create-position-invalid",
         "capturePath": "$.scenarios.planCreatePositionInvalid.response.data.sellingPlanGroupCreate",
         "proxyPath": "$.data.sellingPlanGroupCreate",
@@ -195,6 +204,31 @@
                   },
                   "pricingPolicies": {
                     "fromCapturePath": "$.scenarios.planUpdatePricingPoliciesTooLong.variables.input.sellingPlansToUpdate[0].pricingPolicies"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "plan-update-recurring-only-pricing-policies",
+        "capturePath": "$.scenarios.planUpdateRecurringOnlyPricingPolicies.response.data.sellingPlanGroupUpdate",
+        "proxyPath": "$.data.sellingPlanGroupUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/sellingPlanGroupUpdate-input-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "input": {
+              "sellingPlansToUpdate": [
+                {
+                  "id": {
+                    "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.sellingPlans.nodes[0].id"
+                  },
+                  "pricingPolicies": {
+                    "fromCapturePath": "$.scenarios.planUpdateRecurringOnlyPricingPolicies.variables.input.sellingPlansToUpdate[0].pricingPolicies"
                   }
                 }
               ]
@@ -388,5 +422,5 @@
       }
     ]
   },
-  "notes": "Live 2026-04 selling-plan group input validation capture for group-level option/position limits, nested selling plan option/pricing-policy/position validation, required update ids, billing/delivery policy kind compatibility, recurring interval counts, recurring billing min/max-cycle ranges, recurring delivery cutoff ranges, and recurring anchor schedule compatibility. The primary request creates one disposable group so update validation targets can replay against a locally known synthetic group without pre-seeding parity state."
+  "notes": "Live 2026-04 selling-plan group input validation capture for group-level option/position limits, nested selling plan option/pricing-policy/position validation, pricing-policy fixed-policy requirements, required update ids, billing/delivery policy kind compatibility, recurring interval counts, recurring billing min/max-cycle ranges, recurring delivery cutoff ranges, and recurring anchor schedule compatibility. The primary request creates one disposable group so update validation targets can replay against a locally known synthetic group without pre-seeding parity state."
 }
