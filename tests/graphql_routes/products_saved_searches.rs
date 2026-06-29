@@ -7960,6 +7960,24 @@ fn product_mutation_error_payloads_preserve_root_alias_response_keys() {
         })
     );
 
+    let missing_create_input = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { missingCreateInput: productCreate { userErrors { msg: message } } }"}"#,
+    ));
+    assert_eq!(missing_create_input.status, 200);
+    assert_eq!(
+        missing_create_input.body,
+        json!({
+            "data": {
+                "missingCreateInput": {
+                    "userErrors": [{
+                        "msg": "Product input is required"
+                    }]
+                }
+            }
+        })
+    );
+
     let update = proxy.process_request(graphql_request(
         "POST",
         r#"{"query":"mutation { failedUpdate: productUpdate(product: { id: \"gid://shopify/Product/missing\", title: \"Missing\" }) { product { id } userErrors { field message code } } }"}"#,
@@ -7975,6 +7993,24 @@ fn product_mutation_error_payloads_preserve_root_alias_response_keys() {
                         "field": ["id"],
                         "message": "Product does not exist",
                         "code": "NOT_FOUND"
+                    }]
+                }
+            }
+        })
+    );
+
+    let missing_update_input = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { missingUpdateInput: productUpdate { userErrors { msg: message } } }"}"#,
+    ));
+    assert_eq!(missing_update_input.status, 200);
+    assert_eq!(
+        missing_update_input.body,
+        json!({
+            "data": {
+                "missingUpdateInput": {
+                    "userErrors": [{
+                        "msg": "Product input is required"
                     }]
                 }
             }

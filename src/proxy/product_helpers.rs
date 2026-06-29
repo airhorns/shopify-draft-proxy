@@ -2780,15 +2780,13 @@ pub(in crate::proxy) fn product_create_user_errors_response(
     let (response_key, payload_selection) = primary_root_field(query, &BTreeMap::new())
         .map(|field| (field.response_key, field.selection))
         .unwrap_or_else(|| ("productCreate".to_string(), Vec::new()));
-    let error_selection =
-        selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
-    let errors = errors
-        .into_iter()
-        .map(|error| selected_json(&error, &error_selection))
-        .collect::<Vec<_>>();
     ok_json(json!({
         "data": {
-            response_key: selected_json(&json!({"product": null, "userErrors": errors}), &payload_selection)
+            response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
+                "product" => Some(Value::Null),
+                "userErrors" => selected_user_errors_field(errors.as_slice(), selection),
+                _ => None,
+            })
         }
     }))
 }

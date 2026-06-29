@@ -339,17 +339,14 @@ impl DraftProxy {
             return MutationOutcome::response(response);
         }
         let Some(input) = product_input(query, variables) else {
-            let response_key = primary_root_field(query, variables)
-                .map(|field| field.response_key)
-                .unwrap_or_else(|| "productCreate".to_string());
-            return MutationOutcome::response(ok_json(json!({
-                "data": {
-                    response_key: {
-                        "product": null,
-                        "userErrors": [user_error(["product"], "Product input is required", Some("REQUIRED"))]
-                    }
-                }
-            })));
+            return MutationOutcome::response(product_create_user_errors_response(
+                query,
+                vec![user_error(
+                    ["product"],
+                    "Product input is required",
+                    Some("REQUIRED"),
+                )],
+            ));
         };
         if input.contains_key("variants") {
             return MutationOutcome::response(ok_json(json!({
@@ -702,12 +699,14 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let Some(input) = product_input(query, variables) else {
+            let (response_key, payload_selection) =
+                primary_root_response_selection(query, variables, || "productUpdate".to_string());
             return MutationOutcome::response(ok_json(json!({
                 "data": {
-                    "productUpdate": {
+                    response_key: selected_json(&json!({
                         "product": null,
                         "userErrors": [user_error(["product"], "Product input is required", Some("REQUIRED"))]
-                    }
+                    }), &payload_selection)
                 }
             })));
         };
