@@ -2,7 +2,7 @@
   "fixtureKind": "local-runtime-product-metafield-delete",
   "apiVersion": "2026-04",
   "storeDomain": "local-runtime.myshopify.com",
-  "capturedAt": "2026-06-25T21:36:53.841Z",
+  "capturedAt": "2026-06-29T21:28:33.069Z",
   "summary": "Executable local-runtime fixture for product-owner singular metafieldDelete compatibility behavior when public Admin GraphQL exposes only metafieldsDelete.",
   "workflow": {
     "setup": {
@@ -113,7 +113,7 @@
             "userErrors": [
               {
                 "field": ["id"],
-                "message": "Metafield does not exist."
+                "message": "Metafield does not exist"
               }
             ]
           }

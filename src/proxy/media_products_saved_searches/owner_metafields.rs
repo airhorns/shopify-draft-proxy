@@ -219,7 +219,7 @@ impl DraftProxy {
                 "deletedId": Value::Null,
                 "userErrors": [{
                     "field": ["id"],
-                    "message": "Metafield does not exist."
+                    "message": "Metafield does not exist"
                 }]
             });
             return MutationOutcome::response(ok_json(

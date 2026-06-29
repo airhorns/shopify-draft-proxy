@@ -1205,6 +1205,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Live public Admin GraphQL 2026-04 and unstable expose plural metafieldsDelete but not singular metafieldDelete, so the singular compatibility alias is covered by local-runtime parity plus live plural-root evidence.',
   },
   {
+    domain: 'metafields',
+    captureId: 'metafield-delete-not-found-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-delete-not-found-local-runtime.ts',
+    purpose:
+      'Executable local-runtime parity for singular metafieldDelete happy, repeat-delete, and never-created not-found payloads.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      'fixtures/conformance/local-runtime/2026-04/metafield-definitions/metafield-delete-not-found.json',
+      'config/parity-specs/metafield-definitions/metafield-delete-not-found.json',
+      'config/parity-requests/metafield-definitions/metafield-delete-not-found-setup.graphql',
+      'config/parity-requests/metafield-definitions/metafield-delete-by-id.graphql',
+    ],
+    cleanupBehavior: 'Local-runtime only; supported mutations stage locally and no Shopify cleanup is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Live public Admin GraphQL exposes plural metafieldsDelete but not singular metafieldDelete, so this compatibility-root not-found branch is local-runtime-backed.',
+  },
+  {
     domain: 'products',
     captureId: 'tags-add-multi-resource',
     scriptPath: 'scripts/capture-tags-add-multi-resource-conformance.ts',
