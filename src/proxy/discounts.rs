@@ -3912,10 +3912,6 @@ pub(in crate::proxy) fn gift_card_connection_json(
     selected_json(&full, selections)
 }
 
-pub(in crate::proxy) fn gift_card_count_json(count: usize, selections: &[SelectedField]) -> Value {
-    selected_json(&count_object(count), selections)
-}
-
 pub(in crate::proxy) fn backup_region_country_code_coercion_error(
     message: &str,
     operation_path: &str,

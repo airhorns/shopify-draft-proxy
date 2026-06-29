@@ -246,13 +246,6 @@ fn product_visible_publication_entries(product: &ProductRecord) -> Vec<ProductPu
     }
 }
 
-fn product_publication_count_json(product: &ProductRecord, selections: &[SelectedField]) -> Value {
-    selected_json(
-        &count_object(product_visible_publication_entries(product).len()),
-        selections,
-    )
-}
-
 fn publication_node_json(publication_id: &str, selections: &[SelectedField]) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "__typename" => Some(json!("Publication")),
@@ -373,9 +366,10 @@ pub(in crate::proxy) fn product_publication_field_json(
                 &publication_id,
             )))
         }
-        "availablePublicationsCount" | "resourcePublicationsCount" => Some(
-            product_publication_count_json(product, &selection.selection),
-        ),
+        "availablePublicationsCount" | "resourcePublicationsCount" => Some(selected_count_json(
+            product_visible_publication_entries(product).len(),
+            &selection.selection,
+        )),
         "publications" | "productPublications" => Some(product_publication_connection_json(
             product,
             &selection.selection,
@@ -393,13 +387,6 @@ pub(in crate::proxy) fn product_publication_field_json(
         "resourcePublicationOnCurrentPublication" => Some(Value::Null),
         _ => None,
     }
-}
-
-/// A Shopify `Count` value with EXACT precision, used by the publication roots
-/// (`publicationsCount`, `publishedProductsCount`, `resourcePublicationsCount`,
-/// `publicationCount`, `channel.productsCount`, ...).
-pub(in crate::proxy) fn publication_count_json(count: usize) -> Value {
-    count_object(count)
 }
 
 /// The canonical `Publication` record the local publication engine stages and
@@ -2395,10 +2382,6 @@ pub(in crate::proxy) fn product_cursor(product: &ProductRecord) -> &str {
     &product.id
 }
 
-pub(in crate::proxy) fn product_count_json(count: usize, selections: &[SelectedField]) -> Value {
-    selected_json(&count_object(count), selections)
-}
-
 pub(in crate::proxy) fn rust_state_dump_path_exists(dump: &Value, path: &str) -> bool {
     path.split('.')
         .try_fold(dump, |current, segment| current.get(segment))
@@ -3094,21 +3077,12 @@ fn invalid_product_status_variable_error(
         .map(|field_name| json!([field_name]))
         .unwrap_or_else(|| json!([]));
     ok_json(json!({
-        "errors": [{
-            "message": message,
-            "locations": [{
-                "line": location.map(|location| location.line).unwrap_or(1),
-                "column": location.map(|location| location.column).unwrap_or(1)
-            }],
-            "extensions": {
-                "code": "INVALID_VARIABLE",
-                "value": resolved_value_json(value),
-                "problems": [{
-                    "path": path,
-                    "explanation": explanation
-                }]
-            }
-        }]
+        "errors": [invalid_variable_error_envelope(
+            message,
+            location.unwrap_or(SourceLocation { line: 1, column: 1 }),
+            resolved_value_json(value),
+            json!([{ "path": path, "explanation": explanation }]),
+        )]
     }))
 }
 
@@ -3184,35 +3158,33 @@ pub(in crate::proxy) fn product_delete_required_id_error(
 }
 
 pub(in crate::proxy) fn product_update_missing_product(query: &str) -> Response {
-    let (response_key, payload_selection) = primary_root_field(query, &BTreeMap::new())
-        .map(|field| (field.response_key, field.selection))
-        .unwrap_or_else(|| ("productUpdate".to_string(), Vec::new()));
-    let error_selection =
-        selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
-    let error = selected_json(
-        &user_error(["id"], "Product does not exist", Some("NOT_FOUND")),
-        &error_selection,
-    );
-    ok_json(json!({
-        "data": {
-            response_key: selected_json(&json!({"product": null, "userErrors": [error]}), &payload_selection)
-        }
-    }))
+    product_missing_product_response(query, "productUpdate", "product")
 }
 
 pub(in crate::proxy) fn product_delete_missing_product(query: &str) -> Response {
+    product_missing_product_response(query, "productDelete", "deletedProductId")
+}
+
+fn product_missing_product_response(
+    query: &str,
+    default_response_key: &str,
+    null_payload_field: &str,
+) -> Response {
     let (response_key, payload_selection) = primary_root_field(query, &BTreeMap::new())
         .map(|field| (field.response_key, field.selection))
-        .unwrap_or_else(|| ("productDelete".to_string(), Vec::new()));
+        .unwrap_or_else(|| (default_response_key.to_string(), Vec::new()));
     let error_selection =
         selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
     let error = selected_json(
         &user_error(["id"], "Product does not exist", Some("NOT_FOUND")),
         &error_selection,
     );
+    let mut payload = serde_json::Map::new();
+    payload.insert(null_payload_field.to_string(), Value::Null);
+    payload.insert("userErrors".to_string(), json!([error]));
     ok_json(json!({
         "data": {
-            response_key: selected_json(&json!({"deletedProductId": null, "userErrors": [error]}), &payload_selection)
+            response_key: selected_json(&Value::Object(payload), &payload_selection)
         }
     }))
 }
@@ -3252,19 +3224,14 @@ pub(in crate::proxy) fn product_delete_variable_required_id_error(
     value: Value,
     variable_name: &str,
 ) -> Response {
+    let message = format!("Variable ${variable_name} of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)");
     ok_json(json!({
-        "errors": [{
-            "message": format!("Variable ${} of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)", variable_name),
-            "locations": [{"line": 2, "column": 37}],
-            "extensions": {
-                "code": "INVALID_VARIABLE",
-                "value": value,
-                "problems": [{
-                    "path": ["id"],
-                    "explanation": "Expected value to not be null"
-                }]
-            }
-        }]
+        "errors": [invalid_variable_error_envelope(
+            message,
+            SourceLocation { line: 2, column: 37 },
+            value,
+            json!([{ "path": ["id"], "explanation": "Expected value to not be null" }]),
+        )]
     }))
 }
 

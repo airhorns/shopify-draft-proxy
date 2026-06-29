@@ -2646,11 +2646,11 @@ impl DraftProxy {
             )),
             "contactsCount" => {
                 let count = b2b_json_id_list(company, "contactIds").len();
-                Some(segment_count_json(count, &selection.selection))
+                Some(selected_count_json(count, &selection.selection))
             }
             "locationsCount" => {
                 let count = b2b_json_id_list(company, "locationIds").len();
-                Some(segment_count_json(count, &selection.selection))
+                Some(selected_count_json(count, &selection.selection))
             }
             "mainContact" => Some(self.b2b_selected_reference_json(
                 company,

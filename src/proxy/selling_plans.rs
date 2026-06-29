@@ -732,11 +732,11 @@ impl DraftProxy {
                 self.store.shop_money_format().as_deref(),
             ))),
             "createdAt" => Some(json!(group.created_at)),
-            "productsCount" => Some(product_count_json(
+            "productsCount" => Some(selected_count_json(
                 group.product_ids.len(),
                 &selection.selection,
             )),
-            "productVariantsCount" => Some(product_count_json(
+            "productVariantsCount" => Some(selected_count_json(
                 group.product_variant_ids.len(),
                 &selection.selection,
             )),
@@ -874,7 +874,7 @@ impl DraftProxy {
                     selling_plan_group_summary_json,
                     |group| group.id.clone(),
                 )),
-                "sellingPlanGroupsCount" => Some(product_count_json(count, &selection.selection)),
+                "sellingPlanGroupsCount" => Some(selected_count_json(count, &selection.selection)),
                 _ => None,
             };
             if let Some(value) = value {

@@ -89,7 +89,7 @@ pub(in crate::proxy) fn collection_json(collection: &Value, selections: &[Select
                         .and_then(Value::as_array)
                         .map(Vec::len)
                         .unwrap_or(0);
-                    product_count_json(count, &selection.selection)
+                    selected_count_json(count, &selection.selection)
                 }),
         ),
         "ruleSet" => Some(collection.get("ruleSet").cloned().unwrap_or(Value::Null)),
@@ -350,10 +350,10 @@ impl DraftProxy {
                 "publication" => self.publication_root_value(field),
                 "channel" => self.channel_root_value(field),
                 "channels" => self.channels_root_value(field),
-                "publicationsCount" => publication_count_json(self.store.staged.publications.len()),
+                "publicationsCount" => count_object(self.store.staged.publications.len()),
                 "publishedProductsCount" => {
                     let publication_id = resolved_string_field(&field.arguments, "publicationId");
-                    publication_count_json(
+                    count_object(
                         self.publication_resource_count(publication_id.as_deref(), "Product"),
                     )
                 }
@@ -444,10 +444,10 @@ impl DraftProxy {
             })
             .collect();
         record["products"] = json!({ "nodes": product_nodes });
-        record["publishedProductsCount"] = publication_count_json(product_count);
-        record["collectionsCount"] = publication_count_json(collection_count);
+        record["publishedProductsCount"] = count_object(product_count);
+        record["collectionsCount"] = count_object(collection_count);
         if let Some(channel) = record.get_mut("channel") {
-            channel["productsCount"] = publication_count_json(product_count);
+            channel["productsCount"] = count_object(product_count);
         }
         selected_json(&record, &field.selection)
     }
@@ -462,7 +462,7 @@ impl DraftProxy {
         let mut channel = record.get("channel").cloned().unwrap_or(Value::Null);
         if channel.is_object() {
             let product_count = self.publication_resource_count(Some(&publication_id), "Product");
-            channel["productsCount"] = publication_count_json(product_count);
+            channel["productsCount"] = count_object(product_count);
         }
         selected_json(&channel, &field.selection)
     }
@@ -549,9 +549,7 @@ impl DraftProxy {
                 }
                 "publishedOnCurrentPublication" => json!(false),
                 "resourcePublicationsCount" | "publicationCount" | "availablePublicationsCount" => {
-                    publication_count_json(
-                        self.publishable_live_publication_count(resource_id, &pubs),
-                    )
+                    count_object(self.publishable_live_publication_count(resource_id, &pubs))
                 }
                 _ => continue,
             };
@@ -1880,18 +1878,15 @@ fn collection_invalid_sort_order_response(
         .or_else(|| parsed_document(query, &BTreeMap::new()).map(|document| document.location))
         .unwrap_or(SourceLocation { line: 1, column: 1 });
     ok_json(json!({
-        "errors": [{
-            "message": format!("Variable $input of type CollectionInput! was provided invalid value for sortOrder (Expected \"{sort_order}\" to be one of: {expected_sort_orders})"),
-            "locations": [{"line": location.line, "column": location.column}],
-            "extensions": {
-                "code": "INVALID_VARIABLE",
-                "value": resolved_value_json(&ResolvedValue::Object(input.clone())),
-                "problems": [{
-                    "path": ["sortOrder"],
-                    "explanation": format!("Expected \"{sort_order}\" to be one of: {expected_sort_orders}")
-                }]
-            }
-        }]
+        "errors": [invalid_variable_error_envelope(
+            format!("Variable $input of type CollectionInput! was provided invalid value for sortOrder (Expected \"{sort_order}\" to be one of: {expected_sort_orders})"),
+            location,
+            resolved_value_json(&ResolvedValue::Object(input.clone())),
+            json!([{
+                "path": ["sortOrder"],
+                "explanation": format!("Expected \"{sort_order}\" to be one of: {expected_sort_orders}")
+            }]),
+        )]
     }))
 }
 

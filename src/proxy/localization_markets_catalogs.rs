@@ -683,13 +683,7 @@ impl DraftProxy {
     }
 
     fn catalogs_count_value(&self, field: &RootFieldSelection) -> Value {
-        selected_json(
-            &json!({
-                "count": self.store.staged.catalogs.len(),
-                "precision": "EXACT"
-            }),
-            &field.selection,
-        )
+        selected_count_json(self.store.staged.catalogs.len(), &field.selection)
     }
 
     fn markets_resolved_values_value(&self, field: &RootFieldSelection) -> Value {

@@ -1412,10 +1412,6 @@ pub(in crate::proxy) fn segment_payload_json(
     })
 }
 
-pub(in crate::proxy) fn segment_count_json(count: usize, selections: &[SelectedField]) -> Value {
-    selected_json(&count_object(count), selections)
-}
-
 pub(in crate::proxy) fn customer_segment_members_query_payload_json(
     query_record: Value,
     payload_selection: &[SelectedField],

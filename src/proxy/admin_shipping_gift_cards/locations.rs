@@ -1968,21 +1968,8 @@ fn location_delete_user_error(code: &str, message: &str) -> Value {
 }
 
 fn location_requires_idempotency(request: &Request, query: &str) -> bool {
-    admin_graphql_version(&request.path).is_some_and(location_version_requires_idempotency)
+    admin_graphql_version(&request.path).is_some_and(|version| version_at_least(version, 2026, 4))
         && !query.contains("@idempotent")
-}
-
-fn location_version_requires_idempotency(version: &str) -> bool {
-    let Some((year, month)) = version.split_once('-') else {
-        return false;
-    };
-    let Ok(year) = year.parse::<u16>() else {
-        return false;
-    };
-    let Ok(month) = month.parse::<u8>() else {
-        return false;
-    };
-    year > 2026 || (year == 2026 && month >= 4)
 }
 
 fn location_idempotency_required_error(
