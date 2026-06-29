@@ -55,6 +55,15 @@ returns `SELLING_PLAN_COUNT_LOWER_BOUND` at
 the group unchanged on subsequent reads, and records the raw mutation as a
 failed local mutation for observability.
 
+For nested selling-plan `pricingPolicies`, create and update validation rejects
+lists that contain recurring pricing policies without a fixed pricing policy.
+The local response matches Shopify's captured
+`SELLING_PLAN_PRICING_POLICIES_MUST_CONTAIN_A_FIXED_PRICING_POLICY` userError
+field/message/code shape for both `sellingPlansToCreate` and
+`sellingPlansToUpdate`. Valid fixed+recurring policy lists stage locally, and
+subsequent selling-plan reads return both `SellingPlanFixedPricingPolicy` and
+`SellingPlanRecurringPricingPolicy` entries from staged state.
+
 `SellingPlanGroup.summary` is computed from staged selling plans, not from the
 group option labels. The local summary uses the selling-plan count,
 singular/plural `frequency` wording, percentage min/max ranges across all
@@ -111,7 +120,7 @@ parity evidence.
 - `scripts/capture-selling-plan-group-create-active-model-validation-conformance.ts`
 - `scripts/capture-selling-plan-group-app-id-readback-conformance.ts`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-lifecycle.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/selling-plan-group-input-validation.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-input-validation.json`
 - `config/parity-specs/products/sellingPlanGroupCreate-input-validation.json`
 - `config/parity-specs/products/productJoinLeaveSellingPlanGroups-validation.json`
 - `config/parity-specs/products/selling-plan-product-variant-associations.json`
@@ -122,5 +131,6 @@ parity evidence.
 - `corepack pnpm parity -- sellingPlanGroup-summary`
 - `corepack pnpm parity -- sellingPlanGroupCreate-active-model-validation`
 - `corepack pnpm parity -- sellingPlanGroup-app-id-readback`
+- `corepack pnpm parity -- sellingPlanGroupCreate-input-validation`
 - `corepack pnpm conformance:check`
 - `corepack pnpm rust:test`
