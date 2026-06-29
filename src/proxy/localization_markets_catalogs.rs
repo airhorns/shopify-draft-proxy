@@ -221,6 +221,60 @@ fn selected_catalog_payload(
     )
 }
 
+const CATALOG_CONTEXT_DRIVER_MISMATCH_MESSAGE: &str =
+    "The arguments `contexts_to_add` and `contexts_to_remove` must match existing catalog context type.";
+const COMPANY_LOCATION_NOT_FOUND_MESSAGE: &str =
+    "A company location within the catalog does not exist.";
+
+fn catalog_context_type_fields(
+    context: &BTreeMap<String, ResolvedValue>,
+) -> Vec<(CatalogContextDriver, &'static str)> {
+    let mut fields = Vec::new();
+    if context.contains_key("marketIds") {
+        fields.push((CatalogContextDriver::Market, "marketIds"));
+    }
+    if context.contains_key("companyLocationIds") {
+        fields.push((CatalogContextDriver::CompanyLocation, "companyLocationIds"));
+    }
+    if context.contains_key("locationIds") {
+        fields.push((CatalogContextDriver::CompanyLocation, "locationIds"));
+    }
+    if context.contains_key("countryCodes") {
+        fields.push((CatalogContextDriver::Country, "countryCodes"));
+    }
+    fields
+}
+
+fn catalog_context_driver_from_create_input(
+    context: &BTreeMap<String, ResolvedValue>,
+) -> CatalogContextDriver {
+    resolved_string_field(context, "driverType")
+        .and_then(|driver| CatalogContextDriver::from_type_name(&driver))
+        .or_else(|| {
+            catalog_context_type_fields(context)
+                .first()
+                .map(|(driver, _)| *driver)
+        })
+        .unwrap_or(CatalogContextDriver::Market)
+}
+
+fn company_location_ids_from_context(context: &BTreeMap<String, ResolvedValue>) -> Vec<String> {
+    let mut ids = list_string_field(context, "companyLocationIds");
+    for id in list_string_field(context, "locationIds") {
+        if !ids.contains(&id) {
+            ids.push(id);
+        }
+    }
+    ids
+}
+
+fn country_codes_from_context(context: &BTreeMap<String, ResolvedValue>) -> Vec<String> {
+    list_string_field(context, "countryCodes")
+        .into_iter()
+        .map(|code| code.to_ascii_uppercase())
+        .collect()
+}
+
 fn selected_market_payload(
     field: &RootFieldSelection,
     market: Value,
@@ -1295,52 +1349,82 @@ impl DraftProxy {
                 "INVALID",
             );
         };
-        let driver_type =
-            resolved_string_field(&context, "driverType").unwrap_or_else(|| "MARKET".to_string());
-        if driver_type == "COUNTRY" {
-            let country_codes = list_string_field(&context, "countryCodes");
-            if country_codes.is_empty() {
-                return selected_catalog_error(
-                    field,
-                    vec!["input", "context", "countryCodes"],
-                    "Country codes can't be blank",
-                    "INVALID",
-                );
-            }
+        if catalog_context_type_fields(&context)
+            .iter()
+            .map(|(driver, _)| *driver)
+            .collect::<BTreeSet<_>>()
+            .len()
+            > 1
+        {
             return selected_catalog_error(
                 field,
-                vec!["input", "context", "driverType"],
-                "Catalog context driverType COUNTRY is not supported by the local MarketCatalog model",
-                "INVALID",
+                vec!["input", "context"],
+                "Must provide exactly one catalog context type.",
+                "MUST_PROVIDE_EXACTLY_ONE_CONTEXT_TYPE",
             );
         }
-        if driver_type != "MARKET" {
-            return selected_catalog_error(
-                field,
-                vec!["input", "context", "driverType"],
-                &format!(
-                    "Catalog context driverType {driver_type} is not supported by the local MarketCatalog model"
-                ),
-                "INVALID",
-            );
-        }
+        let driver_type = catalog_context_driver_from_create_input(&context);
         let market_ids = list_string_field(&context, "marketIds");
-        if market_ids.is_empty() {
-            return selected_catalog_error(
-                field,
-                vec!["input", "context", "marketIds"],
-                "Market ids can't be blank",
-                "INVALID",
-            );
-        }
-        for (index, market_id) in market_ids.iter().enumerate() {
-            if !self.market_exists(market_id) {
-                return selected_catalog_error(
-                    field,
-                    vec!["input", "context", "marketIds", &index.to_string()],
-                    "Market not found.",
-                    "MARKET_NOT_FOUND",
-                );
+        let company_location_ids = company_location_ids_from_context(&context);
+        let country_codes = country_codes_from_context(&context);
+        match driver_type {
+            CatalogContextDriver::Market => {
+                if market_ids.is_empty() {
+                    return selected_catalog_error(
+                        field,
+                        vec!["input", "context", "marketIds"],
+                        "Market ids can't be blank",
+                        "INVALID",
+                    );
+                }
+                for (index, market_id) in market_ids.iter().enumerate() {
+                    if !self.market_exists(market_id) {
+                        return selected_catalog_error(
+                            field,
+                            vec!["input", "context", "marketIds", &index.to_string()],
+                            "Market not found.",
+                            "MARKET_NOT_FOUND",
+                        );
+                    }
+                }
+            }
+            CatalogContextDriver::CompanyLocation => {
+                if company_location_ids.is_empty() {
+                    return selected_catalog_error(
+                        field,
+                        vec!["input", "context", "companyLocationIds"],
+                        "Company location ids can't be blank",
+                        "INVALID",
+                    );
+                }
+                for (field_name, ids) in [
+                    (
+                        "companyLocationIds",
+                        list_string_field(&context, "companyLocationIds"),
+                    ),
+                    ("locationIds", list_string_field(&context, "locationIds")),
+                ] {
+                    for (index, location_id) in ids.iter().enumerate() {
+                        if !self.store.staged.b2b_locations.contains_key(location_id) {
+                            return selected_catalog_error(
+                                field,
+                                vec!["input", "context", field_name, &index.to_string()],
+                                COMPANY_LOCATION_NOT_FOUND_MESSAGE,
+                                "COMPANY_LOCATION_NOT_FOUND",
+                            );
+                        }
+                    }
+                }
+            }
+            CatalogContextDriver::Country => {
+                if country_codes.is_empty() {
+                    return selected_catalog_error(
+                        field,
+                        vec!["input", "context", "countryCodes"],
+                        "Country codes can't be blank",
+                        "INVALID",
+                    );
+                }
             }
         }
         let price_list_id = resolved_string_field(&input, "priceListId");
@@ -1384,10 +1468,24 @@ impl DraftProxy {
             }
         }
 
-        let id = self.next_catalog_id();
+        let id = self.next_catalog_id(driver_type);
         let title = resolved_string_field(&input, "title").unwrap_or_default();
-        let market_names = self.staged_market_names();
-        let mut catalog = catalog_record(&id, &title, &status, &market_ids, &market_names);
+        let mut catalog = match driver_type {
+            CatalogContextDriver::Market => {
+                let market_names = self.staged_market_names();
+                catalog_record(&id, &title, &status, &market_ids, &market_names)
+            }
+            CatalogContextDriver::CompanyLocation => company_location_catalog_record(
+                &id,
+                &title,
+                &status,
+                &company_location_ids,
+                &self.staged_company_locations_for_catalog(),
+            ),
+            CatalogContextDriver::Country => {
+                country_catalog_record(&id, &title, &status, &country_codes)
+            }
+        };
         set_catalog_price_list_relation(&mut catalog, price_list_id.as_deref());
         set_catalog_publication_relation(&mut catalog, publication_id.as_deref());
         self.store
@@ -1513,20 +1611,50 @@ impl DraftProxy {
             );
         }
 
+        let catalog_driver = catalog_context_driver(&existing_catalog);
         let mut errors = Vec::new();
         for (field_prefix, context) in [
             ("contextsToAdd", contexts_to_add.as_ref()),
             ("contextsToRemove", contexts_to_remove.as_ref()),
         ] {
             if let Some(context) = context {
-                for (index, market_id) in list_string_field(context, "marketIds").iter().enumerate()
-                {
-                    if !self.market_exists(market_id) {
+                for (driver, field_name) in catalog_context_type_fields(context) {
+                    if driver != catalog_driver {
                         errors.push(catalog_user_error(
-                            vec![field_prefix, "marketIds", &index.to_string()],
-                            "Market does not exist",
-                            "MARKET_NOT_FOUND",
+                            vec![field_prefix, field_name],
+                            CATALOG_CONTEXT_DRIVER_MISMATCH_MESSAGE,
+                            "CONTEXT_DRIVER_MISMATCH",
                         ));
+                        continue;
+                    }
+                    match driver {
+                        CatalogContextDriver::Market => {
+                            for (index, market_id) in
+                                list_string_field(context, field_name).iter().enumerate()
+                            {
+                                if !self.market_exists(market_id) {
+                                    errors.push(catalog_user_error(
+                                        vec![field_prefix, field_name, &index.to_string()],
+                                        "Market does not exist",
+                                        "MARKET_NOT_FOUND",
+                                    ));
+                                }
+                            }
+                        }
+                        CatalogContextDriver::CompanyLocation => {
+                            for (index, location_id) in
+                                list_string_field(context, field_name).iter().enumerate()
+                            {
+                                if !self.store.staged.b2b_locations.contains_key(location_id) {
+                                    errors.push(catalog_user_error(
+                                        vec![field_prefix, field_name, &index.to_string()],
+                                        COMPANY_LOCATION_NOT_FOUND_MESSAGE,
+                                        "COMPANY_LOCATION_NOT_FOUND",
+                                    ));
+                                }
+                            }
+                        }
+                        CatalogContextDriver::Country => {}
                     }
                 }
             }
@@ -1535,28 +1663,65 @@ impl DraftProxy {
             return selected_catalog_payload(field, Value::Null, errors);
         }
 
-        let mut market_ids = catalog_market_ids(&existing_catalog);
-        if let Some(context) = contexts_to_remove.as_ref() {
-            let remove = list_string_field(context, "marketIds")
-                .into_iter()
-                .collect::<BTreeSet<_>>();
-            market_ids.retain(|id| !remove.contains(id));
-        }
-        if let Some(context) = contexts_to_add.as_ref() {
-            for market_id in list_string_field(context, "marketIds") {
-                if !market_ids.contains(&market_id) {
-                    market_ids.push(market_id);
-                }
-            }
-        }
-        let market_names = self.staged_market_names();
         let mut updated_catalog = existing_catalog;
-        if let Some(object) = updated_catalog.as_object_mut() {
-            object.insert("marketIds".to_string(), json!(market_ids.clone()));
-            object.insert(
-                "markets".to_string(),
-                catalog_markets_connection(&market_ids, &market_names),
-            );
+        match catalog_driver {
+            CatalogContextDriver::Market => {
+                let mut market_ids = catalog_market_ids(&updated_catalog);
+                if let Some(context) = contexts_to_remove.as_ref() {
+                    let remove = list_string_field(context, "marketIds")
+                        .into_iter()
+                        .collect::<BTreeSet<_>>();
+                    market_ids.retain(|id| !remove.contains(id));
+                }
+                if let Some(context) = contexts_to_add.as_ref() {
+                    for market_id in list_string_field(context, "marketIds") {
+                        if !market_ids.contains(&market_id) {
+                            market_ids.push(market_id);
+                        }
+                    }
+                }
+                let market_names = self.staged_market_names();
+                set_catalog_market_ids(&mut updated_catalog, &market_ids, &market_names);
+            }
+            CatalogContextDriver::CompanyLocation => {
+                let mut company_location_ids = catalog_company_location_ids(&updated_catalog);
+                if let Some(context) = contexts_to_remove.as_ref() {
+                    let mut remove = list_string_field(context, "companyLocationIds")
+                        .into_iter()
+                        .collect::<BTreeSet<_>>();
+                    remove.extend(list_string_field(context, "locationIds"));
+                    company_location_ids.retain(|id| !remove.contains(id));
+                }
+                if let Some(context) = contexts_to_add.as_ref() {
+                    for location_id in company_location_ids_from_context(context) {
+                        if !company_location_ids.contains(&location_id) {
+                            company_location_ids.push(location_id);
+                        }
+                    }
+                }
+                set_catalog_company_location_ids(
+                    &mut updated_catalog,
+                    &company_location_ids,
+                    &self.staged_company_locations_for_catalog(),
+                );
+            }
+            CatalogContextDriver::Country => {
+                let mut country_codes = catalog_country_codes(&updated_catalog);
+                if let Some(context) = contexts_to_remove.as_ref() {
+                    let remove = country_codes_from_context(context)
+                        .into_iter()
+                        .collect::<BTreeSet<_>>();
+                    country_codes.retain(|code| !remove.contains(code));
+                }
+                if let Some(context) = contexts_to_add.as_ref() {
+                    for country_code in country_codes_from_context(context) {
+                        if !country_codes.contains(&country_code) {
+                            country_codes.push(country_code);
+                        }
+                    }
+                }
+                set_catalog_country_codes(&mut updated_catalog, &country_codes);
+            }
         }
         self.store
             .staged
@@ -1565,10 +1730,19 @@ impl DraftProxy {
         selected_catalog_payload(field, updated_catalog, Vec::new())
     }
 
-    pub(in crate::proxy) fn next_catalog_id(&self) -> String {
+    pub(in crate::proxy) fn next_catalog_id(&self, driver_type: CatalogContextDriver) -> String {
         let numeric_id =
             (self.store.staged.markets.len() * 2) + (self.store.staged.catalogs.len() * 2) + 1;
-        shopify_gid("MarketCatalog", numeric_id)
+        shopify_gid(driver_type.catalog_type_name(), numeric_id)
+    }
+
+    pub(in crate::proxy) fn staged_company_locations_for_catalog(&self) -> BTreeMap<String, Value> {
+        self.store
+            .staged
+            .b2b_locations
+            .iter()
+            .map(|(id, location)| (id.clone(), location.clone()))
+            .collect()
     }
 
     pub(in crate::proxy) fn price_list_mutation_data(
