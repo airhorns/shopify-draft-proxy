@@ -16,7 +16,7 @@
               "totalPriceSet": {
                 "shopMoney": {
                   "amount": "10.0",
-                  "currencyCode": "CAD"
+                  "currencyCode": "USD"
                 }
               }
             },
@@ -31,10 +31,22 @@
               "id": "gid://shopify/DraftOrder/1",
               "status": "COMPLETED",
               "order": {
-                "id": "gid://shopify/Order/4",
+                "id": "gid://shopify/Order/1",
                 "displayFinancialStatus": "PENDING",
-                "paymentGatewayNames": [],
-                "transactions": []
+                "paymentGatewayNames": ["manual"],
+                "transactions": [
+                  {
+                    "kind": "SALE",
+                    "status": "PENDING",
+                    "gateway": "manual",
+                    "amountSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "USD"
+                      }
+                    }
+                  }
+                ]
               }
             },
             "userErrors": []
@@ -51,7 +63,7 @@
               "totalPriceSet": {
                 "shopMoney": {
                   "amount": "10.0",
-                  "currencyCode": "CAD"
+                  "currencyCode": "USD"
                 }
               }
             },

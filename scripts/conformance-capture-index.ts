@@ -6716,6 +6716,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'draft-orders',
+    captureId: 'draft-order-complete-payment-terms-pending',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-draft-order-complete-payment-terms-pending-conformance.ts',
+    purpose:
+      'Completes a disposable payment-terms draft without paymentPending and records Shopify leaving the resulting order pending with no captured payment.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draft-order-complete-payment-terms-pending.json`,
+      'config/parity-specs/orders/draftOrderComplete-payment-terms-pending.json',
+      'config/parity-requests/orders/draftOrderComplete-payment-terms-pending.graphql',
+      'config/parity-requests/orders/draftOrderComplete-payment-terms-pending-order-read.graphql',
+      'config/parity-requests/orders/draft-order-hydrate.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft with non-taxable custom line items, attaches payment terms, completes it, then cancels the resulting order (restock:false) in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
     captureId: 'draft-order-delete-parity',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-draft-order-delete-conformance.ts',
