@@ -700,7 +700,7 @@ impl DraftProxy {
                 "userErrors" => Some(Value::Array(
                     user_errors
                         .iter()
-                        .map(|error| selected_json(&error.to_json(), &error_selection))
+                        .map(|error| selected_json(&error.0, &error_selection))
                         .collect(),
                 )),
                 _ => None,
@@ -758,10 +758,6 @@ impl ProductOptionUserError {
             &message,
             code.as_deref(),
         ))
-    }
-
-    fn to_json(&self) -> Value {
-        self.0.clone()
     }
 }
 
@@ -1344,7 +1340,7 @@ fn product_option_payload_json(
             "userErrors" => Some(Value::Array(
                 user_errors
                     .iter()
-                    .map(|error| selected_json(&error.to_json(), &selection.selection))
+                    .map(|error| selected_json(&error.0, &selection.selection))
                     .collect(),
             )),
             _ => None,

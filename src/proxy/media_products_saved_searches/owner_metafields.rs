@@ -19,14 +19,16 @@ impl DraftProxy {
         let (response_key, payload_selection) =
             primary_root_response_selection(query, variables, || "metafieldsSet".to_string());
         let inputs = metafields_mutation_inputs(query, variables, "metafieldsSet");
-        let fallback_reference_ids = if inputs.len() <= 25 {
-            let reference_values = self.metafields_set_reference_values(&inputs);
-            let product_owner_ids = metafields_set_product_owner_ids(&inputs);
-            self.hydrate_metafield_reference_ids(request, reference_values, product_owner_ids)
+        let fallback_reference_ids = if inputs.len() <= METAFIELDS_SET_INPUT_LIMIT {
+            self.hydrate_metafield_reference_ids(
+                request,
+                self.metafields_set_reference_values(&inputs),
+                metafields_set_product_owner_ids(&inputs),
+            )
         } else {
             BTreeSet::new()
         };
-        if inputs.len() <= 25 {
+        if inputs.len() <= METAFIELDS_SET_INPUT_LIMIT {
             self.hydrate_owner_metafield_ids(
                 request,
                 inputs
@@ -35,7 +37,7 @@ impl DraftProxy {
                     .collect(),
             );
         }
-        let mut user_errors = if inputs.len() <= 25 {
+        let mut user_errors = if inputs.len() <= METAFIELDS_SET_INPUT_LIMIT {
             self.metafields_set_compare_digest_errors(&inputs)
         } else {
             Vec::new()
@@ -45,7 +47,7 @@ impl DraftProxy {
         }));
         user_errors.extend(self.metafields_set_definition_user_errors(&inputs));
         if !user_errors.is_empty() {
-            let metafields = if inputs.len() > 25 {
+            let metafields = if inputs.len() > METAFIELDS_SET_INPUT_LIMIT {
                 Value::Null
             } else {
                 json!([])
@@ -671,9 +673,7 @@ impl DraftProxy {
         match shopify_gid_resource_type(&owner_id) {
             Some("Product") => self.store.stage_observed_product_json(node),
             Some("ProductVariant") => {
-                if let Some(variant) = product_variant_state_from_observed_json(node)
-                    .or_else(|| owner_product_variant_state_from_observed_json(node))
-                {
+                if let Some(variant) = product_variant_state_from_observed_json(node) {
                     self.store.stage_product_variant(variant);
                 }
                 if let Some(product) = node.get("product") {
@@ -1567,91 +1567,6 @@ fn metafield_product_domain_reference_fallback(
         }
         _ => None,
     }
-}
-
-fn owner_product_variant_state_from_observed_json(value: &Value) -> Option<ProductVariantRecord> {
-    let id = value.get("id")?.as_str()?.to_string();
-    let product_id = value
-        .get("productId")
-        .and_then(Value::as_str)
-        .or_else(|| {
-            value
-                .get("product")
-                .and_then(|product| product.get("id"))
-                .and_then(Value::as_str)
-        })?
-        .to_string();
-    let inventory_item = value.get("inventoryItem");
-    Some(ProductVariantRecord {
-        id: id.clone(),
-        product_id,
-        title: value
-            .get("title")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string(),
-        sku: value
-            .get("sku")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string(),
-        barcode: value
-            .get("barcode")
-            .and_then(Value::as_str)
-            .map(str::to_string),
-        price: value
-            .get("price")
-            .and_then(Value::as_str)
-            .unwrap_or("0.00")
-            .to_string(),
-        compare_at_price: value
-            .get("compareAtPrice")
-            .and_then(Value::as_str)
-            .map(str::to_string),
-        taxable: value
-            .get("taxable")
-            .and_then(Value::as_bool)
-            .unwrap_or(true),
-        inventory_policy: value
-            .get("inventoryPolicy")
-            .and_then(Value::as_str)
-            .unwrap_or("DENY")
-            .to_string(),
-        inventory_quantity: value
-            .get("inventoryQuantity")
-            .and_then(Value::as_i64)
-            .unwrap_or_default(),
-        selected_options: value
-            .get("selectedOptions")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|option| {
-                Some(ProductVariantSelectedOption {
-                    name: option.get("name")?.as_str()?.to_string(),
-                    value: option.get("value")?.as_str()?.to_string(),
-                })
-            })
-            .collect(),
-        inventory_item: ProductVariantInventoryItem {
-            id: inventory_item
-                .and_then(|item| item.get("id"))
-                .and_then(Value::as_str)
-                .map(str::to_string)
-                .unwrap_or_else(|| shopify_gid("InventoryItem", resource_id_tail(&id))),
-            tracked: inventory_item
-                .and_then(|item| item.get("tracked"))
-                .and_then(Value::as_bool)
-                .unwrap_or(false),
-            requires_shipping: inventory_item
-                .and_then(|item| item.get("requiresShipping"))
-                .and_then(Value::as_bool)
-                .unwrap_or(true),
-            extra_fields: BTreeMap::new(),
-        },
-        media_ids: variant_media_ids_from_json(value),
-        extra_fields: BTreeMap::new(),
-    })
 }
 
 fn apply_metafield_connection_cursors(records: &mut [Value], page_info: &Value) {
