@@ -951,6 +951,15 @@ impl DraftProxy {
                         "The gift card has no customer.",
                     ));
                 } else if field.name == "giftCardSendNotificationToRecipient"
+                    && gift_card_has_no_recipient(card)
+                {
+                    user_errors.push(gift_card_user_error(
+                        &field.name,
+                        Value::Null,
+                        Some("INVALID"),
+                        "The gift card has no recipient.",
+                    ));
+                } else if field.name == "giftCardSendNotificationToRecipient"
                     && gift_card_recipient_has_no_contact(card)
                 {
                     user_errors.push(gift_card_user_error(
@@ -1744,6 +1753,25 @@ fn gift_card_split_search_comparator(value: &str) -> (&str, &str) {
 
 fn gift_card_search_date_value(value: &str) -> &str {
     value.split_once('T').map(|(date, _)| date).unwrap_or(value)
+}
+
+fn gift_card_has_no_recipient(card: &Value) -> bool {
+    let Some(recipient_attributes) = card.get("recipientAttributes") else {
+        return true;
+    };
+    if recipient_attributes.is_null() {
+        return true;
+    }
+    let Some(recipient) = recipient_attributes.get("recipient") else {
+        return true;
+    };
+    if recipient.is_null() {
+        return true;
+    }
+    recipient
+        .get("id")
+        .and_then(Value::as_str)
+        .is_none_or(str::is_empty)
 }
 
 fn gift_card_recipient_has_no_contact(card: &Value) -> bool {

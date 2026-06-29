@@ -6324,6 +6324,10 @@ fn gift_card_notification_base_keyed_state_errors_emit_null_field() {
             giftCard { id }
             userErrors { field code message }
           }
+          noRecipient: giftCardSendNotificationToRecipient(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic") {
+            giftCard { id }
+            userErrors { field code message }
+          }
           noContact: giftCardSendNotificationToRecipient(id: "gid://shopify/GiftCard/654904262962") {
             giftCard { id }
             userErrors { field code message }
@@ -6341,6 +6345,14 @@ fn gift_card_notification_base_keyed_state_errors_emit_null_field() {
                     "field": null,
                     "code": "INVALID",
                     "message": "The gift card has no customer."
+                }]
+            },
+            "noRecipient": {
+                "giftCard": null,
+                "userErrors": [{
+                    "field": null,
+                    "code": "INVALID",
+                    "message": "The gift card has no recipient."
                 }]
             },
             "noContact": {
