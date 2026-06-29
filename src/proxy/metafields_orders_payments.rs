@@ -31,6 +31,66 @@ pub(in crate::proxy) fn owner_type_from_gid(id: &str) -> String {
     metafield_owner_gid_resource_type(id).to_ascii_uppercase()
 }
 
+pub(in crate::proxy) type MetafieldNamespaceKeyValidation = (
+    &'static str, // field path segment
+    &'static str, // code
+    &'static str, // message
+);
+
+pub(in crate::proxy) fn metafield_namespace_key_validation(
+    namespace: &str,
+    key: &str,
+) -> Vec<MetafieldNamespaceKeyValidation> {
+    let mut errors = Vec::new();
+    if namespace.chars().count() < 3 {
+        errors.push((
+            "namespace",
+            "TOO_SHORT",
+            "Namespace is too short (minimum is 3 characters)",
+        ));
+    } else if namespace.chars().count() > 255 {
+        errors.push((
+            "namespace",
+            "TOO_LONG",
+            "Namespace is too long (maximum is 255 characters)",
+        ));
+    }
+    if key.chars().count() < 2 {
+        errors.push((
+            "key",
+            "TOO_SHORT",
+            "Key is too short (minimum is 2 characters)",
+        ));
+    } else if key.chars().count() > 64 {
+        errors.push((
+            "key",
+            "TOO_LONG",
+            "Key is too long (maximum is 64 characters)",
+        ));
+    }
+    errors
+}
+
+fn metafields_set_namespace_key_validation(
+    namespace: &str,
+    key: &str,
+) -> Option<MetafieldNamespaceKeyValidation> {
+    let errors = metafield_namespace_key_validation(namespace, key);
+    [
+        ("namespace", "TOO_SHORT"),
+        ("key", "TOO_SHORT"),
+        ("namespace", "TOO_LONG"),
+        ("key", "TOO_LONG"),
+    ]
+    .into_iter()
+    .find_map(|(field, code)| {
+        errors
+            .iter()
+            .copied()
+            .find(|error| error.0 == field && error.1 == code)
+    })
+}
+
 /// Normalize a metafield `value` STRING the way Shopify echoes it back.
 /// Mirrors Gleam `normalize_metafield_value`. Most types pass through
 /// unchanged; date_time gains a `+00:00` offset, rating keys are reordered,
@@ -620,29 +680,12 @@ fn metafields_set_input_shape_error(
     let namespace =
         canonical_app_metafield_namespace(resolved_string_field(input, "namespace").as_deref());
     let key = resolved_string_field(input, "key").unwrap_or_default();
-    if namespace.len() < 3 {
+    if let Some(error) = metafields_set_namespace_key_validation(&namespace, &key) {
+        let index = index.to_string();
         Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string(), "namespace"],
-            "TOO_SHORT",
-            "Namespace is too short (minimum is 3 characters)",
-        ))
-    } else if key.len() < 2 {
-        Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string(), "key"],
-            "TOO_SHORT",
-            "Key is too short (minimum is 2 characters)",
-        ))
-    } else if namespace.len() > 255 {
-        Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string(), "namespace"],
-            "TOO_LONG",
-            "Namespace is too long (maximum is 255 characters)",
-        ))
-    } else if key.len() > 64 {
-        Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string(), "key"],
-            "TOO_LONG",
-            "Key is too long (maximum is 64 characters)",
+            vec!["metafields", &index, error.0],
+            error.1,
+            error.2,
         ))
     } else if matches!(
         namespace.as_str(),
