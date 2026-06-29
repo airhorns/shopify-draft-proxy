@@ -11,7 +11,7 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
@@ -42,10 +42,53 @@ const productSetMutation = `#graphql
   }
 `;
 
+const productPayloadShopHydrateQuery = `#graphql
+  query ProductPayloadShopHydrate {
+    shop {
+      id
+      name
+      myshopifyDomain
+      url
+      currencyCode
+      primaryDomain {
+        id
+        host
+        url
+        sslEnabled
+      }
+    }
+  }
+`;
+
+async function captureProductPayloadShopHydrateUpstreamCall() {
+  const variables = {};
+  const { status, payload } = await runGraphqlRequest(productPayloadShopHydrateQuery, variables);
+  if (status < 200 || status >= 300 || payload.errors) {
+    throw new Error(
+      `Product payload shop hydrate cassette capture failed: ${JSON.stringify({ status, payload }, null, 2)}`,
+    );
+  }
+
+  return {
+    operationName: 'ProductPayloadShopHydrate',
+    variables,
+    query: productPayloadShopHydrateQuery,
+    response: {
+      status,
+      body: payload,
+    },
+  };
+}
+
 const productDeleteAsyncMutation = `#graphql
   mutation ProductDeleteAsyncOperation($input: ProductDeleteInput!, $synchronous: Boolean!) {
     productDelete(input: $input, synchronous: $synchronous) {
       deletedProductId
+      shop {
+        id
+        name
+        myshopifyDomain
+      }
       productDeleteOperation {
         id
         status
@@ -208,6 +251,10 @@ let operationId: string | null = null;
 let cleanup: unknown | null = null;
 
 try {
+  const shopHydrateCalls = [
+    await captureProductPayloadShopHydrateUpstreamCall(),
+    await captureProductPayloadShopHydrateUpstreamCall(),
+  ];
   const sourceCreateVariables = {
     synchronous: true,
     input: {
@@ -284,7 +331,7 @@ try {
       response: nodeRead,
     },
     cleanup,
-    upstreamCalls: [],
+    upstreamCalls: shopHydrateCalls,
   };
 
   await writeFile(

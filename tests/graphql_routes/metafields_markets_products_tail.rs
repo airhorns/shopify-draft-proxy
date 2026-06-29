@@ -6153,6 +6153,11 @@ fn product_update_unknown_fixture_id_returns_local_user_error_without_replay() {
         delete.body["data"]["productDelete"],
         json!({
             "deletedProductId": null,
+            "shop": {
+                "id": "gid://shopify/Shop/0",
+                "name": "Shopify Draft Proxy",
+                "myshopifyDomain": "shopify-draft-proxy.local"
+            },
             "userErrors": [{
                 "field": ["id"],
                 "message": "Product does not exist"
