@@ -1,5 +1,11 @@
 use crate::proxy::*;
 
+// Runtime messages mirror Core i18n keys under
+// apps.admin.graph_api_errors.app_uninstall; the add_error_code placeholders
+// use different text.
+const APP_UNINSTALL_APP_NOT_FOUND_MESSAGE: &str = "App not found";
+const APP_UNINSTALL_APP_NOT_INSTALLED_MESSAGE: &str = "App is not installed on shop";
+
 impl DraftProxy {
     pub(in crate::proxy) fn current_app_installation_read_data(
         &self,
@@ -58,7 +64,7 @@ impl DraftProxy {
                 Value::Null,
                 vec![user_error(
                     ["id"],
-                    "App is not installed on this shop.",
+                    APP_UNINSTALL_APP_NOT_INSTALLED_MESSAGE,
                     Some("APP_NOT_INSTALLED"),
                 )],
             ),
@@ -66,7 +72,7 @@ impl DraftProxy {
                 Value::Null,
                 vec![user_error(
                     ["id"],
-                    "The app cannot be found.",
+                    APP_UNINSTALL_APP_NOT_FOUND_MESSAGE,
                     Some("APP_NOT_FOUND"),
                 )],
             ),
