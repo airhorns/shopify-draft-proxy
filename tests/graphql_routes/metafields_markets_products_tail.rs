@@ -6566,6 +6566,46 @@ fn product_change_status_stages_archived_status_and_downstream_read_lag() {
 }
 
 #[test]
+fn product_change_status_unknown_product_returns_product_not_found_code() {
+    let mut proxy = snapshot_proxy();
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductChangeStatusUnknownProduct($productId: ID!, $status: ProductStatus!) {
+          productChangeStatus(productId: $productId, status: $status) {
+            product { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/999999999999999",
+            "status": "ARCHIVED"
+        }),
+    ));
+    assert_eq!(missing.status, 200);
+    assert_eq!(
+        missing.body["data"]["productChangeStatus"],
+        json!({
+            "product": null,
+            "userErrors": [{
+                "field": ["productId"],
+                "message": "Product does not exist",
+                "code": "PRODUCT_NOT_FOUND"
+            }]
+        })
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(log.body["entries"], json!([]));
+}
+
+#[test]
 fn product_variant_compatibility_mutations_replay_captured_bulk_shapes() {
     let product_id = "gid://shopify/Product/local-variant-compatibility-test";
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {

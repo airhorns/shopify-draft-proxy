@@ -1144,6 +1144,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-change-status-unknown-product',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-product-change-status-unknown-product-conformance.mts',
+    purpose: 'productChangeStatus unknown-product resolver userError shape, including PRODUCT_NOT_FOUND code.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-change-status-unknown-product-parity.json`,
+      'config/parity-specs/products/productChangeStatus-unknown-product-parity.json',
+      'config/parity-requests/products/productChangeStatus-parity-plan.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only capture against a non-existent product id; Shopify returns a userError and creates no product state.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-status-enum-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-product-status-enum-validation-conformance.ts',

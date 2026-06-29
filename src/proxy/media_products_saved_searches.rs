@@ -2796,7 +2796,11 @@ impl DraftProxy {
             let error_selection =
                 selected_child_selection(payload_selection, "userErrors").unwrap_or_default();
             let error = selected_json(
-                &user_error_omit_code(["productId"], "Product does not exist", None),
+                &user_error_omit_code(
+                    ["productId"],
+                    "Product does not exist",
+                    Some("PRODUCT_NOT_FOUND"),
+                ),
                 &error_selection,
             );
             return MutationOutcome::response(ok_json(json!({
