@@ -1295,6 +1295,7 @@ fn selling_plan_record_from_input(
         pricing_policies: pricing_policies_json(
             &resolved_object_list_field(input, "pricingPolicies"),
             shop_currency_code,
+            created_at,
         ),
     }
 }
@@ -1331,6 +1332,7 @@ fn apply_selling_plan_update(
     plan.pricing_policies = pricing_policies_json(
         &resolved_object_list_field(input, "pricingPolicies"),
         shop_currency_code,
+        &plan.created_at,
     );
 }
 
@@ -1379,34 +1381,60 @@ fn inventory_policy_json(policy: &Option<BTreeMap<String, ResolvedValue>>) -> Va
 fn pricing_policies_json(
     policies: &[BTreeMap<String, ResolvedValue>],
     shop_currency_code: &str,
+    created_at: &str,
 ) -> Vec<Value> {
     policies
         .iter()
         .filter_map(|policy| {
-            let fixed = resolved_object_field(policy, "fixed")?;
-            let adjustment_value = resolved_object_field(&fixed, "adjustmentValue").unwrap_or_default();
-            let adjustment_type = resolved_string_field(&fixed, "adjustmentType")
-                .unwrap_or_else(|| "PERCENTAGE".to_string());
-            let adjustment_value_json =
-                if let Some(fixed_value) = resolved_decimal_text_field(&adjustment_value, "fixedValue") {
-                    json!({
-                        "__typename": "MoneyV2",
-                        "amount": fixed_value,
-                        "currencyCode": shop_currency_code
-                    })
-                } else {
-                    json!({
-                        "__typename": "SellingPlanPricingPolicyPercentageValue",
-                        "percentage": resolved_number_field(&adjustment_value, "percentage").unwrap_or(0.0)
-                    })
-                };
+            if let Some(fixed) = resolved_object_field(policy, "fixed") {
+                return Some(json!({
+                    "__typename": "SellingPlanFixedPricingPolicy",
+                    "adjustmentType": pricing_policy_adjustment_type(&fixed),
+                    "adjustmentValue": pricing_policy_adjustment_value_json(&fixed, shop_currency_code)
+                }));
+            }
+
+            let recurring = resolved_object_field(policy, "recurring")?;
+            let after_cycle = resolved_int_field(&recurring, "afterCycle").unwrap_or(0);
+            if after_cycle <= 0 {
+                return Some(json!({
+                    "__typename": "SellingPlanFixedPricingPolicy",
+                    "adjustmentType": pricing_policy_adjustment_type(&recurring),
+                    "adjustmentValue": pricing_policy_adjustment_value_json(&recurring, shop_currency_code)
+                }));
+            }
             Some(json!({
-                "__typename": "SellingPlanFixedPricingPolicy",
-                "adjustmentType": adjustment_type,
-                "adjustmentValue": adjustment_value_json
+                "__typename": "SellingPlanRecurringPricingPolicy",
+                "afterCycle": after_cycle,
+                "createdAt": created_at,
+                "adjustmentType": pricing_policy_adjustment_type(&recurring),
+                "adjustmentValue": pricing_policy_adjustment_value_json(&recurring, shop_currency_code)
             }))
         })
         .collect()
+}
+
+fn pricing_policy_adjustment_type(policy: &BTreeMap<String, ResolvedValue>) -> String {
+    resolved_string_field(policy, "adjustmentType").unwrap_or_else(|| "PERCENTAGE".to_string())
+}
+
+fn pricing_policy_adjustment_value_json(
+    policy: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
+) -> Value {
+    let adjustment_value = resolved_object_field(policy, "adjustmentValue").unwrap_or_default();
+    if let Some(fixed_value) = resolved_decimal_text_field(&adjustment_value, "fixedValue") {
+        json!({
+            "__typename": "MoneyV2",
+            "amount": fixed_value,
+            "currencyCode": shop_currency_code
+        })
+    } else {
+        json!({
+            "__typename": "SellingPlanPricingPolicyPercentageValue",
+            "percentage": resolved_number_field(&adjustment_value, "percentage").unwrap_or(0.0)
+        })
+    }
 }
 
 fn selling_plan_json(plan: &SellingPlanRecord, selections: &[SelectedField]) -> Value {

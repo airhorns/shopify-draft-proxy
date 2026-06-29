@@ -61,6 +61,15 @@ singular/plural `frequency` wording, percentage min/max ranges across all
 pricing policies, fixed-value min/max ranges using Shopify's whole-currency
 summary display, and joins mixed percentage/fixed pieces with `·`.
 
+Staged selling plans retain mixed fixed and recurring pricing policies in
+`SellingPlan.pricingPolicies`. Fixed entries read back as
+`SellingPlanFixedPricingPolicy`; recurring entries read back as
+`SellingPlanRecurringPricingPolicy` with `afterCycle`, `createdAt`,
+`adjustmentType`, and `adjustmentValue`. The 2026-04 lifecycle capture shows
+Shopify rejects a pricing-policy list that contains only recurring policies and
+no fixed policy; that validation branch is tracked separately from the mixed
+policy read-back support described here.
+
 Staged `sellingPlanGroupAddProducts`,
 `sellingPlanGroupRemoveProducts`, `sellingPlanGroupAddProductVariants`,
 `sellingPlanGroupRemoveProductVariants`, `productJoinSellingPlanGroups`,
@@ -122,5 +131,6 @@ parity evidence.
 - `corepack pnpm parity -- sellingPlanGroup-summary`
 - `corepack pnpm parity -- sellingPlanGroupCreate-active-model-validation`
 - `corepack pnpm parity -- sellingPlanGroup-app-id-readback`
+- `corepack pnpm parity -- selling-plan-group-lifecycle`
 - `corepack pnpm conformance:check`
 - `corepack pnpm rust:test`

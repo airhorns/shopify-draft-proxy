@@ -228,6 +228,245 @@ fn selling_plan_input_with_policy(
     })
 }
 
+fn selling_plan_input_with_pricing_policies(
+    name: &str,
+    options: Vec<&str>,
+    pricing_policies: Vec<Value>,
+) -> Value {
+    json!({
+        "name": name,
+        "options": options,
+        "category": "SUBSCRIPTION",
+        "billingPolicy": { "recurring": { "interval": "MONTH", "intervalCount": 1 } },
+        "deliveryPolicy": { "recurring": { "interval": "MONTH", "intervalCount": 1 } },
+        "pricingPolicies": pricing_policies
+    })
+}
+
+fn fixed_percentage_pricing_policy(percentage: f64) -> Value {
+    json!({
+        "fixed": {
+            "adjustmentType": "PERCENTAGE",
+            "adjustmentValue": { "percentage": percentage }
+        }
+    })
+}
+
+fn recurring_percentage_pricing_policy(percentage: f64, after_cycle: i64) -> Value {
+    json!({
+        "recurring": {
+            "adjustmentType": "PERCENTAGE",
+            "adjustmentValue": { "percentage": percentage },
+            "afterCycle": after_cycle
+        }
+    })
+}
+
+#[test]
+fn selling_plan_group_create_reads_back_mixed_pricing_policies() {
+    let upstream_called = Arc::new(Mutex::new(false));
+    let upstream_called_for_proxy = Arc::clone(&upstream_called);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |_request| {
+        *upstream_called_for_proxy.lock().unwrap() = true;
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({"data": {"unexpected": true}}),
+        }
+    });
+
+    let query = r#"
+        mutation CreateSellingPlanGroupWithRecurringPolicies($input: SellingPlanGroupInput!) {
+          sellingPlanGroupCreate(input: $input) {
+            sellingPlanGroup {
+              id
+              summary
+              sellingPlans(first: 5) {
+                nodes {
+                  name
+                  pricingPolicies {
+                    __typename
+                    ... on SellingPlanFixedPricingPolicy {
+                      adjustmentType
+                      adjustmentValue {
+                        __typename
+                        ... on SellingPlanPricingPolicyPercentageValue { percentage }
+                      }
+                    }
+                    ... on SellingPlanRecurringPricingPolicy {
+                      afterCycle
+                      createdAt
+                      adjustmentType
+                      adjustmentValue {
+                        __typename
+                        ... on SellingPlanPricingPolicyPercentageValue { percentage }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#;
+    let variables = json!({
+        "input": {
+            "name": "Recurring policy group",
+            "options": ["Delivery frequency"],
+            "sellingPlansToCreate": [
+                selling_plan_input_with_pricing_policies(
+                    "Fixed and recurring",
+                    vec!["Fixed and recurring"],
+                    vec![
+                        fixed_percentage_pricing_policy(10.0),
+                        recurring_percentage_pricing_policy(5.0, 2),
+                    ],
+                )
+            ]
+        }
+    });
+    let raw_body = json!({ "query": query, "variables": variables }).to_string();
+    let response = proxy.process_request(graphql_request("POST", &raw_body));
+
+    assert_eq!(response.status, 200);
+    let payload = &response.body["data"]["sellingPlanGroupCreate"];
+    assert_eq!(payload["userErrors"], json!([]));
+    assert_eq!(
+        payload["sellingPlanGroup"]["summary"],
+        json!("1 delivery frequency, 5-10% discount")
+    );
+    assert_eq!(
+        payload["sellingPlanGroup"]["sellingPlans"]["nodes"][0]["pricingPolicies"],
+        json!([
+            {
+                "__typename": "SellingPlanFixedPricingPolicy",
+                "adjustmentType": "PERCENTAGE",
+                "adjustmentValue": {
+                    "__typename": "SellingPlanPricingPolicyPercentageValue",
+                    "percentage": 10.0
+                }
+            },
+            {
+                "__typename": "SellingPlanRecurringPricingPolicy",
+                "afterCycle": 2,
+                "createdAt": "2024-01-01T00:00:01.000Z",
+                "adjustmentType": "PERCENTAGE",
+                "adjustmentValue": {
+                    "__typename": "SellingPlanPricingPolicyPercentageValue",
+                    "percentage": 5.0
+                }
+            }
+        ])
+    );
+    assert_eq!(*upstream_called.lock().unwrap(), false);
+    assert_eq!(
+        log_snapshot(&proxy)["entries"][0]["rawBody"],
+        json!(raw_body)
+    );
+}
+
+#[test]
+fn selling_plan_group_update_reads_back_recurring_pricing_policy() {
+    let mut proxy = snapshot_proxy();
+    let create = create_selling_plan_group(
+        &mut proxy,
+        valid_selling_plan_group_input("Recurring update seed"),
+    );
+    assert_eq!(
+        create.body["data"]["sellingPlanGroupCreate"]["userErrors"],
+        json!([])
+    );
+    let group_id = create.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let plan_id = create.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["sellingPlans"]
+        ["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateSellingPlanRecurringPolicy($id: ID!, $input: SellingPlanGroupInput!) {
+          sellingPlanGroupUpdate(id: $id, input: $input) {
+            sellingPlanGroup {
+              sellingPlans(first: 5) {
+                nodes {
+                  id
+                  pricingPolicies {
+                    __typename
+                    ... on SellingPlanFixedPricingPolicy {
+                      adjustmentType
+                      adjustmentValue {
+                        __typename
+                        ... on SellingPlanPricingPolicyPercentageValue { percentage }
+                      }
+                    }
+                    ... on SellingPlanRecurringPricingPolicy {
+                      afterCycle
+                      createdAt
+                      adjustmentType
+                      adjustmentValue {
+                        __typename
+                        ... on SellingPlanPricingPolicyPercentageValue { percentage }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": group_id,
+            "input": {
+                "sellingPlansToUpdate": [{
+                    "id": plan_id,
+                    "pricingPolicies": [
+                        fixed_percentage_pricing_policy(10.0),
+                        recurring_percentage_pricing_policy(7.5, 3)
+                    ]
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(update.status, 200);
+    let payload = &update.body["data"]["sellingPlanGroupUpdate"];
+    assert_eq!(payload["userErrors"], json!([]));
+    assert_eq!(
+        payload["sellingPlanGroup"]["sellingPlans"]["nodes"][0]["pricingPolicies"],
+        json!([
+            {
+                "__typename": "SellingPlanFixedPricingPolicy",
+                "adjustmentType": "PERCENTAGE",
+                "adjustmentValue": {
+                    "__typename": "SellingPlanPricingPolicyPercentageValue",
+                    "percentage": 10.0
+                }
+            },
+            {
+                "__typename": "SellingPlanRecurringPricingPolicy",
+                "afterCycle": 3,
+                "createdAt": "2024-01-01T00:00:01.000Z",
+                "adjustmentType": "PERCENTAGE",
+                "adjustmentValue": {
+                    "__typename": "SellingPlanPricingPolicyPercentageValue",
+                    "percentage": 7.5
+                }
+            }
+        ])
+    );
+}
+
 #[test]
 fn selling_plan_group_create_validates_locally_without_upstream_passthrough() {
     let upstream_called = Arc::new(Mutex::new(false));

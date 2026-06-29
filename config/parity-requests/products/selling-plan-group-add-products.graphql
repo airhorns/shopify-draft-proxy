@@ -76,6 +76,25 @@ mutation AddProducts($id: ID!, $productIds: [ID!]!, $productId: ID!, $variantId:
                 ... on SellingPlanPricingPolicyPercentageValue {
                   percentage
                 }
+                ... on MoneyV2 {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+            ... on SellingPlanRecurringPricingPolicy {
+              afterCycle
+              createdAt
+              adjustmentType
+              adjustmentValue {
+                __typename
+                ... on SellingPlanPricingPolicyPercentageValue {
+                  percentage
+                }
+                ... on MoneyV2 {
+                  amount
+                  currencyCode
+                }
               }
             }
           }
