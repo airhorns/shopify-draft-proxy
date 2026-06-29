@@ -22,7 +22,7 @@ impl DraftProxy {
         let fallback_reference_ids = if inputs.len() <= METAFIELDS_SET_INPUT_LIMIT {
             self.hydrate_metafield_reference_ids(
                 request,
-                metafields_set_reference_values(&inputs),
+                self.metafields_set_reference_values(&inputs),
                 metafields_set_product_owner_ids(&inputs),
             )
         } else {
@@ -42,7 +42,7 @@ impl DraftProxy {
         } else {
             Vec::new()
         };
-        user_errors.extend(metafields_set_input_errors(&inputs, |id| {
+        user_errors.extend(self.metafields_set_input_errors(&inputs, |id| {
             self.metafield_reference_exists(id) || fallback_reference_ids.contains(id)
         }));
         user_errors.extend(self.metafields_set_definition_user_errors(&inputs));
@@ -67,13 +67,8 @@ impl DraftProxy {
             let key = resolved_string_field(&input, "key").unwrap_or_default();
             let owner_type = owner_type_from_gid(&owner_id);
             let definition = self.owner_metafield_definition(&owner_type, &namespace, &key);
-            let metafield_type = resolved_string_field(&input, "type")
-                .or_else(|| {
-                    definition
-                        .as_ref()
-                        .and_then(|definition| definition["type"]["name"].as_str())
-                        .map(str::to_string)
-                })
+            let metafield_type = self
+                .metafields_set_effective_type(&input)
                 .unwrap_or_else(|| "single_line_text_field".to_string());
             let value = resolved_string_field(&input, "value").unwrap_or_default();
             let index = self
@@ -1321,7 +1316,7 @@ impl DraftProxy {
             .collect()
     }
 
-    fn owner_metafield_definition(
+    pub(in crate::proxy) fn owner_metafield_definition(
         &self,
         owner_type: &str,
         namespace: &str,

@@ -681,7 +681,7 @@ impl DraftProxy {
             let role = json!({
                 "id": role_id,
                 "name": role_name,
-                "note": format!("System-defined {role_name} role"),
+                "note": Value::Null,
                 "companyId": id
             });
             self.store

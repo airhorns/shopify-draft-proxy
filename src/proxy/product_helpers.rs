@@ -2394,6 +2394,7 @@ pub(in crate::proxy) fn product_mutation_payload_json(
     payload_selections: &[SelectedField],
     product_selections: &[SelectedField],
     currency_code: &str,
+    shop: Option<&Value>,
 ) -> Value {
     selected_payload_json(payload_selections, |selection| {
         match selection.name.as_str() {
@@ -2403,6 +2404,7 @@ pub(in crate::proxy) fn product_mutation_payload_json(
                 product_selections,
                 currency_code,
             )),
+            "shop" => shop.map(|shop| selected_json(shop, &selection.selection)),
             "userErrors" => Some(json!([])),
             _ => None,
         }
@@ -2758,58 +2760,80 @@ pub(in crate::proxy) fn no_key_on_variant_create_response(field: &str) -> Respon
 }
 pub(in crate::proxy) fn product_create_user_errors_response(
     query: &str,
+    shop: &Value,
     errors: Vec<Value>,
 ) -> Response {
     let (response_key, payload_selection) = primary_root_field(query, &BTreeMap::new())
         .map(|field| (field.response_key, field.selection))
         .unwrap_or_else(|| ("productCreate".to_string(), Vec::new()));
-    let error_selection =
-        selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
-    let errors = errors
-        .into_iter()
-        .map(|error| selected_json(&error, &error_selection))
-        .collect::<Vec<_>>();
     ok_json(json!({
         "data": {
-            response_key: selected_json(&json!({"product": null, "userErrors": errors}), &payload_selection)
+            response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
+                "product" => Some(Value::Null),
+                "shop" => Some(selected_json(shop, &selection.selection)),
+                "userErrors" => selected_user_errors_field(errors.as_slice(), selection),
+                _ => None,
+            })
         }
     }))
 }
 
 pub(in crate::proxy) fn product_delete_payload_json(
     deleted_product_id: &str,
+    shop: &Value,
     payload_selections: &[SelectedField],
 ) -> Value {
     selected_payload_json(payload_selections, |selection| {
         match selection.name.as_str() {
             "deletedProductId" => Some(json!(deleted_product_id)),
+            "shop" => Some(selected_json(shop, &selection.selection)),
             "userErrors" => Some(json!([])),
             _ => None,
         }
     })
 }
 
-pub(in crate::proxy) fn product_delete_async_operation_payload(operation_id: &str) -> Value {
-    json!({
-        "deletedProductId": null,
-        "productDeleteOperation": {
-            "id": operation_id,
-            "status": "CREATED",
-            "deletedProductId": null,
-            "userErrors": []
-        },
-        "userErrors": []
+pub(in crate::proxy) fn product_delete_async_operation_payload(
+    operation_id: &str,
+    shop: &Value,
+    payload_selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(payload_selections, |selection| {
+        match selection.name.as_str() {
+            "deletedProductId" => Some(Value::Null),
+            "productDeleteOperation" => Some(selected_payload_json(
+                &selection.selection,
+                |operation_selection| match operation_selection.name.as_str() {
+                    "id" => Some(json!(operation_id)),
+                    "status" => Some(json!("CREATED")),
+                    "deletedProductId" => Some(Value::Null),
+                    "userErrors" => Some(json!([])),
+                    _ => None,
+                },
+            )),
+            "shop" => Some(selected_json(shop, &selection.selection)),
+            "userErrors" => Some(json!([])),
+            _ => None,
+        }
     })
 }
 
-pub(in crate::proxy) fn product_delete_async_duplicate_payload() -> Value {
-    json!({
-        "deletedProductId": null,
-        "productDeleteOperation": null,
-        "userErrors": [{
-            "field": null,
-            "message": "Another operation already in progress. Please wait until current one is finished."
-        }]
+pub(in crate::proxy) fn product_delete_async_duplicate_payload(
+    shop: &Value,
+    payload_selections: &[SelectedField],
+) -> Value {
+    let user_errors = [json!({
+        "field": null,
+        "message": "Another operation already in progress. Please wait until current one is finished."
+    })];
+    selected_payload_json(payload_selections, |selection| {
+        match selection.name.as_str() {
+            "deletedProductId" => Some(Value::Null),
+            "productDeleteOperation" => Some(Value::Null),
+            "shop" => Some(selected_json(shop, &selection.selection)),
+            "userErrors" => selected_user_errors_field(&user_errors, selection),
+            _ => None,
+        }
     })
 }
 
@@ -3158,33 +3182,35 @@ pub(in crate::proxy) fn product_delete_required_id_error(
 }
 
 pub(in crate::proxy) fn product_update_missing_product(query: &str) -> Response {
-    product_missing_product_response(query, "productUpdate", "product")
+    product_missing_product_response(query, "productUpdate", "product", None)
 }
 
-pub(in crate::proxy) fn product_delete_missing_product(query: &str) -> Response {
-    product_missing_product_response(query, "productDelete", "deletedProductId")
+pub(in crate::proxy) fn product_delete_missing_product(query: &str, shop: &Value) -> Response {
+    product_missing_product_response(query, "productDelete", "deletedProductId", Some(shop))
 }
 
 fn product_missing_product_response(
     query: &str,
     default_response_key: &str,
     null_payload_field: &str,
+    shop: Option<&Value>,
 ) -> Response {
     let (response_key, payload_selection) = primary_root_field(query, &BTreeMap::new())
         .map(|field| (field.response_key, field.selection))
         .unwrap_or_else(|| (default_response_key.to_string(), Vec::new()));
-    let error_selection =
-        selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
-    let error = selected_json(
-        &user_error(["id"], "Product does not exist", Some("NOT_FOUND")),
-        &error_selection,
-    );
-    let mut payload = serde_json::Map::new();
-    payload.insert(null_payload_field.to_string(), Value::Null);
-    payload.insert("userErrors".to_string(), json!([error]));
+    let user_errors = [user_error(
+        ["id"],
+        "Product does not exist",
+        Some("NOT_FOUND"),
+    )];
     ok_json(json!({
         "data": {
-            response_key: selected_json(&Value::Object(payload), &payload_selection)
+            response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
+                field if field == null_payload_field => Some(Value::Null),
+                "shop" => shop.map(|shop| selected_json(shop, &selection.selection)),
+                "userErrors" => selected_user_errors_field(&user_errors, selection),
+                _ => None,
+            })
         }
     }))
 }

@@ -889,28 +889,34 @@ impl DraftProxy {
             .shipping_fulfillment_order_by_id(&id)
             .and_then(|order| order["status"].as_str().map(str::to_string))
             .unwrap_or_default();
-        let invalid = match (root_field, current_status.as_str()) {
-            ("fulfillmentOrderOpen", "SCHEDULED" | "IN_PROGRESS") => None,
-            ("fulfillmentOrderOpen", "OPEN") => Some((
-                "Expected fulfillment order status to be valid but it was open.",
-                Value::Null,
-            )),
-            ("fulfillmentOrderOpen", "CLOSED" | "CANCELLED" | "ON_HOLD") => {
-                Some(("Fulfillment order must be scheduled.", json!(["id"])))
-            }
-            (
-                "fulfillmentOrderReportProgress",
-                "SCHEDULED" | "CLOSED" | "CANCELLED" | "ON_HOLD",
-            ) => Some(("Fulfillment order must be in progress.", json!(["id"]))),
-            _ => None,
-        };
-        if let Some((message, field)) = invalid {
+        let invalid: Option<(String, Value, Option<&'static str>)> =
+            match (root_field, current_status.as_str()) {
+                ("fulfillmentOrderOpen", "SCHEDULED" | "IN_PROGRESS") => None,
+                ("fulfillmentOrderOpen", "OPEN" | "CLOSED" | "CANCELLED" | "ON_HOLD") => Some((
+                    format!(
+                        "Expected fulfillment order status to be valid but it was {}.",
+                        current_status.to_ascii_lowercase()
+                    ),
+                    Value::Null,
+                    Some("INVALID_FULFILLMENT_ORDER_STATUS"),
+                )),
+                (
+                    "fulfillmentOrderReportProgress",
+                    "SCHEDULED" | "CLOSED" | "CANCELLED" | "ON_HOLD",
+                ) => Some((
+                    "Cannot report progress on a fulfillment order in this state.".to_string(),
+                    Value::Null,
+                    Some("FULFILLMENT_ORDER_STATUS_INVALID"),
+                )),
+                _ => None,
+            };
+        if let Some((message, field, code)) = invalid {
             return ok_json(json!({
                 "data": {
                     response_key: fulfillment_order_simple_payload_json(
                         Value::Null,
                         &payload_selection,
-                        vec![user_error(json!(field), message, Some("INVALID_FULFILLMENT_ORDER_STATUS"))]
+                        vec![user_error(field, &message, code)]
                     )
                 }
             }));

@@ -227,7 +227,7 @@ impl DraftProxy {
                     )
                 }
                 "orderEditCommit" => {
-                    let order = self
+                    let mut order = self
                         .store
                         .staged
                         .orders
@@ -235,10 +235,28 @@ impl DraftProxy {
                         .next()
                         .cloned()
                         .unwrap_or(Value::Null);
+                    let order_unarchived = order_edit_order_is_closed(&order);
+                    if order_unarchived {
+                        order["closed"] = json!(false);
+                        order["closedAt"] = Value::Null;
+                        if let Some(order_id) = order["id"].as_str() {
+                            self.store
+                                .staged
+                                .orders
+                                .insert(order_id.to_string(), order.clone());
+                        }
+                    }
+                    let notify_customer =
+                        resolved_bool_field(&field.arguments, "notifyCustomer").unwrap_or(false);
+                    let success_messages = order_edit_commit_success_messages(
+                        &order,
+                        notify_customer,
+                        order_unarchived,
+                    );
                     selected_json(
                         &json!({
                             "order": order,
-                            "successMessages": ["Order updated"],
+                            "successMessages": success_messages,
                             "userErrors": []
                         }),
                         &field.selection,

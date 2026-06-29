@@ -289,6 +289,22 @@ try {
     },
     true,
   );
+  scenarios['planCreateRecurringOnlyPricingPolicies'] = await capture(
+    'planCreateRecurringOnlyPricingPolicies',
+    createMutation,
+    {
+      input: validGroupInput({
+        name: 'Recurring-only pricing policies',
+        sellingPlansToCreate: [
+          validSellingPlanInput({
+            pricingPolicies: [recurringPricingPolicy(2)],
+          }),
+        ],
+      }),
+      resources: {},
+    },
+    true,
+  );
   scenarios['planCreatePositionInvalid'] = await capture(
     'planCreatePositionInvalid',
     createMutation,
@@ -433,6 +449,17 @@ try {
     },
     true,
   );
+  scenarios['planUpdateRecurringOnlyPricingPolicies'] = await capture(
+    'planUpdateRecurringOnlyPricingPolicies',
+    updateMutation,
+    {
+      id: groupId,
+      input: {
+        sellingPlansToUpdate: [{ id: planId, pricingPolicies: [recurringPricingPolicy(2)] }],
+      },
+    },
+    true,
+  );
   scenarios['planUpdatePositionInvalid'] = await capture(
     'planUpdatePositionInvalid',
     updateMutation,
@@ -549,7 +576,7 @@ await writeFile(
       apiVersion,
       storeDomain,
       notes: [
-        'Captures selling-plan group input validation userErrors for group options, positions, nested selling plan limits, required update ids, policy kind compatibility, recurring interval counts, recurring billing min/max-cycle ranges, recurring delivery cutoff ranges, and recurring anchor schedule compatibility.',
+        'Captures selling-plan group input validation userErrors for group options, positions, nested selling plan limits, pricing-policy fixed-policy requirements, required update ids, policy kind compatibility, recurring interval counts, recurring billing min/max-cycle ranges, recurring delivery cutoff ranges, and recurring anchor schedule compatibility.',
         'The script creates one disposable selling-plan group so update validation branches can target an existing group and deletes it during cleanup.',
       ],
       groupId,
