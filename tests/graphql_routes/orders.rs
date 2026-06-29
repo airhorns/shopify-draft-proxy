@@ -6944,6 +6944,243 @@ fn draft_order_complete_replays_resulting_order_and_gateway_paths() {
     );
 }
 
+fn create_draft_for_payment_terms_completion_test(
+    proxy: &mut DraftProxy,
+    email: &str,
+    with_payment_terms: bool,
+) -> Value {
+    let mut input = json!({
+        "email": email,
+        "lineItems": [{
+            "title": "Payment terms completion item",
+            "quantity": 1,
+            "originalUnitPrice": "12.00",
+            "sku": "TERMS-COMPLETE"
+        }]
+    });
+    if with_payment_terms {
+        input["paymentTerms"] = json!({
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4"
+        });
+    }
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDraftForPaymentTermsCompletion($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              status
+              paymentTerms { id }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": input }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    create.body["data"]["draftOrderCreate"]["draftOrder"].clone()
+}
+
+fn complete_draft_for_payment_terms_completion_test(
+    proxy: &mut DraftProxy,
+    draft_id: Value,
+    payment_pending: Option<bool>,
+) -> Value {
+    let (query, variables) = match payment_pending {
+        Some(payment_pending) => (
+            r#"
+            mutation CompleteDraftForPaymentTermsCompletion($id: ID!, $paymentPending: Boolean) {
+              draftOrderComplete(id: $id, paymentPending: $paymentPending) {
+                draftOrder {
+                  id
+                  status
+                  order {
+                    id
+                    displayFinancialStatus
+                    paymentGatewayNames
+                    transactions {
+                      kind
+                      status
+                      gateway
+                    }
+                  }
+                }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "id": draft_id, "paymentPending": payment_pending }),
+        ),
+        None => (
+            r#"
+            mutation CompleteDraftForPaymentTermsCompletion($id: ID!) {
+              draftOrderComplete(id: $id) {
+                draftOrder {
+                  id
+                  status
+                  order {
+                    id
+                    displayFinancialStatus
+                    paymentGatewayNames
+                    transactions {
+                      kind
+                      status
+                      gateway
+                    }
+                  }
+                }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "id": draft_id }),
+        ),
+    };
+
+    let complete = proxy.process_request(json_graphql_request(query, variables));
+    assert_eq!(complete.status, 200);
+    assert_eq!(
+        complete.body["data"]["draftOrderComplete"]["userErrors"],
+        json!([])
+    );
+    complete.body["data"]["draftOrderComplete"]["draftOrder"].clone()
+}
+
+fn read_completed_order_for_payment_terms_completion_test(
+    proxy: &mut DraftProxy,
+    order_id: Value,
+) -> Value {
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadCompletedDraftOrderPaymentTerms($id: ID!) {
+          order(id: $id) {
+            id
+            displayFinancialStatus
+            paymentGatewayNames
+            transactions {
+              kind
+              status
+              gateway
+            }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(read.status, 200);
+    read.body["data"]["order"].clone()
+}
+
+#[test]
+fn draft_order_complete_uses_payment_terms_as_implicit_pending_unless_overridden() {
+    let mut implicit_terms_proxy = snapshot_proxy();
+    let terms_draft = create_draft_for_payment_terms_completion_test(
+        &mut implicit_terms_proxy,
+        "terms-implicit-completion@example.test",
+        true,
+    );
+    assert_eq!(
+        terms_draft["paymentTerms"]["id"],
+        json!("gid://shopify/PaymentTermsTemplate/4")
+    );
+
+    let completed_terms_draft = complete_draft_for_payment_terms_completion_test(
+        &mut implicit_terms_proxy,
+        terms_draft["id"].clone(),
+        None,
+    );
+    assert_eq!(completed_terms_draft["status"], json!("COMPLETED"));
+    let pending_order = &completed_terms_draft["order"];
+    assert_eq!(pending_order["displayFinancialStatus"], json!("PENDING"));
+    assert_eq!(pending_order["paymentGatewayNames"], json!(["manual"]));
+    assert_eq!(
+        pending_order["transactions"],
+        json!([{ "kind": "SALE", "status": "PENDING", "gateway": "manual" }])
+    );
+
+    let readback_order = read_completed_order_for_payment_terms_completion_test(
+        &mut implicit_terms_proxy,
+        pending_order["id"].clone(),
+    );
+    assert_eq!(readback_order, *pending_order);
+
+    let mut no_terms_proxy = snapshot_proxy();
+    let no_terms_draft = create_draft_for_payment_terms_completion_test(
+        &mut no_terms_proxy,
+        "no-terms-completion@example.test",
+        false,
+    );
+    assert_eq!(no_terms_draft["paymentTerms"], Value::Null);
+    let paid_draft = complete_draft_for_payment_terms_completion_test(
+        &mut no_terms_proxy,
+        no_terms_draft["id"].clone(),
+        None,
+    );
+    let paid_order = &paid_draft["order"];
+    assert_eq!(paid_draft["status"], json!("COMPLETED"));
+    assert_eq!(paid_order["displayFinancialStatus"], json!("PAID"));
+    assert_eq!(paid_order["paymentGatewayNames"], json!(["manual"]));
+    assert_eq!(
+        paid_order["transactions"],
+        json!([{ "kind": "SALE", "status": "SUCCESS", "gateway": "manual" }])
+    );
+
+    let mut explicit_false_proxy = snapshot_proxy();
+    let explicit_false_terms_draft = create_draft_for_payment_terms_completion_test(
+        &mut explicit_false_proxy,
+        "terms-explicit-paid-completion@example.test",
+        true,
+    );
+    let explicit_paid_draft = complete_draft_for_payment_terms_completion_test(
+        &mut explicit_false_proxy,
+        explicit_false_terms_draft["id"].clone(),
+        Some(false),
+    );
+    let explicit_paid_order = &explicit_paid_draft["order"];
+    assert_eq!(explicit_paid_draft["status"], json!("COMPLETED"));
+    assert_eq!(explicit_paid_order["displayFinancialStatus"], json!("PAID"));
+    assert_eq!(
+        explicit_paid_order["paymentGatewayNames"],
+        json!(["manual"])
+    );
+    assert_eq!(
+        explicit_paid_order["transactions"],
+        json!([{ "kind": "SALE", "status": "SUCCESS", "gateway": "manual" }])
+    );
+
+    let mut explicit_true_proxy = snapshot_proxy();
+    let explicit_true_draft = create_draft_for_payment_terms_completion_test(
+        &mut explicit_true_proxy,
+        "no-terms-explicit-pending-completion@example.test",
+        false,
+    );
+    let explicit_pending_draft = complete_draft_for_payment_terms_completion_test(
+        &mut explicit_true_proxy,
+        explicit_true_draft["id"].clone(),
+        Some(true),
+    );
+    let explicit_pending_order = &explicit_pending_draft["order"];
+    assert_eq!(explicit_pending_draft["status"], json!("COMPLETED"));
+    assert_eq!(
+        explicit_pending_order["displayFinancialStatus"],
+        json!("PENDING")
+    );
+    assert_eq!(
+        explicit_pending_order["paymentGatewayNames"],
+        json!(["manual"])
+    );
+    assert_eq!(
+        explicit_pending_order["transactions"],
+        json!([{ "kind": "SALE", "status": "PENDING", "gateway": "manual" }])
+    );
+}
+
 #[test]
 fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
     let mut proxy = snapshot_proxy();
