@@ -566,6 +566,7 @@ Current and historical live findings on this host:
   - an open draft with no recipient email returns the selected draft plus `field: null`, `message: "To can't be blank"`
   - a completed draft with no recipient email returns the selected completed draft plus two userErrors: `"To can't be blank"` and `"Draft order Invoice can't be sent. This draft order is already paid."`
   - this capture does not prove the success path should be emulated locally as delivered mail; local runtime must keep staging the raw mutation only and must not send email until explicit commit replay
+- A separate 2026-04 live capture for a disposable recipient-backed `draftOrderInvoiceSend` shows a successful send is also a draft-order lifecycle transition: the mutation payload returns `status: INVOICE_SENT` with non-null `invoiceSentAt`, and an immediate `draftOrder(id:)` read returns the same status and timestamp. Model this store-state transition locally while still treating actual email delivery as an out-of-scope side effect until explicit commit replay.
 - easy schema/request traps from promoting those scenarios:
   - `DraftOrder.note` is not selectable on the current Admin GraphQL schema for these payloads, even though draft-order inputs can carry note-like data through local state
   - `DraftOrderInput.shippingLine` does not accept a `code` field; live updates accepted title and price fields, and Shopify returned `code: "custom"` on the resulting `shippingLine`
