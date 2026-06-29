@@ -3128,6 +3128,111 @@ fn inventory_quantity_name_validation_rejects_invalid_names_without_staging() {
 }
 
 #[test]
+fn inventory_set_quantities_rejects_bounds_before_staging_and_allows_available_negative() {
+    let mut proxy = snapshot_proxy();
+    let inventory_item_id = "gid://shopify/InventoryItem/53204673823026";
+    let location_id = "gid://shopify/Location/106318430514";
+    let mutation = r#"
+        mutation InventorySetQuantitiesBounds($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { reason changes { name delta } }
+            userErrors { field message code }
+          }
+        }
+        "#;
+
+    let on_hand_negative = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "set-on-hand-negative-bound", "input": {"name": "on_hand", "reason": "correction", "referenceDocumentUri": "logistics://inventory/bounds/on-hand-negative", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": -5, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        on_hand_negative.body["data"]["inventorySetQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "quantities", "0", "quantity"],
+                "message": "The quantity can't be negative.",
+                "code": "INVALID_QUANTITY_NEGATIVE"
+            }]
+        })
+    );
+
+    let on_hand_too_low = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "set-on-hand-too-low-bound", "input": {"name": "on_hand", "reason": "correction", "referenceDocumentUri": "logistics://inventory/bounds/on-hand-too-low", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": -2000000000, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        on_hand_too_low.body["data"]["inventorySetQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "quantities", "0", "quantity"],
+                "message": "The quantity can't be lower than -1,000,000,000.",
+                "code": "INVALID_QUANTITY_TOO_LOW"
+            }]
+        })
+    );
+
+    let available_too_low = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "set-available-too-low-bound", "input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/bounds/available-too-low", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": -2000000000, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        available_too_low.body["data"]["inventorySetQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "quantities", "0", "quantity"],
+                "message": "The quantity can't be lower than -1,000,000,000.",
+                "code": "INVALID_QUANTITY_TOO_LOW"
+            }]
+        })
+    );
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["inventoryLevels"],
+        Value::Null
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let available_negative = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "set-available-negative-bound", "input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/bounds/available-negative", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": -5, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        available_negative.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+    assert_ne!(
+        available_negative.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"],
+        Value::Null
+    );
+    let state = state_snapshot(&proxy);
+    assert_eq!(
+        state["stagedState"]["inventoryLevels"][0]["quantities"]["available"],
+        json!(-5)
+    );
+    assert_eq!(
+        state["stagedState"]["inventoryLevels"][0]["quantities"]["on_hand"],
+        json!(-5)
+    );
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(log["entries"][0]["status"], json!("staged"));
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("\"quantity\":-5"));
+}
+
+#[test]
 fn inventory_quantity_2026_missing_change_from_returns_graphql_error_without_staging() {
     let mut proxy = snapshot_proxy();
 
@@ -6392,6 +6497,228 @@ fn metaobject_entry_lifecycle_dispatches_by_root_field_and_definition_state() {
     assert_eq!(
         after_delete.body["data"]["definition"]["metaobjectsCount"],
         json!(1)
+    );
+}
+
+#[test]
+fn metaobject_entry_online_store_template_suffix_persists_across_local_lifecycle() {
+    let mut proxy = snapshot_proxy();
+
+    let definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOnlineStoreDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id type capabilities { onlineStore { enabled } } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "online_store_suffix_test",
+            "name": "Online Store Suffix Test",
+            "displayNameKey": "title",
+            "access": {"storefront": "PUBLIC_READ"},
+            "capabilities": {"onlineStore": {"enabled": true}},
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true},
+                {"key": "body", "name": "Body", "type": "single_line_text_field", "required": false}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let create_query = r#"
+        mutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject {
+              id
+              handle
+              capabilities { onlineStore { templateSuffix } }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let update_query = r#"
+        mutation UpdateMetaobject($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject {
+              id
+              handle
+              fields { key value }
+              capabilities { onlineStore { templateSuffix } }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let upsert_query = r#"
+        mutation UpsertMetaobject($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject {
+              id
+              handle
+              fields { key value }
+              capabilities { onlineStore { templateSuffix } }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let read_query = r#"
+        query ReadMetaobject($id: ID!, $handle: MetaobjectHandleInput!) {
+          detail: metaobject(id: $id) { capabilities { onlineStore { templateSuffix } } }
+          byHandle: metaobjectByHandle(handle: $handle) { capabilities { onlineStore { templateSuffix } } }
+        }
+        "#;
+
+    let omitted = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "online_store_suffix_test",
+            "handle": "omitted",
+            "fields": [{"key": "title", "value": "Omitted"}]
+        }}),
+    ));
+    assert_eq!(
+        omitted.body["data"]["metaobjectCreate"]["metaobject"]["capabilities"]["onlineStore"]
+            ["templateSuffix"],
+        Value::Null
+    );
+
+    let empty = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "online_store_suffix_test",
+            "handle": "empty",
+            "capabilities": {"onlineStore": {"templateSuffix": ""}},
+            "fields": [{"key": "title", "value": "Empty"}]
+        }}),
+    ));
+    assert_eq!(
+        empty.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        empty.body["data"]["metaobjectCreate"]["metaobject"]["capabilities"]["onlineStore"]
+            ["templateSuffix"],
+        json!("")
+    );
+
+    let custom = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "online_store_suffix_test",
+            "handle": "custom",
+            "capabilities": {"onlineStore": {"templateSuffix": "custom"}},
+            "fields": [{"key": "title", "value": "Custom"}, {"key": "body", "value": "Original"}]
+        }}),
+    ));
+    assert_eq!(
+        custom.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        custom.body["data"]["metaobjectCreate"]["metaobject"]["capabilities"]["onlineStore"]
+            ["templateSuffix"],
+        json!("custom")
+    );
+    let custom_id = custom.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let custom_handle = custom.body["data"]["metaobjectCreate"]["metaobject"]["handle"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read_custom = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({
+            "id": custom_id,
+            "handle": {"type": "online_store_suffix_test", "handle": custom_handle}
+        }),
+    ));
+    assert_eq!(
+        read_custom.body["data"]["detail"]["capabilities"]["onlineStore"]["templateSuffix"],
+        json!("custom")
+    );
+    assert_eq!(
+        read_custom.body["data"]["byHandle"]["capabilities"]["onlineStore"]["templateSuffix"],
+        json!("custom")
+    );
+
+    let unrelated_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": custom.body["data"]["metaobjectCreate"]["metaobject"]["id"], "metaobject": {
+            "fields": [{"key": "body", "value": "Changed"}]
+        }}),
+    ));
+    assert_eq!(
+        unrelated_update.body["data"]["metaobjectUpdate"]["metaobject"]["capabilities"]
+            ["onlineStore"]["templateSuffix"],
+        json!("custom")
+    );
+
+    let explicit_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": custom.body["data"]["metaobjectCreate"]["metaobject"]["id"], "metaobject": {
+            "capabilities": {"onlineStore": {"templateSuffix": "updated"}}
+        }}),
+    ));
+    assert_eq!(
+        explicit_update.body["data"]["metaobjectUpdate"]["metaobject"]["capabilities"]
+            ["onlineStore"]["templateSuffix"],
+        json!("updated")
+    );
+
+    let upsert_create = proxy.process_request(json_graphql_request(
+        upsert_query,
+        json!({
+            "handle": {"type": "online_store_suffix_test", "handle": "upserted"},
+            "metaobject": {
+                "capabilities": {"onlineStore": {"templateSuffix": "upserted"}},
+                "fields": [{"key": "title", "value": "Upserted"}, {"key": "body", "value": "Original"}]
+            }
+        }),
+    ));
+    assert_eq!(
+        upsert_create.body["data"]["metaobjectUpsert"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        upsert_create.body["data"]["metaobjectUpsert"]["metaobject"]["capabilities"]["onlineStore"]
+            ["templateSuffix"],
+        json!("upserted")
+    );
+
+    let upsert_update_preserve = proxy.process_request(json_graphql_request(
+        upsert_query,
+        json!({
+            "handle": {"type": "online_store_suffix_test", "handle": "upserted"},
+            "metaobject": {"fields": [{"key": "body", "value": "Upsert changed"}]}
+        }),
+    ));
+    assert_eq!(
+        upsert_update_preserve.body["data"]["metaobjectUpsert"]["metaobject"]["capabilities"]
+            ["onlineStore"]["templateSuffix"],
+        json!("upserted")
+    );
+
+    let upsert_update_empty = proxy.process_request(json_graphql_request(
+        upsert_query,
+        json!({
+            "handle": {"type": "online_store_suffix_test", "handle": "upserted"},
+            "metaobject": {"capabilities": {"onlineStore": {"templateSuffix": ""}}}
+        }),
+    ));
+    assert_eq!(
+        upsert_update_empty.body["data"]["metaobjectUpsert"]["metaobject"]["capabilities"]
+            ["onlineStore"]["templateSuffix"],
+        json!("")
     );
 }
 

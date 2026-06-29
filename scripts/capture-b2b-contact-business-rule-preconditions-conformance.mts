@@ -19,7 +19,7 @@ type RecordedOperation = {
 
 const scenarioId = 'b2b-contact-business-rule-preconditions';
 const timestamp = Date.now();
-const runKey = `har-620-${timestamp}`;
+const runKey = `b2b-contact-business-rules-${timestamp}`;
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
@@ -335,12 +335,12 @@ async function runCleanup(query: string, variables: JsonRecord): Promise<Recorde
 }
 
 function companyCreateVariables(label: string): JsonRecord {
-  const name = `HAR-620 ${label} ${timestamp}`;
+  const name = `B2B business rules ${label} ${timestamp}`;
   return {
     input: {
       company: {
         name,
-        note: `HAR-620 business-rule preconditions ${label}`,
+        note: `B2B business-rule preconditions ${label}`,
         externalId: `${runKey}-${label}`,
       },
       companyContact: {
@@ -353,7 +353,7 @@ function companyCreateVariables(label: string): JsonRecord {
         name: `${name} HQ`,
         phone: '+16135550620',
         billingAddress: {
-          address1: '620 B2B Way',
+          address1: 'B2B Way',
           city: 'Ottawa',
           countryCode: 'CA',
         },
@@ -373,12 +373,12 @@ function draftOrderVariables(companyId: string, companyContactId: string, compan
         },
       },
       email: `${runKey}-orders@example.com`,
-      note: 'HAR-620 B2B contact delete order-history precondition',
-      tags: ['har-620', 'b2b-contact-delete-order-precondition'],
+      note: 'B2B contact delete order-history precondition',
+      tags: ['b2b-contact-business-rules', 'b2b-contact-delete-order-precondition'],
       visibleToCustomer: false,
       lineItems: [
         {
-          title: 'HAR-620 B2B order-history custom item',
+          title: 'B2B order-history custom item',
           quantity: 1,
           originalUnitPrice: '1.00',
           requiresShipping: false,
@@ -538,6 +538,26 @@ try {
     'missing location companyContactAssignRole',
   );
 
+  const bothInvalidAssign = await runOperation(contactAssignRoleDocument, {
+    companyContactId: roleCompany.contactId,
+    companyContactRoleId: 'gid://shopify/CompanyContactRole/999999999999999',
+    companyLocationId: 'gid://shopify/CompanyLocation/999999999999999',
+  });
+  assertHttpGraphqlOk(
+    { status: bothInvalidAssign.response.status as number, payload: bothInvalidAssign.response },
+    'both-invalid assign',
+  );
+  assertUserError(
+    bothInvalidAssign,
+    'companyContactAssignRole',
+    {
+      field: ['companyLocationId'],
+      message: "The company location doesn't exist.",
+      code: 'RESOURCE_NOT_FOUND',
+    },
+    'both-invalid companyContactAssignRole',
+  );
+
   const deleteSuccessCompanyCreate = await runRequired(
     companyCreateDocument,
     companyCreateVariables('delete-success'),
@@ -640,7 +660,6 @@ try {
     storeDomain,
     apiVersion,
     intent: {
-      ticket: 'HAR-620',
       plan: 'Record B2B contact delete/order-history and contact role assignment business-rule preconditions against a disposable Shopify dev store.',
     },
     roleCompanyCreate,
@@ -650,6 +669,7 @@ try {
     foreignLocationAssign,
     missingRoleAssign,
     missingLocationAssign,
+    bothInvalidAssign,
     deleteSuccessCompanyCreate,
     deleteSuccess,
     readAfterDeleteSuccess,

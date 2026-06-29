@@ -205,10 +205,8 @@ pub(super) fn oe_next_seq(session: &mut Value) -> i64 {
 pub(super) fn oe_order_currency(order: &Value) -> String {
     if let Some(nodes) = order["lineItems"]["nodes"].as_array() {
         for node in nodes {
-            if let Some(currency) =
-                node["originalUnitPriceSet"]["shopMoney"]["currencyCode"].as_str()
-            {
-                return currency.to_string();
+            if let Some(currency) = money_set_shop_currency(&node["originalUnitPriceSet"]) {
+                return currency;
             }
         }
     }
@@ -217,8 +215,8 @@ pub(super) fn oe_order_currency(order: &Value) -> String {
         "totalPriceSet",
         "currentSubtotalPriceSet",
     ] {
-        if let Some(currency) = order[key]["shopMoney"]["currencyCode"].as_str() {
-            return currency.to_string();
+        if let Some(currency) = money_set_shop_currency(&order[key]) {
+            return currency;
         }
     }
     "CAD".to_string()
@@ -271,6 +269,10 @@ pub(super) fn oe_money_obj_cents(input: &BTreeMap<String, ResolvedValue>) -> Opt
 /// A single order-edit `userError`, optionally carrying a `code`.
 pub(super) fn oe_user_error(field: &[&str], message: &str, code: Option<&str>) -> Value {
     user_error_omit_code(field, message, code)
+}
+
+pub(super) fn oe_user_error_null_field(message: &str, code: Option<&str>) -> Value {
+    user_error_omit_code(Value::Null, message, code)
 }
 
 /// A failed order-edit mutation payload: every resource field is null and the

@@ -611,6 +611,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}b2b-contact-business-rule-preconditions.json`,
       'config/parity-specs/b2b/b2b-contact-business-rule-preconditions.json',
+      'config/parity-specs/b2b/contact_assign_role_both_invalid.json',
       'config/parity-requests/b2b/b2b-contact-business-rules-assign-role.graphql',
       'config/parity-requests/b2b/b2b-contact-business-rules-company-create.graphql',
       'config/parity-requests/b2b/b2b-contact-business-rules-company-read.graphql',
@@ -3561,6 +3562,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-online-store-template-suffix',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-online-store-template-suffix-conformance.ts',
+    purpose:
+      'Entry-level onlineStore.templateSuffix create, update preservation, explicit update, downstream readback, and upsert create/update behavior.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-online-store-template-suffix.json`,
+      'config/parity-specs/metaobjects/metaobject-online-store-template-suffix.json',
+      'config/parity-requests/metaobjects/metaobject-online-store-template-suffix-definition-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-online-store-template-suffix-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-online-store-template-suffix-update.graphql',
+      'config/parity-requests/metaobjects/metaobject-online-store-template-suffix-upsert.graphql',
+      'config/parity-requests/metaobjects/metaobject-online-store-template-suffix-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable online-store metaobject definition and several rows, captures templateSuffix lifecycle behavior, then deletes rows and the definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'standard-metaobject-definition-enable-catalog',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-standard-metaobject-template-catalog-conformance.ts',
@@ -3804,6 +3826,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/products/inventorySetQuantities-name-validation-2026-04.json',
     ],
     cleanupBehavior: 'Creates one disposable product per validation branch and deletes each product immediately.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
+    captureId: 'inventorysetquantities-quantity-bounds',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-inventory-set-quantities-bounds-conformance.ts',
+    purpose:
+      'inventorySetQuantities negative and lower-bound quantity validation against the 2026-04 @idempotent/changeFromQuantity contract.',
+    requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventorySetQuantities-quantity-bounds.json`,
+      'config/parity-specs/products/inventorySetQuantities-quantity-bounds.json',
+    ],
+    cleanupBehavior: 'Creates one disposable product per quantity-bound branch and deletes each product immediately.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -6949,7 +6986,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-edit-lifecycle-user-errors-conformance.mts',
     purpose:
-      'orderEditBegin/AddVariant/SetQuantity/Commit missing-resource userError payload roots for lifecycle validation.',
+      'orderEditBegin/AddVariant/SetQuantity/AddLineItemDiscount/Commit missing-resource and rendered userError message payloads for lifecycle validation.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}order-edit-lifecycle-user-errors.json`,
@@ -6959,7 +6996,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/orders/orderEdit-lifecycle-userErrors-commit.graphql',
       'config/parity-requests/orders/orderEdit-lifecycle-userErrors-setQuantity.graphql',
     ],
-    cleanupBehavior: 'Validation-only order-edit probes use missing Shopify GIDs and do not create merchant resources.',
+    cleanupBehavior:
+      'Creates disposable test orders for open-session and not-editable order-edit branches, then cancels them after recording; missing calculated-order probes use absent Shopify GIDs.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -7313,11 +7351,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-validation-branches.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-value-bounds.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discounts/discount-automatic-basic-detail-read.json',
+      'config/parity-specs/discounts/discount-automatic-basic-detail-read.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discounts/discount-catalog-code-filter-empty-read.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discounts/discount-catalog-empty-read.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discounts/discount-catalog-non-empty-read.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discounts/discount-catalog-status-filter-read.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discounts/discount-code-basic-detail-read.json',
+      'config/parity-specs/discounts/discount-code-basic-detail-read.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discounts/discount-delete-cleanup.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discounts/discount-nodes-catalog.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discounts/discount-nodes-count.json',
@@ -7355,7 +7395,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-discount-code-basic-lifecycle-conformance.ts',
     purpose: 'Code discount basic create/update/delete lifecycle.',
     requiredAuthScopes: ['read_discounts', 'write_discounts', 'write_products'],
-    fixtureOutputs: [`${CAPTURE_ROOT}discount-code-basic-lifecycle.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-code-basic-lifecycle.json`,
+      'config/parity-specs/discounts/discount-code-basic-lifecycle.json',
+    ],
     cleanupBehavior: 'Deletes created code discount during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -7601,7 +7644,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-discount-free-shipping-lifecycle-conformance.ts',
     purpose: 'Free-shipping discount lifecycle behavior.',
     requiredAuthScopes: ['read_discounts', 'write_discounts'],
-    fixtureOutputs: [`${CAPTURE_ROOT}discount-free-shipping-lifecycle.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-free-shipping-lifecycle.json`,
+      'config/parity-specs/discounts/discount-free-shipping-lifecycle.json',
+    ],
     cleanupBehavior: 'Deletes created free-shipping discounts during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -10743,6 +10789,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'gift-cards',
     captureId: 'gift-card-notification-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-gift-card-notification-validation-conformance.ts',
     purpose: 'Gift-card notification validation branches that fail before customer-visible notification dispatch.',
     requiredAuthScopes: ['read_gift_cards', 'write_gift_cards', 'read_customers', 'write_customers'],
@@ -11123,6 +11170,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates a disposable customer, requests and cancels data erasure, then cancels again and deletes the customer in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    captureId: 'customer-metafields-erasure-address-fidelity',
+    scriptPath: 'scripts/capture-customer-metafields-erasure-address-fidelity.mts',
+    purpose:
+      'Customer create/read parity for multiple customer-owned metafields and Denmark address normalization, plus data-erasure hydration of a real unstaged customer.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'write_customer_data_erasure'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-metafields-erasure-address-fidelity.json`,
+      'config/parity-specs/customers/customer-metafields-erasure-address-fidelity.json',
+      'config/parity-requests/customers/customer-metafields-erasure-address-create.graphql',
+      'config/parity-requests/customers/customer-metafields-erasure-address-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable customer with multiple metafields and a Denmark address, requests data erasure, cancels erasure, then deletes the customer.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -11572,7 +11636,10 @@ function runCli(): void {
 }
 
 function findEntry(script: string): ConformanceCaptureIndexEntry | undefined {
-  return conformanceCaptureIndex.find((entry) => entry.captureId === script || entry.scriptPath === script);
+  const normalizedScript = script.toLowerCase();
+  return conformanceCaptureIndex.find(
+    (entry) => entry.captureId === script || entry.captureId === normalizedScript || entry.scriptPath === script,
+  );
 }
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : null;

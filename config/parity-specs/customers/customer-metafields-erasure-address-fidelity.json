@@ -1,0 +1,67 @@
+{
+  "scenarioId": "customer-metafields-erasure-address-fidelity",
+  "operationNames": ["customerCreate", "customer", "customerRequestDataErasure"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-metafields-erasure-address-fidelity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-metafields-erasure-address-create.graphql",
+    "variablesCapturePath": "$.create.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["tests/graphql_routes/customers.rs"],
+  "notes": "Strict comparison covers a customerCreate payload and downstream customer read for multiple customer-owned metafields plus a Denmark address, then replays customerRequestDataErasure against the captured live customer ID so the proxy must hydrate a real unstaged customer from the recorded CustomerHydrate upstream cassette before staging erasure locally.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.customerCreate.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy stages customerCreate locally and returns a synthetic Customer GID instead of Shopify's live customer ID."
+      },
+      {
+        "path": "$.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The downstream proxy read uses the locally staged customer ID from customerCreate."
+      }
+    ],
+    "targets": [
+      {
+        "name": "multiple-metafields-and-denmark-address-create",
+        "capturePath": "$.create.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "multiple-metafields-and-denmark-address-readback",
+        "capturePath": "$.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-metafields-erasure-address-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "request-data-erasure-hydrates-live-customer",
+        "capturePath": "$.erasureRequest.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-request-data-erasure.graphql",
+          "variables": {
+            "customerId": {
+              "fromCapturePath": "$.create.response.data.customerCreate.customer.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

@@ -244,7 +244,7 @@ pub(in crate::proxy) fn web_presence_subfolder_taken(
 pub(in crate::proxy) fn normalize_shopify_locale(raw_locale: &str) -> Option<String> {
     let mut parts = raw_locale.split('-');
     let language = parts.next()?.to_ascii_lowercase();
-    if !shopify_language_subtag_is_supported(&language) {
+    if !default_available_language_subtag_is_supported(&language) {
         return None;
     }
     let mut normalized = vec![language];
@@ -262,12 +262,6 @@ pub(in crate::proxy) fn normalize_shopify_locale(raw_locale: &str) -> Option<Str
         }
     }
     Some(normalized.join("-"))
-}
-
-fn shopify_language_subtag_is_supported(language: &str) -> bool {
-    default_available_locales()
-        .keys()
-        .any(|locale| locale.split('-').next() == Some(language))
 }
 
 pub(in crate::proxy) fn invalid_locale_message(invalid_locales: &[String]) -> String {
@@ -346,15 +340,11 @@ pub(in crate::proxy) fn locale_record(locale: &str, primary: bool) -> Value {
 }
 
 fn shopify_locale_name(locale: &str) -> String {
-    let locales = default_available_locales();
-    if let Some(name) = locales.get(locale) {
-        return name.clone();
+    if let Some(name) = default_available_locale_name(locale) {
+        return name.to_string();
     }
     let language = locale.split('-').next().unwrap_or(locale);
-    locales
-        .iter()
-        .find_map(|(available_locale, name)| {
-            (available_locale.split('-').next() == Some(language)).then(|| name.clone())
-        })
-        .unwrap_or_else(|| "English".to_string())
+    default_available_language_subtag_name(language)
+        .unwrap_or("English")
+        .to_string()
 }

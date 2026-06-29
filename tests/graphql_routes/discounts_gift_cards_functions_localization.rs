@@ -6324,6 +6324,10 @@ fn gift_card_notification_base_keyed_state_errors_emit_null_field() {
             giftCard { id }
             userErrors { field code message }
           }
+          noRecipient: giftCardSendNotificationToRecipient(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic") {
+            giftCard { id }
+            userErrors { field code message }
+          }
           noContact: giftCardSendNotificationToRecipient(id: "gid://shopify/GiftCard/654904262962") {
             giftCard { id }
             userErrors { field code message }
@@ -6341,6 +6345,14 @@ fn gift_card_notification_base_keyed_state_errors_emit_null_field() {
                     "field": null,
                     "code": "INVALID",
                     "message": "The gift card has no customer."
+                }]
+            },
+            "noRecipient": {
+                "giftCard": null,
+                "userErrors": [{
+                    "field": null,
+                    "code": "INVALID",
+                    "message": "The gift card has no recipient."
                 }]
             },
             "noContact": {
@@ -8694,8 +8706,8 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"
         mutation DiscountFreeShippingLifecycleCreate($codeInput: DiscountCodeFreeShippingInput!, $automaticInput: DiscountAutomaticFreeShippingInput!) {
-          discountCodeFreeShippingCreate(freeShippingCodeDiscount: $codeInput) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeFreeShipping { title asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } codes(first: 2) { nodes { code asyncUsageCount } } destinationSelection { __typename ... on DiscountCountryAll { allCountries } ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOncePerCustomer appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit usageLimit } } } userErrors { field message code extraInfo } }
-          discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: $automaticInput) { automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticFreeShipping { title asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } destinationSelection { __typename ... on DiscountCountryAll { allCountries } ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit } } } userErrors { field message code extraInfo } }
+          discountCodeFreeShippingCreate(freeShippingCodeDiscount: $codeInput) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeFreeShipping { title summary asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } codes(first: 2) { nodes { code asyncUsageCount } } destinationSelection { __typename ... on DiscountCountryAll { allCountries } ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOncePerCustomer appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit usageLimit } } } userErrors { field message code extraInfo } }
+          discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: $automaticInput) { automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticFreeShipping { title summary asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } destinationSelection { __typename ... on DiscountCountryAll { allCountries } ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit } } } userErrors { field message code extraInfo } }
         }
     "#;
     let created = proxy.process_request(json_graphql_request(create_query, json!({
@@ -8712,9 +8724,19 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
         json!("HAR196FREE1777150170404")
     );
     assert_eq!(
+        created.body["data"]["discountCodeFreeShippingCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["summary"],
+        json!("Free shipping on all products • Minimum purchase of $10.00 • For all countries • Applies to shipping rates under $25.00 • One use per customer")
+    );
+    assert_eq!(
         created.body["data"]["discountAutomaticFreeShippingCreate"]["automaticDiscountNode"]
             ["automaticDiscount"]["maximumShippingPrice"],
         json!({ "amount": "20.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        created.body["data"]["discountAutomaticFreeShippingCreate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["summary"],
+        json!("Free shipping on all products • Minimum purchase of $15.00 • For all countries • Applies to shipping rates under $20.00")
     );
     let code_id = json_string(
         &created.body["data"]["discountCodeFreeShippingCreate"]["codeDiscountNode"]["id"],
@@ -8727,10 +8749,10 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
     assert_synthetic_gid(&code_id, "DiscountCodeNode");
     assert_synthetic_gid(&automatic_id, "DiscountAutomaticNode");
 
-    let code_update = r#"mutation DiscountCodeFreeShippingLifecycleUpdate($id: ID!, $input: DiscountCodeFreeShippingInput!) { discountCodeFreeShippingUpdate(id: $id, freeShippingCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeFreeShipping { title destinationSelection { __typename ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOncePerCustomer appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit usageLimit } } } userErrors { field message code extraInfo } } }"#;
+    let code_update = r#"mutation DiscountCodeFreeShippingLifecycleUpdate($id: ID!, $input: DiscountCodeFreeShippingInput!) { discountCodeFreeShippingUpdate(id: $id, freeShippingCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeFreeShipping { title summary destinationSelection { __typename ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOncePerCustomer appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit usageLimit } } } userErrors { field message code extraInfo } } }"#;
     let updated = proxy.process_request(json_graphql_request(
         code_update,
-        json!({ "id": code_id.clone(), "input": { "title": "HAR-196 code free shipping updated 1777150170404", "code": "HAR196SHIP1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false }, "context": { "all": "ALL" }, "destination": { "countries": { "add": ["CA", "US"] } }, "maximumShippingPrice": "30.00", "appliesOncePerCustomer": false, "usageLimit": 10 } }),
+        json!({ "id": code_id.clone(), "input": { "title": "HAR-196 code free shipping updated 1777150170404", "code": "HAR196SHIP1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false }, "context": { "all": "ALL" }, "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "12.00" } }, "destination": { "countries": { "add": ["CA", "US"] } }, "maximumShippingPrice": "30.00", "appliesOncePerCustomer": false, "appliesOnOneTimePurchase": false, "appliesOnSubscription": true, "usageLimit": 10 } }),
     ));
     assert_eq!(
         updated.body["data"]["discountCodeFreeShippingUpdate"]["codeDiscountNode"]["codeDiscount"]
@@ -8741,16 +8763,26 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
         updated.body["data"]["discountCodeFreeShippingUpdate"]["userErrors"],
         json!([])
     );
+    assert_eq!(
+        updated.body["data"]["discountCodeFreeShippingUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["summary"],
+        json!("Free shipping on subscription products • Minimum purchase of $12.00 • For 2 countries • Applies to shipping rates under $30.00")
+    );
 
-    let automatic_update = r#"mutation DiscountAutomaticFreeShippingLifecycleUpdate($id: ID!, $input: DiscountAutomaticFreeShippingInput!) { discountAutomaticFreeShippingUpdate(id: $id, freeShippingAutomaticDiscount: $input) { automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticFreeShipping { title destinationSelection { __typename ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit } } } userErrors { field message code extraInfo } } }"#;
+    let automatic_update = r#"mutation DiscountAutomaticFreeShippingLifecycleUpdate($id: ID!, $input: DiscountAutomaticFreeShippingInput!) { discountAutomaticFreeShippingUpdate(id: $id, freeShippingAutomaticDiscount: $input) { automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticFreeShipping { title summary destinationSelection { __typename ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit } } } userErrors { field message code extraInfo } } }"#;
     let automatic_updated = proxy.process_request(json_graphql_request(
         automatic_update,
-        json!({ "id": automatic_id.clone(), "input": { "title": "HAR-196 automatic free shipping updated 1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false }, "context": { "all": "ALL" }, "destination": { "countries": { "add": ["US"] } }, "maximumShippingPrice": "18.00" } }),
+        json!({ "id": automatic_id.clone(), "input": { "title": "HAR-196 automatic free shipping updated 1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false }, "context": { "all": "ALL" }, "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "18.00" } }, "destination": { "countries": { "add": ["US"] } }, "maximumShippingPrice": "18.00" } }),
     ));
     assert_eq!(
         automatic_updated.body["data"]["discountAutomaticFreeShippingUpdate"]
             ["automaticDiscountNode"]["automaticDiscount"]["destinationSelection"],
         json!({ "__typename": "DiscountCountries", "countries": ["US"], "includeRestOfWorld": false })
+    );
+    assert_eq!(
+        automatic_updated.body["data"]["discountAutomaticFreeShippingUpdate"]
+            ["automaticDiscountNode"]["automaticDiscount"]["summary"],
+        json!("Free shipping on all products • Minimum purchase of $18.00 • For United States • Applies to shipping rates under $18.00")
     );
 
     let read_query = r#"query DiscountFreeShippingLifecycleRead($codeId: ID!, $automaticId: ID!, $code: String!) { discountNode(id: $codeId) { id discount { __typename ... on DiscountCodeFreeShipping { title status } } } codeDiscountNodeByCode(code: $code) { id } automaticDiscountNode(id: $automaticId) { id automaticDiscount { __typename ... on DiscountAutomaticFreeShipping { title status } } } }"#;
@@ -9034,6 +9066,215 @@ fn discount_code_basic_lifecycle_tracks_status_counts_and_delete_readback() {
     assert_eq!(
         read_deleted.body["data"]["discountNodesCount"],
         json!({ "count": 0, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn discount_basic_summary_derives_value_scope_and_minimum_requirement() {
+    let mut proxy = snapshot_proxy();
+    let product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductForDiscountSummary($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "The Complete Snowboard (Ice)" } }),
+    ));
+    assert_eq!(
+        product.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = json_string(
+        &product.body["data"]["productCreate"]["product"]["id"],
+        "discount summary product id",
+    );
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountBasicSummary(
+          $codeInput: DiscountCodeBasicInput!
+          $subscriptionInput: DiscountAutomaticBasicInput!
+          $productInput: DiscountAutomaticBasicInput!
+        ) {
+          code: discountCodeBasicCreate(basicCodeDiscount: $codeInput) {
+            codeDiscountNode {
+              codeDiscount {
+                __typename
+                ... on DiscountCodeBasic {
+                  summary
+                  customerGets {
+                    appliesOnOneTimePurchase
+                    appliesOnSubscription
+                  }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+          subscription: discountAutomaticBasicCreate(automaticBasicDiscount: $subscriptionInput) {
+            automaticDiscountNode {
+              automaticDiscount {
+                __typename
+                ... on DiscountAutomaticBasic {
+                  summary
+                  customerGets {
+                    appliesOnOneTimePurchase
+                    appliesOnSubscription
+                  }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+          product: discountAutomaticBasicCreate(automaticBasicDiscount: $productInput) {
+            automaticDiscountNode {
+              automaticDiscount {
+                __typename
+                ... on DiscountAutomaticBasic {
+                  summary
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "codeInput": {
+                "title": "Summary code basic",
+                "code": "SUMMARYBASIC",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "context": { "all": "ALL" },
+                "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "1.00" } },
+                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+            },
+            "subscriptionInput": {
+                "title": "Summary subscription basic",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "2.00" } },
+                "customerGets": {
+                    "value": { "discountAmount": { "amount": "5.00", "appliesOnEachItem": false } },
+                    "items": { "all": true },
+                    "appliesOnOneTimePurchase": false,
+                    "appliesOnSubscription": true
+                }
+            },
+            "productInput": {
+                "title": "Summary product basic",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "minimumRequirement": { "quantity": { "greaterThanOrEqualToQuantity": "3" } },
+                "customerGets": {
+                    "value": { "percentage": 0.3 },
+                    "items": { "products": { "productsToAdd": [product_id] } }
+                }
+            }
+        }),
+    ));
+
+    assert_eq!(created.body["data"]["code"]["userErrors"], json!([]));
+    assert_eq!(
+        created.body["data"]["code"]["codeDiscountNode"]["codeDiscount"]["summary"],
+        json!("10% off entire order • Minimum purchase of $1.00")
+    );
+    assert_eq!(
+        created.body["data"]["subscription"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created.body["data"]["subscription"]["automaticDiscountNode"]["automaticDiscount"]
+            ["summary"],
+        json!("$5.00 off subscription products • Minimum purchase of $2.00")
+    );
+    assert_eq!(
+        created.body["data"]["subscription"]["automaticDiscountNode"]["automaticDiscount"]
+            ["customerGets"]["appliesOnOneTimePurchase"],
+        json!(false)
+    );
+    assert_eq!(
+        created.body["data"]["subscription"]["automaticDiscountNode"]["automaticDiscount"]
+            ["customerGets"]["appliesOnSubscription"],
+        json!(true)
+    );
+    assert_eq!(created.body["data"]["product"]["userErrors"], json!([]));
+    assert_eq!(
+        created.body["data"]["product"]["automaticDiscountNode"]["automaticDiscount"]["summary"],
+        json!("30% off The Complete Snowboard (Ice) • Minimum quantity of 3")
+    );
+}
+
+#[test]
+fn discount_basic_summary_supports_one_time_scope_when_shop_sells_subscriptions() {
+    let hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&hits);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            assert!(
+                request
+                    .body
+                    .contains("DraftProxyShopSubscriptionCapability"),
+                "only the subscription capability probe should be forwarded, got: {}",
+                request.body
+            );
+            *hit_counter.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "features": {
+                                "sellsSubscriptions": true
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountOneTimeSummary($input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
+            automaticDiscountNode {
+              automaticDiscount {
+                __typename
+                ... on DiscountAutomaticBasic {
+                  summary
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "One time summary",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "customerGets": {
+                "value": { "percentage": 0.1 },
+                "items": { "all": true },
+                "appliesOnOneTimePurchase": true,
+                "appliesOnSubscription": false
+            }
+        }}),
+    ));
+
+    assert_eq!(
+        *hits.lock().unwrap(),
+        1,
+        "one subscription capability probe should be forwarded"
+    );
+    assert_eq!(
+        created.body["data"]["discountAutomaticBasicCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["summary"],
+        json!("10% off one-time purchase products")
     );
 }
 

@@ -1,0 +1,38 @@
+query CustomerMetafieldsErasureAddressRead($id: ID!) {
+  customer(id: $id) {
+    id
+    email
+    defaultAddress {
+      city
+      country
+      countryCodeV2
+      province
+      provinceCode
+      formattedArea
+    }
+    tier: metafield(namespace: "custom", key: "tier") {
+      namespace
+      key
+      type
+      value
+    }
+    birthday: metafield(namespace: "profile", key: "birthday") {
+      namespace
+      key
+      type
+      value
+    }
+    metafields(first: 5) {
+      nodes {
+        namespace
+        key
+        type
+        value
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+}

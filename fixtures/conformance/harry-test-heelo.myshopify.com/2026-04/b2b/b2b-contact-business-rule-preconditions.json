@@ -1,10 +1,9 @@
 {
   "scenarioId": "b2b-contact-business-rule-preconditions",
-  "capturedAt": "2026-05-05T17:30:39.041Z",
+  "capturedAt": "2026-06-28T23:22:00.439Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "intent": {
-    "ticket": "HAR-620",
     "plan": "Record B2B contact delete/order-history and contact role assignment business-rule preconditions against a disposable Shopify dev store."
   },
   "roleCompanyCreate": {
@@ -13,21 +12,21 @@
       "variables": {
         "input": {
           "company": {
-            "name": "HAR-620 role-company 1778002232820",
-            "note": "HAR-620 business-rule preconditions role-company",
-            "externalId": "har-620-1778002232820-role-company"
+            "name": "B2B business rules role-company 1782688913976",
+            "note": "B2B business-rule preconditions role-company",
+            "externalId": "b2b-contact-business-rules-1782688913976-role-company"
           },
           "companyContact": {
             "firstName": "Har",
             "lastName": "Business role-company",
-            "email": "har-620-1778002232820-role-company@example.com",
+            "email": "b2b-contact-business-rules-1782688913976-role-company@example.com",
             "title": "Buyer"
           },
           "companyLocation": {
-            "name": "HAR-620 role-company 1778002232820 HQ",
+            "name": "B2B business rules role-company 1782688913976 HQ",
             "phone": "+16135550620",
             "billingAddress": {
-              "address1": "620 B2B Way",
+              "address1": "B2B Way",
               "city": "Ottawa",
               "countryCode": "CA"
             }
@@ -40,26 +39,26 @@
       "data": {
         "companyCreate": {
           "company": {
-            "id": "gid://shopify/Company/5436997938",
-            "name": "HAR-620 role-company 1778002232820",
+            "id": "gid://shopify/Company/5710938418",
+            "name": "B2B business rules role-company 1782688913976",
             "contactsCount": {
               "count": 1
             },
             "mainContact": {
-              "id": "gid://shopify/CompanyContact/10147561778",
+              "id": "gid://shopify/CompanyContact/10395582770",
               "title": "Buyer",
               "isMainContact": true,
               "roleAssignments": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/CompanyContactRoleAssignment/44645810482",
+                    "id": "gid://shopify/CompanyContactRoleAssignment/44900155698",
                     "role": {
-                      "id": "gid://shopify/CompanyContactRole/10665460018",
+                      "id": "gid://shopify/CompanyContactRole/11210064178",
                       "name": "Ordering only"
                     },
                     "companyLocation": {
-                      "id": "gid://shopify/CompanyLocation/8245182770",
-                      "name": "HAR-620 role-company 1778002232820 HQ"
+                      "id": "gid://shopify/CompanyLocation/8578269490",
+                      "name": "B2B business rules role-company 1782688913976 HQ"
                     }
                   }
                 ]
@@ -68,19 +67,19 @@
             "locations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8245182770",
-                  "name": "HAR-620 role-company 1778002232820 HQ"
+                  "id": "gid://shopify/CompanyLocation/8578269490",
+                  "name": "B2B business rules role-company 1782688913976 HQ"
                 }
               ]
             },
             "contactRoles": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContactRole/10665427250",
+                  "id": "gid://shopify/CompanyContactRole/11210031410",
                   "name": "Location admin"
                 },
                 {
-                  "id": "gid://shopify/CompanyContactRole/10665460018",
+                  "id": "gid://shopify/CompanyContactRole/11210064178",
                   "name": "Ordering only"
                 }
               ]
@@ -106,9 +105,9 @@
     "request": {
       "query": "#graphql\n  mutation B2BContactBusinessRulesAssignRole(\n    $companyContactId: ID!\n    $companyContactRoleId: ID!\n    $companyLocationId: ID!\n  ) {\n    companyContactAssignRole(\n      companyContactId: $companyContactId\n      companyContactRoleId: $companyContactRoleId\n      companyLocationId: $companyLocationId\n    ) {\n      companyContactRoleAssignment {\n        id\n        companyContact {\n          id\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10147561778",
-        "companyContactRoleId": "gid://shopify/CompanyContactRole/10665427250",
-        "companyLocationId": "gid://shopify/CompanyLocation/8245182770"
+        "companyContactId": "gid://shopify/CompanyContact/10395582770",
+        "companyContactRoleId": "gid://shopify/CompanyContactRole/11210031410",
+        "companyLocationId": "gid://shopify/CompanyLocation/8578269490"
       }
     },
     "response": {
@@ -144,21 +143,21 @@
       "variables": {
         "input": {
           "company": {
-            "name": "HAR-620 foreign-company 1778002232820",
-            "note": "HAR-620 business-rule preconditions foreign-company",
-            "externalId": "har-620-1778002232820-foreign-company"
+            "name": "B2B business rules foreign-company 1782688913976",
+            "note": "B2B business-rule preconditions foreign-company",
+            "externalId": "b2b-contact-business-rules-1782688913976-foreign-company"
           },
           "companyContact": {
             "firstName": "Har",
             "lastName": "Business foreign-company",
-            "email": "har-620-1778002232820-foreign-company@example.com",
+            "email": "b2b-contact-business-rules-1782688913976-foreign-company@example.com",
             "title": "Buyer"
           },
           "companyLocation": {
-            "name": "HAR-620 foreign-company 1778002232820 HQ",
+            "name": "B2B business rules foreign-company 1782688913976 HQ",
             "phone": "+16135550620",
             "billingAddress": {
-              "address1": "620 B2B Way",
+              "address1": "B2B Way",
               "city": "Ottawa",
               "countryCode": "CA"
             }
@@ -171,26 +170,26 @@
       "data": {
         "companyCreate": {
           "company": {
-            "id": "gid://shopify/Company/5437030706",
-            "name": "HAR-620 foreign-company 1778002232820",
+            "id": "gid://shopify/Company/5710971186",
+            "name": "B2B business rules foreign-company 1782688913976",
             "contactsCount": {
               "count": 1
             },
             "mainContact": {
-              "id": "gid://shopify/CompanyContact/10147594546",
+              "id": "gid://shopify/CompanyContact/10395615538",
               "title": "Buyer",
               "isMainContact": true,
               "roleAssignments": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/CompanyContactRoleAssignment/44645843250",
+                    "id": "gid://shopify/CompanyContactRoleAssignment/44900188466",
                     "role": {
-                      "id": "gid://shopify/CompanyContactRole/10665525554",
+                      "id": "gid://shopify/CompanyContactRole/11210129714",
                       "name": "Ordering only"
                     },
                     "companyLocation": {
-                      "id": "gid://shopify/CompanyLocation/8245215538",
-                      "name": "HAR-620 foreign-company 1778002232820 HQ"
+                      "id": "gid://shopify/CompanyLocation/8578302258",
+                      "name": "B2B business rules foreign-company 1782688913976 HQ"
                     }
                   }
                 ]
@@ -199,19 +198,19 @@
             "locations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8245215538",
-                  "name": "HAR-620 foreign-company 1778002232820 HQ"
+                  "id": "gid://shopify/CompanyLocation/8578302258",
+                  "name": "B2B business rules foreign-company 1782688913976 HQ"
                 }
               ]
             },
             "contactRoles": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContactRole/10665492786",
+                  "id": "gid://shopify/CompanyContactRole/11210096946",
                   "name": "Location admin"
                 },
                 {
-                  "id": "gid://shopify/CompanyContactRole/10665525554",
+                  "id": "gid://shopify/CompanyContactRole/11210129714",
                   "name": "Ordering only"
                 }
               ]
@@ -237,9 +236,9 @@
     "request": {
       "query": "#graphql\n  mutation B2BContactBusinessRulesAssignRole(\n    $companyContactId: ID!\n    $companyContactRoleId: ID!\n    $companyLocationId: ID!\n  ) {\n    companyContactAssignRole(\n      companyContactId: $companyContactId\n      companyContactRoleId: $companyContactRoleId\n      companyLocationId: $companyLocationId\n    ) {\n      companyContactRoleAssignment {\n        id\n        companyContact {\n          id\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10147561778",
-        "companyContactRoleId": "gid://shopify/CompanyContactRole/10665492786",
-        "companyLocationId": "gid://shopify/CompanyLocation/8245182770"
+        "companyContactId": "gid://shopify/CompanyContact/10395582770",
+        "companyContactRoleId": "gid://shopify/CompanyContactRole/11210096946",
+        "companyLocationId": "gid://shopify/CompanyLocation/8578269490"
       }
     },
     "response": {
@@ -273,9 +272,9 @@
     "request": {
       "query": "#graphql\n  mutation B2BContactBusinessRulesAssignRole(\n    $companyContactId: ID!\n    $companyContactRoleId: ID!\n    $companyLocationId: ID!\n  ) {\n    companyContactAssignRole(\n      companyContactId: $companyContactId\n      companyContactRoleId: $companyContactRoleId\n      companyLocationId: $companyLocationId\n    ) {\n      companyContactRoleAssignment {\n        id\n        companyContact {\n          id\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10147561778",
-        "companyContactRoleId": "gid://shopify/CompanyContactRole/10665427250",
-        "companyLocationId": "gid://shopify/CompanyLocation/8245215538"
+        "companyContactId": "gid://shopify/CompanyContact/10395582770",
+        "companyContactRoleId": "gid://shopify/CompanyContactRole/11210031410",
+        "companyLocationId": "gid://shopify/CompanyLocation/8578302258"
       }
     },
     "response": {
@@ -309,9 +308,9 @@
     "request": {
       "query": "#graphql\n  mutation B2BContactBusinessRulesAssignRole(\n    $companyContactId: ID!\n    $companyContactRoleId: ID!\n    $companyLocationId: ID!\n  ) {\n    companyContactAssignRole(\n      companyContactId: $companyContactId\n      companyContactRoleId: $companyContactRoleId\n      companyLocationId: $companyLocationId\n    ) {\n      companyContactRoleAssignment {\n        id\n        companyContact {\n          id\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10147561778",
+        "companyContactId": "gid://shopify/CompanyContact/10395582770",
         "companyContactRoleId": "gid://shopify/CompanyContactRole/999999999999999",
-        "companyLocationId": "gid://shopify/CompanyLocation/8245182770"
+        "companyLocationId": "gid://shopify/CompanyLocation/8578269490"
       }
     },
     "response": {
@@ -345,8 +344,8 @@
     "request": {
       "query": "#graphql\n  mutation B2BContactBusinessRulesAssignRole(\n    $companyContactId: ID!\n    $companyContactRoleId: ID!\n    $companyLocationId: ID!\n  ) {\n    companyContactAssignRole(\n      companyContactId: $companyContactId\n      companyContactRoleId: $companyContactRoleId\n      companyLocationId: $companyLocationId\n    ) {\n      companyContactRoleAssignment {\n        id\n        companyContact {\n          id\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10147561778",
-        "companyContactRoleId": "gid://shopify/CompanyContactRole/10665427250",
+        "companyContactId": "gid://shopify/CompanyContact/10395582770",
+        "companyContactRoleId": "gid://shopify/CompanyContactRole/11210031410",
         "companyLocationId": "gid://shopify/CompanyLocation/999999999999999"
       }
     },
@@ -370,7 +369,43 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "bothInvalidAssign": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactBusinessRulesAssignRole(\n    $companyContactId: ID!\n    $companyContactRoleId: ID!\n    $companyLocationId: ID!\n  ) {\n    companyContactAssignRole(\n      companyContactId: $companyContactId\n      companyContactRoleId: $companyContactRoleId\n      companyLocationId: $companyLocationId\n    ) {\n      companyContactRoleAssignment {\n        id\n        companyContact {\n          id\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10395582770",
+        "companyContactRoleId": "gid://shopify/CompanyContactRole/999999999999999",
+        "companyLocationId": "gid://shopify/CompanyLocation/999999999999999"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactAssignRole": {
+          "companyContactRoleAssignment": null,
+          "userErrors": [
+            {
+              "field": ["companyLocationId"],
+              "message": "The company location doesn't exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
             "restoreRate": 100
           }
         }
@@ -383,21 +418,21 @@
       "variables": {
         "input": {
           "company": {
-            "name": "HAR-620 delete-success 1778002232820",
-            "note": "HAR-620 business-rule preconditions delete-success",
-            "externalId": "har-620-1778002232820-delete-success"
+            "name": "B2B business rules delete-success 1782688913976",
+            "note": "B2B business-rule preconditions delete-success",
+            "externalId": "b2b-contact-business-rules-1782688913976-delete-success"
           },
           "companyContact": {
             "firstName": "Har",
             "lastName": "Business delete-success",
-            "email": "har-620-1778002232820-delete-success@example.com",
+            "email": "b2b-contact-business-rules-1782688913976-delete-success@example.com",
             "title": "Buyer"
           },
           "companyLocation": {
-            "name": "HAR-620 delete-success 1778002232820 HQ",
+            "name": "B2B business rules delete-success 1782688913976 HQ",
             "phone": "+16135550620",
             "billingAddress": {
-              "address1": "620 B2B Way",
+              "address1": "B2B Way",
               "city": "Ottawa",
               "countryCode": "CA"
             }
@@ -410,26 +445,26 @@
       "data": {
         "companyCreate": {
           "company": {
-            "id": "gid://shopify/Company/5437063474",
-            "name": "HAR-620 delete-success 1778002232820",
+            "id": "gid://shopify/Company/5711003954",
+            "name": "B2B business rules delete-success 1782688913976",
             "contactsCount": {
               "count": 1
             },
             "mainContact": {
-              "id": "gid://shopify/CompanyContact/10147627314",
+              "id": "gid://shopify/CompanyContact/10395648306",
               "title": "Buyer",
               "isMainContact": true,
               "roleAssignments": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/CompanyContactRoleAssignment/44645876018",
+                    "id": "gid://shopify/CompanyContactRoleAssignment/44900221234",
                     "role": {
-                      "id": "gid://shopify/CompanyContactRole/10665591090",
+                      "id": "gid://shopify/CompanyContactRole/11210195250",
                       "name": "Ordering only"
                     },
                     "companyLocation": {
-                      "id": "gid://shopify/CompanyLocation/8245248306",
-                      "name": "HAR-620 delete-success 1778002232820 HQ"
+                      "id": "gid://shopify/CompanyLocation/8578335026",
+                      "name": "B2B business rules delete-success 1782688913976 HQ"
                     }
                   }
                 ]
@@ -438,19 +473,19 @@
             "locations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8245248306",
-                  "name": "HAR-620 delete-success 1778002232820 HQ"
+                  "id": "gid://shopify/CompanyLocation/8578335026",
+                  "name": "B2B business rules delete-success 1782688913976 HQ"
                 }
               ]
             },
             "contactRoles": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContactRole/10665558322",
+                  "id": "gid://shopify/CompanyContactRole/11210162482",
                   "name": "Location admin"
                 },
                 {
-                  "id": "gid://shopify/CompanyContactRole/10665591090",
+                  "id": "gid://shopify/CompanyContactRole/11210195250",
                   "name": "Ordering only"
                 }
               ]
@@ -476,14 +511,14 @@
     "request": {
       "query": "#graphql\n  mutation B2BContactBusinessRulesContactDelete($companyContactId: ID!) {\n    companyContactDelete(companyContactId: $companyContactId) {\n      deletedCompanyContactId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10147627314"
+        "companyContactId": "gid://shopify/CompanyContact/10395648306"
       }
     },
     "response": {
       "status": 200,
       "data": {
         "companyContactDelete": {
-          "deletedCompanyContactId": "gid://shopify/CompanyContact/10147627314",
+          "deletedCompanyContactId": "gid://shopify/CompanyContact/10395648306",
           "userErrors": []
         }
       },
@@ -504,15 +539,15 @@
     "request": {
       "query": "#graphql\n  query B2BContactBusinessRulesCompanyRead($companyId: ID!, $companyContactId: ID!) {\n    company(id: $companyId) {\n      id\n      mainContact {\n        id\n        isMainContact\n      }\n      contactsCount {\n        count\n      }\n    }\n    companyContact(id: $companyContactId) {\n      id\n      isMainContact\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5437063474",
-        "companyContactId": "gid://shopify/CompanyContact/10147627314"
+        "companyId": "gid://shopify/Company/5711003954",
+        "companyContactId": "gid://shopify/CompanyContact/10395648306"
       }
     },
     "response": {
       "status": 200,
       "data": {
         "company": {
-          "id": "gid://shopify/Company/5437063474",
+          "id": "gid://shopify/Company/5711003954",
           "mainContact": null,
           "contactsCount": {
             "count": 0
@@ -539,21 +574,21 @@
       "variables": {
         "input": {
           "company": {
-            "name": "HAR-620 orders-company 1778002232820",
-            "note": "HAR-620 business-rule preconditions orders-company",
-            "externalId": "har-620-1778002232820-orders-company"
+            "name": "B2B business rules orders-company 1782688913976",
+            "note": "B2B business-rule preconditions orders-company",
+            "externalId": "b2b-contact-business-rules-1782688913976-orders-company"
           },
           "companyContact": {
             "firstName": "Har",
             "lastName": "Business orders-company",
-            "email": "har-620-1778002232820-orders-company@example.com",
+            "email": "b2b-contact-business-rules-1782688913976-orders-company@example.com",
             "title": "Buyer"
           },
           "companyLocation": {
-            "name": "HAR-620 orders-company 1778002232820 HQ",
+            "name": "B2B business rules orders-company 1782688913976 HQ",
             "phone": "+16135550620",
             "billingAddress": {
-              "address1": "620 B2B Way",
+              "address1": "B2B Way",
               "city": "Ottawa",
               "countryCode": "CA"
             }
@@ -566,26 +601,26 @@
       "data": {
         "companyCreate": {
           "company": {
-            "id": "gid://shopify/Company/5437096242",
-            "name": "HAR-620 orders-company 1778002232820",
+            "id": "gid://shopify/Company/5711036722",
+            "name": "B2B business rules orders-company 1782688913976",
             "contactsCount": {
               "count": 1
             },
             "mainContact": {
-              "id": "gid://shopify/CompanyContact/10147660082",
+              "id": "gid://shopify/CompanyContact/10395681074",
               "title": "Buyer",
               "isMainContact": true,
               "roleAssignments": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/CompanyContactRoleAssignment/44645908786",
+                    "id": "gid://shopify/CompanyContactRoleAssignment/44900254002",
                     "role": {
-                      "id": "gid://shopify/CompanyContactRole/10665656626",
+                      "id": "gid://shopify/CompanyContactRole/11210260786",
                       "name": "Ordering only"
                     },
                     "companyLocation": {
-                      "id": "gid://shopify/CompanyLocation/8245281074",
-                      "name": "HAR-620 orders-company 1778002232820 HQ"
+                      "id": "gid://shopify/CompanyLocation/8578367794",
+                      "name": "B2B business rules orders-company 1782688913976 HQ"
                     }
                   }
                 ]
@@ -594,19 +629,19 @@
             "locations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8245281074",
-                  "name": "HAR-620 orders-company 1778002232820 HQ"
+                  "id": "gid://shopify/CompanyLocation/8578367794",
+                  "name": "B2B business rules orders-company 1782688913976 HQ"
                 }
               ]
             },
             "contactRoles": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContactRole/10665623858",
+                  "id": "gid://shopify/CompanyContactRole/11210228018",
                   "name": "Location admin"
                 },
                 {
-                  "id": "gid://shopify/CompanyContactRole/10665656626",
+                  "id": "gid://shopify/CompanyContactRole/11210260786",
                   "name": "Ordering only"
                 }
               ]
@@ -635,18 +670,18 @@
         "input": {
           "purchasingEntity": {
             "purchasingCompany": {
-              "companyId": "gid://shopify/Company/5437096242",
-              "companyContactId": "gid://shopify/CompanyContact/10147660082",
-              "companyLocationId": "gid://shopify/CompanyLocation/8245281074"
+              "companyId": "gid://shopify/Company/5711036722",
+              "companyContactId": "gid://shopify/CompanyContact/10395681074",
+              "companyLocationId": "gid://shopify/CompanyLocation/8578367794"
             }
           },
-          "email": "har-620-1778002232820-orders@example.com",
-          "note": "HAR-620 B2B contact delete order-history precondition",
-          "tags": ["har-620", "b2b-contact-delete-order-precondition"],
+          "email": "b2b-contact-business-rules-1782688913976-orders@example.com",
+          "note": "B2B contact delete order-history precondition",
+          "tags": ["b2b-contact-business-rules", "b2b-contact-delete-order-precondition"],
           "visibleToCustomer": false,
           "lineItems": [
             {
-              "title": "HAR-620 B2B order-history custom item",
+              "title": "B2B order-history custom item",
               "quantity": 1,
               "originalUnitPrice": "1.00",
               "requiresShipping": false,
@@ -661,7 +696,7 @@
       "data": {
         "draftOrderCreate": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1250619326770",
+            "id": "gid://shopify/DraftOrder/1272690409778",
             "status": "OPEN"
           },
           "userErrors": []
@@ -684,7 +719,7 @@
     "request": {
       "query": "#graphql\n  mutation B2BContactBusinessRulesDraftOrderComplete($id: ID!, $paymentPending: Boolean!) {\n    draftOrderComplete(id: $id, paymentPending: $paymentPending) {\n      draftOrder {\n        id\n        status\n        order {\n          id\n          name\n          purchasingEntity {\n            ... on PurchasingCompany {\n              company {\n                id\n              }\n              contact {\n                id\n              }\n              location {\n                id\n              }\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DraftOrder/1250619326770",
+        "id": "gid://shopify/DraftOrder/1272690409778",
         "paymentPending": true
       }
     },
@@ -693,20 +728,20 @@
       "data": {
         "draftOrderComplete": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1250619326770",
+            "id": "gid://shopify/DraftOrder/1272690409778",
             "status": "COMPLETED",
             "order": {
-              "id": "gid://shopify/Order/8730812154162",
-              "name": "#1140",
+              "id": "gid://shopify/Order/8879547515186",
+              "name": "#1587",
               "purchasingEntity": {
                 "company": {
-                  "id": "gid://shopify/Company/5437096242"
+                  "id": "gid://shopify/Company/5711036722"
                 },
                 "contact": {
-                  "id": "gid://shopify/CompanyContact/10147660082"
+                  "id": "gid://shopify/CompanyContact/10395681074"
                 },
                 "location": {
-                  "id": "gid://shopify/CompanyLocation/8245281074"
+                  "id": "gid://shopify/CompanyLocation/8578367794"
                 }
               }
             }
@@ -731,7 +766,7 @@
     "request": {
       "query": "#graphql\n  mutation B2BContactBusinessRulesContactDelete($companyContactId: ID!) {\n    companyContactDelete(companyContactId: $companyContactId) {\n      deletedCompanyContactId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10147660082"
+        "companyContactId": "gid://shopify/CompanyContact/10395681074"
       }
     },
     "response": {
@@ -765,17 +800,17 @@
     "request": {
       "query": "#graphql\n  query B2BContactBusinessRulesCompanyRead($companyId: ID!, $companyContactId: ID!) {\n    company(id: $companyId) {\n      id\n      mainContact {\n        id\n        isMainContact\n      }\n      contactsCount {\n        count\n      }\n    }\n    companyContact(id: $companyContactId) {\n      id\n      isMainContact\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5437096242",
-        "companyContactId": "gid://shopify/CompanyContact/10147660082"
+        "companyId": "gid://shopify/Company/5711036722",
+        "companyContactId": "gid://shopify/CompanyContact/10395681074"
       }
     },
     "response": {
       "status": 200,
       "data": {
         "company": {
-          "id": "gid://shopify/Company/5437096242",
+          "id": "gid://shopify/Company/5711036722",
           "mainContact": {
-            "id": "gid://shopify/CompanyContact/10147660082",
+            "id": "gid://shopify/CompanyContact/10395681074",
             "isMainContact": true
           },
           "contactsCount": {
@@ -783,7 +818,7 @@
           }
         },
         "companyContact": {
-          "id": "gid://shopify/CompanyContact/10147660082",
+          "id": "gid://shopify/CompanyContact/10395681074",
           "isMainContact": true
         }
       },
@@ -793,7 +828,7 @@
           "actualQueryCost": 4,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1995,
+            "currentlyAvailable": 1996,
             "restoreRate": 100
           }
         }
@@ -805,7 +840,7 @@
       "request": {
         "query": "#graphql\n  mutation B2BContactBusinessRulesOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      orderCancelUserErrors {\n        field\n        message\n        code\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
-          "orderId": "gid://shopify/Order/8730812154162",
+          "orderId": "gid://shopify/Order/8879547515186",
           "reason": "OTHER",
           "notifyCustomer": false,
           "restock": false
@@ -816,7 +851,7 @@
         "data": {
           "orderCancel": {
             "job": {
-              "id": "gid://shopify/Job/7e8ae738-6595-41e7-9203-ec491df07d3b",
+              "id": "gid://shopify/Job/a4ba13d8-7da5-4c69-a33a-f79ebce33ef8",
               "done": false
             },
             "orderCancelUserErrors": [],
@@ -840,14 +875,14 @@
       "request": {
         "query": "#graphql\n  mutation B2BContactBusinessRulesCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Company/5436997938"
+          "id": "gid://shopify/Company/5710938418"
         }
       },
       "response": {
         "status": 200,
         "data": {
           "companyDelete": {
-            "deletedCompanyId": "gid://shopify/Company/5436997938",
+            "deletedCompanyId": "gid://shopify/Company/5710938418",
             "userErrors": []
           }
         },
@@ -868,14 +903,14 @@
       "request": {
         "query": "#graphql\n  mutation B2BContactBusinessRulesCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Company/5437030706"
+          "id": "gid://shopify/Company/5710971186"
         }
       },
       "response": {
         "status": 200,
         "data": {
           "companyDelete": {
-            "deletedCompanyId": "gid://shopify/Company/5437030706",
+            "deletedCompanyId": "gid://shopify/Company/5710971186",
             "userErrors": []
           }
         },
@@ -896,14 +931,14 @@
       "request": {
         "query": "#graphql\n  mutation B2BContactBusinessRulesCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Company/5437063474"
+          "id": "gid://shopify/Company/5711003954"
         }
       },
       "response": {
         "status": 200,
         "data": {
           "companyDelete": {
-            "deletedCompanyId": "gid://shopify/Company/5437063474",
+            "deletedCompanyId": "gid://shopify/Company/5711003954",
             "userErrors": []
           }
         },
@@ -924,7 +959,7 @@
       "request": {
         "query": "#graphql\n  mutation B2BContactBusinessRulesCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Company/5437096242"
+          "id": "gid://shopify/Company/5711036722"
         }
       },
       "response": {
@@ -947,7 +982,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1983,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }

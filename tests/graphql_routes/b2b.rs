@@ -1933,6 +1933,96 @@ fn b2b_contact_role_assign_and_revoke_stage_relationships_with_indexed_errors() 
 }
 
 #[test]
+fn b2b_contact_assign_role_checks_location_before_role_for_missing_resources() {
+    let mut proxy = snapshot_proxy();
+    let company_id = create_b2b_company_with_contact_and_role(&mut proxy);
+    let company = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BContactAssignRoleOrderingSetup($id: ID!) {
+          company(id: $id) {
+            contacts(first: 5) { nodes { id } }
+            contactRoles(first: 5) { nodes { id } }
+            locations(first: 5) { nodes { id } }
+          }
+        }
+        "#,
+        json!({ "id": company_id }),
+    ));
+    assert_eq!(company.status, 200);
+    let contact_id = company.body["data"]["company"]["contacts"]["nodes"][0]["id"]
+        .as_str()
+        .expect("contact id")
+        .to_string();
+    let role_id = company.body["data"]["company"]["contactRoles"]["nodes"][0]["id"]
+        .as_str()
+        .expect("role id")
+        .to_string();
+    let location_id = company.body["data"]["company"]["locations"]["nodes"][0]["id"]
+        .as_str()
+        .expect("location id")
+        .to_string();
+    let missing_role_id = "gid://shopify/CompanyContactRole/999999999999999";
+    let missing_location_id = "gid://shopify/CompanyLocation/999999999999999";
+
+    let mut assign_errors = |role_id: &str, location_id: &str| {
+        let response = proxy.process_request(json_graphql_request(
+            r#"
+            mutation B2BContactAssignRoleMissingOrdering(
+              $companyContactId: ID!
+              $companyContactRoleId: ID!
+              $companyLocationId: ID!
+            ) {
+              companyContactAssignRole(
+                companyContactId: $companyContactId
+                companyContactRoleId: $companyContactRoleId
+                companyLocationId: $companyLocationId
+              ) {
+                companyContactRoleAssignment { id }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "companyContactId": contact_id,
+                "companyContactRoleId": role_id,
+                "companyLocationId": location_id
+            }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["companyContactAssignRole"]["companyContactRoleAssignment"],
+            Value::Null
+        );
+        response.body["data"]["companyContactAssignRole"]["userErrors"].clone()
+    };
+
+    assert_eq!(
+        assign_errors(missing_role_id, &location_id),
+        json!([{
+            "field": ["companyContactRoleId"],
+            "message": "The company contact role doesn't exist.",
+            "code": "RESOURCE_NOT_FOUND"
+        }])
+    );
+    assert_eq!(
+        assign_errors(&role_id, missing_location_id),
+        json!([{
+            "field": ["companyLocationId"],
+            "message": "The company location doesn't exist.",
+            "code": "RESOURCE_NOT_FOUND"
+        }])
+    );
+    assert_eq!(
+        assign_errors(missing_role_id, missing_location_id),
+        json!([{
+            "field": ["companyLocationId"],
+            "message": "The company location doesn't exist.",
+            "code": "RESOURCE_NOT_FOUND"
+        }])
+    );
+}
+
+#[test]
 fn b2b_bulk_role_assign_rejects_duplicate_contact_location_and_keeps_valid_siblings() {
     let mut proxy = snapshot_proxy();
     let company_id = create_b2b_company_with_contact_and_role(&mut proxy);
@@ -3031,86 +3121,42 @@ fn b2b_location_delete_success_cascades_role_assignments_and_addresses() {
 }
 
 #[test]
-fn b2b_staff_assign_remove_validates_per_index_dedups_and_caps() {
+fn b2b_staff_assignment_rejects_unobserved_numeric_staff_member_ids() {
     let mut proxy = snapshot_proxy();
-    let company_id = create_b2b_company(&mut proxy, "Staff Co");
-    let location_id = create_b2b_location(&mut proxy, &company_id, "Staff HQ");
+    let company_id = create_b2b_company(&mut proxy, "Unobserved Staff Co");
+    let location_id = create_b2b_location(&mut proxy, &company_id, "Unobserved Staff HQ");
 
     let assign = proxy.process_request(json_graphql_request(
         r#"
-        mutation B2BAssignStaff($locationId: ID!, $staff: [ID!]!) {
-          companyLocationAssignStaffMembers(companyLocationId: $locationId, staffMemberIds: $staff) {
-            companyLocationStaffMemberAssignments {
-              id
-              staffMember { id }
-              companyLocation { id }
-            }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "locationId": location_id,
-            "staff": [
-                "gid://shopify/StaffMember/1",
-                "gid://shopify/StaffMember/1",
-                "gid://shopify/StaffMember/missing"
-            ]
-        }),
-    ));
-    assert_eq!(assign.status, 200);
-    assert_eq!(
-        assign.body["data"]["companyLocationAssignStaffMembers"]
-            ["companyLocationStaffMemberAssignments"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
-    );
-    assert_eq!(
-        assign.body["data"]["companyLocationAssignStaffMembers"]["userErrors"],
-        json!([{
-            "field": ["staffMemberIds", "2"],
-            "message": "Resource requested does not exist.",
-            "code": "RESOURCE_NOT_FOUND"
-        }])
-    );
-    let assignment_id = assign.body["data"]["companyLocationAssignStaffMembers"]
-        ["companyLocationStaffMemberAssignments"][0]["id"]
-        .as_str()
-        .expect("staff assignment id")
-        .to_string();
-
-    let cap_ids = (2..=12)
-        .map(|id| format!("gid://shopify/StaffMember/{id}"))
-        .collect::<Vec<_>>();
-    let cap = proxy.process_request(json_graphql_request(
-        r#"
-        mutation B2BStaffCap($locationId: ID!, $staff: [ID!]!) {
+        mutation B2BRejectUnobservedStaff($locationId: ID!, $staff: [ID!]!) {
           companyLocationAssignStaffMembers(companyLocationId: $locationId, staffMemberIds: $staff) {
             companyLocationStaffMemberAssignments { id staffMember { id } }
             userErrors { field message code }
           }
         }
         "#,
-        json!({ "locationId": location_id, "staff": cap_ids }),
-    ));
-    assert_eq!(
-        cap.body["data"]["companyLocationAssignStaffMembers"]
-            ["companyLocationStaffMemberAssignments"]
-            .as_array()
-            .unwrap()
-            .len(),
-        9
-    );
-    assert_eq!(
-        cap.body["data"]["companyLocationAssignStaffMembers"]["userErrors"][0],
         json!({
-            "field": ["staffMemberIds", "9"],
-            "message": "Cannot assign more than 10 staff members to a company location.",
-            "code": "LIMIT_REACHED"
+            "locationId": location_id,
+            "staff": ["gid://shopify/StaffMember/1"]
+        }),
+    ));
+    assert_eq!(assign.status, 200);
+    assert_eq!(
+        assign.body["data"]["companyLocationAssignStaffMembers"],
+        json!({
+            "companyLocationStaffMemberAssignments": null,
+            "userErrors": [{
+                "field": ["staffMemberIds", "0"],
+                "message": "Resource requested does not exist.",
+                "code": "RESOURCE_NOT_FOUND"
+            }]
         })
     );
+}
+
+#[test]
+fn b2b_staff_remove_unknown_assignment_reports_indexed_error() {
+    let mut proxy = snapshot_proxy();
 
     let remove = proxy.process_request(json_graphql_request(
         r#"
@@ -3121,14 +3167,14 @@ fn b2b_staff_assign_remove_validates_per_index_dedups_and_caps() {
           }
         }
         "#,
-        json!({ "ids": [assignment_id, "gid://shopify/CompanyLocationStaffMemberAssignment/999"] }),
+        json!({ "ids": ["gid://shopify/CompanyLocationStaffMemberAssignment/999"] }),
     ));
     assert_eq!(
         remove.body["data"]["companyLocationRemoveStaffMembers"],
         json!({
-            "deletedCompanyLocationStaffMemberAssignmentIds": [assignment_id],
+            "deletedCompanyLocationStaffMemberAssignmentIds": null,
             "userErrors": [{
-                "field": ["companyLocationStaffMemberAssignmentIds", "1"],
+                "field": ["companyLocationStaffMemberAssignmentIds", "0"],
                 "message": "Resource requested does not exist.",
                 "code": "RESOURCE_NOT_FOUND"
             }]
