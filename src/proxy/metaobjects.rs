@@ -1581,7 +1581,7 @@ fn metaobject_structured_measurement_value_error(field_type: &str, value: &str) 
 }
 
 fn metaobject_language_value_error(value: &str) -> Option<String> {
-    if default_available_locales().contains_key(value) {
+    if default_available_locale_is_supported(value) {
         None
     } else {
         Some("Value must be in ISO 639-1 format.".to_string())
