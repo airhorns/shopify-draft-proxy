@@ -226,7 +226,7 @@ const customPickupTimeVariables = {
   localPickupSettings: {
     locationId: targetLocationId,
     pickupTime: 'CUSTOM',
-    instructions: 'HAR-567 custom pickup time',
+    instructions: 'Custom pickup time probe',
   },
 };
 const customPickupTimeEnable = await runGraphqlCapture(localPickupEnableMutation, customPickupTimeVariables);
@@ -234,7 +234,7 @@ const enableVariables = {
   localPickupSettings: {
     locationId: targetLocationId,
     pickupTime: 'TWO_HOURS',
-    instructions: 'HAR-320 parity pickup instructions',
+    instructions: 'Parity pickup instructions',
   },
 };
 const enable = await runGraphqlCapture(localPickupEnableMutation, enableVariables);
@@ -259,10 +259,13 @@ const unknownLocationVariables = {
   },
 };
 const unknownLocationEnable = await runGraphqlCapture(localPickupEnableMutation, unknownLocationVariables);
+const unknownLocationDisable = await runGraphqlCapture(localPickupDisableMutation, {
+  locationId: 'gid://shopify/Location/999999999999',
+});
 
 const unknownShippingPackageId = 'gid://shopify/ShippingPackage/999999999999';
 const unknownShippingPackageInput = {
-  name: 'HAR-320 unknown package',
+  name: 'Unknown package',
   type: 'BOX',
   default: false,
   weight: { value: 2.5, unit: 'POUNDS' },
@@ -326,6 +329,7 @@ const capture = {
     disable,
     afterDisableRead,
     unknownLocationEnable,
+    unknownLocationDisable,
     shippingPackageUpdateUnknown,
     shippingPackageMakeDefaultUnknown,
     shippingPackageDeleteUnknown,

@@ -67,20 +67,39 @@ query ReadSellingPlanGroups($productId: ID!, $variantId: ID!) {
           inventoryPolicy {
             reserve
           }
-          pricingPolicies {
-            __typename
-            ... on SellingPlanFixedPricingPolicy {
-              adjustmentType
-              adjustmentValue {
-                __typename
-                ... on SellingPlanPricingPolicyPercentageValue {
-                  percentage
-                }
+        pricingPolicies {
+          __typename
+          ... on SellingPlanFixedPricingPolicy {
+            adjustmentType
+            adjustmentValue {
+              __typename
+              ... on SellingPlanPricingPolicyPercentageValue {
+                percentage
+              }
+              ... on MoneyV2 {
+                amount
+                currencyCode
+              }
+            }
+          }
+          ... on SellingPlanRecurringPricingPolicy {
+            afterCycle
+            createdAt
+            adjustmentType
+            adjustmentValue {
+              __typename
+              ... on SellingPlanPricingPolicyPercentageValue {
+                percentage
+              }
+              ... on MoneyV2 {
+                amount
+                currencyCode
               }
             }
           }
         }
       }
+    }
     }
   }
 }

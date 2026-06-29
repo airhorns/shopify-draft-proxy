@@ -135,8 +135,13 @@ impl DraftProxy {
                 vec![location_id.clone()],
             );
         }
+        let payload_location_id = if user_errors.is_empty() {
+            json!(location_id)
+        } else {
+            Value::Null
+        };
         location_local_pickup_disable_payload_selected_json(
-            location_id,
+            payload_location_id,
             &field.selection,
             user_errors,
         )
@@ -171,17 +176,18 @@ impl DraftProxy {
         if self.active_local_pickup_location(location_id).is_some() {
             return Vec::new();
         }
+        let field_name = if root_field == "locationLocalPickupDisable" {
+            "locationId"
+        } else {
+            "localPickupSettings"
+        };
         vec![user_error_with_code_value(
-            ["localPickupSettings"],
+            [field_name],
             &format!(
                 "Unable to find an active location for location ID {}",
                 resource_id_path_tail(location_id)
             ),
-            json!(if root_field == "locationLocalPickupEnable" {
-                "ACTIVE_LOCATION_NOT_FOUND"
-            } else {
-                "LOCATION_NOT_FOUND"
-            }),
+            json!("ACTIVE_LOCATION_NOT_FOUND"),
         )]
     }
 
@@ -2030,13 +2036,13 @@ fn location_local_pickup_enable_payload_selected_json(
 }
 
 fn location_local_pickup_disable_payload_selected_json(
-    location_id: String,
+    location_id: Value,
     payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
-            "locationId" => Some(json!(location_id)),
+            "locationId" => Some(location_id.clone()),
             "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
