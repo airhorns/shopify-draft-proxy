@@ -34,12 +34,13 @@ type OperationKey =
   | 'customerDeactivated'
   | 'recipientDeactivated'
   | 'customerNoCustomer'
+  | 'recipientNoRecipient'
   | 'recipientNoContact'
   | 'customerExpired'
   | 'recipientExpired';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
-  defaultApiVersion: '2025-01',
+  defaultApiVersion: '2026-04',
   exitOnMissing: true,
 });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
@@ -405,11 +406,28 @@ try {
   }
   upstreamCalls.push(await hydrateGiftCard(noCustomerCardId));
 
-  const noContactRecipientCard = await createGiftCard(
-    'cardCNoContactRecipientCreate',
+  const noRecipientCard = await createGiftCard(
+    'cardCNoRecipientCreate',
     {
       initialValue: '5.00',
       code: `GCNVC${String(stamp).slice(-8)}`,
+      note: 'No-recipient notification validation.',
+      customerId: contactCustomerId,
+    },
+    setupIds,
+  );
+  setup.push(noRecipientCard);
+  const noRecipientCardId = readCreatedGiftCardId(noRecipientCard);
+  if (noRecipientCardId === null) {
+    throw new Error('Unable to create no-recipient-branch gift card.');
+  }
+  upstreamCalls.push(await hydrateGiftCard(noRecipientCardId));
+
+  const noContactRecipientCard = await createGiftCard(
+    'cardDNoContactRecipientCreate',
+    {
+      initialValue: '5.00',
+      code: `GCNVD${String(stamp).slice(-8)}`,
       note: 'No-contact recipient notification validation.',
       recipientAttributes: {
         id: noContactCustomerId,
@@ -452,6 +470,7 @@ try {
   operations.customerDeactivated = await sendToCustomer('customerDeactivated', deactivatedCardId);
   operations.recipientDeactivated = await sendToRecipient('recipientDeactivated', deactivatedCardId);
   operations.customerNoCustomer = await sendToCustomer('customerNoCustomer', noCustomerCardId);
+  operations.recipientNoRecipient = await sendToRecipient('recipientNoRecipient', noRecipientCardId);
   operations.recipientNoContact = await sendToRecipient('recipientNoContact', noContactRecipientCardId);
   operations.customerExpired = await sendToCustomer('customerExpired', expiredCardId);
   operations.recipientExpired = await sendToRecipient('recipientExpired', expiredCardId);
@@ -468,6 +487,7 @@ const proxyVariables = {
   customerDeactivated: { id: operations.customerDeactivated?.variables['id'] },
   recipientDeactivated: { id: operations.recipientDeactivated?.variables['id'] },
   customerNoCustomer: { id: operations.customerNoCustomer?.variables['id'] },
+  recipientNoRecipient: { id: operations.recipientNoRecipient?.variables['id'] },
   recipientNoContact: { id: operations.recipientNoContact?.variables['id'] },
   customerExpired: { id: operations.customerExpired?.variables['id'] },
   recipientExpired: { id: operations.recipientExpired?.variables['id'] },
@@ -485,8 +505,8 @@ await writeFile(
       notes: [
         'Captures validation-failing gift-card notification roots only, avoiding successful customer-visible notification dispatch.',
         'The expired notification branches use an ordinary recent-past expiresOn date instead of a fixture-coupled sentinel year.',
-        'Live Admin GraphQL 2025-01 serializes base-scoped notification userErrors with field: null, and the local runtime matches that public Admin GraphQL shape.',
-        'Public Admin GraphQL 2025-01 does not expose a GiftCard notify field or GiftCardCreate/Update notify input, so notify-disabled validation remains covered by local runtime tests rather than live setup.',
+        `Live Admin GraphQL ${apiVersion} serializes base-scoped notification userErrors with field: null, and the local runtime matches that public Admin GraphQL shape.`,
+        `Public Admin GraphQL ${apiVersion} does not expose a GiftCard notify field or GiftCardCreate/Update notify input, so notify-disabled validation remains covered by local runtime tests rather than live setup.`,
       ],
       proxyVariables,
       setup,

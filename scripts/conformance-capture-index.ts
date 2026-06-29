@@ -10786,6 +10786,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'gift-cards',
     captureId: 'gift-card-notification-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-gift-card-notification-validation-conformance.ts',
     purpose: 'Gift-card notification validation branches that fail before customer-visible notification dispatch.',
     requiredAuthScopes: ['read_gift_cards', 'write_gift_cards', 'read_customers', 'write_customers'],
