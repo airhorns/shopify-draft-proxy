@@ -55,16 +55,21 @@ fn fulfillment_order_order_fixture(
     quantity: i64,
     status: &str,
 ) -> Value {
-    let supported_actions = if status == "SCHEDULED" {
-        json!([{ "action": "MARK_AS_OPEN" }])
-    } else {
-        json!([
+    let supported_actions = match status {
+        "SCHEDULED" => json!([{ "action": "MARK_AS_OPEN" }]),
+        "CLOSED" | "CANCELLED" => json!([]),
+        "ON_HOLD" => json!([
+            { "action": "RELEASE_HOLD" },
+            { "action": "HOLD" },
+            { "action": "MOVE" }
+        ]),
+        _ => json!([
             { "action": "CREATE_FULFILLMENT" },
             { "action": "REPORT_PROGRESS" },
             { "action": "MOVE" },
             { "action": "HOLD" },
             { "action": "SPLIT" }
-        ])
+        ]),
     };
     json!({
         "id": order_id,
@@ -4366,55 +4371,100 @@ fn fulfillment_order_open_rejects_already_open_without_mutating_hydrated_order()
 
 #[test]
 fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() {
-    let mut proxy = snapshot_proxy();
-    let open = proxy.process_request(json_graphql_request(
-        r#"
-        mutation FulfillmentOrderStatusPreconditionOpen($id: ID!) {
-          fulfillmentOrderOpen(id: $id) {
-            fulfillmentOrder { id status updatedAt supportedActions { action } }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({ "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed" }),
-    ));
-    assert_eq!(
-        open.body["data"]["fulfillmentOrderOpen"],
-        json!({
-            "fulfillmentOrder": null,
-            "userErrors": [{
-                "field": ["id"],
-                "message": "Fulfillment order must be scheduled.",
-                "code": "INVALID_FULFILLMENT_ORDER_STATUS"
-            }]
-        })
-    );
+    for (status, status_message, supported_actions) in [
+        ("CLOSED", "closed", json!([])),
+        ("CANCELLED", "cancelled", json!([])),
+        (
+            "ON_HOLD",
+            "on_hold",
+            json!([
+                { "action": "RELEASE_HOLD" },
+                { "action": "HOLD" },
+                { "action": "MOVE" }
+            ]),
+        ),
+    ] {
+        let order_id = format!("gid://shopify/Order/open-invalid-{status_message}");
+        let fulfillment_order_id =
+            format!("gid://shopify/FulfillmentOrder/open-invalid-{status_message}");
+        let mut proxy =
+            snapshot_proxy().with_upstream_transport(fulfillment_order_hydrate_transport(vec![
+                fulfillment_order_order_fixture(
+                    &order_id,
+                    "#OPEN-INVALID",
+                    &fulfillment_order_id,
+                    &format!(
+                        "gid://shopify/FulfillmentOrderLineItem/open-invalid-{status_message}"
+                    ),
+                    1,
+                    status,
+                ),
+            ]));
 
-    let after_open = proxy.process_request(json_graphql_request(
-        r#"
-        query FulfillmentOrderStatusPreconditionOrderRead($orderId: ID!) {
-          order(id: $orderId) {
-            id
-            fulfillmentOrders(first: 10, includeClosed: true) {
-              nodes { id status updatedAt supportedActions { action } }
+        let open = proxy.process_request(json_graphql_request(
+            r#"
+            mutation FulfillmentOrderStatusPreconditionOpen($id: ID!) {
+              fulfillmentOrderOpen(id: $id) {
+                fulfillmentOrder { id status updatedAt supportedActions { action } }
+                userErrors { field message code }
+              }
             }
-          }
-        }
-        "#,
-        json!({ "orderId": "gid://shopify/Order/status-precondition-open-closed" }),
-    ));
-    assert_eq!(
-        after_open.body["data"]["order"],
-        json!({
-            "id": "gid://shopify/Order/status-precondition-open-closed",
-            "fulfillmentOrders": { "nodes": [{
-                "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed",
-                "status": "CLOSED",
-                "updatedAt": "2026-05-11T10:00:00Z",
-                "supportedActions": []
-            }] }
-        })
-    );
+            "#,
+            json!({ "id": fulfillment_order_id }),
+        ));
+        assert_eq!(
+            open.body["data"]["fulfillmentOrderOpen"],
+            json!({
+                "fulfillmentOrder": null,
+                "userErrors": [{
+                    "field": null,
+                    "message": format!("Expected fulfillment order status to be valid but it was {status_message}."),
+                    "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+                }]
+            })
+        );
+
+        let after_open = proxy.process_request(json_graphql_request(
+            r#"
+            query FulfillmentOrderStatusPreconditionOrderRead($orderId: ID!) {
+              order(id: $orderId) {
+                id
+                fulfillmentOrders(first: 10, includeClosed: true) {
+                  nodes { id status updatedAt supportedActions { action } }
+                }
+              }
+            }
+            "#,
+            json!({ "orderId": order_id }),
+        ));
+        assert_eq!(
+            after_open.body["data"]["order"],
+            json!({
+                "id": order_id,
+                "fulfillmentOrders": { "nodes": [{
+                    "id": fulfillment_order_id,
+                    "status": status,
+                    "updatedAt": "2026-06-15T11:00:00Z",
+                    "supportedActions": supported_actions
+                }] }
+            })
+        );
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    }
+
+    let order_id = "gid://shopify/Order/progress-invalid-scheduled";
+    let fulfillment_order_id = "gid://shopify/FulfillmentOrder/progress-invalid-scheduled";
+    let mut proxy =
+        snapshot_proxy().with_upstream_transport(fulfillment_order_hydrate_transport(vec![
+            fulfillment_order_order_fixture(
+                order_id,
+                "#PROGRESS-INVALID",
+                fulfillment_order_id,
+                "gid://shopify/FulfillmentOrderLineItem/progress-invalid-scheduled",
+                1,
+                "SCHEDULED",
+            ),
+        ]));
 
     let progress = proxy.process_request(json_graphql_request(
         r#"
@@ -4426,7 +4476,7 @@ fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() 
         }
         "#,
         json!({
-            "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled",
+            "id": fulfillment_order_id,
             "progressReport": { "reasonNotes": "local-runtime progress precondition" }
         }),
     ));
@@ -4435,9 +4485,9 @@ fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() 
         json!({
             "fulfillmentOrder": null,
             "userErrors": [{
-                "field": ["id"],
-                "message": "Fulfillment order must be in progress.",
-                "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+                "field": null,
+                "message": "Cannot report progress on a fulfillment order in this state.",
+                "code": "FULFILLMENT_ORDER_STATUS_INVALID"
             }]
         })
     );
@@ -4453,20 +4503,21 @@ fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() 
           }
         }
         "#,
-        json!({ "orderId": "gid://shopify/Order/status-precondition-progress-scheduled" }),
+        json!({ "orderId": order_id }),
     ));
     assert_eq!(
         after_progress.body["data"]["order"],
         json!({
-            "id": "gid://shopify/Order/status-precondition-progress-scheduled",
+            "id": order_id,
             "fulfillmentOrders": { "nodes": [{
-                "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled",
+                "id": fulfillment_order_id,
                 "status": "SCHEDULED",
-                "updatedAt": "2026-05-11T10:05:00Z",
+                "updatedAt": "2026-06-15T11:00:00Z",
                 "supportedActions": [{ "action": "MARK_AS_OPEN" }]
             }] }
         })
     );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]

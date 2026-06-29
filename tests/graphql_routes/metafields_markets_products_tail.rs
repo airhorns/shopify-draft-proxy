@@ -3001,7 +3001,7 @@ fn catalog_relations_require_staged_price_list_and_publication_records() {
 #[test]
 fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
     // Ports old Gleam catalog/context helper behavior from markets_mutation_test.gleam:
-    // required/invalid status, required context/market IDs, unsupported country contexts,
+    // required/invalid status, required context/market IDs, country-code contexts,
     // typed CatalogUserError shapes, market-context staging/readback, unknown catalog delete,
     // and catalogContextUpdate add/remove validation/readback.
     let create_query = r#"
@@ -3039,10 +3039,6 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
             json!({"__typename": "CatalogUserError", "field": ["input", "context", "countryCodes"], "message": "Country codes can't be blank", "code": "INVALID"}),
         ),
         (
-            json!({"title": "Country Catalog", "status": "ACTIVE", "context": {"driverType": "COUNTRY", "countryCodes": ["US"]}}),
-            json!({"__typename": "CatalogUserError", "field": ["input", "context", "driverType"], "message": "Catalog context driverType COUNTRY is not supported by the local MarketCatalog model", "code": "INVALID"}),
-        ),
-        (
             json!({"title": "", "status": "ACTIVE", "context": {"marketIds": ["gid://shopify/Market/missing"]}}),
             json!({"__typename": "CatalogUserError", "field": ["input", "title"], "message": "Title can't be blank", "code": "BLANK"}),
         ),
@@ -3057,6 +3053,82 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
             json!({"catalog": null, "userErrors": [error]})
         );
     }
+
+    let mut country_proxy = snapshot_proxy();
+    let country_create = country_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogLocalRuntimeCountryCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog {
+              __typename
+              id
+              title
+              status
+              ... on CountryCatalog {
+                countries { nodes { code } }
+                countriesCount { count precision }
+              }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Country Catalog", "status": "ACTIVE", "context": {"driverType": "COUNTRY", "countryCodes": ["US", "ca"]}}}),
+    ));
+    assert_eq!(country_create.status, 200);
+    assert_eq!(
+        country_create.body["data"]["catalogCreate"],
+        json!({
+            "catalog": {
+                "__typename": "CountryCatalog",
+                "id": "gid://shopify/CountryCatalog/1",
+                "title": "Country Catalog",
+                "status": "ACTIVE",
+                "countries": { "nodes": [{ "code": "US" }, { "code": "CA" }] },
+                "countriesCount": { "count": 2, "precision": "EXACT" }
+            },
+            "userErrors": []
+        })
+    );
+    let country_update = country_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogLocalRuntimeCountryContextUpdate(
+          $catalogId: ID!,
+          $add: CatalogContextInput,
+          $remove: CatalogContextInput
+        ) {
+          catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $add, contextsToRemove: $remove) {
+            catalog {
+              __typename
+              id
+              ... on CountryCatalog {
+                countries { nodes { code } }
+                countriesCount { count precision }
+              }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "catalogId": "gid://shopify/CountryCatalog/1",
+            "add": { "countryCodes": ["mx"] },
+            "remove": { "countryCodes": ["US"] }
+        }),
+    ));
+    assert_eq!(country_update.status, 200);
+    assert_eq!(
+        country_update.body["data"]["catalogContextUpdate"],
+        json!({
+            "catalog": {
+                "__typename": "CountryCatalog",
+                "id": "gid://shopify/CountryCatalog/1",
+                "countries": { "nodes": [{ "code": "CA" }, { "code": "MX" }] },
+                "countriesCount": { "count": 2, "precision": "EXACT" }
+            },
+            "userErrors": []
+        })
+    );
 
     // Omitting the non-null `context` field is a GraphQL variable-coercion
     // failure, not a CatalogUserError: real Shopify rejects it at the schema
@@ -3230,6 +3302,394 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
     assert_eq!(
         context_update.body["data"]["catalogContextUpdate"],
         json!({"catalog": {"id": "gid://shopify/MarketCatalog/3", "markets": {"nodes": [{"id": second_market_id}]}}, "userErrors": []})
+    );
+}
+
+#[test]
+fn catalog_context_update_company_locations_stage_and_read_back() {
+    let mut proxy = snapshot_proxy();
+
+    let create_company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextCompanyCreate($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company {
+              id
+              name
+              locations(first: 5) { nodes { id name } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "company": { "name": "Catalog Context B2B" },
+                "companyLocation": {
+                    "shippingAddress": { "address1": "123 Main", "city": "Boston", "countryCode": "US" },
+                    "billingSameAsShipping": true
+                }
+            }
+        }),
+    ));
+    assert_eq!(create_company.status, 200);
+    assert_eq!(
+        create_company.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    let company_id = create_company.body["data"]["companyCreate"]["company"]["id"]
+        .as_str()
+        .expect("company id")
+        .to_string();
+    let first_location_id = create_company.body["data"]["companyCreate"]["company"]["locations"]
+        ["nodes"][0]["id"]
+        .as_str()
+        .expect("first company location id")
+        .to_string();
+
+    let create_second_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {
+          companyLocationCreate(companyId: $companyId, input: $input) {
+            companyLocation { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyId": company_id,
+            "input": { "name": "Catalog Context Secondary" }
+        }),
+    ));
+    assert_eq!(create_second_location.status, 200);
+    assert_eq!(
+        create_second_location.body["data"]["companyLocationCreate"]["userErrors"],
+        json!([])
+    );
+    let second_location_id = create_second_location.body["data"]["companyLocationCreate"]
+        ["companyLocation"]["id"]
+        .as_str()
+        .expect("second company location id")
+        .to_string();
+
+    let catalog_create_query = r#"
+        mutation CatalogContextCompanyCatalogCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog {
+              __typename
+              id
+              title
+              status
+              ... on CompanyLocationCatalog {
+                companyLocations(first: 5) { nodes { id name } }
+                companyLocationsCount { count precision }
+              }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let catalog_create = proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({
+            "input": {
+                "title": "B2B Context Catalog",
+                "status": "ACTIVE",
+                "context": { "companyLocationIds": [first_location_id] }
+            }
+        }),
+    ));
+    assert_eq!(catalog_create.status, 200);
+    assert_eq!(
+        catalog_create.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let catalog = &catalog_create.body["data"]["catalogCreate"]["catalog"];
+    assert_eq!(catalog["__typename"], json!("CompanyLocationCatalog"));
+    let catalog_id = catalog["id"].as_str().expect("catalog id").to_string();
+    assert_eq!(
+        catalog["companyLocations"]["nodes"],
+        json!([{ "id": first_location_id, "name": "Catalog Context B2B" }])
+    );
+    assert_eq!(
+        catalog["companyLocationsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let context_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextCompanyLocationUpdate(
+          $catalogId: ID!,
+          $add: CatalogContextInput,
+          $remove: CatalogContextInput
+        ) {
+          catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $add, contextsToRemove: $remove) {
+            catalog {
+              __typename
+              id
+              ... on CompanyLocationCatalog {
+                companyLocations(first: 5) { nodes { id name } }
+                companyLocationsCount { count precision }
+              }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "catalogId": catalog_id,
+            "add": { "companyLocationIds": [second_location_id] },
+            "remove": { "companyLocationIds": [first_location_id] }
+        }),
+    ));
+    assert_eq!(context_update.status, 200);
+    assert_eq!(
+        context_update.body["data"]["catalogContextUpdate"],
+        json!({
+            "catalog": {
+                "__typename": "CompanyLocationCatalog",
+                "id": catalog_id,
+                "companyLocations": {
+                    "nodes": [{ "id": second_location_id, "name": "Catalog Context Secondary" }]
+                },
+                "companyLocationsCount": { "count": 1, "precision": "EXACT" }
+            },
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CatalogContextCompanyLocationRead($id: ID!) {
+          catalog(id: $id) {
+            __typename
+            id
+            ... on CompanyLocationCatalog {
+              companyLocations(first: 5) { nodes { id name } }
+              companyLocationsCount { count precision }
+            }
+          }
+        }
+        "#,
+        json!({ "id": catalog_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["catalog"],
+        json!({
+            "__typename": "CompanyLocationCatalog",
+            "id": catalog_id,
+            "companyLocations": {
+                "nodes": [{ "id": second_location_id, "name": "Catalog Context Secondary" }]
+            },
+            "companyLocationsCount": { "count": 1, "precision": "EXACT" }
+        })
+    );
+
+    let legacy_location_ids_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextLegacyLocationIdsUpdate(
+          $catalogId: ID!,
+          $add: CatalogContextInput,
+          $remove: CatalogContextInput
+        ) {
+          catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $add, contextsToRemove: $remove) {
+            catalog {
+              __typename
+              id
+              ... on CompanyLocationCatalog {
+                companyLocations(first: 5) { nodes { id name } }
+                companyLocationsCount { count precision }
+              }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "catalogId": catalog_id,
+            "add": { "locationIds": [first_location_id] },
+            "remove": { "locationIds": [second_location_id] }
+        }),
+    ));
+    assert_eq!(legacy_location_ids_update.status, 200);
+    assert_eq!(
+        legacy_location_ids_update.body["data"]["catalogContextUpdate"],
+        json!({
+            "catalog": {
+                "__typename": "CompanyLocationCatalog",
+                "id": catalog_id,
+                "companyLocations": {
+                    "nodes": [{ "id": first_location_id, "name": "Catalog Context B2B" }]
+                },
+                "companyLocationsCount": { "count": 1, "precision": "EXACT" }
+            },
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn catalog_context_update_company_location_errors_match_shopify() {
+    let mut proxy = snapshot_proxy();
+
+    let create_company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextCompanyCreate($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company { id locations(first: 5) { nodes { id } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "company": { "name": "Catalog Context Error B2B" },
+                "companyLocation": {
+                    "shippingAddress": { "address1": "123 Main", "city": "Boston", "countryCode": "US" },
+                    "billingSameAsShipping": true
+                }
+            }
+        }),
+    ));
+    assert_eq!(create_company.status, 200);
+    let location_id = create_company.body["data"]["companyCreate"]["company"]["locations"]["nodes"]
+        [0]["id"]
+        .as_str()
+        .expect("company location id")
+        .to_string();
+
+    let company_catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextCompanyCatalogCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { __typename id }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "B2B Error Catalog",
+                "status": "ACTIVE",
+                "context": { "companyLocationIds": [location_id] }
+            }
+        }),
+    ));
+    assert_eq!(company_catalog.status, 200);
+    assert_eq!(
+        company_catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let company_catalog_id = company_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .expect("company catalog id")
+        .to_string();
+
+    let missing_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextCompanyLocationMissing(
+          $catalogId: ID!,
+          $add: CatalogContextInput,
+          $remove: CatalogContextInput
+        ) {
+          catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $add, contextsToRemove: $remove) {
+            catalog { id }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "catalogId": company_catalog_id,
+            "add": { "companyLocationIds": ["gid://shopify/CompanyLocation/999999999999"] },
+            "remove": { "companyLocationIds": ["gid://shopify/CompanyLocation/999999999998"] }
+        }),
+    ));
+    assert_eq!(missing_location.status, 200);
+    assert_eq!(
+        missing_location.body["data"]["catalogContextUpdate"],
+        json!({
+            "catalog": null,
+            "userErrors": [
+                {
+                    "__typename": "CatalogUserError",
+                    "field": ["contextsToAdd", "companyLocationIds", "0"],
+                    "message": "A company location within the catalog does not exist.",
+                    "code": "COMPANY_LOCATION_NOT_FOUND"
+                },
+                {
+                    "__typename": "CatalogUserError",
+                    "field": ["contextsToRemove", "companyLocationIds", "0"],
+                    "message": "A company location within the catalog does not exist.",
+                    "code": "COMPANY_LOCATION_NOT_FOUND"
+                }
+            ]
+        })
+    );
+
+    let market_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextMarketCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) { market { id } userErrors { field message code } }
+        }
+        "#,
+        json!({ "input": { "name": "Driver Mismatch Market", "regions": [{ "countryCode": "DK" }] } }),
+    ));
+    assert_eq!(market_create.status, 200);
+    let market_id = market_create.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .expect("market id")
+        .to_string();
+
+    let market_catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextMarketCatalogCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { __typename id }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Market Error Catalog",
+                "status": "ACTIVE",
+                "context": { "marketIds": [market_id] }
+            }
+        }),
+    ));
+    assert_eq!(market_catalog.status, 200);
+    let market_catalog_id = market_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .expect("market catalog id")
+        .to_string();
+
+    let driver_mismatch = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextDriverMismatch($catalogId: ID!, $add: CatalogContextInput) {
+          catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $add) {
+            catalog { id }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "catalogId": market_catalog_id,
+            "add": { "companyLocationIds": [location_id] }
+        }),
+    ));
+    assert_eq!(driver_mismatch.status, 200);
+    assert_eq!(
+        driver_mismatch.body["data"]["catalogContextUpdate"],
+        json!({
+            "catalog": null,
+            "userErrors": [{
+                "__typename": "CatalogUserError",
+                "field": ["contextsToAdd", "companyLocationIds"],
+                "message": "The arguments `contexts_to_add` and `contexts_to_remove` must match existing catalog context type.",
+                "code": "CONTEXT_DRIVER_MISMATCH"
+            }]
+        })
     );
 }
 
@@ -6193,6 +6653,11 @@ fn product_update_unknown_fixture_id_returns_local_user_error_without_replay() {
         delete.body["data"]["productDelete"],
         json!({
             "deletedProductId": null,
+            "shop": {
+                "id": "gid://shopify/Shop/0",
+                "name": "Shopify Draft Proxy",
+                "myshopifyDomain": "shopify-draft-proxy.local"
+            },
             "userErrors": [{
                 "field": ["id"],
                 "message": "Product does not exist"

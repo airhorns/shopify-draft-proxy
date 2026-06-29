@@ -1,0 +1,199 @@
+{
+  "mutation": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Product/10224196223282"
+      }
+    },
+    "response": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10224196223282",
+          "shop": {
+            "id": "gid://shopify/Shop/92891250994",
+            "name": "harry-test-heelo",
+            "myshopifyDomain": "harry-test-heelo.myshopify.com"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Product/999999999999999"
+      }
+    },
+    "response": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": null,
+          "shop": {
+            "id": "gid://shopify/Shop/92891250994",
+            "name": "harry-test-heelo",
+            "myshopifyDomain": "harry-test-heelo.myshopify.com"
+          },
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Product does not exist"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "invalidInput": {
+    "variableMissingId": {
+      "variables": {
+        "input": {}
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $input of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)",
+            "locations": [
+              {
+                "line": 2,
+                "column": 37
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {},
+              "problems": [
+                {
+                  "path": ["id"],
+                  "explanation": "Expected value to not be null"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "inlineMissingId": {
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'id' on InputObject 'ProductDeleteInput' is required. Expected type ID!",
+            "locations": [
+              {
+                "line": 3,
+                "column": 26
+              }
+            ],
+            "path": ["mutation", "productDelete", "input", "id"],
+            "extensions": {
+              "code": "missingRequiredInputObjectAttribute",
+              "argumentName": "id",
+              "argumentType": "ID!",
+              "inputObjectType": "ProductDeleteInput"
+            }
+          }
+        ]
+      }
+    },
+    "inlineNullId": {
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 26
+              }
+            ],
+            "path": ["mutation", "productDelete", "input", "id"],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "InputObject",
+              "argumentName": "id"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": null,
+      "products": {
+        "edges": []
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 6,
+        "actualQueryCost": 3,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1997,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductPayloadShopHydrate",
+      "variables": {},
+      "query": "#graphql\n  query ProductPayloadShopHydrate {\n    shop {\n      id\n      name\n      myshopifyDomain\n      url\n      currencyCode\n      primaryDomain {\n        id\n        host\n        url\n        sslEnabled\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "id": "gid://shopify/Shop/92891250994",
+              "name": "harry-test-heelo",
+              "myshopifyDomain": "harry-test-heelo.myshopify.com",
+              "url": "https://harry-test-heelo.myshopify.com",
+              "currencyCode": "CAD",
+              "primaryDomain": {
+                "id": "gid://shopify/Domain/157391388978",
+                "host": "harry-test-heelo.myshopify.com",
+                "url": "https://harry-test-heelo.myshopify.com",
+                "sslEnabled": true
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

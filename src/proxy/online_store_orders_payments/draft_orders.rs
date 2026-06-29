@@ -593,6 +593,20 @@ pub(in crate::proxy) fn draft_order_payment_terms(
         .unwrap_or(Value::Null)
 }
 
+pub(in crate::proxy) fn draft_order_complete_implicit_payment_pending(draft_order: &Value) -> bool {
+    let has_payment_terms = draft_order
+        .get("paymentTerms")
+        .is_some_and(|payment_terms| !payment_terms.is_null());
+    let has_deposit_configuration = ["depositConfiguration", "depositConfigurationId"]
+        .iter()
+        .any(|field| {
+            draft_order
+                .get(*field)
+                .is_some_and(|deposit_configuration| !deposit_configuration.is_null())
+        });
+    has_payment_terms && !has_deposit_configuration
+}
+
 pub(in crate::proxy) fn draft_order_purchasing_entity(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
@@ -1867,10 +1881,14 @@ impl DraftProxy {
         let shop_currency_code = self.store.shop_currency_code();
         let currency_code =
             money_set_shop_currency(&draft_order["totalPriceSet"]).unwrap_or(shop_currency_code);
-        let payment_pending = matches!(
-            field.arguments.get("paymentPending"),
-            Some(ResolvedValue::Bool(true))
-        );
+        let payment_pending = if field.raw_arguments.contains_key("paymentPending") {
+            matches!(
+                field.arguments.get("paymentPending"),
+                Some(ResolvedValue::Bool(true))
+            )
+        } else {
+            draft_order_complete_implicit_payment_pending(&draft_order)
+        };
         // Completing a draft materializes order line items: they move into the
         // LineItem id namespace and an absent SKU is reported as null (Shopify
         // surfaces order line items distinctly from their draft counterparts).
@@ -1889,34 +1907,31 @@ impl DraftProxy {
                 line
             })
             .collect::<Vec<_>>();
-        // The completed order inherits the draft's merchant-facing note and tags,
-        // and is settled through the manual payment gateway unless the merchant
-        // explicitly marks the payment as pending (in which case no gateway has
-        // captured it yet).
+        // The completed order inherits the draft's merchant-facing note and tags.
+        // It is settled through the manual payment gateway unless the caller
+        // explicitly marks it pending or payment terms implicitly leave payment
+        // outstanding.
         let order_note = draft_order["note"].clone();
         let order_tags = draft_order["tags"].as_array().cloned().unwrap_or_default();
         let source_name = draft_order["sourceName"]
             .as_str()
             .map(str::to_string)
             .unwrap_or_else(|| MODELED_FUNCTION_APP_ID.to_string());
-        let payment_gateway_names = if payment_pending {
-            Vec::<Value>::new()
+        let payment_gateway_names = vec![json!("manual")];
+        // Shopify records both settled and pending draft-order completions as a
+        // manual SALE transaction. The transaction status, not its presence,
+        // distinguishes captured payment from outstanding invoice payment.
+        let transaction_status = if payment_pending {
+            "PENDING"
         } else {
-            vec![json!("manual")]
+            "SUCCESS"
         };
-        // A pending completion has not been captured by any gateway, so it carries
-        // no transactions; a settled (non-pending) completion records the manual
-        // sale that paid it off.
-        let order_transactions = if payment_pending {
-            Vec::<Value>::new()
-        } else {
-            vec![json!({
+        let order_transactions = vec![json!({
                 "kind": "SALE",
-                "status": "SUCCESS",
+                "status": transaction_status,
                 "gateway": "manual",
                 "amountSet": money_set(&amount, &currency_code)
-            })]
-        };
+        })];
         let mut order = json!({
             "id": order_id.clone(),
             "name": format!("#{}", self.store.staged.orders.len() + 1),
@@ -2270,13 +2285,13 @@ impl DraftProxy {
     ) -> Value {
         let ids = resolved_string_list_arg(&field.arguments, "ids");
         let tags = resolved_string_list_arg(&field.arguments, "tags");
-        let normalized_tags: Vec<String> = tags
+        let normalized_tags: Vec<(String, String)> = tags
             .iter()
-            .map(|tag| normalize_draft_order_tag(tag))
+            .map(|tag| (normalize_draft_order_tag(tag), tag.trim().to_string()))
             .collect();
 
         let mut user_errors = Vec::new();
-        for (index, tag) in normalized_tags.iter().enumerate() {
+        for (index, (_, tag)) in normalized_tags.iter().enumerate() {
             if tag.chars().count() >= 256 {
                 user_errors.push(user_error(
                     vec!["input".to_string(), "tags".to_string(), index.to_string()],
@@ -2311,8 +2326,8 @@ impl DraftProxy {
                 .iter()
                 .map(|tag| normalize_draft_order_tag(tag))
                 .collect();
-            for tag in &normalized_tags {
-                identities.insert(tag.clone());
+            for (identity, _) in &normalized_tags {
+                identities.insert(identity.clone());
             }
             identities.len() > 250
         });
@@ -2329,7 +2344,10 @@ impl DraftProxy {
             );
         }
 
-        if !normalized_tags.iter().any(|tag| tag.chars().count() >= 256) {
+        if !normalized_tags
+            .iter()
+            .any(|(_, tag)| tag.chars().count() >= 256)
+        {
             let mut updated_ids = Vec::new();
             for id in valid_ids {
                 if let Some(current) = self.store.staged.draft_order_tags.get_mut(&id) {
@@ -2337,8 +2355,8 @@ impl DraftProxy {
                         .iter()
                         .map(|tag| normalize_draft_order_tag(tag))
                         .collect();
-                    for tag in &normalized_tags {
-                        if existing.insert(tag.clone()) {
+                    for (identity, tag) in &normalized_tags {
+                        if existing.insert(identity.clone()) {
                             current.push(tag.clone());
                         }
                     }

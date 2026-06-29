@@ -1,0 +1,1326 @@
+{
+  "metadata": {
+    "capturedAt": "2026-06-29T13:44:37.771Z",
+    "startedAt": "2026-06-29T13:44:33.530Z",
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2026-04",
+    "scopedRoots": ["fulfillmentOrderOpen", "fulfillmentOrderReportProgress"],
+    "notes": [
+      "Public Admin GraphQL 2026-04 exposes field/message for these userErrors; local runtime tests cover the proxy-only code projection.",
+      "The report-progress live rejection uses the ON_HOLD fulfillment order created in this capture; SCHEDULED and CANCELLED report-progress branches remain covered by store-state runtime tests.",
+      "ON_HOLD upstream hydration records Shopify partial data as returned to the proxy when the app lacks read_apps for fulfillmentHolds.heldByApp.",
+      "The disposable conformance shop had no queryable fulfillment order with status CANCELLED during this capture; the proxy keeps the CANCELLED branch covered by store-state runtime tests."
+    ],
+    "createdOrders": [
+      {
+        "id": "gid://shopify/Order/8880573382962",
+        "name": "#1608",
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9817344901426",
+        "fulfillmentOrderLineItemId": "gid://shopify/FulfillmentOrderLineItem/19858883674418"
+      }
+    ]
+  },
+  "closed": {
+    "search": {
+      "query": "query FulfillmentOrderPreconditionsStatusSearch($query: String!, $first: Int!) {\n    fulfillmentOrders(first: $first, includeClosed: true, query: $query, sortKey: ID, reverse: true) {\n      nodes {\n        id\n        status\n        requestStatus\n        order {\n          id\n          name\n        }\n      }\n    }\n  }",
+      "variables": {
+        "query": "status:closed",
+        "first": 50
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrders": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9817343590706",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8880572105010",
+                    "name": "#1607"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9817343557938",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8880572072242",
+                    "name": "#1606"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9817341034802",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8880569975090",
+                    "name": "#1605"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9817338413362",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8880567746866",
+                    "name": "#1604"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9817338315058",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8880567681330",
+                    "name": "#1603"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9817337856306",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8880567255346",
+                    "name": "#1602"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9817336676658",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8880566141234",
+                    "name": "#1601"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9817330647346",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8880560996658",
+                    "name": "#1600"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9816957616434",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8880222667058",
+                    "name": "#1599"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9816957583666",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8880222634290",
+                    "name": "#1598"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9816957550898",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8880222601522",
+                    "name": "#1597"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9816957518130",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8880222568754",
+                    "name": "#1596"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9816955715890",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8880220930354",
+                    "name": "#1595"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9816381554994",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8879686353202",
+                    "name": "#1594"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9816381522226",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8879686287666",
+                    "name": "#1593"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9816379523378",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8879684845874",
+                    "name": "#1592"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9816379490610",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8879684813106",
+                    "name": "#1591"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9816378704178",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8879684157746",
+                    "name": "#1589"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9816375886130",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8879681732914",
+                    "name": "#1588"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9816217583922",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8879547515186",
+                    "name": "#1587"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9809028841778",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8872717353266",
+                    "name": "#1586"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9809028809010",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8872717353266",
+                    "name": "#1586"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9809028645170",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8872717156658",
+                    "name": "#1585"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9809028514098",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8872717156658",
+                    "name": "#1585"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9809006756146",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8872698249522",
+                    "name": "#1584"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9807620145458",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8871462928690",
+                    "name": "#1583"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9807617917234",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8871460831538",
+                    "name": "#1582"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9807589245234",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8871433011506",
+                    "name": "#1581"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9807579414834",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8871423443250",
+                    "name": "#1580"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9807465349426",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8871317602610",
+                    "name": "#1577"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9794150400306",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8857755779378",
+                    "name": "#1576"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9794123956530",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8857727435058",
+                    "name": "#1575"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9794087452978",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8857689620786",
+                    "name": "#1574"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9793865285938",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8857466143026",
+                    "name": "#1573"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9793865187634",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8857466044722",
+                    "name": "#1572"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9793865122098",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8857465946418",
+                    "name": "#1571"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9793863778610",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8857464701234",
+                    "name": "#1570"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9793863647538",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8857464635698",
+                    "name": "#1569"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9793859617074",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8857460932914",
+                    "name": "#1568"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9793856241970",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8857458082098",
+                    "name": "#1565"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9793856176434",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8857458049330",
+                    "name": "#1564"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9793854898482",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8857456869682",
+                    "name": "#1563"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9793854865714",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8857456836914",
+                    "name": "#1562"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9781293547826",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8844678791474",
+                    "name": "#1561"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9781242822962",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8844627902770",
+                    "name": "#1560"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9781215265074",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8844600639794",
+                    "name": "#1559"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9781145862450",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8844531269938",
+                    "name": "#1558"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9781108801842",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8844494307634",
+                    "name": "#1557"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9781108605234",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8844493979954",
+                    "name": "#1556"
+                  }
+                },
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9781108244786",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "order": {
+                    "id": "gid://shopify/Order/8844493619506",
+                    "name": "#1555"
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "hydrate": {
+      "query": "#graphql\n  fragment FulfillmentOrderPreconditionFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillAt\n    fulfillBy\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByRequestingApp\n    }\n    lineItems(first: 20) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n    order {\n      id\n      name\n      displayFulfillmentStatus\n    }\n  }\n\n  query FulfillmentOrderPreconditionsRead($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      ...FulfillmentOrderPreconditionFields\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9816957616434"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9816957616434",
+              "status": "CLOSED",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-06-29T07:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-06-29T07:57:40Z",
+              "supportedActions": [],
+              "assignedLocation": {
+                "name": "Shop location",
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                }
+              },
+              "fulfillmentHolds": [],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19858213044530",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19689029927218",
+                      "title": "Order edit commit success unarchive-notify",
+                      "quantity": 2,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8880222667058",
+                "name": "#1599",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "open": {
+      "query": "mutation FulfillmentOrderStatusPreconditionOpen($id: ID!) {\n    fulfillmentOrderOpen(id: $id) {\n      fulfillmentOrder {\n        id\n        status\n        updatedAt\n        supportedActions {\n          action\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9816957616434"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderOpen": {
+              "fulfillmentOrder": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Expected fulfillment order status to be valid but it was closed."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "afterOpenRead": {
+      "query": "query FulfillmentOrderStatusPreconditionOrderRead($orderId: ID!) {\n    order(id: $orderId) {\n      id\n    fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          updatedAt\n          supportedActions {\n            action\n          }\n        }\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8880222667058"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8880222667058",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9816957616434",
+                    "status": "CLOSED",
+                    "updatedAt": "2026-06-29T07:57:40Z",
+                    "supportedActions": []
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "onHold": {
+    "create": {
+      "query": "#graphql\n  fragment FulfillmentOrderPreconditionFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillAt\n    fulfillBy\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByRequestingApp\n    }\n    lineItems(first: 20) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n    order {\n      id\n      name\n      displayFulfillmentStatus\n    }\n  }\n\n  mutation FulfillmentOrderPreconditionsOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFulfillmentStatus\n        fulfillmentOrders(first: 5) {\n          nodes {\n            ...FulfillmentOrderPreconditionFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "fulfillment-order-preconditions-on-hold-20260629134435@example.com",
+          "note": "fulfillment order preconditions on-hold 20260629134435",
+          "tags": ["fulfillment-order-preconditions", "on-hold"],
+          "test": true,
+          "currency": "USD",
+          "shippingAddress": {
+            "firstName": "Fulfillment",
+            "lastName": "Precondition",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9"
+          },
+          "lineItems": [
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "title": "Fulfillment order preconditions on-hold 20260629134435",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8880573382962",
+                "name": "#1608",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9817344901426",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "fulfillAt": "2026-06-29T13:00:00Z",
+                      "fulfillBy": null,
+                      "updatedAt": "2026-06-29T13:44:36Z",
+                      "supportedActions": [
+                        {
+                          "action": "CREATE_FULFILLMENT"
+                        },
+                        {
+                          "action": "REPORT_PROGRESS"
+                        },
+                        {
+                          "action": "MOVE"
+                        },
+                        {
+                          "action": "HOLD"
+                        }
+                      ],
+                      "assignedLocation": {
+                        "name": "HAR-654 Main 20260505044352",
+                        "location": {
+                          "id": "gid://shopify/Location/112833036594",
+                          "name": "HAR-654 Main 20260505044352"
+                        }
+                      },
+                      "fulfillmentHolds": [],
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19858883674418",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19689695674674",
+                              "title": "Fulfillment order preconditions on-hold 20260629134435",
+                              "quantity": 1,
+                              "fulfillableQuantity": 1
+                            }
+                          }
+                        ]
+                      },
+                      "order": {
+                        "id": "gid://shopify/Order/8880573382962",
+                        "name": "#1608",
+                        "displayFulfillmentStatus": "UNFULFILLED"
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 66,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "setup": {
+      "query": "#graphql\n  fragment FulfillmentOrderPreconditionFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillAt\n    fulfillBy\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByRequestingApp\n    }\n    lineItems(first: 20) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n    order {\n      id\n      name\n      displayFulfillmentStatus\n    }\n  }\n\n  mutation FulfillmentOrderPreconditionsHold($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n    fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n      fulfillmentHold {\n        id\n        handle\n        reason\n        reasonNotes\n      }\n      fulfillmentOrder {\n        ...FulfillmentOrderPreconditionFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderPreconditionFields\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9817344901426",
+        "fulfillmentHold": {
+          "reason": "OTHER",
+          "reasonNotes": "fulfillment order precondition hold setup",
+          "notifyMerchant": false,
+          "externalId": "fulfillment-order-precondition-hold-1782740676448"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderHold": {
+              "fulfillmentHold": {
+                "id": "gid://shopify/FulfillmentHold/292804919602",
+                "handle": "",
+                "reason": "OTHER",
+                "reasonNotes": "fulfillment order precondition hold setup"
+              },
+              "fulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9817344901426",
+                "status": "ON_HOLD",
+                "requestStatus": "UNSUBMITTED",
+                "fulfillAt": "2026-06-29T13:00:00Z",
+                "fulfillBy": null,
+                "updatedAt": "2026-06-29T13:44:36Z",
+                "supportedActions": [
+                  {
+                    "action": "RELEASE_HOLD"
+                  },
+                  {
+                    "action": "HOLD"
+                  },
+                  {
+                    "action": "MOVE"
+                  }
+                ],
+                "assignedLocation": {
+                  "name": "HAR-654 Main 20260505044352",
+                  "location": {
+                    "id": "gid://shopify/Location/112833036594",
+                    "name": "HAR-654 Main 20260505044352"
+                  }
+                },
+                "fulfillmentHolds": [
+                  {
+                    "id": "gid://shopify/FulfillmentHold/292804919602",
+                    "handle": "",
+                    "reason": "OTHER",
+                    "reasonNotes": "fulfillment order precondition hold setup",
+                    "displayReason": "Other",
+                    "heldByRequestingApp": true
+                  }
+                ],
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/19858883674418",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19689695674674",
+                        "title": "Fulfillment order preconditions on-hold 20260629134435",
+                        "quantity": 1,
+                        "fulfillableQuantity": 0
+                      }
+                    }
+                  ]
+                },
+                "order": {
+                  "id": "gid://shopify/Order/8880573382962",
+                  "name": "#1608",
+                  "displayFulfillmentStatus": "ON_HOLD"
+                }
+              },
+              "remainingFulfillmentOrder": null,
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 44,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "hydrate": {
+      "query": "#graphql\n  fragment FulfillmentOrderPreconditionFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    fulfillAt\n    fulfillBy\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByRequestingApp\n    }\n    lineItems(first: 20) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n    order {\n      id\n      name\n      displayFulfillmentStatus\n    }\n  }\n\n  query FulfillmentOrderPreconditionsRead($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      ...FulfillmentOrderPreconditionFields\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9817344901426"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9817344901426",
+              "status": "ON_HOLD",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-06-29T13:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-06-29T13:44:36Z",
+              "supportedActions": [
+                {
+                  "action": "RELEASE_HOLD"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "MOVE"
+                }
+              ],
+              "assignedLocation": {
+                "name": "HAR-654 Main 20260505044352",
+                "location": {
+                  "id": "gid://shopify/Location/112833036594",
+                  "name": "HAR-654 Main 20260505044352"
+                }
+              },
+              "fulfillmentHolds": [
+                {
+                  "id": "gid://shopify/FulfillmentHold/292804919602",
+                  "handle": "",
+                  "reason": "OTHER",
+                  "reasonNotes": "fulfillment order precondition hold setup",
+                  "displayReason": "Other",
+                  "heldByRequestingApp": true
+                }
+              ],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19858883674418",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19689695674674",
+                      "title": "Fulfillment order preconditions on-hold 20260629134435",
+                      "quantity": 1,
+                      "fulfillableQuantity": 0
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8880573382962",
+                "name": "#1608",
+                "displayFulfillmentStatus": "ON_HOLD"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "open": {
+      "query": "mutation FulfillmentOrderStatusPreconditionOpen($id: ID!) {\n    fulfillmentOrderOpen(id: $id) {\n      fulfillmentOrder {\n        id\n        status\n        updatedAt\n        supportedActions {\n          action\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9817344901426"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderOpen": {
+              "fulfillmentOrder": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Expected fulfillment order status to be valid but it was on_hold."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "afterOpenRead": {
+      "query": "query FulfillmentOrderStatusPreconditionOrderRead($orderId: ID!) {\n    order(id: $orderId) {\n      id\n    fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          updatedAt\n          supportedActions {\n            action\n          }\n        }\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8880573382962"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8880573382962",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9817344901426",
+                    "status": "ON_HOLD",
+                    "updatedAt": "2026-06-29T13:44:36Z",
+                    "supportedActions": [
+                      {
+                        "action": "RELEASE_HOLD"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MOVE"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "reportProgress": {
+      "query": "mutation FulfillmentOrderStatusPreconditionReportProgress(\n    $id: ID!\n    $progressReport: FulfillmentOrderReportProgressInput\n  ) {\n    fulfillmentOrderReportProgress(id: $id, progressReport: $progressReport) {\n      fulfillmentOrder {\n        id\n        status\n        updatedAt\n        supportedActions {\n          action\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9817344901426",
+        "progressReport": {
+          "reasonNotes": "fulfillment order precondition on-hold report progress rejection"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderReportProgress": {
+              "fulfillmentOrder": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Cannot report progress on a fulfillment order in this state."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "afterReportProgressRead": {
+      "query": "query FulfillmentOrderStatusPreconditionOrderRead($orderId: ID!) {\n    order(id: $orderId) {\n      id\n    fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          updatedAt\n          supportedActions {\n            action\n          }\n        }\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8880573382962"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8880573382962",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9817344901426",
+                    "status": "ON_HOLD",
+                    "updatedAt": "2026-06-29T13:44:36Z",
+                    "supportedActions": [
+                      {
+                        "action": "RELEASE_HOLD"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MOVE"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cancelledSearch": {
+    "query": "query FulfillmentOrderPreconditionsStatusSearch($query: String!, $first: Int!) {\n    fulfillmentOrders(first: $first, includeClosed: true, query: $query, sortKey: ID, reverse: true) {\n      nodes {\n        id\n        status\n        requestStatus\n        order {\n          id\n          name\n        }\n      }\n    }\n  }",
+    "variables": {
+      "query": "status:CANCELLED",
+      "first": 5
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentOrders": {
+            "nodes": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 8,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "gid://shopify/Order/8880573382962": {
+      "query": "mutation FulfillmentOrderPreconditionsCleanup(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8880573382962",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/3e4384c3-468b-43c1-823e-de94592bf897",
+                "done": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "query": "\nquery ShippingFulfillmentOrderHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on FulfillmentOrder {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      lineItems(first: 250) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9816957616434"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "node": {
+              "__typename": "FulfillmentOrder",
+              "id": "gid://shopify/FulfillmentOrder/9816957616434",
+              "status": "CLOSED",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-06-29T07:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-06-29T07:57:40Z",
+              "supportedActions": [],
+              "assignedLocation": {
+                "name": "Shop location",
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                }
+              },
+              "fulfillmentHolds": [],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19858213044530",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19689029927218",
+                      "title": "Order edit commit success unarchive-notify",
+                      "quantity": 2,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8880222667058",
+                "name": "#1599",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 31,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "query": "\nquery ShippingFulfillmentOrderHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on FulfillmentOrder {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      lineItems(first: 250) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9817344901426"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+              "locations": [
+                {
+                  "line": 28,
+                  "column": 9
+                }
+              ],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`read_apps` access scope."
+              },
+              "path": ["node", "fulfillmentHolds", 0, "heldByApp"]
+            }
+          ],
+          "data": {
+            "node": {
+              "__typename": "FulfillmentOrder",
+              "id": "gid://shopify/FulfillmentOrder/9817344901426",
+              "status": "ON_HOLD",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-06-29T13:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-06-29T13:44:36Z",
+              "supportedActions": [
+                {
+                  "action": "RELEASE_HOLD"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "MOVE"
+                }
+              ],
+              "assignedLocation": {
+                "name": "HAR-654 Main 20260505044352",
+                "location": {
+                  "id": "gid://shopify/Location/112833036594",
+                  "name": "HAR-654 Main 20260505044352"
+                }
+              },
+              "fulfillmentHolds": [
+                {
+                  "id": "gid://shopify/FulfillmentHold/292804919602",
+                  "handle": "",
+                  "reason": "OTHER",
+                  "reasonNotes": "fulfillment order precondition hold setup",
+                  "displayReason": "Other",
+                  "heldByApp": null,
+                  "heldByRequestingApp": true
+                }
+              ],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19858883674418",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19689695674674",
+                      "title": "Fulfillment order preconditions on-hold 20260629134435",
+                      "quantity": 1,
+                      "fulfillableQuantity": 0
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8880573382962",
+                "name": "#1608",
+                "displayFulfillmentStatus": "ON_HOLD"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 31,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

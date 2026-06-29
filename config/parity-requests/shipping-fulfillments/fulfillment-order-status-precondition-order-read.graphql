@@ -1,7 +1,7 @@
 query FulfillmentOrderStatusPreconditionOrderRead($orderId: ID!) {
   order(id: $orderId) {
     id
-    fulfillmentOrders(first: 10, includeClosed: true) {
+    fulfillmentOrders(first: 10) {
       nodes {
         id
         status

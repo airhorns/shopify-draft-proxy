@@ -4,12 +4,12 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["runtime-staging", "user-errors-parity", "local-state-parity", "no-upstream-passthrough"],
   "liveCaptureFiles": [
-    "fixtures/conformance/local-runtime/2026-04/shipping-fulfillments/fulfillment-order-open-report-progress-preconditions-local-runtime.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-open-report-progress-preconditions.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/platform.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-status-precondition-open.graphql",
-    "variablesCapturePath": "$.openClosed.variables",
+    "variablesCapturePath": "$.closed.open.variables",
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
@@ -19,40 +19,60 @@
     "targets": [
       {
         "name": "open-closed-rejected",
-        "capturePath": "$.expected.openClosed.data.fulfillmentOrderOpen",
+        "capturePath": "$.closed.open.response.payload.data.fulfillmentOrderOpen",
         "proxyPath": "$.data.fulfillmentOrderOpen"
       },
       {
         "name": "after-open-closed-read",
-        "capturePath": "$.expected.afterOpenClosedRead.data.order",
+        "capturePath": "$.closed.afterOpenRead.response.payload.data.order",
         "proxyPath": "$.data.order",
         "proxyRequest": {
           "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-status-precondition-order-read.graphql",
-          "variablesCapturePath": "$.openClosed.readVariables",
+          "variablesCapturePath": "$.closed.afterOpenRead.variables",
           "apiVersion": "2026-04"
         }
       },
       {
-        "name": "report-progress-scheduled-rejected",
-        "capturePath": "$.expected.progressScheduled.data.fulfillmentOrderReportProgress",
+        "name": "open-on-hold-rejected",
+        "capturePath": "$.onHold.open.response.payload.data.fulfillmentOrderOpen",
+        "proxyPath": "$.data.fulfillmentOrderOpen",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-status-precondition-open.graphql",
+          "variablesCapturePath": "$.onHold.open.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "after-open-on-hold-read",
+        "capturePath": "$.onHold.afterOpenRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-status-precondition-order-read.graphql",
+          "variablesCapturePath": "$.onHold.afterOpenRead.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "report-progress-on-hold-rejected",
+        "capturePath": "$.onHold.reportProgress.response.payload.data.fulfillmentOrderReportProgress",
         "proxyPath": "$.data.fulfillmentOrderReportProgress",
         "proxyRequest": {
           "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-status-precondition-report-progress.graphql",
-          "variablesCapturePath": "$.progressScheduled.variables",
+          "variablesCapturePath": "$.onHold.reportProgress.variables",
           "apiVersion": "2026-04"
         }
       },
       {
-        "name": "after-report-progress-scheduled-read",
-        "capturePath": "$.expected.afterProgressScheduledRead.data.order",
+        "name": "after-report-progress-on-hold-read",
+        "capturePath": "$.onHold.afterReportProgressRead.response.payload.data.order",
         "proxyPath": "$.data.order",
         "proxyRequest": {
           "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-status-precondition-order-read.graphql",
-          "variablesCapturePath": "$.progressScheduled.readVariables",
+          "variablesCapturePath": "$.onHold.afterReportProgressRead.variables",
           "apiVersion": "2026-04"
         }
       }
     ]
   },
-  "notes": "Executable local-runtime parity for the fulfillmentOrderOpen and fulfillmentOrderReportProgress status precondition guardrails. The scenario earns fulfillment-order state through cassette-backed hydrate reads, then proves invalid status mutations return INVALID_FULFILLMENT_ORDER_STATUS and do not restamp status, supportedActions, or updatedAt. These targets would have failed against the previous simple-status handler that always staged the requested status."
+  "notes": "Captured Admin GraphQL 2026-04 parity for fulfillmentOrderOpen invalid CLOSED/ON_HOLD states and fulfillmentOrderReportProgress invalid ON_HOLD state. The scenario hydrates each live fulfillment order through recorded upstream calls, then proves rejected mutations return public field/message userErrors and leave downstream order reads unchanged. The disposable conformance shop did not expose a queryable CANCELLED fulfillment-order status during capture; the local runtime test covers the CANCELLED branch from store state while this live spec anchors the shared public error shape. SCHEDULED report-progress remains covered by the focused runtime test because the current public setup path rejects rescheduling a plain OPEN fulfillment order."
 }

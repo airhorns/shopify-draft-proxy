@@ -1,0 +1,38 @@
+{
+  "scenarioId": "inventory-adjust-zero-delta-noop",
+  "operationNames": ["inventoryAdjustQuantities"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "no-op-parity", "mutation-side-effect-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-adjust-zero-delta-noop.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-adjust-zero-delta-noop.graphql",
+    "variablesCapturePath": "$.allZero.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "all-zero-adjustment-group-null",
+        "capturePath": "$.allZero.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities"
+      },
+      {
+        "name": "mixed-zero-nonzero-adjustment-group",
+        "capturePath": "$.mixedZeroAndNonzero.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-zero-delta-noop.graphql",
+          "variablesCapturePath": "$.mixedZeroAndNonzero.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Captured 2026-04 evidence for inventoryAdjustQuantities no-op behavior. Shopify returns inventoryAdjustmentGroup null with no userErrors when every submitted delta resolves to zero, and a mixed zero/non-zero call returns a non-null adjustment group whose changes omit the zero-delta input row while retaining the non-zero available adjustment."
+}
