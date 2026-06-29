@@ -1,0 +1,513 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "setup": {
+    "fallbackLocation": {
+      "id": "gid://shopify/Location/112829759794",
+      "name": "HAR-571 transfer destination 20260505000619"
+    },
+    "primaryProduct": {
+      "productId": "gid://shopify/Product/10224756982066",
+      "variantId": "gid://shopify/ProductVariant/51390963974450",
+      "inventoryItemId": "gid://shopify/InventoryItem/53495895949618",
+      "location": {
+        "id": "gid://shopify/Location/106318430514",
+        "name": "Shop location"
+      },
+      "create": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10224756982066",
+              "title": "Hermes Inventory Adjust Ledger Validation 1782770100605",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51390963974450",
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53495895949618",
+                      "tracked": false,
+                      "requiresShipping": true
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 14,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "track": {
+        "data": {
+          "productVariantsBulkUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/10224756982066",
+              "tracksInventory": true,
+              "totalInventory": 0
+            },
+            "productVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/51390963974450",
+                "inventoryQuantity": 0,
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53495895949618",
+                  "tracked": true,
+                  "requiresShipping": true
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "inventoryItemLevel": {
+        "data": {
+          "inventoryItem": {
+            "id": "gid://shopify/InventoryItem/53495895949618",
+            "inventoryLevels": {
+              "nodes": [
+                {
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 0
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "secondaryProduct": {
+      "productId": "gid://shopify/Product/10224757014834",
+      "variantId": "gid://shopify/ProductVariant/51390964007218",
+      "inventoryItemId": "gid://shopify/InventoryItem/53495895982386",
+      "location": {
+        "id": "gid://shopify/Location/106318430514",
+        "name": "Shop location"
+      },
+      "create": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10224757014834",
+              "title": "Hermes Inventory Adjust Ledger Validation Secondary 1782770100605",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51390964007218",
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53495895982386",
+                      "tracked": false,
+                      "requiresShipping": true
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 14,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "track": {
+        "data": {
+          "productVariantsBulkUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/10224757014834",
+              "tracksInventory": true,
+              "totalInventory": 0
+            },
+            "productVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/51390964007218",
+                "inventoryQuantity": 0,
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53495895982386",
+                  "tracked": true,
+                  "requiresShipping": true
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "inventoryItemLevel": {
+        "data": {
+          "inventoryItem": {
+            "id": "gid://shopify/InventoryItem/53495895982386",
+            "inventoryLevels": {
+              "nodes": [
+                {
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 0
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "missingLedgerDocument": {
+    "variables": {
+      "input": {
+        "name": "damaged",
+        "reason": "damaged",
+        "changes": [
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/53495895949618",
+            "locationId": "gid://shopify/Location/106318430514",
+            "delta": 5,
+            "changeFromQuantity": 0
+          }
+        ]
+      },
+      "idempotencyKey": "inventory-adjust-ledger-required-1782770100605"
+    },
+    "response": {
+      "data": {
+        "inventoryAdjustQuantities": {
+          "inventoryAdjustmentGroup": null,
+          "userErrors": [
+            {
+              "field": ["input", "changes", "0", "ledgerDocumentUri"],
+              "message": "A ledger document URI is required except when adjusting available.",
+              "code": "INVALID_QUANTITY_DOCUMENT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "availableLedgerDocument": {
+    "variables": {
+      "input": {
+        "name": "available",
+        "reason": "correction",
+        "changes": [
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/53495895949618",
+            "locationId": "gid://shopify/Location/106318430514",
+            "delta": 5,
+            "changeFromQuantity": 0,
+            "ledgerDocumentUri": "https://example.com/inventory-ledger/available/1782770100605"
+          }
+        ]
+      },
+      "idempotencyKey": "inventory-adjust-ledger-available-1782770100605"
+    },
+    "response": {
+      "data": {
+        "inventoryAdjustQuantities": {
+          "inventoryAdjustmentGroup": null,
+          "userErrors": [
+            {
+              "field": ["input", "changes", "0", "ledgerDocumentUri"],
+              "message": "A ledger document URI is not allowed when adjusting available.",
+              "code": "INVALID_AVAILABLE_DOCUMENT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "internalLedgerDocument": {
+    "variables": {
+      "input": {
+        "name": "reserved",
+        "reason": "correction",
+        "changes": [
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/53495895949618",
+            "locationId": "gid://shopify/Location/106318430514",
+            "delta": 5,
+            "changeFromQuantity": 0,
+            "ledgerDocumentUri": "gid://shopify/Order/123"
+          }
+        ]
+      },
+      "idempotencyKey": "inventory-adjust-ledger-internal-1782770100605"
+    },
+    "response": {
+      "data": {
+        "inventoryAdjustQuantities": {
+          "inventoryAdjustmentGroup": null,
+          "userErrors": [
+            {
+              "field": ["input", "changes", "0", "ledgerDocumentUri"],
+              "message": "Internal (gid://shopify/) ledger documents are not allowed to be adjusted via API.",
+              "code": "INTERNAL_LEDGER_DOCUMENT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "maxOneLedgerDocument": {
+    "variables": {
+      "input": {
+        "name": "damaged",
+        "reason": "damaged",
+        "changes": [
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/53495895949618",
+            "locationId": "gid://shopify/Location/106318430514",
+            "delta": 5,
+            "changeFromQuantity": 0,
+            "ledgerDocumentUri": "https://example.com/inventory-ledger/first/1782770100605"
+          },
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/53495895982386",
+            "locationId": "gid://shopify/Location/106318430514",
+            "delta": 6,
+            "changeFromQuantity": 0,
+            "ledgerDocumentUri": "https://example.com/inventory-ledger/second/1782770100605"
+          }
+        ]
+      },
+      "idempotencyKey": "inventory-adjust-ledger-max-one-1782770100605"
+    },
+    "response": {
+      "data": {
+        "inventoryAdjustQuantities": {
+          "inventoryAdjustmentGroup": null,
+          "userErrors": [
+            {
+              "field": ["input", "changes"],
+              "message": "All changes must have the same ledger document URI or, in the case of adjusting available, no ledger document URI.",
+              "code": "MAX_ONE_LEDGER_DOCUMENT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validNonAvailableLedgerDocument": {
+    "variables": {
+      "input": {
+        "name": "incoming",
+        "reason": "received",
+        "changes": [
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/53495895949618",
+            "locationId": "gid://shopify/Location/106318430514",
+            "delta": 5,
+            "changeFromQuantity": 0,
+            "ledgerDocumentUri": "https://example.com/inventory-ledger/valid/1782770100605"
+          }
+        ]
+      },
+      "idempotencyKey": "inventory-adjust-ledger-valid-1782770100605"
+    },
+    "response": {
+      "data": {
+        "inventoryAdjustQuantities": {
+          "inventoryAdjustmentGroup": {
+            "id": "gid://shopify/InventoryAdjustmentGroup/54708765425970",
+            "createdAt": "2026-06-29T21:55:03Z",
+            "reason": "received",
+            "changes": [
+              {
+                "name": "incoming",
+                "delta": 5,
+                "quantityAfterChange": null,
+                "ledgerDocumentUri": "https://example.com/inventory-ledger/valid/1782770100605",
+                "item": {
+                  "id": "gid://shopify/InventoryItem/53495895949618"
+                },
+                "location": {
+                  "id": "gid://shopify/Location/106318430514"
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10224756982066",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10224757014834",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  ]
+}
