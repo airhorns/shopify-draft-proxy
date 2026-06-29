@@ -2375,6 +2375,31 @@ fn metaobject_updated_publishable_status(
         .unwrap_or_else(|| metaobject_publishable_status(input, definition))
 }
 
+fn metaobject_online_store_template_suffix_input(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let capabilities = resolved_object_field(input, "capabilities")?;
+    let online_store = resolved_object_field(&capabilities, "onlineStore")?;
+    match online_store.get("templateSuffix") {
+        Some(ResolvedValue::String(template_suffix)) => Some(json!(template_suffix)),
+        Some(ResolvedValue::Null) => Some(Value::Null),
+        _ => None,
+    }
+}
+
+fn metaobject_existing_online_store_template_suffix(existing: &Value) -> Option<Value> {
+    let online_store = existing
+        .get("capabilities")?
+        .get("onlineStore")?
+        .as_object()?;
+    Some(
+        online_store
+            .get("templateSuffix")
+            .cloned()
+            .unwrap_or(Value::Null),
+    )
+}
+
 fn metaobject_required_field_errors_for_upsert(
     errors: Vec<Value>,
     definition: &Value,
@@ -2397,14 +2422,19 @@ fn metaobject_required_field_errors_for_upsert(
         .collect()
 }
 
+struct MetaobjectRecordOptions<'a> {
+    display_name: &'a str,
+    publishable_status: &'a str,
+    online_store_template_suffix: Value,
+    updated_at: &'a str,
+}
+
 fn metaobject_record_from_definition_with_options(
     id: &str,
     handle: &str,
     definition: &Value,
     input_values: &BTreeMap<String, String>,
-    display_name: &str,
-    publishable_status: &str,
-    updated_at: &str,
+    options: MetaobjectRecordOptions<'_>,
 ) -> Value {
     let meta_type = definition["type"].as_str().unwrap_or_default();
     let fields = definition["fieldDefinitions"]
@@ -2432,16 +2462,16 @@ fn metaobject_record_from_definition_with_options(
         "id": id,
         "handle": handle,
         "type": meta_type,
-        "displayName": display_name,
-        "updatedAt": updated_at,
+        "displayName": options.display_name,
+        "updatedAt": options.updated_at,
         "capabilities": {
             "publishable": if definition["capabilities"]["publishable"]["enabled"].as_bool().unwrap_or(false) {
-                json!({"status": publishable_status})
+                json!({"status": options.publishable_status})
             } else {
                 Value::Null
             },
             "onlineStore": if definition["capabilities"]["onlineStore"]["enabled"].as_bool().unwrap_or(false) {
-                json!({"templateSuffix": Value::Null})
+                json!({"templateSuffix": options.online_store_template_suffix})
             } else {
                 Value::Null
             }
@@ -3159,9 +3189,13 @@ impl DraftProxy {
             &handle_choice.handle,
             &definition,
             &input_values,
-            &display_name,
-            &publishable_status,
-            "2026-01-01T00:00:00Z",
+            MetaobjectRecordOptions {
+                display_name: &display_name,
+                publishable_status: &publishable_status,
+                online_store_template_suffix: metaobject_online_store_template_suffix_input(input)
+                    .unwrap_or(Value::Null),
+                updated_at: "2026-01-01T00:00:00Z",
+            },
         );
         self.store
             .staged
@@ -3351,9 +3385,14 @@ impl DraftProxy {
             &next_handle,
             &definition,
             &input_values,
-            &display_name,
-            &publishable_status,
-            updated_at,
+            MetaobjectRecordOptions {
+                display_name: &display_name,
+                publishable_status: &publishable_status,
+                online_store_template_suffix: metaobject_online_store_template_suffix_input(&input)
+                    .or_else(|| metaobject_existing_online_store_template_suffix(&existing))
+                    .unwrap_or(Value::Null),
+                updated_at,
+            },
         );
         self.store
             .staged
@@ -3492,9 +3531,16 @@ impl DraftProxy {
                 &next_handle,
                 &definition,
                 &input_values,
-                &display_name,
-                &publishable_status,
-                updated_at,
+                MetaobjectRecordOptions {
+                    display_name: &display_name,
+                    publishable_status: &publishable_status,
+                    online_store_template_suffix: metaobject_online_store_template_suffix_input(
+                        &update_input,
+                    )
+                    .or_else(|| metaobject_existing_online_store_template_suffix(&existing))
+                    .unwrap_or(Value::Null),
+                    updated_at,
+                },
             );
             self.store
                 .staged

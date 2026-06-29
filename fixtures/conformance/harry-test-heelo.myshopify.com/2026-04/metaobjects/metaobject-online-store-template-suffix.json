@@ -1,0 +1,794 @@
+{
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-06-27T14:16:58.575Z",
+  "scenarioId": "metaobject-online-store-template-suffix",
+  "notes": "Captured live 2026-04 evidence that entry capabilities.onlineStore.templateSuffix is persisted for metaobjectCreate, preserved by unrelated metaobjectUpdate/metaobjectUpsert updates, and updated when supplied explicitly.",
+  "type": "codex_template_suffix_1782569816525",
+  "definitionCreate": {
+    "name": "definition-create",
+    "request": {
+      "query": "mutation MetaobjectOnlineStoreTemplateSuffixDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      capabilities {\n        publishable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n          data {\n            urlHandle\n            canCreateRedirects\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "codex_template_suffix_1782569816525",
+          "name": "Template suffix 1782569816525",
+          "displayNameKey": "title",
+          "access": {
+            "storefront": "PUBLIC_READ"
+          },
+          "capabilities": {
+            "publishable": {
+              "enabled": true
+            },
+            "renderable": {
+              "enabled": true,
+              "data": {
+                "metaTitleKey": "title"
+              }
+            },
+            "onlineStore": {
+              "enabled": true,
+              "data": {
+                "urlHandle": "template-suffix-1782569816525"
+              }
+            }
+          },
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "type": "single_line_text_field",
+              "required": true
+            },
+            {
+              "key": "body",
+              "name": "Body",
+              "type": "single_line_text_field",
+              "required": false
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/19401933106",
+            "type": "codex_template_suffix_1782569816525",
+            "capabilities": {
+              "publishable": {
+                "enabled": true
+              },
+              "renderable": {
+                "enabled": true
+              },
+              "onlineStore": {
+                "enabled": true,
+                "data": {
+                  "urlHandle": "template-suffix-1782569816525",
+                  "canCreateRedirects": true
+                }
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "createOmitted": {
+    "name": "create-omitted",
+    "request": {
+      "query": "mutation MetaobjectOnlineStoreTemplateSuffixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      capabilities {\n        publishable {\n          status\n        }\n        onlineStore {\n          templateSuffix\n        }\n      }\n      fields {\n        key\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "metaobject": {
+          "type": "codex_template_suffix_1782569816525",
+          "handle": "omitted-1782569816525",
+          "capabilities": {
+            "publishable": {
+              "status": "ACTIVE"
+            }
+          },
+          "fields": [
+            {
+              "key": "title",
+              "value": "Omitted"
+            },
+            {
+              "key": "body",
+              "value": "Omitted body"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectCreate": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/202793943346",
+            "handle": "omitted-1782569816525",
+            "type": "codex_template_suffix_1782569816525",
+            "displayName": "Omitted",
+            "capabilities": {
+              "publishable": {
+                "status": "ACTIVE"
+              },
+              "onlineStore": {
+                "templateSuffix": null
+              }
+            },
+            "fields": [
+              {
+                "key": "title",
+                "value": "Omitted"
+              },
+              {
+                "key": "body",
+                "value": "Omitted body"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "createEmpty": {
+    "name": "create-empty",
+    "request": {
+      "query": "mutation MetaobjectOnlineStoreTemplateSuffixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      capabilities {\n        publishable {\n          status\n        }\n        onlineStore {\n          templateSuffix\n        }\n      }\n      fields {\n        key\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "metaobject": {
+          "type": "codex_template_suffix_1782569816525",
+          "handle": "empty-1782569816525",
+          "capabilities": {
+            "publishable": {
+              "status": "ACTIVE"
+            },
+            "onlineStore": {
+              "templateSuffix": ""
+            }
+          },
+          "fields": [
+            {
+              "key": "title",
+              "value": "Empty"
+            },
+            {
+              "key": "body",
+              "value": "Empty body"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectCreate": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/202793976114",
+            "handle": "empty-1782569816525",
+            "type": "codex_template_suffix_1782569816525",
+            "displayName": "Empty",
+            "capabilities": {
+              "publishable": {
+                "status": "ACTIVE"
+              },
+              "onlineStore": {
+                "templateSuffix": ""
+              }
+            },
+            "fields": [
+              {
+                "key": "title",
+                "value": "Empty"
+              },
+              {
+                "key": "body",
+                "value": "Empty body"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "createCustom": {
+    "name": "create-custom",
+    "request": {
+      "query": "mutation MetaobjectOnlineStoreTemplateSuffixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      capabilities {\n        publishable {\n          status\n        }\n        onlineStore {\n          templateSuffix\n        }\n      }\n      fields {\n        key\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "metaobject": {
+          "type": "codex_template_suffix_1782569816525",
+          "handle": "custom-1782569816525",
+          "capabilities": {
+            "publishable": {
+              "status": "ACTIVE"
+            },
+            "onlineStore": {
+              "templateSuffix": "custom"
+            }
+          },
+          "fields": [
+            {
+              "key": "title",
+              "value": "Custom"
+            },
+            {
+              "key": "body",
+              "value": "Original body"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectCreate": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/202794008882",
+            "handle": "custom-1782569816525",
+            "type": "codex_template_suffix_1782569816525",
+            "displayName": "Custom",
+            "capabilities": {
+              "publishable": {
+                "status": "ACTIVE"
+              },
+              "onlineStore": {
+                "templateSuffix": "custom"
+              }
+            },
+            "fields": [
+              {
+                "key": "title",
+                "value": "Custom"
+              },
+              {
+                "key": "body",
+                "value": "Original body"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterCustomCreate": {
+    "name": "read-after-custom-create",
+    "request": {
+      "query": "query MetaobjectOnlineStoreTemplateSuffixRead($id: ID!, $handle: MetaobjectHandleInput!) {\n  detail: metaobject(id: $id) {\n    id\n    handle\n    type\n    displayName\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      value\n    }\n  }\n  byHandle: metaobjectByHandle(handle: $handle) {\n    id\n    handle\n    type\n    displayName\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      value\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Metaobject/202794008882",
+        "handle": {
+          "type": "codex_template_suffix_1782569816525",
+          "handle": "custom-1782569816525"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "detail": {
+          "id": "gid://shopify/Metaobject/202794008882",
+          "handle": "custom-1782569816525",
+          "type": "codex_template_suffix_1782569816525",
+          "displayName": "Custom",
+          "capabilities": {
+            "publishable": {
+              "status": "ACTIVE"
+            },
+            "onlineStore": {
+              "templateSuffix": "custom"
+            }
+          },
+          "fields": [
+            {
+              "key": "title",
+              "value": "Custom"
+            },
+            {
+              "key": "body",
+              "value": "Original body"
+            }
+          ]
+        },
+        "byHandle": {
+          "id": "gid://shopify/Metaobject/202794008882",
+          "handle": "custom-1782569816525",
+          "type": "codex_template_suffix_1782569816525",
+          "displayName": "Custom",
+          "capabilities": {
+            "publishable": {
+              "status": "ACTIVE"
+            },
+            "onlineStore": {
+              "templateSuffix": "custom"
+            }
+          },
+          "fields": [
+            {
+              "key": "title",
+              "value": "Custom"
+            },
+            {
+              "key": "body",
+              "value": "Original body"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "unrelatedUpdate": {
+    "name": "unrelated-update",
+    "request": {
+      "query": "mutation MetaobjectOnlineStoreTemplateSuffixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      capabilities {\n        publishable {\n          status\n        }\n        onlineStore {\n          templateSuffix\n        }\n      }\n      fields {\n        key\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Metaobject/202794008882",
+        "metaobject": {
+          "fields": [
+            {
+              "key": "body",
+              "value": "Changed body"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectUpdate": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/202794008882",
+            "handle": "custom-1782569816525",
+            "type": "codex_template_suffix_1782569816525",
+            "displayName": "Custom",
+            "capabilities": {
+              "publishable": {
+                "status": "ACTIVE"
+              },
+              "onlineStore": {
+                "templateSuffix": "custom"
+              }
+            },
+            "fields": [
+              {
+                "key": "title",
+                "value": "Custom"
+              },
+              {
+                "key": "body",
+                "value": "Changed body"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterUnrelatedUpdate": {
+    "name": "read-after-unrelated-update",
+    "request": {
+      "query": "query MetaobjectOnlineStoreTemplateSuffixRead($id: ID!, $handle: MetaobjectHandleInput!) {\n  detail: metaobject(id: $id) {\n    id\n    handle\n    type\n    displayName\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      value\n    }\n  }\n  byHandle: metaobjectByHandle(handle: $handle) {\n    id\n    handle\n    type\n    displayName\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      value\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Metaobject/202794008882",
+        "handle": {
+          "type": "codex_template_suffix_1782569816525",
+          "handle": "custom-1782569816525"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "detail": {
+          "id": "gid://shopify/Metaobject/202794008882",
+          "handle": "custom-1782569816525",
+          "type": "codex_template_suffix_1782569816525",
+          "displayName": "Custom",
+          "capabilities": {
+            "publishable": {
+              "status": "ACTIVE"
+            },
+            "onlineStore": {
+              "templateSuffix": "custom"
+            }
+          },
+          "fields": [
+            {
+              "key": "title",
+              "value": "Custom"
+            },
+            {
+              "key": "body",
+              "value": "Changed body"
+            }
+          ]
+        },
+        "byHandle": {
+          "id": "gid://shopify/Metaobject/202794008882",
+          "handle": "custom-1782569816525",
+          "type": "codex_template_suffix_1782569816525",
+          "displayName": "Custom",
+          "capabilities": {
+            "publishable": {
+              "status": "ACTIVE"
+            },
+            "onlineStore": {
+              "templateSuffix": "custom"
+            }
+          },
+          "fields": [
+            {
+              "key": "title",
+              "value": "Custom"
+            },
+            {
+              "key": "body",
+              "value": "Changed body"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "explicitUpdate": {
+    "name": "explicit-update",
+    "request": {
+      "query": "mutation MetaobjectOnlineStoreTemplateSuffixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      capabilities {\n        publishable {\n          status\n        }\n        onlineStore {\n          templateSuffix\n        }\n      }\n      fields {\n        key\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Metaobject/202794008882",
+        "metaobject": {
+          "capabilities": {
+            "onlineStore": {
+              "templateSuffix": "updated"
+            }
+          }
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectUpdate": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/202794008882",
+            "handle": "custom-1782569816525",
+            "type": "codex_template_suffix_1782569816525",
+            "displayName": "Custom",
+            "capabilities": {
+              "publishable": {
+                "status": "ACTIVE"
+              },
+              "onlineStore": {
+                "templateSuffix": "updated"
+              }
+            },
+            "fields": [
+              {
+                "key": "title",
+                "value": "Custom"
+              },
+              {
+                "key": "body",
+                "value": "Changed body"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upsertCreate": {
+    "name": "upsert-create",
+    "request": {
+      "query": "mutation MetaobjectOnlineStoreTemplateSuffixUpsert(\n  $handle: MetaobjectHandleInput!\n  $metaobject: MetaobjectUpsertInput!\n) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      capabilities {\n        publishable {\n          status\n        }\n        onlineStore {\n          templateSuffix\n        }\n      }\n      fields {\n        key\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "handle": {
+          "type": "codex_template_suffix_1782569816525",
+          "handle": "upserted-1782569816525"
+        },
+        "metaobject": {
+          "fields": [
+            {
+              "key": "title",
+              "value": "Upserted"
+            },
+            {
+              "key": "body",
+              "value": "Original upsert body"
+            }
+          ],
+          "capabilities": {
+            "onlineStore": {
+              "templateSuffix": "upserted"
+            }
+          }
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectUpsert": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/202794041650",
+            "handle": "upserted-1782569816525",
+            "type": "codex_template_suffix_1782569816525",
+            "displayName": "Upserted",
+            "capabilities": {
+              "publishable": {
+                "status": "DRAFT"
+              },
+              "onlineStore": {
+                "templateSuffix": "upserted"
+              }
+            },
+            "fields": [
+              {
+                "key": "title",
+                "value": "Upserted"
+              },
+              {
+                "key": "body",
+                "value": "Original upsert body"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upsertUpdatePreserve": {
+    "name": "upsert-update-preserve",
+    "request": {
+      "query": "mutation MetaobjectOnlineStoreTemplateSuffixUpsert(\n  $handle: MetaobjectHandleInput!\n  $metaobject: MetaobjectUpsertInput!\n) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      capabilities {\n        publishable {\n          status\n        }\n        onlineStore {\n          templateSuffix\n        }\n      }\n      fields {\n        key\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "handle": {
+          "type": "codex_template_suffix_1782569816525",
+          "handle": "upserted-1782569816525"
+        },
+        "metaobject": {
+          "fields": [
+            {
+              "key": "title",
+              "value": "Upserted"
+            },
+            {
+              "key": "body",
+              "value": "Changed upsert body"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectUpsert": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/202794041650",
+            "handle": "upserted-1782569816525",
+            "type": "codex_template_suffix_1782569816525",
+            "displayName": "Upserted",
+            "capabilities": {
+              "publishable": {
+                "status": "DRAFT"
+              },
+              "onlineStore": {
+                "templateSuffix": "upserted"
+              }
+            },
+            "fields": [
+              {
+                "key": "title",
+                "value": "Upserted"
+              },
+              {
+                "key": "body",
+                "value": "Changed upsert body"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upsertUpdateEmpty": {
+    "name": "upsert-update-empty",
+    "request": {
+      "query": "mutation MetaobjectOnlineStoreTemplateSuffixUpsert(\n  $handle: MetaobjectHandleInput!\n  $metaobject: MetaobjectUpsertInput!\n) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      capabilities {\n        publishable {\n          status\n        }\n        onlineStore {\n          templateSuffix\n        }\n      }\n      fields {\n        key\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "handle": {
+          "type": "codex_template_suffix_1782569816525",
+          "handle": "upserted-1782569816525"
+        },
+        "metaobject": {
+          "fields": [
+            {
+              "key": "title",
+              "value": "Upserted"
+            },
+            {
+              "key": "body",
+              "value": "Changed upsert body"
+            }
+          ],
+          "capabilities": {
+            "onlineStore": {
+              "templateSuffix": ""
+            }
+          }
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectUpsert": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/202794041650",
+            "handle": "upserted-1782569816525",
+            "type": "codex_template_suffix_1782569816525",
+            "displayName": "Upserted",
+            "capabilities": {
+              "publishable": {
+                "status": "DRAFT"
+              },
+              "onlineStore": {
+                "templateSuffix": ""
+              }
+            },
+            "fields": [
+              {
+                "key": "title",
+                "value": "Upserted"
+              },
+              {
+                "key": "body",
+                "value": "Changed upsert body"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

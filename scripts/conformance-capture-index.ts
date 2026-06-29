@@ -3561,6 +3561,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-online-store-template-suffix',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-online-store-template-suffix-conformance.ts',
+    purpose:
+      'Entry-level onlineStore.templateSuffix create, update preservation, explicit update, downstream readback, and upsert create/update behavior.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-online-store-template-suffix.json`,
+      'config/parity-specs/metaobjects/metaobject-online-store-template-suffix.json',
+      'config/parity-requests/metaobjects/metaobject-online-store-template-suffix-definition-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-online-store-template-suffix-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-online-store-template-suffix-update.graphql',
+      'config/parity-requests/metaobjects/metaobject-online-store-template-suffix-upsert.graphql',
+      'config/parity-requests/metaobjects/metaobject-online-store-template-suffix-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable online-store metaobject definition and several rows, captures templateSuffix lifecycle behavior, then deletes rows and the definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'standard-metaobject-definition-enable-catalog',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-standard-metaobject-template-catalog-conformance.ts',
