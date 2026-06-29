@@ -189,11 +189,28 @@ impl DraftProxy {
     /// legacy default) reduced by the number of customers deleted/merged-away in
     /// this scenario, so `customersCount` tracks merges generically.
     pub(in crate::proxy) fn customers_count_value(&self) -> u64 {
-        self.store
+        let live_staged_count = self.store.staged.customers.len() as u64;
+        let Some(base_count) = self.store.staged.customers_count_base else {
+            return live_staged_count;
+        };
+        let locally_created = self
+            .store
             .staged
-            .customers_count_base
-            .unwrap_or(177)
-            .saturating_sub(self.store.staged.customers.tombstones.len() as u64)
+            .locally_created_customer_ids
+            .iter()
+            .filter(|id| self.store.staged.customers.contains_key(id))
+            .count() as u64;
+        let deleted_base_customers = self
+            .store
+            .staged
+            .customers
+            .tombstones
+            .iter()
+            .filter(|id| !self.store.staged.locally_created_customer_ids.contains(*id))
+            .count() as u64;
+        base_count
+            .saturating_add(locally_created)
+            .saturating_sub(deleted_base_customers)
     }
 
     /// `customerMergeJobStatus(jobId:)` read: project the requested selection over
@@ -300,6 +317,21 @@ impl DraftProxy {
                 &field.arguments,
                 &field.selection,
             )),
+            "metafield" | "metafields" => {
+                let base = selected_json(customer, std::slice::from_ref(field));
+                let projected = self.owner_metafield_overlay_owner_json(
+                    "customer",
+                    id,
+                    std::slice::from_ref(field),
+                    base,
+                );
+                Some(
+                    projected
+                        .get(field.response_key.as_str())
+                        .cloned()
+                        .unwrap_or(Value::Null),
+                )
+            }
             _ => selected_json(customer, std::slice::from_ref(field))
                 .as_object()
                 .and_then(|object| object.get(&field.response_key).cloned()),
@@ -889,14 +921,7 @@ impl DraftProxy {
             .get(&customer_id)
             .cloned()
             .unwrap_or(Value::Null);
-        let order_email = resolved_string_field(&order_input, "email").unwrap_or_default();
-        let id = if order_email.ends_with("example.test") {
-            let ordinal = self.next_synthetic_id.saturating_sub(1);
-            shopify_gid("Order", ordinal.max(1))
-        } else {
-            synthetic_shopify_gid("Order", self.next_synthetic_id)
-        };
-        self.next_synthetic_id += 1;
+        let id = self.next_proxy_synthetic_gid("Order");
         let order = json!({ "id": id, "customer": customer });
         if !customer_id.is_empty() {
             self.store
@@ -946,7 +971,7 @@ impl DraftProxy {
             let rendered = if has_top_error {
                 Value::Null
             } else {
-                selected_json(&payload, &field.selection)
+                self.selected_customer_mutation_payload(&payload, &field.selection)
             };
             Some(rendered)
         });
@@ -955,6 +980,29 @@ impl DraftProxy {
             body["errors"] = Value::Array(errors);
         }
         ok_json(body)
+    }
+
+    fn selected_customer_mutation_payload(
+        &self,
+        payload: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "customer" => {
+                let customer = &payload["customer"];
+                if customer.is_null() {
+                    return Some(Value::Null);
+                }
+                let id = customer
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                Some(self.customer_with_order_connection(id, customer, &field.selection))
+            }
+            _ => selected_json(payload, std::slice::from_ref(field))
+                .as_object()
+                .and_then(|object| object.get(&field.response_key).cloned()),
+        })
     }
 
     fn customer_mutation_payload(
@@ -1069,6 +1117,21 @@ impl DraftProxy {
             .staged
             .customers
             .insert(id.clone(), customer.clone());
+        self.store
+            .staged
+            .locally_created_customer_ids
+            .insert(id.clone());
+        if input.contains_key("metafields") {
+            self.stage_owner_metafields_from_input(&id, &input);
+            self.sync_customer_metafields_from_owner_store(&id);
+        }
+        let customer = self
+            .store
+            .staged
+            .customers
+            .get(&id)
+            .cloned()
+            .unwrap_or(customer);
         (customer_payload(customer, Vec::new()), vec![id], Vec::new())
     }
 
@@ -1727,6 +1790,21 @@ impl DraftProxy {
             .staged
             .customers
             .insert(id.clone(), customer.clone());
+        self.store
+            .staged
+            .locally_created_customer_ids
+            .insert(id.clone());
+        if input.contains_key("metafields") {
+            self.stage_owner_metafields_from_input(&id, input);
+            self.sync_customer_metafields_from_owner_store(&id);
+        }
+        let customer = self
+            .store
+            .staged
+            .customers
+            .get(&id)
+            .cloned()
+            .unwrap_or(customer);
         (customer_payload(customer, Vec::new()), vec![id], Vec::new())
     }
 
@@ -1767,11 +1845,37 @@ impl DraftProxy {
             .staged
             .customers
             .insert(id.to_string(), customer.clone());
+        if input.contains_key("metafields") {
+            self.stage_owner_metafields_from_input(id, input);
+            self.sync_customer_metafields_from_owner_store(id);
+        }
+        let customer = self
+            .store
+            .staged
+            .customers
+            .get(id)
+            .cloned()
+            .unwrap_or(customer);
         (
             customer_payload(customer, Vec::new()),
             vec![id.to_string()],
             Vec::new(),
         )
+    }
+
+    fn sync_customer_metafields_from_owner_store(&mut self, customer_id: &str) {
+        let metafields = self
+            .store
+            .staged
+            .owner_metafields
+            .get(customer_id)
+            .cloned()
+            .unwrap_or_default();
+        if let Some(customer) = self.store.staged.customers.get_mut(customer_id) {
+            customer["metafields"] = nodes_connection(metafields.clone());
+            let first = metafields.first().cloned().unwrap_or(Value::Null);
+            customer["metafield"] = first;
+        }
     }
 
     fn customer_existing_for_update(&mut self, request: &Request, id: &str) -> Option<Value> {
@@ -2019,9 +2123,6 @@ impl DraftProxy {
         }
         if input.contains_key("taxExemptions") {
             normalized.tax_exemptions = Some(list_string_field(input, "taxExemptions"));
-        }
-        if input.contains_key("metafields") {
-            normalized.loyalty = Some(customer_loyalty_metafield(input));
         }
         if let Some(address_values) = resolved_list_field(input, "addresses") {
             let (addresses, address_errors) =
@@ -2519,7 +2620,9 @@ impl DraftProxy {
             };
         }
 
-        let updated_at = consent_updated_at.unwrap_or_else(|| self.next_product_timestamp());
+        let updated_at = consent_updated_at
+            .or_else(|| current_consent_updated_at(&existing_customer, is_email))
+            .unwrap_or_else(|| self.next_product_timestamp());
         let mut customer = existing_customer;
         apply_customer_marketing_consent(
             &mut customer,
@@ -2698,6 +2801,19 @@ fn current_consent_opt_in_level(customer: &Value, is_email: bool) -> String {
         .to_string()
 }
 
+fn current_consent_updated_at(customer: &Value, is_email: bool) -> Option<String> {
+    let contact_key = if is_email {
+        "defaultEmailAddress"
+    } else {
+        "defaultPhoneNumber"
+    };
+    customer
+        .get(contact_key)
+        .and_then(|contact| contact.get("marketingUpdatedAt"))
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+}
+
 fn customer_consent_updated_at_is_future(value: &str) -> bool {
     let Some(updated_at) = parse_rfc3339_epoch_seconds(value) else {
         return false;
@@ -2719,7 +2835,6 @@ struct NormalizedCustomerInput {
     tags: Option<Vec<String>>,
     tax_exempt: Option<bool>,
     tax_exemptions: Option<Vec<String>>,
-    loyalty: Option<Value>,
     addresses: Option<Vec<Value>>,
 }
 
@@ -2896,11 +3011,6 @@ fn customer_record_from_parts(
             })
         })
         .unwrap_or_default();
-    let loyalty = input
-        .loyalty
-        .clone()
-        .or_else(|| existing.and_then(|customer| customer.get("loyalty").cloned()))
-        .unwrap_or(Value::Null);
     let addresses = input
         .addresses
         .clone()
@@ -2930,7 +3040,6 @@ fn customer_record_from_parts(
         tax_exempt,
         tax_exemptions,
         tags,
-        loyalty,
         addresses,
         created_at,
         updated_at: timestamp,
@@ -3001,7 +3110,6 @@ struct CustomerRecordInput<'a> {
     tax_exempt: bool,
     tax_exemptions: Vec<String>,
     tags: Vec<String>,
-    loyalty: Value,
     addresses: Vec<Value>,
     created_at: &'a str,
     updated_at: &'a str,
@@ -3156,19 +3264,6 @@ fn customer_record(input: CustomerRecordInput<'_>) -> Value {
     let first_value = input.first.filter(|value| !value.is_empty());
     let last_value = input.last.filter(|value| !value.is_empty());
     let display_name = customer_display_name(first_value, last_value, input.email);
-    let metafields = if input.loyalty.is_null() {
-        connection_json(Vec::new())
-    } else {
-        json!({
-            "nodes": [input.loyalty.clone()],
-            "pageInfo": connection_page_info(
-                false,
-                false,
-                Some("cursor:customer-metafield:1".to_string()),
-                Some("cursor:customer-metafield:1".to_string())
-            )
-        })
-    };
     let default_address = input.addresses.first().cloned().unwrap_or(Value::Null);
     let start_cursor = input.addresses.first().and_then(customer_address_cursor);
     let end_cursor = input.addresses.last().and_then(customer_address_cursor);
@@ -3192,9 +3287,8 @@ fn customer_record(input: CustomerRecordInput<'_>) -> Value {
         "tags": input.tags,
         "state": "DISABLED",
         "canDelete": true,
-        "loyalty": input.loyalty.clone(),
-        "metafield": input.loyalty,
-        "metafields": metafields,
+        "metafield": Value::Null,
+        "metafields": nodes_connection(Vec::new()),
         "defaultEmailAddress": default_email_address_value(input.email),
         "defaultPhoneNumber": default_phone_number_value(input.phone),
         "emailMarketingConsent": email_marketing_consent_value(input.email),
@@ -3331,7 +3425,7 @@ fn customer_mailing_address(
     };
     let province = match (&country, province_input.as_deref()) {
         (Some(country), Some(raw_province)) => {
-            match customer_province_from_input(country.code, raw_province) {
+            match customer_province_from_input(country.code.as_str(), raw_province) {
                 Some(province) => province,
                 None => {
                     errors.push(user_error_omit_code(
@@ -3345,9 +3439,6 @@ fn customer_mailing_address(
         }
         _ => None,
     };
-    let country = country.cloned();
-    let province = province.cloned();
-
     if !errors.is_empty() {
         return (Value::Null, errors);
     }
@@ -3369,8 +3460,8 @@ fn customer_mailing_address(
         company.as_deref(),
         zip.as_deref(),
         phone.as_deref(),
-        country.as_ref().map(|country| country.code),
-        province.as_ref().map(|province| province.code),
+        country.as_ref().map(|country| country.code.as_str()),
+        province.as_ref().map(|province| province.code.as_str()),
     ]
     .into_iter()
     .flatten()
@@ -3404,10 +3495,10 @@ fn customer_mailing_address(
             "address2": address2,
             "city": city,
             "company": company,
-            "province": province.as_ref().map(|province| province.name),
-            "provinceCode": province.as_ref().map(|province| province.code),
-            "country": country.as_ref().map(|country| country.name),
-            "countryCodeV2": country.as_ref().map(|country| country.code),
+            "province": province.as_ref().map(|province| province.name.as_str()),
+            "provinceCode": province.as_ref().map(|province| province.code.as_str()),
+            "country": country.as_ref().map(|country| country.name.as_str()),
+            "countryCodeV2": country.as_ref().map(|country| country.code.as_str()),
             "zip": zip,
             "phone": phone,
             "name": if name.is_empty() { Value::Null } else { json!(name) },
@@ -3569,7 +3660,7 @@ fn customer_address_input_node(
     };
     let province = match (&country, province_raw.as_deref()) {
         (Some(country), Some(raw_province)) => {
-            match customer_province_from_input(country.code, raw_province) {
+            match customer_province_from_input(country.code.as_str(), raw_province) {
                 Some(province) => province,
                 None => {
                     errors.push(user_error_omit_code(
@@ -3583,9 +3674,6 @@ fn customer_address_input_node(
         }
         _ => None,
     };
-    let country = country.cloned();
-    let province = province.cloned();
-
     if !errors.is_empty() {
         return (None, errors);
     }
@@ -3615,10 +3703,10 @@ fn customer_address_input_node(
             "address2": address2,
             "city": city,
             "company": company,
-            "province": province.as_ref().map(|province| province.name),
-            "provinceCode": province.as_ref().map(|province| province.code),
-            "country": country.as_ref().map(|country| country.name),
-            "countryCodeV2": country.as_ref().map(|country| country.code),
+            "province": province.as_ref().map(|province| province.name.as_str()),
+            "provinceCode": province.as_ref().map(|province| province.code.as_str()),
+            "country": country.as_ref().map(|country| country.name.as_str()),
+            "countryCodeV2": country.as_ref().map(|country| country.code.as_str()),
             "zip": zip,
             "phone": phone,
             "name": if name.is_empty() { Value::Null } else { json!(name) },
@@ -3628,16 +3716,16 @@ fn customer_address_input_node(
     )
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct CustomerCountry {
-    code: &'static str,
-    name: &'static str,
+    code: String,
+    name: String,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct CustomerProvince {
-    code: &'static str,
-    name: &'static str,
+    code: String,
+    name: String,
 }
 
 fn customer_address_string(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Option<String> {
@@ -3703,21 +3791,33 @@ fn customer_address_contains_emoji(value: &str) -> bool {
         .any(|c| matches!(c as u32, 0x1F300..=0x1FAFF | 0x2600..=0x27BF))
 }
 
-fn customer_country_from_input(value: &str) -> Option<&'static CustomerCountry> {
+fn customer_country_from_input(value: &str) -> Option<CustomerCountry> {
     let normalized = value.trim();
     if normalized.is_empty() {
         return None;
     }
-    CUSTOMER_COUNTRIES.iter().find(|country| {
-        country.code.eq_ignore_ascii_case(normalized)
-            || country.name.eq_ignore_ascii_case(normalized)
-    })
+    if let Some((code, name)) = CUSTOMER_COUNTRIES.iter().find(|(code, name)| {
+        code.eq_ignore_ascii_case(normalized) || name.eq_ignore_ascii_case(normalized)
+    }) {
+        return Some(CustomerCountry {
+            code: (*code).to_string(),
+            name: (*name).to_string(),
+        });
+    }
+    let code = normalized.to_ascii_uppercase();
+    if !location_country_code_is_valid(&code) {
+        return None;
+    }
+    let name = country_name_for_code(&code)
+        .map(str::to_string)
+        .unwrap_or_else(|| code.clone());
+    Some(CustomerCountry { code, name })
 }
 
 fn customer_province_from_input(
     country_code: &str,
     value: &str,
-) -> Option<Option<&'static CustomerProvince>> {
+) -> Option<Option<CustomerProvince>> {
     let normalized = value.trim();
     if normalized.is_empty() {
         return Some(None);
@@ -3728,17 +3828,22 @@ fn customer_province_from_input(
     }
     provinces
         .iter()
-        .find(|province| {
-            province.code.eq_ignore_ascii_case(normalized)
-                || province.name.eq_ignore_ascii_case(normalized)
+        .find(|(code, name)| {
+            code.eq_ignore_ascii_case(normalized) || name.eq_ignore_ascii_case(normalized)
         })
-        .map(Some)
+        .map(|(code, name)| {
+            Some(CustomerProvince {
+                code: (*code).to_string(),
+                name: (*name).to_string(),
+            })
+        })
 }
 
-fn customer_country_provinces(country_code: &str) -> &'static [CustomerProvince] {
+fn customer_country_provinces(country_code: &str) -> &'static [(&'static str, &'static str)] {
     match country_code {
         "CA" => CUSTOMER_CANADIAN_PROVINCES,
         "US" => CUSTOMER_US_PROVINCES,
+        "AU" => CUSTOMER_AUSTRALIAN_PROVINCES,
         _ => &[],
     }
 }
@@ -3752,7 +3857,7 @@ fn customer_formatted_area(
         return Value::Null;
     };
     let city = city.filter(|city| !city.is_empty());
-    let province_code = province.map(|province| province.code);
+    let province_code = province.map(|province| province.code.as_str());
     let value = match (city, province_code) {
         (Some(city), Some(province_code)) => format!("{city} {province_code}, {}", country.name),
         (Some(city), None) if country.code == "SG" => city.to_string(),
@@ -3767,89 +3872,117 @@ fn customer_formatted_area(
     }
 }
 
-const CUSTOMER_COUNTRIES: &[CustomerCountry] = &[
-    CustomerCountry {
-        code: "CA",
-        name: "Canada",
-    },
-    CustomerCountry {
-        code: "SG",
-        name: "Singapore",
-    },
-    CustomerCountry {
-        code: "US",
-        name: "United States",
-    },
+const CUSTOMER_COUNTRIES: &[(&str, &str)] = &[
+    ("AR", "Argentina"),
+    ("AT", "Austria"),
+    ("AU", "Australia"),
+    ("BE", "Belgium"),
+    ("BR", "Brazil"),
+    ("CA", "Canada"),
+    ("CH", "Switzerland"),
+    ("CN", "China"),
+    ("DE", "Germany"),
+    ("DK", "Denmark"),
+    ("ES", "Spain"),
+    ("FI", "Finland"),
+    ("FR", "France"),
+    ("GB", "United Kingdom"),
+    ("HK", "Hong Kong SAR"),
+    ("IE", "Ireland"),
+    ("IN", "India"),
+    ("IT", "Italy"),
+    ("JP", "Japan"),
+    ("MX", "Mexico"),
+    ("NL", "Netherlands"),
+    ("NO", "Norway"),
+    ("NZ", "New Zealand"),
+    ("PL", "Poland"),
+    ("PT", "Portugal"),
+    ("SE", "Sweden"),
+    ("SG", "Singapore"),
+    ("US", "United States"),
+    ("ZA", "South Africa"),
 ];
 
-const CUSTOMER_CANADIAN_PROVINCES: &[CustomerProvince] = &[
-    CustomerProvince {
-        code: "AB",
-        name: "Alberta",
-    },
-    CustomerProvince {
-        code: "BC",
-        name: "British Columbia",
-    },
-    CustomerProvince {
-        code: "MB",
-        name: "Manitoba",
-    },
-    CustomerProvince {
-        code: "NB",
-        name: "New Brunswick",
-    },
-    CustomerProvince {
-        code: "NL",
-        name: "Newfoundland and Labrador",
-    },
-    CustomerProvince {
-        code: "NS",
-        name: "Nova Scotia",
-    },
-    CustomerProvince {
-        code: "NT",
-        name: "Northwest Territories",
-    },
-    CustomerProvince {
-        code: "NU",
-        name: "Nunavut",
-    },
-    CustomerProvince {
-        code: "ON",
-        name: "Ontario",
-    },
-    CustomerProvince {
-        code: "PE",
-        name: "Prince Edward Island",
-    },
-    CustomerProvince {
-        code: "QC",
-        name: "Quebec",
-    },
-    CustomerProvince {
-        code: "SK",
-        name: "Saskatchewan",
-    },
-    CustomerProvince {
-        code: "YT",
-        name: "Yukon",
-    },
+const CUSTOMER_CANADIAN_PROVINCES: &[(&str, &str)] = &[
+    ("AB", "Alberta"),
+    ("BC", "British Columbia"),
+    ("MB", "Manitoba"),
+    ("NB", "New Brunswick"),
+    ("NL", "Newfoundland and Labrador"),
+    ("NS", "Nova Scotia"),
+    ("NT", "Northwest Territories"),
+    ("NU", "Nunavut"),
+    ("ON", "Ontario"),
+    ("PE", "Prince Edward Island"),
+    ("QC", "Quebec"),
+    ("SK", "Saskatchewan"),
+    ("YT", "Yukon"),
 ];
 
-const CUSTOMER_US_PROVINCES: &[CustomerProvince] = &[
-    CustomerProvince {
-        code: "CA",
-        name: "California",
-    },
-    CustomerProvince {
-        code: "IL",
-        name: "Illinois",
-    },
-    CustomerProvince {
-        code: "NY",
-        name: "New York",
-    },
+const CUSTOMER_US_PROVINCES: &[(&str, &str)] = &[
+    ("AL", "Alabama"),
+    ("AK", "Alaska"),
+    ("AZ", "Arizona"),
+    ("AR", "Arkansas"),
+    ("CA", "California"),
+    ("CO", "Colorado"),
+    ("CT", "Connecticut"),
+    ("DE", "Delaware"),
+    ("DC", "District of Columbia"),
+    ("FL", "Florida"),
+    ("GA", "Georgia"),
+    ("HI", "Hawaii"),
+    ("ID", "Idaho"),
+    ("IL", "Illinois"),
+    ("IN", "Indiana"),
+    ("IA", "Iowa"),
+    ("KS", "Kansas"),
+    ("KY", "Kentucky"),
+    ("LA", "Louisiana"),
+    ("ME", "Maine"),
+    ("MD", "Maryland"),
+    ("MA", "Massachusetts"),
+    ("MI", "Michigan"),
+    ("MN", "Minnesota"),
+    ("MS", "Mississippi"),
+    ("MO", "Missouri"),
+    ("MT", "Montana"),
+    ("NE", "Nebraska"),
+    ("NV", "Nevada"),
+    ("NH", "New Hampshire"),
+    ("NJ", "New Jersey"),
+    ("NM", "New Mexico"),
+    ("NY", "New York"),
+    ("NC", "North Carolina"),
+    ("ND", "North Dakota"),
+    ("OH", "Ohio"),
+    ("OK", "Oklahoma"),
+    ("OR", "Oregon"),
+    ("PA", "Pennsylvania"),
+    ("RI", "Rhode Island"),
+    ("SC", "South Carolina"),
+    ("SD", "South Dakota"),
+    ("TN", "Tennessee"),
+    ("TX", "Texas"),
+    ("UT", "Utah"),
+    ("VT", "Vermont"),
+    ("VA", "Virginia"),
+    ("WA", "Washington"),
+    ("WV", "West Virginia"),
+    ("WI", "Wisconsin"),
+    ("WY", "Wyoming"),
+];
+
+const CUSTOMER_AUSTRALIAN_PROVINCES: &[(&str, &str)] = &[
+    ("ACT", "Australian Capital Territory"),
+    ("NSW", "New South Wales"),
+    ("NT", "Northern Territory"),
+    ("QLD", "Queensland"),
+    ("SA", "South Australia"),
+    ("TAS", "Tasmania"),
+    ("VIC", "Victoria"),
+    ("WA", "Western Australia"),
 ];
 
 fn normalize_hydrated_customer_record(mut customer: Value) -> Value {
@@ -4305,7 +4438,7 @@ impl DraftProxy {
             .unwrap_or_default();
 
         let (payload, status, staged_ids) =
-            self.customer_data_erasure_payload(&customer_id, request_erasure);
+            self.customer_data_erasure_payload(request, &customer_id, request_erasure);
         self.record_mutation_log_with_status(
             request, query, variables, root_field, staged_ids, status,
         );
@@ -4314,10 +4447,11 @@ impl DraftProxy {
 
     fn customer_data_erasure_payload(
         &mut self,
+        request: &Request,
         customer_id: &str,
         request_erasure: bool,
     ) -> (Value, &'static str, Vec<String>) {
-        if !self.customer_exists(customer_id) {
+        if !self.customer_exists_for_mutation(request, customer_id) {
             return (
                 customer_data_erasure_payload_json(
                     None,

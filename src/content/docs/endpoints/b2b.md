@@ -121,10 +121,10 @@ slots and resets `billingSameAsShipping` to `false`.
 
 `companyLocationAssignStaffMembers` and
 `companyLocationRemoveStaffMembers` stage staff assignment rows. Assignment
-dedups already-assigned staff, enforces a maximum of 10 staff members per
-location, and returns indexed `RESOURCE_NOT_FOUND` errors at
-`["staffMemberIds", i]` for unknown staff IDs. Removal returns indexed
-`RESOURCE_NOT_FOUND` errors at
+dedups already-assigned staff, enforces a maximum of 10 observed staff members
+per location, and returns indexed `RESOURCE_NOT_FOUND` errors at
+`["staffMemberIds", i]` for staff IDs that are not present in already observed
+staff-assignment state. Removal returns indexed `RESOURCE_NOT_FOUND` errors at
 `["companyLocationStaffMemberAssignmentIds", i]` for unknown assignment IDs.
 
 `companyLocationAssignRoles` and `companyLocationRevokeRoles` stage
@@ -155,10 +155,12 @@ the covered request shape, including `editableShippingAddress`,
 
 - `companyContactSendWelcomeEmail` remains unsupported because it is an outbound
   customer-visible email side effect. The proxy has no no-send model for it.
-- Staff assignment does not synthesize a full staff catalog or support staff
-  catalog reads. The local model accepts structurally valid staged-test staff
-  IDs for assignment rows and returns Shopify-like per-index errors for unknown
-  staff or assignment IDs.
+- Staff assignment does not synthesize a full staff catalog, accept arbitrary
+  numeric StaffMember GIDs, or support staff catalog reads. The current
+  conformance token receives `Access denied for staffMembers field`, so local
+  assignment validity is limited to staff IDs already observed through staged
+  assignment state; unknown staff or assignment IDs return Shopify-like
+  per-index errors.
 - Validation-only B2B parity specs prove guardrail payloads and no-stage
   behavior for those inputs only. They do not make the corresponding mutation
   roots generally supported.

@@ -11146,6 +11146,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    captureId: 'customer-metafields-erasure-address-fidelity',
+    scriptPath: 'scripts/capture-customer-metafields-erasure-address-fidelity.mts',
+    purpose:
+      'Customer create/read parity for multiple customer-owned metafields and Denmark address normalization, plus data-erasure hydration of a real unstaged customer.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'write_customer_data_erasure'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-metafields-erasure-address-fidelity.json`,
+      'config/parity-specs/customers/customer-metafields-erasure-address-fidelity.json',
+      'config/parity-requests/customers/customer-metafields-erasure-address-create.graphql',
+      'config/parity-requests/customers/customer-metafields-erasure-address-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable customer with multiple metafields and a Denmark address, requests data erasure, cancels erasure, then deletes the customer.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     captureId: 'store-credit',
     scriptPath: 'scripts/capture-store-credit-conformance.ts',
     purpose: 'Store credit account creation setup, account-id credit/debit mutations, and downstream balance reads.',
