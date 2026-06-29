@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-delete-async-operation.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_mutation_test.gleam", "test/parity_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/productDelete-async-source-create.graphql",
     "variablesCapturePath": "$.setup.sourceCreate.variables"
@@ -79,15 +79,7 @@
             }
           }
         },
-        "proxyPath": "$.data",
-        "expectedDifferences": [
-          {
-            "path": "$.product",
-            "ignore": true,
-            "regrettable": true,
-            "reason": "Immediate product visibility after async delete is timing-sensitive; the local pending operation keeps the staged product visible while the refreshed live capture completed before the follow-up read."
-          }
-        ]
+        "proxyPath": "$.data"
       },
       {
         "name": "operation-read-data",
