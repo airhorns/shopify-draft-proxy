@@ -273,6 +273,10 @@ pub(super) fn oe_user_error(field: &[&str], message: &str, code: Option<&str>) -
     user_error_omit_code(field, message, code)
 }
 
+pub(super) fn oe_user_error_null_field(message: &str, code: Option<&str>) -> Value {
+    user_error_omit_code(Value::Null, message, code)
+}
+
 /// A failed order-edit mutation payload: every resource field is null and the
 /// given userErrors are attached. The kitchen-sink shape is narrowed by the
 /// caller's field selection, so each mutation emits only the fields it asked

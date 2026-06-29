@@ -2235,7 +2235,10 @@ impl DraftProxy {
         if order_edit_order_is_not_editable(&order) {
             return order_edit_error_response(
                 field,
-                vec![oe_user_error(&["base"], "not_editable", None)],
+                vec![oe_user_error_null_field(
+                    "The order cannot be edited.",
+                    None,
+                )],
             );
         }
         // Shopify allows only one open order edit per order: beginning a
@@ -2375,7 +2378,7 @@ impl DraftProxy {
                     field,
                     vec![oe_user_error(
                         &["variantId"],
-                        "The variant does not exist.",
+                        "The variant does not exist in the shop.",
                         None,
                     )],
                 );
@@ -2465,7 +2468,7 @@ impl DraftProxy {
                     field,
                     vec![oe_user_error(
                         &["lineItemId"],
-                        "The line item does not exist.",
+                        "The line item does not exist on the order.",
                         None,
                     )],
                 );
@@ -2629,8 +2632,8 @@ impl DraftProxy {
                 return order_edit_error_response(
                     field,
                     vec![oe_user_error(
-                        &["lineItemId"],
-                        "The line item does not exist.",
+                        &["id"],
+                        "The line item does not exist on the order.",
                         None,
                     )],
                 );
