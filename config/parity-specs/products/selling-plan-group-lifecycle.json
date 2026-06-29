@@ -36,7 +36,7 @@
         "proxyPath": "$.data.productCreate.userErrors"
       },
       {
-        "name": "create-group",
+        "name": "create-group-mixed-fixed-recurring-pricing-policies",
         "capturePath": "$.captures[2].response.data.sellingPlanGroupCreate",
         "proxyPath": "$.data.sellingPlanGroupCreate",
         "proxyRequest": {
@@ -70,7 +70,8 @@
           "$.sellingPlanGroup.productVariants.pageInfo",
           "$.sellingPlanGroup.sellingPlans.pageInfo",
           "$.sellingPlanGroup.sellingPlans.nodes[*].id",
-          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt"
+          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].pricingPolicies[*].createdAt"
         ]
       },
       {
@@ -81,7 +82,7 @@
           "documentPath": "config/parity-requests/products/selling-plan-group-read.graphql",
           "variables": {
             "id": {
-              "fromProxyResponse": "create-group",
+              "fromProxyResponse": "create-group-mixed-fixed-recurring-pricing-policies",
               "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
             },
             "productId": {
@@ -102,7 +103,8 @@
           "$.productVariants.pageInfo",
           "$.sellingPlans.pageInfo",
           "$.sellingPlans.nodes[*].id",
-          "$.sellingPlans.nodes[*].createdAt"
+          "$.sellingPlans.nodes[*].createdAt",
+          "$.sellingPlans.nodes[*].pricingPolicies[*].createdAt"
         ]
       },
       {
@@ -135,7 +137,7 @@
           "documentPath": "config/parity-requests/products/selling-plan-group-remove-products.graphql",
           "variables": {
             "id": {
-              "fromProxyResponse": "create-group",
+              "fromProxyResponse": "create-group-mixed-fixed-recurring-pricing-policies",
               "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
             },
             "productIds": [
@@ -189,7 +191,7 @@
           "documentPath": "config/parity-requests/products/selling-plan-group-add-products.graphql",
           "variables": {
             "id": {
-              "fromProxyResponse": "create-group",
+              "fromProxyResponse": "create-group-mixed-fixed-recurring-pricing-policies",
               "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
             },
             "productIds": [
@@ -215,7 +217,8 @@
           "$.sellingPlanGroup.productVariants.pageInfo",
           "$.sellingPlanGroup.sellingPlans.pageInfo",
           "$.sellingPlanGroup.sellingPlans.nodes[*].id",
-          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt"
+          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].pricingPolicies[*].createdAt"
         ]
       },
       {
@@ -226,7 +229,7 @@
           "documentPath": "config/parity-requests/products/selling-plan-group-remove-variants.graphql",
           "variables": {
             "id": {
-              "fromProxyResponse": "create-group",
+              "fromProxyResponse": "create-group-mixed-fixed-recurring-pricing-policies",
               "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
             },
             "productVariantIds": [
@@ -252,7 +255,7 @@
           "documentPath": "config/parity-requests/products/selling-plan-group-add-variants.graphql",
           "variables": {
             "id": {
-              "fromProxyResponse": "create-group",
+              "fromProxyResponse": "create-group-mixed-fixed-recurring-pricing-policies",
               "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
             },
             "productVariantIds": [
@@ -278,7 +281,8 @@
           "$.sellingPlanGroup.productVariants.pageInfo",
           "$.sellingPlanGroup.sellingPlans.pageInfo",
           "$.sellingPlanGroup.sellingPlans.nodes[*].id",
-          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt"
+          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].pricingPolicies[*].createdAt"
         ]
       },
       {
@@ -311,7 +315,7 @@
           "documentPath": "config/parity-requests/products/selling-plan-group-update.graphql",
           "variables": {
             "id": {
-              "fromProxyResponse": "create-group",
+              "fromProxyResponse": "create-group-mixed-fixed-recurring-pricing-policies",
               "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
             },
             "productId": {
@@ -321,18 +325,18 @@
               "fromPrimaryProxyPath": "$.data.productCreate.product.variants.nodes[0].id"
             },
             "input": {
-              "name": "HAR-308 subscription updated mohaplvo",
-              "merchantCode": "har-308-updated-mohaplvo",
-              "description": "Updated temporary selling plan group for HAR-308 conformance capture",
+              "name": "Subscription updated",
+              "merchantCode": "selling-plan-updated",
+              "description": "Updated temporary selling plan group for conformance capture",
               "options": ["Delivery cadence"],
               "position": 2,
               "sellingPlansToUpdate": [
                 {
                   "id": {
-                    "fromProxyResponse": "create-group",
+                    "fromProxyResponse": "create-group-mixed-fixed-recurring-pricing-policies",
                     "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.sellingPlans.nodes[0].id"
                   },
-                  "name": "Monthly delivery updated",
+                  "name": "Recurring discount updated",
                   "options": ["Every month"],
                   "position": 1
                 }
@@ -350,7 +354,8 @@
           "$.sellingPlanGroup.productVariants.pageInfo",
           "$.sellingPlanGroup.sellingPlans.pageInfo",
           "$.sellingPlanGroup.sellingPlans.nodes[*].id",
-          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt"
+          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].pricingPolicies[*].createdAt"
         ]
       },
       {
@@ -378,7 +383,8 @@
           "$.productVariants.pageInfo",
           "$.sellingPlans.pageInfo",
           "$.sellingPlans.nodes[*].id",
-          "$.sellingPlans.nodes[*].createdAt"
+          "$.sellingPlans.nodes[*].createdAt",
+          "$.sellingPlans.nodes[*].pricingPolicies[*].createdAt"
         ]
       },
       {
@@ -441,7 +447,7 @@
           "documentPath": "config/parity-requests/products/selling-plan-group-delete.graphql",
           "variables": {
             "id": {
-              "fromProxyResponse": "create-group",
+              "fromProxyResponse": "create-group-mixed-fixed-recurring-pricing-policies",
               "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
             }
           }
@@ -462,7 +468,7 @@
           "documentPath": "config/parity-requests/products/selling-plan-group-read.graphql",
           "variables": {
             "id": {
-              "fromProxyResponse": "create-group",
+              "fromProxyResponse": "create-group-mixed-fixed-recurring-pricing-policies",
               "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
             },
             "productId": {
@@ -476,5 +482,5 @@
       }
     ]
   },
-  "notes": "HAR-308 captures Admin GraphQL 2026-04 selling-plan group lifecycle, group-centric membership, unknown-id userErrors, and downstream product/ProductVariant read-after-write behavior. HAR-432 keeps this as the executable parity proof for sellingPlanGroupCreate/update/delete plus group-centric add/remove roots, while product-centric and variant-centric association roots are enforced by selling-plan-product-variant-associations. The parity runner replays the captured lifecycle locally with seeded product/variant preconditions and compares whole deterministic payloads, excluding only generated IDs, timestamps, and opaque connection cursors."
+  "notes": "Captures Admin GraphQL 2026-04 selling-plan group lifecycle, group-centric membership, unknown-id userErrors, downstream product/ProductVariant read-after-write behavior, and mixed fixed-plus-recurring selling-plan pricing-policy read-back. The create-group-mixed-fixed-recurring-pricing-policies target proves recurring pricing policies are retained with their union typename and afterCycle while fixed entries stay fixed. Product-centric and variant-centric association roots are covered by selling-plan-product-variant-associations. The parity runner replays the captured lifecycle locally with seeded product/variant preconditions and compares whole deterministic payloads, excluding generated IDs, timestamps, policy createdAt values, and opaque connection cursors."
 }

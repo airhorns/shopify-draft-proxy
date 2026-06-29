@@ -1,0 +1,90 @@
+{
+  "scenarioId": "catalog-context-update-company-location-add",
+  "operationNames": ["companyCreate", "companyLocationCreate", "catalogCreate", "catalogContextUpdate", "catalog"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-context-update-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-context-update-company-create.graphql",
+    "variablesCapturePath": "$.cases[15].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-second-company-location",
+        "capturePath": "$.cases[16].response.payload.data.companyLocationCreate.userErrors",
+        "proxyPath": "$.data.companyLocationCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-company-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.cases[16].variables.input" }
+          }
+        }
+      },
+      {
+        "name": "setup-company-location-catalog",
+        "capturePath": "$.cases[17].response.payload.data.catalogCreate.userErrors",
+        "proxyPath": "$.data.catalogCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-company-catalog-create.graphql",
+          "variables": {
+            "input": {
+              "title": { "fromCapturePath": "$.cases[17].variables.input.title" },
+              "status": "ACTIVE",
+              "context": {
+                "companyLocationIds": [{ "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id" }]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "company-location-add-remove-payload",
+        "capturePath": "$.cases[18].response.payload.data.catalogContextUpdate",
+        "proxyPath": "$.data.catalogContextUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-company-location-add-remove.graphql",
+          "variables": {
+            "catalogId": {
+              "fromProxyResponse": "setup-company-location-catalog",
+              "path": "$.data.catalogCreate.catalog.id"
+            },
+            "contextsToAdd": {
+              "companyLocationIds": [
+                {
+                  "fromProxyResponse": "setup-second-company-location",
+                  "path": "$.data.companyLocationCreate.companyLocation.id"
+                }
+              ]
+            },
+            "contextsToRemove": {
+              "companyLocationIds": [{ "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id" }]
+            }
+          }
+        }
+      },
+      {
+        "name": "read-after-company-location-update",
+        "capturePath": "$.cases[19].response.payload.data.catalog",
+        "proxyPath": "$.data.catalog",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-company-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-company-location-catalog",
+              "path": "$.data.catalogCreate.catalog.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify Admin 2026-04 capture proves catalogContextUpdate accepts CompanyLocationCatalog context changes through companyLocationIds, applies the remove/add diff, and downstream catalog(id:) observes the updated company-location context. The replay earns the company, second location, and catalog through public GraphQL mutations before the update."
+}

@@ -70,6 +70,44 @@ const deletedProductLookupQuery = `#graphql
   }
 `;
 
+const productPayloadShopHydrateQuery = `#graphql
+  query ProductPayloadShopHydrate {
+    shop {
+      id
+      name
+      myshopifyDomain
+      url
+      currencyCode
+      primaryDomain {
+        id
+        host
+        url
+        sslEnabled
+      }
+    }
+  }
+`;
+
+async function captureProductPayloadShopHydrateUpstreamCall() {
+  const variables = {};
+  const { status, payload } = await runGraphqlRequest(productPayloadShopHydrateQuery, variables);
+  if (status < 200 || status >= 300 || payload.errors) {
+    throw new Error(
+      `Product payload shop hydrate cassette capture failed: ${JSON.stringify({ status, payload }, null, 2)}`,
+    );
+  }
+
+  return {
+    operationName: 'ProductPayloadShopHydrate',
+    variables,
+    query: productPayloadShopHydrateQuery,
+    response: {
+      status,
+      body: payload,
+    },
+  };
+}
+
 const createMutation = `#graphql
   mutation ProductCreateConformance($product: ProductCreateInput!) {
     productCreate(product: $product) {
@@ -87,6 +125,11 @@ const createMutation = `#graphql
           title
           description
         }
+      }
+      shop {
+        id
+        name
+        myshopifyDomain
       }
       userErrors {
         field
@@ -143,6 +186,11 @@ const deleteMutation = `#graphql
   mutation ProductDeleteConformance($input: ProductDeleteInput!) {
     productDelete(input: $input) {
       deletedProductId
+      shop {
+        id
+        name
+        myshopifyDomain
+      }
       userErrors {
         field
         message
@@ -395,6 +443,7 @@ let updateResponse = null;
 let deleteResponse = null;
 
 try {
+  const shopHydrateCall = await captureProductPayloadShopHydrateUpstreamCall();
   const createValidationVariables = buildCreateValidationVariables();
   const createValidationResponse = await runGraphql(createMutation, createValidationVariables);
 
@@ -528,6 +577,7 @@ try {
         },
       },
       downstreamRead: postCreateDetail,
+      upstreamCalls: [shopHydrateCall],
     },
     'product-update-parity.json': {
       mutation: {
@@ -594,6 +644,7 @@ try {
         },
       },
       downstreamRead: postDeleteLookup,
+      upstreamCalls: [shopHydrateCall],
     },
   };
 
