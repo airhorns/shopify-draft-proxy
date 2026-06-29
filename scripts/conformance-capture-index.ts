@@ -3890,6 +3890,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
+    captureId: 'inventory-adjust-zero-delta-noop',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-inventory-adjust-zero-delta-noop-conformance.ts',
+    purpose:
+      'inventoryAdjustQuantities all-zero no-op payload shape plus mixed zero/non-zero adjustment-group behavior.',
+    requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-adjust-zero-delta-noop.json`,
+      'config/parity-specs/products/inventory-adjust-zero-delta-noop.json',
+      'config/parity-requests/products/inventory-adjust-zero-delta-noop.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable tracked products, records all-zero and mixed zero/non-zero adjust calls, then deletes both products.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
     captureId: 'inventory-adjust-name-allowlist',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-inventory-adjust-name-allowlist-conformance.ts',
