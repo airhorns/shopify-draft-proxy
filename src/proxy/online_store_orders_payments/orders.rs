@@ -3276,7 +3276,14 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Option<Value> {
         let order_id = resolved_string_field(&field.arguments, "orderId")?;
-        let refund_method_cancel = field.arguments.contains_key("refundMethod");
+        let argument_present = |name: &str| {
+            field
+                .arguments
+                .get(name)
+                .is_some_and(|value| !matches!(value, ResolvedValue::Null))
+        };
+        let refund_present = argument_present("refund");
+        let refund_method_cancel = argument_present("refundMethod");
         let order_locally_known = self.store.staged.orders.contains_key(&order_id)
             || self
                 .store
@@ -3312,22 +3319,18 @@ impl DraftProxy {
                 return Some(selected_json(
                     &error_payload(
                         "staffNote",
-                        "Staff note is too long (maximum is 255 characters)",
+                        "Staff note is too long. Maximum length is 255 characters.",
                         "INVALID",
                     ),
                     &field.selection,
                 ));
             }
         }
-        if matches!(
-            field.arguments.get("refund"),
-            Some(ResolvedValue::Bool(true))
-        ) && field.arguments.contains_key("refundMethod")
-        {
+        if refund_present && refund_method_cancel {
             return Some(selected_json(
                 &error_payload(
                     "refund",
-                    "Refund and refundMethod cannot both be present.",
+                    "Only one of the arguments `refund` or `refund_method` is allowed.",
                     "INVALID",
                 ),
                 &field.selection,
@@ -3378,7 +3381,11 @@ impl DraftProxy {
                 .is_some_and(|cancelled_at| !cancelled_at.is_null());
             if already_cancelled {
                 return Some(selected_json(
-                    &error_payload("orderId", "Order has already been cancelled", "INVALID"),
+                    &error_payload(
+                        "orderId",
+                        "Cannot cancel an order that has already been canceled",
+                        "INVALID",
+                    ),
                     &field.selection,
                 ));
             }
@@ -3447,7 +3454,11 @@ impl DraftProxy {
             .contains(&order_id)
         {
             return Some(selected_json(
-                &error_payload("orderId", "Order has already been cancelled", "INVALID"),
+                &error_payload(
+                    "orderId",
+                    "Cannot cancel an order that has already been canceled",
+                    "INVALID",
+                ),
                 &field.selection,
             ));
         }

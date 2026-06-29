@@ -6606,6 +6606,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-cancel-error-messages',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-cancel-error-messages-conformance.ts',
+    purpose:
+      'orderCancel validation userError wording for staffNote length, refund/refundMethod conflicts with refund true and false, and already-cancelled orders.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderCancel-error-messages.json`,
+      'config/parity-specs/orders/orderCancel-error-messages.json',
+      `${LOCAL_RUNTIME_ROOT}orderCancel-state-transitions.json`,
+      'config/parity-specs/orders/orderCancel-state-transitions.json',
+      'config/parity-requests/orders/orderCancel-error-messages-order-create.graphql',
+      'config/parity-requests/orders/orderCancel-error-messages.graphql',
+      'config/parity-requests/orders/orderCancel-error-messages-setup-cancel.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable test orders; one is cancelled to capture already-cancelled behavior and the other is cancelled during cleanup after validation-only branches.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-management-mutations',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-management-conformance.ts',
