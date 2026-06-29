@@ -3829,6 +3829,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
+    captureId: 'inventorysetquantities-quantity-bounds',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-inventory-set-quantities-bounds-conformance.ts',
+    purpose:
+      'inventorySetQuantities negative and lower-bound quantity validation against the 2026-04 @idempotent/changeFromQuantity contract.',
+    requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventorySetQuantities-quantity-bounds.json`,
+      'config/parity-specs/products/inventorySetQuantities-quantity-bounds.json',
+    ],
+    cleanupBehavior: 'Creates one disposable product per quantity-bound branch and deletes each product immediately.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
     captureId: 'inventory-quantity-contracts-2026',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-inventory-quantity-contracts-2026.ts',
@@ -11616,7 +11631,10 @@ function runCli(): void {
 }
 
 function findEntry(script: string): ConformanceCaptureIndexEntry | undefined {
-  return conformanceCaptureIndex.find((entry) => entry.captureId === script || entry.scriptPath === script);
+  const normalizedScript = script.toLowerCase();
+  return conformanceCaptureIndex.find(
+    (entry) => entry.captureId === script || entry.captureId === normalizedScript || entry.scriptPath === script,
+  );
 }
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : null;
