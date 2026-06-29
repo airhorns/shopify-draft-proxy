@@ -1,0 +1,431 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "recordedAt": "2026-06-27T15:26:10.123Z",
+  "create": {
+    "request": {
+      "query": "mutation CustomerMetafieldsErasureAddressCreate($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      defaultAddress {\n        city\n        country\n        countryCodeV2\n        province\n        provinceCode\n        formattedArea\n      }\n      tier: metafield(namespace: \"custom\", key: \"tier\") {\n        namespace\n        key\n        type\n        value\n      }\n      birthday: metafield(namespace: \"profile\", key: \"birthday\") {\n        namespace\n        key\n        type\n        value\n      }\n      metafields(first: 5) {\n        nodes {\n          namespace\n          key\n          type\n          value\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "email": "customer-fidelity-1782573968941@example.com",
+          "firstName": "Metafield",
+          "lastName": "Fidelity",
+          "metafields": [
+            {
+              "namespace": "custom",
+              "key": "tier",
+              "type": "single_line_text_field",
+              "value": "gold"
+            },
+            {
+              "namespace": "profile",
+              "key": "birthday",
+              "type": "date",
+              "value": "1990-01-01"
+            }
+          ],
+          "addresses": [
+            {
+              "address1": "Radhuspladsen 1",
+              "city": "Copenhagen",
+              "countryCode": "DK",
+              "zip": "1550"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10861536477490",
+            "email": "customer-fidelity-1782573968941@example.com",
+            "defaultAddress": {
+              "city": "Copenhagen",
+              "country": "Denmark",
+              "countryCodeV2": "DK",
+              "province": null,
+              "provinceCode": null,
+              "formattedArea": "Copenhagen, Denmark"
+            },
+            "tier": {
+              "namespace": "custom",
+              "key": "tier",
+              "type": "single_line_text_field",
+              "value": "gold"
+            },
+            "birthday": {
+              "namespace": "profile",
+              "key": "birthday",
+              "type": "date",
+              "value": "1990-01-01"
+            },
+            "metafields": {
+              "nodes": [
+                {
+                  "namespace": "custom",
+                  "key": "tier",
+                  "type": "single_line_text_field",
+                  "value": "gold"
+                },
+                {
+                  "namespace": "profile",
+                  "key": "birthday",
+                  "type": "date",
+                  "value": "1990-01-01"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "request": {
+      "query": "query CustomerMetafieldsErasureAddressRead($id: ID!) {\n  customer(id: $id) {\n    id\n    email\n    defaultAddress {\n      city\n      country\n      countryCodeV2\n      province\n      provinceCode\n      formattedArea\n    }\n    tier: metafield(namespace: \"custom\", key: \"tier\") {\n      namespace\n      key\n      type\n      value\n    }\n    birthday: metafield(namespace: \"profile\", key: \"birthday\") {\n      namespace\n      key\n      type\n      value\n    }\n    metafields(first: 5) {\n      nodes {\n        namespace\n        key\n        type\n        value\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Customer/10861536477490"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customer": {
+          "id": "gid://shopify/Customer/10861536477490",
+          "email": "customer-fidelity-1782573968941@example.com",
+          "defaultAddress": {
+            "city": "Copenhagen",
+            "country": "Denmark",
+            "countryCodeV2": "DK",
+            "province": null,
+            "provinceCode": null,
+            "formattedArea": "Copenhagen, Denmark"
+          },
+          "tier": {
+            "namespace": "custom",
+            "key": "tier",
+            "type": "single_line_text_field",
+            "value": "gold"
+          },
+          "birthday": {
+            "namespace": "profile",
+            "key": "birthday",
+            "type": "date",
+            "value": "1990-01-01"
+          },
+          "metafields": {
+            "nodes": [
+              {
+                "namespace": "custom",
+                "key": "tier",
+                "type": "single_line_text_field",
+                "value": "gold"
+              },
+              {
+                "namespace": "profile",
+                "key": "birthday",
+                "type": "date",
+                "value": "1990-01-01"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 7,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1993,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "erasureHydrate": {
+    "request": {
+      "query": "\nquery CustomerHydrate($id: ID!) {\n  customer(id: $id) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    phone\n    locale\n    note\n    canDelete\n    verifiedEmail\n    dataSaleOptOut\n    taxExempt\n    taxExemptions\n    state\n    tags\n    createdAt\n    updatedAt\n    defaultEmailAddress { emailAddress }\n    defaultPhoneNumber { phoneNumber }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Customer/10861536477490"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customer": {
+          "id": "gid://shopify/Customer/10861536477490",
+          "firstName": "Metafield",
+          "lastName": "Fidelity",
+          "displayName": "Metafield Fidelity",
+          "email": "customer-fidelity-1782573968941@example.com",
+          "phone": null,
+          "locale": "en",
+          "note": null,
+          "canDelete": true,
+          "verifiedEmail": true,
+          "dataSaleOptOut": false,
+          "taxExempt": false,
+          "taxExemptions": [],
+          "state": "DISABLED",
+          "tags": [],
+          "createdAt": "2026-06-27T15:26:09Z",
+          "updatedAt": "2026-06-27T15:26:09Z",
+          "defaultEmailAddress": {
+            "emailAddress": "customer-fidelity-1782573968941@example.com"
+          },
+          "defaultPhoneNumber": null,
+          "defaultAddress": {
+            "id": "gid://shopify/MailingAddress/12258724151602?model_name=CustomerAddress",
+            "firstName": "Metafield",
+            "lastName": "Fidelity",
+            "address1": "Radhuspladsen 1",
+            "address2": null,
+            "city": "Copenhagen",
+            "company": null,
+            "province": null,
+            "provinceCode": null,
+            "country": "Denmark",
+            "countryCodeV2": "DK",
+            "zip": "1550",
+            "phone": null,
+            "name": "Metafield Fidelity",
+            "formattedArea": "Copenhagen, Denmark"
+          },
+          "addressesV2": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MailingAddress/12258724151602?model_name=CustomerAddress",
+                "firstName": "Metafield",
+                "lastName": "Fidelity",
+                "address1": "Radhuspladsen 1",
+                "address2": null,
+                "city": "Copenhagen",
+                "company": null,
+                "province": null,
+                "provinceCode": null,
+                "country": "Denmark",
+                "countryCodeV2": "DK",
+                "zip": "1550",
+                "phone": null,
+                "name": "Metafield Fidelity",
+                "formattedArea": "Copenhagen, Denmark"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 16,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "erasureRequest": {
+    "request": {
+      "query": "mutation CustomerRequestDataErasure($customerId: ID!) {\n  customerRequestDataErasure(customerId: $customerId) {\n    customerId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "customerId": "gid://shopify/Customer/10861536477490"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerRequestDataErasure": {
+          "customerId": "gid://shopify/Customer/10861536477490",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "cancelDataErasure": {
+      "request": {
+        "query": "#graphql\n  mutation CustomerMetafieldsErasureAddressCancel($customerId: ID!) {\n    customerCancelDataErasure(customerId: $customerId) {\n      customerId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "customerId": "gid://shopify/Customer/10861536477490"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerCancelDataErasure": {
+            "customerId": "gid://shopify/Customer/10861536477490",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "request": {
+        "query": "#graphql\n  mutation CustomerMetafieldsErasureAddressDelete($input: CustomerDeleteInput!) {\n    customerDelete(input: $input) {\n      deletedCustomerId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Customer/10861536477490"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10861536477490",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/10861536477490"
+      },
+      "query": "\nquery CustomerHydrate($id: ID!) {\n  customer(id: $id) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    phone\n    locale\n    note\n    canDelete\n    verifiedEmail\n    dataSaleOptOut\n    taxExempt\n    taxExemptions\n    state\n    tags\n    createdAt\n    updatedAt\n    defaultEmailAddress { emailAddress }\n    defaultPhoneNumber { phoneNumber }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10861536477490",
+              "firstName": "Metafield",
+              "lastName": "Fidelity",
+              "displayName": "Metafield Fidelity",
+              "email": "customer-fidelity-1782573968941@example.com",
+              "phone": null,
+              "locale": "en",
+              "note": null,
+              "canDelete": true,
+              "verifiedEmail": true,
+              "dataSaleOptOut": false,
+              "taxExempt": false,
+              "taxExemptions": [],
+              "state": "DISABLED",
+              "tags": [],
+              "createdAt": "2026-06-27T15:26:09Z",
+              "updatedAt": "2026-06-27T15:26:09Z",
+              "defaultEmailAddress": {
+                "emailAddress": "customer-fidelity-1782573968941@example.com"
+              },
+              "defaultPhoneNumber": null,
+              "defaultAddress": {
+                "id": "gid://shopify/MailingAddress/12258724151602?model_name=CustomerAddress",
+                "firstName": "Metafield",
+                "lastName": "Fidelity",
+                "address1": "Radhuspladsen 1",
+                "address2": null,
+                "city": "Copenhagen",
+                "company": null,
+                "province": null,
+                "provinceCode": null,
+                "country": "Denmark",
+                "countryCodeV2": "DK",
+                "zip": "1550",
+                "phone": null,
+                "name": "Metafield Fidelity",
+                "formattedArea": "Copenhagen, Denmark"
+              },
+              "addressesV2": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/MailingAddress/12258724151602?model_name=CustomerAddress",
+                    "firstName": "Metafield",
+                    "lastName": "Fidelity",
+                    "address1": "Radhuspladsen 1",
+                    "address2": null,
+                    "city": "Copenhagen",
+                    "company": null,
+                    "province": null,
+                    "provinceCode": null,
+                    "country": "Denmark",
+                    "countryCodeV2": "DK",
+                    "zip": "1550",
+                    "phone": null,
+                    "name": "Metafield Fidelity",
+                    "formattedArea": "Copenhagen, Denmark"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

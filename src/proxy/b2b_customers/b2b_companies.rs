@@ -1516,22 +1516,6 @@ impl DraftProxy {
         // was never provisioned at all. So a foreign-company id and a never-seen id
         // are indistinguishable in the response — both "doesn't exist".
         let contact_company_id = contact["companyId"].as_str().map(ToString::to_string);
-        let role_in_company = self
-            .store
-            .staged
-            .b2b_contact_roles
-            .get(&role_id)
-            .is_some_and(|role| role["companyId"].as_str() == contact_company_id.as_deref());
-        if !role_in_company {
-            return (
-                json!({
-                    "companyContactRoleAssignment": Value::Null,
-                    "userErrors": [b2b_not_found(["companyContactRoleId"], "The company contact role doesn't exist.")]
-                }),
-                "failed",
-                Vec::new(),
-            );
-        }
         let location_in_company = self
             .store
             .staged
@@ -1545,6 +1529,22 @@ impl DraftProxy {
                 json!({
                     "companyContactRoleAssignment": Value::Null,
                     "userErrors": [b2b_not_found(["companyLocationId"], "The company location doesn't exist.")]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        let role_in_company = self
+            .store
+            .staged
+            .b2b_contact_roles
+            .get(&role_id)
+            .is_some_and(|role| role["companyId"].as_str() == contact_company_id.as_deref());
+        if !role_in_company {
+            return (
+                json!({
+                    "companyContactRoleAssignment": Value::Null,
+                    "userErrors": [b2b_not_found(["companyContactRoleId"], "The company contact role doesn't exist.")]
                 }),
                 "failed",
                 Vec::new(),
@@ -2266,7 +2266,7 @@ impl DraftProxy {
         let mut user_errors = Vec::new();
         let mut seen_input = BTreeSet::new();
         for (index, staff_id) in staff_ids.iter().enumerate() {
-            if !b2b_valid_staff_member_id(staff_id) {
+            if !self.b2b_valid_staff_member_id(staff_id) {
                 user_errors.push(b2b_indexed_user_error(
                     "staffMemberIds",
                     index,
@@ -3488,6 +3488,19 @@ impl DraftProxy {
             .cloned()
     }
 
+    fn b2b_valid_staff_member_id(&self, id: &str) -> bool {
+        shopify_gid_resource_type(id) == Some("StaffMember")
+            && self
+                .store
+                .staged
+                .b2b_staff_assignments
+                .values()
+                .any(|assignment| {
+                    assignment["staffMemberId"].as_str() == Some(id)
+                        || assignment["staffMember"]["id"].as_str() == Some(id)
+                })
+    }
+
     fn b2b_role_assignment_for(
         &self,
         location_id: &str,
@@ -4467,11 +4480,4 @@ where
     if let Some(ids) = record[field].as_array_mut() {
         ids.retain(|id| id.as_str().is_some_and(&mut retain));
     }
-}
-
-fn b2b_valid_staff_member_id(id: &str) -> bool {
-    shopify_gid_resource_type(id) == Some("StaffMember")
-        && resource_id_tail(id)
-            .parse::<u64>()
-            .is_ok_and(|tail| (1..=100).contains(&tail))
 }

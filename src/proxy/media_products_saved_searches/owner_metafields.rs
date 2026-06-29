@@ -953,7 +953,7 @@ impl DraftProxy {
         self.owner_metafield_overlay_owner_json(root_field, owner_id, selections, json!({}))
     }
 
-    pub(super) fn owner_metafield_overlay_owner_json(
+    pub(in crate::proxy) fn owner_metafield_overlay_owner_json(
         &self,
         root_field: &str,
         owner_id: &str,
@@ -1369,9 +1369,9 @@ impl DraftProxy {
         metafield
     }
 
-    /// Stage product metafields supplied through a `metafields` create/update input so that
-    /// downstream `metafield`/`metafields` reads resolve them on the owning product.
-    pub(super) fn stage_owner_metafields_from_input(
+    /// Stage owner metafields supplied through a `metafields` create/update input so that
+    /// downstream `metafield`/`metafields` reads resolve them on the owning resource.
+    pub(in crate::proxy) fn stage_owner_metafields_from_input(
         &mut self,
         owner_id: &str,
         input: &BTreeMap<String, ResolvedValue>,

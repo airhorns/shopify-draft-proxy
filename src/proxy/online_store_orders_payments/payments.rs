@@ -16,20 +16,6 @@ pub(in crate::proxy) fn refund_user_error(
     user_error(field, &message, Some(code))
 }
 
-pub(in crate::proxy) fn money_set_shop_currency(value: &Value) -> Option<String> {
-    value["shopMoney"]["currencyCode"]
-        .as_str()
-        .or_else(|| value["currencyCode"].as_str())
-        .map(str::to_string)
-}
-
-pub(in crate::proxy) fn money_set_presentment_currency(value: &Value) -> Option<String> {
-    value["presentmentMoney"]["currencyCode"]
-        .as_str()
-        .or_else(|| value["currencyCode"].as_str())
-        .map(str::to_string)
-}
-
 pub(in crate::proxy) fn order_currency(order: &Value, shop_currency_code: &str) -> String {
     [
         &order["totalPriceSet"],
@@ -742,7 +728,7 @@ pub(in crate::proxy) fn mandate_payment_order_record(
     let outstanding_amount = if auto_capture { "0.0" } else { amount };
     let received_amount = if auto_capture { amount } else { "0.0" };
     let transaction = json!({
-        "id": "gid://shopify/OrderTransaction/4",
+        "id": shopify_gid("OrderTransaction", 4),
         "kind": transaction_kind,
         "status": "SUCCESS",
         "gateway": "mandate",
@@ -1147,7 +1133,7 @@ impl DraftProxy {
                 };
                 let order_id = resolved_string_field(&field.arguments, "id")
                     .or_else(|| resolved_string_field(variables, "id"))
-                    .unwrap_or_else(|| "gid://shopify/Order/1".to_string());
+                    .unwrap_or_else(|| shopify_gid("Order", 1));
                 let amount_input = resolved_object_field(&field.arguments, "amount")
                     .or_else(|| resolved_object_field(variables, "amount"))
                     .unwrap_or_default();

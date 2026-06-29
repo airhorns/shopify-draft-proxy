@@ -1,0 +1,38 @@
+query MetaobjectOnlineStoreTemplateSuffixRead($id: ID!, $handle: MetaobjectHandleInput!) {
+  detail: metaobject(id: $id) {
+    id
+    handle
+    type
+    displayName
+    capabilities {
+      publishable {
+        status
+      }
+      onlineStore {
+        templateSuffix
+      }
+    }
+    fields {
+      key
+      value
+    }
+  }
+  byHandle: metaobjectByHandle(handle: $handle) {
+    id
+    handle
+    type
+    displayName
+    capabilities {
+      publishable {
+        status
+      }
+      onlineStore {
+        templateSuffix
+      }
+    }
+    fields {
+      key
+      value
+    }
+  }
+}

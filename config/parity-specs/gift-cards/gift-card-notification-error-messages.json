@@ -4,13 +4,13 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["user-errors-parity", "notification-validation-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-notification-validation.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/gift-cards/gift-card-notification-validation.json"
   ],
   "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-customer.graphql",
     "variablesCapturePath": "$.proxyVariables.customerDeactivated",
-    "apiVersion": "2025-01"
+    "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -29,7 +29,7 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-recipient.graphql",
           "variablesCapturePath": "$.proxyVariables.recipientDeactivated",
-          "apiVersion": "2025-01"
+          "apiVersion": "2026-04"
         }
       },
       {
@@ -39,7 +39,7 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-customer.graphql",
           "variablesCapturePath": "$.proxyVariables.customerExpired",
-          "apiVersion": "2025-01"
+          "apiVersion": "2026-04"
         }
       },
       {
@@ -49,7 +49,7 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-recipient.graphql",
           "variablesCapturePath": "$.proxyVariables.recipientExpired",
-          "apiVersion": "2025-01"
+          "apiVersion": "2026-04"
         }
       },
       {
@@ -59,7 +59,17 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-customer.graphql",
           "variablesCapturePath": "$.proxyVariables.customerNoCustomer",
-          "apiVersion": "2025-01"
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "recipient notification no-recipient message",
+        "capturePath": "$.operations.recipientNoRecipient.response.payload.data.giftCardSendNotificationToRecipient.userErrors[0].message",
+        "proxyPath": "$.data.giftCardSendNotificationToRecipient.userErrors[0].message",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-recipient.graphql",
+          "variablesCapturePath": "$.proxyVariables.recipientNoRecipient",
+          "apiVersion": "2026-04"
         }
       },
       {
@@ -69,10 +79,10 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-recipient.graphql",
           "variablesCapturePath": "$.proxyVariables.recipientNoContact",
-          "apiVersion": "2025-01"
+          "apiVersion": "2026-04"
         }
       }
     ]
   },
-  "notes": "Strict message-only parity over the existing live gift-card-notification-validation capture. Trial-shop and notify-disabled wording remains covered by runtime tests because the configured conformance shop is not a trial shop and public Admin GraphQL 2025-01 exposes no GiftCard notify field or GiftCardCreate/Update notify input to construct notify=false through the recorder."
+  "notes": "Strict message-only parity over the existing live gift-card-notification-validation capture. Trial-shop and notify-disabled wording remains covered by runtime tests because the configured conformance shop is not a trial shop and public Admin GraphQL 2026-04 exposes no GiftCard notify field or GiftCardCreate/Update notify input to construct notify=false through the recorder."
 }

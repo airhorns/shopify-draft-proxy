@@ -23,6 +23,43 @@ pub(in crate::proxy) fn draft_order_input_custom_attributes(
     }
 }
 
+pub(in crate::proxy) fn draft_order_record_skeleton(
+    id: &str,
+    name: &str,
+    line_item_nodes: Vec<Value>,
+) -> Value {
+    json!({
+        "id": id,
+        "name": name,
+        "status": "OPEN",
+        "ready": true,
+        "email": Value::Null,
+        "sourceName": Value::Null,
+        "note": Value::Null,
+        "purchasingEntity": Value::Null,
+        "customer": Value::Null,
+        "taxExempt": false,
+        "taxesIncluded": false,
+        "reserveInventoryUntil": Value::Null,
+        "paymentTerms": Value::Null,
+        "tags": [],
+        "invoiceUrl": draft_order_invoice_url(id),
+        "customAttributes": [],
+        "appliedDiscount": Value::Null,
+        "billingAddress": Value::Null,
+        "shippingAddress": Value::Null,
+        "shippingLine": Value::Null,
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "updatedAt": "2024-01-01T00:00:00.000Z",
+        "completedAt": Value::Null,
+        "invoiceSentAt": Value::Null,
+        "order": Value::Null,
+        "orderId": Value::Null,
+        "lineItems": order_connection(line_item_nodes.clone()),
+        "__draftProxyLineItems": line_item_nodes
+    })
+}
+
 pub(in crate::proxy) fn draft_order_base_record(
     id: &str,
     name: &str,
@@ -35,39 +72,34 @@ pub(in crate::proxy) fn draft_order_base_record(
     let line_items = resolved_object_list_field(input, "lineItems");
     let line_item_nodes = draft_order_line_items(&line_items, id, &currency, variant_hydrations);
     let original_subtotal = sum_money_set(&line_item_nodes, "originalTotalSet");
-    json!({
-        "id": id,
-        "name": name,
-        "status": "OPEN",
-        "currencyCode": currency,
-        "ready": true,
-        "email": resolved_string_field(input, "email").map(Value::String).unwrap_or(Value::Null),
-        "sourceName": resolved_string_field(input, "sourceName").map(Value::String).unwrap_or(Value::Null),
-        "note": resolved_string_field(input, "note").map(Value::String).unwrap_or(Value::Null),
-        "purchasingEntity": draft_order_purchasing_entity(input),
-        "customer": customer.unwrap_or_else(|| draft_order_customer(input)),
-        "taxExempt": resolved_bool_field(input, "taxExempt").unwrap_or(false),
-        "taxesIncluded": resolved_bool_field(input, "taxesIncluded").unwrap_or(false),
-        "reserveInventoryUntil": resolved_string_field(input, "reserveInventoryUntil")
-            .map(Value::String)
-            .unwrap_or(Value::Null),
-        "paymentTerms": draft_order_payment_terms(input),
-        "tags": normalize_taggable_tags(list_string_field(input, "tags")),
-        "invoiceUrl": draft_order_invoice_url(id),
-        "customAttributes": draft_order_input_custom_attributes(input),
-        "appliedDiscount": draft_order_applied_discount(input, shop_currency_code, original_subtotal),
-        "billingAddress": order_create_address(resolved_object_field(input, "billingAddress")),
-        "shippingAddress": order_create_address(resolved_object_field(input, "shippingAddress")),
-        "shippingLine": draft_order_shipping_line(input, shop_currency_code),
-        "createdAt": "2024-01-01T00:00:00.000Z",
-        "updatedAt": "2024-01-01T00:00:00.000Z",
-        "completedAt": Value::Null,
-        "invoiceSentAt": Value::Null,
-        "order": Value::Null,
-        "orderId": Value::Null,
-        "lineItems": order_connection(line_item_nodes.clone()),
-        "__draftProxyLineItems": line_item_nodes
-    })
+    let mut record = draft_order_record_skeleton(id, name, line_item_nodes);
+    record["currencyCode"] = json!(currency);
+    record["email"] = resolved_string_field(input, "email")
+        .map(Value::String)
+        .unwrap_or(Value::Null);
+    record["sourceName"] = resolved_string_field(input, "sourceName")
+        .map(Value::String)
+        .unwrap_or(Value::Null);
+    record["note"] = resolved_string_field(input, "note")
+        .map(Value::String)
+        .unwrap_or(Value::Null);
+    record["purchasingEntity"] = draft_order_purchasing_entity(input);
+    record["customer"] = customer.unwrap_or_else(|| draft_order_customer(input));
+    record["taxExempt"] = json!(resolved_bool_field(input, "taxExempt").unwrap_or(false));
+    record["taxesIncluded"] = json!(resolved_bool_field(input, "taxesIncluded").unwrap_or(false));
+    record["reserveInventoryUntil"] = resolved_string_field(input, "reserveInventoryUntil")
+        .map(Value::String)
+        .unwrap_or(Value::Null);
+    record["paymentTerms"] = draft_order_payment_terms(input);
+    record["tags"] = json!(normalize_taggable_tags(list_string_field(input, "tags")));
+    record["customAttributes"] = json!(draft_order_input_custom_attributes(input));
+    record["appliedDiscount"] =
+        draft_order_applied_discount(input, shop_currency_code, original_subtotal);
+    record["billingAddress"] = order_create_address(resolved_object_field(input, "billingAddress"));
+    record["shippingAddress"] =
+        order_create_address(resolved_object_field(input, "shippingAddress"));
+    record["shippingLine"] = draft_order_shipping_line(input, shop_currency_code);
+    record
 }
 
 pub(in crate::proxy) fn draft_order_calculated_record(
@@ -94,10 +126,10 @@ pub(in crate::proxy) fn draft_order_calculated_record(
             .iter()
             .filter_map(|line| line["quantity"].as_i64())
             .sum::<i64>(),
-        "subtotalPriceSet": order_create_money_set(subtotal, &currency),
-        "totalDiscountsSet": order_create_money_set(discount_total, &currency),
-        "totalShippingPriceSet": order_create_money_set(shipping_total, &currency),
-        "totalPriceSet": order_create_money_set(total, &currency),
+        "subtotalPriceSet": money_bag(subtotal, &currency),
+        "totalDiscountsSet": money_bag(discount_total, &currency),
+        "totalShippingPriceSet": money_bag(shipping_total, &currency),
+        "totalPriceSet": money_bag(total, &currency),
         "lineItems": line_item_nodes,
         "availableShippingRates": []
     })
@@ -204,10 +236,10 @@ pub(in crate::proxy) fn draft_order_line_item(
         }.unwrap_or(true),
         "customAttributes": draft_order_input_custom_attributes(input),
         "appliedDiscount": draft_order_applied_discount_from_line(input, currency, line_total),
-        "originalUnitPriceSet": order_create_money_set(unit_amount, currency),
-        "originalTotalSet": order_create_money_set(line_total, currency),
-        "discountedTotalSet": order_create_money_set(discounted_total, currency),
-        "totalDiscountSet": order_create_money_set(discount_amount, currency),
+        "originalUnitPriceSet": money_bag(unit_amount, currency),
+        "originalTotalSet": money_bag(line_total, currency),
+        "discountedTotalSet": money_bag(discounted_total, currency),
+        "totalDiscountSet": money_bag(discount_amount, currency),
         "variant": variant
     })
 }
@@ -237,10 +269,10 @@ pub(in crate::proxy) fn draft_order_line_from_order_line(
         "taxable": line["taxable"].as_bool().unwrap_or(true),
         "customAttributes": line["customAttributes"].as_array().cloned().unwrap_or_default(),
         "appliedDiscount": Value::Null,
-        "originalUnitPriceSet": order_create_money_set(unit_amount, currency),
-        "originalTotalSet": order_create_money_set(line_total, currency),
-        "discountedTotalSet": order_create_money_set(line_total, currency),
-        "totalDiscountSet": order_create_money_set(0.0, currency),
+        "originalUnitPriceSet": money_bag(unit_amount, currency),
+        "originalTotalSet": money_bag(line_total, currency),
+        "discountedTotalSet": money_bag(line_total, currency),
+        "totalDiscountSet": money_bag(0.0, currency),
         "variant": line["variant"].clone()
     })
 }
@@ -275,11 +307,9 @@ pub(in crate::proxy) fn draft_order_clear_line_discounts(
             let original_total = line["originalTotalSet"].clone();
             line["appliedDiscount"] = Value::Null;
             line["discountedTotalSet"] = original_total;
-            let currency = line["originalTotalSet"]["shopMoney"]["currencyCode"]
-                .as_str()
-                .unwrap_or(shop_currency_code)
-                .to_string();
-            line["totalDiscountSet"] = order_create_money_set(0.0, &currency);
+            let currency = money_set_shop_currency(&line["originalTotalSet"])
+                .unwrap_or_else(|| shop_currency_code.to_string());
+            line["totalDiscountSet"] = money_bag(0.0, &currency);
         }
         draft_order["__draftProxyLineItems"] = Value::Array(nodes.clone());
     }
@@ -303,8 +333,8 @@ pub(in crate::proxy) fn draft_order_shipping_line(
         "title": resolved_string_field(&shipping_line, "title").unwrap_or_default(),
         "code": resolved_string_field(&shipping_line, "code").unwrap_or_else(|| "custom".to_string()),
         "custom": true,
-        "originalPriceSet": order_create_money_set(amount, &currency),
-        "discountedPriceSet": order_create_money_set(amount, &currency)
+        "originalPriceSet": money_bag(amount, &currency),
+        "discountedPriceSet": money_bag(amount, &currency)
     })
 }
 
@@ -359,7 +389,7 @@ pub(in crate::proxy) fn draft_order_discount_record(
         "description": resolved_string_field(discount, "description"),
         "value": resolved_number_field(discount, "value").unwrap_or(amount),
         "valueType": resolved_string_field(discount, "valueType").unwrap_or_else(|| "FIXED_AMOUNT".to_string()),
-        "amountSet": order_create_money_set(amount, currency)
+        "amountSet": money_bag(amount, currency)
     })
 }
 
@@ -514,6 +544,7 @@ pub(in crate::proxy) fn draft_order_currency(
 ) -> String {
     draft_order["currencyCode"]
         .as_str()
+        .map(str::to_string)
         .or_else(|| draft_order_money_set_currency(&draft_order["totalPriceSet"]))
         .or_else(|| draft_order_money_set_currency(&draft_order["subtotalPriceSet"]))
         .or_else(|| draft_order_money_set_currency(&draft_order["totalShippingPriceSet"]))
@@ -524,17 +555,14 @@ pub(in crate::proxy) fn draft_order_currency(
             draft_order_money_set_currency(&draft_order["shippingLine"]["discountedPriceSet"])
         })
         .or_else(|| draft_order_line_items_currency(draft_order))
-        .unwrap_or(shop_currency_code)
-        .to_string()
+        .unwrap_or_else(|| shop_currency_code.to_string())
 }
 
-fn draft_order_money_set_currency(money_set: &Value) -> Option<&str> {
-    money_set["shopMoney"]["currencyCode"]
-        .as_str()
-        .or_else(|| money_set["currencyCode"].as_str())
+fn draft_order_money_set_currency(money_set: &Value) -> Option<String> {
+    money_set_shop_currency(money_set)
 }
 
-fn draft_order_line_items_currency(draft_order: &Value) -> Option<&str> {
+fn draft_order_line_items_currency(draft_order: &Value) -> Option<String> {
     let nodes = draft_order["lineItems"]["nodes"]
         .as_array()
         .or_else(|| draft_order["__draftProxyLineItems"].as_array())?;
@@ -1699,10 +1727,10 @@ impl DraftProxy {
             line_discount_total + draft_order_discount_amount(&draft_order["appliedDiscount"]);
         let subtotal = (original_subtotal - discount_total).max(0.0);
         let total = subtotal + shipping_total;
-        draft_order["subtotalPriceSet"] = order_create_money_set(subtotal, &currency);
-        draft_order["totalDiscountsSet"] = order_create_money_set(discount_total, &currency);
-        draft_order["totalShippingPriceSet"] = order_create_money_set(shipping_total, &currency);
-        draft_order["totalPriceSet"] = order_create_money_set(total, &currency);
+        draft_order["subtotalPriceSet"] = money_bag(subtotal, &currency);
+        draft_order["totalDiscountsSet"] = money_bag(discount_total, &currency);
+        draft_order["totalShippingPriceSet"] = money_bag(shipping_total, &currency);
+        draft_order["totalPriceSet"] = money_bag(total, &currency);
         draft_order["totalQuantityOfLineItems"] = json!(line_items
             .iter()
             .filter_map(|line| line["quantity"].as_i64())
@@ -1718,9 +1746,9 @@ impl DraftProxy {
         let shop_currency_code = self.store.shop_currency_code();
         let currency = order["currencyCode"]
             .as_str()
-            .or_else(|| order["totalPriceSet"]["shopMoney"]["currencyCode"].as_str())
-            .unwrap_or(&shop_currency_code)
-            .to_string();
+            .map(str::to_string)
+            .or_else(|| money_set_shop_currency(&order["totalPriceSet"]))
+            .unwrap_or(shop_currency_code);
         let line_items = order["lineItems"]["nodes"]
             .as_array()
             .cloned()
@@ -1729,36 +1757,18 @@ impl DraftProxy {
             .enumerate()
             .map(|(index, line)| draft_order_line_from_order_line(id, index, &line, &currency))
             .collect::<Vec<_>>();
-        let mut draft_order = json!({
-            "id": id,
-            "name": name,
-            "status": "OPEN",
-            "ready": true,
-            "email": order["email"].clone(),
-            "sourceName": order["sourceName"].clone(),
-            "note": order["note"].clone(),
-            "purchasingEntity": Value::Null,
-            "customer": order["customer"].clone(),
-            "taxExempt": false,
-            "taxesIncluded": false,
-            "reserveInventoryUntil": Value::Null,
-            "paymentTerms": Value::Null,
-            "tags": order["tags"].as_array().cloned().unwrap_or_default(),
-            "invoiceUrl": draft_order_invoice_url(id),
-            "customAttributes": order["customAttributes"].as_array().cloned().unwrap_or_default(),
-            "appliedDiscount": Value::Null,
-            "billingAddress": order["billingAddress"].clone(),
-            "shippingAddress": order["shippingAddress"].clone(),
-            "shippingLine": Value::Null,
-            "createdAt": "2024-01-01T00:00:00.000Z",
-            "updatedAt": "2024-01-01T00:00:00.000Z",
-            "completedAt": Value::Null,
-            "invoiceSentAt": Value::Null,
-            "order": Value::Null,
-            "orderId": Value::Null,
-            "lineItems": order_connection(line_items.clone()),
-            "__draftProxyLineItems": line_items,
-        });
+        let mut draft_order = draft_order_record_skeleton(id, name, line_items);
+        draft_order["email"] = order["email"].clone();
+        draft_order["sourceName"] = order["sourceName"].clone();
+        draft_order["note"] = order["note"].clone();
+        draft_order["customer"] = order["customer"].clone();
+        draft_order["tags"] = json!(order["tags"].as_array().cloned().unwrap_or_default());
+        draft_order["customAttributes"] = json!(order["customAttributes"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default());
+        draft_order["billingAddress"] = order["billingAddress"].clone();
+        draft_order["shippingAddress"] = order["shippingAddress"].clone();
         if draft_order["customer"].is_null() {
             draft_order["customer"] = Value::Null;
         }
@@ -1770,8 +1780,8 @@ impl DraftProxy {
         // reproduce the order's discounts/shipping). Prefer the order total when
         // it's available, falling back to the per-line recalculation otherwise.
         if let Some(order_total) = draft_order_total_from_order(order) {
-            draft_order["subtotalPriceSet"] = order_create_money_set(order_total, &currency);
-            draft_order["totalPriceSet"] = order_create_money_set(order_total, &currency);
+            draft_order["subtotalPriceSet"] = money_bag(order_total, &currency);
+            draft_order["totalPriceSet"] = money_bag(order_total, &currency);
         }
         draft_order
     }
@@ -1855,10 +1865,8 @@ impl DraftProxy {
             .map(format_money_amount)
             .unwrap_or_else(|| "0.0".to_string());
         let shop_currency_code = self.store.shop_currency_code();
-        let currency_code = draft_order["totalPriceSet"]["shopMoney"]["currencyCode"]
-            .as_str()
-            .unwrap_or(&shop_currency_code)
-            .to_string();
+        let currency_code =
+            money_set_shop_currency(&draft_order["totalPriceSet"]).unwrap_or(shop_currency_code);
         let payment_pending = matches!(
             field.arguments.get("paymentPending"),
             Some(ResolvedValue::Bool(true))

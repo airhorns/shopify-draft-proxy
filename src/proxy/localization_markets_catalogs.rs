@@ -149,6 +149,25 @@ impl PriceListFieldOutcome {
         }
     }
 
+    fn price_list_error(field: &RootFieldSelection, error: PriceListValidationError) -> Self {
+        let (path, message, code) = error;
+        Self::payload(selected_json(
+            &price_list_payload_error("priceList", path, message, code),
+            &field.selection,
+        ))
+    }
+
+    fn price_list_with_user_errors(
+        field: &RootFieldSelection,
+        price_list: Value,
+        user_errors: Vec<Value>,
+    ) -> Self {
+        Self::payload(selected_json(
+            &json!({"priceList": price_list, "userErrors": user_errors}),
+            &field.selection,
+        ))
+    }
+
     fn resource_not_found(id: &str, field: &RootFieldSelection) -> Self {
         Self {
             value: Value::Null,
@@ -163,6 +182,67 @@ impl PriceListFieldOutcome {
 
 fn price_list_catalog_id_has_wrong_gid_type(id: &str) -> bool {
     matches!(shopify_gid_resource_type(id), Some(resource_type) if resource_type != "MarketCatalog")
+}
+
+fn staged_nodes_connection(
+    records: &BTreeMap<String, Value>,
+    selection: &[SelectedField],
+    with_empty_edges: bool,
+) -> Value {
+    let nodes = records.values().cloned().collect::<Vec<_>>();
+    let connection = if with_empty_edges {
+        connection_json_with_empty_edges(nodes)
+    } else {
+        json!({ "nodes": nodes })
+    };
+    selected_json(&connection, selection)
+}
+
+fn selected_catalog_error(
+    field: &RootFieldSelection,
+    path: Vec<&str>,
+    message: &str,
+    code: &str,
+) -> Value {
+    selected_json(
+        &catalog_payload_error(path, message, code),
+        &field.selection,
+    )
+}
+
+fn selected_catalog_payload(
+    field: &RootFieldSelection,
+    catalog: Value,
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_json(
+        &json!({"catalog": catalog, "userErrors": user_errors}),
+        &field.selection,
+    )
+}
+
+fn selected_market_payload(
+    field: &RootFieldSelection,
+    market: Value,
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_json(
+        &json!({"market": market, "userErrors": user_errors}),
+        &field.selection,
+    )
+}
+
+fn selected_market_user_errors(field: &RootFieldSelection, user_errors: Vec<Value>) -> Value {
+    selected_market_payload(field, Value::Null, user_errors)
+}
+
+fn selected_market_error(
+    field: &RootFieldSelection,
+    path: Vec<&str>,
+    message: &str,
+    code: Value,
+) -> Value {
+    selected_market_user_errors(field, vec![market_user_error(path, message, code)])
 }
 
 impl DraftProxy {
@@ -551,14 +631,7 @@ impl DraftProxy {
                         .unwrap_or(Value::Null)
                 }
                 "catalogs" => {
-                    let nodes = self
-                        .store
-                        .staged
-                        .catalogs
-                        .values()
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    selected_json(&json!({"nodes": nodes}), &field.selection)
+                    staged_nodes_connection(&self.store.staged.catalogs, &field.selection, false)
                 }
                 "catalogsCount" => self.catalogs_count_value(field),
                 "priceList" => {
@@ -571,25 +644,13 @@ impl DraftProxy {
                         .unwrap_or(Value::Null)
                 }
                 "priceLists" => {
-                    let nodes = self
-                        .store
-                        .staged
-                        .price_lists
-                        .values()
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    selected_json(&json!({"nodes": nodes}), &field.selection)
+                    staged_nodes_connection(&self.store.staged.price_lists, &field.selection, false)
                 }
-                "webPresences" => {
-                    let nodes = self
-                        .store
-                        .staged
-                        .web_presences
-                        .values()
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    selected_json(&connection_json_with_empty_edges(nodes), &field.selection)
-                }
+                "webPresences" => staged_nodes_connection(
+                    &self.store.staged.web_presences,
+                    &field.selection,
+                    true,
+                ),
                 "marketsResolvedValues" => self.markets_resolved_values_value(field),
                 "marketLocalizableResources" | "marketLocalizableResourcesByIds" => selected_json(
                     &connection_json_with_empty_edges(Vec::new()),
@@ -726,33 +787,30 @@ impl DraftProxy {
     pub(in crate::proxy) fn market_create_response(&mut self, field: &RootFieldSelection) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         if market_status_enabled_mismatch(&input) {
-            return selected_json(
-                &json!({
-                    "market": null,
-                    "userErrors": [market_user_error(vec!["input"], "Invalid status and enabled combination.", json!("INVALID_STATUS_AND_ENABLED_COMBINATION"))]
-                }),
-                &field.selection,
+            return selected_market_error(
+                field,
+                vec!["input"],
+                "Invalid status and enabled combination.",
+                json!("INVALID_STATUS_AND_ENABLED_COMBINATION"),
             );
         }
         if market_has_location_price_inclusion_conflict(&input) {
-            return selected_json(
-                &json!({
-                    "market": null,
-                    "userErrors": [market_user_error(vec!["input", "priceInclusions"], "Inclusive pricing cannot be added to a market with the specified condition types.", json!("INCLUSIVE_PRICING_NOT_COMPATIBLE_WITH_CONDITION_TYPES"))]
-                }),
-                &field.selection,
+            return selected_market_error(
+                field,
+                vec!["input", "priceInclusions"],
+                "Inclusive pricing cannot be added to a market with the specified condition types.",
+                json!("INCLUSIVE_PRICING_NOT_COMPATIBLE_WITH_CONDITION_TYPES"),
             );
         }
         if market_currency_settings(&input)
             .and_then(|settings| resolved_number_field(&settings, "baseCurrencyManualRate"))
             .is_some_and(|rate| rate <= 0.0)
         {
-            return selected_json(
-                &json!({
-                    "market": null,
-                    "userErrors": [market_user_error(vec!["input", "currencySettings", "baseCurrencyManualRate"], "Enter a rate above 0.", Value::Null)]
-                }),
-                &field.selection,
+            return selected_market_error(
+                field,
+                vec!["input", "currencySettings", "baseCurrencyManualRate"],
+                "Enter a rate above 0.",
+                Value::Null,
             );
         }
         let region_codes = market_region_country_codes(&input);
@@ -761,12 +819,11 @@ impl DraftProxy {
             .enumerate()
             .find(|(_, country_code)| is_unsupported_country_region(country_code))
         {
-            return selected_json(
-                &json!({
-                    "market": null,
-                    "userErrors": [market_user_error(vec!["input", "regions", &index.to_string(), "countryCode"], &format!("{country_code} is not a supported country or region code."), json!("UNSUPPORTED_COUNTRY_REGION"))]
-                }),
-                &field.selection,
+            return selected_market_error(
+                field,
+                vec!["input", "regions", &index.to_string(), "countryCode"],
+                &format!("{country_code} is not a supported country or region code."),
+                json!("UNSUPPORTED_COUNTRY_REGION"),
             );
         }
         if let Some((index, _country_code)) = region_codes
@@ -774,12 +831,11 @@ impl DraftProxy {
             .enumerate()
             .find(|(_, country_code)| self.market_region_code_exists(country_code))
         {
-            return selected_json(
-                &json!({
-                    "market": null,
-                    "userErrors": [market_user_error(vec!["input", "regions", &index.to_string(), "countryCode"], "Code has already been taken", json!("TAKEN"))]
-                }),
-                &field.selection,
+            return selected_market_error(
+                field,
+                vec!["input", "regions", &index.to_string(), "countryCode"],
+                "Code has already been taken",
+                json!("TAKEN"),
             );
         }
 
@@ -800,25 +856,18 @@ impl DraftProxy {
             ));
         }
         if !name_errors.is_empty() {
-            return selected_json(
-                &json!({
-                    "market": null,
-                    "userErrors": name_errors
-                }),
-                &field.selection,
-            );
+            return selected_market_user_errors(field, name_errors);
         }
         if self.store.staged.markets.values().any(|market| {
             market["name"]
                 .as_str()
                 .is_some_and(|existing_name| existing_name.eq_ignore_ascii_case(&name))
         }) {
-            return selected_json(
-                &json!({
-                    "market": null,
-                    "userErrors": [market_user_error(vec!["input", "name"], "Name has already been taken", json!("TAKEN"))]
-                }),
-                &field.selection,
+            return selected_market_error(
+                field,
+                vec!["input", "name"],
+                "Name has already been taken",
+                json!("TAKEN"),
             );
         }
 
@@ -833,12 +882,11 @@ impl DraftProxy {
             .map(ToString::to_string)
             .collect::<BTreeSet<_>>();
         if explicit_handle.is_some() && existing_handles.contains(&handle) {
-            return selected_json(
-                &json!({
-                    "market": null,
-                    "userErrors": [market_user_error(vec!["input", "handle"], "Generated handle has already been taken", json!("GENERATED_DUPLICATED_HANDLE"))]
-                }),
-                &field.selection,
+            return selected_market_error(
+                field,
+                vec!["input", "handle"],
+                "Generated handle has already been taken",
+                json!("GENERATED_DUPLICATED_HANDLE"),
             );
         }
         if explicit_handle.is_none() {
@@ -853,10 +901,7 @@ impl DraftProxy {
         let id = shopify_gid("Market", self.store.staged.markets.len() + 1);
         let market = market_record_from_input(&id, &input, &name, &handle, &region_codes);
         self.store.staged.markets.insert(id, market.clone());
-        selected_json(
-            &json!({ "market": market, "userErrors": [] }),
-            &field.selection,
-        )
+        selected_market_payload(field, market, Vec::new())
     }
 
     pub(in crate::proxy) fn market_delete_response(&mut self, field: &RootFieldSelection) -> Value {
@@ -897,12 +942,11 @@ impl DraftProxy {
     pub(in crate::proxy) fn market_update_response(&mut self, field: &RootFieldSelection) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(existing_market) = self.store.staged.markets.get(&id).cloned() else {
-            return selected_json(
-                &json!({
-                    "market": null,
-                    "userErrors": [market_user_error(vec!["id"], "Market does not exist", json!("MARKET_NOT_FOUND"))]
-                }),
-                &field.selection,
+            return selected_market_error(
+                field,
+                vec!["id"],
+                "Market does not exist",
+                json!("MARKET_NOT_FOUND"),
             );
         };
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
@@ -914,16 +958,11 @@ impl DraftProxy {
             .cloned()
             .collect::<Vec<_>>();
         if !missing_catalogs.is_empty() {
-            return selected_json(
-                &json!({
-                    "market": null,
-                    "userErrors": [market_user_error(
-                        vec!["input", "catalogsToAdd"],
-                        &missing_customization_message(&missing_catalogs),
-                        json!("CUSTOMIZATIONS_NOT_FOUND")
-                    )]
-                }),
-                &field.selection,
+            return selected_market_error(
+                field,
+                vec!["input", "catalogsToAdd"],
+                &missing_customization_message(&missing_catalogs),
+                json!("CUSTOMIZATIONS_NOT_FOUND"),
             );
         }
 
@@ -940,16 +979,11 @@ impl DraftProxy {
             .cloned()
             .collect::<Vec<_>>();
         if !missing_web_presences.is_empty() {
-            return selected_json(
-                &json!({
-                    "market": null,
-                    "userErrors": [market_user_error(
-                        vec!["input", "webPresencesToAdd"],
-                        &missing_customization_message(&missing_web_presences),
-                        json!("CUSTOMIZATIONS_NOT_FOUND")
-                    )]
-                }),
-                &field.selection,
+            return selected_market_error(
+                field,
+                vec!["input", "webPresencesToAdd"],
+                &missing_customization_message(&missing_web_presences),
+                json!("CUSTOMIZATIONS_NOT_FOUND"),
             );
         }
 
@@ -970,10 +1004,7 @@ impl DraftProxy {
         Self::apply_market_update_scalar_fields(&mut updated_market, &input, &id);
         self.set_market_relation_fields(&mut updated_market, &id);
         self.store.staged.markets.insert(id, updated_market.clone());
-        selected_json(
-            &json!({ "market": updated_market, "userErrors": [] }),
-            &field.selection,
-        )
+        selected_market_payload(field, updated_market, Vec::new())
     }
 
     fn apply_market_update_scalar_fields(
@@ -1233,27 +1264,35 @@ impl DraftProxy {
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         if resolved_string_field(&input, "title").is_some_and(|title| title.trim().is_empty()) {
-            return selected_json(
-                &catalog_payload_error(vec!["input", "title"], "Title can't be blank", "BLANK"),
-                &field.selection,
+            return selected_catalog_error(
+                field,
+                vec!["input", "title"],
+                "Title can't be blank",
+                "BLANK",
             );
         }
         let Some(status) = resolved_string_field(&input, "status") else {
-            return selected_json(
-                &catalog_payload_error(vec!["input", "status"], "Status is required", "REQUIRED"),
-                &field.selection,
+            return selected_catalog_error(
+                field,
+                vec!["input", "status"],
+                "Status is required",
+                "REQUIRED",
             );
         };
         if !matches!(status.as_str(), "ACTIVE" | "DRAFT") {
-            return selected_json(
-                &catalog_payload_error(vec!["input", "status"], "Status is invalid", "INVALID"),
-                &field.selection,
+            return selected_catalog_error(
+                field,
+                vec!["input", "status"],
+                "Status is invalid",
+                "INVALID",
             );
         }
         let Some(context) = resolved_object_field(&input, "context") else {
-            return selected_json(
-                &catalog_payload_error(vec!["input", "context"], "Context is required", "INVALID"),
-                &field.selection,
+            return selected_catalog_error(
+                field,
+                vec!["input", "context"],
+                "Context is required",
+                "INVALID",
             );
         };
         let driver_type =
@@ -1261,46 +1300,46 @@ impl DraftProxy {
         if driver_type == "COUNTRY" {
             let country_codes = list_string_field(&context, "countryCodes");
             if country_codes.is_empty() {
-                return selected_json(
-                    &catalog_payload_error(
-                        vec!["input", "context", "countryCodes"],
-                        "Country codes can't be blank",
-                        "INVALID",
-                    ),
-                    &field.selection,
+                return selected_catalog_error(
+                    field,
+                    vec!["input", "context", "countryCodes"],
+                    "Country codes can't be blank",
+                    "INVALID",
                 );
             }
-            return selected_json(
-                &catalog_payload_error(vec!["input", "context", "driverType"], "Catalog context driverType COUNTRY is not supported by the local MarketCatalog model", "INVALID"),
-                &field.selection,
+            return selected_catalog_error(
+                field,
+                vec!["input", "context", "driverType"],
+                "Catalog context driverType COUNTRY is not supported by the local MarketCatalog model",
+                "INVALID",
             );
         }
         if driver_type != "MARKET" {
-            return selected_json(
-                &catalog_payload_error(vec!["input", "context", "driverType"], &format!("Catalog context driverType {driver_type} is not supported by the local MarketCatalog model"), "INVALID"),
-                &field.selection,
+            return selected_catalog_error(
+                field,
+                vec!["input", "context", "driverType"],
+                &format!(
+                    "Catalog context driverType {driver_type} is not supported by the local MarketCatalog model"
+                ),
+                "INVALID",
             );
         }
         let market_ids = list_string_field(&context, "marketIds");
         if market_ids.is_empty() {
-            return selected_json(
-                &catalog_payload_error(
-                    vec!["input", "context", "marketIds"],
-                    "Market ids can't be blank",
-                    "INVALID",
-                ),
-                &field.selection,
+            return selected_catalog_error(
+                field,
+                vec!["input", "context", "marketIds"],
+                "Market ids can't be blank",
+                "INVALID",
             );
         }
         for (index, market_id) in market_ids.iter().enumerate() {
             if !self.market_exists(market_id) {
-                return selected_json(
-                    &catalog_payload_error(
-                        vec!["input", "context", "marketIds", &index.to_string()],
-                        "Market not found.",
-                        "MARKET_NOT_FOUND",
-                    ),
-                    &field.selection,
+                return selected_catalog_error(
+                    field,
+                    vec!["input", "context", "marketIds", &index.to_string()],
+                    "Market not found.",
+                    "MARKET_NOT_FOUND",
                 );
             }
         }
@@ -1308,23 +1347,19 @@ impl DraftProxy {
         if let Some(price_list_id) = price_list_id.as_deref() {
             self.catalog_relation_price_list_preflight(request, price_list_id);
             if !self.catalog_relation_price_list_exists(price_list_id) {
-                return selected_json(
-                    &catalog_payload_error(
-                        vec!["input", "priceListId"],
-                        "Price list not found.",
-                        "PRICE_LIST_NOT_FOUND",
-                    ),
-                    &field.selection,
+                return selected_catalog_error(
+                    field,
+                    vec!["input", "priceListId"],
+                    "Price list not found.",
+                    "PRICE_LIST_NOT_FOUND",
                 );
             }
             if self.catalog_price_list_taken(price_list_id, None) {
-                return selected_json(
-                    &catalog_payload_error(
-                        vec!["input", "priceListId"],
-                        "Price list has already been taken",
-                        "TAKEN",
-                    ),
-                    &field.selection,
+                return selected_catalog_error(
+                    field,
+                    vec!["input", "priceListId"],
+                    "Price list has already been taken",
+                    "TAKEN",
                 );
             }
         }
@@ -1332,23 +1367,19 @@ impl DraftProxy {
         if let Some(publication_id) = publication_id.as_deref() {
             self.catalog_relation_publication_preflight(request, publication_id);
             if !self.catalog_relation_publication_exists(publication_id) {
-                return selected_json(
-                    &catalog_payload_error(
-                        vec!["input", "publicationId"],
-                        "Publication not found.",
-                        "PUBLICATION_NOT_FOUND",
-                    ),
-                    &field.selection,
+                return selected_catalog_error(
+                    field,
+                    vec!["input", "publicationId"],
+                    "Publication not found.",
+                    "PUBLICATION_NOT_FOUND",
                 );
             }
             if self.catalog_publication_taken(publication_id, None) {
-                return selected_json(
-                    &catalog_payload_error(
-                        vec!["input", "publicationId"],
-                        "Publication is already attached to another catalog",
-                        "PUBLICATION_TAKEN",
-                    ),
-                    &field.selection,
+                return selected_catalog_error(
+                    field,
+                    vec!["input", "publicationId"],
+                    "Publication is already attached to another catalog",
+                    "PUBLICATION_TAKEN",
                 );
             }
         }
@@ -1366,10 +1397,7 @@ impl DraftProxy {
         if let Some(price_list_id) = price_list_id.as_deref() {
             self.attach_price_list_to_catalog(&id, price_list_id);
         }
-        selected_json(
-            &json!({"catalog": catalog, "userErrors": []}),
-            &field.selection,
-        )
+        selected_catalog_payload(field, catalog, Vec::new())
     }
 
     pub(in crate::proxy) fn catalog_update_response(
@@ -1379,14 +1407,11 @@ impl DraftProxy {
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(existing_catalog) = self.store.staged.catalogs.get(&id).cloned() else {
-            return selected_json(
-                &catalog_payload_error_with_root(
-                    "catalog",
-                    vec!["id"],
-                    "Catalog does not exist",
-                    "CATALOG_NOT_FOUND",
-                ),
-                &field.selection,
+            return selected_catalog_error(
+                field,
+                vec!["id"],
+                "Catalog does not exist",
+                "CATALOG_NOT_FOUND",
             );
         };
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
@@ -1395,23 +1420,19 @@ impl DraftProxy {
         if let Some(price_list_id) = resolved_string_field(&input, "priceListId") {
             self.catalog_relation_price_list_preflight(request, &price_list_id);
             if !self.catalog_relation_price_list_exists(&price_list_id) {
-                return selected_json(
-                    &catalog_payload_error(
-                        vec!["input", "priceListId"],
-                        "Price list not found.",
-                        "PRICE_LIST_NOT_FOUND",
-                    ),
-                    &field.selection,
+                return selected_catalog_error(
+                    field,
+                    vec!["input", "priceListId"],
+                    "Price list not found.",
+                    "PRICE_LIST_NOT_FOUND",
                 );
             }
             if self.catalog_price_list_taken(&price_list_id, Some(&id)) {
-                return selected_json(
-                    &catalog_payload_error(
-                        vec!["input", "priceListId"],
-                        "Price list has already been taken",
-                        "TAKEN",
-                    ),
-                    &field.selection,
+                return selected_catalog_error(
+                    field,
+                    vec!["input", "priceListId"],
+                    "Price list has already been taken",
+                    "TAKEN",
                 );
             }
             self.detach_existing_catalog_price_list(&updated_catalog);
@@ -1427,23 +1448,19 @@ impl DraftProxy {
         if let Some(publication_id) = resolved_string_field(&input, "publicationId") {
             self.catalog_relation_publication_preflight(request, &publication_id);
             if !self.catalog_relation_publication_exists(&publication_id) {
-                return selected_json(
-                    &catalog_payload_error(
-                        vec!["input", "publicationId"],
-                        "Publication not found.",
-                        "PUBLICATION_NOT_FOUND",
-                    ),
-                    &field.selection,
+                return selected_catalog_error(
+                    field,
+                    vec!["input", "publicationId"],
+                    "Publication not found.",
+                    "PUBLICATION_NOT_FOUND",
                 );
             }
             if self.catalog_publication_taken(&publication_id, Some(&id)) {
-                return selected_json(
-                    &catalog_payload_error(
-                        vec!["input", "publicationId"],
-                        "Publication is already attached to another catalog",
-                        "PUBLICATION_TAKEN",
-                    ),
-                    &field.selection,
+                return selected_catalog_error(
+                    field,
+                    vec!["input", "publicationId"],
+                    "Publication is already attached to another catalog",
+                    "PUBLICATION_TAKEN",
                 );
             }
             set_catalog_publication_relation(&mut updated_catalog, Some(&publication_id));
@@ -1455,10 +1472,7 @@ impl DraftProxy {
             .staged
             .catalogs
             .insert(id, updated_catalog.clone());
-        selected_json(
-            &json!({"catalog": updated_catalog, "userErrors": []}),
-            &field.selection,
-        )
+        selected_catalog_payload(field, updated_catalog, Vec::new())
     }
 
     pub(in crate::proxy) fn catalog_delete_response(
@@ -1481,27 +1495,21 @@ impl DraftProxy {
     ) -> Value {
         let catalog_id = resolved_string_field(&field.arguments, "catalogId").unwrap_or_default();
         let Some(existing_catalog) = self.store.staged.catalogs.get(&catalog_id).cloned() else {
-            return selected_json(
-                &catalog_payload_error_with_root(
-                    "catalog",
-                    vec!["catalogId"],
-                    "Catalog does not exist",
-                    "CATALOG_NOT_FOUND",
-                ),
-                &field.selection,
+            return selected_catalog_error(
+                field,
+                vec!["catalogId"],
+                "Catalog does not exist",
+                "CATALOG_NOT_FOUND",
             );
         };
         let contexts_to_add = resolved_object_field(&field.arguments, "contextsToAdd");
         let contexts_to_remove = resolved_object_field(&field.arguments, "contextsToRemove");
         if contexts_to_add.is_none() && contexts_to_remove.is_none() {
-            return selected_json(
-                &catalog_payload_error_with_root(
-                    "catalog",
-                    vec!["contextsToAdd"],
-                    "Must have `contexts_to_add` or `contexts_to_remove` argument.",
-                    "REQUIRES_CONTEXTS_TO_ADD_OR_REMOVE",
-                ),
-                &field.selection,
+            return selected_catalog_error(
+                field,
+                vec!["contextsToAdd"],
+                "Must have `contexts_to_add` or `contexts_to_remove` argument.",
+                "REQUIRES_CONTEXTS_TO_ADD_OR_REMOVE",
             );
         }
 
@@ -1524,10 +1532,7 @@ impl DraftProxy {
             }
         }
         if !errors.is_empty() {
-            return selected_json(
-                &json!({"catalog": null, "userErrors": errors}),
-                &field.selection,
-            );
+            return selected_catalog_payload(field, Value::Null, errors);
         }
 
         let mut market_ids = catalog_market_ids(&existing_catalog);
@@ -1557,10 +1562,7 @@ impl DraftProxy {
             .staged
             .catalogs
             .insert(catalog_id.clone(), updated_catalog.clone());
-        selected_json(
-            &json!({"catalog": updated_catalog, "userErrors": []}),
-            &field.selection,
-        )
+        selected_catalog_payload(field, updated_catalog, Vec::new())
     }
 
     pub(in crate::proxy) fn next_catalog_id(&self) -> String {
@@ -1647,98 +1649,30 @@ impl DraftProxy {
     ) -> PriceListFieldOutcome {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let name = resolved_string_field(&input, "name").unwrap_or_default();
-        if name.trim().is_empty() {
-            return PriceListFieldOutcome::payload(selected_json(
-                &price_list_payload_error(
-                    "priceList",
-                    vec!["input", "name"],
-                    "Name can't be blank",
-                    "BLANK",
-                ),
-                &field.selection,
-            ));
-        }
-        if name.chars().count() > 255 {
-            return PriceListFieldOutcome::payload(selected_json(
-                &price_list_payload_error(
-                    "priceList",
-                    vec!["input", "name"],
-                    "Name is too long (maximum is 255 characters)",
-                    "TOO_LONG",
-                ),
-                &field.selection,
-            ));
-        }
-        if self
-            .store
-            .staged
-            .price_lists
-            .values()
-            .any(|price_list| price_list["name"].as_str() == Some(name.as_str()))
-        {
-            return PriceListFieldOutcome::payload(selected_json(
-                &price_list_payload_error(
-                    "priceList",
-                    vec!["input", "name"],
-                    "Name has already been taken",
-                    "TAKEN",
-                ),
-                &field.selection,
-            ));
+        if let Some(error) = price_list_name_error(&self.store.staged.price_lists, &name, None) {
+            return PriceListFieldOutcome::price_list_error(field, error);
         }
         let Some(currency) = resolved_string_field(&input, "currency") else {
-            return PriceListFieldOutcome::payload(selected_json(
-                &price_list_payload_error(
-                    "priceList",
+            return PriceListFieldOutcome::price_list_error(
+                field,
+                (
                     vec!["input", "currency"],
                     "Currency can't be blank",
                     "BLANK",
                 ),
-                &field.selection,
-            ));
+            );
         };
         let Some(parent) = resolved_object_field(&input, "parent") else {
-            return PriceListFieldOutcome::payload(selected_json(
-                &price_list_payload_error(
-                    "priceList",
-                    vec!["input", "parent"],
-                    "Parent must exist",
-                    "REQUIRED",
-                ),
-                &field.selection,
-            ));
+            return PriceListFieldOutcome::price_list_error(
+                field,
+                (vec!["input", "parent"], "Parent must exist", "REQUIRED"),
+            );
         };
         let adjustment = resolved_object_field(&parent, "adjustment").unwrap_or_default();
+        if let Some(error) = price_list_adjustment_error(&adjustment) {
+            return PriceListFieldOutcome::price_list_error(field, error);
+        }
         let adjustment_type = resolved_string_field(&adjustment, "type").unwrap_or_default();
-        if !matches!(
-            adjustment_type.as_str(),
-            "PERCENTAGE_DECREASE" | "PERCENTAGE_INCREASE"
-        ) {
-            return PriceListFieldOutcome::payload(selected_json(
-                &price_list_payload_error(
-                    "priceList",
-                    vec!["input", "parent", "adjustment", "type"],
-                    "Type is invalid",
-                    "INVALID",
-                ),
-                &field.selection,
-            ));
-        }
-        let adjustment_value = resolved_number_field(&adjustment, "value").unwrap_or_default();
-        let invalid_adjustment = adjustment_value < 0.0
-            || (adjustment_type == "PERCENTAGE_DECREASE" && adjustment_value > 100.0)
-            || (adjustment_type == "PERCENTAGE_INCREASE" && adjustment_value > 1000.0);
-        if invalid_adjustment {
-            return PriceListFieldOutcome::payload(selected_json(
-                &price_list_payload_error(
-                    "priceList",
-                    vec!["input", "parent", "adjustment", "value"],
-                    PRICE_LIST_INVALID_ADJUSTMENT_MESSAGE,
-                    "INVALID_ADJUSTMENT_VALUE",
-                ),
-                &field.selection,
-            ));
-        }
 
         let catalog_id = resolved_string_field(&input, "catalogId");
         if let Some(catalog_id) = catalog_id.as_deref() {
@@ -1746,10 +1680,11 @@ impl DraftProxy {
                 return PriceListFieldOutcome::resource_not_found(catalog_id, field);
             }
             if let Some(error) = self.price_list_catalog_validation_error(catalog_id, None) {
-                return PriceListFieldOutcome::payload(selected_json(
-                    &json!({"priceList": null, "userErrors": [error]}),
-                    &field.selection,
-                ));
+                return PriceListFieldOutcome::price_list_with_user_errors(
+                    field,
+                    Value::Null,
+                    vec![error],
+                );
             }
         }
 
@@ -1766,10 +1701,7 @@ impl DraftProxy {
             self.attach_price_list_to_catalog(catalog_id, &id);
         }
         self.store.staged.price_lists.insert(id, price_list.clone());
-        PriceListFieldOutcome::payload(selected_json(
-            &json!({"priceList": price_list, "userErrors": []}),
-            &field.selection,
-        ))
+        PriceListFieldOutcome::price_list_with_user_errors(field, price_list, Vec::new())
     }
 
     pub(in crate::proxy) fn price_list_update_response(
@@ -1778,82 +1710,33 @@ impl DraftProxy {
     ) -> PriceListFieldOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(existing) = self.store.staged.price_lists.get(&id).cloned() else {
-            return PriceListFieldOutcome::payload(selected_json(
-                &price_list_payload_error(
-                    "priceList",
+            return PriceListFieldOutcome::price_list_error(
+                field,
+                (
                     vec!["id"],
                     "Price list does not exist.",
                     "PRICE_LIST_NOT_FOUND",
                 ),
-                &field.selection,
-            ));
+            );
         };
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         if let Some(name) = resolved_string_field(&input, "name") {
-            if name.trim().is_empty() {
-                return PriceListFieldOutcome::payload(selected_json(
-                    &price_list_payload_error(
-                        "priceList",
-                        vec!["input", "name"],
-                        "Name can't be blank",
-                        "BLANK",
-                    ),
-                    &field.selection,
-                ));
-            }
-            if name.chars().count() > 255 {
-                return PriceListFieldOutcome::payload(selected_json(
-                    &price_list_payload_error(
-                        "priceList",
-                        vec!["input", "name"],
-                        "Name is too long (maximum is 255 characters)",
-                        "TOO_LONG",
-                    ),
-                    &field.selection,
-                ));
-            }
-            if self
-                .store
-                .staged
-                .price_lists
-                .iter()
-                .any(|(existing_id, price_list)| {
-                    existing_id != &id && price_list["name"].as_str() == Some(name.as_str())
-                })
+            if let Some(error) =
+                price_list_name_error(&self.store.staged.price_lists, &name, Some(&id))
             {
-                return PriceListFieldOutcome::payload(selected_json(
-                    &price_list_payload_error(
-                        "priceList",
-                        vec!["input", "name"],
-                        "Name has already been taken",
-                        "TAKEN",
-                    ),
-                    &field.selection,
-                ));
+                return PriceListFieldOutcome::price_list_error(field, error);
             }
         }
         let parent_update = resolved_object_field(&input, "parent");
         if let Some(parent) = parent_update.as_ref() {
             let adjustment = resolved_object_field(parent, "adjustment").unwrap_or_default();
-            let adjustment_type = resolved_string_field(&adjustment, "type").unwrap_or_default();
-            if !matches!(
-                adjustment_type.as_str(),
-                "PERCENTAGE_DECREASE" | "PERCENTAGE_INCREASE"
-            ) {
-                return PriceListFieldOutcome::payload(selected_json(
-                    &json!({"priceList": existing.clone(), "userErrors": [price_list_user_error(vec!["input", "parent", "adjustment", "type"], "Type is invalid", "INVALID")]}),
-                    &field.selection,
-                ));
-            }
-            let adjustment_value = resolved_number_field(&adjustment, "value").unwrap_or_default();
-            let invalid_adjustment = adjustment_value < 0.0
-                || (adjustment_type == "PERCENTAGE_DECREASE" && adjustment_value > 100.0)
-                || (adjustment_type == "PERCENTAGE_INCREASE" && adjustment_value > 1000.0);
-            if invalid_adjustment {
-                return PriceListFieldOutcome::payload(selected_json(
-                    &json!({"priceList": existing.clone(), "userErrors": [price_list_user_error(vec!["input", "parent", "adjustment", "value"], PRICE_LIST_INVALID_ADJUSTMENT_MESSAGE, "INVALID_ADJUSTMENT_VALUE")]}),
-                    &field.selection,
-                ));
+            if let Some(error) = price_list_adjustment_error(&adjustment) {
+                let (path, message, code) = error;
+                return PriceListFieldOutcome::price_list_with_user_errors(
+                    field,
+                    existing.clone(),
+                    vec![price_list_user_error(path, message, code)],
+                );
             }
         }
         if input.get("catalogId") != Some(&ResolvedValue::Null) {
@@ -1864,10 +1747,11 @@ impl DraftProxy {
                 if let Some(error) =
                     self.price_list_catalog_validation_error(&catalog_id, Some(&id))
                 {
-                    return PriceListFieldOutcome::payload(selected_json(
-                        &json!({"priceList": null, "userErrors": [error]}),
-                        &field.selection,
-                    ));
+                    return PriceListFieldOutcome::price_list_with_user_errors(
+                        field,
+                        Value::Null,
+                        vec![error],
+                    );
                 }
             }
         }
@@ -1908,10 +1792,7 @@ impl DraftProxy {
             }
         }
         self.store.staged.price_lists.insert(id, updated.clone());
-        PriceListFieldOutcome::payload(selected_json(
-            &json!({"priceList": updated, "userErrors": []}),
-            &field.selection,
-        ))
+        PriceListFieldOutcome::price_list_with_user_errors(field, updated, Vec::new())
     }
 
     pub(in crate::proxy) fn price_list_delete_response(
@@ -1988,6 +1869,27 @@ impl DraftProxy {
         if response.status < 400 {
             stage(self, &response.body);
         }
+    }
+
+    fn cold_markets_preflight(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+        stage: impl FnOnce(&mut Self, &Value),
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        if self.has_markets_overlay_state() {
+            return;
+        }
+        let body = json!({
+            "query": query,
+            "variables": resolved_variables_json(variables),
+            "operationName": "MarketsMutationPreflightHydrate",
+        });
+        self.run_markets_preflight(request, body, stage);
     }
 
     /// Stage the records a fixed-price preflight returns. Products always merge
@@ -2348,17 +2250,13 @@ impl DraftProxy {
         let mut data = serde_json::Map::new();
         for field in fields {
             if field.name == "webPresences" {
-                let nodes = self
-                    .store
-                    .staged
-                    .web_presences
-                    .values()
-                    .cloned()
-                    .collect::<Vec<_>>();
-                let connection = connection_json_with_empty_edges(nodes);
                 data.insert(
                     field.response_key,
-                    selected_json(&connection, &field.selection),
+                    staged_nodes_connection(
+                        &self.store.staged.web_presences,
+                        &field.selection,
+                        true,
+                    ),
                 );
             }
         }
@@ -2377,18 +2275,12 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) {
-        if self.config.read_mode != ReadMode::LiveHybrid {
-            return;
-        }
-        if self.has_markets_overlay_state() {
-            return;
-        }
-        let body = json!({
-            "query": WEB_PRESENCE_PREFLIGHT_QUERY,
-            "variables": resolved_variables_json(variables),
-            "operationName": "MarketsMutationPreflightHydrate",
-        });
-        self.run_markets_preflight(request, body, Self::stage_web_presence_preflight);
+        self.cold_markets_preflight(
+            WEB_PRESENCE_PREFLIGHT_QUERY,
+            variables,
+            request,
+            Self::stage_web_presence_preflight,
+        );
     }
 
     /// Forward a market-localization mutation preflight on a cold store so the
@@ -2405,18 +2297,12 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) {
-        if self.config.read_mode != ReadMode::LiveHybrid {
-            return;
-        }
-        if self.has_markets_overlay_state() {
-            return;
-        }
-        let body = json!({
-            "query": MARKET_LOCALIZATION_PREFLIGHT_QUERY,
-            "variables": resolved_variables_json(variables),
-            "operationName": "MarketsMutationPreflightHydrate",
-        });
-        self.run_markets_preflight(request, body, Self::hydrate_markets_from_upstream);
+        self.cold_markets_preflight(
+            MARKET_LOCALIZATION_PREFLIGHT_QUERY,
+            variables,
+            request,
+            Self::hydrate_markets_from_upstream,
+        );
     }
 
     /// Stage the baseline `webPresences` a preflight returns. Records insert only

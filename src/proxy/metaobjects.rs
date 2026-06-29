@@ -421,12 +421,10 @@ fn metaobject_definition_field_limit(meta_type: &str) -> usize {
 }
 
 fn metaobject_definition_max_fields_error(max_fields: usize) -> Value {
-    metaobject_user_error(
+    metaobject_field_error(
         vec!["definition", "fieldDefinitions"],
         &format!("Maximum {max_fields} fields per metaobject definition"),
         "INVALID",
-        Value::Null,
-        Value::Null,
     )
 }
 
@@ -441,77 +439,61 @@ fn metaobject_definition_create_validation_errors(
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     if metaobject_definition_is_reserved_type(meta_type) {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             vec!["definition"],
             "Not authorized. This type is reserved for use by another application.",
             "NOT_AUTHORIZED",
-            Value::Null,
-            Value::Null,
         ));
         return errors;
     }
 
     let name = resolved_string_field(input, "name").unwrap_or_default();
     if name.trim().is_empty() {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             vec!["definition", "name"],
             "Name can't be blank",
             "BLANK",
-            Value::Null,
-            Value::Null,
         ));
     } else if name.chars().count() > 255 {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             vec!["definition", "name"],
             "Name is too long (maximum is 255 characters)",
             "TOO_LONG",
-            Value::Null,
-            Value::Null,
         ));
     }
 
     if meta_type.is_empty() {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             vec!["definition", "type"],
             "Type can't be blank",
             "BLANK",
-            Value::Null,
-            Value::Null,
         ));
     } else if meta_type.chars().count() < 3 {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             vec!["definition", "type"],
             "Type is too short (minimum is 3 characters)",
             "TOO_SHORT",
-            Value::Null,
-            Value::Null,
         ));
     } else if meta_type.chars().count() > 255 {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             vec!["definition", "type"],
             "Type is too long (maximum is 255 characters)",
             "TOO_LONG",
-            Value::Null,
-            Value::Null,
         ));
     } else if !token_chars_valid(meta_type) {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             vec!["definition", "type"],
             "Type contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.",
             "INVALID",
-            Value::Null,
-            Value::Null,
         ));
     }
 
     if let Some(description) = resolved_string_field(input, "description") {
         if description.chars().count() > 255 {
-            errors.push(metaobject_user_error(
+            errors.push(metaobject_field_error(
                 vec!["definition", "description"],
                 "Description is too long (maximum is 255 characters)",
                 "TOO_LONG",
-                Value::Null,
-                Value::Null,
             ));
         }
     }
@@ -520,12 +502,10 @@ fn metaobject_definition_create_validation_errors(
         if resolved_string_field(&access, "admin").is_some()
             && !metaobject_definition_is_app_reserved_type(meta_type)
         {
-            errors.push(metaobject_user_error(
+            errors.push(metaobject_field_error(
                 vec!["definition", "access", "admin"],
                 "Admin access can only be specified on metaobject definitions that have an app-reserved type.",
                 "ADMIN_ACCESS_INPUT_NOT_ALLOWED",
-                Value::Null,
-                Value::Null,
             ));
         }
     }
@@ -546,12 +526,10 @@ fn metaobject_definition_create_validation_errors(
         })
         .count();
     if admin_filterable_count > 40 {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             vec!["definition", "fieldDefinitions"],
             "Maximum 40 admin filterable fields per metaobject definition",
             "INVALID",
-            Value::Null,
-            Value::Null,
         ));
     }
 
@@ -592,23 +570,19 @@ fn metaobject_definition_create_validation_errors(
         if !field_definitions.iter().any(|definition| {
             resolved_string_field(definition, "key") == Some(display_name_key.clone())
         }) {
-            errors.push(metaobject_user_error(
+            errors.push(metaobject_field_error(
                 vec!["definition", "displayNameKey"],
                 &format!("Field definition \"{display_name_key}\" does not exist"),
                 "UNDEFINED_OBJECT_FIELD",
-                Value::Null,
-                Value::Null,
             ));
         }
     }
 
     if existing_definitions >= 128 {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             vec!["definition"],
             "Maximum number of metaobject definitions exceeded",
             "MAX_DEFINITIONS_EXCEEDED",
-            Value::Null,
-            Value::Null,
         ));
     }
 
@@ -721,12 +695,10 @@ fn metaobject_renderable_capability_errors(
             .iter()
             .find(|definition| definition["key"].as_str() == Some(field_key.as_str()))
         {
-            None => errors.push(metaobject_user_error(
+            None => errors.push(metaobject_field_error(
                 vec!["definition", "capabilities", "renderable"],
                 &format!("Field definition \"{field_key}\" does not exist"),
                 "INVALID",
-                Value::Null,
-                Value::Null,
             )),
             Some(field_definition) => {
                 let field_type = field_definition["type"]["name"]
@@ -736,14 +708,12 @@ fn metaobject_renderable_capability_errors(
                     field_type,
                     "single_line_text_field" | "multi_line_text_field" | "rich_text_field"
                 ) {
-                    errors.push(metaobject_user_error(
+                    errors.push(metaobject_field_error(
                         vec!["definition", "capabilities", "renderable"],
                         &format!(
                             "Renderable Capability \"{capability_key}\" cannot reference the field definition \"{field_key}\" of type \"{field_type}\". Only single_line_text_field, multi_line_text_field, rich_text_field definitions are allowed."
                         ),
                         "FIELD_TYPE_INVALID",
-                        Value::Null,
-                        Value::Null,
                     ));
                 }
             }
@@ -760,31 +730,25 @@ fn metaobject_definition_update_validation_errors(
     let mut errors = Vec::new();
     if let Some(name) = resolved_string_field(input, "name") {
         if name.trim().is_empty() {
-            errors.push(metaobject_user_error(
+            errors.push(metaobject_field_error(
                 vec!["definition", "name"],
                 "Name can't be blank",
                 "BLANK",
-                Value::Null,
-                Value::Null,
             ));
         } else if name.chars().count() > 255 {
-            errors.push(metaobject_user_error(
+            errors.push(metaobject_field_error(
                 vec!["definition", "name"],
                 "Name is too long (maximum is 255 characters)",
                 "TOO_LONG",
-                Value::Null,
-                Value::Null,
             ));
         }
     }
     if let Some(description) = resolved_string_field(input, "description") {
         if description.chars().count() > 255 {
-            errors.push(metaobject_user_error(
+            errors.push(metaobject_field_error(
                 vec!["definition", "description"],
                 "Description is too long (maximum is 255 characters)",
                 "TOO_LONG",
-                Value::Null,
-                Value::Null,
             ));
         }
     }
@@ -792,12 +756,10 @@ fn metaobject_definition_update_validation_errors(
         if resolved_string_field(&access, "admin").is_some()
             && !metaobject_definition_is_app_reserved_type(meta_type)
         {
-            errors.push(metaobject_user_error(
+            errors.push(metaobject_field_error(
                 vec!["definition", "access", "admin"],
                 "Admin access can only be specified on metaobject definitions that have an app-reserved type.",
                 "ADMIN_ACCESS_INPUT_NOT_ALLOWED",
-                Value::Null,
-                Value::Null,
             ));
         }
     }
@@ -812,12 +774,10 @@ fn metaobject_definition_update_validation_errors(
     errors.extend(field_operation_errors);
     if let Some(display_name_key) = resolved_string_field(input, "displayNameKey") {
         if !resulting_keys.contains(&display_name_key) {
-            errors.push(metaobject_user_error(
+            errors.push(metaobject_field_error(
                 vec!["definition", "displayNameKey"],
                 &format!("Field definition \"{display_name_key}\" does not exist"),
                 "UNDEFINED_OBJECT_FIELD",
-                Value::Null,
-                Value::Null,
             ));
         }
     }
@@ -1581,7 +1541,7 @@ fn metaobject_structured_measurement_value_error(field_type: &str, value: &str) 
 }
 
 fn metaobject_language_value_error(value: &str) -> Option<String> {
-    if default_available_locales().contains_key(value) {
+    if default_available_locale_is_supported(value) {
         None
     } else {
         Some("Value must be in ISO 639-1 format.".to_string())
@@ -2003,21 +1963,17 @@ fn metaobject_merged_input_values(
 fn metaobject_handle_validation_errors(handle: &str, field: Vec<&str>) -> Vec<Value> {
     let mut errors = Vec::new();
     if handle.is_empty() {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             field.clone(),
             "Handle can't be blank",
             "BLANK",
-            Value::Null,
-            Value::Null,
         ));
     }
     if handle.len() > 255 {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             field.clone(),
             "Handle is too long (maximum is 255 characters)",
             "TOO_LONG",
-            Value::Null,
-            Value::Null,
         ));
     }
     if handle.is_empty()
@@ -2027,12 +1983,10 @@ fn metaobject_handle_validation_errors(handle: &str, field: Vec<&str>) -> Vec<Va
             .chars()
             .all(|character| character.is_ascii_alphanumeric() || character == '-')
     {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             field,
             "Handle is invalid",
             "INVALID",
-            Value::Null,
-            Value::Null,
         ));
     }
     errors
@@ -2237,13 +2191,15 @@ fn metaobject_user_error(
     metaobject_indexed_user_error(field, message, Some(code), element_key, element_index)
 }
 
+fn metaobject_field_error(field: impl Into<UserErrorField>, message: &str, code: &str) -> Value {
+    metaobject_indexed_user_error(field, message, Some(code), Value::Null, Value::Null)
+}
+
 fn metaobject_no_definition_error(path_root: &str, meta_type: &str, code: &str) -> Value {
-    metaobject_user_error(
+    metaobject_field_error(
         vec![path_root, "type"],
         &format!("No metaobject definition exists for type \"{meta_type}\""),
         code,
-        Value::Null,
-        Value::Null,
     )
 }
 
@@ -2375,6 +2331,31 @@ fn metaobject_updated_publishable_status(
         .unwrap_or_else(|| metaobject_publishable_status(input, definition))
 }
 
+fn metaobject_online_store_template_suffix_input(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let capabilities = resolved_object_field(input, "capabilities")?;
+    let online_store = resolved_object_field(&capabilities, "onlineStore")?;
+    match online_store.get("templateSuffix") {
+        Some(ResolvedValue::String(template_suffix)) => Some(json!(template_suffix)),
+        Some(ResolvedValue::Null) => Some(Value::Null),
+        _ => None,
+    }
+}
+
+fn metaobject_existing_online_store_template_suffix(existing: &Value) -> Option<Value> {
+    let online_store = existing
+        .get("capabilities")?
+        .get("onlineStore")?
+        .as_object()?;
+    Some(
+        online_store
+            .get("templateSuffix")
+            .cloned()
+            .unwrap_or(Value::Null),
+    )
+}
+
 fn metaobject_required_field_errors_for_upsert(
     errors: Vec<Value>,
     definition: &Value,
@@ -2397,14 +2378,19 @@ fn metaobject_required_field_errors_for_upsert(
         .collect()
 }
 
+struct MetaobjectRecordOptions<'a> {
+    display_name: &'a str,
+    publishable_status: &'a str,
+    online_store_template_suffix: Value,
+    updated_at: &'a str,
+}
+
 fn metaobject_record_from_definition_with_options(
     id: &str,
     handle: &str,
     definition: &Value,
     input_values: &BTreeMap<String, String>,
-    display_name: &str,
-    publishable_status: &str,
-    updated_at: &str,
+    options: MetaobjectRecordOptions<'_>,
 ) -> Value {
     let meta_type = definition["type"].as_str().unwrap_or_default();
     let fields = definition["fieldDefinitions"]
@@ -2432,16 +2418,16 @@ fn metaobject_record_from_definition_with_options(
         "id": id,
         "handle": handle,
         "type": meta_type,
-        "displayName": display_name,
-        "updatedAt": updated_at,
+        "displayName": options.display_name,
+        "updatedAt": options.updated_at,
         "capabilities": {
             "publishable": if definition["capabilities"]["publishable"]["enabled"].as_bool().unwrap_or(false) {
-                json!({"status": publishable_status})
+                json!({"status": options.publishable_status})
             } else {
                 Value::Null
             },
             "onlineStore": if definition["capabilities"]["onlineStore"]["enabled"].as_bool().unwrap_or(false) {
-                json!({"templateSuffix": Value::Null})
+                json!({"templateSuffix": options.online_store_template_suffix})
             } else {
                 Value::Null
             }
@@ -3159,9 +3145,13 @@ impl DraftProxy {
             &handle_choice.handle,
             &definition,
             &input_values,
-            &display_name,
-            &publishable_status,
-            "2026-01-01T00:00:00Z",
+            MetaobjectRecordOptions {
+                display_name: &display_name,
+                publishable_status: &publishable_status,
+                online_store_template_suffix: metaobject_online_store_template_suffix_input(input)
+                    .unwrap_or(Value::Null),
+                updated_at: "2026-01-01T00:00:00Z",
+            },
         );
         self.store
             .staged
@@ -3244,7 +3234,7 @@ impl DraftProxy {
             return self.selected_metaobject_payload(
                 &json!({
                     "metaobject": null,
-                    "userErrors": [metaobject_user_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND", Value::Null, Value::Null)]
+                    "userErrors": [metaobject_field_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND")]
                 }),
                 &field.selection,
             );
@@ -3351,9 +3341,14 @@ impl DraftProxy {
             &next_handle,
             &definition,
             &input_values,
-            &display_name,
-            &publishable_status,
-            updated_at,
+            MetaobjectRecordOptions {
+                display_name: &display_name,
+                publishable_status: &publishable_status,
+                online_store_template_suffix: metaobject_online_store_template_suffix_input(&input)
+                    .or_else(|| metaobject_existing_online_store_template_suffix(&existing))
+                    .unwrap_or(Value::Null),
+                updated_at,
+            },
         );
         self.store
             .staged
@@ -3492,9 +3487,16 @@ impl DraftProxy {
                 &next_handle,
                 &definition,
                 &input_values,
-                &display_name,
-                &publishable_status,
-                updated_at,
+                MetaobjectRecordOptions {
+                    display_name: &display_name,
+                    publishable_status: &publishable_status,
+                    online_store_template_suffix: metaobject_online_store_template_suffix_input(
+                        &update_input,
+                    )
+                    .or_else(|| metaobject_existing_online_store_template_suffix(&existing))
+                    .unwrap_or(Value::Null),
+                    updated_at,
+                },
             );
             self.store
                 .staged
@@ -3891,7 +3893,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "metaobjectDefinition": null,
-                    "userErrors": [metaobject_user_error(vec!["definition", "type"], "Type has already been taken", "TAKEN", Value::Null, Value::Null)]
+                    "userErrors": [metaobject_field_error(vec!["definition", "type"], "Type has already been taken", "TAKEN")]
                 }),
                 &field.selection,
             );
@@ -3924,7 +3926,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "metaobjectDefinition": null,
-                    "userErrors": [metaobject_user_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND", Value::Null, Value::Null)]
+                    "userErrors": [metaobject_field_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND")]
                 }),
                 &field.selection,
             );
@@ -3959,12 +3961,10 @@ impl DraftProxy {
                 return selected_json(
                     &json!({
                         "metaobjectDefinition": null,
-                        "userErrors": [metaobject_user_error(
+                        "userErrors": [metaobject_field_error(
                             vec!["definition", "displayNameKey"],
                             "Cannot change display name field when metaobject is used in product options",
                             "IMMUTABLE",
-                            Value::Null,
-                            Value::Null,
                         )]
                     }),
                     &field.selection,
@@ -4008,7 +4008,7 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "deletedId": null,
-                    "userErrors": [metaobject_user_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND", Value::Null, Value::Null)]
+                    "userErrors": [metaobject_field_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND")]
                 }),
                 &field.selection,
             );
@@ -4214,18 +4214,7 @@ impl DraftProxy {
     }
 
     fn metaobject_handle_exists_case_insensitive(&self, meta_type: &str, handle: &str) -> bool {
-        self.store.staged.metaobjects.values().any(|record| {
-            record.get("type").and_then(Value::as_str) == Some(meta_type)
-                && record
-                    .get("handle")
-                    .and_then(Value::as_str)
-                    .is_some_and(|candidate| candidate.eq_ignore_ascii_case(handle))
-                && !self
-                    .store
-                    .staged
-                    .metaobjects
-                    .is_tombstoned(record.get("id").and_then(Value::as_str).unwrap_or_default())
-        })
+        self.metaobject_handle_belongs_to_other_case_insensitive(meta_type, handle, "")
     }
 
     fn metaobject_handle_belongs_to_other_case_insensitive(

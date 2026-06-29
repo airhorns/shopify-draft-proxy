@@ -1,6 +1,12 @@
 {
   "scenarioId": "orderEdit-lifecycle-userErrors",
-  "operationNames": ["orderEditBegin", "orderEditAddVariant", "orderEditSetQuantity", "orderEditCommit"],
+  "operationNames": [
+    "orderEditBegin",
+    "orderEditAddVariant",
+    "orderEditSetQuantity",
+    "orderEditAddLineItemDiscount",
+    "orderEditCommit"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity"],
   "liveCaptureFiles": [
@@ -9,17 +15,82 @@
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/orderEdit-lifecycle-userErrors-begin.graphql",
     "apiVersion": "2026-04",
-    "variablesCapturePath": "$.cases[0].variables"
+    "variablesCapturePath": "$.sessionCases.editableBegin.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured Shopify 2026-04 order-edit userError payload roots for a missing order and missing calculated-order session branches. The scenario proves these handlers return non-null mutation payload objects with nullable resources and userErrors instead of a null root.",
+  "notes": "Captured Shopify 2026-04 order-edit userError payloads for missing roots plus rendered i18n message branches on an open order-edit session: not-editable begin, unknown line item for setQuantity/addLineItemDiscount, and unknown variant for addVariant.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
+        "name": "begin-editable-session-user-errors",
+        "capturePath": "$.sessionCases.editableBegin.response.payload.data.orderEditBegin.userErrors",
+        "proxyPath": "$.data.orderEditBegin.userErrors"
+      },
+      {
+        "name": "set-quantity-unknown-line-item-user-error",
+        "capturePath": "$.sessionCases.setQuantityUnknownLine.response.payload.data.orderEditSetQuantity.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-lifecycle-userErrors-setQuantity.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "lineItemId": "gid://shopify/CalculatedLineItem/999999999999999",
+            "quantity": 1
+          }
+        },
+        "proxyPath": "$.data.orderEditSetQuantity.userErrors"
+      },
+      {
+        "name": "add-line-item-discount-unknown-line-item-user-error",
+        "capturePath": "$.sessionCases.addLineItemDiscountUnknownLine.response.payload.data.orderEditAddLineItemDiscount.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-shipping-line-validation-add-line-item-discount.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "lineItemId": "gid://shopify/CalculatedLineItem/999999999999999",
+            "discount": {
+              "description": "Unknown line discount",
+              "fixedValue": {
+                "amount": "1.00",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditAddLineItemDiscount.userErrors"
+      },
+      {
+        "name": "add-variant-unknown-variant-user-error",
+        "capturePath": "$.sessionCases.addVariantUnknownVariant.response.payload.data.orderEditAddVariant.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-lifecycle-userErrors-addVariant.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "variantId": "gid://shopify/ProductVariant/999999999999999",
+            "quantity": 1
+          }
+        },
+        "proxyPath": "$.data.orderEditAddVariant.userErrors"
+      },
+      {
         "name": "begin-not-found-root",
         "capturePath": "$.cases[0].response.payload.data.orderEditBegin",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-lifecycle-userErrors-begin.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases[0].variables"
+        },
+        "isolatedProxy": true,
         "proxyPath": "$.data.orderEditBegin"
       },
       {
@@ -30,6 +101,7 @@
           "apiVersion": "2026-04",
           "variablesCapturePath": "$.cases[1].variables"
         },
+        "isolatedProxy": true,
         "proxyPath": "$.data.orderEditAddVariant"
       },
       {
@@ -40,6 +112,7 @@
           "apiVersion": "2026-04",
           "variablesCapturePath": "$.cases[2].variables"
         },
+        "isolatedProxy": true,
         "proxyPath": "$.data.orderEditSetQuantity"
       },
       {
@@ -50,7 +123,19 @@
           "apiVersion": "2026-04",
           "variablesCapturePath": "$.cases[3].variables"
         },
+        "isolatedProxy": true,
         "proxyPath": "$.data.orderEditCommit"
+      },
+      {
+        "name": "begin-not-editable-user-error",
+        "capturePath": "$.sessionCases.beginNotEditable.response.payload.data.orderEditBegin.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-lifecycle-userErrors-begin.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.sessionCases.beginNotEditable.variables"
+        },
+        "isolatedProxy": true,
+        "proxyPath": "$.data.orderEditBegin.userErrors"
       }
     ]
   }

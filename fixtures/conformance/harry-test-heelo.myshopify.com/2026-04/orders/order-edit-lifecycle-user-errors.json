@@ -2,10 +2,12 @@
   "scenarioId": "orderEdit-lifecycle-userErrors",
   "apiVersion": "2026-04",
   "storeDomain": "harry-test-heelo.myshopify.com",
+  "source": "live-shopify-admin-graphql",
+  "recordedAt": "2026-06-29T01:35:46.522Z",
   "cases": [
     {
       "name": "begin-not-found",
-      "query": "mutation OrderEditLifecycleBeginNotFound($id: ID!) {\n    orderEditBegin(id: $id) {\n      calculatedOrder {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "query": "mutation OrderEditLifecycleBeginNotFound($id: ID!) {\n  orderEditBegin(id: $id) {\n    calculatedOrder {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "id": "gid://shopify/Order/0"
       },
@@ -39,7 +41,7 @@
     },
     {
       "name": "add-variant-missing-calculated-order",
-      "query": "mutation OrderEditLifecycleAddVariantMissingCalculatedOrder($id: ID!, $variantId: ID!, $quantity: Int!) {\n    orderEditAddVariant(id: $id, variantId: $variantId, quantity: $quantity) {\n      calculatedOrder {\n        id\n      }\n      calculatedLineItem {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "query": "mutation OrderEditLifecycleAddVariantMissingCalculatedOrder($id: ID!, $variantId: ID!, $quantity: Int!) {\n  orderEditAddVariant(id: $id, variantId: $variantId, quantity: $quantity) {\n    calculatedOrder {\n      id\n    }\n    calculatedLineItem {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "id": "gid://shopify/CalculatedOrder/999999999999999",
         "variantId": "gid://shopify/ProductVariant/999999999999999",
@@ -66,7 +68,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -76,7 +78,7 @@
     },
     {
       "name": "set-quantity-missing-calculated-order",
-      "query": "mutation OrderEditLifecycleSetQuantityMissingCalculatedOrder($id: ID!, $lineItemId: ID!, $quantity: Int!) {\n    orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity) {\n      calculatedOrder {\n        id\n      }\n      calculatedLineItem {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "query": "mutation OrderEditLifecycleSetQuantityMissingCalculatedOrder($id: ID!, $lineItemId: ID!, $quantity: Int!) {\n  orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity) {\n    calculatedOrder {\n      id\n    }\n    calculatedLineItem {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "id": "gid://shopify/CalculatedOrder/999999999999999",
         "lineItemId": "gid://shopify/CalculatedLineItem/999999999999999",
@@ -103,7 +105,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1988,
+                "currentlyAvailable": 1986,
                 "restoreRate": 100
               }
             }
@@ -113,7 +115,7 @@
     },
     {
       "name": "commit-missing-calculated-order",
-      "query": "mutation OrderEditLifecycleCommitMissingCalculatedOrder($id: ID!) {\n    orderEditCommit(id: $id) {\n      order {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "query": "mutation OrderEditLifecycleCommitMissingCalculatedOrder($id: ID!) {\n  orderEditCommit(id: $id) {\n    order {\n      id\n      name\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "id": "gid://shopify/CalculatedOrder/999999999999999"
       },
@@ -137,7 +139,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1985,
                 "restoreRate": 100
               }
             }
@@ -146,5 +148,643 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "sessionCases": {
+    "editableCreate": {
+      "query": "mutation OrderEditLifecycleUserErrorsCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "order-edit-lifecycle-editable-20260629013542@example.com",
+          "note": "orderEdit lifecycle userErrors editable 20260629013542",
+          "tags": ["order-edit-lifecycle-user-errors", "editable", "20260629013542"],
+          "test": true,
+          "currency": "CAD",
+          "lineItems": [
+            {
+              "title": "Order edit lifecycle editable line 20260629013542",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8879686287666",
+                "name": "#1593"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "editableHydrate": {
+      "query": "query OrdersOrderEditHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    merchantEditable\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n        sku\n        variant {\n          id\n          title\n          sku\n        }\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/Order/8879686287666"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8879686287666",
+              "name": "#1593",
+              "merchantEditable": true,
+              "cancelledAt": null,
+              "cancelReason": null,
+              "displayFinancialStatus": null,
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19688104263986",
+                    "title": "Order edit lifecycle editable line 20260629013542",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": null,
+                    "variant": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "editableBegin": {
+      "query": "mutation OrderEditLifecycleBeginNotFound($id: ID!) {\n  orderEditBegin(id: $id) {\n    calculatedOrder {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/Order/8879686287666"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditBegin": {
+              "calculatedOrder": {
+                "id": "gid://shopify/CalculatedOrder/113209639218"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "setQuantityUnknownLine": {
+      "query": "mutation OrderEditLifecycleSetQuantityMissingCalculatedOrder($id: ID!, $lineItemId: ID!, $quantity: Int!) {\n  orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity) {\n    calculatedOrder {\n      id\n    }\n    calculatedLineItem {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/113209639218",
+        "lineItemId": "gid://shopify/CalculatedLineItem/999999999999999",
+        "quantity": 1
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditSetQuantity": {
+              "calculatedOrder": null,
+              "calculatedLineItem": null,
+              "userErrors": [
+                {
+                  "field": ["lineItemId"],
+                  "message": "The line item does not exist on the order."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "addLineItemDiscountUnknownLine": {
+      "query": "mutation OrderEditShippingLineValidationAddLineItemDiscount(\n  $id: ID!\n  $lineItemId: ID!\n  $discount: OrderEditAppliedDiscountInput!\n) {\n  orderEditAddLineItemDiscount(id: $id, lineItemId: $lineItemId, discount: $discount) {\n    calculatedLineItem {\n      id\n      calculatedDiscountAllocations {\n        discountApplication {\n          id\n          description\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/113209639218",
+        "lineItemId": "gid://shopify/CalculatedLineItem/999999999999999",
+        "discount": {
+          "description": "Unknown line discount",
+          "fixedValue": {
+            "amount": "1.00",
+            "currencyCode": "CAD"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditAddLineItemDiscount": {
+              "calculatedLineItem": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "The line item does not exist on the order."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownVariantHydrate": {
+      "query": "query OrdersDraftOrderVariantHydrate($id: ID!) {\n  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n}",
+      "variables": {
+        "id": "gid://shopify/ProductVariant/999999999999999"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariant": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "addVariantUnknownVariant": {
+      "query": "mutation OrderEditLifecycleAddVariantMissingCalculatedOrder($id: ID!, $variantId: ID!, $quantity: Int!) {\n  orderEditAddVariant(id: $id, variantId: $variantId, quantity: $quantity) {\n    calculatedOrder {\n      id\n    }\n    calculatedLineItem {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/CalculatedOrder/113209639218",
+        "variantId": "gid://shopify/ProductVariant/999999999999999",
+        "quantity": 1
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditAddVariant": {
+              "calculatedOrder": null,
+              "calculatedLineItem": null,
+              "userErrors": [
+                {
+                  "field": ["variantId"],
+                  "message": "The variant does not exist in the shop."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "notEditableCreate": {
+      "query": "mutation OrderEditLifecycleUserErrorsCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "order-edit-lifecycle-not-editable-20260629013542@example.com",
+          "note": "orderEdit lifecycle userErrors not-editable 20260629013542",
+          "tags": ["order-edit-lifecycle-user-errors", "not-editable", "20260629013542"],
+          "test": true,
+          "currency": "CAD",
+          "lineItems": [
+            {
+              "title": "Order edit lifecycle not-editable line 20260629013542",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8879686353202",
+                "name": "#1594"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "notEditableCancel": {
+      "query": "mutation OrderEditLifecycleUserErrorsCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8879686353202",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/88a0f59f-9b72-4e13-b62f-7c564319a8d4"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "notEditableHydrate": {
+      "query": "query OrdersOrderEditHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    merchantEditable\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n        sku\n        variant {\n          id\n          title\n          sku\n        }\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/Order/8879686353202"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8879686353202",
+              "name": "#1594",
+              "merchantEditable": false,
+              "cancelledAt": "2026-06-29T01:35:46Z",
+              "cancelReason": "OTHER",
+              "displayFinancialStatus": null,
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19688104296754",
+                    "title": "Order edit lifecycle not-editable line 20260629013542",
+                    "quantity": 1,
+                    "currentQuantity": 0,
+                    "sku": null,
+                    "variant": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "beginNotEditable": {
+      "query": "mutation OrderEditLifecycleBeginNotFound($id: ID!) {\n  orderEditBegin(id: $id) {\n    calculatedOrder {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/Order/8879686353202"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderEditBegin": {
+              "calculatedOrder": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "The order cannot be edited."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "editableOrderCancel": {
+      "query": "mutation OrderEditLifecycleUserErrorsCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8879686287666",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/94acd024-59a4-4320-be15-92e71d542eb2"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderEditHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/0"
+      },
+      "query": "query OrdersOrderEditHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    merchantEditable\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n        sku\n        variant {\n          id\n          title\n          sku\n        }\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersOrderEditHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8879686287666"
+      },
+      "query": "query OrdersOrderEditHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    merchantEditable\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n        sku\n        variant {\n          id\n          title\n          sku\n        }\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8879686287666",
+              "name": "#1593",
+              "merchantEditable": true,
+              "cancelledAt": null,
+              "cancelReason": null,
+              "displayFinancialStatus": null,
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19688104263986",
+                    "title": "Order edit lifecycle editable line 20260629013542",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": null,
+                    "variant": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersDraftOrderVariantHydrate",
+      "variables": {
+        "id": "gid://shopify/ProductVariant/999999999999999"
+      },
+      "query": "query OrdersDraftOrderVariantHydrate($id: ID!) {\n  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productVariant": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersOrderEditHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8879686353202"
+      },
+      "query": "query OrdersOrderEditHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    merchantEditable\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n        sku\n        variant {\n          id\n          title\n          sku\n        }\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8879686353202",
+              "name": "#1594",
+              "merchantEditable": false,
+              "cancelledAt": "2026-06-29T01:35:46Z",
+              "cancelReason": "OTHER",
+              "displayFinancialStatus": null,
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19688104296754",
+                    "title": "Order edit lifecycle not-editable line 20260629013542",
+                    "quantity": 1,
+                    "currentQuantity": 0,
+                    "sku": null,
+                    "variant": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
