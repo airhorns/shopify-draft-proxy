@@ -9593,6 +9593,34 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-order-open-report-progress-preconditions',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-order-open-report-progress-preconditions-conformance.ts',
+    purpose:
+      'fulfillmentOrderOpen and fulfillmentOrderReportProgress invalid-state public userError field/message behavior plus unchanged downstream reads.',
+    requiredAuthScopes: [
+      'read_orders',
+      'write_orders',
+      'read_fulfillments',
+      'write_fulfillments',
+      'write_merchant_managed_fulfillment_orders',
+      'write_assigned_fulfillment_orders',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-open-report-progress-preconditions.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-open-report-progress-preconditions-local-runtime.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-status-precondition-open.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-status-precondition-report-progress.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-status-precondition-order-read.graphql',
+    ],
+    cleanupBehavior:
+      'Discovers an existing closed fulfillment order, creates one disposable held order, captures rejected mutations, then cancels the disposable order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Public Admin GraphQL 2026-04 exposes field/message for these userErrors; local runtime tests cover proxy-only code projection and the store-state CANCELLED branch.',
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'fulfillment-order-close-state',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-order-close-state-conformance.ts',

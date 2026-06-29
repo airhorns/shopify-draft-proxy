@@ -14,7 +14,6 @@ mutation FulfillmentOrderStatusPreconditionReportProgress(
     userErrors {
       field
       message
-      code
     }
   }
 }
