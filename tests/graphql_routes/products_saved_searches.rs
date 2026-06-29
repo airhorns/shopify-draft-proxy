@@ -9502,6 +9502,8 @@ fn collection_validations_and_reorder_are_store_backed() {
             "message": "Can't manually add products to a smart collection"
         }])
     );
+    let state_before_smart_reorder = state_snapshot(&proxy);
+    let log_len_before_smart_reorder = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
     let smart_reorder = proxy.process_request(json_graphql_request(
         r#"
         mutation SmartReorder($id: ID!, $moves: [MoveInput!]!) {
@@ -9524,8 +9526,13 @@ fn collection_validations_and_reorder_are_store_backed() {
         smart_reorder.body["data"]["collectionReorderProducts"]["userErrors"],
         json!([{
             "field": ["id"],
-            "message": "Can't manually add products to a smart collection"
+            "message": "Can't reorder products unless collection is manually sorted"
         }])
+    );
+    assert_eq!(state_snapshot(&proxy), state_before_smart_reorder);
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_before_smart_reorder
     );
 
     let missing_reorder = proxy.process_request(json_graphql_request(
