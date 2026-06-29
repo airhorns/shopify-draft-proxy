@@ -1,0 +1,70 @@
+{
+  "scenarioId": "catalog-context-update-driver-type-mismatch",
+  "operationNames": ["companyCreate", "marketCreate", "catalogCreate", "catalogContextUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-context-update-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-context-update-company-create.graphql",
+    "variablesCapturePath": "$.cases[15].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-mismatch-market",
+        "capturePath": "$.cases[21].response.payload.data.marketCreate.userErrors",
+        "proxyPath": "$.data.marketCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-market-create.graphql",
+          "variablesCapturePath": "$.cases[21].variables"
+        }
+      },
+      {
+        "name": "setup-mismatch-catalog",
+        "capturePath": "$.cases[22].response.payload.data.catalogCreate.userErrors",
+        "proxyPath": "$.data.catalogCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-catalog-create.graphql",
+          "variables": {
+            "input": {
+              "title": { "fromCapturePath": "$.cases[22].variables.input.title" },
+              "status": "ACTIVE",
+              "context": {
+                "marketIds": [
+                  {
+                    "fromProxyResponse": "setup-mismatch-market",
+                    "path": "$.data.marketCreate.market.id"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "driver-mismatch-payload",
+        "capturePath": "$.cases[23].response.payload.data.catalogContextUpdate",
+        "proxyPath": "$.data.catalogContextUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-driver-mismatch.graphql",
+          "variables": {
+            "catalogId": {
+              "fromProxyResponse": "setup-mismatch-catalog",
+              "path": "$.data.catalogCreate.catalog.id"
+            },
+            "contextsToAdd": {
+              "companyLocationIds": [{ "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id" }]
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify Admin 2026-04 capture proves passing companyLocationIds to a MarketCatalog catalogContextUpdate returns CONTEXT_DRIVER_MISMATCH at [\"contextsToAdd\", \"companyLocationIds\"] with a null catalog payload. The replay creates both the company location and MarketCatalog through public mutations before invoking the mismatch branch."
+}
