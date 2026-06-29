@@ -611,6 +611,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}b2b-contact-business-rule-preconditions.json`,
       'config/parity-specs/b2b/b2b-contact-business-rule-preconditions.json',
+      'config/parity-specs/b2b/contact_assign_role_both_invalid.json',
       'config/parity-requests/b2b/b2b-contact-business-rules-assign-role.graphql',
       'config/parity-requests/b2b/b2b-contact-business-rules-company-create.graphql',
       'config/parity-requests/b2b/b2b-contact-business-rules-company-read.graphql',

@@ -1,0 +1,38 @@
+{
+  "scenarioId": "contact_assign_role_both_invalid",
+  "operationNames": ["companyCreate", "companyContactAssignRole"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-ordering"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-contact-business-rule-preconditions.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-contact-business-rules-company-create.graphql",
+    "variablesCapturePath": "$.roleCompanyCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
+  "notes": "Live Shopify 2026-04 evidence for singular companyContactAssignRole resolving a valid contact with both an unknown companyLocationId and unknown companyContactRoleId. Shopify reports the companyLocationId RESOURCE_NOT_FOUND branch first; the proxy replay stages the company through public GraphQL before issuing the same assign-role request.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "both-invalid-location-before-role-user-error",
+        "capturePath": "$.bothInvalidAssign.response.data.companyContactAssignRole",
+        "proxyPath": "$.data.companyContactAssignRole",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-business-rules-assign-role.graphql",
+          "variables": {
+            "companyContactId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id" },
+            "companyContactRoleId": {
+              "fromCapturePath": "$.bothInvalidAssign.request.variables.companyContactRoleId"
+            },
+            "companyLocationId": { "fromCapturePath": "$.bothInvalidAssign.request.variables.companyLocationId" }
+          }
+        }
+      }
+    ]
+  }
+}
