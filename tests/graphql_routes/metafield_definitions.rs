@@ -1947,6 +1947,137 @@ fn metafield_definition_delete_keeps_type_guard_exceptions_without_associated_va
 }
 
 #[test]
+fn metafields_set_uses_matching_definition_type_when_input_type_is_omitted() {
+    let mut proxy = snapshot_proxy();
+
+    let product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldsSetDefinitionTypeProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Definition typed metafield owner" } }),
+    ));
+    assert_eq!(
+        product.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let owner_id = product.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("productCreate should stage a product id")
+        .to_string();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldsSetDefinitionTypeCreate($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id namespace key type { name } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "ownerType": "PRODUCT",
+                "namespace": "custom",
+                "key": "specs",
+                "name": "Specs",
+                "type": "multi_line_text_field"
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldsSetDefinitionType($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id namespace key type value }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "metafields": [{
+                "ownerId": owner_id.clone(),
+                "namespace": "custom",
+                "key": "specs",
+                "value": "hello world"
+            }]
+        }),
+    ));
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["metafields"][0]["type"],
+        json!("multi_line_text_field")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldsSetDefinitionTypeRead($id: ID!) {
+          product(id: $id) {
+            metafield(namespace: "custom", key: "specs") {
+              namespace
+              key
+              type
+              value
+            }
+          }
+        }
+        "#,
+        json!({ "id": owner_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["product"]["metafield"],
+        json!({
+            "namespace": "custom",
+            "key": "specs",
+            "type": "multi_line_text_field",
+            "value": "hello world"
+        })
+    );
+}
+
+#[test]
+fn metafields_set_without_type_still_rejects_when_no_definition_matches() {
+    let mut proxy = snapshot_proxy();
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldsSetMissingDefinitionType($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id namespace key type value }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "metafields": [{
+                "ownerId": "gid://shopify/Product/123",
+                "namespace": "custom",
+                "key": "specs",
+                "value": "hello world"
+            }]
+        }),
+    ));
+    assert_eq!(set.body["data"]["metafieldsSet"]["metafields"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["userErrors"],
+        json!([{
+            "field": ["metafields", "0", "type"],
+            "message": "Type can't be blank",
+            "code": "BLANK"
+        }])
+    );
+}
+
+#[test]
 fn metafield_definition_delete_enforces_reference_guards_and_removes_associated_values() {
     let mut proxy = snapshot_proxy();
     let namespace = "delete_reference_guard";
