@@ -53,61 +53,8 @@ const readDocument = await readFile(
   'utf8',
 );
 
-const preflightDocument = `#graphql
-  query MarketsMutationPreflightHydrate($priceListId: ID!, $productId: ID!) {
-    priceList(id: $priceListId) {
-      __typename
-      id
-      name
-      currency
-      fixedPricesCount
-      prices(first: 10, originType: FIXED) {
-        edges {
-          cursor
-          node {
-            price {
-              amount
-              currencyCode
-            }
-            compareAtPrice {
-              amount
-              currencyCode
-            }
-            originType
-            variant {
-              id
-              sku
-              product {
-                id
-                title
-              }
-            }
-          }
-        }
-        pageInfo {
-          hasNextPage
-          hasPreviousPage
-          startCursor
-          endCursor
-        }
-      }
-    }
-    product(id: $productId) {
-      id
-      title
-      handle
-      variants(first: 10) {
-        nodes {
-          id
-          title
-          sku
-          price
-          compareAtPrice
-        }
-      }
-    }
-  }
-`;
+const preflightDocument =
+  'query MarketsMutationPreflightHydrate($priceListId: ID!, $variantIds: [ID!]!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productVariants: nodes(ids: $variantIds) { __typename ... on ProductVariant { id title sku price compareAtPrice product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } } }';
 
 function assertGraphqlOk(label: string, result: ConformanceGraphqlResult): void {
   if (result.status < 200 || result.status >= 300 || result.payload.errors) {
@@ -134,11 +81,46 @@ async function cleanupFixedPrice(label: string): Promise<ConformanceGraphqlResul
   return result;
 }
 
+function pushUniqueString(values: string[], candidate: unknown): void {
+  if (typeof candidate === 'string' && candidate.length > 0 && !values.includes(candidate)) {
+    values.push(candidate);
+  }
+}
+
+function collectInputVariantIds(values: string[], inputs: unknown): void {
+  if (!Array.isArray(inputs)) return;
+  for (const input of inputs) {
+    if (typeof input === 'object' && input !== null && !Array.isArray(input)) {
+      pushUniqueString(values, (input as { variantId?: unknown }).variantId);
+    }
+  }
+}
+
+function collectVariantIds(values: string[], ids: unknown): void {
+  if (!Array.isArray(ids)) return;
+  for (const id of ids) {
+    pushUniqueString(values, id);
+  }
+}
+
+function fixedPriceVariantPreflightVariables(variables: Record<string, unknown>): Record<string, unknown> {
+  const variantIds: string[] = [];
+  collectInputVariantIds(variantIds, variables['prices']);
+  collectInputVariantIds(variantIds, variables['pricesToAdd']);
+  collectVariantIds(variantIds, variables['variantIds']);
+  collectVariantIds(variantIds, variables['variantIdsToDelete']);
+  return {
+    ...variables,
+    priceListId: variables['priceListId'] ?? null,
+    variantIds,
+  };
+}
+
 function preflightCall(variables: Record<string, unknown>, response: ConformanceGraphqlResult) {
   return {
     operationName: 'MarketsMutationPreflightHydrate',
     variables,
-    query: 'hand-synthesized from live capture setup baseline',
+    query: preflightDocument,
     response: {
       status: response.status,
       body: response.payload,
@@ -150,7 +132,7 @@ let finalCleanup: ConformanceGraphqlResult | null = null;
 
 try {
   const preCleanup = await cleanupFixedPrice('pre-cleanup variant fixed price');
-  const baselineVariables = { priceListId, productId };
+  const baselineVariables = { priceListId, variantIds: [variantId] };
   const baseline = await runGraphqlRequest(preflightDocument, baselineVariables);
   assertGraphqlOk('preflight baseline', baseline);
 
@@ -227,9 +209,9 @@ try {
     },
     successPath,
     upstreamCalls: [
-      preflightCall(addVariables, baseline),
-      preflightCall(updateVariables, baseline),
-      preflightCall(deleteVariables, baseline),
+      preflightCall(fixedPriceVariantPreflightVariables(addVariables), baseline),
+      preflightCall(fixedPriceVariantPreflightVariables(updateVariables), baseline),
+      preflightCall(fixedPriceVariantPreflightVariables(deleteVariables), baseline),
     ],
   };
 

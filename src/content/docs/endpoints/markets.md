@@ -118,7 +118,8 @@ fixed-price rows, quantity rules, and quantity price breaks for captured
 product and variant IDs. Downstream `priceList` / `priceLists` reads expose the
 staged rows in the checked-in scenarios. Validation covers name, currency,
 parent adjustment, `catalogId` existence/taken checks, unknown resource,
-duplicate fixed-price, missing fixed-price, product-level fixed-price, no-op,
+duplicate fixed-price, missing fixed-price, fixed-price `price` /
+`compareAtPrice` currency mismatches, product-level fixed-price, no-op,
 quantity-rule, and price-limit branches represented by parity specs. Captured
 Admin API 2026-04 behavior returns `CATALOG_DOES_NOT_EXIST` or
 `CATALOG_TAKEN` at `["input", "catalogId"]` for price-list catalog relation
