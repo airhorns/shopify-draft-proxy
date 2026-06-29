@@ -2975,6 +2975,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}selling-plan-group-lifecycle.json`,
       'config/parity-specs/products/selling-plan-group-lifecycle.json',
+      'config/parity-requests/products/selling-plan-group-add-products.graphql',
+      'config/parity-requests/products/selling-plan-group-add-variants.graphql',
+      'config/parity-requests/products/selling-plan-group-catalog.graphql',
+      'config/parity-requests/products/selling-plan-group-create.graphql',
+      'config/parity-requests/products/selling-plan-group-read.graphql',
+      'config/parity-requests/products/selling-plan-group-update.graphql',
     ],
     cleanupBehavior: 'Creates a disposable product and selling-plan group, then deletes both during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
