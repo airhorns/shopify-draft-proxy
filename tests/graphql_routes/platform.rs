@@ -55,16 +55,21 @@ fn fulfillment_order_order_fixture(
     quantity: i64,
     status: &str,
 ) -> Value {
-    let supported_actions = if status == "SCHEDULED" {
-        json!([{ "action": "MARK_AS_OPEN" }])
-    } else {
-        json!([
+    let supported_actions = match status {
+        "SCHEDULED" => json!([{ "action": "MARK_AS_OPEN" }]),
+        "CLOSED" | "CANCELLED" => json!([]),
+        "ON_HOLD" => json!([
+            { "action": "RELEASE_HOLD" },
+            { "action": "HOLD" },
+            { "action": "MOVE" }
+        ]),
+        _ => json!([
             { "action": "CREATE_FULFILLMENT" },
             { "action": "REPORT_PROGRESS" },
             { "action": "MOVE" },
             { "action": "HOLD" },
             { "action": "SPLIT" }
-        ])
+        ]),
     };
     json!({
         "id": order_id,
@@ -617,7 +622,7 @@ fn fulfillment_order_request_and_cancellation_transitions_stage_and_read_back() 
         json!("CANCELLATION_REJECTED")
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let operation_names = log["entries"]
         .as_array()
         .unwrap()
@@ -1048,6 +1053,15 @@ fn fulfillment_order_split_hydrates_observed_fulfillment_orders_without_order_ow
 #[test]
 fn backup_region_update_uses_staged_market_region_and_computed_coercion_locations() {
     let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    let mut restored = dump.body.clone();
+    restored["state"]["baseState"]["shop"]["shopAddress"]["countryCodeV2"] = json!("CA");
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
 
     let omitted = proxy.process_request(json_graphql_request(
         r#"
@@ -1104,6 +1118,41 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
         })
     );
 
+    let current_country = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateCurrentCountry {
+          backupRegionUpdate(region: { countryCode: CA }) {
+            backupRegion { __typename id name ... on MarketRegionCountry { code } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        current_country.body["data"]["backupRegionUpdate"],
+        json!({
+            "backupRegion": {
+                "__typename": "MarketRegionCountry",
+                "id": "gid://shopify/MarketRegionCountry/local-CA",
+                "name": "Canada",
+                "code": "CA"
+            },
+            "userErrors": []
+        })
+    );
+    let current_region = current_country.body["data"]["backupRegionUpdate"]["backupRegion"].clone();
+
+    let current_node = proxy.process_request(json_graphql_request(
+        r#"
+        query BackupRegionCurrentCountryNode($ids: [ID!]!) {
+          nodes(ids: $ids) { __typename ... on MarketRegionCountry { id name code } }
+        }
+        "#,
+        json!({ "ids": [current_region["id"].as_str().unwrap()] }),
+    ));
+    assert_eq!(current_node.body["data"]["nodes"][0], current_region);
+
     let created_market = proxy.process_request(json_graphql_request(
         r#"
         mutation CreateJapanMarket {
@@ -1156,8 +1205,8 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
         .expect("backup region id is selected")
         .to_string();
     assert!(
-        region_id.starts_with("gid://shopify/MarketRegionCountry/local-"),
-        "locally staged market region ids must be synthetic, got {region_id}"
+        region_id.starts_with("gid://shopify/Market/Region/"),
+        "locally staged market region ids must come from the modeled market region node, got {region_id}"
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -2717,7 +2766,7 @@ fn generic_location_edit_stages_location_validates_and_downstream_reads() {
         json!({ "id": primary_id, "name": "Edited Primary" })
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let roots: Vec<_> = log["entries"]
         .as_array()
         .unwrap()
@@ -2979,7 +3028,7 @@ fn generic_location_activate_rejects_non_unique_active_name() {
         })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"],
+        log_snapshot(&proxy)["entries"],
         json!([]),
         "rejected activation must not append a staged mutation log entry"
     );
@@ -3194,7 +3243,7 @@ fn generic_location_delete_stages_tombstone_and_cascades_inventory_levels() {
         })
     );
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["deletedLocationIds"],
+        state_snapshot(&proxy)["stagedState"]["deletedLocationIds"],
         json!([target_id])
     );
 }
@@ -3738,8 +3787,8 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         r#"
         mutation HoldNumericFulfillmentOrder($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {
           fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
-            fulfillmentHold { id handle reason reasonNotes heldByRequestingApp }
-            fulfillmentOrder { id status fulfillmentHolds { id handle } lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { fulfillableQuantity } } } }
+            fulfillmentHold { id handle reason reasonNotes displayReason heldByRequestingApp }
+            fulfillmentOrder { id status fulfillmentHolds { id handle reason displayReason } lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { fulfillableQuantity } } } }
             remainingFulfillmentOrder { id status lineItems(first: 5) { nodes { totalQuantity remainingQuantity } } }
             userErrors { field message code }
           }
@@ -3748,7 +3797,7 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         json!({
             "id": fulfillment_order_id,
             "fulfillmentHold": {
-                "reason": "OTHER",
+                "reason": "AWAITING_RETURN_ITEMS",
                 "reasonNotes": "wait",
                 "handle": "numeric-hold",
                 "fulfillmentOrderLineItems": [{ "id": line_item_id, "quantity": 1 }]
@@ -3758,7 +3807,19 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
     assert_eq!(hold.status, 200);
     let hold_payload = &hold.body["data"]["fulfillmentOrderHold"];
     assert_eq!(hold_payload["userErrors"], json!([]));
+    assert_eq!(
+        hold_payload["fulfillmentHold"]["reason"],
+        json!("AWAITING_RETURN_ITEMS")
+    );
+    assert_eq!(
+        hold_payload["fulfillmentHold"]["displayReason"],
+        json!("Exchange items awaiting return delivery")
+    );
     assert_eq!(hold_payload["fulfillmentOrder"]["status"], json!("ON_HOLD"));
+    assert_eq!(
+        hold_payload["fulfillmentOrder"]["fulfillmentHolds"][0]["displayReason"],
+        json!("Exchange items awaiting return delivery")
+    );
     assert_eq!(
         hold_payload["fulfillmentOrder"]["lineItems"]["nodes"][0]["remainingQuantity"],
         json!(1)
@@ -3771,9 +3832,9 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
     let after_hold = proxy.process_request(json_graphql_request(
         r#"
         query ReadHeldFulfillmentOrder($orderId: ID!, $fulfillmentOrderId: ID!) {
-          order(id: $orderId) { id fulfillmentOrders(first: 10) { nodes { id status fulfillmentHolds { id handle } } } }
-          fulfillmentOrder(id: $fulfillmentOrderId) { id status }
-          manualHoldsFulfillmentOrders(first: 10) { nodes { id status } }
+          order(id: $orderId) { id fulfillmentOrders(first: 10) { nodes { id status fulfillmentHolds { id handle reason displayReason } } } }
+          fulfillmentOrder(id: $fulfillmentOrderId) { id status fulfillmentHolds { reason displayReason } }
+          manualHoldsFulfillmentOrders(first: 10) { nodes { id status fulfillmentHolds { reason displayReason } } }
         }
         "#,
         json!({ "orderId": order_id, "fulfillmentOrderId": fulfillment_order_id }),
@@ -3785,6 +3846,15 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
     assert_eq!(
         after_hold.body["data"]["manualHoldsFulfillmentOrders"]["nodes"][0]["id"],
         json!(fulfillment_order_id)
+    );
+    assert_eq!(
+        after_hold.body["data"]["fulfillmentOrder"]["fulfillmentHolds"][0]["displayReason"],
+        json!("Exchange items awaiting return delivery")
+    );
+    assert_eq!(
+        after_hold.body["data"]["manualHoldsFulfillmentOrders"]["nodes"][0]["fulfillmentHolds"][0]
+            ["displayReason"],
+        json!("Exchange items awaiting return delivery")
     );
 
     let hold_id = hold_payload["fulfillmentHold"]["id"].as_str().unwrap();
@@ -3827,10 +3897,14 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         after_release.body["data"]["order"]["fulfillmentOrders"]["nodes"][1]["status"],
         json!("CLOSED")
     );
-    assert!(proxy.get_log_snapshot()["entries"][0]["rawBody"]
+    assert!(log_snapshot(&proxy)["entries"][0]["rawBody"]
         .as_str()
         .unwrap()
         .contains("HoldNumericFulfillmentOrder"));
+    assert_eq!(
+        log_snapshot(&proxy)["entries"][0]["variables"]["fulfillmentHold"]["reason"],
+        json!("AWAITING_RETURN_ITEMS")
+    );
 }
 
 #[test]
@@ -4297,60 +4371,105 @@ fn fulfillment_order_open_rejects_already_open_without_mutating_hydrated_order()
             }] }
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
 fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() {
-    let mut proxy = snapshot_proxy();
-    let open = proxy.process_request(json_graphql_request(
-        r#"
-        mutation FulfillmentOrderStatusPreconditionOpen($id: ID!) {
-          fulfillmentOrderOpen(id: $id) {
-            fulfillmentOrder { id status updatedAt supportedActions { action } }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({ "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed" }),
-    ));
-    assert_eq!(
-        open.body["data"]["fulfillmentOrderOpen"],
-        json!({
-            "fulfillmentOrder": null,
-            "userErrors": [{
-                "field": ["id"],
-                "message": "Fulfillment order must be scheduled.",
-                "code": "INVALID_FULFILLMENT_ORDER_STATUS"
-            }]
-        })
-    );
+    for (status, status_message, supported_actions) in [
+        ("CLOSED", "closed", json!([])),
+        ("CANCELLED", "cancelled", json!([])),
+        (
+            "ON_HOLD",
+            "on_hold",
+            json!([
+                { "action": "RELEASE_HOLD" },
+                { "action": "HOLD" },
+                { "action": "MOVE" }
+            ]),
+        ),
+    ] {
+        let order_id = format!("gid://shopify/Order/open-invalid-{status_message}");
+        let fulfillment_order_id =
+            format!("gid://shopify/FulfillmentOrder/open-invalid-{status_message}");
+        let mut proxy =
+            snapshot_proxy().with_upstream_transport(fulfillment_order_hydrate_transport(vec![
+                fulfillment_order_order_fixture(
+                    &order_id,
+                    "#OPEN-INVALID",
+                    &fulfillment_order_id,
+                    &format!(
+                        "gid://shopify/FulfillmentOrderLineItem/open-invalid-{status_message}"
+                    ),
+                    1,
+                    status,
+                ),
+            ]));
 
-    let after_open = proxy.process_request(json_graphql_request(
-        r#"
-        query FulfillmentOrderStatusPreconditionOrderRead($orderId: ID!) {
-          order(id: $orderId) {
-            id
-            fulfillmentOrders(first: 10, includeClosed: true) {
-              nodes { id status updatedAt supportedActions { action } }
+        let open = proxy.process_request(json_graphql_request(
+            r#"
+            mutation FulfillmentOrderStatusPreconditionOpen($id: ID!) {
+              fulfillmentOrderOpen(id: $id) {
+                fulfillmentOrder { id status updatedAt supportedActions { action } }
+                userErrors { field message code }
+              }
             }
-          }
-        }
-        "#,
-        json!({ "orderId": "gid://shopify/Order/status-precondition-open-closed" }),
-    ));
-    assert_eq!(
-        after_open.body["data"]["order"],
-        json!({
-            "id": "gid://shopify/Order/status-precondition-open-closed",
-            "fulfillmentOrders": { "nodes": [{
-                "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed",
-                "status": "CLOSED",
-                "updatedAt": "2026-05-11T10:00:00Z",
-                "supportedActions": []
-            }] }
-        })
-    );
+            "#,
+            json!({ "id": fulfillment_order_id }),
+        ));
+        assert_eq!(
+            open.body["data"]["fulfillmentOrderOpen"],
+            json!({
+                "fulfillmentOrder": null,
+                "userErrors": [{
+                    "field": null,
+                    "message": format!("Expected fulfillment order status to be valid but it was {status_message}."),
+                    "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+                }]
+            })
+        );
+
+        let after_open = proxy.process_request(json_graphql_request(
+            r#"
+            query FulfillmentOrderStatusPreconditionOrderRead($orderId: ID!) {
+              order(id: $orderId) {
+                id
+                fulfillmentOrders(first: 10, includeClosed: true) {
+                  nodes { id status updatedAt supportedActions { action } }
+                }
+              }
+            }
+            "#,
+            json!({ "orderId": order_id }),
+        ));
+        assert_eq!(
+            after_open.body["data"]["order"],
+            json!({
+                "id": order_id,
+                "fulfillmentOrders": { "nodes": [{
+                    "id": fulfillment_order_id,
+                    "status": status,
+                    "updatedAt": "2026-06-15T11:00:00Z",
+                    "supportedActions": supported_actions
+                }] }
+            })
+        );
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    }
+
+    let order_id = "gid://shopify/Order/progress-invalid-scheduled";
+    let fulfillment_order_id = "gid://shopify/FulfillmentOrder/progress-invalid-scheduled";
+    let mut proxy =
+        snapshot_proxy().with_upstream_transport(fulfillment_order_hydrate_transport(vec![
+            fulfillment_order_order_fixture(
+                order_id,
+                "#PROGRESS-INVALID",
+                fulfillment_order_id,
+                "gid://shopify/FulfillmentOrderLineItem/progress-invalid-scheduled",
+                1,
+                "SCHEDULED",
+            ),
+        ]));
 
     let progress = proxy.process_request(json_graphql_request(
         r#"
@@ -4362,7 +4481,7 @@ fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() 
         }
         "#,
         json!({
-            "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled",
+            "id": fulfillment_order_id,
             "progressReport": { "reasonNotes": "local-runtime progress precondition" }
         }),
     ));
@@ -4371,9 +4490,9 @@ fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() 
         json!({
             "fulfillmentOrder": null,
             "userErrors": [{
-                "field": ["id"],
-                "message": "Fulfillment order must be in progress.",
-                "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+                "field": null,
+                "message": "Cannot report progress on a fulfillment order in this state.",
+                "code": "FULFILLMENT_ORDER_STATUS_INVALID"
             }]
         })
     );
@@ -4389,20 +4508,21 @@ fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() 
           }
         }
         "#,
-        json!({ "orderId": "gid://shopify/Order/status-precondition-progress-scheduled" }),
+        json!({ "orderId": order_id }),
     ));
     assert_eq!(
         after_progress.body["data"]["order"],
         json!({
-            "id": "gid://shopify/Order/status-precondition-progress-scheduled",
+            "id": order_id,
             "fulfillmentOrders": { "nodes": [{
-                "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled",
+                "id": fulfillment_order_id,
                 "status": "SCHEDULED",
-                "updatedAt": "2026-05-11T10:05:00Z",
+                "updatedAt": "2026-06-15T11:00:00Z",
                 "supportedActions": [{ "action": "MARK_AS_OPEN" }]
             }] }
         })
     );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -4717,7 +4837,7 @@ fn shop_policy_update_stages_policy_and_downstream_reads_locally() {
     );
     assert_eq!(read.body["data"]["nodePolicy"]["id"], policy["id"]);
     assert_eq!(read.body["data"]["nodes"][0]["url"], policy["url"]);
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(
         log["entries"][0]["stagedResourceIds"],
         json!([policy["id"]])
@@ -4887,7 +5007,7 @@ fn shop_policy_update_rejects_only_privacy_liquid_syntax_errors() {
             }]
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
     let read_after_invalid = proxy.process_request(json_graphql_request(read_query, json!({})));
     assert_eq!(
         read_after_invalid.body["data"]["shop"]["shopPolicies"],
@@ -4968,7 +5088,7 @@ fn shop_policy_update_validation_branches_match_shopify_shapes() {
             "code": null
         }])
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 
     let max_body = "a".repeat(524_287);
     let max_response = proxy.process_request(json_graphql_request(

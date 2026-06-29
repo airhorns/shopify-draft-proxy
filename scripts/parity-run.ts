@@ -9,6 +9,7 @@ import {
   type DraftProxy,
   type DraftProxyRequest,
   type DraftProxyStateDump,
+  type ReadMode,
 } from '../js/src/index.js';
 import {
   type RecordedUpstreamCall,
@@ -75,11 +76,19 @@ type ExpectedDifference = {
 type ParitySpec = {
   scenarioId: string;
   liveCaptureFiles?: string[];
+  proxyConfig?: {
+    readMode?: ReadMode;
+  };
   proxyRequest?: ProxyRequestSpec;
   comparison?: {
     expectedDifferences?: ExpectedDifference[];
     targets?: ComparisonTarget[];
   };
+};
+
+type ProxyContext = {
+  proxy: DraftProxy;
+  cleanState: DraftProxyStateDump;
 };
 
 type ProxyResponse = { status: number; body: unknown };
@@ -88,6 +97,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
 const paritySpecRoot = path.join(repoRoot, 'config', 'parity-specs');
 const defaultAdminApiVersion = '2026-04';
+const defaultReadMode: ReadMode = 'live-hybrid';
 const productsHydrateNodesObservationPath = path.join(
   repoRoot,
   'config',
@@ -964,6 +974,16 @@ async function runSpec(
   return failures;
 }
 
+function createProxyContext(readMode: ReadMode, shopifyAdminOrigin: string): ProxyContext {
+  const proxy = createDraftProxy({
+    readMode,
+    unsupportedMutationMode: 'passthrough',
+    shopifyAdminOrigin,
+    port: 0,
+  });
+  return { proxy, cleanState: proxy.dumpState('1970-01-01T00:00:00.000Z') };
+}
+
 async function main(): Promise<void> {
   let args: CliArgs;
   try {
@@ -985,17 +1005,21 @@ async function main(): Promise<void> {
   if (args.dryRun) return;
 
   const cassette = await startCassetteServer();
-  const proxy = createDraftProxy({
-    readMode: 'live-hybrid',
-    unsupportedMutationMode: 'passthrough',
-    shopifyAdminOrigin: cassette.origin,
-    port: 0,
-  });
-  const cleanState = proxy.dumpState('1970-01-01T00:00:00.000Z');
+  const proxyContexts = new Map<ReadMode, ProxyContext>();
+  function proxyContextFor(readMode: ReadMode): ProxyContext {
+    const existing = proxyContexts.get(readMode);
+    if (existing) return existing;
+    const context = createProxyContext(readMode, cassette.origin);
+    proxyContexts.set(readMode, context);
+    return context;
+  }
 
   let failures = 0;
   try {
     for (const specPath of specPaths) {
+      const spec = await readJsonFile<ParitySpec>(specPath);
+      const readMode = spec.proxyConfig?.readMode ?? defaultReadMode;
+      const { proxy, cleanState } = proxyContextFor(readMode);
       const errors = await runSpec(specPath, args.debug, proxy, cassette, cleanState);
       if (errors.length > 0) {
         failures += 1;
@@ -1005,7 +1029,7 @@ async function main(): Promise<void> {
       }
     }
   } finally {
-    proxy.dispose();
+    for (const { proxy } of proxyContexts.values()) proxy.dispose();
     await cassette.close();
   }
   if (failures > 0) {

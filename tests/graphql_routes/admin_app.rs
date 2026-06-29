@@ -102,7 +102,7 @@ fn delegate_access_token_create_validates_and_stages_synthetic_secret() {
     );
     assert_eq!(
         happy.body["data"]["aliasCreate"]["delegateAccessToken"]["createdAt"],
-        json!("2026-04-28T02:10:00.000Z")
+        json!("2024-01-01T00:00:01.000Z")
     );
     assert_eq!(
         happy.body["data"]["aliasCreate"]["delegateAccessToken"]["expiresIn"],
@@ -676,7 +676,7 @@ fn app_lookup_and_uninstall_use_request_owned_app_identity() {
             "app": null,
             "userErrors": [{
                 "field": ["id"],
-                "message": "The app cannot be found.",
+                "message": "App not found",
                 "code": "APP_NOT_FOUND"
             }]
         })
@@ -814,7 +814,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
                 "name": "HAR-646 valid test",
                 "status": "ACTIVE",
                 "test": true,
-                "createdAt": "2026-04-28T02:10:00.000Z",
+                "createdAt": "2024-01-01T00:00:02.000Z",
                 "price": { "amount": "5.0", "currencyCode": "USD" }
             },
             "confirmationUrl": DERIVED_RETURN_CONFIRMATION_URL,
@@ -848,7 +848,7 @@ fn apps_user_errors_are_typed_and_selection_projected() {
             "app": null,
             "userErrors": [{
                 "__typename": "AppUninstallError",
-                "message": "The app cannot be found.",
+                "message": "App not found",
                 "code": "APP_NOT_FOUND"
             }]
         })
@@ -1531,6 +1531,77 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
     assert_eq!(
         after_uninstall.body["data"]["currentAppInstallation"],
         Value::Null
+    );
+}
+
+#[test]
+fn app_uninstall_user_error_messages_match_core_i18n_strings() {
+    let mut proxy = snapshot_proxy();
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppUninstallUnknownInput($input: AppUninstallInput) {
+          appUninstall(input: $input) {
+            app { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/App/9999999999" } }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["appUninstall"],
+        json!({
+            "app": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "App not found",
+                "code": "APP_NOT_FOUND"
+            }]
+        })
+    );
+
+    let uninstall = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppUninstallCurrent {
+          appUninstall {
+            app { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        uninstall.body["data"]["appUninstall"]["userErrors"],
+        json!([])
+    );
+    let current_app_id = uninstall.body["data"]["appUninstall"]["app"]["id"]
+        .as_str()
+        .expect("successful appUninstall should return app id")
+        .to_string();
+
+    let already_uninstalled = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppUninstallKnownInput($input: AppUninstallInput) {
+          appUninstall(input: $input) {
+            app { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": current_app_id } }),
+    ));
+    assert_eq!(
+        already_uninstalled.body["data"]["appUninstall"],
+        json!({
+            "app": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "App is not installed on shop",
+                "code": "APP_NOT_INSTALLED"
+            }]
+        })
     );
 }
 

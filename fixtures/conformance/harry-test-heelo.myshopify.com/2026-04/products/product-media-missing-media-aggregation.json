@@ -1,0 +1,228 @@
+{
+  "capturedAt": "2026-06-26T20:22:19.358Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "operations": ["productUpdateMedia", "productDeleteMedia"],
+  "setup": {
+    "productCreate": {
+      "variables": {
+        "product": {
+          "title": "Hermes Product Media Missing Aggregation 1782505338068",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10222659404082",
+              "title": "Hermes Product Media Missing Aggregation 1782505338068"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productCreateMedia": {
+      "variables": {
+        "productId": "gid://shopify/Product/10222659404082",
+        "media": [
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "https://placehold.co/600x400/png",
+            "alt": "Ready media"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productCreateMedia": {
+            "media": [
+              {
+                "id": "gid://shopify/MediaImage/43942114197810",
+                "alt": "Ready media",
+                "mediaContentType": "IMAGE",
+                "status": "UPLOADED"
+              }
+            ],
+            "mediaUserErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "updateMultiMissing": {
+      "variables": {
+        "productId": "gid://shopify/Product/10222659404082",
+        "media": [
+          {
+            "id": "gid://shopify/MediaImage/999999999998",
+            "alt": "Missing one"
+          },
+          {
+            "id": "gid://shopify/MediaImage/999999999999",
+            "alt": "Missing two"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productUpdateMedia": {
+              "media": null,
+              "userErrors": [
+                {
+                  "field": ["media"],
+                  "message": "Media ids gid://shopify/MediaImage/999999999998,gid://shopify/MediaImage/999999999999 do not exist"
+                }
+              ],
+              "mediaUserErrors": [
+                {
+                  "field": ["media"],
+                  "message": "Media ids gid://shopify/MediaImage/999999999998,gid://shopify/MediaImage/999999999999 do not exist",
+                  "code": "MEDIA_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "deleteMultiMissing": {
+      "variables": {
+        "productId": "gid://shopify/Product/10222659404082",
+        "mediaIds": ["gid://shopify/MediaImage/999999999998", "gid://shopify/MediaImage/999999999999"]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDeleteMedia": {
+              "deletedMediaIds": null,
+              "deletedProductImageIds": null,
+              "userErrors": [
+                {
+                  "field": ["mediaIds"],
+                  "message": "Media ids gid://shopify/MediaImage/999999999998,gid://shopify/MediaImage/999999999999 do not exist"
+                }
+              ],
+              "mediaUserErrors": [
+                {
+                  "field": ["mediaIds"],
+                  "message": "Media ids gid://shopify/MediaImage/999999999998,gid://shopify/MediaImage/999999999999 do not exist",
+                  "code": "MEDIA_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10222659404082"]
+      },
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10222659404082",
+                "title": "Hermes Product Media Missing Aggregation 1782505338068",
+                "handle": "hermes-product-media-missing-aggregation-1782505338068",
+                "status": "DRAFT",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51381114994994",
+                      "title": "Default Title",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53486001652018",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                },
+                "collections": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Creates a disposable product plus one product media node, then records productUpdateMedia/productDeleteMedia requests with two nonexistent MediaImage GIDs to capture Shopify aggregated MEDIA_DOES_NOT_EXIST messages."
+}

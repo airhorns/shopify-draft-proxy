@@ -285,7 +285,7 @@ fn unknown_mutation_passthrough_observability_and_reject_mode_are_preserved() {
     );
     assert_eq!(*hits.lock().unwrap(), 1);
     assert_eq!(
-        passthrough.get_log_snapshot(),
+        log_snapshot(&passthrough),
         json!({
             "entries": [{
                 "id": "log-1",
@@ -428,7 +428,7 @@ fn webhook_subscription_create_update_delete_and_reads_stage_locally() {
         json!({ "count": 0 })
     );
 
-    let log_roots: Vec<Value> = proxy.get_log_snapshot()["entries"]
+    let log_roots: Vec<Value> = log_snapshot(&proxy)["entries"]
         .as_array()
         .unwrap()
         .iter()
@@ -633,6 +633,7 @@ mutation {
         .as_str()
         .unwrap()
         .to_string();
+    assert_eq!(created_at, "2024-01-01T00:00:01.000Z");
     assert_eq!(
         create.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"],
         json!({
@@ -729,6 +730,7 @@ mutation($id: ID!) {
         .as_str()
         .unwrap()
         .to_string();
+    assert_eq!(omitted_update_updated_at, "2024-01-01T00:00:02.000Z");
     assert_eq!(
         update_omitted_fields.body["data"]["webhookSubscriptionUpdate"]["webhookSubscription"],
         json!({
@@ -766,6 +768,7 @@ mutation($id: ID!) {
         .as_str()
         .unwrap()
         .to_string();
+    assert_eq!(empty_filter_updated_at, "2024-01-01T00:00:03.000Z");
     assert_eq!(
         update_empty_filter.body["data"]["webhookSubscriptionUpdate"]["webhookSubscription"],
         json!({
@@ -1309,7 +1312,7 @@ fn webhook_subscription_rejects_unknown_topic_before_staging() {
         count.body["data"]["webhookSubscriptionsCount"],
         json!({ "count": 0 })
     );
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 
     let variable_unknown_topic = proxy.process_request(json_graphql_request(
         r#"# RustWebhookLocalRuntime
@@ -1352,7 +1355,7 @@ fn webhook_subscription_rejects_unknown_topic_before_staging() {
         count.body["data"]["webhookSubscriptionsCount"],
         json!({ "count": 0 })
     );
-    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 }
 
 #[test]
@@ -1442,13 +1445,7 @@ fn webhook_subscription_duplicate_scope_includes_format_filter_and_api_permissio
         count.body["data"]["webhookSubscriptionsCount"],
         json!({ "count": 3 })
     );
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        3
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 3);
 }
 
 #[test]
@@ -1575,10 +1572,7 @@ fn dedicated_pubsub_missing_required_fields_return_coercion_errors_before_stagin
         "only the valid control create should stage a record"
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         1,
         "coercion errors should not append mutation log entries"
     );
@@ -1818,10 +1812,7 @@ fn webhook_eventbridge_cloud_delivery_rejects_non_json_format_without_staging() 
         "only the valid JSON setup creates should stage records"
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         2,
         "rejected cloud-format create/update attempts should not append mutation log entries"
     );
@@ -2092,7 +2083,7 @@ fn pubsub_gcp_project_and_topic_char_rules_match_shopify() {
         json!({ "count": 2 })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
+        log_snapshot(&proxy)["entries"]
             .as_array()
             .unwrap()
             .len(),
@@ -2251,7 +2242,6 @@ fn webhook_subscription_dedicated_pubsub_and_eventbridge_roots_stage_records() {
         json!({
             "id": pubsub_id,
             "topic": "SHOP_UPDATE",
-            "callbackUrl": "https://eventbridge.arn",
             "uri": "pubsub://valid-project:topic-1",
             "endpoint": {
                 "__typename": "WebhookPubSubEndpoint",
@@ -2276,7 +2266,6 @@ fn webhook_subscription_dedicated_pubsub_and_eventbridge_roots_stage_records() {
         json!({
             "id": eventbridge_id,
             "topic": "SHOP_UPDATE",
-            "callbackUrl": "https://eventbridge.arn",
             "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source",
             "endpoint": {
                 "__typename": "WebhookEventBridgeEndpoint",
@@ -2325,7 +2314,6 @@ query($pubsubId: ID!, $eventbridgeId: ID!) {
         read.body["data"]["pubsub"],
         json!({
             "id": pubsub_id,
-            "callbackUrl": "https://eventbridge.arn",
             "uri": "pubsub://valid-project:topic-1",
             "endpoint": {
                 "__typename": "WebhookPubSubEndpoint",
@@ -2338,7 +2326,6 @@ query($pubsubId: ID!, $eventbridgeId: ID!) {
         read.body["data"]["eventbridge"],
         json!({
             "id": eventbridge_id,
-            "callbackUrl": "https://eventbridge.arn",
             "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source",
             "endpoint": {
                 "__typename": "WebhookEventBridgeEndpoint",
@@ -2351,7 +2338,6 @@ query($pubsubId: ID!, $eventbridgeId: ID!) {
         json!([
             {
                 "id": pubsub_id,
-                "callbackUrl": "https://eventbridge.arn",
                 "uri": "pubsub://valid-project:topic-1",
                 "endpoint": {
                     "__typename": "WebhookPubSubEndpoint",
@@ -2361,7 +2347,6 @@ query($pubsubId: ID!, $eventbridgeId: ID!) {
             },
             {
                 "id": eventbridge_id,
-                "callbackUrl": "https://eventbridge.arn",
                 "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source",
                 "endpoint": {
                     "__typename": "WebhookEventBridgeEndpoint",
@@ -2396,7 +2381,6 @@ mutation($id: ID!) {
         pubsub_update.body["data"]["pubSubWebhookSubscriptionUpdate"]["webhookSubscription"],
         json!({
             "id": pubsub_id,
-            "callbackUrl": "https://eventbridge.arn",
             "uri": "pubsub://valid-project:topic-2",
             "endpoint": {
                 "__typename": "WebhookPubSubEndpoint",
@@ -2434,7 +2418,6 @@ mutation($id: ID!) {
             ["webhookSubscription"],
         json!({
             "id": eventbridge_id,
-            "callbackUrl": "https://eventbridge.arn",
             "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source-updated",
             "endpoint": {
                 "__typename": "WebhookEventBridgeEndpoint",

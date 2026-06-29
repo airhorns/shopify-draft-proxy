@@ -276,6 +276,7 @@ struct StagedState {
     merged_customer_ids: BTreeMap<String, String>,
     customer_merge_requests: BTreeMap<String, Value>,
     customer_data_erasure_requests: BTreeMap<String, Value>,
+    locally_created_customer_ids: BTreeSet<String>,
     // Store-wide total customer count baseline reported by `customersCount`.
     // The live shop's total is store-specific and cannot be reconstructed from
     // the handful of customers a scenario stages, so a scenario seeds the
@@ -736,6 +737,7 @@ impl Default for StagedState {
             merged_customer_ids: BTreeMap::new(),
             customer_merge_requests: BTreeMap::new(),
             customer_data_erasure_requests: BTreeMap::new(),
+            locally_created_customer_ids: BTreeSet::new(),
             customers_count_base: None,
             store_credit_accounts: StagedRecords::default(),
             store_credit_transactions: BTreeMap::new(),
@@ -1144,7 +1146,7 @@ impl Store {
         shop
     }
 
-    fn shop_currency_code(&self) -> String {
+    pub(in crate::proxy) fn shop_currency_code(&self) -> String {
         self.base
             .shop
             .get("currencyCode")
@@ -1152,6 +1154,15 @@ impl Store {
             .filter(|currency| !currency.is_empty())
             .unwrap_or("USD")
             .to_string()
+    }
+
+    fn shop_money_format(&self) -> Option<String> {
+        self.base
+            .shop
+            .pointer("/currencyFormats/moneyFormat")
+            .and_then(Value::as_str)
+            .filter(|format| !format.is_empty())
+            .map(str::to_string)
     }
 
     fn shop_policy_by_id(&self, id: &str) -> Option<&ShopPolicyRecord> {
@@ -1895,72 +1906,38 @@ mod product_options;
 mod resolved_values;
 mod resource_ids;
 mod routing;
+mod scalar_helpers;
 mod schema_validation;
 mod selection;
 mod selling_plans;
 mod store_properties;
 
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::admin_shipping_gift_cards::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::app_shipping_helpers::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::b2b_customers::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::civil_date::*;
-#[allow(unused_imports)]
-pub(in crate::proxy) use self::commit::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::connection::*;
-#[allow(unused_imports)]
-pub(in crate::proxy) use self::core::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::discounts::*;
-#[allow(unused_imports)]
-pub(in crate::proxy) use self::dispatch::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::functions::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::json_helpers::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::localization_markets_catalogs::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::marketing_webhooks_inventory::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::markets_catalog_helpers::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::media_products_saved_searches::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::metafields_orders_payments::*;
-#[allow(unused_imports)]
-pub(in crate::proxy) use self::metaobjects::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::money::*;
-#[allow(unused_imports)]
-pub(in crate::proxy) use self::online_store_content::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::online_store_orders_payments::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::product_helpers::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::product_operations::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::product_options::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::resolved_values::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::resource_ids::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::routing::*;
 #[allow(unused_imports)]
+pub(in crate::proxy) use self::scalar_helpers::*;
 pub(in crate::proxy) use self::schema_validation::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::selection::*;
-#[allow(unused_imports)]
-pub(in crate::proxy) use self::selling_plans::*;
-#[allow(unused_imports)]
 pub(in crate::proxy) use self::store_properties::*;
 
 #[cfg(test)]

@@ -1,0 +1,312 @@
+{
+  "scenarioId": "draftOrderComplete-payment-terms-pending",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "recordedAt": "2026-06-29T17:43:29.720Z",
+  "source": "live-shopify-admin-graphql",
+  "notes": "Live draft-order completion capture. A disposable custom-line draft has NET payment terms attached through paymentTermsCreate, then draftOrderComplete is called without paymentPending. Shopify leaves the completed order pending with one manual SALE/PENDING transaction and no successful payment capture.",
+  "setup": {
+    "draftOrderCreate": {
+      "query": "#graphql\n  mutation DraftOrderCompletePaymentTermsCreateDraft($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "email": "draft-complete-payment-terms-20260629174327@example.com",
+          "note": "payment terms draft order complete parity probe",
+          "tags": ["draft-order-complete", "payment-terms", "parity-probe"],
+          "taxExempt": true,
+          "lineItems": [
+            {
+              "title": "Payment terms invoice service",
+              "quantity": 1,
+              "originalUnitPrice": "42.00",
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "payment-terms-complete-20260629174327"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "draftOrderCreate": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1273063866674",
+              "name": "#D268"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "paymentTermsCreate": {
+      "query": "#graphql\n  mutation DraftOrderCompletePaymentTermsCreateTerms(\n    $referenceId: ID!\n    $attrs: PaymentTermsCreateInput!\n  ) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      paymentTerms {\n        id\n        paymentTermsName\n        paymentTermsType\n        dueInDays\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "referenceId": "gid://shopify/DraftOrder/1273063866674",
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-07-29T12:00:00Z"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/159407538482",
+              "paymentTermsName": "Net 30",
+              "paymentTermsType": "NET",
+              "dueInDays": 30
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "variables": {
+    "id": "gid://shopify/DraftOrder/1273063866674"
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "draftOrderComplete": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1273063866674",
+            "name": "#D268",
+            "status": "COMPLETED",
+            "order": {
+              "id": "gid://shopify/Order/8880994287922",
+              "displayFinancialStatus": "PENDING",
+              "paymentGatewayNames": ["manual"],
+              "transactions": [
+                {
+                  "kind": "SALE",
+                  "status": "PENDING",
+                  "gateway": "manual"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "orderRead": {
+    "query": "query DraftOrderCompletePaymentTermsPendingOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    displayFinancialStatus\n    paymentGatewayNames\n    transactions {\n      kind\n      status\n      gateway\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Order/8880994287922"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/8880994287922",
+          "displayFinancialStatus": "PENDING",
+          "paymentGatewayNames": ["manual"],
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "PENDING",
+              "gateway": "manual"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 2,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersDraftOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1273063866674"
+      },
+      "query": "\n    query OrdersDraftOrderHydrate($id: ID!) {\n      draftOrder(id: $id) {\n        id\n        name\n        status\n        ready\n        note: note2\n        email\n        customer { id email displayName }\n        taxExempt\n        taxesIncluded\n        reserveInventoryUntil\n        paymentTerms {\n          id\n          overdue\n          dueInDays\n          paymentTermsName\n          paymentTermsType\n          translatedName\n        }\n        tags\n        invoiceUrl\n        customAttributes { key value }\n        appliedDiscount {\n          title\n          description\n          value\n          valueType\n          amountSet { shopMoney { amount currencyCode } }\n        }\n        billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingLine {\n          title\n          code\n          custom\n          originalPriceSet { shopMoney { amount currencyCode } }\n          discountedPriceSet { shopMoney { amount currencyCode } }\n        }\n        subtotalPriceSet { shopMoney { amount currencyCode } }\n        totalDiscountsSet { shopMoney { amount currencyCode } }\n        totalShippingPriceSet { shopMoney { amount currencyCode } }\n        totalPriceSet { shopMoney { amount currencyCode } }\n        totalQuantityOfLineItems\n        lineItems(first: 10) {\n          nodes {\n            id\n            title\n            name\n            quantity\n            sku\n            variantTitle\n            custom\n            requiresShipping\n            taxable\n            customAttributes { key value }\n            appliedDiscount {\n              title\n              description\n              value\n              valueType\n              amountSet { shopMoney { amount currencyCode } }\n            }\n            originalUnitPriceSet { shopMoney { amount currencyCode } }\n            originalTotalSet { shopMoney { amount currencyCode } }\n            discountedTotalSet { shopMoney { amount currencyCode } }\n            totalDiscountSet { shopMoney { amount currencyCode } }\n            variant { id title sku }\n          }\n        }\n      }\n    }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1273063866674",
+              "name": "#D268",
+              "status": "OPEN",
+              "ready": true,
+              "note": "payment terms draft order complete parity probe",
+              "email": "draft-complete-payment-terms-20260629174327@example.com",
+              "customer": {
+                "id": "gid://shopify/Customer/10868399898930",
+                "email": "draft-complete-payment-terms-20260629174327@example.com",
+                "displayName": "draft-complete-payment-terms-20260629174327@example.com"
+              },
+              "taxExempt": true,
+              "taxesIncluded": false,
+              "reserveInventoryUntil": null,
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/159407538482",
+                "overdue": false,
+                "dueInDays": 30,
+                "paymentTermsName": "Net 30",
+                "paymentTermsType": "NET",
+                "translatedName": "Net 30"
+              },
+              "tags": ["draft-order-complete", "parity-probe", "payment-terms"],
+              "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/28dd9f4d43f86b1ab1f4a9e02828673b",
+              "customAttributes": [],
+              "appliedDiscount": null,
+              "billingAddress": null,
+              "shippingAddress": null,
+              "shippingLine": null,
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "42.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalDiscountsSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalShippingPriceSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "42.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalQuantityOfLineItems": 1,
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/DraftOrderLineItem/58624692126002",
+                    "title": "Payment terms invoice service",
+                    "name": "Payment terms invoice service",
+                    "quantity": 1,
+                    "sku": "payment-terms-complete-20260629174327",
+                    "variantTitle": null,
+                    "custom": true,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [],
+                    "appliedDiscount": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "42.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "42.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "discountedTotalSet": {
+                      "shopMoney": {
+                        "amount": "42.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "totalDiscountSet": {
+                      "shopMoney": {
+                        "amount": "0.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "variant": null
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 26,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "orderCancel": {
+      "data": {
+        "orderCancel": {
+          "job": {
+            "id": "gid://shopify/Job/1aa74677-3b1e-4c08-b133-3ff7dad9c825"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

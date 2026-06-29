@@ -46,6 +46,25 @@ fn request_with_headers(
     }
 }
 
+fn config_snapshot(proxy: &DraftProxy) -> Value {
+    meta_snapshot(proxy, "/__meta/config")
+}
+
+fn log_snapshot(proxy: &DraftProxy) -> Value {
+    meta_snapshot(proxy, "/__meta/log")
+}
+
+fn state_snapshot(proxy: &DraftProxy) -> Value {
+    meta_snapshot(proxy, "/__meta/state")
+}
+
+fn meta_snapshot(proxy: &DraftProxy, path: &str) -> Value {
+    let mut proxy = proxy.clone();
+    let response = proxy.process_request(request("GET", path));
+    assert_eq!(response.status, 200);
+    response.body
+}
+
 fn graphql_request(body: &str) -> Request {
     request_with_body("POST", "/admin/api/2026-04/graphql.json", body)
 }
@@ -119,7 +138,7 @@ fn assert_single_local_staged_log(
     staged_resource_ids: Value,
 ) {
     assert_eq!(
-        proxy.get_log_snapshot(),
+        log_snapshot(proxy),
         json!({
             "entries": [
                 expected_local_staged_log(
@@ -203,7 +222,7 @@ fn ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests() {
         "proxy": { "port": 4000, "shopifyAdminOrigin": "https://shopify.com" },
         "snapshot": { "enabled": false, "path": null }
     });
-    assert_eq!(default_proxy.get_config_snapshot(), expected_default_config);
+    assert_eq!(config_snapshot(&default_proxy), expected_default_config);
     assert_eq!(
         default_proxy
             .process_request(request("GET", "/__meta/config"))
@@ -220,7 +239,7 @@ fn ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests() {
         snapshot_path: Some("/tmp/snap.json".to_string()),
     });
     assert_eq!(
-        snapshot_proxy.get_config_snapshot(),
+        config_snapshot(&snapshot_proxy),
         json!({
             "runtime": {
                 "readMode": "live-hybrid",
@@ -232,21 +251,21 @@ fn ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests() {
         })
     );
 
-    let log_snapshot = default_proxy.get_log_snapshot();
-    assert_eq!(log_snapshot, json!({ "entries": [] }));
+    let log_json = log_snapshot(&default_proxy);
+    assert_eq!(log_json, json!({ "entries": [] }));
     assert_eq!(
         default_proxy
             .process_request(request("GET", "/__meta/log"))
             .body,
-        log_snapshot
+        log_json
     );
 
-    let state_snapshot = default_proxy.get_state_snapshot();
+    let state_json = state_snapshot(&default_proxy);
     assert_eq!(
         default_proxy
             .process_request(request("GET", "/__meta/state"))
             .body,
-        state_snapshot
+        state_json
     );
 
     let mut helper_proxy = DraftProxy::new(Config::default());
@@ -258,13 +277,13 @@ fn ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests() {
         helper_proxy
             .process_request(request("GET", "/__meta/log"))
             .body,
-        helper_proxy.get_log_snapshot()
+        log_snapshot(&helper_proxy)
     );
     assert_eq!(
         helper_proxy
             .process_request(request("GET", "/__meta/state"))
             .body,
-        helper_proxy.get_state_snapshot()
+        state_snapshot(&helper_proxy)
     );
 
     let route_guards = [
@@ -676,7 +695,7 @@ fn ported_gleam_log_draft_enforcement_supported_domains_record_entries() {
             response.body
         );
 
-        let log = proxy.get_log_snapshot();
+        let log = log_snapshot(&proxy);
         let entries = log["entries"]
             .as_array()
             .unwrap_or_else(|| panic!("{domain} log entries should be an array: {log}"));
@@ -860,6 +879,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "discounts": {},
                     "draftOrderTags": {},
                     "giftCards": {},
+                    "locallyCreatedCustomerIds": [],
                     "locationLimitReached": false,
                     "locationOrder": [],
                     "locations": {},
@@ -1408,7 +1428,7 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
         second_order.body["data"]["orderCreate"]["order"]["id"],
         json!("gid://shopify/Order/2")
     );
-    assert!(restored.get_state_snapshot()["stagedState"]["orders"]
+    assert!(state_snapshot(&restored)["stagedState"]["orders"]
         .as_object()
         .unwrap()
         .contains_key(first_order_id.as_str().unwrap()));

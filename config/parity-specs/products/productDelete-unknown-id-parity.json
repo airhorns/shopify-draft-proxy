@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "null-empty-behavior"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-delete-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-delete-parity.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/productDelete-parity-plan.graphql",
@@ -20,6 +20,11 @@
         "name": "unknown-product-delete-data",
         "capturePath": "$.validation.response.data",
         "proxyPath": "$.data"
+      },
+      {
+        "name": "unknown-product-delete-payload-shop",
+        "capturePath": "$.validation.response.data.productDelete.shop",
+        "proxyPath": "$.data.productDelete.shop"
       }
     ]
   }

@@ -28,11 +28,7 @@ struct ProductOptionValueNode {
 }
 
 #[derive(Clone)]
-struct ProductOptionUserError {
-    field: Value,
-    message: String,
-    code: Option<String>,
-}
+struct ProductOptionUserError(Value);
 
 impl DraftProxy {
     pub(in crate::proxy) fn product_option_mutation(
@@ -608,7 +604,7 @@ impl DraftProxy {
             // that renames one entry to collide with a sibling's display name can
             // be rejected with DISPLAY_NAME_CONFLICT (Shopify forbids two linked
             // option values from resolving to the same display name).
-            let linked_entry_ids = resolved_string_list_field_unsorted(&linked_metafield, "values")
+            let linked_entry_ids = list_string_field(&linked_metafield, "values")
                 .into_iter()
                 .collect::<BTreeSet<String>>();
             if linked_entry_ids.len() >= 2 {
@@ -755,22 +751,17 @@ impl ProductOptionUserError {
         message: impl Into<String>,
         code: Option<impl Into<String>>,
     ) -> Self {
-        Self {
-            field: message_field,
-            message: message.into(),
-            code: code.map(Into::into),
-        }
+        let message = message.into();
+        let code = code.map(Into::into);
+        Self(user_error_omit_code(
+            message_field,
+            &message,
+            code.as_deref(),
+        ))
     }
 
     fn to_json(&self) -> Value {
-        let mut value = json!({
-            "field": self.field,
-            "message": self.message,
-        });
-        if let Some(code) = &self.code {
-            value["code"] = json!(code);
-        }
-        value
+        self.0.clone()
     }
 }
 

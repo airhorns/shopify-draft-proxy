@@ -33,6 +33,17 @@ fn no_dispatcher(domain: &str, root_field: &str) -> Response {
     )
 }
 
+fn changed_draft_order_tag_ids(
+    before: &BTreeMap<String, Vec<String>>,
+    after: &BTreeMap<String, Vec<String>>,
+) -> Vec<String> {
+    after
+        .iter()
+        .filter(|(id, tags)| before.get(*id) != Some(*tags))
+        .map(|(id, _)| id.clone())
+        .collect()
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn finalize_mutation_outcome(
         &mut self,
@@ -208,16 +219,11 @@ impl DraftProxy {
                 {
                     self.hydrate_current_backup_region_from_upstream(request);
                 }
-                let mut data = serde_json::Map::new();
-                for field in fields {
-                    if field.name == "backupRegion" {
-                        data.insert(
-                            field.response_key,
-                            selected_json(&self.store.staged.backup_region, &field.selection),
-                        );
-                    }
-                }
-                ok_json(json!({ "data": Value::Object(data) }))
+                let data = root_payload_json(&fields, |field| {
+                    (field.name == "backupRegion")
+                        .then(|| selected_json(&self.store.staged.backup_region, &field.selection))
+                });
+                ok_json(json!({ "data": data }))
             }
             "domain" => {
                 if self.config.read_mode != ReadMode::Snapshot
@@ -303,31 +309,13 @@ impl DraftProxy {
         }
 
         let fields = try_root_fields!(query, variables);
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            match field.name.as_str() {
-                "order" | "draftOrder" | "return" | "abandonment" => {
-                    data.insert(field.response_key, Value::Null);
-                }
-                "orders" => {
-                    data.insert(field.response_key, connection_json(Vec::new()));
-                }
-                "ordersCount" => {
-                    data.insert(
-                        field.response_key,
-                        selected_json(
-                            &json!({
-                                "count": 0,
-                                "precision": "EXACT"
-                            }),
-                            &field.selection,
-                        ),
-                    );
-                }
-                _ => {}
-            }
-        }
-        ok_json(json!({ "data": Value::Object(data) }))
+        let data = root_payload_json(&fields, |field| match field.name.as_str() {
+            "order" | "draftOrder" | "return" | "abandonment" => Some(Value::Null),
+            "orders" => Some(connection_json(Vec::new())),
+            "ordersCount" => Some(selected_json(&count_object(0), &field.selection)),
+            _ => None,
+        });
+        ok_json(json!({ "data": data }))
     }
 
     fn domain_query_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
@@ -335,26 +323,24 @@ impl DraftProxy {
             if field.name != "domain" {
                 return false;
             }
-            let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
             !id.is_empty() && self.store.domain_by_id(&id).is_none()
         })
     }
 
     fn domain_query_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        root_payload_json(fields, |field| {
             if field.name != "domain" {
-                continue;
+                return None;
             }
-            let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
             let value = self
                 .store
                 .domain_by_id(&id)
                 .map(|domain| selected_json(&domain, &field.selection))
                 .unwrap_or(Value::Null);
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            Some(value)
+        })
     }
 
     fn local_node_query_data(
@@ -363,13 +349,21 @@ impl DraftProxy {
         allow_unknown_null: bool,
         request: Option<&Request>,
     ) -> Option<Value> {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let mut missing_required = false;
+        let data = root_payload_json(fields, |field| {
             let value = match field.name.as_str() {
                 "node" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.local_node_value_by_id_with_request(&id, &field.selection, request)
-                        .or_else(|| allow_unknown_null.then_some(Value::Null))?
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                    match self
+                        .local_node_value_by_id_with_request(&id, &field.selection, request)
+                        .or_else(|| allow_unknown_null.then_some(Value::Null))
+                    {
+                        Some(value) => value,
+                        None => {
+                            missing_required = true;
+                            return None;
+                        }
+                    }
                 }
                 "nodes" => Value::Array(
                     field
@@ -382,13 +376,17 @@ impl DraftProxy {
                             self.local_node_value_by_id_with_request(&id, &field.selection, request)
                                 .or_else(|| allow_unknown_null.then_some(Value::Null))
                         })
-                        .collect::<Option<Vec<_>>>()?,
+                        .collect::<Option<Vec<_>>>()
+                        .unwrap_or_else(|| {
+                            missing_required = true;
+                            Vec::new()
+                        }),
                 ),
-                _ => continue,
+                _ => return None,
             };
-            data.insert(field.response_key.clone(), value);
-        }
-        Some(Value::Object(data))
+            Some(value)
+        });
+        (!missing_required).then_some(data)
     }
 
     fn abandonment_read_data(
@@ -401,12 +399,11 @@ impl DraftProxy {
             return None;
         }
 
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let data = root_payload_json(&fields, |field| {
             if field.name != "abandonment" {
-                continue;
+                return None;
             }
-            let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
             let value = self
                 .store
                 .staged
@@ -414,9 +411,9 @@ impl DraftProxy {
                 .get(&id)
                 .map(|record| selected_json(record, &field.selection))
                 .unwrap_or(Value::Null);
-            data.insert(field.response_key, value);
-        }
-        Some(json!({ "data": Value::Object(data) }))
+            Some(value)
+        });
+        Some(json!({ "data": data }))
     }
 
     fn orders_stage_locally_unmodeled_shape_response(
@@ -1382,7 +1379,17 @@ impl DraftProxy {
                         "draftOrderBulkAddTags" | "draftOrderBulkRemoveTags"
                     ) =>
             {
+                let before_tags = self.store.staged.draft_order_tags.clone();
                 if let Some(data) = self.draft_order_bulk_tag_local_data(&query, &variables) {
+                    let staged_ids = changed_draft_order_tag_ids(
+                        &before_tags,
+                        &self.store.staged.draft_order_tags,
+                    );
+                    if !staged_ids.is_empty() {
+                        self.record_mutation_log_entry(
+                            request, &query, &variables, root_field, staged_ids,
+                        );
+                    }
                     ok_json(data)
                 } else {
                     no_dispatcher("orders", root_field)
@@ -1646,6 +1653,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation =>
             {
                 let fields = try_root_fields!(&query, &variables);
+                self.localization_mutation_preflight(&fields, request);
                 let data = self.localization_mutation_data(&fields);
                 self.record_mutation_log_entry(
                     request,
@@ -2205,20 +2213,28 @@ impl DraftProxy {
                     {
                         self.hydrate_customers_count_for_overlay_read(request);
                     }
-                    let mut data = serde_json::Map::new();
-                    if handle_customers {
-                        if let Value::Object(object) = self.customer_overlay_read_fields(&fields) {
-                            data.extend(object);
+                    let data = root_payload_json(&fields, |field| {
+                        if handle_customers {
+                            if let Value::Object(object) =
+                                self.customer_overlay_read_fields(std::slice::from_ref(field))
+                            {
+                                if let Some(value) = object.get(field.response_key.as_str()) {
+                                    return Some(value.clone());
+                                }
+                            }
                         }
-                    }
-                    if handle_store_credit {
-                        if let Value::Object(object) =
-                            self.store_credit_account_read_fields(&fields)
-                        {
-                            data.extend(object);
+                        if handle_store_credit {
+                            if let Value::Object(object) =
+                                self.store_credit_account_read_fields(std::slice::from_ref(field))
+                            {
+                                if let Some(value) = object.get(field.response_key.as_str()) {
+                                    return Some(value.clone());
+                                }
+                            }
                         }
-                    }
-                    ok_json(json!({ "data": Value::Object(data) }))
+                        None
+                    });
+                    ok_json(json!({ "data": data }))
                 } else {
                     (self.upstream_transport)(request.clone())
                 }

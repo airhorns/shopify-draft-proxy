@@ -218,14 +218,46 @@ fn set_gift_cards_unavailable(proxy: &mut DraftProxy) {
     });
 }
 
-fn set_gift_card_shop_currency(proxy: &mut DraftProxy, currency_code: &str) {
-    restore_proxy_state(proxy, |restored| {
-        restored["state"]["baseState"]["shop"]["currencyCode"] = json!(currency_code);
-        restored["state"]["baseState"]["giftCardConfiguration"] = json!({
-            "issueLimit": { "amount": "3000.0", "currencyCode": currency_code },
-            "purchaseLimit": { "amount": "14000.0", "currencyCode": currency_code }
-        });
-    });
+fn stage_market(proxy: &mut DraftProxy, name: &str, country_code: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation StageMarketForLocalization($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "input": { "name": name, "regions": [{ "countryCode": country_code }] } }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["marketCreate"]["userErrors"],
+        json!([])
+    );
+    json_string(
+        &response.body["data"]["marketCreate"]["market"]["id"],
+        "staged market id",
+    )
+}
+
+fn stage_web_presence(proxy: &mut DraftProxy, subfolder_suffix: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation StageWebPresenceForLocalization($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence { id }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "input": { "defaultLocale": "en", "subfolderSuffix": subfolder_suffix } }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    json_string(
+        &response.body["data"]["webPresenceCreate"]["webPresence"]["id"],
+        "staged web presence id",
+    )
 }
 
 fn function_metadata_record(
@@ -391,6 +423,12 @@ fn function_metadata_proxy_with_hits(hits: Arc<Mutex<Vec<Value>>>) -> DraftProxy
     })
 }
 
+fn cad_snapshot_proxy() -> DraftProxy {
+    let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "CAD");
+    proxy
+}
+
 fn assert_starts_at_required_error(data: &Value, alias: &str, node_field: &str, input_arg: &str) {
     assert_eq!(data[alias][node_field], json!(null));
     assert_eq!(
@@ -509,7 +547,7 @@ fn discount_stage_locally_roots_dispatch_by_root_field_not_operation_name_or_ali
         json!({ "count": 1, "precision": "EXACT" })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"][0]["rawBody"]
+        log_snapshot(&proxy)["entries"][0]["rawBody"]
             .as_str()
             .unwrap()
             .contains("mutation CreateDiscount"),
@@ -1676,7 +1714,7 @@ fn discount_basic_non_numeric_decimal_variable_fails_before_resolver_execution()
             "message": "invalid decimal 'abc'"
         }])
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -3042,7 +3080,7 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
         json!("FULFILLMENTCONSTRAINTRULE")
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 1);
     assert_eq!(
         log["entries"][0]["interpreted"]["rootFields"],
@@ -3157,13 +3195,7 @@ fn functions_fulfillment_constraint_rules_stage_locally_and_read_after_write() {
         json!([])
     );
     assert_eq!(hydrate_requests.lock().unwrap().len(), 1);
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        3
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 3);
 }
 
 #[test]
@@ -3600,25 +3632,26 @@ fn localization_catalog_reads_are_store_backed_without_ported_document_marker() 
         json!([{ "locale": "en", "published": true }])
     );
 
+    let known_presence = stage_web_presence(&mut proxy, "fr");
     let lifecycle = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationShopLocaleEnable($known: ID!) {
-          enable: shopLocaleEnable(locale: "fr") { shopLocale { locale published } userErrors { field message code } }
-          update: shopLocaleUpdate(locale: "fr", shopLocale: { published: true, marketWebPresenceIds: [$known] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } }
+          enable: shopLocaleEnable(locale: "fr") { shopLocale { locale published } userErrors { field message } }
+          update: shopLocaleUpdate(locale: "fr", shopLocale: { published: true, marketWebPresenceIds: [$known] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message } }
         }"#,
-        json!({ "known": "gid://shopify/MarketWebPresence/known" }),
+        json!({ "known": known_presence }),
     ));
     assert_eq!(lifecycle.status, 200);
     assert_eq!(
         lifecycle.body["data"]["update"]["shopLocale"],
         json!({
             "locale": "fr",
-            "name": "French",
-            "published": true,
-            "marketWebPresences": [{
-                "id": "gid://shopify/MarketWebPresence/known",
-                "__typename": "MarketWebPresence",
-                "defaultLocale": { "locale": "en" }
-            }]
+                "name": "French",
+                "published": true,
+                "marketWebPresences": [{
+                    "id": known_presence,
+                    "__typename": "MarketWebPresence",
+                    "defaultLocale": { "locale": "en" }
+                }]
         })
     );
 
@@ -3640,7 +3673,7 @@ fn localization_catalog_reads_are_store_backed_without_ported_document_marker() 
         .any(|locale| locale["locale"] == json!("fr")));
 
     let disabled = proxy.process_request(json_graphql_request(
-        r#"mutation LocalizationShopLocaleDisable($locale: String!) { shopLocaleDisable(locale: $locale) { locale userErrors { field message code } } }"#,
+        r#"mutation LocalizationShopLocaleDisable($locale: String!) { shopLocaleDisable(locale: $locale) { locale userErrors { field message } } }"#,
         json!({ "locale": "fr" }),
     ));
     assert_eq!(
@@ -3934,7 +3967,7 @@ fn localization_translations_register_multi_row_round_trip_and_indexed_errors() 
     for locale in ["fr", "es"] {
         let enable = proxy.process_request(json_graphql_request(
             r#"mutation LocalizationShopLocaleEnable($locale: String!) {
-              shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+              shopLocaleEnable(locale: $locale) { userErrors { field message } }
             }"#,
             json!({ "locale": locale }),
         ));
@@ -4172,7 +4205,7 @@ fn localization_translatable_content_uses_modeled_source_values_and_round_trips_
         .any(|node| node["resourceId"] == json!(product_id)));
 
     let enable = proxy.process_request(json_graphql_request(
-        r#"mutation EnableFrench { shopLocaleEnable(locale: "fr") { userErrors { field message code } } }"#,
+        r#"mutation EnableFrench { shopLocaleEnable(locale: "fr") { userErrors { field message } } }"#,
         json!({}),
     ));
     assert_eq!(
@@ -4258,7 +4291,7 @@ fn localization_translations_register_rejects_invalid_product_key_without_stagin
 
     let enable = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationShopLocaleEnable($locale: String!) {
-          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
         }"#,
         json!({ "locale": "fr" }),
     ));
@@ -4325,7 +4358,7 @@ fn localization_translatable_roots_are_store_backed_without_operation_markers() 
 
     let enable = proxy.process_request(json_graphql_request(
         r#"mutation EnableLocale($locale: String!) {
-          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
         }"#,
         json!({ "locale": "fr" }),
     ));
@@ -4333,6 +4366,7 @@ fn localization_translatable_roots_are_store_backed_without_operation_markers() 
         enable.body["data"]["shopLocaleEnable"]["userErrors"],
         json!([])
     );
+    let market_id = stage_market(&mut proxy, "Localization Market", "CA");
 
     let product_register = proxy.process_request(json_graphql_request(
         r#"mutation RegisterProductTranslation($resourceId: ID!, $translations: [TranslationInput!]!) {
@@ -4345,7 +4379,7 @@ fn localization_translatable_roots_are_store_backed_without_operation_markers() 
             "resourceId": product_id,
             "translations": [
                 { "locale": "fr", "key": "title", "value": "Titre produit", "translatableContentDigest": product_title_digest },
-                { "locale": "fr", "key": "product_type", "value": "Produit", "translatableContentDigest": product_type_digest, "marketId": "gid://shopify/Market/123" }
+                { "locale": "fr", "key": "product_type", "value": "Produit", "translatableContentDigest": product_type_digest, "marketId": market_id }
             ]
         }),
     ));
@@ -4374,11 +4408,11 @@ fn localization_translatable_roots_are_store_backed_without_operation_markers() 
     );
 
     let read = proxy.process_request(json_graphql_request(
-        r#"query ArbitraryLocalizationRead($productId: ID!, $collectionId: ID!, $ids: [ID!]!) {
+        r#"query ArbitraryLocalizationRead($productId: ID!, $collectionId: ID!, $ids: [ID!]!, $marketId: ID!) {
           direct: translatableResource(resourceId: $productId) {
             resourceId
             allFr: translations(locale: "fr") { key value locale market { id } }
-            marketFr: translations(locale: "fr", marketId: "gid://shopify/Market/123") { key value locale market { id } }
+            marketFr: translations(locale: "fr", marketId: $marketId) { key value locale market { id } }
           }
           byType: translatableResources(first: 2, resourceType: PRODUCT) {
             aliasedNodes: nodes { resourceId translations(locale: "fr") { key value } }
@@ -4392,7 +4426,7 @@ fn localization_translatable_roots_are_store_backed_without_operation_markers() 
           }
           missing: translatableResource(resourceId: "gid://shopify/Product/999999999999999") { resourceId }
         }"#,
-        json!({ "productId": product_id, "collectionId": collection_id, "ids": [collection_id, product_id] }),
+        json!({ "productId": product_id, "collectionId": collection_id, "ids": [collection_id, product_id], "marketId": market_id }),
     ));
 
     assert_eq!(read.status, 200);
@@ -4400,12 +4434,12 @@ fn localization_translatable_roots_are_store_backed_without_operation_markers() 
         read.body["data"]["direct"]["allFr"],
         json!([
             { "key": "title", "value": "Titre produit", "locale": "fr", "market": null },
-            { "key": "product_type", "value": "Produit", "locale": "fr", "market": { "id": "gid://shopify/Market/123" } }
+            { "key": "product_type", "value": "Produit", "locale": "fr", "market": { "id": market_id } }
         ])
     );
     assert_eq!(
         read.body["data"]["direct"]["marketFr"],
-        json!([{ "key": "product_type", "value": "Produit", "locale": "fr", "market": { "id": "gid://shopify/Market/123" } }])
+        json!([{ "key": "product_type", "value": "Produit", "locale": "fr", "market": { "id": market_id } }])
     );
     assert_eq!(
         read.body["data"]["byType"]["aliasedNodes"][0]["translations"],
@@ -4440,7 +4474,7 @@ fn localization_translations_reject_unknown_supported_product_resource_ids() {
 
     let enable = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationShopLocaleEnable($locale: String!) {
-          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
         }"#,
         json!({ "locale": "fr" }),
     ));
@@ -4553,7 +4587,7 @@ fn localization_unknown_resource_and_market_scoped_translation_validation_match_
     for locale in ["fr", "es"] {
         let enable = proxy.process_request(json_graphql_request(
             r#"mutation LocalizationShopLocaleEnable($locale: String!) {
-              shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+              shopLocaleEnable(locale: $locale) { userErrors { field message } }
             }"#,
             json!({ "locale": locale }),
         ));
@@ -4583,38 +4617,198 @@ fn localization_unknown_resource_and_market_scoped_translation_validation_match_
 
     let unknown_market = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
-        json!({ "resourceId": "gid://shopify/Product/9801098789170", "translations": [{ "locale": "es", "key": "title", "value": "Titulo", "translatableContentDigest": title_digest, "marketId": "gid://shopify/Market/999999" }] }),
+        json!({ "resourceId": "gid://shopify/Product/9801098789170", "translations": [{ "locale": "es", "key": "title", "value": "Titulo", "translatableContentDigest": title_digest, "marketId": "gid://shopify/Market/424242" }] }),
     ));
     assert_eq!(
         unknown_market.body["data"]["translationsRegister"]["translations"],
-        Value::Null
+        json!([])
     );
     assert_eq!(
         unknown_market.body["data"]["translationsRegister"]["userErrors"][0]["code"],
         json!("MARKET_DOES_NOT_EXIST")
     );
 
+    let market_id = stage_market(&mut proxy, "Spanish Translation Market", "CA");
     let registered = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) { translationsRegister(resourceId: $resourceId, translations: $translations) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
-        json!({ "resourceId": "gid://shopify/Product/9801098789170", "translations": [{ "locale": "es", "key": "title", "value": "Titulo", "translatableContentDigest": title_digest, "marketId": "gid://shopify/Market/123" }] }),
+        json!({ "resourceId": "gid://shopify/Product/9801098789170", "translations": [{ "locale": "es", "key": "title", "value": "Titulo", "translatableContentDigest": title_digest, "marketId": market_id }] }),
     ));
     assert_eq!(
         registered.body["data"]["translationsRegister"]["translations"][0]["market"]["id"],
-        json!("gid://shopify/Market/123")
+        json!(market_id)
+    );
+
+    let packing_slip = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": "gid://shopify/PackingSlipTemplate/4834722098",
+            "translations": [{
+                "locale": "es",
+                "key": "body",
+                "value": "Cuerpo",
+                "translatableContentDigest": "digest-body",
+                "marketId": market_id
+            }]
+        }),
+    ));
+    assert_eq!(
+        packing_slip.body["data"]["translationsRegister"],
+        json!({
+            "translations": [],
+            "userErrors": [{
+                "field": ["translations", "0", "key"],
+                "message": "Key body cannot be customized for a market; it can only be translated.",
+                "code": "RESOURCE_NOT_MARKET_CUSTOMIZABLE"
+            }]
+        })
     );
 
     let removed = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationTranslationsMarketScopedRemove($resourceId: ID!, $keys: [String!]!, $locales: [String!]!, $marketIds: [ID!]!) { translationsRemove(resourceId: $resourceId, translationKeys: $keys, locales: $locales, marketIds: $marketIds) { translations { key value locale outdated market { id } } userErrors { field message code } } }"#,
-        json!({ "resourceId": "gid://shopify/Product/9801098789170", "keys": ["title"], "locales": ["es"], "marketIds": ["gid://shopify/Market/123"] }),
+        json!({ "resourceId": "gid://shopify/Product/9801098789170", "keys": ["title"], "locales": ["es"], "marketIds": [market_id] }),
     ));
     assert_eq!(
         removed.body["data"]["translationsRemove"]["translations"][0]["market"]["id"],
-        json!("gid://shopify/Market/123")
+        json!(market_id)
     );
     assert_eq!(
         removed.body["data"]["translationsRemove"]["userErrors"],
         json!([])
     );
+}
+
+#[test]
+fn localization_target_existence_is_hydrated_not_sentinel_substring_routed() {
+    let market_id = "gid://shopify/Market/999999123";
+    let web_presence_id = "gid://shopify/MarketWebPresence/9999999999";
+    let title_digest = fallback_product_title_digest();
+    let upstream_hits = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_hits = Arc::clone(&upstream_hits);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let market_id = market_id.to_string();
+        let web_presence_id = web_presence_id.to_string();
+        move |request| {
+            captured_hits.lock().unwrap().push(request.body.clone());
+            assert!(
+                request.body.contains("LocalizationMutationTargetsHydrate"),
+                "only localization target hydration should hit upstream, got: {}",
+                request.body
+            );
+            let node = if request.body.contains(&web_presence_id) {
+                json!({
+                    "__typename": "MarketWebPresence",
+                    "id": web_presence_id,
+                    "subfolderSuffix": "fr",
+                    "domain": null,
+                    "rootUrls": [],
+                    "defaultLocale": { "locale": "en", "name": "English", "primary": true, "published": true },
+                    "alternateLocales": [],
+                    "markets": { "nodes": [] }
+                })
+            } else {
+                json!({
+                    "__typename": "Market",
+                    "id": market_id,
+                    "name": "Sentinel-looking market",
+                    "handle": "sentinel-looking-market",
+                    "status": "ACTIVE",
+                    "type": "REGION"
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "nodes": [node] } }),
+            }
+        }
+    });
+
+    let enable_es = proxy.process_request(json_graphql_request(
+        r#"mutation EnableSpanish { shopLocaleEnable(locale: "es") { userErrors { field message } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        enable_es.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+
+    let register = proxy.process_request(json_graphql_request(
+        r#"mutation RegisterSentinelMarketTranslation($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": "gid://shopify/Product/9801098789170",
+            "translations": [{
+                "locale": "es",
+                "key": "title",
+                "value": "Titulo",
+                "translatableContentDigest": title_digest,
+                "marketId": market_id
+            }]
+        }),
+    ));
+    assert_eq!(
+        register.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        register.body["data"]["translationsRegister"]["translations"][0]["market"]["id"],
+        json!(market_id)
+    );
+
+    let remove = proxy.process_request(json_graphql_request(
+        r#"mutation RemoveSentinelMarketTranslation($resourceId: ID!, $keys: [String!]!, $locales: [String!]!, $marketIds: [ID!]!) {
+          translationsRemove(resourceId: $resourceId, translationKeys: $keys, locales: $locales, marketIds: $marketIds) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": "gid://shopify/Product/9801098789170",
+            "keys": ["title"],
+            "locales": ["es"],
+            "marketIds": [market_id]
+        }),
+    ));
+    assert_eq!(
+        remove.body["data"]["translationsRemove"]["translations"][0]["market"]["id"],
+        json!(market_id)
+    );
+    assert_eq!(
+        remove.body["data"]["translationsRemove"]["userErrors"],
+        json!([])
+    );
+
+    let enable_fr = proxy.process_request(json_graphql_request(
+        r#"mutation EnableFrenchWithSentinelWebPresence($id: ID!) {
+          shopLocaleEnable(locale: "fr", marketWebPresenceIds: [$id]) {
+            shopLocale { locale marketWebPresences { id __typename defaultLocale { locale } } }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "id": web_presence_id }),
+    ));
+    assert_eq!(
+        enable_fr.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        enable_fr.body["data"]["shopLocaleEnable"]["shopLocale"]["marketWebPresences"],
+        json!([{ "id": web_presence_id, "__typename": "MarketWebPresence", "defaultLocale": { "locale": "en" } }])
+    );
+
+    let hits = upstream_hits.lock().unwrap();
+    assert_eq!(hits.len(), 2);
+    assert!(hits.iter().any(|body| body.contains(market_id)));
+    assert!(hits.iter().any(|body| body.contains(web_presence_id)));
 }
 
 #[test]
@@ -4682,7 +4876,7 @@ fn localization_translations_register_validation_order_matches_shopify_precedenc
     let mut market_proxy = snapshot_proxy();
     let enable = market_proxy.process_request(json_graphql_request(
         r#"mutation LocalizationShopLocaleEnable($locale: String!) {
-          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
         }"#,
         json!({ "locale": "es" }),
     ));
@@ -4704,20 +4898,290 @@ fn localization_translations_register_validation_order_matches_shopify_precedenc
                 "key": "title",
                 "value": "",
                 "translatableContentDigest": "digest",
-                "marketId": "gid://shopify/Market/999999"
+                "marketId": "gid://shopify/Market/424242"
             }]
         }),
     ));
     assert_eq!(
         unknown_market_blank.body["data"]["translationsRegister"],
         json!({
-            "translations": null,
+            "translations": [],
             "userErrors": [{
                 "field": ["translations", "0", "marketId"],
                 "message": "The market corresponding to the `marketId` argument doesn't exist",
                 "code": "MARKET_DOES_NOT_EXIST"
             }]
         })
+    );
+}
+
+#[test]
+fn localization_translations_register_accepts_market_original_without_shop_level_base() {
+    let original_title = fallback_product_title_value();
+    let title_digest = fallback_product_title_digest();
+    let mut proxy = snapshot_proxy();
+    let market_id = stage_market(&mut proxy, "Market Original Translation", "CA");
+
+    let product_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateValueMatchProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": original_title,
+                "handle": "market-value-match-original-product"
+            }
+        }),
+    ));
+    assert_eq!(
+        product_create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let resource_id = product_create.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let enable = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleEnable($locale: String!) {
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
+        }"#,
+        json!({ "locale": "es" }),
+    ));
+    assert_eq!(
+        enable.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+
+    let market_original = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": resource_id.as_str(),
+            "translations": [{
+                "locale": "es",
+                "key": "title",
+                "value": original_title,
+                "translatableContentDigest": title_digest,
+                "marketId": market_id
+            }]
+        }),
+    ));
+    assert_eq!(
+        market_original.body["data"]["translationsRegister"]["translations"],
+        json!([{
+            "key": "title",
+            "value": original_title,
+            "locale": "es",
+            "market": { "id": market_id }
+        }])
+    );
+    assert_eq!(
+        market_original.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+
+    let downstream_after_original = proxy.process_request(json_graphql_request(
+        r#"query LocalizationTranslationsRead($resourceId: ID!, $marketId: ID!) {
+          translatableResource(resourceId: $resourceId) {
+            resourceId
+            translations(locale: "es", marketId: $marketId) { key value locale market { id } }
+          }
+        }"#,
+        json!({ "resourceId": resource_id.as_str(), "marketId": market_id }),
+    ));
+    assert_eq!(
+        downstream_after_original.body["data"]["translatableResource"]["translations"],
+        json!([{
+            "key": "title",
+            "value": original_title,
+            "locale": "es",
+            "market": { "id": market_id }
+        }])
+    );
+
+    let accepted = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": resource_id.as_str(),
+            "translations": [{
+                "locale": "es",
+                "key": "title",
+                "value": "Titulo local",
+                "translatableContentDigest": title_digest,
+                "marketId": market_id
+            }]
+        }),
+    ));
+    assert_eq!(
+        accepted.body["data"]["translationsRegister"]["translations"],
+        json!([{
+            "key": "title",
+            "value": "Titulo local",
+            "locale": "es",
+            "market": { "id": market_id }
+        }])
+    );
+    assert_eq!(
+        accepted.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+
+    let downstream_after_accept = proxy.process_request(json_graphql_request(
+        r#"query LocalizationTranslationsRead($resourceId: ID!, $marketId: ID!) {
+          translatableResource(resourceId: $resourceId) {
+            translations(locale: "es", marketId: $marketId) { key value locale market { id } }
+          }
+        }"#,
+        json!({ "resourceId": resource_id.as_str(), "marketId": market_id }),
+    ));
+    assert_eq!(
+        downstream_after_accept.body["data"]["translatableResource"]["translations"],
+        json!([{
+            "key": "title",
+            "value": "Titulo local",
+            "locale": "es",
+            "market": { "id": market_id }
+        }])
+    );
+
+    let enable_fr = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleEnable($locale: String!) {
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
+        }"#,
+        json!({ "locale": "fr" }),
+    ));
+    assert_eq!(
+        enable_fr.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+    let shop_level = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": resource_id.as_str(),
+            "translations": [{
+                "locale": "fr",
+                "key": "title",
+                "value": original_title,
+                "translatableContentDigest": title_digest
+            }]
+        }),
+    ));
+    assert_eq!(
+        shop_level.body["data"]["translationsRegister"]["translations"],
+        json!([{
+            "key": "title",
+            "value": original_title,
+            "locale": "fr",
+            "market": null
+        }])
+    );
+    assert_eq!(
+        shop_level.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn localization_translations_register_rejects_market_value_matching_shop_level_translation() {
+    let resource_id = "gid://shopify/Product/9801098789170";
+    let title_digest = fallback_product_title_digest();
+    let mut proxy = snapshot_proxy();
+    let market_id = stage_market(&mut proxy, "Market Shop-Level Translation", "CA");
+
+    let enable = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleEnable($locale: String!) {
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
+        }"#,
+        json!({ "locale": "fr" }),
+    ));
+    assert_eq!(
+        enable.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+
+    let shop_level = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": resource_id,
+            "translations": [{
+                "locale": "fr",
+                "key": "title",
+                "value": "Titre de base",
+                "translatableContentDigest": title_digest
+            }]
+        }),
+    ));
+    assert_eq!(
+        shop_level.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+
+    let rejected = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": resource_id,
+            "translations": [{
+                "locale": "fr",
+                "key": "title",
+                "value": "Titre de base",
+                "translatableContentDigest": "invalid-digest-is-suppressed",
+                "marketId": market_id
+            }]
+        }),
+    ));
+    assert_eq!(
+        rejected.body["data"]["translationsRegister"],
+        json!({
+            "translations": [],
+            "userErrors": [{
+                "field": ["translations", "0", "value"],
+                "message": "Value cannot match original content",
+                "code": "FAILS_RESOURCE_VALIDATION"
+            }]
+        })
+    );
+
+    let downstream_after_reject = proxy.process_request(json_graphql_request(
+        r#"query LocalizationTranslationsRead($resourceId: ID!, $marketId: ID!) {
+          translatableResource(resourceId: $resourceId) {
+            translations(locale: "fr", marketId: $marketId) { key value locale market { id } }
+          }
+        }"#,
+        json!({ "resourceId": resource_id, "marketId": market_id }),
+    ));
+    assert_eq!(
+        downstream_after_reject.body["data"]["translatableResource"]["translations"],
+        json!([])
     );
 }
 
@@ -4741,7 +5205,7 @@ fn localization_translations_register_stages_locally_and_keeps_raw_mutation_for_
 
     let enable = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationShopLocaleEnable($locale: String!) {
-          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
         }"#,
         json!({ "locale": "fr" }),
     ));
@@ -4778,7 +5242,7 @@ fn localization_translations_register_stages_locally_and_keeps_raw_mutation_for_
         json!([])
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 2);
     assert!(log["entries"][1]["rawBody"]
         .as_str()
@@ -4793,21 +5257,21 @@ fn localization_translations_register_stages_locally_and_keeps_raw_mutation_for_
 #[test]
 fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
     let mut proxy = snapshot_proxy();
-    let known_presence = "gid://shopify/MarketWebPresence/known";
+    let known_presence = stage_web_presence(&mut proxy, "it");
     let unknown_presence = "gid://shopify/MarketWebPresence/9999999999";
 
     let lifecycle = proxy.process_request(json_graphql_request(
         r#"mutation RustLocalizationShopLocaleTailHelpers($known: ID!, $unknown: ID!) {
-          enableFr: shopLocaleEnable(locale: "fr") { shopLocale { locale published } userErrors { field message code } }
-          publishFr: shopLocaleUpdate(locale: "fr", shopLocale: { published: true, marketWebPresenceIds: [$known, $unknown] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } }
-          attachMissing: shopLocaleUpdate(locale: "tr", shopLocale: { marketWebPresenceIds: [$known] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } }
-          missingWithPresenceUnpublish: shopLocaleUpdate(locale: "zz", shopLocale: { published: false, marketWebPresenceIds: [$known] }) { shopLocale { locale } userErrors { field message code } }
-          missingWithPresencePublish: shopLocaleUpdate(locale: "zz", shopLocale: { published: true, marketWebPresenceIds: [$known] }) { shopLocale { locale } userErrors { field message code } }
-          missingNoPresence: shopLocaleUpdate(locale: "de", shopLocale: { published: true }) { shopLocale { locale } userErrors { field message code } }
-          primaryPublish: shopLocaleUpdate(locale: "en", shopLocale: { published: true }) { shopLocale { locale } userErrors { field message code } }
-          primaryUnpublish: shopLocaleUpdate(locale: "en", shopLocale: { published: false }) { shopLocale { locale } userErrors { field message code } }
-          disablePrimary: shopLocaleDisable(locale: "en") { locale userErrors { field message code } }
-          disableUnknown: shopLocaleDisable(locale: "de") { locale userErrors { field message code } }
+          enableFr: shopLocaleEnable(locale: "fr") { shopLocale { locale published } userErrors { field message } }
+          publishFr: shopLocaleUpdate(locale: "fr", shopLocale: { published: true, marketWebPresenceIds: [$known, $unknown] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message } }
+          attachMissing: shopLocaleUpdate(locale: "tr", shopLocale: { marketWebPresenceIds: [$known] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message } }
+          missingWithPresenceUnpublish: shopLocaleUpdate(locale: "zz", shopLocale: { published: false, marketWebPresenceIds: [$known] }) { shopLocale { locale } userErrors { field message } }
+          missingWithPresencePublish: shopLocaleUpdate(locale: "zz", shopLocale: { published: true, marketWebPresenceIds: [$known] }) { shopLocale { locale } userErrors { field message } }
+          missingNoPresence: shopLocaleUpdate(locale: "de", shopLocale: { published: true }) { shopLocale { locale } userErrors { field message } }
+          primaryPublish: shopLocaleUpdate(locale: "en", shopLocale: { published: true }) { shopLocale { locale } userErrors { field message } }
+          primaryUnpublish: shopLocaleUpdate(locale: "en", shopLocale: { published: false }) { shopLocale { locale } userErrors { field message } }
+          disablePrimary: shopLocaleDisable(locale: "en") { locale userErrors { field message } }
+          disableUnknown: shopLocaleDisable(locale: "de") { locale userErrors { field message } }
         }"#,
         json!({ "known": known_presence, "unknown": unknown_presence }),
     ));
@@ -4854,8 +5318,7 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
             "shopLocale": null,
             "userErrors": [{
                 "field": ["locale"],
-                "message": "The locale doesn't exist.",
-                "code": "SHOP_LOCALE_DOES_NOT_EXIST"
+                "message": "The locale doesn't exist."
             }]
         })
     );
@@ -4863,8 +5326,7 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
         "shopLocale": null,
         "userErrors": [{
             "field": ["locale"],
-            "message": "The locale doesn't exist.",
-            "code": "SHOP_LOCALE_DOES_NOT_EXIST"
+            "message": "The locale doesn't exist."
         }]
     });
     assert_eq!(
@@ -4881,8 +5343,7 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
             "shopLocale": null,
             "userErrors": [{
                 "field": ["locale"],
-                "message": "The primary locale of your store can't be changed through this endpoint.",
-                "code": "CAN_NOT_MUTATE_PRIMARY_LOCALE"
+                "message": "The primary locale of your store can't be changed through this endpoint."
             }]
         })
     );
@@ -4892,8 +5353,7 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
             "shopLocale": null,
             "userErrors": [{
                 "field": ["locale"],
-                "message": "The primary locale of your store can't be changed through this endpoint.",
-                "code": "CAN_NOT_MUTATE_PRIMARY_LOCALE"
+                "message": "The primary locale of your store can't be changed through this endpoint."
             }]
         })
     );
@@ -4903,8 +5363,7 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
             "locale": null,
             "userErrors": [{
                 "field": ["locale"],
-                "message": "The primary locale of your store can't be changed through this endpoint.",
-                "code": "CAN_NOT_MUTATE_PRIMARY_LOCALE"
+                "message": "The primary locale of your store can't be changed through this endpoint."
             }]
         })
     );
@@ -4914,8 +5373,7 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
             "locale": null,
             "userErrors": [{
                 "field": ["locale"],
-                "message": "The locale doesn't exist.",
-                "code": "SHOP_LOCALE_DOES_NOT_EXIST"
+                "message": "The locale doesn't exist."
             }]
         })
     );
@@ -4950,7 +5408,7 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
         .any(|locale| locale["locale"] == json!("fr")));
 
     let disabled = proxy.process_request(json_graphql_request(
-        r#"mutation RustLocalizationShopLocaleTailHelpersDisable { shopLocaleDisable(locale: "fr") { locale userErrors { field message code } } }"#,
+        r#"mutation RustLocalizationShopLocaleTailHelpersDisable { shopLocaleDisable(locale: "fr") { locale userErrors { field message } } }"#,
         json!({}),
     ));
     assert_eq!(
@@ -4970,6 +5428,99 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
 }
 
 #[test]
+fn localization_shop_locale_user_errors_reject_code_selection() {
+    let mut proxy = snapshot_proxy();
+
+    let code_selection = proxy.process_request(json_graphql_request(
+        r#"mutation ShopLocaleUserErrorNoCode {
+          enable: shopLocaleEnable(locale: "tlh") {
+            userErrors { field message code }
+          }
+          update: shopLocaleUpdate(locale: "fr", shopLocale: { published: false }) {
+            userErrors { code }
+          }
+          disable: shopLocaleDisable(locale: "en") {
+            userErrors { field message code }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(code_selection.status, 200);
+    assert!(code_selection.body.get("data").is_none());
+    let errors = code_selection.body["errors"].as_array().unwrap();
+    assert_eq!(errors.len(), 3);
+    for (error, response_key) in errors.iter().zip(["enable", "update", "disable"]) {
+        assert_eq!(
+            error["message"],
+            json!("Field 'code' doesn't exist on type 'UserError'")
+        );
+        assert_eq!(
+            error["path"],
+            json!([
+                "mutation ShopLocaleUserErrorNoCode",
+                response_key,
+                "userErrors",
+                "code"
+            ])
+        );
+        assert_eq!(
+            error["extensions"],
+            json!({
+                "code": "undefinedField",
+                "typeName": "UserError",
+                "fieldName": "code"
+            })
+        );
+    }
+
+    let field_message_selection = proxy.process_request(json_graphql_request(
+        r#"mutation ShopLocaleUserErrorFieldMessage {
+          enable: shopLocaleEnable(locale: "tlh") {
+            shopLocale { locale }
+            userErrors { field message }
+          }
+          update: shopLocaleUpdate(locale: "fr", shopLocale: { published: false }) {
+            shopLocale { locale }
+            userErrors { field message }
+          }
+          disable: shopLocaleDisable(locale: "en") {
+            locale
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(field_message_selection.status, 200);
+    assert!(field_message_selection.body.get("errors").is_none());
+    assert_eq!(
+        field_message_selection.body["data"],
+        json!({
+            "enable": {
+                "shopLocale": null,
+                "userErrors": [{
+                    "field": ["locale"],
+                    "message": "Locale is invalid"
+                }]
+            },
+            "update": {
+                "shopLocale": null,
+                "userErrors": [{
+                    "field": ["locale"],
+                    "message": "The locale doesn't exist."
+                }]
+            },
+            "disable": {
+                "locale": null,
+                "userErrors": [{
+                    "field": ["locale"],
+                    "message": "The primary locale of your store can't be changed through this endpoint."
+                }]
+            }
+        })
+    );
+}
+
+#[test]
 fn localization_locale_cap_register_guards_and_remove_combinations_match_captured_behavior() {
     let mut proxy = snapshot_proxy();
     let title_digest = fallback_product_title_digest();
@@ -4986,7 +5537,7 @@ fn localization_locale_cap_register_guards_and_remove_combinations_match_capture
             r#"mutation LocalizationShopLocaleEnable($locale: String!) {
               shopLocaleEnable(locale: $locale) {
                 shopLocale { locale }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }"#,
             json!({ "locale": locale }),
@@ -5001,7 +5552,7 @@ fn localization_locale_cap_register_guards_and_remove_combinations_match_capture
         r#"mutation LocalizationShopLocaleEnable($locale: String!) {
           shopLocaleEnable(locale: $locale) {
             shopLocale { locale }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }"#,
         json!({ "locale": "zh-CN" }),
@@ -5012,8 +5563,7 @@ fn localization_locale_cap_register_guards_and_remove_combinations_match_capture
             "shopLocale": null,
             "userErrors": [{
                 "field": null,
-                "message": "Your store has reached its 20 language limit. To add Chinese (Simplified), delete one of your other languages.",
-                "code": "SHOP_LOCALE_LIMIT_REACHED"
+                "message": "Your store has reached its 20 language limit. To add Chinese (Simplified), delete one of your other languages."
             }]
         })
     );
@@ -5071,10 +5621,11 @@ fn localization_locale_cap_register_guards_and_remove_combinations_match_capture
     );
 
     let mut remove_proxy = snapshot_proxy();
+    let market_id = stage_market(&mut remove_proxy, "Remove Combination Market", "CA");
     for locale in ["es", "fr"] {
         let enable = remove_proxy.process_request(json_graphql_request(
             r#"mutation LocalizationShopLocaleEnable($locale: String!) {
-              shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+              shopLocaleEnable(locale: $locale) { userErrors { field message } }
             }"#,
             json!({ "locale": locale }),
         ));
@@ -5093,8 +5644,8 @@ fn localization_locale_cap_register_guards_and_remove_combinations_match_capture
         json!({
             "resourceId": "gid://shopify/Product/9801098789170",
             "translations": [
-                { "locale": "es", "key": "title", "value": "Titulo", "translatableContentDigest": title_digest, "marketId": "gid://shopify/Market/123" },
-                { "locale": "es", "key": "body_html", "value": "Cuerpo", "translatableContentDigest": "digest", "marketId": "gid://shopify/Market/123" },
+                { "locale": "es", "key": "title", "value": "Titulo", "translatableContentDigest": title_digest, "marketId": market_id },
+                { "locale": "es", "key": "body_html", "value": "Cuerpo", "translatableContentDigest": "digest", "marketId": market_id },
                 { "locale": "fr", "key": "title", "value": "Titre", "translatableContentDigest": title_digest }
             ]
         }),
@@ -5118,7 +5669,7 @@ fn localization_locale_cap_register_guards_and_remove_combinations_match_capture
             "resourceId": "gid://shopify/Product/9801098789170",
             "keys": ["title", "body_html"],
             "locales": ["es", "fr"],
-            "marketIds": ["gid://shopify/Market/123"]
+            "marketIds": [market_id]
         }),
     ));
     let removed = remove.body["data"]["translationsRemove"]["translations"]
@@ -5454,7 +6005,7 @@ fn gift_card_create_missing_customer_uses_existence_not_id_substring() {
         })
     );
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["giftCards"],
+        state_snapshot(&proxy)["stagedState"]["giftCards"],
         json!({})
     );
 }
@@ -5553,7 +6104,7 @@ fn gift_card_update_validation_rejects_deactivated_empty_missing_and_long_inputs
             "missingCustomer": { "giftCard": null, "userErrors": [{ "field": ["input", "customerId"], "message": "The customer could not be found.", "code": "CUSTOMER_NOT_FOUND" }] },
             "longRecipientName": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "preferredName"], "code": "TOO_LONG", "message": "preferredName is too long (maximum is 255)" }] },
             "longRecipientMessage": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "message"], "code": "TOO_LONG", "message": "message is too long (maximum is 200)" }] },
-            "success": { "giftCard": { "id": "gid://shopify/GiftCard/har694-active", "note": "HAR-694 updated note", "updatedAt": "2024-01-01T00:00:00.000Z" }, "userErrors": [] }
+            "success": { "giftCard": { "id": "gid://shopify/GiftCard/har694-active", "note": "HAR-694 updated note", "updatedAt": "2024-01-01T00:00:01.000Z" }, "userErrors": [] }
         })
     );
 }
@@ -5581,10 +6132,95 @@ fn gift_card_update_noop_accepts_same_values_and_rejects_empty_input() {
     assert_eq!(
         response.body["data"],
         json!({
-            "noteNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "note": "HAR-766 no-op current note", "updatedAt": "2024-01-01T00:00:00.000Z" }, "userErrors": [] },
-            "expiresNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "expiresOn": "2030-01-01", "updatedAt": "2024-01-01T00:00:00.000Z" }, "userErrors": [] },
-            "templateNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "templateSuffix": "birthday", "updatedAt": "2024-01-01T00:00:00.000Z" }, "userErrors": [] },
+            "noteNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "note": "HAR-766 no-op current note", "updatedAt": "2024-01-01T00:00:01.000Z" }, "userErrors": [] },
+            "expiresNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "expiresOn": "2030-01-01", "updatedAt": "2024-01-01T00:00:01.000Z" }, "userErrors": [] },
+            "templateNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "templateSuffix": "birthday", "updatedAt": "2024-01-01T00:00:01.000Z" }, "userErrors": [] },
             "emptyInput": { "giftCard": null, "userErrors": [{ "field": ["input"], "message": "At least one argument is required in the input.", "code": "INVALID" }] }
+        })
+    );
+}
+
+#[test]
+fn gift_card_create_and_repeated_updates_use_synthetic_clock_timestamps() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GiftCardSyntheticTimestampCreate {
+          giftCardCreate(input: { initialValue: "10", code: "synthetictime" }) {
+            giftCard { id createdAt updatedAt }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["giftCardCreate"]["userErrors"],
+        json!([])
+    );
+    let gift_card = &create.body["data"]["giftCardCreate"]["giftCard"];
+    let gift_card_id = json_string(&gift_card["id"], "created gift card id");
+    assert_eq!(gift_card["createdAt"], json!("2024-01-01T00:00:01.000Z"));
+    assert_eq!(gift_card["updatedAt"], json!("2024-01-01T00:00:01.000Z"));
+
+    let first_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GiftCardSyntheticTimestampFirstUpdate($id: ID!) {
+          giftCardUpdate(id: $id, input: { note: "first synthetic timestamp update" }) {
+            giftCard { id note createdAt updatedAt }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": gift_card_id.clone() }),
+    ));
+    assert_eq!(
+        first_update.body["data"]["giftCardUpdate"]["userErrors"],
+        json!([])
+    );
+    let first_card = &first_update.body["data"]["giftCardUpdate"]["giftCard"];
+    assert_eq!(first_card["createdAt"], json!("2024-01-01T00:00:01.000Z"));
+    assert_eq!(first_card["updatedAt"], json!("2024-01-01T00:00:02.000Z"));
+
+    let second_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GiftCardSyntheticTimestampSecondUpdate($id: ID!) {
+          giftCardUpdate(id: $id, input: { note: "second synthetic timestamp update" }) {
+            giftCard { id note createdAt updatedAt }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": gift_card_id.clone() }),
+    ));
+    assert_eq!(
+        second_update.body["data"]["giftCardUpdate"]["userErrors"],
+        json!([])
+    );
+    let second_card = &second_update.body["data"]["giftCardUpdate"]["giftCard"];
+    assert_eq!(second_card["createdAt"], json!("2024-01-01T00:00:01.000Z"));
+    assert_eq!(second_card["updatedAt"], json!("2024-01-01T00:00:03.000Z"));
+    assert!(
+        second_card["updatedAt"].as_str().unwrap() > first_card["updatedAt"].as_str().unwrap(),
+        "giftCardUpdate.updatedAt should advance between writes"
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query GiftCardSyntheticTimestampRead($id: ID!) {
+          giftCard(id: $id) { id note createdAt updatedAt }
+        }
+        "#,
+        json!({ "id": gift_card_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["giftCard"],
+        json!({
+            "id": second_card["id"].clone(),
+            "note": "second synthetic timestamp update",
+            "createdAt": "2024-01-01T00:00:01.000Z",
+            "updatedAt": "2024-01-01T00:00:03.000Z"
         })
     );
 }
@@ -5674,7 +6310,7 @@ fn gift_card_notification_trial_shop_rejects_customer_and_recipient_notification
             "recipientNotification": { "giftCard": null, "userErrors": trial_error }
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -5685,6 +6321,10 @@ fn gift_card_notification_base_keyed_state_errors_emit_null_field() {
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardNotificationBaseKeyedStateErrors {
           noCustomer: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/654904230194") {
+            giftCard { id }
+            userErrors { field code message }
+          }
+          noRecipient: giftCardSendNotificationToRecipient(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic") {
             giftCard { id }
             userErrors { field code message }
           }
@@ -5707,6 +6347,14 @@ fn gift_card_notification_base_keyed_state_errors_emit_null_field() {
                     "message": "The gift card has no customer."
                 }]
             },
+            "noRecipient": {
+                "giftCard": null,
+                "userErrors": [{
+                    "field": null,
+                    "code": "INVALID",
+                    "message": "The gift card has no recipient."
+                }]
+            },
             "noContact": {
                 "giftCard": null,
                 "userErrors": [{
@@ -5717,7 +6365,61 @@ fn gift_card_notification_base_keyed_state_errors_emit_null_field() {
             }
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn gift_card_notification_created_no_contact_recipient_emits_null_field() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardCreateNoContactRecipient($recipientId: ID!) {
+          giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId } }) {
+            giftCard {
+              id
+              recipientAttributes { recipient { id } }
+            }
+            giftCardCode
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "recipientId": "gid://shopify/Customer/no-contact-recipient" }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["giftCardCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["giftCardCreate"]["giftCard"]["recipientAttributes"]["recipient"]["id"],
+        json!("gid://shopify/Customer/no-contact-recipient")
+    );
+    let gift_card_id = create.body["data"]["giftCardCreate"]["giftCard"]["id"]
+        .as_str()
+        .expect("gift card id")
+        .to_string();
+
+    let notify = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardNotifyNoContactRecipient($id: ID!) {
+          giftCardSendNotificationToRecipient(id: $id) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "id": gift_card_id }),
+    ));
+
+    assert_eq!(
+        notify.body["data"]["giftCardSendNotificationToRecipient"],
+        json!({
+            "giftCard": null,
+            "userErrors": [{
+                "field": null,
+                "code": "INVALID",
+                "message": "The recipient has no contact information (e.g. email address or phone number)."
+            }]
+        })
+    );
 }
 
 #[test]
@@ -5745,7 +6447,7 @@ fn gift_card_notification_entitlement_wins_before_trial_and_trial_wins_before_ca
             "entitlementBeforeTrial": { "giftCard": null, "userErrors": entitlement_error }
         })
     );
-    assert_eq!(disabled_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&disabled_proxy)["entries"], json!([]));
 
     let mut proxy = snapshot_proxy();
     seed_legacy_gift_card_base_state(&mut proxy);
@@ -5772,7 +6474,7 @@ fn gift_card_notification_entitlement_wins_before_trial_and_trial_wins_before_ca
             "trialBeforeNoContact": { "giftCard": null, "userErrors": trial_error }
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -5818,13 +6520,12 @@ fn gift_card_notification_uses_hydrated_trial_shop_plan() {
             "recipientNotification": { "giftCard": null, "userErrors": trial_error }
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
 fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_success_credit() {
-    let mut proxy = snapshot_proxy();
-    seed_legacy_gift_card_base_state(&mut proxy);
+    let mut proxy = cad_snapshot_proxy();
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardTransactionValidation($activeId: ID!, $expiredId: ID!, $deactivatedId: ID!, $validCreditInput: GiftCardCreditInput!, $mismatchCreditInput: GiftCardCreditInput!, $futureCreditInput: GiftCardCreditInput!, $preEpochCreditInput: GiftCardCreditInput!, $validDebitInput: GiftCardDebitInput!, $futureDebitInput: GiftCardDebitInput!, $preEpochDebitInput: GiftCardDebitInput!) {
@@ -5865,7 +6566,7 @@ fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_succ
             "futureDebit": { "giftCardDebitTransaction": null, "userErrors": [{ "field": ["debitInput", "processedAt"], "code": "INVALID", "message": "The processed date must not be in the future." }] },
             "preEpochDebit": { "giftCardDebitTransaction": null, "userErrors": [{ "field": ["debitInput", "processedAt"], "code": "INVALID", "message": "A valid processed date must be used." }] },
             "deactivatedDebit": { "giftCardDebitTransaction": null, "userErrors": [{ "field": ["id"], "code": "INVALID", "message": "The gift card is deactivated." }] },
-            "successCredit": { "giftCardCreditTransaction": { "id": "gid://shopify/GiftCardCreditTransaction/1", "__typename": "GiftCardCreditTransaction", "processedAt": "2026-04-29T09:31:02Z", "amount": { "amount": "5.0", "currencyCode": "CAD" } }, "userErrors": [] }
+            "successCredit": { "giftCardCreditTransaction": { "id": "gid://shopify/GiftCardCreditTransaction/1", "__typename": "GiftCardCreditTransaction", "processedAt": "2024-01-01T00:00:01.000Z", "amount": { "amount": "5.0", "currencyCode": "CAD" } }, "userErrors": [] }
         })
     );
 
@@ -5886,7 +6587,7 @@ fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_succ
             "balance": { "amount": "10.0", "currencyCode": "CAD" },
             "transactions": {
                 "nodes": [{
-                    "processedAt": "2026-04-29T09:31:02Z",
+                    "processedAt": "2024-01-01T00:00:01.000Z",
                     "amount": { "amount": "5.0", "currencyCode": "CAD" }
                 }]
             }
@@ -6089,8 +6790,7 @@ fn gift_card_recipient_validation_rejects_unknown_recipient_and_blank_text_field
 
 #[test]
 fn gift_card_mutation_user_error_codes_cover_create_update_credit_and_debit_paths() {
-    let mut proxy = snapshot_proxy();
-    set_gift_card_shop_currency(&mut proxy, "CAD");
+    let mut proxy = cad_snapshot_proxy();
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardMutationUserErrorCodes {
@@ -6129,8 +6829,7 @@ fn gift_card_mutation_user_error_codes_cover_create_update_credit_and_debit_path
 
 #[test]
 fn gift_card_create_validation_is_input_driven_under_ordinary_operation_name() {
-    let mut proxy = snapshot_proxy();
-    set_gift_card_shop_currency(&mut proxy, "CAD");
+    let mut proxy = cad_snapshot_proxy();
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation IssueGiftCards($validCode: String!, $tooLongCode: String!, $missingCustomerId: ID!) {
@@ -6571,13 +7270,12 @@ fn gift_card_create_released_schema_rejects_missing_initial_value_and_initial_am
         })
     );
 
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
 fn gift_card_roots_accept_ordinary_operation_names_without_501s() {
-    let mut proxy = snapshot_proxy();
-    set_gift_card_shop_currency(&mut proxy, "CAD");
+    let mut proxy = cad_snapshot_proxy();
 
     let create = proxy.process_request(json_graphql_request(
         r#"mutation IssueLocalGiftCard {
@@ -6752,8 +7450,7 @@ fn gift_card_roots_accept_ordinary_operation_names_without_501s() {
 
 #[test]
 fn gift_card_credit_debit_preserve_optional_transaction_notes() {
-    let mut proxy = snapshot_proxy();
-    set_gift_card_shop_currency(&mut proxy, "CAD");
+    let mut proxy = cad_snapshot_proxy();
 
     let create = proxy.process_request(json_graphql_request(
         r#"mutation IssueLocalGiftCard {
@@ -6955,8 +7652,7 @@ fn gift_card_lifecycle_stages_update_transactions_deactivate_and_downstream_read
 
 #[test]
 fn gift_card_expiry_uses_shop_timezone_boundary_before_expired_validation() {
-    let mut proxy = snapshot_proxy();
-    set_gift_card_shop_currency(&mut proxy, "CAD");
+    let mut proxy = cad_snapshot_proxy();
 
     let dump = proxy.process_request(request_with_body(
         "POST",
@@ -7057,8 +7753,7 @@ fn gift_card_expiry_uses_shop_timezone_boundary_before_expired_validation() {
 
 #[test]
 fn gift_card_expiry_uses_utc_fallback_when_shop_timezone_is_missing() {
-    let mut proxy = snapshot_proxy();
-    set_gift_card_shop_currency(&mut proxy, "CAD");
+    let mut proxy = cad_snapshot_proxy();
 
     let setup = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardExpiryUtcFallbackSetup {
@@ -7118,8 +7813,7 @@ fn gift_card_expiry_uses_utc_fallback_when_shop_timezone_is_missing() {
 
 #[test]
 fn gift_card_credit_limit_rejects_credit_but_allows_followup_debit_transaction() {
-    let mut proxy = snapshot_proxy();
-    seed_legacy_gift_card_base_state(&mut proxy);
+    let mut proxy = cad_snapshot_proxy();
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardCreditLimitExceeded($boundaryId: ID!, $creditInput: GiftCardCreditInput!, $debitInput: GiftCardDebitInput!) {
@@ -7193,7 +7887,7 @@ fn gift_card_entitlement_disabled_wins_for_all_supported_mutation_roots() {
             "notificationRecipientError": { "giftCard": null, "userErrors": base_error }
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -7232,7 +7926,7 @@ fn gift_card_create_notify_false_stages_card_and_notification_disabled_error() {
         })
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 1);
     assert_eq!(
         log["entries"][0]["stagedResourceIds"],
@@ -8012,8 +8706,8 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"
         mutation DiscountFreeShippingLifecycleCreate($codeInput: DiscountCodeFreeShippingInput!, $automaticInput: DiscountAutomaticFreeShippingInput!) {
-          discountCodeFreeShippingCreate(freeShippingCodeDiscount: $codeInput) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeFreeShipping { title asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } codes(first: 2) { nodes { code asyncUsageCount } } destinationSelection { __typename ... on DiscountCountryAll { allCountries } ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOncePerCustomer appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit usageLimit } } } userErrors { field message code extraInfo } }
-          discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: $automaticInput) { automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticFreeShipping { title asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } destinationSelection { __typename ... on DiscountCountryAll { allCountries } ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit } } } userErrors { field message code extraInfo } }
+          discountCodeFreeShippingCreate(freeShippingCodeDiscount: $codeInput) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeFreeShipping { title summary asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } codes(first: 2) { nodes { code asyncUsageCount } } destinationSelection { __typename ... on DiscountCountryAll { allCountries } ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOncePerCustomer appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit usageLimit } } } userErrors { field message code extraInfo } }
+          discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: $automaticInput) { automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticFreeShipping { title summary asyncUsageCount discountClasses combinesWith { productDiscounts orderDiscounts shippingDiscounts } destinationSelection { __typename ... on DiscountCountryAll { allCountries } ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit } } } userErrors { field message code extraInfo } }
         }
     "#;
     let created = proxy.process_request(json_graphql_request(create_query, json!({
@@ -8030,9 +8724,19 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
         json!("HAR196FREE1777150170404")
     );
     assert_eq!(
+        created.body["data"]["discountCodeFreeShippingCreate"]["codeDiscountNode"]["codeDiscount"]
+            ["summary"],
+        json!("Free shipping on all products • Minimum purchase of $10.00 • For all countries • Applies to shipping rates under $25.00 • One use per customer")
+    );
+    assert_eq!(
         created.body["data"]["discountAutomaticFreeShippingCreate"]["automaticDiscountNode"]
             ["automaticDiscount"]["maximumShippingPrice"],
-        json!({ "amount": "20.0", "currencyCode": "CAD" })
+        json!({ "amount": "20.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        created.body["data"]["discountAutomaticFreeShippingCreate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["summary"],
+        json!("Free shipping on all products • Minimum purchase of $15.00 • For all countries • Applies to shipping rates under $20.00")
     );
     let code_id = json_string(
         &created.body["data"]["discountCodeFreeShippingCreate"]["codeDiscountNode"]["id"],
@@ -8045,10 +8749,10 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
     assert_synthetic_gid(&code_id, "DiscountCodeNode");
     assert_synthetic_gid(&automatic_id, "DiscountAutomaticNode");
 
-    let code_update = r#"mutation DiscountCodeFreeShippingLifecycleUpdate($id: ID!, $input: DiscountCodeFreeShippingInput!) { discountCodeFreeShippingUpdate(id: $id, freeShippingCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeFreeShipping { title destinationSelection { __typename ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOncePerCustomer appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit usageLimit } } } userErrors { field message code extraInfo } } }"#;
+    let code_update = r#"mutation DiscountCodeFreeShippingLifecycleUpdate($id: ID!, $input: DiscountCodeFreeShippingInput!) { discountCodeFreeShippingUpdate(id: $id, freeShippingCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeFreeShipping { title summary destinationSelection { __typename ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOncePerCustomer appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit usageLimit } } } userErrors { field message code extraInfo } } }"#;
     let updated = proxy.process_request(json_graphql_request(
         code_update,
-        json!({ "id": code_id.clone(), "input": { "title": "HAR-196 code free shipping updated 1777150170404", "code": "HAR196SHIP1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false }, "context": { "all": "ALL" }, "destination": { "countries": { "add": ["CA", "US"] } }, "maximumShippingPrice": "30.00", "appliesOncePerCustomer": false, "usageLimit": 10 } }),
+        json!({ "id": code_id.clone(), "input": { "title": "HAR-196 code free shipping updated 1777150170404", "code": "HAR196SHIP1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false }, "context": { "all": "ALL" }, "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "12.00" } }, "destination": { "countries": { "add": ["CA", "US"] } }, "maximumShippingPrice": "30.00", "appliesOncePerCustomer": false, "appliesOnOneTimePurchase": false, "appliesOnSubscription": true, "usageLimit": 10 } }),
     ));
     assert_eq!(
         updated.body["data"]["discountCodeFreeShippingUpdate"]["codeDiscountNode"]["codeDiscount"]
@@ -8059,16 +8763,26 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
         updated.body["data"]["discountCodeFreeShippingUpdate"]["userErrors"],
         json!([])
     );
+    assert_eq!(
+        updated.body["data"]["discountCodeFreeShippingUpdate"]["codeDiscountNode"]["codeDiscount"]
+            ["summary"],
+        json!("Free shipping on subscription products • Minimum purchase of $12.00 • For 2 countries • Applies to shipping rates under $30.00")
+    );
 
-    let automatic_update = r#"mutation DiscountAutomaticFreeShippingLifecycleUpdate($id: ID!, $input: DiscountAutomaticFreeShippingInput!) { discountAutomaticFreeShippingUpdate(id: $id, freeShippingAutomaticDiscount: $input) { automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticFreeShipping { title destinationSelection { __typename ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit } } } userErrors { field message code extraInfo } } }"#;
+    let automatic_update = r#"mutation DiscountAutomaticFreeShippingLifecycleUpdate($id: ID!, $input: DiscountAutomaticFreeShippingInput!) { discountAutomaticFreeShippingUpdate(id: $id, freeShippingAutomaticDiscount: $input) { automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticFreeShipping { title summary destinationSelection { __typename ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit } } } userErrors { field message code extraInfo } } }"#;
     let automatic_updated = proxy.process_request(json_graphql_request(
         automatic_update,
-        json!({ "id": automatic_id.clone(), "input": { "title": "HAR-196 automatic free shipping updated 1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false }, "context": { "all": "ALL" }, "destination": { "countries": { "add": ["US"] } }, "maximumShippingPrice": "18.00" } }),
+        json!({ "id": automatic_id.clone(), "input": { "title": "HAR-196 automatic free shipping updated 1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false }, "context": { "all": "ALL" }, "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "18.00" } }, "destination": { "countries": { "add": ["US"] } }, "maximumShippingPrice": "18.00" } }),
     ));
     assert_eq!(
         automatic_updated.body["data"]["discountAutomaticFreeShippingUpdate"]
             ["automaticDiscountNode"]["automaticDiscount"]["destinationSelection"],
         json!({ "__typename": "DiscountCountries", "countries": ["US"], "includeRestOfWorld": false })
+    );
+    assert_eq!(
+        automatic_updated.body["data"]["discountAutomaticFreeShippingUpdate"]
+            ["automaticDiscountNode"]["automaticDiscount"]["summary"],
+        json!("Free shipping on all products • Minimum purchase of $18.00 • For United States • Applies to shipping rates under $18.00")
     );
 
     let read_query = r#"query DiscountFreeShippingLifecycleRead($codeId: ID!, $automaticId: ID!, $code: String!) { discountNode(id: $codeId) { id discount { __typename ... on DiscountCodeFreeShipping { title status } } } codeDiscountNodeByCode(code: $code) { id } automaticDiscountNode(id: $automaticId) { id automaticDiscount { __typename ... on DiscountAutomaticFreeShipping { title status } } } }"#;
@@ -8356,6 +9070,215 @@ fn discount_code_basic_lifecycle_tracks_status_counts_and_delete_readback() {
 }
 
 #[test]
+fn discount_basic_summary_derives_value_scope_and_minimum_requirement() {
+    let mut proxy = snapshot_proxy();
+    let product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductForDiscountSummary($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "The Complete Snowboard (Ice)" } }),
+    ));
+    assert_eq!(
+        product.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = json_string(
+        &product.body["data"]["productCreate"]["product"]["id"],
+        "discount summary product id",
+    );
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountBasicSummary(
+          $codeInput: DiscountCodeBasicInput!
+          $subscriptionInput: DiscountAutomaticBasicInput!
+          $productInput: DiscountAutomaticBasicInput!
+        ) {
+          code: discountCodeBasicCreate(basicCodeDiscount: $codeInput) {
+            codeDiscountNode {
+              codeDiscount {
+                __typename
+                ... on DiscountCodeBasic {
+                  summary
+                  customerGets {
+                    appliesOnOneTimePurchase
+                    appliesOnSubscription
+                  }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+          subscription: discountAutomaticBasicCreate(automaticBasicDiscount: $subscriptionInput) {
+            automaticDiscountNode {
+              automaticDiscount {
+                __typename
+                ... on DiscountAutomaticBasic {
+                  summary
+                  customerGets {
+                    appliesOnOneTimePurchase
+                    appliesOnSubscription
+                  }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+          product: discountAutomaticBasicCreate(automaticBasicDiscount: $productInput) {
+            automaticDiscountNode {
+              automaticDiscount {
+                __typename
+                ... on DiscountAutomaticBasic {
+                  summary
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "codeInput": {
+                "title": "Summary code basic",
+                "code": "SUMMARYBASIC",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "context": { "all": "ALL" },
+                "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "1.00" } },
+                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+            },
+            "subscriptionInput": {
+                "title": "Summary subscription basic",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "2.00" } },
+                "customerGets": {
+                    "value": { "discountAmount": { "amount": "5.00", "appliesOnEachItem": false } },
+                    "items": { "all": true },
+                    "appliesOnOneTimePurchase": false,
+                    "appliesOnSubscription": true
+                }
+            },
+            "productInput": {
+                "title": "Summary product basic",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "minimumRequirement": { "quantity": { "greaterThanOrEqualToQuantity": "3" } },
+                "customerGets": {
+                    "value": { "percentage": 0.3 },
+                    "items": { "products": { "productsToAdd": [product_id] } }
+                }
+            }
+        }),
+    ));
+
+    assert_eq!(created.body["data"]["code"]["userErrors"], json!([]));
+    assert_eq!(
+        created.body["data"]["code"]["codeDiscountNode"]["codeDiscount"]["summary"],
+        json!("10% off entire order • Minimum purchase of $1.00")
+    );
+    assert_eq!(
+        created.body["data"]["subscription"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created.body["data"]["subscription"]["automaticDiscountNode"]["automaticDiscount"]
+            ["summary"],
+        json!("$5.00 off subscription products • Minimum purchase of $2.00")
+    );
+    assert_eq!(
+        created.body["data"]["subscription"]["automaticDiscountNode"]["automaticDiscount"]
+            ["customerGets"]["appliesOnOneTimePurchase"],
+        json!(false)
+    );
+    assert_eq!(
+        created.body["data"]["subscription"]["automaticDiscountNode"]["automaticDiscount"]
+            ["customerGets"]["appliesOnSubscription"],
+        json!(true)
+    );
+    assert_eq!(created.body["data"]["product"]["userErrors"], json!([]));
+    assert_eq!(
+        created.body["data"]["product"]["automaticDiscountNode"]["automaticDiscount"]["summary"],
+        json!("30% off The Complete Snowboard (Ice) • Minimum quantity of 3")
+    );
+}
+
+#[test]
+fn discount_basic_summary_supports_one_time_scope_when_shop_sells_subscriptions() {
+    let hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&hits);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            assert!(
+                request
+                    .body
+                    .contains("DraftProxyShopSubscriptionCapability"),
+                "only the subscription capability probe should be forwarded, got: {}",
+                request.body
+            );
+            *hit_counter.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "features": {
+                                "sellsSubscriptions": true
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountOneTimeSummary($input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
+            automaticDiscountNode {
+              automaticDiscount {
+                __typename
+                ... on DiscountAutomaticBasic {
+                  summary
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "One time summary",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "customerGets": {
+                "value": { "percentage": 0.1 },
+                "items": { "all": true },
+                "appliesOnOneTimePurchase": true,
+                "appliesOnSubscription": false
+            }
+        }}),
+    ));
+
+    assert_eq!(
+        *hits.lock().unwrap(),
+        1,
+        "one subscription capability probe should be forwarded"
+    );
+    assert_eq!(
+        created.body["data"]["discountAutomaticBasicCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["summary"],
+        json!("10% off one-time purchase products")
+    );
+}
+
+#[test]
 fn discount_fixed_amount_applies_on_each_item_readback_matches_input() {
     let mut proxy = snapshot_proxy();
 
@@ -8404,7 +9327,7 @@ fn discount_fixed_amount_applies_on_each_item_readback_matches_input() {
             ["customerGets"]["value"],
         json!({
             "__typename": "DiscountAmount",
-            "amount": { "amount": "10.0", "currencyCode": "CAD" },
+            "amount": { "amount": "10.0", "currencyCode": "USD" },
             "appliesOnEachItem": true
         })
     );
@@ -8484,7 +9407,7 @@ fn discount_fixed_amount_applies_on_each_item_readback_matches_input() {
             ["customerGets"]["value"],
         json!({
             "__typename": "DiscountAmount",
-            "amount": { "amount": "7.0", "currencyCode": "CAD" },
+            "amount": { "amount": "7.0", "currencyCode": "USD" },
             "appliesOnEachItem": false
         })
     );
@@ -8575,7 +9498,7 @@ fn discount_fixed_amount_applies_on_each_item_readback_matches_input() {
             ["automaticDiscount"]["customerGets"]["value"],
         json!({
             "__typename": "DiscountAmount",
-            "amount": { "amount": "4.0", "currencyCode": "CAD" },
+            "amount": { "amount": "4.0", "currencyCode": "USD" },
             "appliesOnEachItem": false
         })
     );
@@ -8639,7 +9562,7 @@ fn discount_fixed_amount_applies_on_each_item_readback_matches_input() {
             ["customerGets"]["value"]["effect"],
         json!({
             "__typename": "DiscountAmount",
-            "amount": { "amount": "3.0", "currencyCode": "CAD" },
+            "amount": { "amount": "3.0", "currencyCode": "USD" },
             "appliesOnEachItem": false
         })
     );
@@ -9246,8 +10169,12 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
     );
 }
 
+fn fallback_product_title_value() -> &'static str {
+    "The Inventory Not Tracked Snowboard"
+}
+
 fn fallback_product_title_digest() -> String {
-    localization_content_digest("The Inventory Not Tracked Snowboard")
+    localization_content_digest(fallback_product_title_value())
 }
 
 fn content_digest(content: &Value, key: &str) -> String {

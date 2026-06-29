@@ -360,8 +360,16 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
     errors.extend(product_media_variable_errors(&document));
     errors.extend(return_reason_invalid_enum_errors(&document));
     errors.extend(metaobject_access_invalid_enum_errors(query, &document));
-    errors.extend(inventory_activation_user_error_code_selection_errors(
-        query, &document,
+    errors.extend(plain_user_error_code_selection_errors(
+        query,
+        &document,
+        &[
+            "inventoryActivate",
+            "inventoryDeactivate",
+            "shopLocaleEnable",
+            "shopLocaleUpdate",
+            "shopLocaleDisable",
+        ],
     ));
     errors
 }
@@ -723,16 +731,14 @@ fn output_field_type(field: &Value) -> Option<OutputFieldType> {
     Some(OutputFieldType { named_type })
 }
 
-fn inventory_activation_user_error_code_selection_errors(
+fn plain_user_error_code_selection_errors(
     query: &str,
     document: &ParsedDocument,
+    root_names: &[&str],
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     for field in &document.root_fields {
-        if !matches!(
-            field.name.as_str(),
-            "inventoryActivate" | "inventoryDeactivate"
-        ) {
+        if !root_names.contains(&field.name.as_str()) {
             continue;
         }
         let Some(user_errors_selection) = field
@@ -746,13 +752,9 @@ fn inventory_activation_user_error_code_selection_errors(
             if selection.name != "code" {
                 continue;
             }
-            let location = inventory_user_error_code_selection_location(
-                query,
-                field,
-                user_errors_selection,
-                selection,
-            )
-            .unwrap_or(SourceLocation { line: 1, column: 1 });
+            let location =
+                user_error_code_selection_location(query, field, user_errors_selection, selection)
+                    .unwrap_or(SourceLocation { line: 1, column: 1 });
             errors.push(json!({
                 "message": "Field 'code' doesn't exist on type 'UserError'",
                 "locations": [{ "line": location.line, "column": location.column }],
@@ -773,7 +775,7 @@ fn inventory_activation_user_error_code_selection_errors(
     errors
 }
 
-fn inventory_user_error_code_selection_location(
+fn user_error_code_selection_location(
     query: &str,
     field: &RootFieldSelection,
     user_errors_selection: &SelectedField,
@@ -2037,12 +2039,12 @@ fn inline_input_field_name_location(
                 }
             }
             _ if depth == target_depth => {
-                let before_ok = index == 0 || !is_graphql_name_byte(bytes[index - 1]);
+                let before_ok = index == 0 || !graphql_name_byte(bytes[index - 1]);
                 if before_ok && query[index..].starts_with(name) {
                     let after = index + name.len();
                     let after_ok = bytes
                         .get(after)
-                        .is_none_or(|next| !is_graphql_name_byte(*next));
+                        .is_none_or(|next| !graphql_name_byte(*next));
                     let followed_by_colon = query[after..].trim_start().starts_with(':');
                     if after_ok && followed_by_colon {
                         return source_location_for_byte_offset(query, index);
@@ -2164,7 +2166,7 @@ fn find_argument_name_with_colon(haystack: &str, argument_name: &str) -> Option<
         let before_ok = haystack[..candidate]
             .chars()
             .next_back()
-            .is_none_or(|ch| !is_graphql_name_char(ch));
+            .is_none_or(|ch| !graphql_name_char(ch));
         let after_name = candidate + argument_name.len();
         let followed_by_colon = haystack[after_name..]
             .chars()
@@ -2184,11 +2186,11 @@ fn find_graphql_name_after(query: &str, start: usize, name: &str) -> Option<usiz
     while search_start < query.len() {
         let relative = query[search_start..].find(name)?;
         let candidate = search_start + relative;
-        let before_ok = candidate == 0 || !is_graphql_name_byte(bytes[candidate - 1]);
+        let before_ok = candidate == 0 || !graphql_name_byte(bytes[candidate - 1]);
         let after = candidate + name.len();
         let after_ok = bytes
             .get(after)
-            .is_none_or(|next| !is_graphql_name_byte(*next));
+            .is_none_or(|next| !graphql_name_byte(*next));
         if before_ok && after_ok {
             return Some(candidate);
         }
@@ -2294,14 +2296,6 @@ pub(in crate::proxy) fn graphql_variable_definition_type(
         search_from = after;
     }
     None
-}
-
-fn is_graphql_name_char(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || ch == '_'
-}
-
-fn is_graphql_name_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || byte == b'_'
 }
 
 pub(in crate::proxy) fn invalid_variable_error(
@@ -2567,6 +2561,10 @@ fn extend_product_variant_input_schema(schema: &mut AdminInputSchema) {
             (
                 "variants".to_string(),
                 mutation_arg(non_null_list_of_non_null("ProductVariantsBulkInput")),
+            ),
+            (
+                "allowPartialUpdates".to_string(),
+                mutation_arg(named("Boolean")),
             ),
         ]),
     );
@@ -2849,6 +2847,26 @@ fn extend_gift_card_input_schema(schema: &mut AdminInputSchema) {
 }
 
 fn extend_markets_input_schema(schema: &mut AdminInputSchema) {
+    let parsed: Value = serde_json::from_str(include_str!(
+        "../../config/admin-graphql-mutation-schema.json"
+    ))
+    .expect("checked-in Admin GraphQL mutation schema should be valid JSON");
+
+    for input_object_name in [
+        "MarketCurrencySettingsUpdateInput",
+        "MarketCreateInput",
+        "MarketUpdateInput",
+    ] {
+        if let Some((name, fields)) = captured_input_object_fields(&parsed, input_object_name) {
+            schema.input_objects.insert(name, fields);
+        }
+    }
+    for mutation_name in ["marketCreate", "marketUpdate"] {
+        if let Some((name, arguments)) = captured_mutation_arguments(&parsed, mutation_name) {
+            schema.mutation_fields.insert(name, arguments);
+        }
+    }
+
     // CatalogCreateInput on Admin API 2026-04: `context` is a required
     // (non-null) input field. Omitting it must surface a top-level
     // INVALID_VARIABLE coercion error before the local catalog handler runs.

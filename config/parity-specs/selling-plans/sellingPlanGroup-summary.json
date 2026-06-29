@@ -2,14 +2,13 @@
   "scenarioId": "sellingPlanGroup-summary",
   "operationNames": ["sellingPlanGroup", "sellingPlanGroupCreate"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "computed-field-parity", "read-after-write"],
+  "assertionKinds": ["payload-shape", "computed-field-parity", "shop-currency-parity", "read-after-write"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-summary.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes/selling_plans.rs"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-summary.graphql",
-    "variablesCapturePath": "$.scenarios.createSummary.variables"
+    "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupShopCurrency.graphql"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -17,9 +16,24 @@
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "create-summary-user-errors",
-        "capturePath": "$.scenarios.createSummary.response.data.sellingPlanGroupCreate.userErrors",
-        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors"
+        "name": "shop-currency-hydrate",
+        "capturePath": "$.scenarios.shopCurrency.response.data.shop",
+        "proxyPath": "$.data.shop",
+        "selectedPaths": ["$.currencyCode", "$.currencyFormats"]
+      },
+      {
+        "name": "create-fixed-pricing-currency-and-user-errors",
+        "capturePath": "$.scenarios.createSummary.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "selectedPaths": [
+          "$.userErrors",
+          "$.sellingPlanGroup.sellingPlans.nodes[2].pricingPolicies[0].adjustmentValue.currencyCode",
+          "$.sellingPlanGroup.sellingPlans.nodes[3].pricingPolicies[0].adjustmentValue.currencyCode"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupCreate-summary.graphql",
+          "variablesCapturePath": "$.scenarios.createSummary.variables"
+        }
       },
       {
         "name": "summary-read-after-create",
@@ -29,7 +43,8 @@
           "documentPath": "config/parity-requests/selling-plans/sellingPlanGroupSummary-read.graphql",
           "variables": {
             "id": {
-              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+              "fromProxyResponse": "create-fixed-pricing-currency-and-user-errors",
+              "path": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
             }
           }
         },
@@ -37,5 +52,5 @@
       }
     ]
   },
-  "notes": "Admin 2026-04 sellingPlanGroup.summary after local create staging: count comes from sellingPlans, frequency/frequencies is pluralized by plan count, percentage and fixed-value discount ranges are computed across all plans, and mixed discount pieces join with a middle dot."
+  "notes": "Admin 2026-04 sellingPlanGroup.summary after local create staging on a CAD shop: count comes from sellingPlans, frequency/frequencies is pluralized by plan count, percentage and fixed-value discount ranges are computed across all plans, mixed discount pieces join with a middle dot, and fixed-pricing MoneyV2.currencyCode matches the shop currency after a public shop currency hydrate query."
 }

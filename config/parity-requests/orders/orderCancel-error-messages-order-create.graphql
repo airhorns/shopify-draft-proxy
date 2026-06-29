@@ -1,0 +1,12 @@
+mutation OrderCancelErrorMessagesOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+  orderCreate(order: $order, options: $options) {
+    order {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

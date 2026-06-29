@@ -1,0 +1,221 @@
+{
+  "scenarioId": "metaobject-online-store-template-suffix",
+  "operationNames": [
+    "metaobjectDefinitionCreate",
+    "metaobjectCreate",
+    "metaobjectUpdate",
+    "metaobjectUpsert",
+    "metaobject",
+    "metaobjectByHandle"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["mutation-field-parity", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-online-store-template-suffix.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-online-store-template-suffix-definition-create.graphql",
+    "variablesCapturePath": "$.definitionCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "definition-create",
+        "capturePath": "$.definitionCreate.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.metaobjectDefinition.type",
+          "$.metaobjectDefinition.capabilities.onlineStore",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "create-omitted-template-suffix-null",
+        "capturePath": "$.createOmitted.response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-online-store-template-suffix-create.graphql",
+          "variablesCapturePath": "$.createOmitted.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.metaobject.capabilities.onlineStore.templateSuffix", "$.userErrors"]
+      },
+      {
+        "name": "create-empty-template-suffix",
+        "capturePath": "$.createEmpty.response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-online-store-template-suffix-create.graphql",
+          "variablesCapturePath": "$.createEmpty.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.metaobject.capabilities.onlineStore.templateSuffix", "$.userErrors"]
+      },
+      {
+        "name": "create-custom-template-suffix",
+        "capturePath": "$.createCustom.response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-online-store-template-suffix-create.graphql",
+          "variablesCapturePath": "$.createCustom.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.metaobject.handle", "$.metaobject.capabilities.onlineStore.templateSuffix", "$.userErrors"]
+      },
+      {
+        "name": "read-after-custom-create-template-suffix",
+        "capturePath": "$.readAfterCustomCreate.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-online-store-template-suffix-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-custom-template-suffix",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "handle": {
+              "type": { "fromCapturePath": "$.type" },
+              "handle": {
+                "fromProxyResponse": "create-custom-template-suffix",
+                "path": "$.data.metaobjectCreate.metaobject.handle"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.detail.capabilities.onlineStore.templateSuffix",
+          "$.byHandle.capabilities.onlineStore.templateSuffix"
+        ]
+      },
+      {
+        "name": "unrelated-update-preserves-template-suffix",
+        "capturePath": "$.unrelatedUpdate.response.data.metaobjectUpdate",
+        "proxyPath": "$.data.metaobjectUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-online-store-template-suffix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-custom-template-suffix",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": { "fromCapturePath": "$.unrelatedUpdate.request.variables.metaobject" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.metaobject.capabilities.onlineStore.templateSuffix", "$.userErrors"]
+      },
+      {
+        "name": "read-after-unrelated-update-template-suffix",
+        "capturePath": "$.readAfterUnrelatedUpdate.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-online-store-template-suffix-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-custom-template-suffix",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "handle": {
+              "type": { "fromCapturePath": "$.type" },
+              "handle": {
+                "fromProxyResponse": "create-custom-template-suffix",
+                "path": "$.data.metaobjectCreate.metaobject.handle"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.detail.capabilities.onlineStore.templateSuffix",
+          "$.byHandle.capabilities.onlineStore.templateSuffix"
+        ]
+      },
+      {
+        "name": "explicit-update-template-suffix",
+        "capturePath": "$.explicitUpdate.response.data.metaobjectUpdate",
+        "proxyPath": "$.data.metaobjectUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-online-store-template-suffix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-custom-template-suffix",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": { "fromCapturePath": "$.explicitUpdate.request.variables.metaobject" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.metaobject.capabilities.onlineStore.templateSuffix", "$.userErrors"]
+      },
+      {
+        "name": "upsert-create-template-suffix",
+        "capturePath": "$.upsertCreate.response.data.metaobjectUpsert",
+        "proxyPath": "$.data.metaobjectUpsert",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-online-store-template-suffix-upsert.graphql",
+          "variablesCapturePath": "$.upsertCreate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.metaobject.handle", "$.metaobject.capabilities.onlineStore.templateSuffix", "$.userErrors"]
+      },
+      {
+        "name": "upsert-update-preserves-template-suffix",
+        "capturePath": "$.upsertUpdatePreserve.response.data.metaobjectUpsert",
+        "proxyPath": "$.data.metaobjectUpsert",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-online-store-template-suffix-upsert.graphql",
+          "variables": {
+            "handle": {
+              "type": { "fromCapturePath": "$.type" },
+              "handle": {
+                "fromProxyResponse": "upsert-create-template-suffix",
+                "path": "$.data.metaobjectUpsert.metaobject.handle"
+              }
+            },
+            "metaobject": { "fromCapturePath": "$.upsertUpdatePreserve.request.variables.metaobject" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.metaobject.capabilities.onlineStore.templateSuffix", "$.userErrors"]
+      },
+      {
+        "name": "upsert-update-empty-template-suffix",
+        "capturePath": "$.upsertUpdateEmpty.response.data.metaobjectUpsert",
+        "proxyPath": "$.data.metaobjectUpsert",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-online-store-template-suffix-upsert.graphql",
+          "variables": {
+            "handle": {
+              "type": { "fromCapturePath": "$.type" },
+              "handle": {
+                "fromProxyResponse": "upsert-create-template-suffix",
+                "path": "$.data.metaobjectUpsert.metaobject.handle"
+              }
+            },
+            "metaobject": { "fromCapturePath": "$.upsertUpdateEmpty.request.variables.metaobject" }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$.metaobject.capabilities.onlineStore.templateSuffix", "$.userErrors"]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 evidence for entry-level metaobject capabilities.onlineStore.templateSuffix. The strict targets prove omitted input reads back as null, empty string and non-empty create inputs round-trip, unrelated metaobjectUpdate/metaobjectUpsert updates preserve the persisted suffix, explicit update/upsert input changes it, and downstream metaobject(id:) plus metaobjectByHandle reads expose the staged value."
+}

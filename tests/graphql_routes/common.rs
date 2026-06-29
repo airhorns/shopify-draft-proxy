@@ -54,11 +54,39 @@ pub(super) fn request_with_body(method: &str, path: &str, body: &str) -> Request
     }
 }
 
+pub(super) fn log_snapshot(proxy: &DraftProxy) -> Value {
+    meta_snapshot(proxy, "/__meta/log")
+}
+
+pub(super) fn state_snapshot(proxy: &DraftProxy) -> Value {
+    meta_snapshot(proxy, "/__meta/state")
+}
+
+fn meta_snapshot(proxy: &DraftProxy, path: &str) -> Value {
+    let mut proxy = proxy.clone();
+    let response = proxy.process_request(request_with_body("GET", path, ""));
+    assert_eq!(response.status, 200);
+    response.body
+}
+
 pub(super) fn json_graphql_request(query: &str, variables: serde_json::Value) -> Request {
     graphql_request(
         "POST",
         &json!({ "query": query, "variables": variables }).to_string(),
     )
+}
+
+pub(super) fn restore_shop_currency(proxy: &mut DraftProxy, currency_code: &str) {
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    restored["state"]["baseState"]["shop"]["currencyCode"] = json!(currency_code);
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
 }
 
 pub(super) fn product_fixture(path: &str) -> Value {

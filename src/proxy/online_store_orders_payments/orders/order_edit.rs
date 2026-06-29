@@ -205,10 +205,8 @@ pub(super) fn oe_next_seq(session: &mut Value) -> i64 {
 pub(super) fn oe_order_currency(order: &Value) -> String {
     if let Some(nodes) = order["lineItems"]["nodes"].as_array() {
         for node in nodes {
-            if let Some(currency) =
-                node["originalUnitPriceSet"]["shopMoney"]["currencyCode"].as_str()
-            {
-                return currency.to_string();
+            if let Some(currency) = money_set_shop_currency(&node["originalUnitPriceSet"]) {
+                return currency;
             }
         }
     }
@@ -217,8 +215,8 @@ pub(super) fn oe_order_currency(order: &Value) -> String {
         "totalPriceSet",
         "currentSubtotalPriceSet",
     ] {
-        if let Some(currency) = order[key]["shopMoney"]["currencyCode"].as_str() {
-            return currency.to_string();
+        if let Some(currency) = money_set_shop_currency(&order[key]) {
+            return currency;
         }
     }
     "CAD".to_string()
@@ -268,9 +266,22 @@ pub(super) fn oe_money_obj_cents(input: &BTreeMap<String, ResolvedValue>) -> Opt
     resolved_money_amount(input).map(|amount| (amount * 100.0).round() as i64)
 }
 
+fn oe_money_set_cents(value: &Value) -> Option<i64> {
+    value["presentmentMoney"]["amount"]
+        .as_str()
+        .or_else(|| value["shopMoney"]["amount"].as_str())
+        .or_else(|| value["amount"].as_str())
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .map(|amount| (amount * 100.0).round() as i64)
+}
+
 /// A single order-edit `userError`, optionally carrying a `code`.
 pub(super) fn oe_user_error(field: &[&str], message: &str, code: Option<&str>) -> Value {
     user_error_omit_code(field, message, code)
+}
+
+pub(super) fn oe_user_error_null_field(message: &str, code: Option<&str>) -> Value {
+    user_error_omit_code(Value::Null, message, code)
 }
 
 /// A failed order-edit mutation payload: every resource field is null and the
@@ -372,26 +383,44 @@ pub(super) fn oe_commit_order(base: &Value, session: &Value, author: Option<&str
         }
     }
     let message = author.map(|author| format!("{author} edited this order."));
-    json!({
-        "id": base.get("id").cloned().unwrap_or(Value::Null),
-        "name": base.get("name").cloned().unwrap_or(Value::Null),
-        "note": base.get("note").cloned().unwrap_or(Value::Null),
-        "updatedAt": base.get("updatedAt").cloned().unwrap_or(json!("2026-01-01T00:00:00Z")),
-        "merchantEditable": true,
-        "merchantEditableErrors": [],
-        "currentSubtotalLineItemsQuantity": quantity,
-        "currentSubtotalPriceSet": oe_shop_money(subtotal, currency),
-        "currentTotalPriceSet": oe_shop_money(total, currency),
-        "currentTaxLines": [],
-        "lineItems": { "nodes": line_nodes },
-        "events": {
-            "nodes": [{
-                "id": "gid://shopify/BasicEvent/oe-edited",
-                "action": "edited",
-                "message": message.map(Value::String).unwrap_or(Value::Null),
-                "createdAt": "2026-01-01T00:00:00Z"
-            }]
-        },
-        "fulfillmentOrders": { "nodes": fulfillment_orders }
-    })
+    let base_total = oe_money_set_cents(&base["currentTotalPriceSet"])
+        .or_else(|| oe_money_set_cents(&base["totalPriceSet"]))
+        .unwrap_or(total);
+    let received = oe_money_set_cents(&base["totalReceivedSet"]).unwrap_or_else(|| {
+        let outstanding = oe_money_set_cents(&base["totalOutstandingSet"]).unwrap_or(0);
+        (base_total - outstanding).max(0)
+    });
+    let outstanding = total - received;
+    let mut committed = if base.is_object() {
+        base.clone()
+    } else {
+        json!({})
+    };
+    committed["id"] = base.get("id").cloned().unwrap_or(Value::Null);
+    committed["name"] = base.get("name").cloned().unwrap_or(Value::Null);
+    committed["note"] = base.get("note").cloned().unwrap_or(Value::Null);
+    committed["updatedAt"] = base
+        .get("updatedAt")
+        .cloned()
+        .unwrap_or(json!("2026-01-01T00:00:00Z"));
+    committed["closed"] = json!(false);
+    committed["closedAt"] = Value::Null;
+    committed["merchantEditable"] = json!(true);
+    committed["merchantEditableErrors"] = json!([]);
+    committed["currentSubtotalLineItemsQuantity"] = json!(quantity);
+    committed["currentSubtotalPriceSet"] = oe_shop_money(subtotal, currency);
+    committed["currentTotalPriceSet"] = oe_shop_money(total, currency);
+    committed["totalOutstandingSet"] = oe_shop_presentment_money(outstanding, currency);
+    committed["currentTaxLines"] = json!([]);
+    committed["lineItems"] = json!({ "nodes": line_nodes });
+    committed["events"] = json!({
+        "nodes": [{
+            "id": "gid://shopify/BasicEvent/oe-edited",
+            "action": "edited",
+            "message": message.map(Value::String).unwrap_or(Value::Null),
+            "createdAt": "2026-01-01T00:00:00Z"
+        }]
+    });
+    committed["fulfillmentOrders"] = json!({ "nodes": fulfillment_orders });
+    committed
 }

@@ -9,7 +9,7 @@ fn sha256_hex(value: &str) -> String {
 }
 
 fn assert_no_staged_markets(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(proxy);
     let staged_markets = &state["stagedState"]["markets"];
     assert!(
         staged_markets.is_null()
@@ -21,7 +21,7 @@ fn assert_no_staged_markets(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
 }
 
 fn assert_no_staged_web_presences(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(proxy);
     let staged_web_presences = &state["stagedState"]["webPresences"];
     assert!(
         staged_web_presences.is_null()
@@ -33,7 +33,7 @@ fn assert_no_staged_web_presences(proxy: &shopify_draft_proxy::proxy::DraftProxy
 }
 
 fn assert_no_staged_catalogs(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(proxy);
     let staged_catalogs = &state["stagedState"]["catalogs"];
     assert!(
         staged_catalogs.is_null()
@@ -42,6 +42,249 @@ fn assert_no_staged_catalogs(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
                 .is_some_and(serde_json::Map::is_empty),
         "expected no staged catalogs, got {staged_catalogs:?}"
     );
+}
+
+const FIXED_PRICE_VALIDATION_PRICE_LIST_ID: &str = "gid://shopify/PriceList/1817001";
+const FIXED_PRICE_VALIDATION_PRODUCT_ID: &str = "gid://shopify/Product/1817001";
+const FIXED_PRICE_VALIDATION_VARIANT_A_ID: &str = "gid://shopify/ProductVariant/1817001";
+const FIXED_PRICE_VALIDATION_VARIANT_B_ID: &str = "gid://shopify/ProductVariant/1817002";
+
+fn fixed_price_validation_proxy() -> DraftProxy {
+    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+        let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+        assert_eq!(
+            body["operationName"],
+            json!("MarketsMutationPreflightHydrate")
+        );
+        let query = body["query"].as_str().unwrap_or_default();
+        assert!(query.contains("priceList(id: $priceListId)"));
+        assert!(query.contains("productVariants: nodes(ids: $variantIds)"));
+        assert!(!query.contains("hand-synthesized"));
+        assert_eq!(
+            body["variables"]["priceListId"],
+            json!(FIXED_PRICE_VALIDATION_PRICE_LIST_ID)
+        );
+        assert!(body["variables"]["variantIds"]
+            .as_array()
+            .is_some_and(|ids| ids
+                .iter()
+                .any(|id| id == &json!(FIXED_PRICE_VALIDATION_VARIANT_A_ID))));
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "priceList": {
+                        "__typename": "PriceList",
+                        "id": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+                        "name": "Fixed price validation",
+                        "currency": "USD",
+                        "fixedPricesCount": 0,
+                        "prices": {
+                            "edges": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        }
+                    },
+                    "productVariants": [{
+                        "__typename": "ProductVariant",
+                        "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                        "title": "Variant A",
+                        "sku": "FIXED-COMPARE-A",
+                        "price": "10.00",
+                        "compareAtPrice": null,
+                        "product": {
+                            "__typename": "Product",
+                            "id": FIXED_PRICE_VALIDATION_PRODUCT_ID,
+                            "title": "Fixed price validation product",
+                            "handle": "fixed-price-validation-product",
+                            "status": "ACTIVE",
+                            "variants": {
+                                "nodes": [
+                                    { "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID, "title": "Variant A", "sku": "FIXED-COMPARE-A", "price": "10.00", "compareAtPrice": null },
+                                    { "id": FIXED_PRICE_VALIDATION_VARIANT_B_ID, "title": "Variant B", "sku": "FIXED-COMPARE-B", "price": "10.00", "compareAtPrice": null }
+                                ]
+                            }
+                        }
+                    }]
+                }
+            }),
+        }
+    })
+}
+
+fn fixed_price_validation_read(proxy: &mut DraftProxy, price_list_id: &str) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/markets/price-list-fixed-prices-read.graphql"),
+        json!({ "priceListId": price_list_id }),
+    ));
+    assert_eq!(response.status, 200);
+    response.body["data"]["priceList"].clone()
+}
+
+#[test]
+fn price_list_fixed_prices_add_validates_compare_at_price_currency() {
+    let mut proxy = fixed_price_validation_proxy();
+    let matching_price = json!({ "amount": "10.00", "currencyCode": "USD" });
+    let mismatched_price = json!({ "amount": "10.00", "currencyCode": "CAD" });
+    let matching_compare_at = json!({ "amount": "15.00", "currencyCode": "USD" });
+    let mismatched_compare_at = json!({ "amount": "15.00", "currencyCode": "CAD" });
+
+    let mutation = r#"
+        mutation FixedPricesAddCompareAtCurrency($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
+          priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
+            prices { variant { id } price { amount currencyCode } compareAtPrice { amount currencyCode } }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+
+    let invalid = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "prices": [
+                { "variantId": FIXED_PRICE_VALIDATION_VARIANT_A_ID, "price": matching_price, "compareAtPrice": mismatched_compare_at },
+                { "variantId": FIXED_PRICE_VALIDATION_VARIANT_B_ID, "price": mismatched_price, "compareAtPrice": mismatched_compare_at }
+            ]
+        }),
+    ));
+    assert_eq!(invalid.status, 200);
+    assert_eq!(
+        invalid.body["data"]["priceListFixedPricesAdd"]["prices"],
+        json!([])
+    );
+    assert_eq!(
+        invalid.body["data"]["priceListFixedPricesAdd"]["userErrors"],
+        json!([
+            {"__typename": "PriceListPriceUserError", "field": ["prices", "0", "compareAtPrice", "currencyCode"], "message": "The specified currency does not match the price list's currency.", "code": "PRICE_LIST_CURRENCY_MISMATCH"},
+            {"__typename": "PriceListPriceUserError", "field": ["prices", "1", "price", "currencyCode"], "message": "The specified currency does not match the price list's currency.", "code": "PRICE_LIST_CURRENCY_MISMATCH"},
+            {"__typename": "PriceListPriceUserError", "field": ["prices", "1", "compareAtPrice", "currencyCode"], "message": "The specified currency does not match the price list's currency.", "code": "PRICE_LIST_CURRENCY_MISMATCH"}
+        ])
+    );
+    assert_eq!(
+        fixed_price_validation_read(&mut proxy, FIXED_PRICE_VALIDATION_PRICE_LIST_ID)["prices"]
+            ["edges"],
+        json!([])
+    );
+
+    let valid = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "prices": [
+                { "variantId": FIXED_PRICE_VALIDATION_VARIANT_A_ID, "price": matching_price, "compareAtPrice": matching_compare_at },
+                { "variantId": FIXED_PRICE_VALIDATION_VARIANT_B_ID, "price": matching_price }
+            ]
+        }),
+    ));
+    assert_eq!(valid.status, 200);
+    assert_eq!(
+        valid.body["data"]["priceListFixedPricesAdd"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        valid.body["data"]["priceListFixedPricesAdd"]["prices"]
+            .as_array()
+            .map(Vec::len),
+        Some(2)
+    );
+}
+
+#[test]
+fn price_list_fixed_prices_update_validates_compare_at_price_currency_without_staging() {
+    let mut proxy = fixed_price_validation_proxy();
+    let matching_price = json!({ "amount": "10.00", "currencyCode": "USD" });
+    let matching_price_payload = json!({ "amount": "10.0", "currencyCode": "USD" });
+    let mismatched_price = json!({ "amount": "20.00", "currencyCode": "CAD" });
+    let matching_compare_at = json!({ "amount": "15.00", "currencyCode": "USD" });
+    let matching_compare_at_payload = json!({ "amount": "15.0", "currencyCode": "USD" });
+    let mismatched_compare_at = json!({ "amount": "25.00", "currencyCode": "CAD" });
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedFixedPricesForUpdate($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
+          priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
+            prices { variant { id } price { amount currencyCode } compareAtPrice { amount currencyCode } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "prices": [
+                { "variantId": FIXED_PRICE_VALIDATION_VARIANT_A_ID, "price": matching_price, "compareAtPrice": matching_compare_at },
+                { "variantId": FIXED_PRICE_VALIDATION_VARIANT_B_ID, "price": matching_price }
+            ]
+        }),
+    ));
+    assert_eq!(add.status, 200);
+    assert_eq!(
+        add.body["data"]["priceListFixedPricesAdd"]["userErrors"],
+        json!([])
+    );
+
+    let invalid = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FixedPricesUpdateCompareAtCurrency(
+          $priceListId: ID!
+          $pricesToAdd: [PriceListPriceInput!]!
+          $variantIdsToDelete: [ID!]!
+        ) {
+          priceListFixedPricesUpdate(
+            priceListId: $priceListId
+            pricesToAdd: $pricesToAdd
+            variantIdsToDelete: $variantIdsToDelete
+          ) {
+            pricesAdded { variant { id } price { amount currencyCode } compareAtPrice { amount currencyCode } }
+            deletedFixedPriceVariantIds
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "pricesToAdd": [
+                { "variantId": FIXED_PRICE_VALIDATION_VARIANT_A_ID, "price": matching_price, "compareAtPrice": mismatched_compare_at },
+                { "variantId": FIXED_PRICE_VALIDATION_VARIANT_B_ID, "price": mismatched_price, "compareAtPrice": mismatched_compare_at }
+            ],
+            "variantIdsToDelete": []
+        }),
+    ));
+    assert_eq!(invalid.status, 200);
+    assert_eq!(
+        invalid.body["data"]["priceListFixedPricesUpdate"]["pricesAdded"],
+        json!([])
+    );
+    assert_eq!(
+        invalid.body["data"]["priceListFixedPricesUpdate"]["deletedFixedPriceVariantIds"],
+        json!([])
+    );
+    assert_eq!(
+        invalid.body["data"]["priceListFixedPricesUpdate"]["userErrors"],
+        json!([
+            {"__typename": "PriceListPriceUserError", "field": ["pricesToAdd", "0", "compareAtPrice", "currencyCode"], "message": "The specified currency does not match the price list's currency.", "code": "PRICE_LIST_CURRENCY_MISMATCH"},
+            {"__typename": "PriceListPriceUserError", "field": ["pricesToAdd", "1", "price", "currencyCode"], "message": "The specified currency does not match the price list's currency.", "code": "PRICE_LIST_CURRENCY_MISMATCH"},
+            {"__typename": "PriceListPriceUserError", "field": ["pricesToAdd", "1", "compareAtPrice", "currencyCode"], "message": "The specified currency does not match the price list's currency.", "code": "PRICE_LIST_CURRENCY_MISMATCH"}
+        ])
+    );
+    let read = fixed_price_validation_read(&mut proxy, FIXED_PRICE_VALIDATION_PRICE_LIST_ID);
+    let edges = read["prices"]["edges"].as_array().unwrap();
+    assert_eq!(edges.len(), 2);
+    assert!(edges.iter().any(|edge| {
+        edge["node"]["variant"]["id"] == json!(FIXED_PRICE_VALIDATION_VARIANT_A_ID)
+            && edge["node"]["price"] == matching_price_payload
+            && edge["node"]["compareAtPrice"] == matching_compare_at_payload
+    }));
+    assert!(edges.iter().any(|edge| {
+        edge["node"]["variant"]["id"] == json!(FIXED_PRICE_VALIDATION_VARIANT_B_ID)
+            && edge["node"]["price"] == matching_price_payload
+            && edge["node"]["compareAtPrice"].is_null()
+    }));
 }
 
 #[test]
@@ -308,10 +551,7 @@ fn singular_metafield_delete_removes_staged_owner_metafields_by_id() {
     );
 
     let missing_id = "gid://shopify/Metafield/170099";
-    let log_len_before_missing = proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .len();
+    let log_len_before_missing = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
     let missing = proxy.process_request(json_graphql_request(
         delete_query,
         json!({"input": {"id": missing_id}}),
@@ -327,7 +567,7 @@ fn singular_metafield_delete_removes_staged_owner_metafields_by_id() {
         .unwrap()
         .contains_key("code"));
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().unwrap();
     assert_eq!(entries.len(), log_len_before_missing);
     assert_eq!(entries.len(), 4);
@@ -1919,6 +2159,85 @@ fn market_web_presence_locale_catalog_accepts_supported_languages_beyond_legacy_
 }
 
 #[test]
+fn market_create_region_nodes_include_country_identity_fields_in_payload_and_reads() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation RustMarketCreateRegionNodeShape($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market {
+              id
+              conditions {
+                regionsCondition {
+                  regions(first: 10) {
+                    nodes { id name __typename ... on MarketRegionCountry { code } }
+                  }
+                }
+              }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Canada Region Shape", "conditions": {"regionsCondition": {"regions": [{"countryCode": "CA"}]}}}}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["marketCreate"]["userErrors"], json!([]));
+    let expected_nodes = json!([{
+        "__typename": "MarketRegionCountry",
+        "id": "gid://shopify/Market/Region/1",
+        "name": "Canada",
+        "code": "CA"
+    }]);
+    assert_eq!(
+        create.body["data"]["marketCreate"]["market"]["conditions"]["regionsCondition"]["regions"]
+            ["nodes"],
+        expected_nodes
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query RustMarketCreateRegionNodeShapeRead($id: ID!) {
+          market(id: $id) {
+            id
+            conditions {
+              regionsCondition {
+                regions(first: 10) {
+                  nodes { id name __typename ... on MarketRegionCountry { code } }
+                }
+              }
+            }
+          }
+          markets(first: 10) {
+            nodes {
+              id
+              conditions {
+                regionsCondition {
+                  regions(first: 10) {
+                    nodes { id name __typename ... on MarketRegionCountry { code } }
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/Market/1"}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["market"]["conditions"]["regionsCondition"]["regions"]["nodes"],
+        expected_nodes
+    );
+    assert_eq!(
+        read.body["data"]["markets"]["nodes"][0]["conditions"]["regionsCondition"]["regions"]
+            ["nodes"],
+        expected_nodes
+    );
+}
+
+#[test]
 fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests() {
     // Ports old Gleam proxy tests around marketCreate validation/staging:
     // - status/enabled mismatch and partial-input defaults
@@ -2108,24 +2427,37 @@ fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tes
             json!({"baseCurrency": {"currencyCode": code, "currencyName": name}, "localCurrencies": false, "roundingEnabled": false})
         );
     }
-    let unknown_currency = currency_proxy.process_request(json_graphql_request(
+    let unknown_currency = snapshot_proxy().process_request(json_graphql_request(
         create_query,
         json!({"input": {"name": "Unknown Currency", "currencySettings": {"baseCurrency": "ZZZ"}}}),
     ));
+    assert_eq!(unknown_currency.body["data"]["marketCreate"], Value::Null);
     assert_eq!(
-        unknown_currency.body["data"]["marketCreate"]["market"]["currencySettings"],
-        json!({"baseCurrency": {"currencyCode": "ZZZ", "currencyName": "Unknown Currency"}, "localCurrencies": false, "roundingEnabled": false})
+        unknown_currency.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert!(
+        unknown_currency.body["errors"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("Expected \"ZZZ\" to be one of"),
+        "unexpected invalid currency error: {:?}",
+        unknown_currency.body
     );
 
-    for input in [
-        json!({"name": "Currency", "currencySettings": {"baseCurrency": "XXX"}}),
-        json!({"name": "Currency", "currencySettings": {"baseCurrency": "XAF"}}),
-    ] {
-        let response = snapshot_proxy()
-            .process_request(json_graphql_request(create_query, json!({"input": input})));
+    for code in ["XXX", "XAF"] {
+        let response = currency_proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": {"name": format!("{code} Currency"), "currencySettings": {"baseCurrency": code}}}),
+        ));
         assert_eq!(
-            response.body["data"]["marketCreate"]["userErrors"][0],
-            json!({"__typename": "MarketUserError", "field": ["input", "currencySettings", "baseCurrency"], "message": "Base currency is invalid", "code": "INVALID"})
+            response.body["data"]["marketCreate"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            response.body["data"]["marketCreate"]["market"]["currencySettings"]["baseCurrency"]
+                ["currencyCode"],
+            json!(code)
         );
     }
     for input in [
@@ -2165,8 +2497,7 @@ fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tes
         unsupported.body["data"]["marketCreate"]["userErrors"][0],
         json!({"__typename": "MarketUserError", "field": ["input", "regions", "1", "countryCode"], "message": "CU is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"})
     );
-    assert!(!region_proxy
-        .get_state_snapshot()
+    assert!(!state_snapshot(&region_proxy)
         .to_string()
         .contains("Unsupported"));
 
@@ -2208,7 +2539,7 @@ fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tes
         json!({"__typename": "MarketUserError", "field": ["input", "name"], "message": "Name has already been taken", "code": "TAKEN"})
     );
     assert_eq!(
-        duplicate_name_proxy.get_log_snapshot()["entries"]
+        log_snapshot(&duplicate_name_proxy)["entries"]
             .as_array()
             .unwrap()
             .len(),
@@ -2371,7 +2702,7 @@ fn market_update_applies_scalar_inputs_and_keeps_partial_fields() {
         json!(false)
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 4);
     assert!(log["entries"][1]["rawBody"]
         .as_str()
@@ -2411,7 +2742,7 @@ fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
             "userErrors": [{"__typename": "MarketUserError", "field": ["input", "regions", "0", "countryCode"], "message": "KP is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"}]
         })
     );
-    assert_eq!(kp_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&kp_proxy)["entries"], json!([]));
     assert_no_staged_markets(&kp_proxy);
     let kp_read = kp_proxy.process_request(json_graphql_request(read_query, json!({})));
     assert_eq!(kp_read.body["data"]["markets"]["nodes"], json!([]));
@@ -2428,7 +2759,7 @@ fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
             "userErrors": [{"__typename": "MarketUserError", "field": ["input", "regions", "1", "countryCode"], "message": "KP is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"}]
         })
     );
-    assert_eq!(mixed_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&mixed_proxy)["entries"], json!([]));
     assert_no_staged_markets(&mixed_proxy);
 
     let mut conditions_proxy = snapshot_proxy();
@@ -2443,7 +2774,7 @@ fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
             "userErrors": [{"__typename": "MarketUserError", "field": ["input", "regions", "0", "countryCode"], "message": "KP is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"}]
         })
     );
-    assert_eq!(conditions_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&conditions_proxy)["entries"], json!([]));
     assert_no_staged_markets(&conditions_proxy);
 
     let mut supported_proxy = snapshot_proxy();
@@ -2474,7 +2805,7 @@ fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
         2
     );
     assert_eq!(
-        supported_proxy.get_log_snapshot()["entries"]
+        log_snapshot(&supported_proxy)["entries"]
             .as_array()
             .expect("supported mutation log entries")
             .len(),
@@ -2485,8 +2816,8 @@ fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
 #[test]
 fn catalog_create_unknown_market_returns_market_not_found_without_staging() {
     let mut proxy = snapshot_proxy();
-    let state_before = proxy.get_state_snapshot();
-    let log_before = proxy.get_log_snapshot();
+    let state_before = state_snapshot(&proxy);
+    let log_before = log_snapshot(&proxy);
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -2522,8 +2853,8 @@ fn catalog_create_unknown_market_returns_market_not_found_without_staging() {
             }]
         })
     );
-    assert_eq!(proxy.get_state_snapshot(), state_before);
-    assert_eq!(proxy.get_log_snapshot(), log_before);
+    assert_eq!(state_snapshot(&proxy), state_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
     assert_no_staged_catalogs(&proxy);
 }
 
@@ -2913,7 +3244,7 @@ fn catalog_relations_require_staged_price_list_and_publication_records() {
 #[test]
 fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
     // Ports old Gleam catalog/context helper behavior from markets_mutation_test.gleam:
-    // required/invalid status, required context/market IDs, unsupported country contexts,
+    // required/invalid status, required context/market IDs, country-code contexts,
     // typed CatalogUserError shapes, market-context staging/readback, unknown catalog delete,
     // and catalogContextUpdate add/remove validation/readback.
     let create_query = r#"
@@ -2951,10 +3282,6 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
             json!({"__typename": "CatalogUserError", "field": ["input", "context", "countryCodes"], "message": "Country codes can't be blank", "code": "INVALID"}),
         ),
         (
-            json!({"title": "Country Catalog", "status": "ACTIVE", "context": {"driverType": "COUNTRY", "countryCodes": ["US"]}}),
-            json!({"__typename": "CatalogUserError", "field": ["input", "context", "driverType"], "message": "Catalog context driverType COUNTRY is not supported by the local MarketCatalog model", "code": "INVALID"}),
-        ),
-        (
             json!({"title": "", "status": "ACTIVE", "context": {"marketIds": ["gid://shopify/Market/missing"]}}),
             json!({"__typename": "CatalogUserError", "field": ["input", "title"], "message": "Title can't be blank", "code": "BLANK"}),
         ),
@@ -2969,6 +3296,82 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
             json!({"catalog": null, "userErrors": [error]})
         );
     }
+
+    let mut country_proxy = snapshot_proxy();
+    let country_create = country_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogLocalRuntimeCountryCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog {
+              __typename
+              id
+              title
+              status
+              ... on CountryCatalog {
+                countries { nodes { code } }
+                countriesCount { count precision }
+              }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Country Catalog", "status": "ACTIVE", "context": {"driverType": "COUNTRY", "countryCodes": ["US", "ca"]}}}),
+    ));
+    assert_eq!(country_create.status, 200);
+    assert_eq!(
+        country_create.body["data"]["catalogCreate"],
+        json!({
+            "catalog": {
+                "__typename": "CountryCatalog",
+                "id": "gid://shopify/CountryCatalog/1",
+                "title": "Country Catalog",
+                "status": "ACTIVE",
+                "countries": { "nodes": [{ "code": "US" }, { "code": "CA" }] },
+                "countriesCount": { "count": 2, "precision": "EXACT" }
+            },
+            "userErrors": []
+        })
+    );
+    let country_update = country_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogLocalRuntimeCountryContextUpdate(
+          $catalogId: ID!,
+          $add: CatalogContextInput,
+          $remove: CatalogContextInput
+        ) {
+          catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $add, contextsToRemove: $remove) {
+            catalog {
+              __typename
+              id
+              ... on CountryCatalog {
+                countries { nodes { code } }
+                countriesCount { count precision }
+              }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "catalogId": "gid://shopify/CountryCatalog/1",
+            "add": { "countryCodes": ["mx"] },
+            "remove": { "countryCodes": ["US"] }
+        }),
+    ));
+    assert_eq!(country_update.status, 200);
+    assert_eq!(
+        country_update.body["data"]["catalogContextUpdate"],
+        json!({
+            "catalog": {
+                "__typename": "CountryCatalog",
+                "id": "gid://shopify/CountryCatalog/1",
+                "countries": { "nodes": [{ "code": "CA" }, { "code": "MX" }] },
+                "countriesCount": { "count": 2, "precision": "EXACT" }
+            },
+            "userErrors": []
+        })
+    );
 
     // Omitting the non-null `context` field is a GraphQL variable-coercion
     // failure, not a CatalogUserError: real Shopify rejects it at the schema
@@ -3142,6 +3545,394 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
     assert_eq!(
         context_update.body["data"]["catalogContextUpdate"],
         json!({"catalog": {"id": "gid://shopify/MarketCatalog/3", "markets": {"nodes": [{"id": second_market_id}]}}, "userErrors": []})
+    );
+}
+
+#[test]
+fn catalog_context_update_company_locations_stage_and_read_back() {
+    let mut proxy = snapshot_proxy();
+
+    let create_company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextCompanyCreate($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company {
+              id
+              name
+              locations(first: 5) { nodes { id name } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "company": { "name": "Catalog Context B2B" },
+                "companyLocation": {
+                    "shippingAddress": { "address1": "123 Main", "city": "Boston", "countryCode": "US" },
+                    "billingSameAsShipping": true
+                }
+            }
+        }),
+    ));
+    assert_eq!(create_company.status, 200);
+    assert_eq!(
+        create_company.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    let company_id = create_company.body["data"]["companyCreate"]["company"]["id"]
+        .as_str()
+        .expect("company id")
+        .to_string();
+    let first_location_id = create_company.body["data"]["companyCreate"]["company"]["locations"]
+        ["nodes"][0]["id"]
+        .as_str()
+        .expect("first company location id")
+        .to_string();
+
+    let create_second_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {
+          companyLocationCreate(companyId: $companyId, input: $input) {
+            companyLocation { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyId": company_id,
+            "input": { "name": "Catalog Context Secondary" }
+        }),
+    ));
+    assert_eq!(create_second_location.status, 200);
+    assert_eq!(
+        create_second_location.body["data"]["companyLocationCreate"]["userErrors"],
+        json!([])
+    );
+    let second_location_id = create_second_location.body["data"]["companyLocationCreate"]
+        ["companyLocation"]["id"]
+        .as_str()
+        .expect("second company location id")
+        .to_string();
+
+    let catalog_create_query = r#"
+        mutation CatalogContextCompanyCatalogCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog {
+              __typename
+              id
+              title
+              status
+              ... on CompanyLocationCatalog {
+                companyLocations(first: 5) { nodes { id name } }
+                companyLocationsCount { count precision }
+              }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let catalog_create = proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({
+            "input": {
+                "title": "B2B Context Catalog",
+                "status": "ACTIVE",
+                "context": { "companyLocationIds": [first_location_id] }
+            }
+        }),
+    ));
+    assert_eq!(catalog_create.status, 200);
+    assert_eq!(
+        catalog_create.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let catalog = &catalog_create.body["data"]["catalogCreate"]["catalog"];
+    assert_eq!(catalog["__typename"], json!("CompanyLocationCatalog"));
+    let catalog_id = catalog["id"].as_str().expect("catalog id").to_string();
+    assert_eq!(
+        catalog["companyLocations"]["nodes"],
+        json!([{ "id": first_location_id, "name": "Catalog Context B2B" }])
+    );
+    assert_eq!(
+        catalog["companyLocationsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let context_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextCompanyLocationUpdate(
+          $catalogId: ID!,
+          $add: CatalogContextInput,
+          $remove: CatalogContextInput
+        ) {
+          catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $add, contextsToRemove: $remove) {
+            catalog {
+              __typename
+              id
+              ... on CompanyLocationCatalog {
+                companyLocations(first: 5) { nodes { id name } }
+                companyLocationsCount { count precision }
+              }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "catalogId": catalog_id,
+            "add": { "companyLocationIds": [second_location_id] },
+            "remove": { "companyLocationIds": [first_location_id] }
+        }),
+    ));
+    assert_eq!(context_update.status, 200);
+    assert_eq!(
+        context_update.body["data"]["catalogContextUpdate"],
+        json!({
+            "catalog": {
+                "__typename": "CompanyLocationCatalog",
+                "id": catalog_id,
+                "companyLocations": {
+                    "nodes": [{ "id": second_location_id, "name": "Catalog Context Secondary" }]
+                },
+                "companyLocationsCount": { "count": 1, "precision": "EXACT" }
+            },
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CatalogContextCompanyLocationRead($id: ID!) {
+          catalog(id: $id) {
+            __typename
+            id
+            ... on CompanyLocationCatalog {
+              companyLocations(first: 5) { nodes { id name } }
+              companyLocationsCount { count precision }
+            }
+          }
+        }
+        "#,
+        json!({ "id": catalog_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["catalog"],
+        json!({
+            "__typename": "CompanyLocationCatalog",
+            "id": catalog_id,
+            "companyLocations": {
+                "nodes": [{ "id": second_location_id, "name": "Catalog Context Secondary" }]
+            },
+            "companyLocationsCount": { "count": 1, "precision": "EXACT" }
+        })
+    );
+
+    let legacy_location_ids_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextLegacyLocationIdsUpdate(
+          $catalogId: ID!,
+          $add: CatalogContextInput,
+          $remove: CatalogContextInput
+        ) {
+          catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $add, contextsToRemove: $remove) {
+            catalog {
+              __typename
+              id
+              ... on CompanyLocationCatalog {
+                companyLocations(first: 5) { nodes { id name } }
+                companyLocationsCount { count precision }
+              }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "catalogId": catalog_id,
+            "add": { "locationIds": [first_location_id] },
+            "remove": { "locationIds": [second_location_id] }
+        }),
+    ));
+    assert_eq!(legacy_location_ids_update.status, 200);
+    assert_eq!(
+        legacy_location_ids_update.body["data"]["catalogContextUpdate"],
+        json!({
+            "catalog": {
+                "__typename": "CompanyLocationCatalog",
+                "id": catalog_id,
+                "companyLocations": {
+                    "nodes": [{ "id": first_location_id, "name": "Catalog Context B2B" }]
+                },
+                "companyLocationsCount": { "count": 1, "precision": "EXACT" }
+            },
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn catalog_context_update_company_location_errors_match_shopify() {
+    let mut proxy = snapshot_proxy();
+
+    let create_company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextCompanyCreate($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company { id locations(first: 5) { nodes { id } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "company": { "name": "Catalog Context Error B2B" },
+                "companyLocation": {
+                    "shippingAddress": { "address1": "123 Main", "city": "Boston", "countryCode": "US" },
+                    "billingSameAsShipping": true
+                }
+            }
+        }),
+    ));
+    assert_eq!(create_company.status, 200);
+    let location_id = create_company.body["data"]["companyCreate"]["company"]["locations"]["nodes"]
+        [0]["id"]
+        .as_str()
+        .expect("company location id")
+        .to_string();
+
+    let company_catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextCompanyCatalogCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { __typename id }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "B2B Error Catalog",
+                "status": "ACTIVE",
+                "context": { "companyLocationIds": [location_id] }
+            }
+        }),
+    ));
+    assert_eq!(company_catalog.status, 200);
+    assert_eq!(
+        company_catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let company_catalog_id = company_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .expect("company catalog id")
+        .to_string();
+
+    let missing_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextCompanyLocationMissing(
+          $catalogId: ID!,
+          $add: CatalogContextInput,
+          $remove: CatalogContextInput
+        ) {
+          catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $add, contextsToRemove: $remove) {
+            catalog { id }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "catalogId": company_catalog_id,
+            "add": { "companyLocationIds": ["gid://shopify/CompanyLocation/999999999999"] },
+            "remove": { "companyLocationIds": ["gid://shopify/CompanyLocation/999999999998"] }
+        }),
+    ));
+    assert_eq!(missing_location.status, 200);
+    assert_eq!(
+        missing_location.body["data"]["catalogContextUpdate"],
+        json!({
+            "catalog": null,
+            "userErrors": [
+                {
+                    "__typename": "CatalogUserError",
+                    "field": ["contextsToAdd", "companyLocationIds", "0"],
+                    "message": "A company location within the catalog does not exist.",
+                    "code": "COMPANY_LOCATION_NOT_FOUND"
+                },
+                {
+                    "__typename": "CatalogUserError",
+                    "field": ["contextsToRemove", "companyLocationIds", "0"],
+                    "message": "A company location within the catalog does not exist.",
+                    "code": "COMPANY_LOCATION_NOT_FOUND"
+                }
+            ]
+        })
+    );
+
+    let market_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextMarketCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) { market { id } userErrors { field message code } }
+        }
+        "#,
+        json!({ "input": { "name": "Driver Mismatch Market", "regions": [{ "countryCode": "DK" }] } }),
+    ));
+    assert_eq!(market_create.status, 200);
+    let market_id = market_create.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .expect("market id")
+        .to_string();
+
+    let market_catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextMarketCatalogCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { __typename id }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Market Error Catalog",
+                "status": "ACTIVE",
+                "context": { "marketIds": [market_id] }
+            }
+        }),
+    ));
+    assert_eq!(market_catalog.status, 200);
+    let market_catalog_id = market_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .expect("market catalog id")
+        .to_string();
+
+    let driver_mismatch = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CatalogContextDriverMismatch($catalogId: ID!, $add: CatalogContextInput) {
+          catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $add) {
+            catalog { id }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "catalogId": market_catalog_id,
+            "add": { "companyLocationIds": [location_id] }
+        }),
+    ));
+    assert_eq!(driver_mismatch.status, 200);
+    assert_eq!(
+        driver_mismatch.body["data"]["catalogContextUpdate"],
+        json!({
+            "catalog": null,
+            "userErrors": [{
+                "__typename": "CatalogUserError",
+                "field": ["contextsToAdd", "companyLocationIds"],
+                "message": "The arguments `contexts_to_add` and `contexts_to_remove` must match existing catalog context type.",
+                "code": "CONTEXT_DRIVER_MISMATCH"
+            }]
+        })
     );
 }
 
@@ -3645,10 +4436,7 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
         json!([])
     );
 
-    let log_len_before_delete = proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .len();
+    let log_len_before_delete = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
     let unknown = proxy.process_request(json_graphql_request(
         market_delete_query,
         json!({"id": "gid://shopify/Market/9999999"}),
@@ -3658,10 +4446,7 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
         json!({"deletedId": null, "userErrors": [{"__typename": "MarketUserError", "field": ["id"], "message": "Market does not exist", "code": "MARKET_NOT_FOUND"}]})
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         log_len_before_delete,
         "unknown marketDelete should not stage a commit replay entry"
     );
@@ -3703,7 +4488,7 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
         json!([])
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let delete_entry = log["entries"].as_array().unwrap().last().unwrap();
     assert_eq!(
         delete_entry["interpreted"]["rootFields"],
@@ -3989,6 +4774,95 @@ fn price_list_create_update_delete_ported_gleam_helpers_stage_and_validate() {
 }
 
 #[test]
+fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write() {
+    let mut proxy = snapshot_proxy();
+    let market = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketsOverlayColdFieldMarketCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "Cold Field Market", "regions": [{"countryCode": "CA"}]}}),
+    ));
+    assert_eq!(market.body["data"]["marketCreate"]["userErrors"], json!([]));
+    let market_id = market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketsOverlayColdFieldCatalogCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id title status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Cold Field Catalog",
+                "status": "ACTIVE",
+                "context": { "driverType": "MARKET", "marketIds": [market_id] }
+            }
+        }),
+    ));
+    assert_eq!(
+        catalog.body["data"]["catalogCreate"]["userErrors"],
+        json!([])
+    );
+    let catalog_id = catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketsOverlayColdFieldsAfterWrite {
+          catalogsCount(type: MARKET, limit: 10) {
+            count
+            precision
+          }
+          marketsResolvedValues(buyerSignal: { countryCode: CA }) {
+            currencyCode
+            priceInclusivity { dutiesIncluded taxesIncluded }
+            catalogs(first: 5) {
+              nodes { id title status }
+            }
+            webPresences(first: 5) {
+              edges { node { id } }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["catalogsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["marketsResolvedValues"]["currencyCode"],
+        json!("USD")
+    );
+    assert_eq!(
+        read.body["data"]["marketsResolvedValues"]["priceInclusivity"],
+        json!({ "dutiesIncluded": false, "taxesIncluded": false })
+    );
+    assert_eq!(
+        read.body["data"]["marketsResolvedValues"]["catalogs"]["nodes"],
+        json!([{ "id": catalog_id, "title": "Cold Field Catalog", "status": "ACTIVE" }])
+    );
+    assert_eq!(
+        read.body["data"]["marketsResolvedValues"]["webPresences"]["edges"],
+        json!([])
+    );
+}
+
+#[test]
 fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
     let create_query = r#"
         mutation RustPriceListLocalRuntimeCreate($input: PriceListCreateInput!) {
@@ -4050,7 +4924,7 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
             "path": ["priceListCreate"]
         })
     );
-    assert_eq!(wrong_type_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&wrong_type_proxy)["entries"], json!([]));
 
     let mut proxy = snapshot_proxy();
     proxy.process_request(json_graphql_request(
@@ -5685,10 +6559,50 @@ fn product_change_status_stages_archived_status_and_downstream_read_lag() {
                 "status": "ARCHIVED",
                 "updatedAt": "2026-04-28T22:43:34Z"
             },
-            "products": { "nodes": [{ "id": "gid://shopify/Product/10173064872242", "status": "ARCHIVED" }] },
-            "productsCount": { "count": 1, "precision": "EXACT" }
+            "products": { "nodes": [] },
+            "productsCount": { "count": 0, "precision": "EXACT" }
         })
     );
+}
+
+#[test]
+fn product_change_status_unknown_product_returns_product_not_found_code() {
+    let mut proxy = snapshot_proxy();
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductChangeStatusUnknownProduct($productId: ID!, $status: ProductStatus!) {
+          productChangeStatus(productId: $productId, status: $status) {
+            product { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/999999999999999",
+            "status": "ARCHIVED"
+        }),
+    ));
+    assert_eq!(missing.status, 200);
+    assert_eq!(
+        missing.body["data"]["productChangeStatus"],
+        json!({
+            "product": null,
+            "userErrors": [{
+                "field": ["productId"],
+                "message": "Product does not exist",
+                "code": "PRODUCT_NOT_FOUND"
+            }]
+        })
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(log.body["entries"], json!([]));
 }
 
 #[test]
@@ -5982,6 +6896,11 @@ fn product_update_unknown_fixture_id_returns_local_user_error_without_replay() {
         delete.body["data"]["productDelete"],
         json!({
             "deletedProductId": null,
+            "shop": {
+                "id": "gid://shopify/Shop/0",
+                "name": "Shopify Draft Proxy",
+                "myshopifyDomain": "shopify-draft-proxy.local"
+            },
             "userErrors": [{
                 "field": ["id"],
                 "message": "Product does not exist"
@@ -6586,7 +7505,7 @@ fn product_duplicate_respects_new_status_override_and_validates_invalid_status()
         json!("ACTIVE")
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
+        log_snapshot(&proxy)["entries"]
             .as_array()
             .map(Vec::len)
             .unwrap_or_default(),
@@ -6656,7 +7575,7 @@ fn product_duplicate_respects_new_status_override_and_validates_invalid_status()
         })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
+        log_snapshot(&proxy)["entries"]
             .as_array()
             .map(Vec::len)
             .unwrap_or_default(),

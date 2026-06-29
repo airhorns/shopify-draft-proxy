@@ -79,12 +79,8 @@ pub(in crate::proxy) fn order_line_inventory_item_id(
     line_item: &BTreeMap<String, ResolvedValue>,
 ) -> Option<String> {
     resolved_string_field(line_item, "inventoryItemId").or_else(|| {
-        resolved_string_field(line_item, "variantId").map(|variant_id| {
-            format!(
-                "gid://shopify/InventoryItem/{}",
-                resource_id_tail(&variant_id)
-            )
-        })
+        resolved_string_field(line_item, "variantId")
+            .map(|variant_id| shopify_gid("InventoryItem", resource_id_tail(&variant_id)))
     })
 }
 
@@ -106,12 +102,13 @@ pub(in crate::proxy) fn order_read_selects_payment_transaction_fields(
 pub(in crate::proxy) fn order_money_set_with_presentment_fallback(
     money_set: &Value,
     order: &Value,
+    shop_currency_code: &str,
 ) -> Value {
     let shop_amount =
         payment_money_amount(money_set, "shopMoney").unwrap_or_else(|| "0.0".to_string());
     let shop_currency = payment_money_currency(money_set, "shopMoney")
         .or_else(|| order["currencyCode"].as_str().map(ToString::to_string))
-        .unwrap_or_else(|| "CAD".to_string());
+        .unwrap_or_else(|| shop_currency_code.to_string());
     let presentment_amount =
         payment_money_amount(money_set, "presentmentMoney").unwrap_or_else(|| shop_amount.clone());
     let presentment_currency = payment_money_currency(money_set, "presentmentMoney")
@@ -136,9 +133,14 @@ pub(in crate::proxy) fn order_money_amount_value(money_set: &Value) -> f64 {
         .unwrap_or(0.0)
 }
 
-pub(in crate::proxy) fn add_order_money_sets(left: &Value, right: &Value, order: &Value) -> Value {
-    let left = order_money_set_with_presentment_fallback(left, order);
-    let right = order_money_set_with_presentment_fallback(right, order);
+pub(in crate::proxy) fn add_order_money_sets(
+    left: &Value,
+    right: &Value,
+    order: &Value,
+    shop_currency_code: &str,
+) -> Value {
+    let left = order_money_set_with_presentment_fallback(left, order, shop_currency_code);
+    let right = order_money_set_with_presentment_fallback(right, order, shop_currency_code);
     let left_shop = payment_money_amount(&left, "shopMoney")
         .and_then(|amount| amount.parse::<f64>().ok())
         .unwrap_or(0.0);
@@ -153,7 +155,7 @@ pub(in crate::proxy) fn add_order_money_sets(left: &Value, right: &Value, order:
         .unwrap_or(right_shop);
     let shop_currency = payment_money_currency(&right, "shopMoney")
         .or_else(|| payment_money_currency(&left, "shopMoney"))
-        .unwrap_or_else(|| "CAD".to_string());
+        .unwrap_or_else(|| shop_currency_code.to_string());
     let presentment_currency = payment_money_currency(&right, "presentmentMoney")
         .or_else(|| payment_money_currency(&left, "presentmentMoney"))
         .unwrap_or_else(|| shop_currency.clone());
@@ -165,10 +167,14 @@ pub(in crate::proxy) fn add_order_money_sets(left: &Value, right: &Value, order:
     )
 }
 
-pub(in crate::proxy) fn zero_order_money_set_like(money_set: &Value, order: &Value) -> Value {
+pub(in crate::proxy) fn zero_order_money_set_like(
+    money_set: &Value,
+    order: &Value,
+    shop_currency_code: &str,
+) -> Value {
     let shop_currency = payment_money_currency(money_set, "shopMoney")
         .or_else(|| order["currencyCode"].as_str().map(ToString::to_string))
-        .unwrap_or_else(|| "CAD".to_string());
+        .unwrap_or_else(|| shop_currency_code.to_string());
     let presentment_currency = payment_money_currency(money_set, "presentmentMoney")
         .or_else(|| {
             order["presentmentCurrencyCode"]
@@ -196,24 +202,13 @@ pub(in crate::proxy) fn order_mark_as_paid_not_found_error() -> Value {
 }
 
 pub(in crate::proxy) fn order_read_selects_order_edit_existing_fields(
-    field: RootFieldSelection,
+    field: &RootFieldSelection,
 ) -> bool {
     field.selection.iter().any(|field| {
         matches!(
             field.name.as_str(),
             "merchantEditable" | "merchantEditableErrors" | "currentSubtotalLineItemsQuantity"
         )
-    })
-}
-
-pub(in crate::proxy) fn orders_empty_count_payload() -> Value {
-    json!({
-        "data": {
-            "ordersCount": {
-                "count": 0,
-                "precision": "EXACT"
-            }
-        }
     })
 }
 
@@ -327,15 +322,7 @@ pub(in crate::proxy) fn orders_error(field: &[&str], message: &str, code: &str) 
 }
 
 pub(in crate::proxy) fn order_create_error(field: Vec<Value>, message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
-}
-
-pub(in crate::proxy) fn order_create_money_set(amount: f64, currency_code: &str) -> Value {
-    money_set(&format_money_amount(amount), currency_code)
+    user_error(field, message, Some(code))
 }
 
 pub(in crate::proxy) fn resolved_money_amount(
@@ -556,11 +543,7 @@ pub(in crate::proxy) fn order_update_metafields(
                 })
                 .and_then(|m| m["id"].as_str().map(str::to_string))
                 .unwrap_or_else(|| {
-                    format!(
-                        "gid://shopify/Metafield/{}{}",
-                        resource_id_tail(order_id),
-                        index + 1
-                    )
+                    shopify_gid("Metafield", format!("{}{}", resource_id_tail(order_id), index + 1))
                 });
             Some(json!({
                 "id": metafield_id,
@@ -605,7 +588,7 @@ pub(in crate::proxy) fn order_create_tax_lines(
             json!({
                 "title": resolved_string_field(&tax_line, "title").unwrap_or_default(),
                 "rate": resolved_number_field(&tax_line, "rate").unwrap_or(0.0),
-                "priceSet": order_create_money_set(price, &price_currency)
+                "priceSet": money_bag(price, &price_currency)
             })
         })
         .collect()
@@ -641,6 +624,7 @@ pub(in crate::proxy) fn order_create_discount_amount(
 
 pub(in crate::proxy) fn order_create_line_item_discount_allocations(
     discounts: &[Value],
+    currency_code: &str,
 ) -> Vec<Value> {
     discounts
         .iter()
@@ -654,8 +638,8 @@ pub(in crate::proxy) fn order_create_line_item_discount_allocations(
             let currency = value
                 .get("currencyCode")
                 .and_then(Value::as_str)
-                .unwrap_or("CAD");
-            Some(json!({ "allocatedAmountSet": order_create_money_set(amount, currency) }))
+                .unwrap_or(currency_code);
+            Some(json!({ "allocatedAmountSet": money_bag(amount, currency) }))
         })
         .collect()
 }
@@ -666,7 +650,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
     currency_code: &str,
     presentment_currency_code: &str,
 ) -> (Value, f64, f64) {
-    let quantity = resolved_i64_field(input, "quantity").unwrap_or(1).max(0);
+    let quantity = resolved_int_field(input, "quantity").unwrap_or(1).max(0);
     let price_input = resolved_object_field(input, "priceSet")
         .or_else(|| resolved_object_field(input, "originalUnitPriceSet"))
         .unwrap_or_default();
@@ -741,7 +725,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
         "fulfillmentStatus": resolved_string_field(input, "fulfillmentStatus"),
         "weight": weight,
         "appliedDiscounts": applied_discounts.clone(),
-        "discountAllocations": order_create_line_item_discount_allocations(&applied_discounts),
+        "discountAllocations": order_create_line_item_discount_allocations(&applied_discounts, currency_code),
         "originalUnitPriceSet": json!({
             "shopMoney": {
                 "amount": format_money_amount(unit_amount),
@@ -828,7 +812,7 @@ pub(in crate::proxy) fn order_create_transaction_record(
         "paymentId": Value::Null,
         "paymentReferenceId": Value::Null,
         "parentTransaction": Value::Null,
-        "amountSet": money_set(&format_money_amount(amount), &currency)
+        "amountSet": money_bag(amount, &currency)
     })
 }
 
@@ -864,6 +848,7 @@ pub(in crate::proxy) fn order_create_payment_fields(
     transactions: &[Value],
     total: f64,
     currency_code: &str,
+    presentment_currency_code: &str,
 ) {
     let authorization = transactions
         .iter()
@@ -884,10 +869,14 @@ pub(in crate::proxy) fn order_create_payment_fields(
     };
     order["capturable"] = json!(capturable > 0.0);
     order["totalCapturable"] = json!(format_money_amount(capturable));
-    order["totalCapturableSet"] = order_create_money_set(capturable, currency_code);
-    order["totalOutstandingSet"] = order_create_money_set(outstanding, currency_code);
-    order["totalReceivedSet"] = order_create_money_set(received, currency_code);
-    order["netPaymentSet"] = order_create_money_set(received, currency_code);
+    order["totalCapturableSet"] =
+        money_bag_from_amount(capturable, currency_code, presentment_currency_code);
+    order["totalOutstandingSet"] =
+        money_bag_from_amount(outstanding, currency_code, presentment_currency_code);
+    order["totalReceivedSet"] =
+        money_bag_from_amount(received, currency_code, presentment_currency_code);
+    order["netPaymentSet"] =
+        money_bag_from_amount(received, currency_code, presentment_currency_code);
     order["paymentGatewayNames"] = Value::Array(
         transactions
             .iter()
@@ -944,10 +933,7 @@ pub(in crate::proxy) fn order_create_validation_error(
             .iter()
             .enumerate()
         {
-            if !matches!(
-                tax_line.get("rate"),
-                Some(ResolvedValue::Int(_)) | Some(ResolvedValue::Float(_))
-            ) {
+            if resolved_number_field(tax_line, "rate").is_none() {
                 return Some(order_create_error(
                     vec![
                         json!("order"),
@@ -971,10 +957,7 @@ pub(in crate::proxy) fn order_create_validation_error(
             .iter()
             .enumerate()
         {
-            if !matches!(
-                tax_line.get("rate"),
-                Some(ResolvedValue::Int(_)) | Some(ResolvedValue::Float(_))
-            ) {
+            if resolved_number_field(tax_line, "rate").is_none() {
                 return Some(order_create_error(
                     vec![
                         json!("order"),
@@ -1004,6 +987,31 @@ pub(in crate::proxy) fn order_edit_order_is_not_editable(order: &Value) -> bool 
         order["displayFinancialStatus"].as_str(),
         Some("REFUNDED" | "VOIDED")
     )
+}
+
+pub(in crate::proxy) fn order_edit_order_is_closed(order: &Value) -> bool {
+    order["closed"].as_bool().unwrap_or(false) || order["closedAt"].is_string()
+}
+
+pub(in crate::proxy) fn order_edit_commit_success_messages(
+    order: &Value,
+    notify_customer: bool,
+    order_unarchived: bool,
+) -> Value {
+    let mut messages = vec![json!("Order updated")];
+    if order_unarchived {
+        messages.push(json!("Order unarchived"));
+    }
+    if notify_customer {
+        let notify_message = if order_money_amount_value(&order["totalOutstandingSet"]) > 0.000_001
+        {
+            "Invoice sent"
+        } else {
+            "Notification sent"
+        };
+        messages.push(json!(notify_message));
+    }
+    Value::Array(messages)
 }
 
 pub(in crate::proxy) fn order_connection(nodes: Vec<Value>) -> Value {
@@ -1089,7 +1097,7 @@ impl DraftProxy {
             .all(|field| matches!(field.name.as_str(), "order" | "orders" | "ordersCount"));
         if all_reads {
             let staged_order_read = fields.iter().any(|field| match field.name.as_str() {
-                "order" => resolved_string_arg(&field.arguments, "id").is_some_and(|id| {
+                "order" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
                     self.store.staged.orders.contains_key(&id)
                         || self.store.staged.orders.is_tombstoned(&id)
                 }),
@@ -1107,16 +1115,29 @@ impl DraftProxy {
             return None;
         }
 
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let mut declined = false;
+        let data = root_payload_json(&fields, |field| {
+            if declined {
+                return None;
+            }
             let value = match field.name.as_str() {
-                "orderCreate" => self.stage_order_create(request, query, variables, &field),
-                "orderUpdate" => self.stage_order_update(request, query, variables, &field)?,
+                "orderCreate" => self.stage_order_create(request, query, variables, field),
+                "orderUpdate" => {
+                    let Some(value) = self.stage_order_update(request, query, variables, field)
+                    else {
+                        declined = true;
+                        return None;
+                    };
+                    value
+                }
                 "orderClose" | "orderOpen" => {
-                    self.stage_order_lifecycle(request, query, variables, &field)
+                    self.stage_order_lifecycle(request, query, variables, field)
                 }
                 "order" => {
-                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    let Some(id) = resolved_string_field(&field.arguments, "id") else {
+                        declined = true;
+                        return None;
+                    };
                     let order = self
                         .store
                         .staged
@@ -1126,13 +1147,19 @@ impl DraftProxy {
                         .unwrap_or(Value::Null);
                     nullable_selected_json(&order, &field.selection)
                 }
-                "orders" => self.staged_orders_connection(&field),
-                "ordersCount" => self.staged_orders_count(&field),
-                _ => return None,
+                "orders" => self.staged_orders_connection(field),
+                "ordersCount" => self.staged_orders_count(field),
+                _ => {
+                    declined = true;
+                    return None;
+                }
             };
-            data.insert(field.response_key, value);
+            Some(value)
+        });
+        if declined {
+            return None;
         }
-        Some(json!({ "data": Value::Object(data) }))
+        Some(json!({ "data": data }))
     }
 
     /// Full order projections from the seeded catalog that match a connection's
@@ -1143,9 +1170,9 @@ impl DraftProxy {
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Vec<Value> {
-        let query_arg = resolved_string_arg(arguments, "query").unwrap_or_default();
+        let query_arg = resolved_string_field(arguments, "query").unwrap_or_default();
         // Enum arguments resolve to their variant name as a string.
-        let sort_key = resolved_string_arg(arguments, "sortKey").unwrap_or_default();
+        let sort_key = resolved_string_field(arguments, "sortKey").unwrap_or_default();
         let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
         let mut matched = self
             .store
@@ -1180,7 +1207,7 @@ impl DraftProxy {
     /// `limit` precision semantics — capped at `limit` and reported `AT_LEAST`
     /// when more matches exist than the limit, otherwise the exact total.
     pub(super) fn staged_orders_count(&self, field: &RootFieldSelection) -> Value {
-        let query_arg = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+        let query_arg = resolved_string_field(&field.arguments, "query").unwrap_or_default();
         let matched = self
             .store
             .staged
@@ -1193,7 +1220,7 @@ impl DraftProxy {
             _ => (matched, "EXACT"),
         };
         selected_json(
-            &json!({ "count": count, "precision": precision }),
+            &count_object_with_precision(count, precision),
             &field.selection,
         )
     }
@@ -1370,7 +1397,7 @@ impl DraftProxy {
         if order_create_inventory_behaviour(field) != "BYPASS" {
             for line_item in resolved_object_list_field(&order_input, "lineItems") {
                 if let Some(inventory_item_id) = order_line_inventory_item_id(&line_item) {
-                    let quantity = resolved_i64_field(&line_item, "quantity").unwrap_or(1);
+                    let quantity = resolved_int_field(&line_item, "quantity").unwrap_or(1);
                     self.decrement_inventory_item_available(&inventory_item_id, quantity);
                 }
             }
@@ -1579,6 +1606,15 @@ impl DraftProxy {
                     .any(|node| node["id"].as_str() == Some(fulfillment_order_id))
                     .then(|| order_id.clone())
             })
+    }
+
+    pub(super) fn order_id_for_fulfillment_order(
+        &mut self,
+        fulfillment_order_id: &str,
+        request: &Request,
+    ) -> Option<String> {
+        self.staged_order_id_for_fulfillment_order(fulfillment_order_id)
+            .or_else(|| self.hydrate_order_for_fulfillment_order(fulfillment_order_id, request))
     }
 
     pub(super) fn stage_hydrated_order(&mut self, mut order: Value) -> Option<String> {
@@ -1841,7 +1877,7 @@ impl DraftProxy {
     ) -> Value {
         let currency_code = resolved_string_field(order_input, "currency")
             .or_else(|| resolved_string_field(order_input, "currencyCode"))
-            .unwrap_or_else(|| "CAD".to_string());
+            .unwrap_or_else(|| self.store.shop_currency_code());
         let presentment_currency_code = resolved_string_field(order_input, "presentmentCurrency")
             .or_else(|| resolved_string_field(order_input, "presentmentCurrencyCode"))
             .unwrap_or_else(|| currency_code.clone());
@@ -1881,8 +1917,8 @@ impl DraftProxy {
                     "title": resolved_string_field(&shipping_line, "title").unwrap_or_default(),
                     "code": resolved_string_field(&shipping_line, "code").unwrap_or_default(),
                     "source": resolved_string_field(&shipping_line, "source").unwrap_or_default(),
-                    "originalPriceSet": order_create_money_set(amount, &shipping_currency),
-                    "priceSet": order_create_money_set(amount, &shipping_currency),
+                    "originalPriceSet": money_bag(amount, &shipping_currency),
+                    "priceSet": money_bag(amount, &shipping_currency),
                     "taxLines": tax_lines
                 })
             })
@@ -1941,15 +1977,15 @@ impl DraftProxy {
             "customAttributes": order_create_custom_attributes(order_input, "customAttributes"),
             "billingAddress": order_create_address(resolved_object_field(order_input, "billingAddress")),
             "shippingAddress": order_create_address(resolved_object_field(order_input, "shippingAddress")),
-            "subtotalPriceSet": order_create_money_set(subtotal, &currency_code),
-            "currentSubtotalPriceSet": order_create_money_set(subtotal, &currency_code),
+            "subtotalPriceSet": money_bag_from_amount(subtotal, &currency_code, &presentment_currency_code),
+            "currentSubtotalPriceSet": money_bag_from_amount(subtotal, &currency_code, &presentment_currency_code),
             "totalShippingPriceSet": money_bag_from_amount(shipping_total, &currency_code, &presentment_currency_code),
-            "totalTaxSet": order_create_money_set(tax_total, &currency_code),
-            "currentTotalTaxSet": order_create_money_set(tax_total, &currency_code),
-            "totalDiscountsSet": order_create_money_set(discount_total, &currency_code),
-            "currentTotalDiscountsSet": order_create_money_set(discount_total, &currency_code),
-            "currentTotalPriceSet": order_create_money_set(total, &currency_code),
-            "totalPriceSet": order_create_money_set(total, &currency_code),
+            "totalTaxSet": money_bag_from_amount(tax_total, &currency_code, &presentment_currency_code),
+            "currentTotalTaxSet": money_bag_from_amount(tax_total, &currency_code, &presentment_currency_code),
+            "totalDiscountsSet": money_bag_from_amount(discount_total, &currency_code, &presentment_currency_code),
+            "currentTotalDiscountsSet": money_bag_from_amount(discount_total, &currency_code, &presentment_currency_code),
+            "currentTotalPriceSet": money_bag_from_amount(total, &currency_code, &presentment_currency_code),
+            "totalPriceSet": money_bag_from_amount(total, &currency_code, &presentment_currency_code),
             "discountCodes": discount_codes,
             "shippingLines": order_connection(shipping_lines),
             "lineItems": order_connection(line_items),
@@ -1957,17 +1993,13 @@ impl DraftProxy {
             "fulfillmentOrders": order_connection(fulfillment_orders),
             "transactions": transactions
         });
-        if let Some(object) = order.as_object_mut() {
-            object.insert(
-                "currentTotalPriceSet".to_string(),
-                money_bag_from_amount(total, &currency_code, &presentment_currency_code),
-            );
-            object.insert(
-                "totalPriceSet".to_string(),
-                money_bag_from_amount(total, &currency_code, &presentment_currency_code),
-            );
-        }
-        order_create_payment_fields(&mut order, &transactions, total, &currency_code);
+        order_create_payment_fields(
+            &mut order,
+            &transactions,
+            total,
+            &currency_code,
+            &presentment_currency_code,
+        );
         order
     }
 
@@ -2028,60 +2060,62 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let field = root_fields(query, variables)
-            .and_then(|fields| fields.into_iter().find(|field| field.name == root_field));
+        let fields = root_fields(query, variables)?;
+        let field = fields.iter().find(|field| field.name == root_field);
         if root_field == "fulfillment" {
             let field = field?;
-            let payload = self.staged_fulfillment_read_payload(&field)?;
+            let payload = self.staged_fulfillment_read_payload(field)?;
             return Some(data_response(&field.response_key, payload));
         }
         if root_field == "fulfillmentCreate" {
             let field = field?;
-            if let Some(error) = fulfillment_create_invalid_id_error(&field) {
+            if let Some(error) = fulfillment_create_invalid_id_error(field) {
                 return Some(error);
             }
             return Some(data_response(
                 &field.response_key,
-                self.staged_fulfillment_payload(request, query, variables, &field),
+                self.staged_fulfillment_payload(request, query, variables, field),
             ));
         }
         if root_field == "fulfillmentEventCreate" {
             let field = field?;
             return Some(data_response(
                 &field.response_key,
-                self.staged_fulfillment_event_create_payload(request, query, variables, &field),
+                self.staged_fulfillment_event_create_payload(request, query, variables, field),
             ));
         }
         if root_field == "fulfillmentCancel" {
             let field = field?;
             let payload =
-                self.cancel_staged_fulfillment_payload(request, query, variables, &field)?;
+                self.cancel_staged_fulfillment_payload(request, query, variables, field)?;
             return Some(data_response(&field.response_key, payload));
         }
         if root_field == "fulfillmentTrackingInfoUpdate" {
             let field = field?;
             let payload =
-                self.update_staged_fulfillment_tracking_payload(request, query, variables, &field)?;
+                self.update_staged_fulfillment_tracking_payload(request, query, variables, field)?;
             return Some(data_response(&field.response_key, payload));
         }
         if root_field == "ordersCount" {
-            return Some(orders_empty_count_payload());
+            let field = field?;
+            return Some(data_response(
+                &field.response_key,
+                selected_json(&count_object(0), &field.selection),
+            ));
         }
         if root_field == "orderCreate" {
             let field = field?;
-            let order_arg = field.arguments.get("order")?;
-            if let ResolvedValue::Object(order_input) = order_arg {
-                let email = resolved_string_field(order_input, "email").unwrap_or_default();
-                if !email.starts_with("order-customer-") {
-                    return None;
-                }
+            let order_input = resolved_object_field(&field.arguments, "order")?;
+            let email = resolved_string_field(&order_input, "email").unwrap_or_default();
+            if !email.starts_with("order-customer-") {
+                return None;
             }
-            let order = self.order_customer_paths_order_create(&field)?;
+            let order = self.order_customer_paths_order_create(field)?;
             return Some(data_response(&field.response_key, order));
         }
         if root_field == "orderDelete" {
             let field = field?;
-            let payload = self.stage_order_delete(request, query, variables, &field)?;
+            let payload = self.stage_order_delete(request, query, variables, field)?;
             return Some(data_response(&field.response_key, payload));
         }
         if root_field == "orderUpdate"
@@ -2104,53 +2138,50 @@ impl DraftProxy {
         match root_field {
             "orderEditBegin" => {
                 let field = field?;
-                return self.order_edit_begin_local(request, query, variables, &field);
+                return self.order_edit_begin_local(request, query, variables, field);
             }
             "orderEditAddVariant" => {
                 let field = field?;
-                return self.order_edit_add_variant_local(request, query, variables, &field);
+                return self.order_edit_add_variant_local(request, query, variables, field);
             }
             "orderEditSetQuantity" => {
                 let field = field?;
-                return self.order_edit_set_quantity_local(request, query, variables, &field);
+                return self.order_edit_set_quantity_local(request, query, variables, field);
             }
             "orderEditAddCustomItem" => {
                 let field = field?;
-                return self.order_edit_add_custom_item_local(request, query, variables, &field);
+                return self.order_edit_add_custom_item_local(request, query, variables, field);
             }
             "orderEditAddLineItemDiscount" => {
                 let field = field?;
                 return self
-                    .order_edit_add_line_item_discount_local(request, query, variables, &field);
+                    .order_edit_add_line_item_discount_local(request, query, variables, field);
             }
             "orderEditRemoveDiscount" => {
                 let field = field?;
-                return self.order_edit_remove_discount_local(request, query, variables, &field);
+                return self.order_edit_remove_discount_local(request, query, variables, field);
             }
             "orderEditAddShippingLine" => {
                 let field = field?;
-                return self.order_edit_add_shipping_line_local(request, query, variables, &field);
+                return self.order_edit_add_shipping_line_local(request, query, variables, field);
             }
             "orderEditUpdateShippingLine" => {
                 let field = field?;
                 return self
-                    .order_edit_update_shipping_line_local(request, query, variables, &field);
+                    .order_edit_update_shipping_line_local(request, query, variables, field);
             }
             "orderEditRemoveShippingLine" => {
                 let field = field?;
                 return self
-                    .order_edit_remove_shipping_line_local(request, query, variables, &field);
+                    .order_edit_remove_shipping_line_local(request, query, variables, field);
             }
             "orderEditCommit" => {
                 let field = field?;
-                return self.order_edit_commit_local(request, query, variables, &field);
+                return self.order_edit_commit_local(request, query, variables, field);
             }
             _ => {}
         }
-        if root_field == "order"
-            && root_fields(query, variables)
-                .and_then(|fields| fields.into_iter().find(|field| field.name == "order"))
-                .is_some_and(order_read_selects_order_edit_existing_fields)
+        if root_field == "order" && field.is_some_and(order_read_selects_order_edit_existing_fields)
         {
             let field = field?;
             let order = self.store.staged.order_edit_existing_order.as_ref()?;
@@ -2174,7 +2205,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         code: Option<&str>,
     ) -> Result<String, Value> {
-        let calculated_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let calculated_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if self
             .store
             .staged
@@ -2201,7 +2232,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let order_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let order_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         // The edit targets an order that lives in the backend, not one created
         // locally in this scenario. Forward a hydrate read and observe it so the
         // edit session is built from real order state instead of requiring a
@@ -2224,7 +2255,10 @@ impl DraftProxy {
         if order_edit_order_is_not_editable(&order) {
             return order_edit_error_response(
                 field,
-                vec![oe_user_error(&["base"], "not_editable", None)],
+                vec![oe_user_error_null_field(
+                    "The order cannot be edited.",
+                    None,
+                )],
             );
         }
         // Shopify allows only one open order edit per order: beginning a
@@ -2246,10 +2280,7 @@ impl DraftProxy {
                 )],
             );
         }
-        let calculated_id = format!(
-            "gid://shopify/CalculatedOrder/{}",
-            resource_id_tail(&order_id)
-        );
+        let calculated_id = shopify_gid("CalculatedOrder", resource_id_tail(&order_id));
         let session_id = calculated_id.replace("CalculatedOrder", "OrderEditSession");
         let session = oe_build_session(&order, &calculated_id, &session_id);
         let view = oe_calc_order_view(&session);
@@ -2288,7 +2319,7 @@ impl DraftProxy {
             Ok(calculated_id) => calculated_id,
             Err(response) => return Some(response),
         };
-        let variant_id = resolved_string_arg(&field.arguments, "variantId").unwrap_or_default();
+        let variant_id = resolved_string_field(&field.arguments, "variantId").unwrap_or_default();
         if resource_id_tail(&variant_id) == "0" {
             return order_edit_error_response(
                 field,
@@ -2367,7 +2398,7 @@ impl DraftProxy {
                     field,
                     vec![oe_user_error(
                         &["variantId"],
-                        "The variant does not exist.",
+                        "The variant does not exist in the shop.",
                         None,
                     )],
                 );
@@ -2441,7 +2472,8 @@ impl DraftProxy {
                 )],
             );
         }
-        let line_item_id = resolved_string_arg(&field.arguments, "lineItemId").unwrap_or_default();
+        let line_item_id =
+            resolved_string_field(&field.arguments, "lineItemId").unwrap_or_default();
         let mut session = self
             .store
             .staged
@@ -2456,7 +2488,7 @@ impl DraftProxy {
                     field,
                     vec![oe_user_error(
                         &["lineItemId"],
-                        "The line item does not exist.",
+                        "The line item does not exist on the order.",
                         None,
                     )],
                 );
@@ -2507,7 +2539,7 @@ impl DraftProxy {
             .clone()
             .unwrap_or_else(|| json!({}));
         let currency = oe_session_currency(&session).to_string();
-        let title = resolved_string_arg(&field.arguments, "title").unwrap_or_default();
+        let title = resolved_string_field(&field.arguments, "title").unwrap_or_default();
         if title.trim().is_empty() {
             return order_edit_error_response(
                 field,
@@ -2612,15 +2644,16 @@ impl DraftProxy {
             .clone()
             .unwrap_or_else(|| json!({}));
         let currency = oe_session_currency(&session).to_string();
-        let line_item_id = resolved_string_arg(&field.arguments, "lineItemId").unwrap_or_default();
+        let line_item_id =
+            resolved_string_field(&field.arguments, "lineItemId").unwrap_or_default();
         let index = match oe_line_index(&session, &line_item_id) {
             Some(index) => index,
             None => {
                 return order_edit_error_response(
                     field,
                     vec![oe_user_error(
-                        &["lineItemId"],
-                        "The line item does not exist.",
+                        &["id"],
+                        "The line item does not exist on the order.",
                         None,
                     )],
                 );
@@ -2701,7 +2734,7 @@ impl DraftProxy {
             .clone()
             .unwrap_or_else(|| json!({}));
         let discount_application_id =
-            resolved_string_arg(&field.arguments, "discountApplicationId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "discountApplicationId").unwrap_or_default();
         if let Some(lines) = session.get_mut("lines").and_then(Value::as_array_mut) {
             for line in lines.iter_mut() {
                 if let Some(discounts) = line.get_mut("discounts").and_then(Value::as_array_mut) {
@@ -2818,7 +2851,7 @@ impl DraftProxy {
             .unwrap_or_else(|| json!({}));
         let currency = oe_session_currency(&session).to_string();
         let shipping_line_id =
-            resolved_string_arg(&field.arguments, "shippingLineId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "shippingLineId").unwrap_or_default();
         let index = match oe_shipping_index(&session, &shipping_line_id) {
             Some(index) => index,
             None => {
@@ -2897,7 +2930,7 @@ impl DraftProxy {
             .clone()
             .unwrap_or_else(|| json!({}));
         let shipping_line_id =
-            resolved_string_arg(&field.arguments, "shippingLineId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "shippingLineId").unwrap_or_default();
         let index = match oe_shipping_index(&session, &shipping_line_id) {
             Some(index) => index,
             None => {
@@ -2964,7 +2997,12 @@ impl DraftProxy {
         // without a seed. The author is left unresolved here (event message
         // null); the parity spec excludes the un-reproducible message text.
         let author = self.store.staged.order_edit_author.clone();
+        let order_unarchived = order_edit_order_is_closed(&base);
         let committed = oe_commit_order(&base, &session, author.as_deref());
+        let notify_customer =
+            resolved_bool_field(&field.arguments, "notifyCustomer").unwrap_or(false);
+        let success_messages =
+            order_edit_commit_success_messages(&committed, notify_customer, order_unarchived);
         if let Some(order_id) = committed["id"].as_str() {
             self.store
                 .staged
@@ -2986,7 +3024,7 @@ impl DraftProxy {
             selected_json(
                 &json!({
                     "order": committed,
-                    "successMessages": ["Order updated"],
+                    "successMessages": success_messages,
                     "userErrors": []
                 }),
                 &field.selection,
@@ -3001,7 +3039,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let order_id = resolved_string_arg(&field.arguments, "orderId")?;
+        let order_id = resolved_string_field(&field.arguments, "orderId")?;
         if !self.store.staged.orders.contains_key(&order_id) {
             return Some(selected_json(
                 &json!({
@@ -3097,27 +3135,37 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
         let fields = root_fields(query, variables)?;
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let mut declined = false;
+        let data = root_payload_json(&fields, |field| {
+            if declined {
+                return None;
+            }
             let value = match field.name.as_str() {
-                "customerCreate" => self.order_customer_paths_customer_create(&field),
-                "companyCreate" => self.order_customer_paths_company_create(&field),
+                "customerCreate" => self.order_customer_paths_customer_create(field),
+                "companyCreate" => self.order_customer_paths_company_create(field),
                 "companyAssignCustomerAsContact" => {
-                    self.order_customer_paths_assign_customer(&field)
+                    self.order_customer_paths_assign_customer(field)
                 }
-                "orderCreate" => self.order_customer_paths_order_create(&field),
+                "orderCreate" => self.order_customer_paths_order_create(field),
                 "orderCancel" => {
-                    self.order_customer_paths_cancel_order(request, query, variables, &field)
+                    self.order_customer_paths_cancel_order(request, query, variables, field)
                 }
-                "orderCustomerSet" => Some(self.order_customer_set_error_paths(request, &field)),
+                "orderCustomerSet" => Some(self.order_customer_set_error_paths(request, field)),
                 "orderCustomerRemove" => {
-                    Some(self.order_customer_remove_error_paths(request, &field))
+                    Some(self.order_customer_remove_error_paths(request, field))
                 }
                 _ => None,
-            }?;
-            data.insert(field.response_key.clone(), value);
+            };
+            let Some(value) = value else {
+                declined = true;
+                return None;
+            };
+            Some(value)
+        });
+        if declined {
+            return None;
         }
-        Some(json!({ "data": Value::Object(data) }))
+        Some(json!({ "data": data }))
     }
 
     pub(in crate::proxy) fn order_customer_paths_customer_create(
@@ -3172,25 +3220,25 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let company_id = resolved_string_arg(&field.arguments, "companyId")?;
+        let company_id = resolved_string_field(&field.arguments, "companyId")?;
         // Only the orderCustomerSet/Remove error-path flow's sentinel customer
         // (email "order-customer-...") is owned here; all other company-contact
         // assignments belong to the general b2b handler.
-        let is_order_customer_flow = resolved_string_arg(&field.arguments, "customerId")
+        let is_order_customer_flow = resolved_string_field(&field.arguments, "customerId")
             .and_then(|customer_id| self.store.staged.customers.get(&customer_id).cloned())
             .and_then(|customer| customer["email"].as_str().map(str::to_string))
             .is_some_and(|email| email.starts_with("order-customer-"));
         if !is_order_customer_flow {
             return None;
         }
-        if let Some(customer_id) = resolved_string_arg(&field.arguments, "customerId") {
+        if let Some(customer_id) = resolved_string_field(&field.arguments, "customerId") {
             self.store
                 .staged
                 .order_customer_contact_customer_ids
                 .insert(customer_id.clone());
         }
         let customer_id =
-            resolved_string_arg(&field.arguments, "customerId").unwrap_or_else(|| {
+            resolved_string_field(&field.arguments, "customerId").unwrap_or_else(|| {
                 "gid://shopify/Customer/1?shopify-draft-proxy=synthetic".to_string()
             });
         Some(selected_json(
@@ -3211,8 +3259,8 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let order_arg = field.arguments.get("order")?;
-        let email = resolved_object_string(order_arg, "email").unwrap_or_default();
+        let order_input = resolved_object_field(&field.arguments, "order")?;
+        let email = resolved_string_field(&order_input, "email").unwrap_or_default();
         if !email.is_empty() && !email.starts_with("order-customer-") {
             return None;
         }
@@ -3224,16 +3272,10 @@ impl DraftProxy {
                 .order_customer_b2b_order_ids
                 .insert(id.clone());
         }
-        let customer_id = match order_arg {
-            ResolvedValue::Object(fields) => resolved_string_arg(fields, "customerId"),
-            _ => None,
-        };
+        let customer_id = resolved_string_field(&order_input, "customerId");
         // Retain the purchasing entity so a later company delete can detect that an
         // order still references the company (mirrors a real B2B Order).
-        let purchasing_entity = match order_arg {
-            ResolvedValue::Object(fields) => draft_order_purchasing_entity(fields),
-            _ => Value::Null,
-        };
+        let purchasing_entity = draft_order_purchasing_entity(&order_input);
         let order = json!({
             "id": id,
             "customer": customer_id.map(|id| json!({ "id": id })).unwrap_or(Value::Null),
@@ -3256,8 +3298,15 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let order_id = resolved_string_arg(&field.arguments, "orderId")?;
-        let refund_method_cancel = field.arguments.contains_key("refundMethod");
+        let order_id = resolved_string_field(&field.arguments, "orderId")?;
+        let argument_present = |name: &str| {
+            field
+                .arguments
+                .get(name)
+                .is_some_and(|value| !matches!(value, ResolvedValue::Null))
+        };
+        let refund_present = argument_present("refund");
+        let refund_method_cancel = argument_present("refundMethod");
         let order_locally_known = self.store.staged.orders.contains_key(&order_id)
             || self
                 .store
@@ -3288,27 +3337,23 @@ impl DraftProxy {
                 "userErrors": [error]
             })
         };
-        if let Some(staff_note) = resolved_string_arg(&field.arguments, "staffNote") {
+        if let Some(staff_note) = resolved_string_field(&field.arguments, "staffNote") {
             if staff_note.chars().count() > 255 {
                 return Some(selected_json(
                     &error_payload(
                         "staffNote",
-                        "Staff note is too long (maximum is 255 characters)",
+                        "Staff note is too long. Maximum length is 255 characters.",
                         "INVALID",
                     ),
                     &field.selection,
                 ));
             }
         }
-        if matches!(
-            field.arguments.get("refund"),
-            Some(ResolvedValue::Bool(true))
-        ) && field.arguments.contains_key("refundMethod")
-        {
+        if refund_present && refund_method_cancel {
             return Some(selected_json(
                 &error_payload(
                     "refund",
-                    "Refund and refundMethod cannot both be present.",
+                    "Only one of the arguments `refund` or `refund_method` is allowed.",
                     "INVALID",
                 ),
                 &field.selection,
@@ -3359,13 +3404,17 @@ impl DraftProxy {
                 .is_some_and(|cancelled_at| !cancelled_at.is_null());
             if already_cancelled {
                 return Some(selected_json(
-                    &error_payload("orderId", "Order has already been cancelled", "INVALID"),
+                    &error_payload(
+                        "orderId",
+                        "Cannot cancel an order that has already been canceled",
+                        "INVALID",
+                    ),
                     &field.selection,
                 ));
             }
 
             let reason =
-                resolved_string_arg(&field.arguments, "reason").unwrap_or_else(|| "OTHER".into());
+                resolved_string_field(&field.arguments, "reason").unwrap_or_else(|| "OTHER".into());
             let timestamp = self.order_cancel_timestamp();
             let job_id = synthetic_shopify_gid("Job", self.log_entries.len() + 1);
             let order = self
@@ -3428,7 +3477,11 @@ impl DraftProxy {
             .contains(&order_id)
         {
             return Some(selected_json(
-                &error_payload("orderId", "Order has already been cancelled", "INVALID"),
+                &error_payload(
+                    "orderId",
+                    "Cannot cancel an order that has already been canceled",
+                    "INVALID",
+                ),
                 &field.selection,
             ));
         }
@@ -3437,7 +3490,7 @@ impl DraftProxy {
             .order_customer_cancelled_ids
             .insert(order_id.clone());
         let reason =
-            resolved_string_arg(&field.arguments, "reason").unwrap_or_else(|| "OTHER".into());
+            resolved_string_field(&field.arguments, "reason").unwrap_or_else(|| "OTHER".into());
         let timestamp = self.order_cancel_timestamp();
         order["closed"] = json!(true);
         order["closedAt"] = json!(timestamp.clone());
@@ -3477,8 +3530,8 @@ impl DraftProxy {
         request: &Request,
         field: &RootFieldSelection,
     ) -> Value {
-        let order_id = resolved_string_arg(&field.arguments, "orderId").unwrap_or_default();
-        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let order_id = resolved_string_field(&field.arguments, "orderId").unwrap_or_default();
+        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         // Earn order + customer from the backend on the happy path (no seed).
         // Synthetic error-path ids stay local-only.
         if !order_id.is_empty()
@@ -3588,7 +3641,7 @@ impl DraftProxy {
         request: &Request,
         field: &RootFieldSelection,
     ) -> Value {
-        let order_id = resolved_string_arg(&field.arguments, "orderId").unwrap_or_default();
+        let order_id = resolved_string_field(&field.arguments, "orderId").unwrap_or_default();
         if !order_id.is_empty()
             && !order_id.contains(SYNTHETIC_MARKER)
             && !self

@@ -76,6 +76,17 @@ const sellingPlanGroupFields = `#graphql
           adjustmentValue {
             __typename
             ... on SellingPlanPricingPolicyPercentageValue { percentage }
+            ... on MoneyV2 { amount currencyCode }
+          }
+        }
+        ... on SellingPlanRecurringPricingPolicy {
+          afterCycle
+          createdAt
+          adjustmentType
+          adjustmentValue {
+            __typename
+            ... on SellingPlanPricingPolicyPercentageValue { percentage }
+            ... on MoneyV2 { amount currencyCode }
           }
         }
       }
@@ -257,7 +268,7 @@ try {
   captures.push(await capture('schema and access', schemaAndAccessQuery));
   captures.push(
     await capture('productCreate setup', productCreateMutation, {
-      product: { title: `HAR-308 selling plan ${suffix}` },
+      product: { title: `Selling plan conformance ${suffix}` },
     }),
   );
   const createdProduct = readObject(readObject(captureData(captures.at(-1)!)['productCreate'])['product']);
@@ -267,22 +278,39 @@ try {
   variantId = readObject(variantNodes[0])['id'] as string;
 
   const createInput = {
-    name: `HAR-308 subscription ${suffix}`,
-    merchantCode: `har-308-${suffix}`,
-    description: 'Temporary selling plan group for HAR-308 conformance capture',
+    name: `Subscription ${suffix}`,
+    merchantCode: `selling-plan-${suffix}`,
+    description: 'Temporary selling plan group for conformance capture',
     options: ['Delivery frequency'],
     position: 1,
     sellingPlansToCreate: [
       {
-        name: 'Monthly delivery',
-        description: 'Ships every month',
-        options: ['Monthly'],
+        name: 'Intro and recurring discount delivery',
+        description: 'Ships every month with fixed and recurring discounts',
+        options: ['Intro and recurring discount'],
         position: 1,
         category: 'SUBSCRIPTION',
         billingPolicy: { recurring: { interval: 'MONTH', intervalCount: 1, minCycles: 1, maxCycles: 12 } },
         deliveryPolicy: { recurring: { interval: 'MONTH', intervalCount: 1, cutoff: 0 } },
         inventoryPolicy: { reserve: 'ON_FULFILLMENT' },
-        pricingPolicies: [{ fixed: { adjustmentType: 'PERCENTAGE', adjustmentValue: { percentage: 10 } } }],
+        pricingPolicies: [
+          { fixed: { adjustmentType: 'PERCENTAGE', adjustmentValue: { percentage: 10 } } },
+          { recurring: { adjustmentType: 'PERCENTAGE', adjustmentValue: { percentage: 10 }, afterCycle: 1 } },
+        ],
+      },
+      {
+        name: 'Mixed discount delivery',
+        description: 'Ships every month with fixed and recurring discounts',
+        options: ['Mixed discount'],
+        position: 2,
+        category: 'SUBSCRIPTION',
+        billingPolicy: { recurring: { interval: 'MONTH', intervalCount: 1, minCycles: 1, maxCycles: 12 } },
+        deliveryPolicy: { recurring: { interval: 'MONTH', intervalCount: 1, cutoff: 0 } },
+        inventoryPolicy: { reserve: 'ON_FULFILLMENT' },
+        pricingPolicies: [
+          { fixed: { adjustmentType: 'PERCENTAGE', adjustmentValue: { percentage: 10 } } },
+          { recurring: { adjustmentType: 'PERCENTAGE', adjustmentValue: { percentage: 5 }, afterCycle: 2 } },
+        ],
       },
     ],
   };
@@ -295,9 +323,11 @@ try {
       variantId,
     }),
   );
-  const createdGroup = readObject(
-    readObject(captureData(captures.at(-1)!)['sellingPlanGroupCreate'])['sellingPlanGroup'],
-  );
+  const createPayload = readObject(captureData(captures.at(-1)!)['sellingPlanGroupCreate']);
+  if (!createPayload['sellingPlanGroup']) {
+    throw new Error(`sellingPlanGroupCreate returned no group: ${JSON.stringify(createPayload, null, 2)}`);
+  }
+  const createdGroup = readObject(createPayload['sellingPlanGroup']);
   groupId = createdGroup['id'] as string;
   const planId = readObject(readArray(readObject(createdGroup['sellingPlans'])['nodes'])[0])['id'];
 
@@ -339,12 +369,14 @@ try {
     await capture('sellingPlanGroupUpdate success', updateGroupMutation, {
       id: groupId,
       input: {
-        name: `HAR-308 subscription updated ${suffix}`,
-        merchantCode: `har-308-updated-${suffix}`,
-        description: 'Updated temporary selling plan group for HAR-308 conformance capture',
+        name: 'Subscription updated',
+        merchantCode: 'selling-plan-updated',
+        description: 'Updated temporary selling plan group for conformance capture',
         options: ['Delivery cadence'],
         position: 2,
-        sellingPlansToUpdate: [{ id: planId, name: 'Monthly delivery updated', options: ['Every month'], position: 1 }],
+        sellingPlansToUpdate: [
+          { id: planId, name: 'Recurring discount updated', options: ['Every month'], position: 1 },
+        ],
       },
       productId,
       variantId,
@@ -394,7 +426,7 @@ await writeFile(
       storeDomain,
       apiVersion,
       notes: [
-        'HAR-308 captures selling-plan group read/mutation payloads and downstream product/variant membership reads.',
+        'Captures selling-plan group read/mutation payloads and downstream product/variant membership reads.',
         'The script creates a disposable product and selling-plan group, then deletes both during cleanup.',
       ],
       productId,

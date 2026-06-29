@@ -77,18 +77,6 @@ impl DraftProxy {
         }
     }
 
-    pub fn get_config_snapshot(&self) -> Value {
-        self.config_snapshot()
-    }
-
-    pub fn get_log_snapshot(&self) -> Value {
-        json!({ "entries": self.log_entries })
-    }
-
-    pub fn get_state_snapshot(&self) -> Value {
-        self.state_snapshot()
-    }
-
     pub(in crate::proxy) fn config_snapshot(&self) -> Value {
         let unsupported_mode = self
             .config
@@ -193,6 +181,7 @@ impl DraftProxy {
                 "mergedCustomerIds": self.store.staged.merged_customer_ids.clone(),
                 "customerMergeRequests": self.store.staged.customer_merge_requests.clone(),
                 "customerDataErasureRequests": self.store.staged.customer_data_erasure_requests.clone(),
+                "locallyCreatedCustomerIds": self.store.staged.locally_created_customer_ids.iter().cloned().collect::<Vec<_>>(),
                 "customersCountBase": self.store.staged.customers_count_base,
                 "storeCreditAccounts": self.store.staged.store_credit_accounts.records.clone(),
                 "storeCreditAccountOrder": self.store.staged.store_credit_accounts.order.clone(),
@@ -1037,6 +1026,12 @@ impl DraftProxy {
             value_map_from_json(state["stagedState"].get("customerMergeRequests"));
         self.store.staged.customer_data_erasure_requests =
             value_map_from_json(state["stagedState"].get("customerDataErasureRequests"));
+        self.store.staged.locally_created_customer_ids = state["stagedState"]
+            .get("locallyCreatedCustomerIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.customers_count_base =
             state["stagedState"]["customersCountBase"].as_u64();
         replace_staged_value_records(
@@ -1606,15 +1601,6 @@ impl DraftProxy {
         }
         self.store.staged.next_draft_order_id = next_draft_order_id;
     }
-}
-
-fn string_array_from_json(value: &Value) -> Vec<String> {
-    value
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|value| value.as_str().map(str::to_string))
-        .collect()
 }
 
 fn string_set_from_json(value: Option<&Value>) -> BTreeSet<String> {

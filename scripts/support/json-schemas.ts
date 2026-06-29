@@ -161,6 +161,11 @@ export const parityComparisonModeSchema = z.enum([
 ]);
 export type ParityComparisonMode = z.infer<typeof parityComparisonModeSchema>;
 
+export const parityProxyConfigSchema = z.strictObject({
+  readMode: z.enum(['snapshot', 'live-hybrid', 'passthrough']).optional(),
+});
+export type ParityProxyConfig = z.infer<typeof parityProxyConfigSchema>;
+
 export const paritySpecSchema = z
   .strictObject({
     scenarioId: z.string().optional(),
@@ -168,6 +173,7 @@ export const paritySpecSchema = z
     scenarioStatus: z.string().optional(),
     assertionKinds: z.array(z.string()).optional(),
     comparisonMode: parityComparisonModeSchema.optional(),
+    proxyConfig: parityProxyConfigSchema.optional(),
     proxyRequest: parityProxyRequestSpecSchema.optional(),
     comparison: comparisonContractSchema.optional(),
     liveCaptureFiles: z.array(z.string()).optional(),

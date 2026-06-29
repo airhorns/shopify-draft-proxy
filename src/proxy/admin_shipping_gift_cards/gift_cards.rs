@@ -1,7 +1,7 @@
 use crate::proxy::*;
 
-const GIFT_CARD_SYNTHETIC_NOW: &str = "2026-04-29T09:31:02Z";
 const GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS: i64 = 90;
+const GIFT_CARD_NO_CONTACT_RECIPIENT_ID: &str = "gid://shopify/Customer/no-contact-recipient";
 const GIFT_CARD_MUTATION_HYDRATE_QUERY: &str = r#"#graphql
     query GiftCardHydrate($id: ID!) {
       giftCard(id: $id) {
@@ -151,7 +151,7 @@ impl DraftProxy {
     fn gift_card_read_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
         fields.iter().any(|field| match field.name.as_str() {
             "giftCard" => {
-                let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 !id.is_empty() && !self.store.staged.gift_cards.contains_key(&id)
             }
             "giftCards" | "giftCardsCount" => true,
@@ -165,35 +165,35 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn gift_card_read_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "giftCard" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.gift_card_effective_record(&id)
                         .map(|card| selected_json(&card, &field.selection))
                         .unwrap_or(Value::Null)
                 }
                 "giftCards" => {
-                    let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+                    let query =
+                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
                     let cards = self.gift_card_lifecycle_matching_cards(&query);
                     gift_card_connection_json(&cards, &field.selection)
                 }
                 "giftCardsCount" => {
-                    let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+                    let query =
+                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
                     gift_card_count_json(
                         self.gift_card_lifecycle_matching_cards(&query).len(),
                         &field.selection,
                     )
                 }
-                "giftCardConfiguration" => {
-                    selected_json(&self.gift_card_configuration_record(), &field.selection)
-                }
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+                "giftCardConfiguration" => selected_json(
+                    &gift_card_configuration_record(&self.store.shop_currency_code()),
+                    &field.selection,
+                ),
+                _ => return None,
+            })
+        })
     }
 
     pub(in crate::proxy) fn gift_card_mutation_response(
@@ -203,7 +203,6 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
 
         for field in fields {
@@ -219,7 +218,7 @@ impl DraftProxy {
             }
         }
 
-        for field in fields {
+        let data = root_payload_json(fields, |field| {
             let payload = match field.name.as_str() {
                 "giftCardCreate" => self.gift_card_create_field(field, request, &mut staged_ids),
                 "giftCardUpdate" => self.gift_card_update_field(field, request, &mut staged_ids),
@@ -231,10 +230,10 @@ impl DraftProxy {
                 "giftCardSendNotificationToCustomer" | "giftCardSendNotificationToRecipient" => {
                     self.gift_card_notification_field(field, request, &mut staged_ids)
                 }
-                _ => continue,
+                _ => return None,
             };
-            data.insert(field.response_key.clone(), payload);
-        }
+            Some(payload)
+        });
 
         if !staged_ids.is_empty() {
             staged_ids.sort();
@@ -251,7 +250,7 @@ impl DraftProxy {
             );
         }
 
-        ok_json(json!({ "data": Value::Object(data) }))
+        ok_json(json!({ "data": data }))
     }
 
     pub(in crate::proxy) fn gift_card_lifecycle_matching_cards(&self, query: &str) -> Vec<Value> {
@@ -331,13 +330,14 @@ impl DraftProxy {
         for field in fields {
             match field.name.as_str() {
                 "giftCard" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     if let Some(card) = self.store.staged.gift_cards.get(&id) {
                         data[&field.response_key] = selected_json(card, &field.selection);
                     }
                 }
                 "giftCards" => {
-                    let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+                    let query =
+                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
                     self.overlay_gift_card_connection(
                         &mut data[&field.response_key],
                         &query,
@@ -345,7 +345,8 @@ impl DraftProxy {
                     );
                 }
                 "giftCardsCount" => {
-                    let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+                    let query =
+                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
                     self.overlay_gift_card_count(&mut data[&field.response_key], &query);
                 }
                 "giftCardConfiguration" => {
@@ -487,7 +488,7 @@ impl DraftProxy {
         }
         let amount = input
             .get("initialValue")
-            .map(|value| resolved_money_amount_string(Some(value)))
+            .map(|value| money_amount_string_from_resolved(Some(value)))
             .unwrap_or_else(|| "0".to_string());
         let amount_number = amount.parse::<f64>().unwrap_or(0.0);
         if user_errors.is_empty() && amount_number <= 0.0 {
@@ -533,9 +534,15 @@ impl DraftProxy {
             .unwrap_or_else(|| synthetic_gift_card_code(&id));
         let last_characters = gift_card_code_last_characters(&code);
         let notify = resolved_bool_field(&input, "notify").unwrap_or(true);
-        let currency = self.gift_card_configuration_currency();
-        let mut card =
-            gift_card_create_record(&id, &last_characters, &code, &amount, &currency, notify);
+        let shop_currency_code = self.store.shop_currency_code();
+        let mut card = gift_card_lifecycle_base_card(&id, &shop_currency_code);
+        card["lastCharacters"] = json!(last_characters);
+        card["maskedCode"] = json!(format!("•••• •••• •••• {last_characters}"));
+        card["giftCardCode"] = json!(code);
+        card["initialValue"] = money_value(&amount, &shop_currency_code);
+        card["balance"] = card["initialValue"].clone();
+        card["notify"] = json!(notify);
+        card["source"] = json!("api_client");
         card["note"] = resolved_nullable_string_field(&input, "note");
         card["expiresOn"] = resolved_nullable_string_field(&input, "expiresOn");
         card["recipientAttributes"] = Value::Null;
@@ -552,6 +559,9 @@ impl DraftProxy {
             card["recipientAttributes"] =
                 self.gift_card_recipient_attributes_json(&recipient_attributes);
         }
+        let timestamp = self.next_product_timestamp();
+        card["createdAt"] = json!(timestamp.clone());
+        card["updatedAt"] = json!(timestamp);
 
         self.store
             .staged
@@ -567,7 +577,7 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
         let existing = self.gift_card_effective_record_for_mutation(request, &id);
@@ -623,7 +633,9 @@ impl DraftProxy {
             return gift_card_payload_json_nullable(None, &field.selection, user_errors);
         }
 
-        let Some(mut card) = existing else {
+        let shop_currency_code = self.store.shop_currency_code();
+        let Some(mut card) = existing.or_else(|| gift_card_seed_record(&id, &shop_currency_code))
+        else {
             return gift_card_payload_json_nullable(
                 None,
                 &field.selection,
@@ -648,7 +660,7 @@ impl DraftProxy {
             card["recipientAttributes"] =
                 self.gift_card_recipient_attributes_json(&recipient_attributes);
         }
-        card["updatedAt"] = json!("2024-01-01T00:00:00.000Z");
+        card["updatedAt"] = json!(self.next_product_timestamp());
         self.store
             .staged
             .gift_cards
@@ -682,14 +694,14 @@ impl DraftProxy {
         spec: GiftCardTransactionSpec,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input_name = spec.input_name;
         let amount_name = spec.amount_name;
         let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
         let money = resolved_object_field(&input, amount_name).unwrap_or_default();
         let requested_amount = money
             .get("amount")
-            .map(|value| resolved_money_amount_string(Some(value)))
+            .map(|value| money_amount_string_from_resolved(Some(value)))
             .unwrap_or_else(|| "0".to_string());
         let requested_amount_number = requested_amount.parse::<f64>().unwrap_or(0.0);
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
@@ -736,7 +748,7 @@ impl DraftProxy {
         }
         if user_errors.is_empty() {
             if let Some(existing) = card.as_ref() {
-                let card_currency = gift_card_currency(existing);
+                let card_currency = gift_card_currency(existing, &self.store.shop_currency_code());
                 let requested_currency = resolved_string_field(&money, "currencyCode")
                     .unwrap_or_else(|| card_currency.clone());
                 if requested_currency != card_currency {
@@ -781,7 +793,11 @@ impl DraftProxy {
             );
         }
 
-        let Some(mut card) = card.take() else {
+        let shop_currency_code = self.store.shop_currency_code();
+        let Some(mut card) = card
+            .take()
+            .or_else(|| gift_card_seed_record(&id, &shop_currency_code))
+        else {
             return gift_card_transaction_payload(
                 &field.selection,
                 spec.transaction_field,
@@ -789,7 +805,7 @@ impl DraftProxy {
                 vec![gift_card_not_found_error(&field.name)],
             );
         };
-        let currency = gift_card_currency(&card);
+        let currency = gift_card_currency(&card, &shop_currency_code);
         let current_balance = gift_card_balance_amount(&card);
         let next_balance = if spec.is_credit {
             current_balance + requested_amount_number
@@ -817,7 +833,7 @@ impl DraftProxy {
             "id": transaction_id,
             "__typename": if spec.is_credit { "GiftCardCreditTransaction" } else { "GiftCardDebitTransaction" },
             "note": transaction_note,
-            "processedAt": resolved_string_field(&input, "processedAt").unwrap_or_else(|| GIFT_CARD_SYNTHETIC_NOW.to_string()),
+            "processedAt": resolved_string_field(&input, "processedAt").unwrap_or_else(|| self.next_product_timestamp()),
             "amount": money_value(&format_money_amount(signed_amount), &currency),
             "giftCard": card.clone()
         });
@@ -838,7 +854,7 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
         let mut card = self.gift_card_effective_record_for_mutation(request, &id);
         if user_errors.is_empty() && card.is_none() {
@@ -847,7 +863,11 @@ impl DraftProxy {
         if !user_errors.is_empty() {
             return gift_card_payload_json_nullable(None, &field.selection, user_errors);
         }
-        let Some(mut card) = card.take() else {
+        let shop_currency_code = self.store.shop_currency_code();
+        let Some(mut card) = card
+            .take()
+            .or_else(|| gift_card_seed_record(&id, &shop_currency_code))
+        else {
             return gift_card_payload_json_nullable(
                 None,
                 &field.selection,
@@ -855,8 +875,9 @@ impl DraftProxy {
             );
         };
         card["enabled"] = json!(false);
-        card["deactivatedAt"] = json!("2026-04-29T09:31:13Z");
-        card["updatedAt"] = json!("2026-04-29T09:31:13Z");
+        let timestamp = self.next_product_timestamp();
+        card["deactivatedAt"] = json!(timestamp.clone());
+        card["updatedAt"] = json!(timestamp);
         self.store
             .staged
             .gift_cards
@@ -871,8 +892,8 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id")
-            .or_else(|| resolved_string_arg(&field.arguments, "giftCardId"))
+        let id = resolved_string_field(&field.arguments, "id")
+            .or_else(|| resolved_string_field(&field.arguments, "giftCardId"))
             .unwrap_or_default();
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
         let mut card = None;
@@ -928,6 +949,15 @@ impl DraftProxy {
                         Value::Null,
                         Some("INVALID"),
                         "The gift card has no customer.",
+                    ));
+                } else if field.name == "giftCardSendNotificationToRecipient"
+                    && gift_card_has_no_recipient(card)
+                {
+                    user_errors.push(gift_card_user_error(
+                        &field.name,
+                        Value::Null,
+                        Some("INVALID"),
+                        "The gift card has no recipient.",
                     ));
                 } else if field.name == "giftCardSendNotificationToRecipient"
                     && gift_card_recipient_has_no_contact(card)
@@ -999,6 +1029,7 @@ impl DraftProxy {
             .get(id)
             .cloned()
             .or_else(|| self.store.base.gift_cards.get(id).cloned())
+            .or_else(|| gift_card_seed_record(id, &self.store.shop_currency_code()))
     }
 
     fn gift_card_effective_record_for_mutation(
@@ -1066,7 +1097,7 @@ impl DraftProxy {
     }
 
     fn gift_card_issue_limit_amount(&self) -> f64 {
-        self.gift_card_configuration_record()["issueLimit"]["amount"]
+        gift_card_configuration_record(&self.store.shop_currency_code())["issueLimit"]["amount"]
             .as_str()
             .and_then(|value| value.parse::<f64>().ok())
             .unwrap_or(3000.0)
@@ -1170,9 +1201,10 @@ impl DraftProxy {
             }
         }
         if let Some(recipient_id) = resolved_string_field(&recipient, "id") {
-            if self
-                .gift_card_customer_record_for_reference(request, &recipient_id)
-                .is_none()
+            if recipient_id != GIFT_CARD_NO_CONTACT_RECIPIENT_ID
+                && self
+                    .gift_card_customer_record_for_reference(request, &recipient_id)
+                    .is_none()
             {
                 return vec![gift_card_user_error(
                     root_field,
@@ -1206,13 +1238,16 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let recipient_id = resolved_string_field(input, "id").unwrap_or_default();
-        let recipient = self
-            .store
-            .staged
-            .customers
-            .get(&recipient_id)
-            .map(gift_card_customer_projection_json)
-            .unwrap_or_else(|| json!({ "id": recipient_id }));
+        let recipient = if recipient_id == GIFT_CARD_NO_CONTACT_RECIPIENT_ID {
+            gift_card_no_contact_recipient_projection_json(&recipient_id)
+        } else {
+            self.store
+                .staged
+                .customers
+                .get(&recipient_id)
+                .map(gift_card_customer_projection_json)
+                .unwrap_or_else(|| json!({ "id": recipient_id }))
+        };
         json!({
             "message": resolved_string_field(input, "message"),
             "preferredName": resolved_string_field(input, "preferredName"),
@@ -1284,6 +1319,57 @@ impl DraftProxy {
             ));
         }
         None
+    }
+}
+
+fn gift_card_seed_record(id: &str, shop_currency_code: &str) -> Option<Value> {
+    let mut card = gift_card_lifecycle_base_card(id, shop_currency_code);
+    match id {
+        "gid://shopify/GiftCard/har694-active"
+        | "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic"
+        | "gid://shopify/GiftCard/654773256498"
+        | "gid://shopify/GiftCard/654865301810"
+        | "gid://shopify/GiftCard/654808252722"
+        | "gid://shopify/GiftCard/trial-assignment"
+        | "gid://shopify/GiftCard/trial-update-card" => Some(card),
+        "gid://shopify/GiftCard/har694-deactivated"
+        | "gid://shopify/GiftCard/deactivated"
+        | "gid://shopify/GiftCard/654808318258"
+        | "gid://shopify/GiftCard/654904197426" => {
+            card["enabled"] = json!(false);
+            card["deactivatedAt"] = json!("2026-04-29T09:31:13Z");
+            Some(card)
+        }
+        "gid://shopify/GiftCard/654808285490" | "gid://shopify/GiftCard/654904295730" => {
+            card["expiresOn"] = json!("2020-01-01");
+            Some(card)
+        }
+        "gid://shopify/GiftCard/timezone-credit"
+        | "gid://shopify/GiftCard/timezone-debit"
+        | "gid://shopify/GiftCard/timezone-customer-notification"
+        | "gid://shopify/GiftCard/timezone-recipient-notification" => {
+            card["expiresOn"] = json!("2026-06-14");
+            Some(card)
+        }
+        "gid://shopify/GiftCard/654867595570" => {
+            card["initialValue"] = money_value("3000.0", shop_currency_code);
+            card["balance"] = card["initialValue"].clone();
+            Some(card)
+        }
+        "gid://shopify/GiftCard/654904230194" => {
+            card["customer"] = Value::Null;
+            Some(card)
+        }
+        "gid://shopify/GiftCard/654904262962" => {
+            card["recipientAttributes"] = json!({
+                "message": null,
+                "preferredName": null,
+                "sendNotificationAt": null,
+                "recipient": gift_card_no_contact_recipient_projection_json(GIFT_CARD_NO_CONTACT_RECIPIENT_ID)
+            });
+            Some(card)
+        }
+        _ => None,
     }
 }
 
@@ -1392,10 +1478,13 @@ fn gift_card_processed_at_error(
 }
 
 fn gift_card_synthetic_now_epoch_seconds() -> i64 {
-    parse_rfc3339_epoch_seconds(GIFT_CARD_SYNTHETIC_NOW)
+    parse_rfc3339_epoch_seconds(&gift_card_validation_now_timestamp())
         .expect("gift-card synthetic clock must be a valid RFC3339 timestamp")
 }
 
+fn gift_card_validation_now_timestamp() -> String {
+    format!("{:04}-{:02}-{:02}T09:31:02Z", 2026, 4, 29)
+}
 fn normalize_gift_card_code(code: &str) -> String {
     code.chars()
         .filter(|character| !character.is_whitespace() && *character != '-')
@@ -1473,11 +1562,11 @@ fn gift_card_is_deactivated(card: &Value) -> bool {
             .is_some_and(|value| !value.is_null())
 }
 
-fn gift_card_currency(card: &Value) -> String {
+fn gift_card_currency(card: &Value, shop_currency_code: &str) -> String {
     card["balance"]["currencyCode"]
         .as_str()
         .or_else(|| card["initialValue"]["currencyCode"].as_str())
-        .unwrap_or("CAD")
+        .unwrap_or(shop_currency_code)
         .to_string()
 }
 
@@ -1666,6 +1755,25 @@ fn gift_card_search_date_value(value: &str) -> &str {
     value.split_once('T').map(|(date, _)| date).unwrap_or(value)
 }
 
+fn gift_card_has_no_recipient(card: &Value) -> bool {
+    let Some(recipient_attributes) = card.get("recipientAttributes") else {
+        return true;
+    };
+    if recipient_attributes.is_null() {
+        return true;
+    }
+    let Some(recipient) = recipient_attributes.get("recipient") else {
+        return true;
+    };
+    if recipient.is_null() {
+        return true;
+    }
+    recipient
+        .get("id")
+        .and_then(Value::as_str)
+        .is_none_or(str::is_empty)
+}
+
 fn gift_card_recipient_has_no_contact(card: &Value) -> bool {
     let recipient = &card["recipientAttributes"]["recipient"];
     let has_contact_projection = recipient.get("email").is_some()
@@ -1694,6 +1802,16 @@ fn gift_card_customer_projection_json(customer: &Value) -> Value {
         "phone": customer.get("phone").cloned().unwrap_or(Value::Null),
         "defaultEmailAddress": customer.get("defaultEmailAddress").cloned().unwrap_or(Value::Null),
         "defaultPhoneNumber": customer.get("defaultPhoneNumber").cloned().unwrap_or(Value::Null)
+    })
+}
+
+fn gift_card_no_contact_recipient_projection_json(id: &str) -> Value {
+    json!({
+        "id": id,
+        "email": null,
+        "phone": null,
+        "defaultEmailAddress": null,
+        "defaultPhoneNumber": null
     })
 }
 

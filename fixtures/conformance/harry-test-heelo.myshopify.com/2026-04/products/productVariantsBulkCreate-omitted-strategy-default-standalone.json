@@ -1,0 +1,253 @@
+{
+  "setup": {
+    "variables": {
+      "product": {
+        "title": "Hermes Bulk Create Omitted Strategy 1782520286059",
+        "status": "DRAFT"
+      }
+    },
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10222857290034",
+            "title": "Hermes Bulk Create Omitted Strategy 1782520286059",
+            "handle": "hermes-bulk-create-omitted-strategy-1782520286059",
+            "status": "DRAFT"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "preMutationRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10222857290034",
+        "options": [
+          {
+            "id": "gid://shopify/ProductOption/12780746408242",
+            "name": "Title",
+            "position": 1,
+            "values": ["Default Title"],
+            "optionValues": [
+              {
+                "id": "gid://shopify/ProductOptionValue/8227349889330",
+                "name": "Default Title",
+                "hasVariants": true
+              }
+            ]
+          }
+        ],
+        "totalInventory": 0,
+        "tracksInventory": false,
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/51381441003826",
+              "title": "Default Title",
+              "sku": null,
+              "barcode": null,
+              "price": "0.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Title",
+                  "value": "Default Title"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53486328152370",
+                "tracked": false,
+                "requiresShipping": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 32,
+        "actualQueryCost": 6,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1994,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/10222857290034",
+      "variants": [
+        {
+          "optionValues": [
+            {
+              "optionName": "Title",
+              "name": "Default Blue"
+            }
+          ],
+          "price": "25.00",
+          "inventoryItem": {
+            "sku": "HERMES-1782520286059-BULK-OMITTED-DEFAULT",
+            "tracked": true,
+            "requiresShipping": true
+          }
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productVariantsBulkCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10222857290034",
+            "options": [
+              {
+                "id": "gid://shopify/ProductOption/12780746408242",
+                "name": "Title",
+                "position": 1,
+                "values": ["Default Blue"],
+                "optionValues": [
+                  {
+                    "id": "gid://shopify/ProductOptionValue/8227349922098",
+                    "name": "Default Blue",
+                    "hasVariants": true
+                  }
+                ]
+              }
+            ],
+            "totalInventory": 0,
+            "tracksInventory": true,
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51381441036594",
+                  "title": "Default Blue",
+                  "sku": "HERMES-1782520286059-BULK-OMITTED-DEFAULT",
+                  "barcode": null,
+                  "price": "25.00",
+                  "inventoryQuantity": 0,
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Blue"
+                    }
+                  ],
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53486328185138",
+                    "tracked": true,
+                    "requiresShipping": true
+                  }
+                }
+              ]
+            }
+          },
+          "productVariants": [
+            {
+              "id": "gid://shopify/ProductVariant/51381441036594",
+              "title": "Default Blue",
+              "sku": "HERMES-1782520286059-BULK-OMITTED-DEFAULT",
+              "barcode": null,
+              "price": "25.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Title",
+                  "value": "Default Blue"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53486328185138",
+                "tracked": true,
+                "requiresShipping": true
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 43,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10222857290034",
+        "options": [
+          {
+            "id": "gid://shopify/ProductOption/12780746408242",
+            "name": "Title",
+            "position": 1,
+            "values": ["Default Blue"],
+            "optionValues": [
+              {
+                "id": "gid://shopify/ProductOptionValue/8227349922098",
+                "name": "Default Blue",
+                "hasVariants": true
+              }
+            ]
+          }
+        ],
+        "totalInventory": 0,
+        "tracksInventory": true,
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/51381441036594",
+              "title": "Default Blue",
+              "sku": "HERMES-1782520286059-BULK-OMITTED-DEFAULT",
+              "barcode": null,
+              "price": "25.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Title",
+                  "value": "Default Blue"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53486328185138",
+                "tracked": true,
+                "requiresShipping": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 32,
+        "actualQueryCost": 6,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1994,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

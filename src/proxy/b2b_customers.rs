@@ -148,14 +148,11 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
     ) -> bool {
         fields.iter().any(|field| match field.name.as_str() {
-            "customer" => match field.arguments.get("id") {
-                Some(ResolvedValue::String(id)) => {
-                    self.store.staged.customers.contains_key(id)
-                        || self.store.staged.customers.is_tombstoned(id)
-                        || self.store_credit_owner_has_accounts(id)
-                }
-                _ => false,
-            },
+            "customer" => resolved_string_field(&field.arguments, "id").is_some_and(|id| {
+                self.store.staged.customers.contains_key(&id)
+                    || self.store.staged.customers.is_tombstoned(&id)
+                    || self.store_credit_owner_has_accounts(&id)
+            }),
             "customerByIdentifier" => !self.store.staged.customers.is_empty(),
             // A standalone `customers(query:)` / `customersCount` list read is
             // served from the staged overlay once this scenario has staged at
@@ -171,39 +168,49 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "customer" => Some(self.customer_read_field(field)),
-                "customerByIdentifier" => Some(self.customer_by_identifier_field(field)),
-                "customers" => Some(self.customers_list_field(field)),
-                "customersCount" => Some(selected_json(
-                    &json!({ "count": self.customers_count_value(), "precision": "EXACT" }),
-                    &field.selection,
-                )),
-                "customerMergeJobStatus" => Some(self.customer_merge_job_status_field(field)),
-                "job" => Some(self.customer_merge_job_node_field(field)),
-                "node" if self.customer_merge_job_reference(field) => {
-                    Some(self.customer_merge_job_node_field(field))
-                }
-                _ => None,
-            };
-            if let Some(value) = value {
-                data.insert(field.response_key.clone(), value);
+        root_payload_json(fields, |field| match field.name.as_str() {
+            "customer" => Some(self.customer_read_field(field)),
+            "customerByIdentifier" => Some(self.customer_by_identifier_field(field)),
+            "customers" => Some(self.customers_list_field(field)),
+            "customersCount" => Some(selected_json(
+                &count_object(self.customers_count_value()),
+                &field.selection,
+            )),
+            "customerMergeJobStatus" => Some(self.customer_merge_job_status_field(field)),
+            "job" => Some(self.customer_merge_job_node_field(field)),
+            "node" if self.customer_merge_job_reference(field) => {
+                Some(self.customer_merge_job_node_field(field))
             }
-        }
-        Value::Object(data)
+            _ => None,
+        })
     }
 
     /// The store-wide total customer count: the seeded live baseline (or the
     /// legacy default) reduced by the number of customers deleted/merged-away in
     /// this scenario, so `customersCount` tracks merges generically.
     pub(in crate::proxy) fn customers_count_value(&self) -> u64 {
-        self.store
+        let live_staged_count = self.store.staged.customers.len() as u64;
+        let Some(base_count) = self.store.staged.customers_count_base else {
+            return live_staged_count;
+        };
+        let locally_created = self
+            .store
             .staged
-            .customers_count_base
-            .unwrap_or(177)
-            .saturating_sub(self.store.staged.customers.tombstones.len() as u64)
+            .locally_created_customer_ids
+            .iter()
+            .filter(|id| self.store.staged.customers.contains_key(id))
+            .count() as u64;
+        let deleted_base_customers = self
+            .store
+            .staged
+            .customers
+            .tombstones
+            .iter()
+            .filter(|id| !self.store.staged.locally_created_customer_ids.contains(*id))
+            .count() as u64;
+        base_count
+            .saturating_add(locally_created)
+            .saturating_sub(deleted_base_customers)
     }
 
     /// `customerMergeJobStatus(jobId:)` read: project the requested selection over
@@ -255,17 +262,17 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn customer_read_field(&self, field: &RootFieldSelection) -> Value {
-        let Some(ResolvedValue::String(id)) = field.arguments.get("id") else {
+        let Some(id) = resolved_string_field(&field.arguments, "id") else {
             return Value::Null;
         };
-        if self.store.staged.customers.is_tombstoned(id) {
+        if self.store.staged.customers.is_tombstoned(&id) {
             return Value::Null;
         }
         self.store
             .staged
             .customers
-            .get(id)
-            .map(|customer| self.customer_with_order_connection(id, customer, &field.selection))
+            .get(&id)
+            .map(|customer| self.customer_with_order_connection(&id, customer, &field.selection))
             .unwrap_or(Value::Null)
     }
 
@@ -310,6 +317,21 @@ impl DraftProxy {
                 &field.arguments,
                 &field.selection,
             )),
+            "metafield" | "metafields" => {
+                let base = selected_json(customer, std::slice::from_ref(field));
+                let projected = self.owner_metafield_overlay_owner_json(
+                    "customer",
+                    id,
+                    std::slice::from_ref(field),
+                    base,
+                );
+                Some(
+                    projected
+                        .get(field.response_key.as_str())
+                        .cloned()
+                        .unwrap_or(Value::Null),
+                )
+            }
             _ => selected_json(customer, std::slice::from_ref(field))
                 .as_object()
                 .and_then(|object| object.get(&field.response_key).cloned()),
@@ -320,18 +342,16 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        root_payload_json(fields, |field| {
             if field.name != "storeCreditAccount" {
-                continue;
+                return None;
             }
-            let value = resolved_string_arg(&field.arguments, "id")
+            let value = resolved_string_field(&field.arguments, "id")
                 .and_then(|id| self.store.staged.store_credit_accounts.get(&id))
                 .map(|account| self.selected_store_credit_account(account, &field.selection))
                 .unwrap_or(Value::Null);
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            Some(value)
+        })
     }
 
     pub(in crate::proxy) fn store_credit_account_mutation(
@@ -347,25 +367,24 @@ impl DraftProxy {
         if let Some(response) = store_credit_result_only_currency_response(&fields) {
             return MutationOutcome::response(response);
         }
-        let mut data = serde_json::Map::new();
         let mut log_drafts = Vec::new();
-        for field in fields {
+        let data = root_payload_json(&fields, |field| {
             if !matches!(
                 field.name.as_str(),
                 "storeCreditAccountCredit" | "storeCreditAccountDebit"
             ) {
-                continue;
+                return None;
             }
-            let outcome = self.store_credit_account_mutation_field(&field);
+            let outcome = self.store_credit_account_mutation_field(field);
             if let Some(log_draft) = outcome.log_draft {
                 log_drafts.push(log_draft);
             }
-            data.insert(field.response_key.clone(), outcome.value);
-        }
-        if data.is_empty() {
+            Some(outcome.value)
+        });
+        if data.as_object().is_none_or(serde_json::Map::is_empty) {
             return MutationOutcome::response(json_error(501, "Unsupported store credit mutation"));
         }
-        let response = ok_json(json!({ "data": Value::Object(data) }));
+        let response = ok_json(json!({ "data": data }));
         if log_drafts.is_empty() {
             MutationOutcome::response(response)
         } else if root_field == "storeCreditAccountCredit"
@@ -431,7 +450,7 @@ impl DraftProxy {
             );
         }
 
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(account_id) =
             self.resolve_store_credit_account_id_for_mutation(&id, &currency, is_credit)
         else {
@@ -819,7 +838,7 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> Value {
-        let Some(ResolvedValue::Object(identifier)) = field.arguments.get("identifier") else {
+        let Some(identifier) = resolved_object_field(&field.arguments, "identifier") else {
             return Value::Null;
         };
         // A merged-away / deleted customer must not resolve through identifier
@@ -831,8 +850,8 @@ impl DraftProxy {
                 .map(|id| !self.store.staged.customers.is_tombstoned(id))
                 .unwrap_or(true)
         };
-        let customer = if let Some(raw_email) = resolved_string_field(identifier, "email")
-            .or_else(|| resolved_string_field(identifier, "emailAddress"))
+        let customer = if let Some(raw_email) = resolved_string_field(&identifier, "email")
+            .or_else(|| resolved_string_field(&identifier, "emailAddress"))
         {
             let needle = normalize_customer_email(&raw_email);
             self.store.staged.customers.values().find(|customer| {
@@ -849,14 +868,14 @@ impl DraftProxy {
                     }
                 }
             })
-        } else if let Some(id) = resolved_string_field(identifier, "id") {
+        } else if let Some(id) = resolved_string_field(&identifier, "id") {
             self.store
                 .staged
                 .customers
                 .get(&id)
                 .filter(|_| !self.store.staged.customers.is_tombstoned(&id))
-        } else if let Some(raw_phone) = resolved_string_field(identifier, "phone")
-            .or_else(|| resolved_string_field(identifier, "phoneNumber"))
+        } else if let Some(raw_phone) = resolved_string_field(&identifier, "phone")
+            .or_else(|| resolved_string_field(&identifier, "phoneNumber"))
         {
             let needle = normalize_customer_phone(&raw_phone);
             self.store.staged.customers.values().find(|customer| {
@@ -902,14 +921,7 @@ impl DraftProxy {
             .get(&customer_id)
             .cloned()
             .unwrap_or(Value::Null);
-        let order_email = resolved_string_field(&order_input, "email").unwrap_or_default();
-        let id = if order_email.ends_with("example.test") {
-            let ordinal = self.next_synthetic_id.saturating_sub(1);
-            shopify_gid("Order", ordinal.max(1))
-        } else {
-            synthetic_shopify_gid("Order", self.next_synthetic_id)
-        };
-        self.next_synthetic_id += 1;
+        let id = self.next_proxy_synthetic_gid("Order");
         let order = json!({ "id": id, "customer": customer });
         if !customer_id.is_empty() {
             self.store
@@ -942,11 +954,10 @@ impl DraftProxy {
             return json_error(400, "Unsupported mixed customer mutation selection");
         }
 
-        let mut data = serde_json::Map::new();
         let mut errors = Vec::new();
-        for field in fields {
+        let data = root_payload_json(&fields, |field| {
             let (payload, staged_ids, field_errors) =
-                self.customer_mutation_payload(request, &field);
+                self.customer_mutation_payload(request, field);
             // A top-level GraphQL error whose path points at this root field means
             // the field itself resolves to `null` in `data` (GraphQL error
             // propagation), not `{customer:null,userErrors:[]}`. This mirrors
@@ -960,15 +971,38 @@ impl DraftProxy {
             let rendered = if has_top_error {
                 Value::Null
             } else {
-                selected_json(&payload, &field.selection)
+                self.selected_customer_mutation_payload(&payload, &field.selection)
             };
-            data.insert(field.response_key.clone(), rendered);
-        }
-        let mut body = json!({ "data": Value::Object(data) });
+            Some(rendered)
+        });
+        let mut body = json!({ "data": data });
         if !errors.is_empty() {
             body["errors"] = Value::Array(errors);
         }
         ok_json(body)
+    }
+
+    fn selected_customer_mutation_payload(
+        &self,
+        payload: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "customer" => {
+                let customer = &payload["customer"];
+                if customer.is_null() {
+                    return Some(Value::Null);
+                }
+                let id = customer
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                Some(self.customer_with_order_connection(id, customer, &field.selection))
+            }
+            _ => selected_json(payload, std::slice::from_ref(field))
+                .as_object()
+                .and_then(|object| object.get(&field.response_key).cloned()),
+        })
     }
 
     fn customer_mutation_payload(
@@ -994,17 +1028,6 @@ impl DraftProxy {
                 Vec::new(),
             ),
         }
-    }
-
-    /// Fabricated customers always receive a stable plain `gid://shopify/Customer/N`
-    /// id. The local-runtime conformance fixtures compare these ids strictly and
-    /// expect the plain form, while every live-hybrid scenario that surfaces a
-    /// fabricated customer id matches it with the lenient `shopify-gid:Customer`
-    /// matcher (which accepts any `gid://shopify/Customer/...`). Read routing keys
-    /// on `staged.customers.contains_key(id)`, so the proxy stays internally
-    /// consistent without needing the `?shopify-draft-proxy=synthetic` marker.
-    fn next_customer_gid(&mut self, _normalized: &NormalizedCustomerInput) -> String {
-        self.next_synthetic_gid("Customer")
     }
 
     fn customer_create_payload(
@@ -1056,7 +1079,10 @@ impl DraftProxy {
             );
         }
 
-        let id = self.next_customer_gid(&normalized);
+        // Fabricated customers always receive a stable plain `gid://shopify/Customer/N`
+        // id. Local-runtime fixtures compare these ids strictly, while live-hybrid
+        // scenarios use the lenient `shopify-gid:Customer` matcher.
+        let id = self.next_synthetic_gid("Customer");
         let timestamp = self.next_product_timestamp();
         let verified_email_default = customer_create_verified_email_default(request, &normalized);
         let mut customer =
@@ -1091,6 +1117,21 @@ impl DraftProxy {
             .staged
             .customers
             .insert(id.clone(), customer.clone());
+        self.store
+            .staged
+            .locally_created_customer_ids
+            .insert(id.clone());
+        if input.contains_key("metafields") {
+            self.stage_owner_metafields_from_input(&id, &input);
+            self.sync_customer_metafields_from_owner_store(&id);
+        }
+        let customer = self
+            .store
+            .staged
+            .customers
+            .get(&id)
+            .cloned()
+            .unwrap_or(customer);
         (customer_payload(customer, Vec::new()), vec![id], Vec::new())
     }
 
@@ -1115,9 +1156,8 @@ impl DraftProxy {
         let Some(fields) = root_fields(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
-        let mut data = serde_json::Map::new();
         let mut top_errors = Vec::new();
-        for field in &fields {
+        let data = root_payload_json(&fields, |field| {
             let (payload, staged_ids, field_top_errors) = match field.name.as_str() {
                 "customerAddressCreate" => self.customer_address_create(field),
                 "customerAddressUpdate" => self.customer_address_update(field),
@@ -1137,9 +1177,9 @@ impl DraftProxy {
             } else {
                 selected_json(&payload, &field.selection)
             };
-            data.insert(field.response_key.clone(), rendered);
-        }
-        let mut body = json!({ "data": Value::Object(data) });
+            Some(rendered)
+        });
+        let mut body = json!({ "data": data });
         if !top_errors.is_empty() {
             body["errors"] = Value::Array(top_errors);
         }
@@ -1366,10 +1406,9 @@ impl DraftProxy {
                 .cloned()
                 .unwrap_or(Value::Null)
         };
-        let Some((_, _, existing_nodes, _)) = context else {
-            // Unknown customer: treat the address as not found.
-            if self.customer_address_exists_anywhere(&address_id) {
-                let customer = render_customer(self);
+        let missing_address_result = |me: &Self| {
+            if me.customer_address_exists_anywhere(&address_id) {
+                let customer = render_customer(me);
                 return (
                     json!({
                         "customer": customer,
@@ -1379,36 +1418,23 @@ impl DraftProxy {
                     Vec::new(),
                 );
             }
-            return (
+            (
                 Value::Null,
                 Vec::new(),
                 vec![customer_address_resource_not_found_error(
                     &field.response_key,
                 )],
-            );
+            )
+        };
+        let Some((_, _, existing_nodes, _)) = context else {
+            // Unknown customer: treat the address as not found.
+            return missing_address_result(self);
         };
         let Some(index) = index else {
             // Address belongs to another customer (exists somewhere) → userError,
             // but the customer record is still returned. Truly unknown ids return
             // a null payload with a RESOURCE_NOT_FOUND top-level error.
-            if self.customer_address_exists_anywhere(&address_id) {
-                let customer = render_customer(self);
-                return (
-                    json!({
-                        "customer": customer,
-                        "userErrors": [user_error_omit_code(json!(["addressId"]), "Address does not exist", None)]
-                    }),
-                    Vec::new(),
-                    Vec::new(),
-                );
-            }
-            return (
-                Value::Null,
-                Vec::new(),
-                vec![customer_address_resource_not_found_error(
-                    &field.response_key,
-                )],
-            );
+            return missing_address_result(self);
         };
         let default_id = existing_nodes[index]
             .get("id")
@@ -1743,13 +1769,28 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        let id = self.next_customer_gid(&normalized);
+        let id = self.next_synthetic_gid("Customer");
         let timestamp = self.next_product_timestamp();
         let customer = customer_record_from_parts(&id, None, &normalized, &timestamp, true);
         self.store
             .staged
             .customers
             .insert(id.clone(), customer.clone());
+        self.store
+            .staged
+            .locally_created_customer_ids
+            .insert(id.clone());
+        if input.contains_key("metafields") {
+            self.stage_owner_metafields_from_input(&id, input);
+            self.sync_customer_metafields_from_owner_store(&id);
+        }
+        let customer = self
+            .store
+            .staged
+            .customers
+            .get(&id)
+            .cloned()
+            .unwrap_or(customer);
         (customer_payload(customer, Vec::new()), vec![id], Vec::new())
     }
 
@@ -1790,11 +1831,37 @@ impl DraftProxy {
             .staged
             .customers
             .insert(id.to_string(), customer.clone());
+        if input.contains_key("metafields") {
+            self.stage_owner_metafields_from_input(id, input);
+            self.sync_customer_metafields_from_owner_store(id);
+        }
+        let customer = self
+            .store
+            .staged
+            .customers
+            .get(id)
+            .cloned()
+            .unwrap_or(customer);
         (
             customer_payload(customer, Vec::new()),
             vec![id.to_string()],
             Vec::new(),
         )
+    }
+
+    fn sync_customer_metafields_from_owner_store(&mut self, customer_id: &str) {
+        let metafields = self
+            .store
+            .staged
+            .owner_metafields
+            .get(customer_id)
+            .cloned()
+            .unwrap_or_default();
+        if let Some(customer) = self.store.staged.customers.get_mut(customer_id) {
+            customer["metafields"] = nodes_connection(metafields.clone());
+            let first = metafields.first().cloned().unwrap_or(Value::Null);
+            customer["metafield"] = first;
+        }
     }
 
     fn customer_existing_for_update(&mut self, request: &Request, id: &str) -> Option<Value> {
@@ -1917,10 +1984,7 @@ impl DraftProxy {
                     None,
                 ));
             }
-        } else if input
-            .get("email")
-            .is_some_and(|value| matches!(value, ResolvedValue::Null))
-        {
+        } else if resolved_field_is_null(input, "email") {
             normalized.email = Some(None);
         }
 
@@ -1950,10 +2014,7 @@ impl DraftProxy {
                     None,
                 ));
             }
-        } else if input
-            .get("phone")
-            .is_some_and(|value| matches!(value, ResolvedValue::Null))
-        {
+        } else if resolved_field_is_null(input, "phone") {
             normalized.phone = Some(None);
         }
 
@@ -1969,10 +2030,7 @@ impl DraftProxy {
                     None,
                 ));
             }
-        } else if input
-            .get("locale")
-            .is_some_and(|value| matches!(value, ResolvedValue::Null))
-        {
+        } else if resolved_field_is_null(input, "locale") {
             normalized.locale = Some(None);
         }
 
@@ -1996,10 +2054,7 @@ impl DraftProxy {
                 } else {
                     normalized.last_name = Some(normalized_value);
                 }
-            } else if input
-                .get(field)
-                .is_some_and(|value| matches!(value, ResolvedValue::Null))
-            {
+            } else if resolved_field_is_null(input, field) {
                 if field == "firstName" {
                     normalized.first_name = Some(None);
                 } else {
@@ -2017,10 +2072,7 @@ impl DraftProxy {
                 ));
             }
             normalized.note = Some(Some(note));
-        } else if input
-            .get("note")
-            .is_some_and(|value| matches!(value, ResolvedValue::Null))
-        {
+        } else if resolved_field_is_null(input, "note") {
             normalized.note = Some(None);
         }
 
@@ -2045,26 +2097,22 @@ impl DraftProxy {
         }
 
         if input.contains_key("taxExempt") {
-            match input.get("taxExempt") {
-                Some(ResolvedValue::Bool(value)) => normalized.tax_exempt = Some(*value),
-                Some(ResolvedValue::Null) if customer_set => errors.push(user_error_omit_code(
+            if let Some(value) = resolved_bool_field(input, "taxExempt") {
+                normalized.tax_exempt = Some(value);
+            } else if customer_set && resolved_field_is_null(input, "taxExempt") {
+                errors.push(user_error_omit_code(
                     json!(["input", "taxExempt"]),
                     "Tax exempt is of unexpected type NilClass",
                     None,
-                )),
-                _ => {}
+                ));
             }
         }
         if input.contains_key("taxExemptions") {
-            normalized.tax_exemptions =
-                Some(resolved_string_list_field_unsorted(input, "taxExemptions"));
+            normalized.tax_exemptions = Some(list_string_field(input, "taxExemptions"));
         }
-        if input.contains_key("metafields") {
-            normalized.loyalty = Some(customer_loyalty_metafield(input));
-        }
-        if let Some(ResolvedValue::List(address_values)) = input.get("addresses") {
+        if let Some(address_values) = resolved_list_field(input, "addresses") {
             let (addresses, address_errors) =
-                customer_mailing_addresses(address_values, customer_set);
+                customer_mailing_addresses(&address_values, customer_set);
             errors.extend(address_errors);
             normalized.addresses = Some(addresses);
         }
@@ -2243,18 +2291,14 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let data = root_payload_json(fields, |field| {
             let (payload, staged_id) = self.customer_tax_exemptions_field_payload(field, request);
             if let Some(id) = staged_id {
                 self.record_mutation_log_entry(request, query, variables, &field.name, vec![id]);
             }
-            data.insert(
-                field.response_key.clone(),
-                selected_json(&payload, &field.selection),
-            );
-        }
-        ok_json(json!({ "data": Value::Object(data) }))
+            Some(selected_json(&payload, &field.selection))
+        });
+        ok_json(json!({ "data": data }))
     }
 
     fn customer_tax_exemptions_field_payload(
@@ -2262,7 +2306,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
         request: &Request,
     ) -> (Value, Option<String>) {
-        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         if customer_id.is_empty() || self.store.staged.customers.is_tombstoned(&customer_id) {
             return (
                 customer_tax_exemptions_payload(
@@ -2285,9 +2329,8 @@ impl DraftProxy {
             );
         }
 
-        let tax_exemptions = normalize_customer_tax_exemptions(
-            resolved_string_list_field_unsorted(&field.arguments, "taxExemptions"),
-        );
+        let tax_exemptions =
+            normalize_customer_tax_exemptions(list_string_field(&field.arguments, "taxExemptions"));
         let mut customer = self
             .store
             .staged
@@ -2305,7 +2348,7 @@ impl DraftProxy {
             _ => existing,
         };
         customer["taxExemptions"] = json!(next);
-        customer["updatedAt"] = json!("2026-04-25T01:41:06Z");
+        customer["updatedAt"] = json!(self.next_product_timestamp());
         self.store
             .staged
             .customers
@@ -2355,27 +2398,23 @@ impl DraftProxy {
         let Some(fields) = root_fields(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
-        let mut data = serde_json::Map::new();
         let mut errors = Vec::new();
-        for field in fields {
+        let data = root_payload_json(&fields, |field| {
             let outcome =
-                self.customer_marketing_consent_update_field(&field, request, query, variables);
+                self.customer_marketing_consent_update_field(field, request, query, variables);
             if let Some(error) = outcome.top_level_error {
                 errors.push(error);
-                data.insert(field.response_key.clone(), Value::Null);
+                Some(Value::Null)
             } else {
-                data.insert(
-                    field.response_key.clone(),
-                    selected_json(&outcome.payload, &field.selection),
-                );
+                Some(selected_json(&outcome.payload, &field.selection))
             }
-        }
+        });
 
         let mut response = serde_json::Map::new();
         if !errors.is_empty() {
             response.insert("errors".to_string(), Value::Array(errors));
         }
-        response.insert("data".to_string(), Value::Object(data));
+        response.insert("data".to_string(), data);
         ok_json(Value::Object(response))
     }
 
@@ -2569,7 +2608,7 @@ impl DraftProxy {
 
         let updated_at = consent_updated_at
             .or_else(|| current_consent_updated_at(&existing_customer, is_email))
-            .unwrap_or_else(|| "2026-04-25T01:41:06Z".to_string());
+            .unwrap_or_else(|| self.next_product_timestamp());
         let mut customer = existing_customer;
         apply_customer_marketing_consent(
             &mut customer,
@@ -2782,7 +2821,6 @@ struct NormalizedCustomerInput {
     tags: Option<Vec<String>>,
     tax_exempt: Option<bool>,
     tax_exemptions: Option<Vec<String>>,
-    loyalty: Option<Value>,
     addresses: Option<Vec<Value>>,
 }
 
@@ -2959,11 +2997,6 @@ fn customer_record_from_parts(
             })
         })
         .unwrap_or_default();
-    let loyalty = input
-        .loyalty
-        .clone()
-        .or_else(|| existing.and_then(|customer| customer.get("loyalty").cloned()))
-        .unwrap_or(Value::Null);
     let addresses = input
         .addresses
         .clone()
@@ -2993,7 +3026,6 @@ fn customer_record_from_parts(
         tax_exempt,
         tax_exemptions,
         tags,
-        loyalty,
         addresses,
         created_at,
         updated_at: timestamp,
@@ -3006,9 +3038,9 @@ fn customer_record_from_parts(
 /// path matches Shopify's ordering when both are present.
 fn customer_create_nested_id_error(input: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
     for (collection, label) in [("addresses", "address"), ("metafields", "metafield")] {
-        if let Some(ResolvedValue::List(entries)) = input.get(collection) {
+        if let Some(entries) = resolved_list_field(input, collection) {
             for (index, entry) in entries.iter().enumerate() {
-                if let ResolvedValue::Object(object) = entry {
+                if let Some(object) = resolved_value_object(entry) {
                     if object.contains_key("id") {
                         return Some(user_error_omit_code(
                             json!([collection, index.to_string(), "id"]),
@@ -3064,7 +3096,6 @@ struct CustomerRecordInput<'a> {
     tax_exempt: bool,
     tax_exemptions: Vec<String>,
     tags: Vec<String>,
-    loyalty: Value,
     addresses: Vec<Value>,
     created_at: &'a str,
     updated_at: &'a str,
@@ -3219,19 +3250,6 @@ fn customer_record(input: CustomerRecordInput<'_>) -> Value {
     let first_value = input.first.filter(|value| !value.is_empty());
     let last_value = input.last.filter(|value| !value.is_empty());
     let display_name = customer_display_name(first_value, last_value, input.email);
-    let metafields = if input.loyalty.is_null() {
-        json!({ "nodes": [], "pageInfo": empty_page_info() })
-    } else {
-        json!({
-            "nodes": [input.loyalty.clone()],
-            "pageInfo": connection_page_info(
-                false,
-                false,
-                Some("cursor:customer-metafield:1".to_string()),
-                Some("cursor:customer-metafield:1".to_string())
-            )
-        })
-    };
     let default_address = input.addresses.first().cloned().unwrap_or(Value::Null);
     let start_cursor = input.addresses.first().and_then(customer_address_cursor);
     let end_cursor = input.addresses.last().and_then(customer_address_cursor);
@@ -3255,9 +3273,8 @@ fn customer_record(input: CustomerRecordInput<'_>) -> Value {
         "tags": input.tags,
         "state": "DISABLED",
         "canDelete": true,
-        "loyalty": input.loyalty.clone(),
-        "metafield": input.loyalty,
-        "metafields": metafields,
+        "metafield": Value::Null,
+        "metafields": nodes_connection(Vec::new()),
         "defaultEmailAddress": default_email_address_value(input.email),
         "defaultPhoneNumber": default_phone_number_value(input.phone),
         "emailMarketingConsent": email_marketing_consent_value(input.email),
@@ -3288,10 +3305,10 @@ fn customer_mailing_addresses(
     let mut errors = Vec::new();
     let mut seen = BTreeSet::new();
     for (index, value) in values.iter().enumerate() {
-        let ResolvedValue::Object(input) = value else {
+        let Some(input) = resolved_value_object(value) else {
             continue;
         };
-        let (address, mut address_errors) = customer_mailing_address(input, index, customer_set);
+        let (address, mut address_errors) = customer_mailing_address(&input, index, customer_set);
         if !address_errors.is_empty() {
             errors.append(&mut address_errors);
             continue;
@@ -3318,6 +3335,92 @@ const CUSTOMER_ADDRESS_FREE_TEXT_FIELDS: &[&str] = &[
     "zip",
     "phone",
 ];
+
+struct CustomerAddressNodeFields {
+    id: String,
+    first_name: Option<String>,
+    last_name: Option<String>,
+    address1: Option<String>,
+    address2: Option<String>,
+    city: Option<String>,
+    company: Option<String>,
+    zip: Option<String>,
+    phone: Option<String>,
+    country: Option<CustomerCountry>,
+    province: Option<CustomerProvince>,
+}
+
+fn customer_resolve_address_region(
+    country_input: Option<String>,
+    province_input: Option<String>,
+    country_error_path: Value,
+    province_error_path: Value,
+    errors: &mut Vec<Value>,
+) -> (Option<CustomerCountry>, Option<CustomerProvince>) {
+    let country = match country_input
+        .as_deref()
+        .and_then(customer_country_from_input)
+    {
+        Some(country) => Some(country),
+        None if country_input.is_some() => {
+            errors.push(user_error_omit_code(
+                country_error_path,
+                "Country is invalid",
+                None,
+            ));
+            None
+        }
+        None => None,
+    };
+    let province = match (country.as_ref(), province_input.as_deref()) {
+        (Some(country), Some(raw_province)) => {
+            match customer_province_from_input(country.code.as_str(), raw_province) {
+                Some(province) => province,
+                None => {
+                    errors.push(user_error_omit_code(
+                        province_error_path,
+                        "Province is invalid",
+                        None,
+                    ));
+                    None
+                }
+            }
+        }
+        _ => None,
+    };
+    (country, province)
+}
+
+fn customer_address_node_json(fields: CustomerAddressNodeFields) -> Value {
+    let name = [fields.first_name.as_deref(), fields.last_name.as_deref()]
+        .into_iter()
+        .flatten()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let formatted_area = customer_formatted_area(
+        fields.city.as_deref(),
+        fields.country.as_ref(),
+        fields.province.as_ref(),
+    );
+    json!({
+        "id": fields.id,
+        "firstName": fields.first_name,
+        "lastName": fields.last_name,
+        "address1": fields.address1,
+        "address2": fields.address2,
+        "city": fields.city,
+        "company": fields.company,
+        "province": fields.province.as_ref().map(|province| province.name.as_str()),
+        "provinceCode": fields.province.as_ref().map(|province| province.code.as_str()),
+        "country": fields.country.as_ref().map(|country| country.name.as_str()),
+        "countryCodeV2": fields.country.as_ref().map(|country| country.code.as_str()),
+        "zip": fields.zip,
+        "phone": fields.phone,
+        "name": if name.is_empty() { Value::Null } else { json!(name) },
+        "formattedArea": formatted_area,
+    })
+}
 
 fn customer_address_free_text_errors<F>(
     input: &BTreeMap<String, ResolvedValue>,
@@ -3377,39 +3480,13 @@ fn customer_mailing_address(
         .or_else(|| customer_address_string(input, "country"));
     let province_input = customer_address_string(input, "provinceCode")
         .or_else(|| customer_address_string(input, "province"));
-    let country = match country_input
-        .as_deref()
-        .and_then(customer_country_from_input)
-    {
-        Some(country) => Some(country),
-        None if country_input.is_some() => {
-            errors.push(user_error_omit_code(
-                customer_address_field_path(customer_set, index, Some("country")),
-                "Country is invalid",
-                None,
-            ));
-            None
-        }
-        None => None,
-    };
-    let province = match (&country, province_input.as_deref()) {
-        (Some(country), Some(raw_province)) => {
-            match customer_province_from_input(country.code, raw_province) {
-                Some(province) => province,
-                None => {
-                    errors.push(user_error_omit_code(
-                        customer_address_field_path(customer_set, index, Some("province")),
-                        "Province is invalid",
-                        None,
-                    ));
-                    None
-                }
-            }
-        }
-        _ => None,
-    };
-    let country = country.cloned();
-    let province = province.cloned();
+    let (country, province) = customer_resolve_address_region(
+        country_input,
+        province_input,
+        customer_address_field_path(customer_set, index, Some("country")),
+        customer_address_field_path(customer_set, index, Some("province")),
+        &mut errors,
+    );
 
     if !errors.is_empty() {
         return (Value::Null, errors);
@@ -3432,8 +3509,8 @@ fn customer_mailing_address(
         company.as_deref(),
         zip.as_deref(),
         phone.as_deref(),
-        country.as_ref().map(|country| country.code),
-        province.as_ref().map(|province| province.code),
+        country.as_ref().map(|country| country.code.as_str()),
+        province.as_ref().map(|province| province.code.as_str()),
     ]
     .into_iter()
     .flatten()
@@ -3449,32 +3526,19 @@ fn customer_mailing_address(
         );
     }
 
-    let name = [first_name.as_deref(), last_name.as_deref()]
-        .into_iter()
-        .flatten()
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ");
-    let formatted_area =
-        customer_formatted_area(city.as_deref(), country.as_ref(), province.as_ref());
-    let id = synthetic_shopify_gid("MailingAddress", index + 1);
     (
-        json!({
-            "id": id,
-            "firstName": first_name,
-            "lastName": last_name,
-            "address1": address1,
-            "address2": address2,
-            "city": city,
-            "company": company,
-            "province": province.as_ref().map(|province| province.name),
-            "provinceCode": province.as_ref().map(|province| province.code),
-            "country": country.as_ref().map(|country| country.name),
-            "countryCodeV2": country.as_ref().map(|country| country.code),
-            "zip": zip,
-            "phone": phone,
-            "name": if name.is_empty() { Value::Null } else { json!(name) },
-            "formattedArea": formatted_area,
+        customer_address_node_json(CustomerAddressNodeFields {
+            id: synthetic_shopify_gid("MailingAddress", index + 1),
+            first_name,
+            last_name,
+            address1,
+            address2,
+            city,
+            company,
+            zip,
+            phone,
+            country,
+            province,
         }),
         Vec::new(),
     )
@@ -3607,18 +3671,6 @@ fn customer_address_input_node(
             .and_then(Value::as_str)
             .map(str::to_string)
     };
-    let country = match country_raw.as_deref().and_then(customer_country_from_input) {
-        Some(country) => Some(country),
-        None if country_raw.is_some() => {
-            errors.push(user_error_omit_code(
-                json!(["address", "country"]),
-                "Country is invalid",
-                None,
-            ));
-            None
-        }
-        None => None,
-    };
 
     let province_present = input.contains_key("provinceCode") || input.contains_key("province");
     let province_raw = if province_present {
@@ -3630,24 +3682,13 @@ fn customer_address_input_node(
             .and_then(Value::as_str)
             .map(str::to_string)
     };
-    let province = match (&country, province_raw.as_deref()) {
-        (Some(country), Some(raw_province)) => {
-            match customer_province_from_input(country.code, raw_province) {
-                Some(province) => province,
-                None => {
-                    errors.push(user_error_omit_code(
-                        json!(["address", "province"]),
-                        "Province is invalid",
-                        None,
-                    ));
-                    None
-                }
-            }
-        }
-        _ => None,
-    };
-    let country = country.cloned();
-    let province = province.cloned();
+    let (country, province) = customer_resolve_address_region(
+        country_raw,
+        province_raw,
+        json!(["address", "country"]),
+        json!(["address", "province"]),
+        &mut errors,
+    );
 
     if !errors.is_empty() {
         return (None, errors);
@@ -3661,46 +3702,34 @@ fn customer_address_input_node(
     let company = field_value("company");
     let zip = field_value("zip");
     let phone = field_value("phone");
-    let name = [first_name.as_deref(), last_name.as_deref()]
-        .into_iter()
-        .flatten()
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ");
-    let formatted_area =
-        customer_formatted_area(city.as_deref(), country.as_ref(), province.as_ref());
     (
-        Some(json!({
-            "id": id,
-            "firstName": first_name,
-            "lastName": last_name,
-            "address1": address1,
-            "address2": address2,
-            "city": city,
-            "company": company,
-            "province": province.as_ref().map(|province| province.name),
-            "provinceCode": province.as_ref().map(|province| province.code),
-            "country": country.as_ref().map(|country| country.name),
-            "countryCodeV2": country.as_ref().map(|country| country.code),
-            "zip": zip,
-            "phone": phone,
-            "name": if name.is_empty() { Value::Null } else { json!(name) },
-            "formattedArea": formatted_area,
+        Some(customer_address_node_json(CustomerAddressNodeFields {
+            id: id.to_string(),
+            first_name,
+            last_name,
+            address1,
+            address2,
+            city,
+            company,
+            zip,
+            phone,
+            country,
+            province,
         })),
         Vec::new(),
     )
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct CustomerCountry {
-    code: &'static str,
-    name: &'static str,
+    code: String,
+    name: String,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct CustomerProvince {
-    code: &'static str,
-    name: &'static str,
+    code: String,
+    name: String,
 }
 
 fn customer_address_string(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Option<String> {
@@ -3766,21 +3795,33 @@ fn customer_address_contains_emoji(value: &str) -> bool {
         .any(|c| matches!(c as u32, 0x1F300..=0x1FAFF | 0x2600..=0x27BF))
 }
 
-fn customer_country_from_input(value: &str) -> Option<&'static CustomerCountry> {
+fn customer_country_from_input(value: &str) -> Option<CustomerCountry> {
     let normalized = value.trim();
     if normalized.is_empty() {
         return None;
     }
-    CUSTOMER_COUNTRIES.iter().find(|country| {
-        country.code.eq_ignore_ascii_case(normalized)
-            || country.name.eq_ignore_ascii_case(normalized)
-    })
+    if let Some((code, name)) = CUSTOMER_COUNTRIES.iter().find(|(code, name)| {
+        code.eq_ignore_ascii_case(normalized) || name.eq_ignore_ascii_case(normalized)
+    }) {
+        return Some(CustomerCountry {
+            code: (*code).to_string(),
+            name: (*name).to_string(),
+        });
+    }
+    let code = normalized.to_ascii_uppercase();
+    if !location_country_code_is_valid(&code) {
+        return None;
+    }
+    let name = country_name_for_code(&code)
+        .map(str::to_string)
+        .unwrap_or_else(|| code.clone());
+    Some(CustomerCountry { code, name })
 }
 
 fn customer_province_from_input(
     country_code: &str,
     value: &str,
-) -> Option<Option<&'static CustomerProvince>> {
+) -> Option<Option<CustomerProvince>> {
     let normalized = value.trim();
     if normalized.is_empty() {
         return Some(None);
@@ -3791,17 +3832,22 @@ fn customer_province_from_input(
     }
     provinces
         .iter()
-        .find(|province| {
-            province.code.eq_ignore_ascii_case(normalized)
-                || province.name.eq_ignore_ascii_case(normalized)
+        .find(|(code, name)| {
+            code.eq_ignore_ascii_case(normalized) || name.eq_ignore_ascii_case(normalized)
         })
-        .map(Some)
+        .map(|(code, name)| {
+            Some(CustomerProvince {
+                code: (*code).to_string(),
+                name: (*name).to_string(),
+            })
+        })
 }
 
-fn customer_country_provinces(country_code: &str) -> &'static [CustomerProvince] {
+fn customer_country_provinces(country_code: &str) -> &'static [(&'static str, &'static str)] {
     match country_code {
         "CA" => CUSTOMER_CANADIAN_PROVINCES,
         "US" => CUSTOMER_US_PROVINCES,
+        "AU" => CUSTOMER_AUSTRALIAN_PROVINCES,
         _ => &[],
     }
 }
@@ -3815,7 +3861,7 @@ fn customer_formatted_area(
         return Value::Null;
     };
     let city = city.filter(|city| !city.is_empty());
-    let province_code = province.map(|province| province.code);
+    let province_code = province.map(|province| province.code.as_str());
     let value = match (city, province_code) {
         (Some(city), Some(province_code)) => format!("{city} {province_code}, {}", country.name),
         (Some(city), None) if country.code == "SG" => city.to_string(),
@@ -3830,89 +3876,117 @@ fn customer_formatted_area(
     }
 }
 
-const CUSTOMER_COUNTRIES: &[CustomerCountry] = &[
-    CustomerCountry {
-        code: "CA",
-        name: "Canada",
-    },
-    CustomerCountry {
-        code: "SG",
-        name: "Singapore",
-    },
-    CustomerCountry {
-        code: "US",
-        name: "United States",
-    },
+const CUSTOMER_COUNTRIES: &[(&str, &str)] = &[
+    ("AR", "Argentina"),
+    ("AT", "Austria"),
+    ("AU", "Australia"),
+    ("BE", "Belgium"),
+    ("BR", "Brazil"),
+    ("CA", "Canada"),
+    ("CH", "Switzerland"),
+    ("CN", "China"),
+    ("DE", "Germany"),
+    ("DK", "Denmark"),
+    ("ES", "Spain"),
+    ("FI", "Finland"),
+    ("FR", "France"),
+    ("GB", "United Kingdom"),
+    ("HK", "Hong Kong SAR"),
+    ("IE", "Ireland"),
+    ("IN", "India"),
+    ("IT", "Italy"),
+    ("JP", "Japan"),
+    ("MX", "Mexico"),
+    ("NL", "Netherlands"),
+    ("NO", "Norway"),
+    ("NZ", "New Zealand"),
+    ("PL", "Poland"),
+    ("PT", "Portugal"),
+    ("SE", "Sweden"),
+    ("SG", "Singapore"),
+    ("US", "United States"),
+    ("ZA", "South Africa"),
 ];
 
-const CUSTOMER_CANADIAN_PROVINCES: &[CustomerProvince] = &[
-    CustomerProvince {
-        code: "AB",
-        name: "Alberta",
-    },
-    CustomerProvince {
-        code: "BC",
-        name: "British Columbia",
-    },
-    CustomerProvince {
-        code: "MB",
-        name: "Manitoba",
-    },
-    CustomerProvince {
-        code: "NB",
-        name: "New Brunswick",
-    },
-    CustomerProvince {
-        code: "NL",
-        name: "Newfoundland and Labrador",
-    },
-    CustomerProvince {
-        code: "NS",
-        name: "Nova Scotia",
-    },
-    CustomerProvince {
-        code: "NT",
-        name: "Northwest Territories",
-    },
-    CustomerProvince {
-        code: "NU",
-        name: "Nunavut",
-    },
-    CustomerProvince {
-        code: "ON",
-        name: "Ontario",
-    },
-    CustomerProvince {
-        code: "PE",
-        name: "Prince Edward Island",
-    },
-    CustomerProvince {
-        code: "QC",
-        name: "Quebec",
-    },
-    CustomerProvince {
-        code: "SK",
-        name: "Saskatchewan",
-    },
-    CustomerProvince {
-        code: "YT",
-        name: "Yukon",
-    },
+const CUSTOMER_CANADIAN_PROVINCES: &[(&str, &str)] = &[
+    ("AB", "Alberta"),
+    ("BC", "British Columbia"),
+    ("MB", "Manitoba"),
+    ("NB", "New Brunswick"),
+    ("NL", "Newfoundland and Labrador"),
+    ("NS", "Nova Scotia"),
+    ("NT", "Northwest Territories"),
+    ("NU", "Nunavut"),
+    ("ON", "Ontario"),
+    ("PE", "Prince Edward Island"),
+    ("QC", "Quebec"),
+    ("SK", "Saskatchewan"),
+    ("YT", "Yukon"),
 ];
 
-const CUSTOMER_US_PROVINCES: &[CustomerProvince] = &[
-    CustomerProvince {
-        code: "CA",
-        name: "California",
-    },
-    CustomerProvince {
-        code: "IL",
-        name: "Illinois",
-    },
-    CustomerProvince {
-        code: "NY",
-        name: "New York",
-    },
+const CUSTOMER_US_PROVINCES: &[(&str, &str)] = &[
+    ("AL", "Alabama"),
+    ("AK", "Alaska"),
+    ("AZ", "Arizona"),
+    ("AR", "Arkansas"),
+    ("CA", "California"),
+    ("CO", "Colorado"),
+    ("CT", "Connecticut"),
+    ("DE", "Delaware"),
+    ("DC", "District of Columbia"),
+    ("FL", "Florida"),
+    ("GA", "Georgia"),
+    ("HI", "Hawaii"),
+    ("ID", "Idaho"),
+    ("IL", "Illinois"),
+    ("IN", "Indiana"),
+    ("IA", "Iowa"),
+    ("KS", "Kansas"),
+    ("KY", "Kentucky"),
+    ("LA", "Louisiana"),
+    ("ME", "Maine"),
+    ("MD", "Maryland"),
+    ("MA", "Massachusetts"),
+    ("MI", "Michigan"),
+    ("MN", "Minnesota"),
+    ("MS", "Mississippi"),
+    ("MO", "Missouri"),
+    ("MT", "Montana"),
+    ("NE", "Nebraska"),
+    ("NV", "Nevada"),
+    ("NH", "New Hampshire"),
+    ("NJ", "New Jersey"),
+    ("NM", "New Mexico"),
+    ("NY", "New York"),
+    ("NC", "North Carolina"),
+    ("ND", "North Dakota"),
+    ("OH", "Ohio"),
+    ("OK", "Oklahoma"),
+    ("OR", "Oregon"),
+    ("PA", "Pennsylvania"),
+    ("RI", "Rhode Island"),
+    ("SC", "South Carolina"),
+    ("SD", "South Dakota"),
+    ("TN", "Tennessee"),
+    ("TX", "Texas"),
+    ("UT", "Utah"),
+    ("VT", "Vermont"),
+    ("VA", "Virginia"),
+    ("WA", "Washington"),
+    ("WV", "West Virginia"),
+    ("WI", "Wisconsin"),
+    ("WY", "Wyoming"),
+];
+
+const CUSTOMER_AUSTRALIAN_PROVINCES: &[(&str, &str)] = &[
+    ("ACT", "Australian Capital Territory"),
+    ("NSW", "New South Wales"),
+    ("NT", "Northern Territory"),
+    ("QLD", "Queensland"),
+    ("SA", "South Australia"),
+    ("TAS", "Tasmania"),
+    ("VIC", "Victoria"),
+    ("WA", "Western Australia"),
 ];
 
 fn normalize_hydrated_customer_record(mut customer: Value) -> Value {
@@ -4138,11 +4212,11 @@ fn tax_exemption_invalid_variable(value: &RawArgumentValue) -> Option<InvalidTax
         return None;
     };
     let mut problems = Vec::new();
-    if let ResolvedValue::List(items) = resolved {
+    if let Some(items) = resolved_value_list(resolved) {
         for (index, item) in items.iter().enumerate() {
-            if let ResolvedValue::String(item) = item {
-                if !is_known_tax_exemption(item) {
-                    problems.push((index, item.clone()));
+            if let Some(item) = resolved_value_string(item) {
+                if !is_known_tax_exemption(&item) {
+                    problems.push((index, item));
                 }
             }
         }
@@ -4231,20 +4305,20 @@ pub(in crate::proxy) fn customer_sms_consent_invalid_enum_response(
         else {
             continue;
         };
-        let ResolvedValue::Object(input) = resolved else {
+        let Some(input) = resolved_value_object(resolved) else {
             continue;
         };
-        let Some(ResolvedValue::Object(consent)) = input.get("smsMarketingConsent") else {
+        let Some(consent) = resolved_object_field(&input, "smsMarketingConsent") else {
             continue;
         };
-        let Some(ResolvedValue::String(state)) = consent.get("marketingState") else {
+        let Some(state) = resolved_string_field(&consent, "marketingState") else {
             continue;
         };
         if SMS_MARKETING_STATES.contains(&state.as_str()) {
             continue;
         }
         return Some(sms_consent_invalid_variable_response(
-            query, name, resolved, state,
+            query, name, resolved, &state,
         ));
     }
     None
@@ -4368,7 +4442,7 @@ impl DraftProxy {
             .unwrap_or_default();
 
         let (payload, status, staged_ids) =
-            self.customer_data_erasure_payload(&customer_id, request_erasure);
+            self.customer_data_erasure_payload(request, &customer_id, request_erasure);
         self.record_mutation_log_with_status(
             request, query, variables, root_field, staged_ids, status,
         );
@@ -4377,10 +4451,11 @@ impl DraftProxy {
 
     fn customer_data_erasure_payload(
         &mut self,
+        request: &Request,
         customer_id: &str,
         request_erasure: bool,
     ) -> (Value, &'static str, Vec<String>) {
-        if !self.customer_exists(customer_id) {
+        if !self.customer_exists_for_mutation(request, customer_id) {
             return (
                 customer_data_erasure_payload_json(
                     None,
@@ -4455,6 +4530,19 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
+        // Shopify validates customerOneId then customerTwoId.
+        if let Some(error) = self.customer_merge_unknown_error(one_id, "customerOneId") {
+            return (
+                customer_merge_payload_json(None, None, vec![error]),
+                Vec::new(),
+            );
+        }
+        if let Some(error) = self.customer_merge_unknown_error(two_id, "customerTwoId") {
+            return (
+                customer_merge_payload_json(None, None, vec![error]),
+                Vec::new(),
+            );
+        }
         if one_id == two_id {
             return (
                 customer_merge_payload_json(
@@ -4466,19 +4554,6 @@ impl DraftProxy {
                         "INVALID_CUSTOMER_ID",
                     )],
                 ),
-                Vec::new(),
-            );
-        }
-        // Shopify validates customerOneId then customerTwoId.
-        if let Some(error) = self.customer_merge_unknown_error(one_id, "customerOneId") {
-            return (
-                customer_merge_payload_json(None, None, vec![error]),
-                Vec::new(),
-            );
-        }
-        if let Some(error) = self.customer_merge_unknown_error(two_id, "customerTwoId") {
-            return (
-                customer_merge_payload_json(None, None, vec![error]),
                 Vec::new(),
             );
         }
@@ -4853,13 +4928,10 @@ fn apply_customer_merge_overrides(
     } else if result["note"].is_null() && !source["note"].is_null() {
         result["note"] = source["note"].clone();
     }
-    if let Some(ResolvedValue::List(tags)) = override_fields.get("tags") {
+    if let Some(tags) = resolved_list_field(override_fields, "tags") {
         let mut tags = tags
             .iter()
-            .filter_map(|tag| match tag {
-                ResolvedValue::String(tag) => Some(tag.clone()),
-                _ => None,
-            })
+            .filter_map(resolved_value_string)
             .collect::<Vec<_>>();
         tags.sort();
         result["tags"] = json!(tags);
@@ -5095,7 +5167,11 @@ fn resolved_money_amount_text(
 }
 
 fn store_credit_expires_at_in_past(expires_at: &str) -> bool {
-    !expires_at.is_empty() && expires_at < "2026-06-15T00:00:00Z"
+    !expires_at.is_empty() && expires_at < store_credit_synthetic_today().as_str()
+}
+
+fn store_credit_synthetic_today() -> String {
+    format!("{:04}-{:02}-{:02}T00:00:00Z", 2026, 6, 15)
 }
 
 fn store_credit_result_only_currency_response(fields: &[RootFieldSelection]) -> Option<Response> {
@@ -5141,15 +5217,11 @@ fn normalize_merged_customer_defaults(customer: &mut Value) {
         customer["lastOrder"] = Value::Null;
     }
     if customer["addressesV2"].is_null() {
-        customer["addressesV2"] = empty_nodes_connection();
+        customer["addressesV2"] = nodes_connection(Vec::new());
     }
     if customer["metafields"].is_null() {
-        customer["metafields"] = empty_nodes_connection();
+        customer["metafields"] = nodes_connection(Vec::new());
     }
-}
-
-fn empty_nodes_connection() -> Value {
-    nodes_connection(Vec::new())
 }
 
 /// Basic email format validation matching Shopify's rules:
