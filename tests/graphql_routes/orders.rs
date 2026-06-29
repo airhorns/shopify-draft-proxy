@@ -8188,6 +8188,278 @@ fn order_edit_user_error_messages_match_shopify_i18n_strings() {
 }
 
 #[test]
+fn order_edit_commit_success_messages_reflect_notify_customer_and_balance() {
+    fn commit_messages(order_input: Value, notify_customer: Option<bool>) -> Value {
+        let mut proxy = snapshot_proxy();
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CreateOrderEditSuccessMessageOrder($order: OrderCreateOrderInput!) {
+              orderCreate(order: $order) {
+                order {
+                  id
+                  totalOutstandingSet {
+                    shopMoney { amount currencyCode }
+                  }
+                }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "order": order_input }),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+        let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+        let begin = proxy.process_request(json_graphql_request(
+            r#"
+            mutation BeginOrderEditForSuccessMessages($id: ID!) {
+              orderEditBegin(id: $id) {
+                calculatedOrder { id }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "id": order_id }),
+        ));
+        assert_eq!(
+            begin.body["data"]["orderEditBegin"]["userErrors"],
+            json!([])
+        );
+        let calculated_order_id =
+            begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+
+        let commit = match notify_customer {
+            Some(notify_customer) => proxy.process_request(json_graphql_request(
+                r#"
+                mutation CommitOrderEditForSuccessMessages($id: ID!, $notifyCustomer: Boolean!) {
+                  orderEditCommit(id: $id, notifyCustomer: $notifyCustomer) {
+                    order {
+                      id
+                      totalOutstandingSet {
+                        shopMoney { amount currencyCode }
+                      }
+                    }
+                    successMessages
+                    userErrors { field message }
+                  }
+                }
+                "#,
+                json!({ "id": calculated_order_id, "notifyCustomer": notify_customer }),
+            )),
+            None => proxy.process_request(json_graphql_request(
+                r#"
+                mutation CommitOrderEditForSuccessMessages($id: ID!) {
+                  orderEditCommit(id: $id) {
+                    order {
+                      id
+                      totalOutstandingSet {
+                        shopMoney { amount currencyCode }
+                      }
+                    }
+                    successMessages
+                    userErrors { field message }
+                  }
+                }
+                "#,
+                json!({ "id": calculated_order_id }),
+            )),
+        };
+        assert_eq!(
+            commit.body["data"]["orderEditCommit"]["userErrors"],
+            json!([])
+        );
+        commit.body["data"]["orderEditCommit"]["successMessages"].clone()
+    }
+
+    let paid_order = json!({
+        "email": "order-edit-paid-message@example.test",
+        "currency": "USD",
+        "lineItems": [{
+            "title": "Paid edit message line",
+            "quantity": 1,
+            "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+        }],
+        "transactions": [{
+            "kind": "SALE",
+            "status": "SUCCESS",
+            "gateway": "manual",
+            "amountSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+        }]
+    });
+    assert_eq!(
+        commit_messages(paid_order.clone(), None),
+        json!(["Order updated"])
+    );
+    assert_eq!(
+        commit_messages(paid_order, Some(false)),
+        json!(["Order updated"])
+    );
+
+    let fully_paid_notify_order = json!({
+        "email": "order-edit-notification-message@example.test",
+        "currency": "USD",
+        "lineItems": [{
+            "title": "Notification edit message line",
+            "quantity": 1,
+            "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+        }],
+        "transactions": [{
+            "kind": "SALE",
+            "status": "SUCCESS",
+            "gateway": "manual",
+            "amountSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+        }]
+    });
+    assert_eq!(
+        commit_messages(fully_paid_notify_order, Some(true)),
+        json!(["Order updated", "Notification sent"])
+    );
+
+    let balance_due_notify_order = json!({
+        "email": "order-edit-invoice-message@example.test",
+        "currency": "USD",
+        "financialStatus": "PENDING",
+        "lineItems": [{
+            "title": "Invoice edit message line",
+            "quantity": 1,
+            "priceSet": { "shopMoney": { "amount": "14.00", "currencyCode": "USD" } }
+        }]
+    });
+    assert_eq!(
+        commit_messages(balance_due_notify_order, Some(true)),
+        json!(["Order updated", "Invoice sent"])
+    );
+}
+
+#[test]
+fn order_edit_commit_success_messages_include_unarchived_before_notify_message() {
+    let upstream_calls = Arc::new(AtomicUsize::new(0));
+    let upstream_calls_for_transport = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |_request| {
+        upstream_calls_for_transport.fetch_add(1, Ordering::SeqCst);
+        Response {
+            status: 599,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "unexpected upstream call" }] }),
+        }
+    });
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateClosedOrderEditSuccessMessageOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id closed closedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "order-edit-unarchive-message@example.test",
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "Unarchive edit message line",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "16.00", "currencyCode": "USD" } }
+                }],
+                "transactions": [{
+                    "kind": "SALE",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": { "shopMoney": { "amount": "16.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let close = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CloseOrderBeforeEditCommit($id: ID!) {
+          orderClose(input: { id: $id }) {
+            order { id closed closedAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": order_id.clone() }),
+    ));
+    assert_eq!(close.body["data"]["orderClose"]["userErrors"], json!([]));
+    assert_eq!(
+        close.body["data"]["orderClose"]["order"]["closed"],
+        json!(true)
+    );
+
+    let begin = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BeginClosedOrderEditForSuccessMessages($id: ID!) {
+          orderEditBegin(id: $id) {
+            calculatedOrder { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(
+        begin.body["data"]["orderEditBegin"]["userErrors"],
+        json!([])
+    );
+    let calculated_order_id = begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+
+    let commit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CommitClosedOrderEditForSuccessMessages($id: ID!) {
+          orderEditCommit(id: $id, notifyCustomer: true) {
+            order { id closed closedAt }
+            successMessages
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": calculated_order_id }),
+    ));
+    assert_eq!(
+        commit.body["data"]["orderEditCommit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        commit.body["data"]["orderEditCommit"]["order"]["closed"],
+        json!(false)
+    );
+    assert_eq!(
+        commit.body["data"]["orderEditCommit"]["order"]["closedAt"],
+        Value::Null
+    );
+    assert_eq!(
+        commit.body["data"]["orderEditCommit"]["successMessages"],
+        json!(["Order updated", "Order unarchived", "Notification sent"])
+    );
+    assert_eq!(upstream_calls.load(Ordering::SeqCst), 0);
+
+    let log = log_snapshot(&proxy);
+    let entries = log["entries"].as_array().expect("log entries");
+    let commit_entry = entries
+        .iter()
+        .find(|entry| entry["interpreted"]["primaryRootField"] == "orderEditCommit")
+        .expect("commit log entry");
+    assert_eq!(commit_entry["status"], json!("staged"));
+    assert_eq!(
+        commit_entry["stagedResourceIds"],
+        json!([commit.body["data"]["orderEditCommit"]["order"]["id"].clone()])
+    );
+    assert!(commit_entry["rawBody"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("CommitClosedOrderEditForSuccessMessages"));
+}
+
+#[test]
 fn order_edit_existing_fixed_id_unstaged_calculated_order_returns_user_error() {
     let mut proxy = snapshot_proxy();
     // `orderEditAddVariant`/`orderEditSetQuantity` are gated local-support roots;

@@ -997,6 +997,31 @@ pub(in crate::proxy) fn order_edit_order_is_not_editable(order: &Value) -> bool 
     )
 }
 
+pub(in crate::proxy) fn order_edit_order_is_closed(order: &Value) -> bool {
+    order["closed"].as_bool().unwrap_or(false) || order["closedAt"].is_string()
+}
+
+pub(in crate::proxy) fn order_edit_commit_success_messages(
+    order: &Value,
+    notify_customer: bool,
+    order_unarchived: bool,
+) -> Value {
+    let mut messages = vec![json!("Order updated")];
+    if order_unarchived {
+        messages.push(json!("Order unarchived"));
+    }
+    if notify_customer {
+        let notify_message = if order_money_amount_value(&order["totalOutstandingSet"]) > 0.000_001
+        {
+            "Invoice sent"
+        } else {
+            "Notification sent"
+        };
+        messages.push(json!(notify_message));
+    }
+    Value::Array(messages)
+}
+
 pub(in crate::proxy) fn order_connection(nodes: Vec<Value>) -> Value {
     let start_cursor = nodes
         .first()
@@ -2979,7 +3004,12 @@ impl DraftProxy {
         // without a seed. The author is left unresolved here (event message
         // null); the parity spec excludes the un-reproducible message text.
         let author = self.store.staged.order_edit_author.clone();
+        let order_unarchived = order_edit_order_is_closed(&base);
         let committed = oe_commit_order(&base, &session, author.as_deref());
+        let notify_customer =
+            resolved_bool_field(&field.arguments, "notifyCustomer").unwrap_or(false);
+        let success_messages =
+            order_edit_commit_success_messages(&committed, notify_customer, order_unarchived);
         if let Some(order_id) = committed["id"].as_str() {
             self.store
                 .staged
@@ -3001,7 +3031,7 @@ impl DraftProxy {
             selected_json(
                 &json!({
                     "order": committed,
-                    "successMessages": ["Order updated"],
+                    "successMessages": success_messages,
                     "userErrors": []
                 }),
                 &field.selection,
