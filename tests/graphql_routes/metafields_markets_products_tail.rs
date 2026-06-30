@@ -560,7 +560,7 @@ fn singular_metafield_delete_removes_staged_owner_metafields_by_id() {
     assert_eq!(missing.body["data"]["remove"]["deletedId"], Value::Null);
     assert_eq!(
         missing.body["data"]["remove"]["userErrors"],
-        json!([{"field": ["id"], "message": "Metafield does not exist."}])
+        json!([{"field": ["id"], "message": "Metafield does not exist"}])
     );
     assert!(!missing.body["data"]["remove"]["userErrors"][0]
         .as_object()
