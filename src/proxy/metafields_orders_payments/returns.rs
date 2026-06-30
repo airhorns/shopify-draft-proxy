@@ -149,6 +149,7 @@ fn build_return_line_item(
     let quantity = resolved_int_field(item, "quantity").unwrap_or(0);
     let reason = resolved_string_field(item, "returnReason").unwrap_or_else(|| "OTHER".to_string());
     let reason_note = resolved_string_field(item, "returnReasonNote").unwrap_or_default();
+    let customer_note = resolved_nullable_string_field(item, "customerNote");
     let line_item = if fulfillment_line_item["lineItem"].is_object() {
         fulfillment_line_item["lineItem"].clone()
     } else {
@@ -164,7 +165,7 @@ fn build_return_line_item(
         "unprocessedQuantity": quantity,
         "returnReason": reason,
         "returnReasonNote": reason_note,
-        "customerNote": Value::Null,
+        "customerNote": customer_note,
         "fulfillmentLineItem": {
             "id": fulfillment_line_item["id"].clone(),
             "lineItem": line_item

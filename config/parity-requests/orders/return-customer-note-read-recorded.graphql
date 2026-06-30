@@ -1,0 +1,17 @@
+query ReturnCustomerNoteReadRecorded($returnId: ID!) {
+  return(id: $returnId) {
+    id
+    name
+    status
+    totalQuantity
+    returnLineItems(first: 5) {
+      nodes {
+        id
+        quantity
+        processedQuantity
+        unprocessedQuantity
+        customerNote
+      }
+    }
+  }
+}

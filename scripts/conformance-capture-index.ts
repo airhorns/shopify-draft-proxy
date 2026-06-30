@@ -206,14 +206,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-company-location-tax-settings-sequential-conformance.mts',
     purpose:
-      'B2B companyLocationTaxSettingsUpdate exemption assign/remove set math, omitted taxExempt preservation, and taxSettings read-after-write.',
+      'B2B companyLocationTaxSettingsUpdate registration-only updates, no-knob no-ops, exemption assign/remove set math, omitted taxExempt preservation, and taxSettings read-after-write.',
     requiredAuthScopes: ['read_companies', 'write_companies'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}b2b-company-location-tax-settings-sequential.json`,
       'config/parity-specs/b2b/b2b-company-location-tax-settings-sequential.json',
     ],
     cleanupBehavior:
-      'Creates one disposable B2B company/location, records tax settings updates and reads, then deletes the company during cleanup.',
+      'Creates one disposable B2B company/location, records registration-only, no-knob, and exemption tax settings updates and reads, then deletes the company during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -1219,6 +1219,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'Live public Admin GraphQL 2026-04 and unstable expose plural metafieldsDelete but not singular metafieldDelete, so the singular compatibility alias is covered by local-runtime parity plus live plural-root evidence.',
+  },
+  {
+    domain: 'metafields',
+    captureId: 'metafield-delete-not-found-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-delete-not-found-local-runtime.ts',
+    purpose:
+      'Executable local-runtime parity for singular metafieldDelete happy, repeat-delete, and never-created not-found payloads.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      'fixtures/conformance/local-runtime/2026-04/metafield-definitions/metafield-delete-not-found.json',
+      'config/parity-specs/metafield-definitions/metafield-delete-not-found.json',
+      'config/parity-requests/metafield-definitions/metafield-delete-not-found-setup.graphql',
+      'config/parity-requests/metafield-definitions/metafield-delete-by-id.graphql',
+    ],
+    cleanupBehavior: 'Local-runtime only; supported mutations stage locally and no Shopify cleanup is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Live public Admin GraphQL exposes plural metafieldsDelete but not singular metafieldDelete, so this compatibility-root not-found branch is local-runtime-backed.',
   },
   {
     domain: 'products',
@@ -3948,6 +3967,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates two disposable tracked products, records all-zero and mixed zero/non-zero adjust calls, then deletes both products.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
+    captureId: 'inventory-adjust-ledger-document-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-inventory-adjust-ledger-document-validation-conformance.ts',
+    purpose:
+      'inventoryAdjustQuantities ledgerDocumentUri validation for required, forbidden, internal-gid, max-one-document, and valid non-available branches.',
+    requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-adjust-ledger-document-validation.json`,
+      'config/parity-specs/products/inventory-adjust-ledger-document-validation.json',
+      'config/parity-requests/products/inventory-adjust-ledger-document-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable tracked products, records ledger document validation branches and one valid incoming adjustment, then deletes both products.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -7478,6 +7514,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'draft-orders',
+    captureId: 'draft-order-invoice-send-status-transition',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-draft-order-invoice-send-status-transition-conformance.ts',
+    purpose:
+      'Successful draftOrderInvoiceSend status and invoiceSentAt transition plus immediate draftOrder read-after-write.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draft-order-invoice-send-status-transition.json`,
+      'config/parity-specs/orders/draftOrderInvoiceSend-status-transition.json',
+      'config/parity-requests/orders/draftOrderInvoiceSend-status-transition-create.graphql',
+      'config/parity-requests/orders/draftOrderInvoiceSend-status-transition-send.graphql',
+      'config/parity-requests/orders/draftOrderInvoiceSend-status-transition-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft order with a reserved example.com recipient, records successful invoice send and read-back, then deletes the draft order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
     captureId: 'draft-order-invoice-send-invoice-errors-local-runtime',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-draft-order-invoice-send-invoice-errors-local-runtime.ts',
@@ -9462,6 +9517,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates and fulfills a disposable order, records returnCreate shipping-fee evidence and downstream reads, then cancels and deletes the order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'return-customer-note',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-return-customer-note-conformance.mts',
+    purpose:
+      'returnRequest ReturnRequestLineItemInput.customerNote mutation payload echo and read-after-write ReturnLineItem.customerNote behavior.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}return-customer-note-recorded.json`,
+      'config/parity-specs/orders/return-request-customer-note-recorded.json',
+      'config/parity-requests/orders/return-request-customer-note-recorded.graphql',
+      'config/parity-requests/orders/return-customer-note-read-recorded.graphql',
+    ],
+    cleanupBehavior:
+      'Creates and fulfills a disposable custom-line order, records returnRequest customerNote evidence and downstream return(id:) readback, then cancels and deletes the order.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

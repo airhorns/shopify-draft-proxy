@@ -25,12 +25,14 @@ fn b2b_tax_settings_update_tail_helpers_port_old_gleam_tests() {
     assert_eq!(
         required_and_nullable.body["data"]["emptyInput"],
         json!({
-            "companyLocation": Value::Null,
-            "userErrors": [{
-                "field": ["companyLocationId"],
-                "message": "No tax settings input was provided",
-                "code": "NO_INPUT"
-            }]
+            "companyLocation": {
+                "id": location_id,
+                "taxSettings": {
+                    "taxExempt": true,
+                    "taxExemptions": []
+                }
+            },
+            "userErrors": []
         })
     );
     assert_eq!(
@@ -152,6 +154,124 @@ fn b2b_tax_settings_update_tail_helpers_port_old_gleam_tests() {
         .any(|entry| entry["status"] == json!("staged")
             && entry["interpreted"]["primaryRootField"]
                 == json!("companyLocationTaxSettingsUpdate")));
+}
+
+#[test]
+fn b2b_tax_settings_update_registration_only_and_no_knobs_are_successful() {
+    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+    let mut proxy = snapshot_proxy();
+
+    let no_knobs = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BTaxSettingsNoKnobs($locationId: ID!) {
+          companyLocationTaxSettingsUpdate(companyLocationId: $locationId) {
+            companyLocation {
+              id
+              taxSettings {
+                taxRegistrationId
+                taxExempt
+                taxExemptions
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(no_knobs.status, 200);
+    assert_eq!(
+        no_knobs.body["data"]["companyLocationTaxSettingsUpdate"],
+        json!({
+            "companyLocation": {
+                "id": location_id,
+                "taxSettings": {
+                    "taxRegistrationId": Value::Null,
+                    "taxExempt": true,
+                    "taxExemptions": []
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let registration_only = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BTaxSettingsRegistrationOnly($locationId: ID!, $taxRegistrationId: String) {
+          companyLocationTaxSettingsUpdate(
+            companyLocationId: $locationId,
+            taxRegistrationId: $taxRegistrationId
+          ) {
+            companyLocation {
+              id
+              taxSettings {
+                taxRegistrationId
+                taxExempt
+                taxExemptions
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id, "taxRegistrationId": "VAT-123" }),
+    ));
+    assert_eq!(registration_only.status, 200);
+    assert_eq!(
+        registration_only.body["data"]["companyLocationTaxSettingsUpdate"],
+        json!({
+            "companyLocation": {
+                "id": location_id,
+                "taxSettings": {
+                    "taxRegistrationId": "VAT-123",
+                    "taxExempt": true,
+                    "taxExemptions": []
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let read_after_write = proxy.process_request(json_graphql_request(
+        r#"
+        query RustB2BTaxSettingsRegistrationRead($locationId: ID!) {
+          companyLocation(id: $locationId) {
+            id
+            taxSettings {
+              taxRegistrationId
+              taxExempt
+              taxExemptions
+            }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(read_after_write.status, 200);
+    assert_eq!(
+        read_after_write.body["data"]["companyLocation"],
+        json!({
+            "id": location_id,
+            "taxSettings": {
+                "taxRegistrationId": "VAT-123",
+                "taxExempt": true,
+                "taxExemptions": []
+            }
+        })
+    );
+
+    let log = log_snapshot(&proxy);
+    let staged_tax_updates = log["entries"]
+        .as_array()
+        .expect("log entries")
+        .iter()
+        .filter(|entry| {
+            entry["status"] == json!("staged")
+                && entry["interpreted"]["primaryRootField"]
+                    == json!("companyLocationTaxSettingsUpdate")
+        })
+        .count();
+    assert_eq!(staged_tax_updates, 2);
 }
 
 #[test]

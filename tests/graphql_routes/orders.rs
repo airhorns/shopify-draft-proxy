@@ -361,6 +361,161 @@ fn stage_requested_return_for_removal(proxy: &mut DraftProxy) -> ReturnRemovalSe
     return_removal_setup_from_payload(order_id, &response.body["data"]["returnRequest"])
 }
 
+fn read_return_line_customer_note(proxy: &mut DraftProxy, return_id: Value) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+            query ReadReturnLineCustomerNote($id: ID!) {
+              return(id: $id) {
+                id
+                returnLineItems(first: 5) {
+                  nodes { id quantity customerNote }
+                }
+              }
+            }
+            "#,
+            json!({ "id": return_id }),
+        ))
+        .body["data"]["return"]
+        .clone()
+}
+
+#[test]
+fn return_create_and_request_persist_line_item_customer_note_for_read_after_write() {
+    let mut request_proxy = snapshot_proxy();
+    let (request_order_id, request_fulfillment_line_item_id) =
+        stage_fulfilled_order_for_return(&mut request_proxy);
+    let request = request_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RequestReturnWithCustomerNote($input: ReturnRequestInput!) {
+          returnRequest(input: $input) {
+            return {
+              id
+              status
+              returnLineItems(first: 5) {
+                nodes { id quantity customerNote }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "orderId": request_order_id,
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": request_fulfillment_line_item_id,
+                    "quantity": 1,
+                    "returnReason": "DEFECTIVE",
+                    "customerNote": "Screen arrived cracked"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(request.status, 200);
+    assert_eq!(
+        request.body["data"]["returnRequest"]["userErrors"],
+        json!([])
+    );
+    let requested_return = &request.body["data"]["returnRequest"]["return"];
+    assert_eq!(requested_return["status"], json!("REQUESTED"));
+    assert_eq!(
+        requested_return["returnLineItems"]["nodes"][0]["customerNote"],
+        json!("Screen arrived cracked")
+    );
+
+    let requested_read =
+        read_return_line_customer_note(&mut request_proxy, requested_return["id"].clone());
+    assert_eq!(
+        requested_read["returnLineItems"]["nodes"][0]["customerNote"],
+        json!("Screen arrived cracked")
+    );
+
+    let (omitted_order_id, omitted_fulfillment_line_item_id) =
+        stage_fulfilled_order_for_return(&mut request_proxy);
+    let omitted = request_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RequestReturnWithoutCustomerNote($input: ReturnRequestInput!) {
+          returnRequest(input: $input) {
+            return {
+              id
+              returnLineItems(first: 5) {
+                nodes { id quantity customerNote }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "orderId": omitted_order_id,
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": omitted_fulfillment_line_item_id,
+                    "quantity": 1,
+                    "returnReason": "DEFECTIVE"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(omitted.status, 200);
+    assert_eq!(
+        omitted.body["data"]["returnRequest"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        omitted.body["data"]["returnRequest"]["return"]["returnLineItems"]["nodes"][0]
+            ["customerNote"],
+        Value::Null
+    );
+
+    let mut create_proxy = snapshot_proxy();
+    let (create_order_id, create_fulfillment_line_item_id) =
+        stage_fulfilled_order_for_return(&mut create_proxy);
+    let create = create_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReturnWithCustomerNote($returnInput: ReturnInput!) {
+          returnCreate(returnInput: $returnInput) {
+            return {
+              id
+              status
+              returnLineItems(first: 5) {
+                nodes { id quantity customerNote }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "returnInput": {
+                "orderId": create_order_id,
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": create_fulfillment_line_item_id,
+                    "quantity": 1,
+                    "returnReason": "DEFECTIVE",
+                    "customerNote": "Box was dented"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["returnCreate"]["userErrors"], json!([]));
+    let created_return = &create.body["data"]["returnCreate"]["return"];
+    assert_eq!(created_return["status"], json!("OPEN"));
+    assert_eq!(
+        created_return["returnLineItems"]["nodes"][0]["customerNote"],
+        json!("Box was dented")
+    );
+
+    let created_read =
+        read_return_line_customer_note(&mut create_proxy, created_return["id"].clone());
+    assert_eq!(
+        created_read["returnLineItems"]["nodes"][0]["customerNote"],
+        json!("Box was dented")
+    );
+}
+
 fn remove_from_return_for_test(
     proxy: &mut DraftProxy,
     return_id: Value,
@@ -8023,6 +8178,194 @@ fn refund_create_user_errors_do_not_fall_back_to_not_implemented_or_stage_state(
     let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().expect("log entries").len(), 1);
     assert_eq!(log["entries"][0]["operationName"], json!("orderCreate"));
+}
+
+#[test]
+fn draft_order_invoice_send_success_marks_invoice_sent_and_read_back_matches() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDraftForInvoiceSend {
+          draftOrderCreate(input: {
+            lineItems: [{ title: "Invoice transition item", quantity: 1, originalUnitPrice: "1.00" }]
+          }) {
+            draftOrder { id status invoiceSentAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    let draft_order_id = create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["draftOrder"]["status"],
+        json!("OPEN")
+    );
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["draftOrder"]["invoiceSentAt"],
+        Value::Null
+    );
+
+    let send = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SendDraftInvoice($id: ID!, $email: EmailInput) {
+          draftOrderInvoiceSend(id: $id, email: $email) {
+            draftOrder { id status invoiceSentAt }
+            userErrors { field message }
+            invoiceErrors { code message }
+          }
+        }
+        "#,
+        json!({
+            "id": draft_order_id,
+            "email": {
+                "to": "buyer@example.com",
+                "subject": "Draft invoice",
+                "customMessage": "Thanks for the order"
+            }
+        }),
+    ));
+    assert_eq!(send.status, 200);
+    let sent_draft = &send.body["data"]["draftOrderInvoiceSend"]["draftOrder"];
+    assert_eq!(sent_draft["status"], json!("INVOICE_SENT"));
+    let invoice_sent_at = sent_draft["invoiceSentAt"]
+        .as_str()
+        .expect("invoiceSentAt should be synthesized")
+        .to_string();
+    assert!(!invoice_sent_at.is_empty());
+    assert_eq!(
+        send.body["data"]["draftOrderInvoiceSend"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        send.body["data"]["draftOrderInvoiceSend"]["invoiceErrors"],
+        json!([])
+    );
+
+    let read_back = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadSentDraft($id: ID!) {
+          draftOrder(id: $id) { id status invoiceSentAt }
+        }
+        "#,
+        json!({ "id": sent_draft["id"] }),
+    ));
+    assert_eq!(read_back.status, 200);
+    let read_draft = &read_back.body["data"]["draftOrder"];
+    assert_eq!(read_draft["status"], json!("INVOICE_SENT"));
+    assert_eq!(read_draft["invoiceSentAt"], json!(invoice_sent_at));
+
+    let log = log_snapshot(&proxy);
+    let entries = log["entries"]
+        .as_array()
+        .expect("invoice send should write mutation log entries");
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[1]["operationName"], json!("draftOrderInvoiceSend"));
+    assert_eq!(entries[1]["status"], json!("staged"));
+}
+
+#[test]
+fn draft_order_invoice_send_validation_branches_do_not_mark_invoice_sent() {
+    let mut missing_recipient_proxy = snapshot_proxy();
+    let missing_create = missing_recipient_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDraftMissingRecipient {
+          draftOrderCreate(input: {
+            lineItems: [{ title: "Missing recipient item", quantity: 1, originalUnitPrice: "1.00" }]
+          }) {
+            draftOrder { id status invoiceSentAt }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let missing_draft_id =
+        missing_create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+    let missing_send = missing_recipient_proxy.process_request(json_graphql_request(
+        r#"
+        mutation SendWithoutRecipient($id: ID!) {
+          draftOrderInvoiceSend(id: $id) {
+            draftOrder { id status invoiceSentAt }
+            userErrors { field message }
+            invoiceErrors { code message }
+          }
+        }
+        "#,
+        json!({ "id": missing_draft_id }),
+    ));
+    let missing_payload = &missing_send.body["data"]["draftOrderInvoiceSend"];
+    assert_eq!(missing_payload["draftOrder"]["status"], json!("OPEN"));
+    assert_eq!(missing_payload["draftOrder"]["invoiceSentAt"], Value::Null);
+    assert_eq!(
+        missing_payload["userErrors"][0]["message"],
+        json!("To can't be blank")
+    );
+    assert_eq!(
+        missing_payload["invoiceErrors"][0]["code"],
+        json!("CUSTOMER_NO_EMAIL")
+    );
+
+    let mut completed_proxy = snapshot_proxy();
+    let completed_create = completed_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDraftForCompletedGuard {
+          draftOrderCreate(input: {
+            email: "buyer@example.com",
+            lineItems: [{ title: "Completed guard item", quantity: 1, originalUnitPrice: "1.00" }]
+          }) {
+            draftOrder { id status invoiceSentAt }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let completed_draft_id =
+        completed_create.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+    let complete = completed_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CompleteDraftForInvoiceGuard($id: ID!) {
+          draftOrderComplete(id: $id) {
+            draftOrder { id status invoiceSentAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": completed_draft_id }),
+    ));
+    assert_eq!(
+        complete.body["data"]["draftOrderComplete"]["draftOrder"]["status"],
+        json!("COMPLETED")
+    );
+    assert_eq!(
+        complete.body["data"]["draftOrderComplete"]["draftOrder"]["invoiceSentAt"],
+        Value::Null
+    );
+
+    let paid_send = completed_proxy.process_request(json_graphql_request(
+        r#"
+        mutation SendCompletedDraftInvoice($id: ID!, $email: EmailInput) {
+          draftOrderInvoiceSend(id: $id, email: $email) {
+            draftOrder { id status invoiceSentAt }
+            userErrors { field message }
+            invoiceErrors { code message }
+          }
+        }
+        "#,
+        json!({
+            "id": completed_draft_id,
+            "email": { "to": "buyer@example.com" }
+        }),
+    ));
+    let paid_payload = &paid_send.body["data"]["draftOrderInvoiceSend"];
+    assert_eq!(paid_payload["draftOrder"]["status"], json!("COMPLETED"));
+    assert_eq!(paid_payload["draftOrder"]["invoiceSentAt"], Value::Null);
+    assert_eq!(
+        paid_payload["userErrors"][0]["message"],
+        json!("Draft order Invoice can't be sent. This draft order is already paid.")
+    );
+    assert_eq!(paid_payload["invoiceErrors"], json!([]));
 }
 
 #[test]
