@@ -7,6 +7,10 @@ import {
   renderCaptureIndexMarkdown,
   validateCaptureIndexAgainstScriptFiles,
 } from '../../scripts/conformance-capture-index.js';
+import {
+  findProductsProvenanceFailures,
+  validateProductsParitySpecEvidence,
+} from '../../scripts/protected-evidence-invariants.js';
 
 const repoRoot = new URL('../..', import.meta.url).pathname;
 
@@ -69,5 +73,58 @@ describe('conformance capture index', () => {
       profile.orphanedFixturePaths,
       'every checked-in live Shopify fixture under fixtures/conformance/**/*.json must be declared by a capture index fixtureOutputs entry',
     ).toEqual([]);
+  });
+
+  it('rejects descriptor and local-runtime products evidence in strict parity specs', () => {
+    const strictSpec = {
+      scenarioStatus: 'captured',
+      comparisonMode: 'captured-vs-proxy-request',
+      liveCaptureFiles: [
+        'fixtures/conformance/local-runtime/2026-04/products/product-feed-lifecycle-local-runtime.json',
+        'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json',
+      ],
+    };
+
+    const failures = validateProductsParitySpecEvidence(
+      'config/parity-specs/products/example.json',
+      strictSpec,
+      () => ({
+        upstreamCalls: [
+          {
+            operationName: 'ProductsHydrateNodes',
+            variables: { ids: ['gid://shopify/Product/1'] },
+            query: 'hand-synthesized from a setup product',
+            response: { status: 200, body: { data: { nodes: [] } } },
+          },
+        ],
+      }),
+    );
+
+    expect(failures.map((failure) => failure.message)).toEqual([
+      'strict products parity spec references local-runtime fixture fixtures/conformance/local-runtime/2026-04/products/product-feed-lifecycle-local-runtime.json; use captured-fixture/local-runtime-backed metadata instead',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json: upstreamCalls[0].query is not a valid GraphQL document: "hand-synthesized from a setup product"',
+    ]);
+  });
+
+  it('allows local-runtime products evidence when the spec is explicitly runtime-fixture backed', () => {
+    const failures = validateProductsParitySpecEvidence(
+      'config/parity-specs/products/example.json',
+      {
+        scenarioStatus: 'captured',
+        comparisonMode: 'captured-fixture',
+        liveCaptureFiles: [
+          'fixtures/conformance/local-runtime/2026-04/products/product-feed-lifecycle-local-runtime.json',
+        ],
+      },
+      () => {
+        throw new Error('fixture loader should not be called for captured-fixture specs');
+      },
+    );
+
+    expect(failures).toEqual([]);
+  });
+
+  it('keeps checked-in products strict parity free of local-runtime and descriptor cassettes', () => {
+    expect(findProductsProvenanceFailures(repoRoot)).toEqual([]);
   });
 });
