@@ -7478,6 +7478,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'draft-orders',
+    captureId: 'draft-order-invoice-send-status-transition',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-draft-order-invoice-send-status-transition-conformance.ts',
+    purpose:
+      'Successful draftOrderInvoiceSend status and invoiceSentAt transition plus immediate draftOrder read-after-write.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draft-order-invoice-send-status-transition.json`,
+      'config/parity-specs/orders/draftOrderInvoiceSend-status-transition.json',
+      'config/parity-requests/orders/draftOrderInvoiceSend-status-transition-create.graphql',
+      'config/parity-requests/orders/draftOrderInvoiceSend-status-transition-send.graphql',
+      'config/parity-requests/orders/draftOrderInvoiceSend-status-transition-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft order with a reserved example.com recipient, records successful invoice send and read-back, then deletes the draft order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
     captureId: 'draft-order-invoice-send-invoice-errors-local-runtime',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-draft-order-invoice-send-invoice-errors-local-runtime.ts',

@@ -1,0 +1,130 @@
+{
+  "scenarioId": "draft-order-invoice-send-status-transition",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "recordedAt": "2026-06-29T21:23:58.186Z",
+  "source": "live-shopify-admin-graphql",
+  "safetyPolicy": "Creates a disposable draft order with a reserved example.com recipient, sends the invoice once to capture Shopify state transition behavior, reads the draft back, then deletes the draft order during cleanup.",
+  "create": {
+    "variables": {
+      "input": {
+        "email": "draft-order-invoice-transition-20260629212356@example.com",
+        "tags": ["draft-proxy-capture", "invoice-status-transition", "20260629212356"],
+        "lineItems": [
+          {
+            "title": "Invoice status transition item 20260629212356",
+            "quantity": 1,
+            "originalUnitPrice": "1.00",
+            "requiresShipping": false,
+            "taxable": false
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "draftOrderCreate": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1273161744690",
+            "status": "OPEN",
+            "invoiceSentAt": null,
+            "email": "draft-order-invoice-transition-20260629212356@example.com",
+            "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/07607a87b9a177f24398248cff6d0d2e"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "send": {
+    "variables": {
+      "id": "gid://shopify/DraftOrder/1273161744690"
+    },
+    "response": {
+      "data": {
+        "draftOrderInvoiceSend": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1273161744690",
+            "status": "INVOICE_SENT",
+            "invoiceSentAt": "2026-06-29T21:23:57Z",
+            "email": "draft-order-invoice-transition-20260629212356@example.com",
+            "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/07607a87b9a177f24398248cff6d0d2e"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterSend": {
+    "variables": {
+      "id": "gid://shopify/DraftOrder/1273161744690"
+    },
+    "response": {
+      "data": {
+        "draftOrder": {
+          "id": "gid://shopify/DraftOrder/1273161744690",
+          "status": "INVOICE_SENT",
+          "invoiceSentAt": "2026-06-29T21:23:57Z"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "draftOrderDelete": {
+      "status": 200,
+      "response": {
+        "data": {
+          "draftOrderDelete": {
+            "deletedId": "gid://shopify/DraftOrder/1273161744690",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
