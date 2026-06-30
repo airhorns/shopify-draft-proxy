@@ -2164,9 +2164,25 @@ fn flow_trigger_receive_accepts_local_handle_and_preserves_commit_log() {
 }
 
 #[test]
-fn location_activate_limit_relocation_and_control_branches_match_local_runtime() {
+fn location_activate_limit_and_control_branches_use_store_state() {
     let mut proxy = snapshot_proxy();
-    let query = r#"
+    let add_query = r#"
+        mutation LocationActivateLimitSetupAdd($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id name isActive }
+            userErrors { field code message }
+          }
+        }
+    "#;
+    let deactivate_query = r#"
+        mutation LocationActivateLimitSetupDeactivate($locationId: ID!, $idempotencyKey: String!) {
+          locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
+            location { id isActive }
+            locationDeactivateUserErrors { field code message }
+          }
+        }
+    "#;
+    let activate_query = r#"
         mutation LocationActivateLimitAndRelocation($locationId: ID!, $idempotencyKey: String!) {
           locationActivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
             location { id isActive }
@@ -2175,30 +2191,172 @@ fn location_activate_limit_relocation_and_control_branches_match_local_runtime()
         }
     "#;
 
+    let add_location = |proxy: &mut DraftProxy, name: &str| -> String {
+        let response = proxy.process_request(json_graphql_request(
+            add_query,
+            json!({
+                "input": {
+                    "name": name,
+                    "fulfillsOnlineOrders": false,
+                    "address": {
+                        "countryCode": "US",
+                        "address1": "1 Activation Limit St",
+                        "city": "New York",
+                        "zip": "10001"
+                    }
+                }
+            }),
+        ));
+        assert_eq!(
+            response.body["data"]["locationAdd"]["userErrors"],
+            json!([])
+        );
+        response.body["data"]["locationAdd"]["location"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    };
+
+    let control_id = add_location(&mut proxy, "Activation control");
+    let deactivate_control = proxy.process_request(json_graphql_request(
+        deactivate_query,
+        json!({ "locationId": control_id.clone(), "idempotencyKey": "activate-control-deactivate" }),
+    ));
+    assert_eq!(
+        deactivate_control.body["data"]["locationDeactivate"]["locationDeactivateUserErrors"],
+        json!([])
+    );
+
+    let control = proxy.process_request(json_graphql_request(
+        activate_query,
+        json!({ "locationId": control_id.clone(), "idempotencyKey": "activate-control" }),
+    ));
+    assert_eq!(
+        control.body["data"]["locationActivate"],
+        json!({
+            "location": { "id": control.body["data"]["locationActivate"]["location"]["id"].clone(), "isActive": true },
+            "locationActivateUserErrors": []
+        })
+    );
+
+    let target_id = add_location(&mut proxy, "Activation limit target");
+    let deactivate_target = proxy.process_request(json_graphql_request(
+        deactivate_query,
+        json!({ "locationId": target_id.clone(), "idempotencyKey": "activate-limit-deactivate" }),
+    ));
+    assert_eq!(
+        deactivate_target.body["data"]["locationDeactivate"]["locationDeactivateUserErrors"],
+        json!([])
+    );
+    for index in 0..199 {
+        add_location(&mut proxy, &format!("Activation cap filler {index}"));
+    }
+
     let limit = proxy.process_request(json_graphql_request(
-        query,
-        json!({ "locationId": "gid://shopify/Location/activate-limit", "idempotencyKey": "activate-limit" }),
+        activate_query,
+        json!({ "locationId": target_id.clone(), "idempotencyKey": "activate-limit" }),
     ));
     assert_eq!(
         limit.body["data"]["locationActivate"],
         json!({
-            "location": { "id": "gid://shopify/Location/activate-limit", "isActive": false },
+            "location": { "id": limit.body["data"]["locationActivate"]["location"]["id"].clone(), "isActive": false },
             "locationActivateUserErrors": [{
                 "field": ["locationId"],
                 "code": "LOCATION_LIMIT",
-                "message": "Your shop has reached its location limit."
+                "message": "Shop has reached its location limit."
             }]
         })
     );
+}
+
+#[test]
+fn location_activate_ongoing_relocation_branch_uses_hydrated_upstream_state() {
+    let target_id = "gid://shopify/Location/hydrated-relocation";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let query = body["query"].as_str().unwrap_or_default();
+            let response_body = if query.contains("StorePropertiesLocationHydrate") {
+                json!({
+                    "data": {
+                        "location": {
+                            "__typename": "Location",
+                            "id": target_id,
+                            "legacyResourceId": "hydrated-relocation",
+                            "name": "Hydrated relocation",
+                            "activatable": true,
+                            "addressVerified": true,
+                            "createdAt": "2026-06-30T00:00:00Z",
+                            "deactivatable": true,
+                            "deactivatedAt": "2026-06-30T00:00:00Z",
+                            "deletable": true,
+                            "fulfillsOnlineOrders": false,
+                            "hasActiveInventory": false,
+                            "hasUnfulfilledOrders": false,
+                            "isActive": false,
+                            "isFulfillmentService": false,
+                            "isPrimary": false,
+                            "shipsInventory": false,
+                            "updatedAt": "2026-06-30T00:00:00Z",
+                            "hasOngoingRelocation": true,
+                            "fulfillmentService": null,
+                            "address": null,
+                            "suggestedAddresses": [],
+                            "metafield": null,
+                            "metafields": {
+                                "nodes": [],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": null,
+                                    "endCursor": null
+                                }
+                            },
+                            "inventoryLevels": {
+                                "nodes": [],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": null,
+                                    "endCursor": null
+                                }
+                            }
+                        }
+                    }
+                })
+            } else {
+                json!({
+                    "data": {
+                        "shop": { "resourceLimits": { "locationLimit": 200 } },
+                        "locations": {
+                            "nodes": [{ "id": "gid://shopify/Location/primary", "isActive": true, "isFulfillmentService": false }],
+                            "pageInfo": { "hasNextPage": false }
+                        }
+                    }
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: response_body,
+            }
+        });
 
     let relocation = proxy.process_request(json_graphql_request(
-        query,
-        json!({ "locationId": "gid://shopify/Location/activate-relocation", "idempotencyKey": "activate-relocation" }),
+        r#"
+        mutation HydratedRelocationActivate($locationId: ID!, $idempotencyKey: String!) {
+          locationActivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
+            location { id isActive }
+            locationActivateUserErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "locationId": target_id, "idempotencyKey": "hydrated-relocation" }),
     ));
     assert_eq!(
         relocation.body["data"]["locationActivate"],
         json!({
-            "location": { "id": "gid://shopify/Location/activate-relocation", "isActive": false },
+            "location": { "id": target_id, "isActive": false },
             "locationActivateUserErrors": [{
                 "field": ["locationId"],
                 "code": "HAS_ONGOING_RELOCATION",
@@ -2206,60 +2364,47 @@ fn location_activate_limit_relocation_and_control_branches_match_local_runtime()
             }]
         })
     );
-
-    let control = proxy.process_request(json_graphql_request(
-        query,
-        json!({ "locationId": "gid://shopify/Location/activate-control", "idempotencyKey": "activate-control" }),
-    ));
-    assert_eq!(
-        control.body["data"]["locationActivate"],
-        json!({
-            "location": { "id": "gid://shopify/Location/activate-control", "isActive": true },
-            "locationActivateUserErrors": []
-        })
-    );
 }
 
 #[test]
-fn location_add_resource_limit_guard_matches_local_runtime_without_logging_rejections() {
+fn location_add_resource_limit_guard_uses_store_state_without_logging_rejections() {
     let mut proxy = snapshot_proxy();
-    let seed_query = r#"
-        mutation LocationActivateLimitAndRelocation($locationId: ID!, $idempotencyKey: String!) {
-          locationActivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
-            location { id isActive }
-            locationActivateUserErrors { field code message }
-          }
-        }
-    "#;
-
-    let seed = proxy.process_request(json_graphql_request(
-        seed_query,
-        json!({
-            "locationId": "gid://shopify/Location/location-add-limit-seed",
-            "idempotencyKey": "location-add-limit-seed"
-        }),
-    ));
-    assert_eq!(
-        seed.body["data"]["locationActivate"],
-        json!({
-            "location": { "id": "gid://shopify/Location/location-add-limit-seed", "isActive": false },
-            "locationActivateUserErrors": [{
-                "field": ["locationId"],
-                "code": "LOCATION_LIMIT",
-                "message": "Your shop has reached its location limit."
-            }]
-        })
-    );
-
-    let add = proxy.process_request(json_graphql_request(
-        r#"
+    let add_query = r#"
         mutation LocationAddResourceLimitReached($input: LocationAddInput!) {
           locationAdd(input: $input) {
             location { id name }
             userErrors { field code message }
           }
         }
-        "#,
+    "#;
+    for index in 0..200 {
+        let seeded = proxy.process_request(json_graphql_request(
+            add_query,
+            json!({
+                "input": {
+                    "name": format!("Proxy Cap Seed {index}"),
+                    "address": {
+                        "countryCode": "US",
+                        "address1": "1 Resource Limit St",
+                        "city": "New York",
+                        "zip": "10001"
+                    }
+                }
+            }),
+        ));
+        assert_eq!(seeded.body["data"]["locationAdd"]["userErrors"], json!([]));
+    }
+    let baseline_log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    let baseline_entries = baseline_log.body["entries"].as_array().unwrap().len();
+    assert_eq!(baseline_entries, 200);
+
+    let add = proxy.process_request(json_graphql_request(
+        add_query,
         json!({
             "input": {
                 "name": "Proxy Cap Overflow 20260508142042",
@@ -2290,7 +2435,11 @@ fn location_add_resource_limit_guard_matches_local_runtime_without_logging_rejec
         headers: Default::default(),
         body: String::new(),
     });
-    assert_eq!(log.body, json!({ "entries": [] }));
+    assert_eq!(
+        log.body["entries"].as_array().unwrap().len(),
+        baseline_entries,
+        "rejected over-cap locationAdd must not append a staged mutation log entry"
+    );
 }
 
 #[test]
@@ -3027,7 +3176,7 @@ fn generic_location_activate_rejects_non_unique_active_name() {
         json!([]),
         "rejected activation must not append a staged mutation log entry"
     );
-    assert_eq!(upstream_calls.lock().unwrap().len(), 2);
+    assert_eq!(upstream_calls.lock().unwrap().len(), 3);
 }
 
 #[test]
@@ -3297,6 +3446,9 @@ fn location_edit_and_delete_are_local_in_live_hybrid_mode() {
         .as_str()
         .unwrap()
         .to_string();
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+    *upstream_calls.lock().unwrap() = 0;
+    upstream_requests.lock().unwrap().clear();
 
     let edit = proxy.process_request(json_graphql_request(
         r#"

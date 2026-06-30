@@ -3853,3 +3853,25 @@ Practical rule:
   `["definition"]` error
 - keep the app-reserved namespace delete message aligned with the public
   2026-04 capture, not older/internal wording
+
+## 89. `locationActivate` limit is public-capturable, ongoing relocation was not
+
+Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` can produce a real
+`locationActivate` `LOCATION_LIMIT` branch by creating a disposable active
+location, deactivating it, filling the active merchant-managed location cap, and
+then activating the inactive target. The captured userError is
+`field: ["locationId"]`, `code: LOCATION_LIMIT`, and message
+`Shop has reached its location limit.`
+
+A focused attempt to create `HAS_ONGOING_RELOCATION` through public Admin
+GraphQL did not expose that state: a stocked source location deactivated with a
+destination relocation returned synchronously with `hasActiveInventory: false`,
+and immediate `locationActivate` on the source succeeded with no userErrors.
+
+Practical rule:
+
+- derive location cap state from a live/cassette-backed
+  `StorePropertiesLocationLimitStatus` read rather than synthetic fixture IDs
+- keep `HAS_ONGOING_RELOCATION` as runtime-test-only behavior until a
+  deterministic public or approved disposable-store setup can leave a real
+  incomplete relocation job observable through `locationActivate`
