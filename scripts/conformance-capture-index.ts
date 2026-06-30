@@ -10884,10 +10884,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}gift-card-lifecycle.json`,
       'config/parity-specs/gift-cards/gift-card-lifecycle.json',
+      `${LOCAL_RUNTIME_ROOT}gift-card-entitlement-disabled.json`,
+      `${LOCAL_RUNTIME_ROOT}gift-card-create-notify.json`,
+      `${LOCAL_RUNTIME_ROOT}gift-card-trial-shop-assignment.json`,
+      `${LOCAL_RUNTIME_ROOT}gift-card-expiry-shop-timezone.json`,
+      `${LOCAL_RUNTIME_ROOT}gift-card-mutation-user-error-codes.json`,
+      'config/parity-specs/gift-cards/gift-card-entitlement-disabled.json',
+      'config/parity-specs/gift-cards/gift-card-create-notify.json',
+      'config/parity-specs/gift-cards/gift-card-trial-shop-assignment.json',
+      'config/parity-specs/gift-cards/gift-card-expiry-shop-timezone.json',
+      'config/parity-specs/gift-cards/gift-card-mutation-user-error-codes.json',
+      'config/parity-requests/gift-cards/gift-card-entitlement-disabled.graphql',
+      'config/parity-requests/gift-cards/gift-card-create-notify.graphql',
+      'config/parity-requests/gift-cards/gift-card-trial-shop-assignment.graphql',
+      'config/parity-requests/gift-cards/gift-card-expiry-shop-timezone.graphql',
+      'config/parity-requests/gift-cards/gift-card-mutation-user-error-codes.graphql',
     ],
     cleanupBehavior:
       'Creates a disposable customer and gift card, records transaction/search lifecycle behavior, deletes the customer when possible, and deactivates the gift card; notification roots are not executed.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The listed local-runtime gift-card outputs are retained only to register their deletion with the protected-evidence invariant; those local-runtime parity scenarios are no longer generated or checked.',
   },
   {
     domain: 'gift-cards',
@@ -11091,21 +11108,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable customers and validation-only gift cards, records failing notification responses, deactivates gift cards, and deletes customers.',
-    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
-  },
-  {
-    domain: 'gift-cards',
-    captureId: 'gift-card-unrecordable-local-runtime-errors',
-    scriptPath: 'scripts/capture-gift-card-unrecordable-local-runtime.ts',
-    purpose:
-      'Local-runtime fallback fixtures for gift-card entitlement-disabled and notify-disabled branches that cannot be constructed through the public conformance harness.',
-    requiredAuthScopes: ['local-runtime'],
-    fixtureOutputs: [
-      `${LOCAL_RUNTIME_ROOT}gift-card-entitlement-disabled.json`,
-      `${LOCAL_RUNTIME_ROOT}gift-card-create-notify.json`,
-    ],
-    cleanupBehavior:
-      'No Shopify cleanup required; fixtures encode deterministic local-runtime fallback evidence for unrecordable branches.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
