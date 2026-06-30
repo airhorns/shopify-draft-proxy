@@ -12,7 +12,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Dedicated 2026-04 parity coverage for metaobjectCreate repeated fields[].key validation. The referenced fixture was recorded by scripts/capture-metaobject-update-error-codes-conformance.ts and captures DUPLICATE_FIELD_INPUT at the second fields index plus the required-field follow-up.",
+  "notes": "Dedicated 2026-04 parity coverage for metaobjectCreate repeated fields[].key validation. The referenced live fixture captures DUPLICATE_FIELD_INPUT at the second fields index plus the required-field follow-up.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

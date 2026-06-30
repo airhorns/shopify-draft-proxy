@@ -7218,6 +7218,20 @@ fn metaobject_create_validates_definition_fields_and_capabilities() {
     assert!(codes.contains(&"UNDEFINED_OBJECT_FIELD"));
     assert!(codes.contains(&"INVALID_VALUE"));
     assert!(codes.contains(&"CAPABILITY_NOT_ENABLED"));
+    let capability_error = invalid.body["data"]["metaobjectCreate"]["userErrors"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|error| error["code"] == "CAPABILITY_NOT_ENABLED")
+        .unwrap();
+    assert_eq!(
+        capability_error["field"],
+        json!(["metaobject", "capabilities", "publishable"])
+    );
+    assert_eq!(
+        capability_error["message"],
+        json!("Capability is not enabled: publishable")
+    );
     assert_eq!(
         invalid.body["data"]["metaobjectCreate"]["metaobject"],
         Value::Null

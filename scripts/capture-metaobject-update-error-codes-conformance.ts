@@ -341,19 +341,19 @@ try {
       {
         operationName: 'MetaobjectHydrateById',
         variables: { id: badMetaobjectId },
-        query: 'sha:captured-by-script',
+        query: metaobjectHydrateByIdQuery,
         response: { status: badIdHydrate.status, body: badIdHydrate.payload },
       },
       {
         operationName: 'MetaobjectDefinitionHydrateByType',
         variables: { type },
-        query: 'sha:captured-by-script',
+        query: definitionHydrateQuery,
         response: { status: definitionHydrate.status, body: definitionHydrate.payload },
       },
       {
         operationName: 'MetaobjectHydrateById',
         variables: { id: displayMetaobjectId },
-        query: 'sha:captured-by-script',
+        query: metaobjectHydrateByIdQuery,
         response: { status: displayHydrate.status, body: displayHydrate.payload },
       },
     ],
