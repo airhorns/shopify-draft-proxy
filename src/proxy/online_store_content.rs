@@ -5,8 +5,6 @@ mod sales_channel;
 
 pub(in crate::proxy) use self::online_store_helpers::*;
 
-pub(in crate::proxy) const ONLINE_STORE_CONTENT_TIMESTAMP: &str = "2024-01-01T00:00:00.000Z";
-pub(in crate::proxy) const ONLINE_STORE_CONTENT_UPDATE_TIMESTAMP: &str = "2024-01-01T00:00:01.000Z";
 const ONLINE_STORE_TITLE_MAX_CHARS: usize = 255;
 const ONLINE_STORE_HANDLE_MAX_CHARS: usize = 255;
 const ONLINE_STORE_ARTICLE_HANDLE_MAX_CHARS: usize = 265;
@@ -539,7 +537,8 @@ impl DraftProxy {
             return resource_payload(&field.selection, "blog", Value::Null, vec![error]);
         }
         let id = self.next_online_store_id("Blog");
-        let record = blog_record(&id, &input);
+        let timestamp = online_store_operation_timestamp();
+        let record = blog_record(&id, &input, &timestamp);
         self.stage_online_store_record(OnlineStoreKind::Blog, id.clone(), record.clone());
         staged_ids.push(id);
         resource_payload(
@@ -578,7 +577,8 @@ impl DraftProxy {
         if let Some(error) = commentable_inclusion_error(&input) {
             return resource_payload(&field.selection, "blog", Value::Null, vec![error]);
         }
-        apply_blog_input(&mut record, &input, false);
+        let timestamp = online_store_operation_timestamp();
+        apply_blog_input(&mut record, &input, false, &timestamp);
         self.stage_online_store_record(kind, id.clone(), record.clone());
         staged_ids.push(id);
         resource_payload(
@@ -661,7 +661,8 @@ impl DraftProxy {
             return resource_payload(&field.selection, "page", Value::Null, vec![error]);
         }
         let id = self.next_online_store_id("Page");
-        let mut record = page_record(&id, &input, None);
+        let timestamp = online_store_operation_timestamp();
+        let mut record = page_record(&id, &input, None, &timestamp);
         if !input.contains_key("handle") {
             let handle = record["handle"].as_str().unwrap_or_default();
             record["handle"] = json!(self.unique_online_store_page_handle(handle, None));
@@ -720,7 +721,8 @@ impl DraftProxy {
         if let Some(error) = invalid_publish_date_error(&input, "page", Some(&record), false) {
             return resource_payload(&field.selection, "page", Value::Null, vec![error]);
         }
-        apply_page_input(&mut record, &input);
+        let timestamp = online_store_operation_timestamp();
+        apply_page_input(&mut record, &input, &timestamp);
         if input.contains_key("title") && !input.contains_key("handle") {
             let handle = record["handle"].as_str().unwrap_or_default();
             record["handle"] =
@@ -779,6 +781,7 @@ impl DraftProxy {
         }
         let inline_blog = resolved_object_field(&field.arguments, "blog");
         let blog_id = resolved_string_field(&input, "blogId");
+        let timestamp = online_store_operation_timestamp();
         if blog_id.is_some() && inline_blog.is_some() {
             return resource_payload(
                 &field.selection,
@@ -804,7 +807,7 @@ impl DraftProxy {
                 return resource_payload(&field.selection, "article", Value::Null, vec![error]);
             }
             let id = self.next_online_store_id("Blog");
-            let record = blog_record(&id, &blog);
+            let record = blog_record(&id, &blog, &timestamp);
             self.stage_online_store_record(OnlineStoreKind::Blog, id.clone(), record);
             staged_ids.push(id.clone());
             id
@@ -824,7 +827,7 @@ impl DraftProxy {
             return resource_payload(&field.selection, "article", Value::Null, vec![error]);
         }
         let id = self.next_online_store_id("Article");
-        let record = article_record(&id, &blog_id, &input, None);
+        let record = article_record(&id, &blog_id, &input, None, &timestamp);
         self.stage_online_store_record(OnlineStoreKind::Article, id.clone(), record.clone());
         staged_ids.push(id);
         resource_payload(
@@ -885,7 +888,8 @@ impl DraftProxy {
         if let Some(error) = article_image_update_error(&record, &input) {
             return resource_payload(&field.selection, "article", Value::Null, vec![error]);
         }
-        apply_article_input(&mut record, &input);
+        let timestamp = online_store_operation_timestamp();
+        apply_article_input(&mut record, &input, &timestamp);
         self.stage_online_store_record(kind, id.clone(), record.clone());
         staged_ids.push(id);
         resource_payload(
@@ -970,15 +974,16 @@ impl DraftProxy {
             }
         };
         let changed = status != next_status;
+        let timestamp = online_store_operation_timestamp();
         comment["status"] = json!(next_status);
         comment["isPublished"] = json!(next_status == "PUBLISHED");
         if next_status == "PUBLISHED" && comment["publishedAt"].is_null() {
-            comment["publishedAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
+            comment["publishedAt"] = json!(timestamp.clone());
         } else if next_status != "PUBLISHED" {
             comment["publishedAt"] = Value::Null;
         }
         if changed {
-            comment["updatedAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
+            comment["updatedAt"] = json!(timestamp);
             self.stage_online_store_record(kind, id.clone(), comment.clone());
             staged_ids.push(id);
         }
@@ -1209,7 +1214,7 @@ impl DraftProxy {
     }
 }
 
-fn blog_record(id: &str, input: &BTreeMap<String, ResolvedValue>) -> Value {
+fn blog_record(id: &str, input: &BTreeMap<String, ResolvedValue>, timestamp: &str) -> Value {
     let title = resolved_string_field(input, "title").unwrap_or_default();
     let handle = resolved_string_field(input, "handle").unwrap_or_else(|| slugify_handle(&title));
     let comment_policy = resolved_string_field(input, "commentPolicy")
@@ -1226,14 +1231,19 @@ fn blog_record(id: &str, input: &BTreeMap<String, ResolvedValue>) -> Value {
         "commentPolicy": comment_policy,
         "tags": resolved_string_list_field(input, "tags"),
         "templateSuffix": optional_string_value(input, "templateSuffix"),
-        "createdAt": ONLINE_STORE_CONTENT_TIMESTAMP,
-        "updatedAt": ONLINE_STORE_CONTENT_TIMESTAMP,
+        "createdAt": timestamp,
+        "updatedAt": timestamp,
         "articlesCount": count_object(0),
         "articles": connection_json(Vec::new())
     })
 }
 
-fn apply_blog_input(record: &mut Value, input: &BTreeMap<String, ResolvedValue>, create: bool) {
+fn apply_blog_input(
+    record: &mut Value,
+    input: &BTreeMap<String, ResolvedValue>,
+    create: bool,
+    timestamp: &str,
+) {
     if let Some(title) = resolved_string_field(input, "title") {
         record["title"] = json!(title);
         if create || !input.contains_key("handle") {
@@ -1257,18 +1267,19 @@ fn apply_blog_input(record: &mut Value, input: &BTreeMap<String, ResolvedValue>,
     if input.contains_key("templateSuffix") {
         record["templateSuffix"] = optional_string_value(input, "templateSuffix");
     }
-    record["updatedAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
+    record["updatedAt"] = json!(timestamp);
 }
 
 fn page_record(
     id: &str,
     input: &BTreeMap<String, ResolvedValue>,
     existing: Option<&Value>,
+    timestamp: &str,
 ) -> Value {
     let title = resolved_string_field(input, "title").unwrap_or_default();
     let handle = resolved_string_field(input, "handle").unwrap_or_else(|| slugify_handle(&title));
     let body = resolved_string_field(input, "body").unwrap_or_default();
-    let (is_published, published_at) = publication_state(input, existing, true);
+    let (is_published, published_at) = publication_state(input, existing, true, timestamp);
     json!({
         "__typename": "Page",
         "id": id,
@@ -1278,13 +1289,13 @@ fn page_record(
         "bodySummary": body_summary(&body),
         "isPublished": is_published,
         "publishedAt": published_at,
-        "createdAt": ONLINE_STORE_CONTENT_TIMESTAMP,
-        "updatedAt": ONLINE_STORE_CONTENT_TIMESTAMP,
+        "createdAt": timestamp,
+        "updatedAt": timestamp,
         "templateSuffix": optional_string_value(input, "templateSuffix")
     })
 }
 
-fn apply_page_input(record: &mut Value, input: &BTreeMap<String, ResolvedValue>) {
+fn apply_page_input(record: &mut Value, input: &BTreeMap<String, ResolvedValue>, timestamp: &str) {
     if let Some(title) = resolved_string_field(input, "title") {
         record["title"] = json!(title);
         if !input.contains_key("handle") {
@@ -1303,14 +1314,14 @@ fn apply_page_input(record: &mut Value, input: &BTreeMap<String, ResolvedValue>)
         || input.contains_key("publishDate")
         || input.contains_key("visibilityDate")
     {
-        let (is_published, published_at) = publication_state(input, Some(record), false);
+        let (is_published, published_at) = publication_state(input, Some(record), false, timestamp);
         record["isPublished"] = json!(is_published);
         record["publishedAt"] = published_at;
     }
     if input.contains_key("templateSuffix") {
         record["templateSuffix"] = optional_string_value(input, "templateSuffix");
     }
-    record["updatedAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
+    record["updatedAt"] = json!(timestamp);
 }
 
 fn article_record(
@@ -1318,12 +1329,13 @@ fn article_record(
     blog_id: &str,
     input: &BTreeMap<String, ResolvedValue>,
     existing: Option<&Value>,
+    timestamp: &str,
 ) -> Value {
     let title = resolved_string_field(input, "title").unwrap_or_default();
     let handle = resolved_string_field(input, "handle").unwrap_or_else(|| slugify_handle(&title));
     let body = resolved_string_field(input, "body").unwrap_or_default();
     let summary = optional_string_value(input, "summary");
-    let (is_published, published_at) = publication_state(input, existing, true);
+    let (is_published, published_at) = publication_state(input, existing, true, timestamp);
     json!({
         "__typename": "Article",
         "id": id,
@@ -1335,8 +1347,8 @@ fn article_record(
         "tags": resolved_string_list_field(input, "tags"),
         "isPublished": is_published,
         "publishedAt": published_at,
-        "createdAt": ONLINE_STORE_CONTENT_TIMESTAMP,
-        "updatedAt": ONLINE_STORE_CONTENT_TIMESTAMP,
+        "createdAt": timestamp,
+        "updatedAt": timestamp,
         "templateSuffix": optional_string_value(input, "templateSuffix"),
         "author": article_author_json(input),
         "image": article_image_json(input),
@@ -1346,7 +1358,11 @@ fn article_record(
     })
 }
 
-fn apply_article_input(record: &mut Value, input: &BTreeMap<String, ResolvedValue>) {
+fn apply_article_input(
+    record: &mut Value,
+    input: &BTreeMap<String, ResolvedValue>,
+    timestamp: &str,
+) {
     if let Some(title) = resolved_string_field(input, "title") {
         record["title"] = json!(title);
         if !input.contains_key("handle") {
@@ -1376,44 +1392,33 @@ fn apply_article_input(record: &mut Value, input: &BTreeMap<String, ResolvedValu
         || input.contains_key("publishDate")
         || input.contains_key("visibilityDate")
     {
-        let (is_published, published_at) = publication_state(input, Some(record), false);
+        let (is_published, published_at) = publication_state(input, Some(record), false, timestamp);
         record["isPublished"] = json!(is_published);
         record["publishedAt"] = published_at;
     }
     if input.contains_key("templateSuffix") {
         record["templateSuffix"] = optional_string_value(input, "templateSuffix");
     }
-    record["updatedAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
+    record["updatedAt"] = json!(timestamp);
 }
 
 fn publication_state(
     input: &BTreeMap<String, ResolvedValue>,
     existing: Option<&Value>,
     create: bool,
+    timestamp: &str,
 ) -> (bool, Value) {
-    let supplied_published =
-        resolved_bool_field(input, "isPublished").or_else(|| resolved_bool_field(input, "visible"));
     let supplied_date = resolved_string_field(input, "publishDate")
         .or_else(|| resolved_string_field(input, "visibilityDate"));
-    let existing_published = existing
-        .and_then(|record| record["isPublished"].as_bool())
-        .unwrap_or(false);
     let existing_published_at = existing
         .map(|record| record["publishedAt"].clone())
         .unwrap_or(Value::Null);
-
-    let is_published = supplied_published.unwrap_or_else(|| {
-        if create && supplied_date.is_none() {
-            true
-        } else {
-            existing_published
-        }
-    });
+    let is_published = effective_published(input, existing, create);
     let published_at = if let Some(date) = supplied_date {
         json!(date)
     } else if is_published {
         if existing_published_at.is_null() {
-            json!(ONLINE_STORE_CONTENT_TIMESTAMP)
+            json!(timestamp)
         } else {
             existing_published_at
         }
@@ -1423,13 +1428,35 @@ fn publication_state(
     (is_published, published_at)
 }
 
+fn effective_published(
+    input: &BTreeMap<String, ResolvedValue>,
+    existing: Option<&Value>,
+    create: bool,
+) -> bool {
+    let supplied_published =
+        resolved_bool_field(input, "isPublished").or_else(|| resolved_bool_field(input, "visible"));
+    let supplied_date = resolved_string_field(input, "publishDate")
+        .or_else(|| resolved_string_field(input, "visibilityDate"));
+    let existing_published = existing
+        .and_then(|record| record["isPublished"].as_bool())
+        .unwrap_or(false);
+
+    supplied_published.unwrap_or_else(|| {
+        if create && supplied_date.is_none() {
+            true
+        } else {
+            existing_published
+        }
+    })
+}
+
 fn invalid_publish_date_error(
     input: &BTreeMap<String, ResolvedValue>,
     root: &'static str,
     existing: Option<&Value>,
     create: bool,
 ) -> Option<Value> {
-    let (effective_is_published, _) = publication_state(input, existing, create);
+    let effective_is_published = effective_published(input, existing, create);
     let publish_date = resolved_string_field(input, "publishDate")
         .or_else(|| resolved_string_field(input, "visibilityDate"));
     if effective_is_published && publish_date.as_deref().is_some_and(is_future_date) {
@@ -1441,6 +1468,12 @@ fn invalid_publish_date_error(
     } else {
         None
     }
+}
+
+fn online_store_operation_timestamp() -> String {
+    time::OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)
+        .expect("UTC timestamps should format as RFC3339")
 }
 
 fn is_future_date(value: &str) -> bool {
@@ -1797,12 +1830,6 @@ fn normalize_observed_blog(record: &Value) -> Value {
     if record.get("templateSuffix").is_none() {
         record["templateSuffix"] = Value::Null;
     }
-    if record.get("createdAt").is_none() {
-        record["createdAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
-    }
-    if record.get("updatedAt").is_none() {
-        record["updatedAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
-    }
     if record.get("articlesCount").is_none() {
         record["articlesCount"] = count_object(articles.len());
     }
@@ -1829,12 +1856,6 @@ fn normalize_observed_page(record: &Value) -> Value {
     }
     if record.get("publishedAt").is_none() {
         record["publishedAt"] = Value::Null;
-    }
-    if record.get("createdAt").is_none() {
-        record["createdAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
-    }
-    if record.get("updatedAt").is_none() {
-        record["updatedAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
     }
     if record.get("templateSuffix").is_none() {
         record["templateSuffix"] = Value::Null;
@@ -1874,12 +1895,6 @@ fn normalize_observed_article(record: &Value, parent_blog_id: Option<&str>) -> V
     }
     if record.get("publishedAt").is_none() {
         record["publishedAt"] = Value::Null;
-    }
-    if record.get("createdAt").is_none() {
-        record["createdAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
-    }
-    if record.get("updatedAt").is_none() {
-        record["updatedAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
     }
     if record.get("templateSuffix").is_none() {
         record["templateSuffix"] = Value::Null;
@@ -1935,12 +1950,6 @@ fn normalize_observed_comment(record: &Value, parent_article_id: Option<&str>) -
     record["bodyHtml"] = json!(body_html);
     if record.get("publishedAt").is_none() {
         record["publishedAt"] = Value::Null;
-    }
-    if record.get("createdAt").is_none() {
-        record["createdAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
-    }
-    if record.get("updatedAt").is_none() {
-        record["updatedAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
     }
     record
 }

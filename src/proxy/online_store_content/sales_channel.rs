@@ -1005,23 +1005,22 @@ impl DraftProxy {
             .staged
             .online_store_integrations
             .get_mut(theme_id)?;
+        let timestamp = online_store_operation_timestamp();
         let filename = file["filename"].as_str().unwrap_or_default().to_string();
         let mut nodes = theme_file_nodes(theme);
         let persisted = if let Some(index) = nodes
             .iter()
             .position(|existing| existing["filename"].as_str() == Some(filename.as_str()))
         {
-            let created_at = nodes[index]
-                .get("createdAt")
-                .cloned()
-                .unwrap_or_else(|| json!(ONLINE_STORE_CONTENT_TIMESTAMP));
-            file["createdAt"] = created_at;
-            file["updatedAt"] = json!(ONLINE_STORE_CONTENT_UPDATE_TIMESTAMP);
+            if let Some(created_at) = nodes[index].get("createdAt").cloned() {
+                file["createdAt"] = created_at;
+            }
+            file["updatedAt"] = json!(timestamp);
             nodes[index] = file;
             nodes[index].clone()
         } else {
-            file["createdAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
-            file["updatedAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
+            file["createdAt"] = json!(timestamp.clone());
+            file["updatedAt"] = json!(timestamp);
             nodes.push(file);
             nodes.last().cloned().unwrap_or(Value::Null)
         };

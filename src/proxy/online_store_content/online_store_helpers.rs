@@ -175,11 +175,11 @@ pub(in crate::proxy) fn theme_file_operation_result(record: &Value) -> Value {
         "createdAt": record
             .get("createdAt")
             .cloned()
-            .unwrap_or_else(|| json!(ONLINE_STORE_CONTENT_TIMESTAMP)),
+            .unwrap_or(Value::Null),
         "updatedAt": record
             .get("updatedAt")
             .cloned()
-            .unwrap_or_else(|| json!(ONLINE_STORE_CONTENT_TIMESTAMP)),
+            .unwrap_or(Value::Null),
         "checksumMd5": record["checksumMd5"],
         "size": record["size"],
         "body": record
