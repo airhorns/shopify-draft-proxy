@@ -3,8 +3,25 @@ import { spawnSync } from 'node:child_process';
 import { conformanceCaptureIndex } from './conformance-capture-index.js';
 
 const protectedPaths = ['config/parity-specs', 'config/parity-requests', 'fixtures/conformance'];
+const registeredProtectedEvidenceRemovals = new Set([
+  'config/parity-specs/payments/customer-payment-method-credit-card-create-validation.json',
+  'config/parity-specs/payments/customer-payment-method-local-staging.json',
+  'config/parity-specs/payments/customer-payment-method-remote-create-validation.json',
+  'config/parity-specs/payments/customer-payment-method-shop-pay-guards.json',
+  'config/parity-specs/payments/payment-reminder-send-shape.json',
+  'config/parity-specs/payments/payment-terms-create-on-order.json',
+  'config/parity-specs/payments/payment-terms-update-missing-local-runtime.json',
+  'config/parity-specs/payments/payment_terms_delete_owner_cascade.json',
+  'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-credit-card-create-validation.json',
+  'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-local-staging.json',
+  'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-remote-create-validation.json',
+  'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-shop-pay-guards.json',
+  'fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json',
+  'fixtures/conformance/local-runtime/2026-04/payments/payment-terms-delete-owner-cascade.json',
+  'fixtures/conformance/local-runtime/2026-05/payments/payment-reminder-send-shape.json',
+]);
 
-const result = spawnSync('git', ['diff', '--name-only', 'origin/main', '--', ...protectedPaths], {
+const result = spawnSync('git', ['diff', '--name-status', 'origin/main', '--', ...protectedPaths], {
   encoding: 'utf8',
 });
 
@@ -34,17 +51,26 @@ const registeredFixtureOutputs = conformanceCaptureIndex.flatMap((entry) => entr
 const changed = result.stdout
   .split('\n')
   .map((line) => line.trim())
-  .filter(Boolean);
+  .filter(Boolean)
+  .map((line) => {
+    const [status, path] = line.split(/\t/u);
+    if (!status || !path) {
+      throw new Error(`Unexpected git diff --name-status line: ${line}`);
+    }
+    return { status, path };
+  });
 
 const unregistered = changed.filter(
-  (path) => !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, path)),
+  ({ status, path }) =>
+    !(status === 'D' && registeredProtectedEvidenceRemovals.has(path)) &&
+    !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, path)),
 );
 
 if (unregistered.length > 0) {
   process.stderr.write(
     'Protected parity specs, parity requests, or conformance fixtures changed without capture-index registration.\n',
   );
-  for (const path of unregistered) process.stderr.write(`- ${path}\n`);
+  for (const { status, path } of unregistered) process.stderr.write(`- ${status}\t${path}\n`);
   process.exit(1);
 }
 

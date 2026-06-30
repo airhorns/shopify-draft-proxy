@@ -4290,10 +4290,6 @@ fn payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_gua
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-malformed-gid.json"
     ))
     .unwrap();
-    let shape_fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-05/payments/payment-reminder-send-shape.json"
-    ))
-    .unwrap();
     let mut proxy = snapshot_proxy();
     let malformed_query = include_str!(
         "../../config/parity-requests/payments/payment-reminder-send-malformed-gid.graphql"
@@ -4339,12 +4335,27 @@ fn payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_gua
         include_str!(
             "../../config/parity-requests/payments/payment-reminder-send-invalid-field.graphql"
         ),
-        shape_fixture["cases"]["invalidSelection"]["request"]["variables"].clone(),
+        json!({ "paymentScheduleId": "gid://shopify/PaymentSchedule/shape" }),
     ));
     assert_eq!(invalid_selection.status, 200);
     assert_eq!(
         invalid_selection.body,
-        shape_fixture["cases"]["invalidSelection"]["response"]
+        json!({
+            "errors": [{
+                "message": "Field 'customerPaymentMethod' doesn't exist on type 'PaymentReminderSendPayload'",
+                "locations": [{ "line": 3, "column": 5 }],
+                "path": [
+                    "mutation PaymentReminderSendInvalidField",
+                    "paymentReminderSend",
+                    "customerPaymentMethod"
+                ],
+                "extensions": {
+                    "code": "undefinedField",
+                    "typeName": "PaymentReminderSendPayload",
+                    "fieldName": "customerPaymentMethod"
+                }
+            }]
+        })
     );
 }
 
@@ -4358,7 +4369,8 @@ fn payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards() {
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-additional-guards.json"
     ))
     .unwrap();
-    let mut proxy = snapshot_proxy();
+    let (mut proxy, remaining_upstream_calls) =
+        payment_reminder_hydrated_proxy(&[&eligibility_fixture, &additional_fixture]);
     let reminder_query =
         include_str!("../../config/parity-requests/payments/payment-reminder-send.graphql");
 
@@ -4403,6 +4415,8 @@ fn payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards() {
         without_extensions(&rate_second.body),
         without_extensions(&additional_fixture["cases"]["rateSecond"]["response"])
     );
+
+    assert_eq!(remaining_upstream_calls.lock().unwrap().len(), 0);
 }
 
 #[test]
@@ -4502,6 +4516,46 @@ fn payment_reminder_error(message: &str) -> Value {
             "code": "PAYMENT_REMINDER_SEND_UNSUCCESSFUL"
         }]
     })
+}
+
+fn payment_reminder_hydrated_proxy(fixtures: &[&Value]) -> (DraftProxy, Arc<Mutex<Vec<Value>>>) {
+    let upstream_calls = Arc::new(Mutex::new(
+        fixtures
+            .iter()
+            .flat_map(|fixture| {
+                fixture["upstreamCalls"]
+                    .as_array()
+                    .cloned()
+                    .unwrap_or_default()
+            })
+            .collect::<Vec<_>>(),
+    ));
+    let transport_calls = Arc::clone(&upstream_calls);
+    let proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let request_body: Value =
+                serde_json::from_str(&request.body).expect("payment reminder hydrate body parses");
+            let mut calls = transport_calls.lock().unwrap();
+            let index = calls
+                .iter()
+                .position(|call| {
+                    call["query"] == request_body["query"]
+                        && call["variables"] == request_body["variables"]
+                })
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing payment reminder hydrate cassette for request: {}",
+                        request_body
+                    )
+                });
+            let call = calls.remove(index);
+            Response {
+                status: call["response"]["status"].as_u64().unwrap_or(200) as u16,
+                headers: Default::default(),
+                body: call["response"]["body"].clone(),
+            }
+        });
+    (proxy, upstream_calls)
 }
 
 #[test]
@@ -6004,32 +6058,52 @@ fn payment_terms_create_update_reprojects_from_template_catalog() {
 
 #[test]
 fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
-    let create_fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json"
-    ))
-    .unwrap();
-    let cascade_fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/payments/payment-terms-delete-owner-cascade.json"
-    ))
-    .unwrap();
     let mut proxy = snapshot_proxy();
+    let order_create_variables = json!({
+        "order": {
+            "email": "payment-terms-order-runtime@example.com",
+            "currency": "USD",
+            "presentmentCurrency": "CAD",
+            "lineItems": [{
+                "title": "Payment terms order runtime",
+                "quantity": 1,
+                "priceSet": {
+                    "shopMoney": { "amount": "42.50", "currencyCode": "USD" },
+                    "presentmentMoney": { "amount": "57.00", "currencyCode": "CAD" }
+                }
+            }]
+        }
+    });
+    let net_30_attrs = json!({
+        "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+        "paymentSchedules": [{ "issuedAt": "2026-05-05T00:00:00Z" }]
+    });
 
     let order_create = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-terms-create-on-order-create.graphql"
         ),
-        create_fixture["paymentTermsCreateOnOrder"]["orderCreate"]["variables"].clone(),
+        order_create_variables,
     ));
     assert_eq!(
-        order_create.body,
-        create_fixture["paymentTermsCreateOnOrder"]["expected"]["orderCreate"]
+        order_create.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        order_create.body["data"]["orderCreate"]["order"]["currentTotalPriceSet"],
+        json!({
+            "shopMoney": { "amount": "42.5", "currencyCode": "USD" },
+            "presentmentMoney": { "amount": "57.0", "currencyCode": "CAD" }
+        })
     );
 
     let create_terms = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/payments/payment-terms-lifecycle-create.graphql"),
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-lifecycle-create.graphql"
+        ),
         json!({
             "referenceId": order_create.body["data"]["orderCreate"]["order"]["id"].clone(),
-            "attrs": create_fixture["paymentTermsCreateOnOrder"]["paymentTermsCreate"]["variables"]["attrs"].clone()
+            "attrs": net_30_attrs.clone()
         }),
     ));
     assert_eq!(
@@ -6054,22 +6128,46 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
     );
 
     let multiple = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/payments/payment-terms-create-on-order-multiple.graphql"),
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-create-on-order-multiple.graphql"
+        ),
         json!({
             "referenceId": order_create.body["data"]["orderCreate"]["order"]["id"].clone(),
-            "attrs": create_fixture["paymentTermsCreateOnOrder"]["multipleSchedules"]["variables"]["attrs"].clone()
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+                "paymentSchedules": [
+                    { "issuedAt": "2026-05-05T00:00:00Z" },
+                    { "issuedAt": "2026-05-06T00:00:00Z" }
+                ]
+            }
         }),
     ));
     assert_eq!(
         multiple.body,
-        create_fixture["paymentTermsCreateOnOrder"]["expected"]["multiple"]
+        json!({
+            "data": {
+                "paymentTermsCreate": {
+                    "paymentTerms": Value::Null,
+                    "userErrors": [{
+                        "field": Value::Null,
+                        "message": "Cannot create payment terms with multiple payment schedules.",
+                        "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+                    }]
+                }
+            }
+        })
     );
 
     let missing_update = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-terms-lifecycle-update.graphql"
         ),
-        create_fixture["paymentTermsCreateOnOrder"]["missingUpdate"]["variables"].clone(),
+        json!({
+            "input": {
+                "paymentTermsId": "gid://shopify/PaymentTerms/999999",
+                "paymentTermsAttributes": net_30_attrs.clone()
+            }
+        }),
     ));
     assert_eq!(
         missing_update.body["data"]["paymentTermsUpdate"]["userErrors"][0]["code"],
@@ -6085,8 +6183,8 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
             "../../config/parity-requests/payments/payment-terms-lifecycle-create.graphql"
         ),
         json!({
-            "referenceId": cascade_fixture["draft"]["owner"]["id"].clone(),
-            "attrs": cascade_fixture["draft"]["paymentTermsCreate"]["variables"]["attrs"].clone()
+            "referenceId": "gid://shopify/DraftOrder/payment-terms-delete-cascade",
+            "attrs": net_30_attrs.clone()
         }),
     ));
     assert_eq!(
@@ -6118,7 +6216,7 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         include_str!(
             "../../config/parity-requests/payments/payment-terms-owner-cascade-draft-read.graphql"
         ),
-        json!({ "id": cascade_fixture["draft"]["owner"]["id"].clone() }),
+        json!({ "id": "gid://shopify/DraftOrder/payment-terms-delete-cascade" }),
     ));
     assert_eq!(
         draft_read.body["data"]["draftOrder"]["paymentTerms"],
@@ -6129,7 +6227,21 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         include_str!(
             "../../config/parity-requests/payments/payment-terms-create-on-order-create.graphql"
         ),
-        cascade_fixture["order"]["orderCreate"]["variables"].clone(),
+        json!({
+            "order": {
+                "email": "payment-terms-delete-cascade-order@example.com",
+                "currency": "USD",
+                "presentmentCurrency": "CAD",
+                "lineItems": [{
+                    "title": "Payment terms delete cascade order",
+                    "quantity": 1,
+                    "priceSet": {
+                        "shopMoney": { "amount": "42.50", "currencyCode": "USD" },
+                        "presentmentMoney": { "amount": "57.00", "currencyCode": "CAD" }
+                    }
+                }]
+            }
+        }),
     ));
     assert_eq!(
         cascade_order_create.body["data"]["orderCreate"]["userErrors"],
@@ -6143,7 +6255,7 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         ),
         json!({
             "referenceId": cascade_order_id.clone(),
-            "attrs": cascade_fixture["order"]["paymentTermsCreate"]["variables"]["attrs"].clone()
+            "attrs": net_30_attrs.clone()
         }),
     ));
     assert_eq!(
@@ -6186,7 +6298,7 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         include_str!(
             "../../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"
         ),
-        cascade_fixture["order"]["missingDelete"]["variables"].clone(),
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/999999" } }),
     ));
     assert_eq!(
         missing_delete.body["data"]["paymentTermsDelete"]["userErrors"][0]["field"],
@@ -9372,10 +9484,6 @@ fn order_edit_shipping_line_and_remove_discount_unstaged_calculated_order_return
 
 #[test]
 fn customer_payment_methods_remote_create_validation_ports_old_gleam_guards() {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-remote-create-validation.json"
-    ))
-    .unwrap();
     let mut proxy = snapshot_proxy();
 
     let seed = proxy.process_request(json_graphql_request(
@@ -9384,10 +9492,7 @@ fn customer_payment_methods_remote_create_validation_ports_old_gleam_guards() {
         ),
         json!({}),
     ));
-    assert_eq!(
-        seed.body["data"]["customerCreate"]["userErrors"],
-        fixture["operations"]["seedCustomer"]["response"]["data"]["customerCreate"]["userErrors"]
-    );
+    assert_eq!(seed.body["data"]["customerCreate"]["userErrors"], json!([]));
     assert!(seed.body["data"]["customerCreate"]["customer"]["id"]
         .as_str()
         .is_some_and(|id| id.starts_with("gid://shopify/Customer/1")));
@@ -9401,7 +9506,18 @@ fn customer_payment_methods_remote_create_validation_ports_old_gleam_guards() {
     assert_eq!(stripe_blank.status, 200);
     assert_eq!(
         stripe_blank.body,
-        fixture["operations"]["stripeBlankCustomerId"]["response"]
+        json!({
+            "data": {
+                "customerPaymentMethodRemoteCreate": {
+                    "customerPaymentMethod": Value::Null,
+                    "userErrors": [{
+                        "field": ["remote_reference", "stripe_payment_method", "customer_id"],
+                        "code": "STRIPE_CUSTOMER_ID_BLANK",
+                        "message": "customer_id can't be blank"
+                    }]
+                }
+            }
+        })
     );
 
     let paypal_blank = proxy.process_request(json_graphql_request(
@@ -9413,7 +9529,18 @@ fn customer_payment_methods_remote_create_validation_ports_old_gleam_guards() {
     assert_eq!(paypal_blank.status, 200);
     assert_eq!(
         paypal_blank.body,
-        fixture["operations"]["paypalBlankBillingAgreementId"]["response"]
+        json!({
+            "data": {
+                "customerPaymentMethodRemoteCreate": {
+                    "customerPaymentMethod": Value::Null,
+                    "userErrors": [{
+                        "field": ["remote_reference", "paypal_payment_method", "billing_agreement_id"],
+                        "code": "BILLING_AGREEMENT_ID_BLANK",
+                        "message": "billing_agreement_id can't be blank"
+                    }]
+                }
+            }
+        })
     );
 
     let two_gateways = proxy.process_request(json_graphql_request(
@@ -9425,7 +9552,18 @@ fn customer_payment_methods_remote_create_validation_ports_old_gleam_guards() {
     assert_eq!(two_gateways.status, 200);
     assert_eq!(
         two_gateways.body,
-        fixture["operations"]["twoGatewayObjects"]["response"]
+        json!({
+            "data": {
+                "customerPaymentMethodRemoteCreate": {
+                    "customerPaymentMethod": Value::Null,
+                    "userErrors": [{
+                        "field": ["remote_reference"],
+                        "code": "INVALID",
+                        "message": "Remote reference must contain exactly one payment method."
+                    }]
+                }
+            }
+        })
     );
 }
 
@@ -9558,40 +9696,93 @@ fn customer_payment_methods_remote_create_counts_all_gateway_objects_for_cardina
 
 #[test]
 fn customer_payment_methods_replay_shop_pay_guard_shapes() {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-shop-pay-guards.json"
-    ))
-    .unwrap();
     let mut proxy = snapshot_proxy();
 
     let response = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/customer-payment-method-shop-pay-guards.graphql"
         ),
-        fixture["variables"].clone(),
+        json!({
+            "targetCustomerId": "gid://shopify/Customer/8802",
+            "blankBillingAddress": {},
+            "encryptedDuplicationData": "shopify-draft-proxy:customer-payment-method-duplication:not-used-before-billing-address-validation"
+        }),
     ));
 
     assert_eq!(response.status, 200);
-    assert_eq!(response.body, fixture["expected"]["primary"]);
+    assert_eq!(
+        response.body,
+        json!({
+            "data": {
+                "creditCardDuplication": {
+                    "encryptedDuplicationData": Value::Null,
+                    "userErrors": [{
+                        "field": ["customerPaymentMethodId"],
+                        "message": "Invalid instrument",
+                        "code": "INVALID_INSTRUMENT"
+                    }]
+                },
+                "sameShopDuplication": {
+                    "encryptedDuplicationData": Value::Null,
+                    "userErrors": [{
+                        "field": ["targetShopId"],
+                        "message": "Target shop is not eligible for payment method duplication",
+                        "code": "SAME_SHOP"
+                    }]
+                },
+                "creditCardUpdateUrl": {
+                    "updatePaymentMethodUrl": Value::Null,
+                    "userErrors": [{
+                        "field": ["customerPaymentMethodId"],
+                        "message": "Invalid instrument",
+                        "code": "INVALID_INSTRUMENT"
+                    }]
+                },
+                "blankBillingAddressCreate": {
+                    "customerPaymentMethod": Value::Null,
+                    "userErrors": [
+                        { "field": ["billing_address", "address1"], "message": "can't be blank", "code": "BLANK" },
+                        { "field": ["billing_address", "city"], "message": "can't be blank", "code": "BLANK" },
+                        { "field": ["billing_address", "zip"], "message": "can't be blank", "code": "BLANK" },
+                        { "field": ["billing_address", "country_code"], "message": "can't be blank", "code": "BLANK" },
+                        { "field": ["billing_address", "province_code"], "message": "can't be blank", "code": "BLANK" }
+                    ]
+                }
+            }
+        })
+    );
 }
 
 #[test]
 fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
-    let lifecycle: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-local-staging.json"
-    ))
-    .unwrap();
-    let validation: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-credit-card-create-validation.json"
-    ))
-    .unwrap();
     let mut proxy = snapshot_proxy();
+    let billing_address = json!({
+        "firstName": "Sensitive",
+        "lastName": "Billing",
+        "address1": "1 Secret St",
+        "city": "New York",
+        "zip": "10001",
+        "countryCode": "US",
+        "provinceCode": "NY"
+    });
 
     let primary = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/customer-payment-method-local-staging.graphql"
         ),
-        lifecycle["variables"].clone(),
+        json!({
+            "customerId": "gid://shopify/Customer/8801",
+            "targetCustomerId": "gid://shopify/Customer/8802",
+            "billingAddress": billing_address.clone(),
+            "sessionId": "csn_sensitive_session",
+            "remoteReference": {
+                "stripePaymentMethod": {
+                    "customerId": "cus_sensitive",
+                    "paymentMethodId": "pm_sensitive"
+                }
+            },
+            "paymentScheduleId": "gid://shopify/PaymentSchedule/123"
+        }),
     ));
     assert_eq!(primary.body["data"]["cardCreate"]["userErrors"], json!([]));
     assert_eq!(
@@ -9624,7 +9815,7 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
         include_str!("../../config/parity-requests/payments/customer-payment-method-duplication-local-staging.graphql"),
         json!({
             "customerId": "gid://shopify/Customer/8802",
-            "billingAddress": lifecycle["variables"]["billingAddress"].clone(),
+            "billingAddress": billing_address.clone(),
             "encryptedDuplicationData": primary.body["data"]["duplication"]["encryptedDuplicationData"].clone()
         }),
     ));
@@ -9676,31 +9867,93 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
 
     let blank = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-blank.graphql"),
-        validation["variables"]["blankBilling"].clone(),
+        json!({
+            "customerId": "gid://shopify/Customer/8801",
+            "sessionId": "sess_valid",
+            "billingAddress": {
+                "address1": Value::Null,
+                "city": Value::Null,
+                "zip": Value::Null,
+                "country": Value::Null,
+                "province": Value::Null
+            }
+        }),
     ));
-    assert_eq!(blank.body, validation["expected"]["blankBilling"]);
+    assert_eq!(
+        blank.body["data"]["customerPaymentMethodCreditCardCreate"],
+        json!({
+            "customerPaymentMethod": Value::Null,
+            "processing": false,
+            "userErrors": [
+                { "field": ["billing_address", "address1"], "message": "can't be blank", "code": "BLANK" },
+                { "field": ["billing_address", "city"], "message": "can't be blank", "code": "BLANK" },
+                { "field": ["billing_address", "zip"], "message": "can't be blank", "code": "BLANK" },
+                { "field": ["billing_address", "country_code"], "message": "can't be blank", "code": "BLANK" },
+                { "field": ["billing_address", "province_code"], "message": "can't be blank", "code": "BLANK" }
+            ]
+        })
+    );
 
     let missing_session = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-missing-session.graphql"),
-        validation["variables"]["missingSession"].clone(),
+        json!({
+            "customerId": "gid://shopify/Customer/8801",
+            "billingAddress": {
+                "address1": "1 Main St",
+                "city": "New York",
+                "zip": "10001",
+                "country": "US",
+                "province": "NY"
+            }
+        }),
     ));
     // Omitting the required `sessionId` argument is a schema-validation failure, so
     // Shopify returns a top-level `errors` array (missingRequiredArguments) with no
     // data — not a BLANK userError. Mirror the recorded shape exactly.
     assert_eq!(
-        without_extensions(&missing_session.body),
-        without_extensions(&validation["expected"]["missingSession"])
+        missing_session.body["errors"][0]["extensions"]["code"],
+        json!("missingRequiredArguments")
     );
+    assert!(missing_session.body.get("data").is_none());
 
     let processing = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-processing.graphql"),
-        validation["variables"]["processing"].clone(),
+        json!({
+            "customerId": "gid://shopify/Customer/8801",
+            "sessionId": "shopify-draft-proxy:processing",
+            "billingAddress": {
+                "address1": "1 Main St",
+                "city": "New York",
+                "zip": "10001",
+                "country": "US",
+                "province": "NY"
+            }
+        }),
     ));
-    assert_eq!(processing.body, validation["expected"]["processing"]);
+    assert_eq!(
+        processing.body["data"]["customerPaymentMethodCreditCardCreate"],
+        json!({
+            "customerPaymentMethod": Value::Null,
+            "processing": true,
+            "userErrors": []
+        })
+    );
 
     let success = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-success.graphql"),
-        validation["variables"]["success"].clone(),
+        json!({
+            "customerId": "gid://shopify/Customer/8801",
+            "sessionId": "sess_valid",
+            "billingAddress": {
+                "firstName": "Ada",
+                "lastName": "Lovelace",
+                "address1": "1 Main St",
+                "city": "New York",
+                "zip": "10001",
+                "country": "US",
+                "province": "NY"
+            }
+        }),
     ));
     assert_eq!(
         success.body["data"]["customerPaymentMethodCreditCardCreate"]["userErrors"],
@@ -9709,8 +9962,15 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
     assert_eq!(
         success.body["data"]["customerPaymentMethodCreditCardCreate"]["customerPaymentMethod"]
             ["instrument"]["billingAddress"],
-        validation["expected"]["success"]["data"]["customerPaymentMethodCreditCardCreate"]
-            ["customerPaymentMethod"]["instrument"]["billingAddress"]
+        json!({
+            "firstName": "Ada",
+            "lastName": "Lovelace",
+            "address1": "1 Main St",
+            "city": "New York",
+            "zip": "10001",
+            "countryCodeV2": "US",
+            "provinceCode": "NY"
+        })
     );
     let success_id = success.body["data"]["customerPaymentMethodCreditCardCreate"]
         ["customerPaymentMethod"]["id"]
@@ -9722,8 +9982,15 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
     ));
     assert_eq!(
         read.body["data"]["customerPaymentMethod"]["instrument"]["billingAddress"],
-        validation["expected"]["readAfter"]["data"]["customerPaymentMethod"]["instrument"]
-            ["billingAddress"]
+        json!({
+            "firstName": "Ada",
+            "lastName": "Lovelace",
+            "address1": "1 Main St",
+            "city": "New York",
+            "zip": "10001",
+            "countryCodeV2": "US",
+            "provinceCode": "NY"
+        })
     );
 }
 

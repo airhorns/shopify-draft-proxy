@@ -8878,7 +8878,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'write_orders',
     ],
     fixtureOutputs: [
-      `${LOCAL_RUNTIME_ROOT}customer-payment-method-local-staging.json`,
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-customization-empty-read.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-customization-validation.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-eligibility.json',
@@ -8907,13 +8906,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose: 'paymentTermsCreate/paymentTermsUpdate/paymentTermsDelete lifecycle against a disposable draft order.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
     fixtureOutputs: [
-      'config/parity-specs/payments/payment-terms-create-on-order.json',
-      'config/parity-specs/payments/payment_terms_delete_owner_cascade.json',
-      `${LOCAL_RUNTIME_ROOT}payment-terms-create-on-order.json`,
-      `${LOCAL_RUNTIME_ROOT}payment-terms-delete-owner-cascade.json`,
       `${CAPTURE_ROOT}payment-terms-lifecycle.json`,
-      'config/parity-specs/payments/payment-terms-update-missing-local-runtime.json',
-      'config/parity-requests/payments/payment-terms-update-missing-local-runtime.graphql',
       'config/parity-specs/payments/payment-terms-lifecycle-local-staging.json',
     ],
     cleanupBehavior:
