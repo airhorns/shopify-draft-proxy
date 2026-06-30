@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 
-import { conformanceCaptureIndex } from './conformance-capture-index.js';
+import { conformanceCaptureIndex, retiredConformanceEvidencePaths } from './conformance-capture-index.js';
 
 const protectedPaths = ['config/parity-specs', 'config/parity-requests', 'fixtures/conformance'];
 
@@ -22,6 +22,13 @@ function escapeRegExp(value: string): string {
 }
 
 function fixtureOutputMatchesPath(output: string, path: string): boolean {
+  if (
+    path.startsWith('fixtures/conformance/local-runtime/') &&
+    !output.startsWith('fixtures/conformance/local-runtime/')
+  ) {
+    return false;
+  }
+
   const pattern = escapeRegExp(output)
     .replaceAll('<store>', '[^/]+')
     .replaceAll('<api-version>', '[^/]+')
@@ -29,7 +36,10 @@ function fixtureOutputMatchesPath(output: string, path: string): boolean {
   return new RegExp(`^${pattern}$`, 'u').test(path);
 }
 
-const registeredFixtureOutputs = conformanceCaptureIndex.flatMap((entry) => entry.fixtureOutputs);
+const registeredFixtureOutputs = [
+  ...conformanceCaptureIndex.flatMap((entry) => entry.fixtureOutputs),
+  ...retiredConformanceEvidencePaths,
+];
 
 const changed = result.stdout
   .split('\n')
