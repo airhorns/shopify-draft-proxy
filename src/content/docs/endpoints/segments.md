@@ -78,7 +78,6 @@ Customer segment member query behavior:
 - `config/parity-specs/segments/segments-create-update-validation-limits.json`
 - `config/parity-specs/segments/segment-create-update-length-edge-cases.json`
 - `config/parity-specs/segments/segment-mutations-required-argument-validation.json`
-- `config/parity-specs/segments/segment-payload-non-null-fields.json`
 - `config/parity-specs/segments/customer-segment-members-query-lifecycle.json`
 - `config/parity-specs/segments/segment-query-grammar-not-contains.json`
 - `config/parity-specs/segments/segment-create-update-query-grammar.json`
@@ -87,7 +86,7 @@ Customer segment member query behavior:
 - `config/parity-specs/segments/customer-segment-members-query-create-direct-query-grammar.json`
 - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/segments/segments-baseline.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-lifecycle-validation.json`
-- `fixtures/conformance/local-runtime/2026-04/segments/segment-payload-non-null-fields.json`
+- `tests/graphql_routes/products_saved_searches.rs`
 - `scripts/capture-segment-query-grammar-conformance.ts`
 - `scripts/capture-segment-query-whitespace-preservation-conformance.ts`
 - `scripts/capture-customer-segment-members-query-create-segment-id-paths-conformance.ts`

@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { validateComparisonContract, type ParitySpec } from '../../scripts/conformance-parity-spec.js';
+import { validateRecordedUpstreamCalls, type RecordedUpstreamCall } from '../../scripts/parity-cassette.js';
 import {
   buildConformanceStatusDocument,
   listConformanceParitySpecPaths,
@@ -83,6 +84,30 @@ describe('conformance scenario discovery', () => {
       }
     },
   );
+
+  it('keeps segment strict parity evidence backed by live Shopify fixtures and exact upstream calls', () => {
+    for (const paritySpecPath of paritySpecPaths.filter((path) => path.startsWith('config/parity-specs/segments/'))) {
+      const paritySpec = readJson<ParitySpec>(paritySpecPath);
+      if (paritySpec.scenarioStatus !== 'captured' || paritySpec.comparisonMode !== 'captured-vs-proxy-request') {
+        continue;
+      }
+
+      for (const captureFile of paritySpec.liveCaptureFiles ?? []) {
+        expect(
+          captureFile.startsWith('fixtures/conformance/local-runtime/'),
+          `${paritySpec.scenarioId} must not use local-runtime fixtures as strict segment parity evidence`,
+        ).toBe(false);
+
+        const fixture = readJson<{ upstreamCalls?: unknown[] }>(captureFile);
+        if (Array.isArray(fixture.upstreamCalls)) {
+          expect(
+            validateRecordedUpstreamCalls(fixture.upstreamCalls as RecordedUpstreamCall[]),
+            `${captureFile} upstream calls`,
+          ).toEqual([]);
+        }
+      }
+    }
+  });
 
   it.each(
     scenarios.flatMap((scenario) =>
