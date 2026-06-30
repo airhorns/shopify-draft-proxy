@@ -11514,12 +11514,39 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_customers', 'write_customers'],
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-set-parity.json',
+      `${CAPTURE_ROOT}customer-set-unknown-id-errors.json`,
+      `${CAPTURE_ROOT}customer-set-email-upsert-when-id-absent.json`,
       'fixtures/conformance/local-runtime/2026-04/customers/customer-set-unknown-id-errors.json',
+      'fixtures/conformance/local-runtime/2026-04/customers/customer-set-email-upsert-when-id-absent.json',
       'config/parity-specs/customers/customer-set-unknown-id-code.json',
       'config/parity-specs/customers/customer_set_unknown_id_errors.json',
+      'config/parity-specs/customers/customer_set_email_upsert_when_id_absent.json',
     ],
     cleanupBehavior: 'Tracks all created/upserted customer IDs and deletes remaining records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The local-runtime customerSet fixture outputs are retained only to register deletion of forged parity evidence; the recorder now writes live Shopify replacements.',
+  },
+  {
+    domain: 'customers',
+    captureId: 'customer-delete-order-preconditions',
+    scriptPath: 'scripts/capture-customer-delete-order-preconditions-conformance.ts',
+    purpose:
+      'customerDelete success with no orders and blocked deletion when a real order is associated to the customer.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-delete-no-orders-control.json`,
+      `${CAPTURE_ROOT}customer-delete-blocked-by-orders.json`,
+      'fixtures/conformance/local-runtime/2025-01/customers/customer_delete_no_orders_control.json',
+      'fixtures/conformance/local-runtime/2025-01/customers/customer_delete_blocked_by_orders.json',
+      'config/parity-specs/customers/customer_delete_no_orders_control.json',
+      'config/parity-specs/customers/customer_delete_blocked_by_orders.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable customers plus one disposable order, records delete behavior, then best-effort cancels/deletes the order and deletes remaining customers.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The local-runtime customerDelete fixture outputs are retained only to register deletion of forged parity evidence; the recorder writes live Shopify replacements.',
   },
   {
     domain: 'customers',
