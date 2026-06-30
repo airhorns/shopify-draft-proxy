@@ -5115,7 +5115,7 @@ fn online_store_pixel_endpoint_edges_ported_from_gleam() {
     );
 
     // A malformed ARN fails ARN-scalar coercion: a top-level CoercionError with
-    // no data (recorded in event_bridge_server_pixel_update_arn_format).
+    // no data. This local-only branch is covered here rather than by parity evidence.
     let invalid_arn = proxy.process_request(json_graphql_request(
         r#"
         mutation RustOnlineStoreServerPixelInvalidArn {
@@ -5130,9 +5130,8 @@ fn online_store_pixel_endpoint_edges_ported_from_gleam() {
         json!([{"message": "Invalid ARN 'not-an-arn'", "extensions": {"code": "argumentLiteralsIncompatible", "typeName": "CoercionError"}}])
     );
 
-    // A blank Pub/Sub project is an INVALID_FIELD_ARGUMENTS top-level error
-    // (recorded in pub_sub_server_pixel_update_blank_required); Shopify surfaces
-    // the first blank required field, not a per-field userError array.
+    // A blank Pub/Sub project is an INVALID_FIELD_ARGUMENTS top-level error.
+    // Shopify surfaces the first blank required field, not a per-field userError array.
     let blank_pub_sub = proxy.process_request(json_graphql_request(
         r#"
         mutation RustOnlineStoreServerPixelBlankPubSub {
