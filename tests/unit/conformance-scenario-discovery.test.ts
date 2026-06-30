@@ -11,12 +11,17 @@ import {
   loadConformanceScenarioOverrides,
   loadConformanceScenarios,
 } from '../../scripts/conformance-scenario-registry.js';
+import { validateRecordedUpstreamCalls, type RecordedUpstreamCall } from '../../scripts/parity-cassette.js';
 
 const repoRoot = resolve(import.meta.dirname, '../..');
 const allowedScenarioStatuses = new Set(['captured', 'planned']);
 
 function readJson<T>(relativePath: string): T {
   return JSON.parse(readFileSync(resolve(repoRoot, relativePath), 'utf8')) as T;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 describe('conformance scenario discovery', () => {
@@ -116,5 +121,34 @@ describe('conformance scenario discovery', () => {
     expect(status.captureOnlyScenarioIds).toHaveLength(0);
     expect(status.captureOnlyScenarioIds).not.toContain('product-create-live-parity');
     expect(status.implementedOperations.every((entry) => entry.scenarioIds.length > 0)).toBe(true);
+  });
+
+  it('keeps privacy captured parity evidence live-recorded with exact upstream GraphQL', () => {
+    const errors: string[] = [];
+    const privacyScenarios = scenarios.filter((scenario) => {
+      return scenario.status === 'captured' && scenario.paritySpecPath.startsWith('config/parity-specs/privacy/');
+    });
+
+    for (const scenario of privacyScenarios) {
+      const paritySpec = readJson<ParitySpec>(scenario.paritySpecPath);
+      for (const captureFile of paritySpec.liveCaptureFiles ?? []) {
+        if (captureFile.startsWith('fixtures/conformance/local-runtime/')) {
+          errors.push(`${scenario.id}: captured privacy parity must not use local-runtime evidence: ${captureFile}`);
+          continue;
+        }
+
+        const fixture = readJson<unknown>(captureFile);
+        const upstreamCalls =
+          isRecord(fixture) && Array.isArray(fixture['upstreamCalls'])
+            ? (fixture['upstreamCalls'] as RecordedUpstreamCall[])
+            : [];
+
+        errors.push(
+          ...validateRecordedUpstreamCalls(upstreamCalls).map((error) => `${scenario.id}: ${captureFile}: ${error}`),
+        );
+      }
+    }
+
+    expect(errors).toEqual([]);
   });
 });
