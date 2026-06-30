@@ -361,6 +361,161 @@ fn stage_requested_return_for_removal(proxy: &mut DraftProxy) -> ReturnRemovalSe
     return_removal_setup_from_payload(order_id, &response.body["data"]["returnRequest"])
 }
 
+fn read_return_line_customer_note(proxy: &mut DraftProxy, return_id: Value) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+            query ReadReturnLineCustomerNote($id: ID!) {
+              return(id: $id) {
+                id
+                returnLineItems(first: 5) {
+                  nodes { id quantity customerNote }
+                }
+              }
+            }
+            "#,
+            json!({ "id": return_id }),
+        ))
+        .body["data"]["return"]
+        .clone()
+}
+
+#[test]
+fn return_create_and_request_persist_line_item_customer_note_for_read_after_write() {
+    let mut request_proxy = snapshot_proxy();
+    let (request_order_id, request_fulfillment_line_item_id) =
+        stage_fulfilled_order_for_return(&mut request_proxy);
+    let request = request_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RequestReturnWithCustomerNote($input: ReturnRequestInput!) {
+          returnRequest(input: $input) {
+            return {
+              id
+              status
+              returnLineItems(first: 5) {
+                nodes { id quantity customerNote }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "orderId": request_order_id,
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": request_fulfillment_line_item_id,
+                    "quantity": 1,
+                    "returnReason": "DEFECTIVE",
+                    "customerNote": "Screen arrived cracked"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(request.status, 200);
+    assert_eq!(
+        request.body["data"]["returnRequest"]["userErrors"],
+        json!([])
+    );
+    let requested_return = &request.body["data"]["returnRequest"]["return"];
+    assert_eq!(requested_return["status"], json!("REQUESTED"));
+    assert_eq!(
+        requested_return["returnLineItems"]["nodes"][0]["customerNote"],
+        json!("Screen arrived cracked")
+    );
+
+    let requested_read =
+        read_return_line_customer_note(&mut request_proxy, requested_return["id"].clone());
+    assert_eq!(
+        requested_read["returnLineItems"]["nodes"][0]["customerNote"],
+        json!("Screen arrived cracked")
+    );
+
+    let (omitted_order_id, omitted_fulfillment_line_item_id) =
+        stage_fulfilled_order_for_return(&mut request_proxy);
+    let omitted = request_proxy.process_request(json_graphql_request(
+        r#"
+        mutation RequestReturnWithoutCustomerNote($input: ReturnRequestInput!) {
+          returnRequest(input: $input) {
+            return {
+              id
+              returnLineItems(first: 5) {
+                nodes { id quantity customerNote }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "orderId": omitted_order_id,
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": omitted_fulfillment_line_item_id,
+                    "quantity": 1,
+                    "returnReason": "DEFECTIVE"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(omitted.status, 200);
+    assert_eq!(
+        omitted.body["data"]["returnRequest"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        omitted.body["data"]["returnRequest"]["return"]["returnLineItems"]["nodes"][0]
+            ["customerNote"],
+        Value::Null
+    );
+
+    let mut create_proxy = snapshot_proxy();
+    let (create_order_id, create_fulfillment_line_item_id) =
+        stage_fulfilled_order_for_return(&mut create_proxy);
+    let create = create_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReturnWithCustomerNote($returnInput: ReturnInput!) {
+          returnCreate(returnInput: $returnInput) {
+            return {
+              id
+              status
+              returnLineItems(first: 5) {
+                nodes { id quantity customerNote }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "returnInput": {
+                "orderId": create_order_id,
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": create_fulfillment_line_item_id,
+                    "quantity": 1,
+                    "returnReason": "DEFECTIVE",
+                    "customerNote": "Box was dented"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["returnCreate"]["userErrors"], json!([]));
+    let created_return = &create.body["data"]["returnCreate"]["return"];
+    assert_eq!(created_return["status"], json!("OPEN"));
+    assert_eq!(
+        created_return["returnLineItems"]["nodes"][0]["customerNote"],
+        json!("Box was dented")
+    );
+
+    let created_read =
+        read_return_line_customer_note(&mut create_proxy, created_return["id"].clone());
+    assert_eq!(
+        created_read["returnLineItems"]["nodes"][0]["customerNote"],
+        json!("Box was dented")
+    );
+}
+
 fn remove_from_return_for_test(
     proxy: &mut DraftProxy,
     return_id: Value,
