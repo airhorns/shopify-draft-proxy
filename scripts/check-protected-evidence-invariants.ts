@@ -1,10 +1,33 @@
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 
 import { conformanceCaptureIndex } from './conformance-capture-index.js';
 
 const protectedPaths = ['config/parity-specs', 'config/parity-requests', 'fixtures/conformance'];
+const retiredProtectedEvidencePaths = new Set([
+  'config/parity-requests/media/fileAcknowledgeUpdateFailed-downstream-read.graphql',
+  'config/parity-requests/media/fileAcknowledgeUpdateFailed-parity.graphql',
+  'config/parity-requests/media/fileUpdate-product-reference-attach.graphql',
+  'config/parity-requests/media/fileUpdate-product-reference-create.graphql',
+  'config/parity-requests/media/fileUpdate-product-reference-files-read.graphql',
+  'config/parity-requests/media/fileUpdate-product-reference-product-read.graphql',
+  'config/parity-requests/media/files-upload-local-runtime-create.graphql',
+  'config/parity-requests/media/files-upload-local-runtime-read.graphql',
+  'config/parity-requests/media/files-upload-local-runtime-staged-upload.graphql',
+  'config/parity-requests/media/media-file-acknowledge-update-failed-semantics-ack.graphql',
+  'config/parity-requests/media/media-file-acknowledge-update-failed-semantics-create.graphql',
+  'config/parity-requests/media/media-file-acknowledge-update-failed-semantics-read.graphql',
+  'config/parity-specs/media/fileAcknowledgeUpdateFailed-local-staging.json',
+  'config/parity-specs/media/fileUpdate-product-reference-local-staging.json',
+  'config/parity-specs/media/files-upload-local-runtime.json',
+  'config/parity-specs/media/media-file-acknowledge-update-failed-semantics.json',
+  'fixtures/conformance/local-runtime/2026-04/media/file-acknowledge-update-failed-local-runtime.json',
+  'fixtures/conformance/local-runtime/2026-04/media/file-update-product-reference-local-runtime.json',
+  'fixtures/conformance/local-runtime/2026-04/media/files-upload-local-runtime.json',
+  'fixtures/conformance/local-runtime/2026-04/media/media-file-acknowledge-update-failed-semantics.json',
+]);
 
-const result = spawnSync('git', ['diff', '--name-only', 'origin/main', '--', ...protectedPaths], {
+const result = spawnSync('git', ['diff', '--name-status', 'origin/main', '--', ...protectedPaths], {
   encoding: 'utf8',
 });
 
@@ -34,17 +57,26 @@ const registeredFixtureOutputs = conformanceCaptureIndex.flatMap((entry) => entr
 const changed = result.stdout
   .split('\n')
   .map((line) => line.trim())
-  .filter(Boolean);
+  .filter(Boolean)
+  .map((line) => {
+    const [status, firstPath, secondPath] = line.split('\t');
+    return {
+      status: status ?? '',
+      path: secondPath ?? firstPath ?? '',
+    };
+  });
 
 const unregistered = changed.filter(
-  (path) => !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, path)),
+  ({ status, path }) =>
+    !(status === 'D' && retiredProtectedEvidencePaths.has(path) && !existsSync(path)) &&
+    !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, path)),
 );
 
 if (unregistered.length > 0) {
   process.stderr.write(
     'Protected parity specs, parity requests, or conformance fixtures changed without capture-index registration.\n',
   );
-  for (const path of unregistered) process.stderr.write(`- ${path}\n`);
+  for (const { path } of unregistered) process.stderr.write(`- ${path}\n`);
   process.exit(1);
 }
 
