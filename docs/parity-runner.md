@@ -6,6 +6,14 @@ applicable, the proxy's emitted state and log) against the slice of the
 captured Shopify response named by the spec. It is the canonical proof
 that the Rust runtime emulates Shopify with high fidelity.
 
+For Shopify fidelity claims, the captured response must come from real
+Shopify through a checked-in capture script. Do not generate a conformance
+fixture by running the local proxy and comparing the proxy against that output;
+that only proves self-consistency. Local-runtime fixtures are acceptable only
+for explicitly proxy-owned mechanics or documented live-access blockers, and
+they must not replace a live capture when acceptance criteria or review asks
+for Shopify behavior evidence.
+
 This document describes the **cassette-playback** model. The previous
 seed-based model (where the parity runner pre-wrote into `base_state`,
 `staged_state`, or private setup hooks to fake the proxy into knowing about
@@ -311,6 +319,11 @@ The recorder boots an in-memory `DraftProxy` in live-hybrid mode against real
 Shopify, plays the spec's primary and targets through it, intercepts every
 upstream call the operation handlers issue, and writes the result into the
 capture file's `upstreamCalls` field.
+
+The recorder must not rewrite captured Shopify response bodies from local proxy
+responses. If a response fixture is stale or missing, rerun the relevant
+`scripts/capture-*` script against Shopify instead of synthesizing data from the
+runtime under test.
 
 Credentials come from the existing OAuth flow:
 `pnpm conformance:auth-link`, `pnpm conformance:exchange-auth`,

@@ -1935,6 +1935,32 @@ impl DraftProxy {
             })
             .collect::<Vec<_>>();
         let financial_status = order_create_financial_status(order_input, &transactions, total);
+        let customer = match (
+            resolved_string_field(order_input, "customerId"),
+            resolved_string_field(order_input, "email"),
+        ) {
+            (Some(id), email) => {
+                // A locally-staged customer carries the authoritative identity
+                // (its own email/displayName, which differ from the order's
+                // contact email). Mirror that record so reads of order.customer
+                // reflect the customer, not the order email.
+                if let Some(customer) = self.store.staged.customers.get(&id) {
+                    customer.clone()
+                } else {
+                    json!({
+                        "id": id,
+                        "email": email,
+                        "displayName": Value::Null
+                    })
+                }
+            }
+            (None, Some(email)) => json!({
+                "id": shopify_gid("Customer", resource_id_tail(order_id)),
+                "email": email,
+                "displayName": email
+            }),
+            (None, None) => Value::Null,
+        };
         let mut order = json!({
             "id": order_id,
             "name": format!("#{}", self.store.staged.orders.len() + 1),
@@ -1950,23 +1976,7 @@ impl DraftProxy {
             "cancelReason": Value::Null,
             "createdAt": "2024-01-01T00:00:00.000Z",
             "updatedAt": "2024-01-01T00:00:00.000Z",
-            "customer": resolved_string_field(order_input, "customerId")
-                .map(|id| {
-                    // A locally-staged customer carries the authoritative identity
-                    // (its own email/displayName, which differ from the order's
-                    // contact email). Mirror that record so reads of
-                    // order.customer reflect the customer, not the order email.
-                    if let Some(customer) = self.store.staged.customers.get(&id) {
-                        customer.clone()
-                    } else {
-                        json!({
-                            "id": id,
-                            "email": resolved_string_field(order_input, "email"),
-                            "displayName": Value::Null
-                        })
-                    }
-                })
-                .unwrap_or(Value::Null),
+            "customer": customer,
             "note": resolved_string_field(order_input, "note"),
             "tags": resolved_string_list_field(order_input, "tags"),
             "currencyCode": currency_code,

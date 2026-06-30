@@ -858,10 +858,10 @@ After the initial orders-domain creation scaffolding landed, the next easy mista
   - practical consequence: the narrow local `orderUpdate` runtime slice is no longer backed only by synthetic/local integration tests; it now has matching live payload + immediate read-after-write evidence for the same merchant-visible fields
 - a later local increment expanded known-order staging to the current `OrderInput` simple-update fields from Shopify docs:
   - `email`, `phone`, `poNumber`, `shippingAddress`, `customAttributes`, and order-scoped `metafields`
-  - downstream `order(id:)` reads expose the staged values, including `customer.email` when the input updates `email`
+  - downstream `order(id:)` reads expose the staged order email, but live 2026-04 evidence preserves the original nested `customer.email` rather than rewriting the customer record
   - `billingAddress` is intentionally not part of that local `orderUpdate` slice because the current `OrderInput` docs do not expose it
-  - executable local-runtime parity: `config/parity-specs/orders/orderUpdate-snapshot-staging.json` replays public `orderCreate -> orderUpdate -> order(id:) / orders / ordersCount` requests without seeding internal proxy state
-  - expanded live parity is captured for `email`, `poNumber`, `note`, `tags`, `customAttributes`, `shippingAddress`, and order-scoped `metafields` in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json`; `phone` remains local-runtime backed because Shopify 2025-01 rejected it as an `OrderInput` field in that capture path
+  - live snapshot-staging parity: `config/parity-specs/orders/orderUpdate-snapshot-staging.json` replays public `orderCreate -> orderUpdate -> order(id:) / orders / ordersCount` requests without seeding internal proxy state and is backed by a real Shopify capture under the configured conformance store
+  - expanded live parity is captured for `email`, `phone`, `poNumber`, `note`, `tags`, `customAttributes`, `shippingAddress`, and order-scoped `metafields` in `orderUpdate-snapshot-staging` and the older `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json`
 - a later 2026-04 localization capture exposed several easy-to-miss `orderUpdate` details:
   - `localizedFields` and deprecated `localizationExtensions` both read back from the same localized-order record set; updating either connection makes the key visible through both `Order.localizedFields` and `Order.localizationExtensions`
   - Brazilian credential values are validated for real CPF/CNPJ shape; arbitrary 11-digit strings can fail with `Localization extension: 'value' provided is invalid`
@@ -877,7 +877,7 @@ Practical rule:
 
 - treat `orderUpdate` as the first evidence-backed order-editing increment, but keep it explicitly narrow
 - mirror the captured unknown-id userError **and** the missing-id `INVALID_VARIABLE` branch in `snapshot` mode without hitting upstream
-- claim live parity for the expanded simple-update slice only where `orderUpdate-expanded-live-parity` selects the field; keep `phone` and any broader staff/localization side effects behind local-runtime or dedicated captures until live evidence exists
+- claim live parity for the expanded simple-update slice only where `orderUpdate-snapshot-staging`, `orderUpdate-expanded-live-parity`, or another dedicated capture selects the field; keep broader staff/localization side effects behind dedicated captures until live evidence exists
 - keep `live-hybrid` conservative for any order-edit branch that lacks non-empty local order hydration/edit semantics; passthrough is safer than inventing order state outside the currently documented support boundary
 - do not let this small success erase the remaining creation/read blockers:
   direct order creation and draft-order payment-term behavior have separate
