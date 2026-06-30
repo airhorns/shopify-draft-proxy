@@ -22,6 +22,13 @@ pub(in crate::proxy) fn count_object(count: impl serde::Serialize) -> Value {
     count_object_with_precision(count, "EXACT")
 }
 
+pub(in crate::proxy) fn selected_count_json(
+    count: impl serde::Serialize,
+    selections: &[SelectedField],
+) -> Value {
+    selected_json(&count_object(count), selections)
+}
+
 pub(in crate::proxy) fn count_object_with_precision(
     count: impl serde::Serialize,
     precision: &str,

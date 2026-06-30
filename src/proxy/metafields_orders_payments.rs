@@ -906,11 +906,13 @@ impl DraftProxy {
     where
         F: FnMut(&str) -> bool,
     {
-        if inputs.len() > 25 {
+        if inputs.len() > METAFIELDS_SET_INPUT_LIMIT {
             return vec![metafields_set_path_user_error(
                 vec!["metafields"],
                 "LESS_THAN_OR_EQUAL_TO",
-                "Exceeded the maximum metafields input limit of 25.",
+                &format!(
+                    "Exceeded the maximum metafields input limit of {METAFIELDS_SET_INPUT_LIMIT}."
+                ),
             )];
         }
 

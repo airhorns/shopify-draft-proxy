@@ -141,7 +141,7 @@ impl DraftProxy {
                 value_id_cursor,
             )),
             "blogsCount" => Some(selected_json(
-                &publication_count_json(self.online_store_count(OnlineStoreKind::Blog)),
+                &count_object(self.online_store_count(OnlineStoreKind::Blog)),
                 &field.selection,
             )),
             "page" => {
@@ -158,7 +158,7 @@ impl DraftProxy {
                 value_id_cursor,
             )),
             "pagesCount" => Some(selected_json(
-                &publication_count_json(self.online_store_count(OnlineStoreKind::Page)),
+                &count_object(self.online_store_count(OnlineStoreKind::Page)),
                 &field.selection,
             )),
             "article" => {
@@ -1101,7 +1101,7 @@ impl DraftProxy {
             .into_iter()
             .filter(|article| article["blogId"].as_str() == Some(id))
             .collect::<Vec<_>>();
-        record["articlesCount"] = publication_count_json(articles.len());
+        record["articlesCount"] = count_object(articles.len());
         record["articles"] = connection_json(articles);
         record
     }
@@ -1126,7 +1126,7 @@ impl DraftProxy {
             .into_iter()
             .filter(|comment| comment["articleId"].as_str() == Some(article_id.as_str()))
             .collect::<Vec<_>>();
-        record["commentsCount"] = publication_count_json(comments.len());
+        record["commentsCount"] = count_object(comments.len());
         record["comments"] = connection_json(comments);
         record
     }
@@ -1228,7 +1228,7 @@ fn blog_record(id: &str, input: &BTreeMap<String, ResolvedValue>) -> Value {
         "templateSuffix": optional_string_value(input, "templateSuffix"),
         "createdAt": ONLINE_STORE_CONTENT_TIMESTAMP,
         "updatedAt": ONLINE_STORE_CONTENT_TIMESTAMP,
-        "articlesCount": publication_count_json(0),
+        "articlesCount": count_object(0),
         "articles": connection_json(Vec::new())
     })
 }
@@ -1341,7 +1341,7 @@ fn article_record(
         "author": article_author_json(input),
         "image": article_image_json(input),
         "metafields": connection_json(Vec::new()),
-        "commentsCount": publication_count_json(0),
+        "commentsCount": count_object(0),
         "comments": connection_json(Vec::new())
     })
 }
@@ -1804,7 +1804,7 @@ fn normalize_observed_blog(record: &Value) -> Value {
         record["updatedAt"] = json!(ONLINE_STORE_CONTENT_TIMESTAMP);
     }
     if record.get("articlesCount").is_none() {
-        record["articlesCount"] = publication_count_json(articles.len());
+        record["articlesCount"] = count_object(articles.len());
     }
     if record.get("articles").is_none() {
         record["articles"] = connection_json(Vec::new());
@@ -1894,7 +1894,7 @@ fn normalize_observed_article(record: &Value, parent_blog_id: Option<&str>) -> V
         record["metafields"] = connection_json(Vec::new());
     }
     if record.get("commentsCount").is_none() {
-        record["commentsCount"] = publication_count_json(comments.len());
+        record["commentsCount"] = count_object(comments.len());
     }
     if record.get("comments").is_none() {
         record["comments"] = connection_json(Vec::new());

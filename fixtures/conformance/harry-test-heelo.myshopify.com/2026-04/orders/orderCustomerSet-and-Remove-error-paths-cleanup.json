@@ -1,0 +1,188 @@
+{
+  "capturedAt": "2026-06-29T20:36:15.560Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cleanup": {
+    "order:gid://shopify/Order/8881242308914": {
+      "query": "mutation OrderCancelParity(\n  $orderId: ID!\n  $restock: Boolean!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean\n  $staffNote: String\n) {\n  orderCancel(\n    orderId: $orderId\n    restock: $restock\n    reason: $reason\n    notifyCustomer: $notifyCustomer\n    staffNote: $staffNote\n  ) {\n    orderCancelUserErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "orderId": "gid://shopify/Order/8881242308914",
+        "restock": false,
+        "reason": "OTHER"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "orderCancel": {
+              "orderCancelUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "order:gid://shopify/Order/8881242341682": {
+      "query": "mutation OrderCancelParity(\n  $orderId: ID!\n  $restock: Boolean!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean\n  $staffNote: String\n) {\n  orderCancel(\n    orderId: $orderId\n    restock: $restock\n    reason: $reason\n    notifyCustomer: $notifyCustomer\n    staffNote: $staffNote\n  ) {\n    orderCancelUserErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "orderId": "gid://shopify/Order/8881242341682",
+        "restock": false,
+        "reason": "OTHER"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "orderCancel": {
+              "orderCancelUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "order:gid://shopify/Order/8881242407218": {
+      "query": "mutation OrderCancelParity(\n  $orderId: ID!\n  $restock: Boolean!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean\n  $staffNote: String\n) {\n  orderCancel(\n    orderId: $orderId\n    restock: $restock\n    reason: $reason\n    notifyCustomer: $notifyCustomer\n    staffNote: $staffNote\n  ) {\n    orderCancelUserErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "orderId": "gid://shopify/Order/8881242407218",
+        "restock": false,
+        "reason": "OTHER"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "orderCancel": {
+              "orderCancelUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "customer:gid://shopify/Customer/10868759757106": {
+      "query": "mutation OrderCustomerErrorPathsCustomerDelete($input: CustomerDeleteInput!) {\n    customerDelete(input: $input) {\n      deletedCustomerId\n      userErrors { field message }\n    }\n  }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10868759757106"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10868759757106",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "customer:gid://shopify/Customer/10868759789874": {
+      "query": "mutation OrderCustomerErrorPathsCustomerDelete($input: CustomerDeleteInput!) {\n    customerDelete(input: $input) {\n      deletedCustomerId\n      userErrors { field message }\n    }\n  }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10868759789874"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10868759789874",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "company:gid://shopify/Company/5713789234": {
+      "query": "mutation OrderCustomerErrorPathsCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Company/5713789234"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "companyDelete": {
+              "deletedCompanyId": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Failed to delete the company.",
+                  "code": "FAILED_TO_DELETE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

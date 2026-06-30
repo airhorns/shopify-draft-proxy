@@ -48,7 +48,7 @@ impl DraftProxy {
                 }
                 "segmentsCount" => match self.store.staged.segment_catalog.get("segmentsCount") {
                     Some(count) => selected_json(count, &field.selection),
-                    None => segment_count_json(self.store.staged.segments.len(), &field.selection),
+                    None => selected_count_json(self.store.staged.segments.len(), &field.selection),
                 },
                 "segmentFilters"
                 | "segmentFilterSuggestions"
