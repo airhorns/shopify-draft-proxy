@@ -1406,27 +1406,6 @@ impl DraftProxy {
                 .as_str()
                 .unwrap_or_default()
                 .to_string();
-            // The deprecated useAsCollectionCondition flag on an ineligible type
-            // reports TYPE_NOT_ALLOWED_FOR_CONDITIONS rather than the generic
-            // INVALID_CAPABILITY surfaced for explicit capability inputs.
-            if resolved_bool_field(arguments, "useAsCollectionCondition") == Some(true)
-                && metafield_definition_capability_enabled(&args, "smartCollectionCondition")
-                && !metafield_definition_capability_eligible(
-                    "smartCollectionCondition",
-                    owner_type,
-                    &metafield_type,
-                )
-            {
-                return json!({
-                    "createdDefinition": Value::Null,
-                    "userErrors": [metafield_definition_user_error(
-                        "StandardMetafieldDefinitionEnableUserError",
-                        Value::Null,
-                        "Definition type is not allowed for smart collection conditions.",
-                        "TYPE_NOT_ALLOWED_FOR_CONDITIONS"
-                    )]
-                });
-            }
             if let Some(error) = metafield_definition_capability_input_error(
                 &args,
                 "StandardMetafieldDefinitionEnableUserError",
@@ -1529,27 +1508,6 @@ impl DraftProxy {
                     Value::Null,
                     "Unstructured metafields already exist for this owner type, namespace, and key.",
                     "UNSTRUCTURED_ALREADY_EXISTS"
-                )]
-            });
-        }
-        // The deprecated useAsCollectionCondition flag on an ineligible type
-        // reports TYPE_NOT_ALLOWED_FOR_CONDITIONS rather than the generic
-        // INVALID_CAPABILITY surfaced for explicit capability inputs.
-        if resolved_bool_field(arguments, "useAsCollectionCondition") == Some(true)
-            && metafield_definition_capability_enabled(&args, "smartCollectionCondition")
-            && !metafield_definition_capability_eligible(
-                "smartCollectionCondition",
-                owner_type,
-                &metafield_type,
-            )
-        {
-            return json!({
-                "createdDefinition": Value::Null,
-                "userErrors": [metafield_definition_user_error(
-                    "StandardMetafieldDefinitionEnableUserError",
-                    Value::Null,
-                    "Definition type is not allowed for smart collection conditions.",
-                    "TYPE_NOT_ALLOWED_FOR_CONDITIONS"
                 )]
             });
         }
@@ -1750,16 +1708,6 @@ fn translate_standard_enable_deprecated_storefront_access(
         ResolvedValue::String(storefront.to_string()),
     );
     args.insert("access".to_string(), ResolvedValue::Object(access));
-}
-
-fn metafield_definition_capability_enabled(
-    args: &BTreeMap<String, ResolvedValue>,
-    capability_key: &str,
-) -> bool {
-    resolved_object_field(args, "capabilities")
-        .and_then(|capabilities| resolved_object_field(&capabilities, capability_key))
-        .and_then(|capability| resolved_bool_field(&capability, "enabled"))
-        == Some(true)
 }
 
 fn metafield_definition_user_error(
@@ -2017,15 +1965,6 @@ fn metafield_definition_create_errors_for_namespace(
             "Namespace contains one or more invalid characters.",
             "INVALID_CHARACTER",
         ));
-    } else if namespace_length_error.is_none()
-        && matches!(namespace, "shopify_standard" | "protected")
-    {
-        errors.push(metafield_definition_user_error(
-            "MetafieldDefinitionCreateUserError",
-            json!(["definition", "namespace"]),
-            &format!("Namespace {namespace} is reserved."),
-            "RESERVED",
-        ));
     }
     if let Some(error) = key_length_error {
         errors.push(metafield_definition_user_error(
@@ -2241,7 +2180,7 @@ pub(in crate::proxy) fn metafield_definition_type_allowed(value: &str) -> bool {
 }
 
 pub(in crate::proxy) fn metafield_definition_valid_type_message() -> &'static str {
-    "antenna_gain, area, battery_charge_capacity, battery_energy_capacity, boolean, capacitance, color, concentration, data_storage_capacity, data_transfer_rate, date_time, date, dimension, display_density, distance, duration, electric_current, electrical_resistance, energy, frequency, id, illuminance, inductance, json, language, link, list.antenna_gain, list.area, list.battery_charge_capacity, list.battery_energy_capacity, list.capacitance, list.color, list.concentration, list.data_storage_capacity, list.data_transfer_rate, list.date_time, list.date, list.dimension, list.display_density, list.distance, list.duration, list.electric_current, list.electrical_resistance, list.energy, list.frequency, list.illuminance, list.inductance, list.link, list.luminous_flux, list.mass_flow_rate, list.number_decimal, list.number_integer, list.power, list.pressure, list.rating, list.resolution, list.rotational_speed, list.single_line_text_field, list.sound_level, list.speed, list.temperature, list.thermal_power, list.url, list.voltage, list.volume, list.volumetric_flow_rate, list.weight, luminous_flux, mass_flow_rate, money, multi_line_text_field, number_decimal, number_integer, power, pressure, rating, resolution, rich_text_field, rotational_speed, single_line_text_field, sound_level, speed, temperature, thermal_power, url, voltage, volume, volumetric_flow_rate, weight, company_reference, list.company_reference, customer_reference, list.customer_reference, product_reference, list.product_reference, collection_reference, list.collection_reference, variant_reference, list.variant_reference, file_reference, list.file_reference, product_taxonomy_value_reference, list.product_taxonomy_value_reference, metaobject_reference, list.metaobject_reference, mixed_reference, list.mixed_reference, page_reference, list.page_reference, article_reference, list.article_reference, order_reference, list.order_reference"
+    "antenna_gain, area, battery_charge_capacity, battery_energy_capacity, boolean, capacitance, color, concentration, data_storage_capacity, data_transfer_rate, date_time, date, dimension, display_density, distance, duration, electric_current, electrical_resistance, energy, frequency, id, illuminance, inductance, json, jurisdiction, language, link, list.antenna_gain, list.area, list.battery_charge_capacity, list.battery_energy_capacity, list.capacitance, list.color, list.concentration, list.data_storage_capacity, list.data_transfer_rate, list.date_time, list.date, list.dimension, list.display_density, list.distance, list.duration, list.electric_current, list.electrical_resistance, list.energy, list.frequency, list.illuminance, list.inductance, list.jurisdiction, list.link, list.luminous_flux, list.mass_flow_rate, list.number_decimal, list.number_integer, list.power, list.pressure, list.rating, list.resolution, list.rotational_speed, list.single_line_text_field, list.sound_level, list.speed, list.temperature, list.thermal_power, list.url, list.voltage, list.volume, list.volumetric_flow_rate, list.weight, luminous_flux, mass_flow_rate, money, multi_line_text_field, number_decimal, number_integer, power, pressure, rating, resolution, rich_text_field, rotational_speed, single_line_text_field, sound_level, speed, temperature, thermal_power, url, voltage, volume, volumetric_flow_rate, weight, company_reference, list.company_reference, customer_reference, list.customer_reference, product_reference, list.product_reference, collection_reference, list.collection_reference, variant_reference, list.variant_reference, file_reference, list.file_reference, product_taxonomy_value_reference, list.product_taxonomy_value_reference, product_taxonomy_disclosure_reference, metaobject_reference, list.metaobject_reference, mixed_reference, list.mixed_reference, disclosure_reference, list.disclosure_reference, page_reference, list.page_reference, article_reference, list.article_reference, order_reference, list.order_reference"
 }
 
 fn metafield_definition_type(name: &str) -> Value {

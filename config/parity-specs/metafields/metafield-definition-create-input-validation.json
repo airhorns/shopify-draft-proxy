@@ -2,10 +2,11 @@
   "scenarioId": "metafield-definition-create-input-validation",
   "operationNames": ["metafieldDefinitionCreate"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["user-errors-parity", "input-validation"],
+  "assertionKinds": ["user-errors-parity", "input-validation", "payload-shape"],
   "liveCaptureFiles": [
-    "fixtures/conformance/local-runtime/2025-01/metafields/metafield-definition-create-input-validation.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-create-input-validation.json"
   ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafield_definitions.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metafields/metafield-definition-create-input-validation.graphql",
     "variablesCapturePath": "$.cases.shortNamespace.request.variables",
@@ -18,13 +19,13 @@
     "targets": [
       {
         "name": "short-namespace-userErrors",
-        "capturePath": "$.cases.shortNamespace.response.data.metafieldDefinitionCreate.userErrors",
-        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors"
+        "capturePath": "$.cases.shortNamespace.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate"
       },
       {
         "name": "invalid-character-namespace-userErrors",
-        "capturePath": "$.cases.invalidCharacterNamespace.response.data.metafieldDefinitionCreate.userErrors",
-        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors",
+        "capturePath": "$.cases.invalidCharacterNamespace.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/metafield-definition-create-input-validation.graphql",
           "variablesCapturePath": "$.cases.invalidCharacterNamespace.request.variables",
@@ -33,8 +34,8 @@
       },
       {
         "name": "invalid-character-key-userErrors",
-        "capturePath": "$.cases.invalidCharacterKey.response.data.metafieldDefinitionCreate.userErrors",
-        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors",
+        "capturePath": "$.cases.invalidCharacterKey.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/metafield-definition-create-input-validation.graphql",
           "variablesCapturePath": "$.cases.invalidCharacterKey.request.variables",
@@ -43,8 +44,8 @@
       },
       {
         "name": "unknown-type-userErrors",
-        "capturePath": "$.cases.unknownType.response.data.metafieldDefinitionCreate.userErrors",
-        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors",
+        "capturePath": "$.cases.unknownType.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/metafield-definition-create-input-validation.graphql",
           "variablesCapturePath": "$.cases.unknownType.request.variables",
@@ -52,29 +53,43 @@
         }
       },
       {
-        "name": "reserved-namespace-shopify_standard-userErrors",
-        "capturePath": "$.cases.reservedNamespaceShopifyStandard.response.data.metafieldDefinitionCreate.userErrors",
-        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors",
+        "name": "shopify-standard-namespace-create",
+        "capturePath": "$.cases.reservedNamespaceShopifyStandard.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/metafield-definition-create-input-validation.graphql",
           "variablesCapturePath": "$.cases.reservedNamespaceShopifyStandard.request.variables",
           "apiVersion": "2025-01"
-        }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
       },
       {
-        "name": "reserved-namespace-protected-userErrors",
-        "capturePath": "$.cases.reservedNamespaceProtected.response.data.metafieldDefinitionCreate.userErrors",
-        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors",
+        "name": "protected-namespace-create",
+        "capturePath": "$.cases.reservedNamespaceProtected.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/metafield-definition-create-input-validation.graphql",
           "variablesCapturePath": "$.cases.reservedNamespaceProtected.request.variables",
           "apiVersion": "2025-01"
-        }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
       },
       {
         "name": "name-too-long-userErrors",
-        "capturePath": "$.cases.nameTooLong.response.data.metafieldDefinitionCreate.userErrors",
-        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors",
+        "capturePath": "$.cases.nameTooLong.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/metafield-definition-create-input-validation.graphql",
           "variablesCapturePath": "$.cases.nameTooLong.request.variables",
@@ -83,5 +98,5 @@
       }
     ]
   },
-  "notes": "HAR-693 locks product-owner metafieldDefinitionCreate input validation. The local-runtime fixture uses live Shopify payloads for deterministic length, invalid-character, unknown-type, and name-length branches, and encodes the ticket's reserved namespace guardrail where the current conformance app can bypass the merchant reserved-namespace rejection."
+  "notes": "Live Shopify Admin API 2025-01 input validation for metafieldDefinitionCreate. Unlike the retired synthetic fixture, the current conformance app is allowed to create `shopify_standard` and `protected` namespace definitions; the recorder deletes those successful validation-probe creates during cleanup."
 }

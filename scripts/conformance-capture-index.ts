@@ -2276,6 +2276,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafields-parity-provenance-replacements',
+    scriptPath: 'scripts/capture-metafields-parity-provenance-replacements.mts',
+    purpose:
+      'Real Shopify recorder replacement for legacy local-runtime metafieldDefinitionCreate input validation and standardMetafieldDefinitionEnable error-branch parity evidence.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-create-input-validation.json`,
+      `${CAPTURE_ROOT}standard-metafield-definition-enable-error-branches.json`,
+      `${LOCAL_RUNTIME_ROOT}metafield-definition-create-input-validation.json`,
+      `${LOCAL_RUNTIME_ROOT}standard-metafield-definition-enable-error-branches.json`,
+      'config/parity-specs/metafields/metafield-definition-create-input-validation.json',
+      'config/parity-specs/metafields/standard-metafield-definition-enable-error-branches.json',
+      'config/parity-requests/metafields/standard-metafield-definition-enable-visible-storefront.graphql',
+    ],
+    cleanupBehavior:
+      'Validation branches create no records except app-permitted shopify_standard/protected definitions and the visibleToStorefrontApi standard definition probe; the recorder deletes each definition it creates.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The script records fixed API versions 2025-01 and 2026-04 in one run so the two retired local-runtime fixtures are replaced together.',
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-validations-input',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-metafield-definition-validations-input-conformance.ts',
