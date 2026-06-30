@@ -3288,6 +3288,128 @@ fn inventory_quantity_name_validation_rejects_invalid_names_without_staging() {
 }
 
 #[test]
+fn inventory_adjust_quantities_ledger_document_validation_rejects_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let mutation = r#"
+        mutation LedgerDocumentAdjust($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+          inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup {
+              id
+              changes { name delta ledgerDocumentUri }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#;
+
+    let missing_non_available = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "ledger-required-non-available", "input": {"name": "damaged", "reason": "damaged", "changes": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/ledger-required", "locationId": "gid://shopify/Location/1", "delta": 5, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        missing_non_available.body["data"]["inventoryAdjustQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "changes", "0", "ledgerDocumentUri"],
+                "message": "A ledger document URI is required except when adjusting available.",
+                "code": "INVALID_QUANTITY_DOCUMENT"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert!(state_snapshot(&proxy)["stagedState"]["inventoryLevels"].is_null());
+
+    let available_with_ledger = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "ledger-forbidden-available", "input": {"name": "available", "reason": "correction", "changes": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/ledger-forbidden", "locationId": "gid://shopify/Location/1", "delta": 5, "changeFromQuantity": 0, "ledgerDocumentUri": "https://example.com/doc/1"}
+        ]}}),
+    ));
+    assert_eq!(
+        available_with_ledger.body["data"]["inventoryAdjustQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "changes", "0", "ledgerDocumentUri"],
+                "message": "A ledger document URI is not allowed when adjusting available.",
+                "code": "INVALID_AVAILABLE_DOCUMENT"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert!(state_snapshot(&proxy)["stagedState"]["inventoryLevels"].is_null());
+
+    let internal_gid_ledger = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "ledger-internal-gid", "input": {"name": "reserved", "reason": "correction", "changes": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/ledger-internal", "locationId": "gid://shopify/Location/1", "delta": 5, "changeFromQuantity": 0, "ledgerDocumentUri": "gid://shopify/Order/123"}
+        ]}}),
+    ));
+    assert_eq!(
+        internal_gid_ledger.body["data"]["inventoryAdjustQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "changes", "0", "ledgerDocumentUri"],
+                "message": "Internal (gid://shopify/) ledger documents are not allowed to be adjusted via API.",
+                "code": "INTERNAL_LEDGER_DOCUMENT"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert!(state_snapshot(&proxy)["stagedState"]["inventoryLevels"].is_null());
+
+    let multiple_distinct_ledgers = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "ledger-max-one-document", "input": {"name": "damaged", "reason": "damaged", "changes": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/ledger-first", "locationId": "gid://shopify/Location/1", "delta": 5, "changeFromQuantity": 0, "ledgerDocumentUri": "https://example.com/doc/1"},
+            {"inventoryItemId": "gid://shopify/InventoryItem/ledger-second", "locationId": "gid://shopify/Location/1", "delta": 6, "changeFromQuantity": 0, "ledgerDocumentUri": "https://example.com/doc/2"}
+        ]}}),
+    ));
+    assert_eq!(
+        multiple_distinct_ledgers.body["data"]["inventoryAdjustQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "changes"],
+                "message": "All changes must have the same ledger document URI or, in the case of adjusting available, no ledger document URI.",
+                "code": "MAX_ONE_LEDGER_DOCUMENT"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert!(state_snapshot(&proxy)["stagedState"]["inventoryLevels"].is_null());
+
+    let valid_non_available = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "ledger-valid-non-available", "input": {"name": "incoming", "reason": "received", "changes": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/ledger-valid", "locationId": "gid://shopify/Location/1", "delta": 5, "changeFromQuantity": 0, "ledgerDocumentUri": "https://example.com/doc/valid"}
+        ]}}),
+    ));
+    let valid_payload = &valid_non_available.body["data"]["inventoryAdjustQuantities"];
+    assert_eq!(valid_payload["userErrors"], json!([]));
+    assert_ne!(valid_payload["inventoryAdjustmentGroup"], Value::Null);
+    assert_eq!(
+        valid_payload["inventoryAdjustmentGroup"]["changes"][0]["ledgerDocumentUri"],
+        json!("https://example.com/doc/valid")
+    );
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["inventoryLevels"][0]["quantities"]["incoming"],
+        json!(5)
+    );
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(log["entries"][0]["status"], json!("staged"));
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("https://example.com/doc/valid"));
+}
+
+#[test]
 fn inventory_set_quantities_rejects_bounds_before_staging_and_allows_available_negative() {
     let mut proxy = snapshot_proxy();
     let inventory_item_id = "gid://shopify/InventoryItem/53204673823026";

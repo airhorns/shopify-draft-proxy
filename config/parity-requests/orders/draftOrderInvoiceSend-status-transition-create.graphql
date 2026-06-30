@@ -1,0 +1,15 @@
+mutation DraftOrderInvoiceSendStatusTransitionCreate($input: DraftOrderInput!) {
+  draftOrderCreate(input: $input) {
+    draftOrder {
+      id
+      status
+      invoiceSentAt
+      email
+      invoiceUrl
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

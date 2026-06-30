@@ -2178,9 +2178,16 @@ impl DraftProxy {
         }
 
         let mut updated = draft_order.clone();
+        let invoice_sent_at = order_mutation_timestamp(self.log_entries.len() as u64);
+        updated["status"] = json!("INVOICE_SENT");
+        updated["invoiceSentAt"] = json!(invoice_sent_at.clone());
+        updated["updatedAt"] = json!(invoice_sent_at);
         updated["__draftProxyInvoiceSend"] =
             draft_order_invoice_send_metadata(&field.arguments, &draft_order);
-        self.store.staged.draft_orders.insert(id.clone(), updated);
+        self.store
+            .staged
+            .draft_orders
+            .insert(id.clone(), updated.clone());
         self.record_orders_local_log_entry(OrdersLocalLogEntry {
             request,
             query,
@@ -2194,7 +2201,7 @@ impl DraftProxy {
         });
         selected_json(
             &json!({
-                "draftOrder": draft_order,
+                "draftOrder": updated,
                 "userErrors": [],
                 "invoiceErrors": []
             }),

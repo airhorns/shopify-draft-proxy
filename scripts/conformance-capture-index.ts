@@ -206,14 +206,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-company-location-tax-settings-sequential-conformance.mts',
     purpose:
-      'B2B companyLocationTaxSettingsUpdate exemption assign/remove set math, omitted taxExempt preservation, and taxSettings read-after-write.',
+      'B2B companyLocationTaxSettingsUpdate registration-only updates, no-knob no-ops, exemption assign/remove set math, omitted taxExempt preservation, and taxSettings read-after-write.',
     requiredAuthScopes: ['read_companies', 'write_companies'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}b2b-company-location-tax-settings-sequential.json`,
       'config/parity-specs/b2b/b2b-company-location-tax-settings-sequential.json',
     ],
     cleanupBehavior:
-      'Creates one disposable B2B company/location, records tax settings updates and reads, then deletes the company during cleanup.',
+      'Creates one disposable B2B company/location, records registration-only, no-knob, and exemption tax settings updates and reads, then deletes the company during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -3952,6 +3952,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
+    captureId: 'inventory-adjust-ledger-document-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-inventory-adjust-ledger-document-validation-conformance.ts',
+    purpose:
+      'inventoryAdjustQuantities ledgerDocumentUri validation for required, forbidden, internal-gid, max-one-document, and valid non-available branches.',
+    requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-adjust-ledger-document-validation.json`,
+      'config/parity-specs/products/inventory-adjust-ledger-document-validation.json',
+      'config/parity-requests/products/inventory-adjust-ledger-document-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable tracked products, records ledger document validation branches and one valid incoming adjustment, then deletes both products.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
     captureId: 'inventory-adjust-name-allowlist',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-inventory-adjust-name-allowlist-conformance.ts',
@@ -7475,6 +7492,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior: 'Uses safety-first validation branches; review manually before any customer-visible send path.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'draft-orders',
+    captureId: 'draft-order-invoice-send-status-transition',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-draft-order-invoice-send-status-transition-conformance.ts',
+    purpose:
+      'Successful draftOrderInvoiceSend status and invoiceSentAt transition plus immediate draftOrder read-after-write.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draft-order-invoice-send-status-transition.json`,
+      'config/parity-specs/orders/draftOrderInvoiceSend-status-transition.json',
+      'config/parity-requests/orders/draftOrderInvoiceSend-status-transition-create.graphql',
+      'config/parity-requests/orders/draftOrderInvoiceSend-status-transition-send.graphql',
+      'config/parity-requests/orders/draftOrderInvoiceSend-status-transition-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft order with a reserved example.com recipient, records successful invoice send and read-back, then deletes the draft order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'draft-orders',
