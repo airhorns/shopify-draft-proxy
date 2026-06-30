@@ -4,7 +4,7 @@ import { conformanceCaptureIndex } from './conformance-capture-index.js';
 
 const protectedPaths = ['config/parity-specs', 'config/parity-requests', 'fixtures/conformance'];
 
-const result = spawnSync('git', ['diff', '--name-only', 'origin/main', '--', ...protectedPaths], {
+const result = spawnSync('git', ['diff', '--name-status', 'origin/main', '--', ...protectedPaths], {
   encoding: 'utf8',
 });
 
@@ -34,18 +34,27 @@ const registeredFixtureOutputs = conformanceCaptureIndex.flatMap((entry) => entr
 const changed = result.stdout
   .split('\n')
   .map((line) => line.trim())
-  .filter(Boolean);
+  .filter(Boolean)
+  .map((line) => {
+    const [status, ...paths] = line.split('\t');
+    return {
+      status,
+      path: paths.at(-1) ?? '',
+    };
+  })
+  .filter((change) => change.path.length > 0);
 
 const unregistered = changed.filter(
-  (path) => !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, path)),
+  ({ status, path }) =>
+    status !== 'D' && !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, path)),
 );
 
 if (unregistered.length > 0) {
   process.stderr.write(
     'Protected parity specs, parity requests, or conformance fixtures changed without capture-index registration.\n',
   );
-  for (const path of unregistered) process.stderr.write(`- ${path}\n`);
+  for (const { path } of unregistered) process.stderr.write(`- ${path}\n`);
   process.exit(1);
 }
 
-process.stdout.write('Protected parity evidence changes are registered in the capture index.\n');
+process.stdout.write('Protected parity evidence additions/modifications are registered in the capture index.\n');
