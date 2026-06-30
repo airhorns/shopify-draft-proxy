@@ -206,14 +206,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-company-location-tax-settings-sequential-conformance.mts',
     purpose:
-      'B2B companyLocationTaxSettingsUpdate exemption assign/remove set math, omitted taxExempt preservation, and taxSettings read-after-write.',
+      'B2B companyLocationTaxSettingsUpdate registration-only updates, no-knob no-ops, exemption assign/remove set math, omitted taxExempt preservation, and taxSettings read-after-write.',
     requiredAuthScopes: ['read_companies', 'write_companies'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}b2b-company-location-tax-settings-sequential.json`,
       'config/parity-specs/b2b/b2b-company-location-tax-settings-sequential.json',
     ],
     cleanupBehavior:
-      'Creates one disposable B2B company/location, records tax settings updates and reads, then deletes the company during cleanup.',
+      'Creates one disposable B2B company/location, records registration-only, no-knob, and exemption tax settings updates and reads, then deletes the company during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
