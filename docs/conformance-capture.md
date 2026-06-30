@@ -37,6 +37,13 @@ Before live capture, always confirm the effective store and credential:
 corepack pnpm conformance:probe
 ```
 
+When a ticket or review asks for Shopify behavior evidence, the fixture must
+come from a real capture script against Shopify. Do not replace a required live
+capture with local-runtime output, a hand-authored fixture, or a fixture copied
+from proxy responses. Local-runtime fixtures are acceptable only for explicitly
+proxy-only mechanics or documented live-access blockers, and the parity spec
+notes must say why they are not being used as Shopify fidelity evidence.
+
 After a fixture or parity metadata change, run the checks named by the index entry. Most promoted fixtures should pass:
 
 ```bash
@@ -63,5 +70,5 @@ corepack pnpm parity:record --all
 The parity recorder boots a Rust `DraftProxy` in live-hybrid mode against real Shopify, plays the spec's primary and target requests through it, intercepts every upstream call the operation handlers issue, and writes the result back into the capture file's `upstreamCalls` field. CI never re-records — that is a human/agent-driven action backed by the same OAuth credentials the capture scripts use.
 
 See `docs/parity-runner.md` for the cassette schema and parity model.
-Never hand-author `seedX` keys in capture files; that pattern is
-banned.
+Never hand-author `seedX` keys in capture files or rewrite captured
+Shopify response payloads from proxy output; those patterns are banned.

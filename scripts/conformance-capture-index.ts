@@ -9620,24 +9620,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
-    captureId: 'order-update-snapshot-staging-local-runtime',
+    captureId: 'order-update-snapshot-staging',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
-    scriptPath: 'scripts/capture-order-update-snapshot-staging-local-runtime.ts',
+    scriptPath: 'scripts/capture-order-update-snapshot-staging-conformance.ts',
     purpose:
-      'Local-runtime recording for orderCreate-backed orderUpdate happy-path staging, downstream order reads, and raw mutation-log retention.',
-    requiredAuthScopes: ['local-runtime'],
+      'Live Shopify recording for orderCreate-backed orderUpdate happy-path staging, downstream order reads, and ordersCount read-after-write behavior.',
+    requiredAuthScopes: ['write_orders', 'read_orders'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}orderUpdate-snapshot-staging.json`,
-      `${LOCAL_RUNTIME_ROOT}orderUpdate-snapshot-staging.json`,
       'config/parity-specs/orders/orderUpdate-snapshot-staging.json',
       'config/parity-requests/orders/orderUpdate-snapshot-staging-create.graphql',
-      'config/parity-requests/orders/orderUpdate-snapshot-staging-create.variables.json',
       'config/parity-requests/orders/orderUpdate-snapshot-staging.graphql',
       'config/parity-requests/orders/orderUpdate-snapshot-staging-read.graphql',
     ],
     cleanupBehavior:
-      'Runs only against the local Rust proxy runtime through public GraphQL requests; no Shopify cleanup required.',
-    expectedStatusChecks: ['conformance:check', 'rust:test', 'targeted-runtime-test'],
+      'Creates a disposable test order through orderCreate, updates it, verifies downstream reads, then deletes the disposable order when orderDelete cleanup succeeds.',
+    expectedStatusChecks: ['conformance:check', 'conformance:parity', 'rust:test', 'targeted-runtime-test'],
   },
   {
     domain: 'orders',

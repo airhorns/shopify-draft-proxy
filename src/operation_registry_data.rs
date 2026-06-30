@@ -432,7 +432,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
         entry!("abandonedCheckoutsCount", Query, Orders, false, []),
         entry!("abandonment", Query, Orders, true, []),
         entry!("abandonmentByAbandonedCheckoutId", Query, Orders, false, []),
-        entry!("orderUpdate", Mutation, Orders, true, []),
+        entry!("orderUpdate", Mutation, Orders, true, ["tests/graphql_routes/orders.rs"]),
         entry!("orderClose", Mutation, Orders, true, ["tests/graphql_routes.rs"]),
         entry!("orderOpen", Mutation, Orders, true, ["tests/graphql_routes.rs"]),
         entry!("orderMarkAsPaid", Mutation, Orders, true, []),

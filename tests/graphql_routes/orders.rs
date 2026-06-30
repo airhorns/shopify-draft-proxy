@@ -111,6 +111,422 @@ fn order_create_uses_shop_currency_but_preserves_presentment_currency() {
     );
 }
 
+#[test]
+fn order_update_stages_simple_fields_for_known_order() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOrderForUpdate($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              lineItems(first: 5) {
+                nodes {
+                  id
+                  title
+                  quantity
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "order-update-before@example.com",
+                "note": "before update",
+                "tags": ["before"],
+                "lineItems": [{
+                    "title": "Update target",
+                    "quantity": 2,
+                    "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let original_line_items = create.body["data"]["orderCreate"]["order"]["lineItems"].clone();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateKnownOrder($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order {
+              id
+              updatedAt
+              email
+              phone
+              poNumber
+              note
+              tags
+              customer { email }
+              customAttributes { key value }
+              shippingAddress {
+                firstName
+                lastName
+                address1
+                address2
+                company
+                city
+                province
+                provinceCode
+                country
+                countryCodeV2
+                zip
+                phone
+              }
+              gift: metafield(namespace: "custom", key: "gift") {
+                namespace
+                key
+                type
+                value
+              }
+              metafields(first: 5) {
+                nodes {
+                  namespace
+                  key
+                  type
+                  value
+                }
+              }
+              lineItems(first: 5) {
+                nodes {
+                  id
+                  title
+                  quantity
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": order_id,
+                "email": "order-update-after@example.com",
+                "phone": "+16135551111",
+                "poNumber": "PO-12345",
+                "note": "after update",
+                "tags": ["after", "vip"],
+                "customAttributes": [{ "key": "source", "value": "runtime-test" }],
+                "shippingAddress": {
+                    "firstName": "Ada",
+                    "lastName": "Lovelace",
+                    "address1": "190 MacLaren",
+                    "address2": "Suite 200",
+                    "company": "Analytical Engines Ltd",
+                    "city": "Sudbury",
+                    "province": "Ontario",
+                    "provinceCode": "ON",
+                    "country": "Canada",
+                    "countryCode": "CA",
+                    "zip": "K2P0V6",
+                    "phone": "+16135552222"
+                },
+                "metafields": [{
+                    "namespace": "custom",
+                    "key": "gift",
+                    "type": "single_line_text_field",
+                    "value": "wrapped"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    let updated_order = &update.body["data"]["orderUpdate"]["order"];
+    assert_eq!(update.body["data"]["orderUpdate"]["userErrors"], json!([]));
+    assert_eq!(updated_order["id"], order_id);
+    assert_eq!(
+        updated_order["email"],
+        json!("order-update-after@example.com")
+    );
+    assert_eq!(
+        updated_order["customer"]["email"],
+        json!("order-update-before@example.com")
+    );
+    assert_eq!(updated_order["phone"], json!("+16135551111"));
+    assert_eq!(updated_order["poNumber"], json!("PO-12345"));
+    assert_eq!(updated_order["note"], json!("after update"));
+    assert_eq!(updated_order["tags"], json!(["after", "vip"]));
+    assert_eq!(
+        updated_order["customAttributes"],
+        json!([{ "key": "source", "value": "runtime-test" }])
+    );
+    assert_eq!(
+        updated_order["shippingAddress"]["provinceCode"],
+        json!("ON")
+    );
+    assert_eq!(
+        updated_order["shippingAddress"]["countryCodeV2"],
+        json!("CA")
+    );
+    assert_eq!(
+        updated_order["gift"],
+        json!({
+            "namespace": "custom",
+            "key": "gift",
+            "type": "single_line_text_field",
+            "value": "wrapped"
+        })
+    );
+    assert_eq!(
+        updated_order["metafields"]["nodes"][0],
+        updated_order["gift"]
+    );
+    assert_eq!(updated_order["lineItems"], original_line_items);
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadUpdatedOrder($id: ID!) {
+          order(id: $id) {
+            id
+            updatedAt
+            email
+            phone
+            poNumber
+            note
+            tags
+            customer { email }
+            customAttributes { key value }
+            shippingAddress { provinceCode countryCodeV2 phone }
+            gift: metafield(namespace: "custom", key: "gift") { namespace key type value }
+            metafields(first: 5) { nodes { namespace key type value } }
+          }
+          orders(first: 5) { nodes { id email note tags } }
+          ordersCount { count precision }
+        }
+        "#,
+        json!({ "id": updated_order["id"].clone() }),
+    ));
+    assert_eq!(downstream.status, 200);
+    assert_eq!(
+        downstream.body["data"]["order"]["email"],
+        json!("order-update-after@example.com")
+    );
+    assert_eq!(
+        downstream.body["data"]["order"]["customer"]["email"],
+        json!("order-update-before@example.com")
+    );
+    assert_eq!(
+        downstream.body["data"]["order"]["note"],
+        json!("after update")
+    );
+    assert_eq!(
+        downstream.body["data"]["order"]["gift"]["value"],
+        json!("wrapped")
+    );
+    assert_eq!(
+        downstream.body["data"]["order"]["metafields"]["nodes"][0]["key"],
+        json!("gift")
+    );
+    assert_eq!(
+        downstream.body["data"]["orders"]["nodes"][0],
+        json!({
+            "id": updated_order["id"],
+            "email": "order-update-after@example.com",
+            "note": "after update",
+            "tags": ["after", "vip"]
+        })
+    );
+    assert_eq!(
+        downstream.body["data"]["ordersCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let log = log_snapshot(&proxy);
+    let entries = log["entries"]
+        .as_array()
+        .expect("order update test should expose log entries");
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0]["operationName"], json!("orderCreate"));
+    assert_eq!(entries[1]["operationName"], json!("orderUpdate"));
+    assert_eq!(entries[1]["status"], json!("staged"));
+    assert_eq!(
+        entries[1]["stagedResourceIds"],
+        json!([updated_order["id"]])
+    );
+    assert!(entries[1]["rawBody"]
+        .as_str()
+        .is_some_and(|body| body.contains("UpdateKnownOrder")));
+}
+
+#[test]
+fn order_update_validation_branches_do_not_stage_or_log() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOrderForUpdateValidation($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id note phone shippingAddress { countryCodeV2 provinceCode } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "order-update-validation@example.com",
+                "note": "baseline",
+                "lineItems": [{ "title": "Validation target", "quantity": 1 }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let validation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrderUpdateValidationBranches(
+          $emptyInput: OrderInput!
+          $invalidPhone: OrderInput!
+          $badShippingAddress: OrderInput!
+          $unknownStaff: OrderInput!
+        ) {
+          emptyInput: orderUpdate(input: $emptyInput) {
+            order { id note }
+            userErrors { field message code }
+          }
+          invalidPhone: orderUpdate(input: $invalidPhone) {
+            order { id phone }
+            userErrors { field message code }
+          }
+          badShippingAddress: orderUpdate(input: $badShippingAddress) {
+            order { id shippingAddress { countryCodeV2 provinceCode } }
+            userErrors { field message code }
+          }
+          unknownStaff: orderUpdate(input: $unknownStaff) {
+            order { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "emptyInput": { "id": order_id },
+            "invalidPhone": { "id": order_id, "phone": "not a phone" },
+            "badShippingAddress": {
+                "id": order_id,
+                "shippingAddress": {
+                    "address1": "3 Bad Province",
+                    "city": "Chicago",
+                    "countryCode": "US",
+                    "provinceCode": "ON"
+                }
+            },
+            "unknownStaff": {
+                "id": order_id,
+                "staffMemberId": "gid://shopify/StaffMember/999999999999"
+            }
+        }),
+    ));
+    assert_eq!(validation.status, 200);
+    assert_eq!(
+        validation.body["data"]["emptyInput"]["userErrors"],
+        json!([{ "field": Value::Null, "message": "No valid update parameters have been provided" }])
+    );
+    assert_eq!(
+        validation.body["data"]["invalidPhone"]["userErrors"],
+        json!([{ "field": ["phone"], "message": "Phone is invalid" }])
+    );
+    assert_eq!(
+        validation.body["data"]["badShippingAddress"]["userErrors"],
+        json!([
+            { "field": ["shippingAddress", "lastName"], "message": "Enter a last name" },
+            { "field": ["shippingAddress", "zip"], "message": "Enter a ZIP code" },
+            { "field": ["shippingAddress", "province"], "message": "State is not a valid state in United States" }
+        ])
+    );
+    assert_eq!(
+        validation.body["data"]["unknownStaff"]["userErrors"],
+        json!([{ "field": ["input", "staffMemberId"], "message": "Staff member does not exist", "code": "NOT_FOUND" }])
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAfterRejectedOrderUpdates($id: ID!) {
+          order(id: $id) { id note phone shippingAddress { countryCodeV2 provinceCode } }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(downstream.body["data"]["order"]["note"], json!("baseline"));
+    assert_eq!(downstream.body["data"]["order"]["phone"], Value::Null);
+    assert_eq!(
+        downstream.body["data"]["order"]["shippingAddress"],
+        Value::Null
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn live_hybrid_order_metafields_read_without_local_effects_passthroughs_full_order() {
+    let upstream_queries = Arc::new(Mutex::new(Vec::new()));
+    let observed_queries = Arc::clone(&upstream_queries);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            observed_queries.lock().unwrap().push(query.clone());
+            let response = if query.contains("OrderMetafieldPassthroughRead") {
+                json!({
+                    "data": {
+                        "order": {
+                            "id": "gid://shopify/Order/6830627356905",
+                            "name": "#1001",
+                            "updatedAt": "2026-06-01T12:00:00Z",
+                            "email": "live-order@example.com",
+                            "note": "live note",
+                            "tags": ["live"],
+                            "gift": null,
+                            "metafields": { "nodes": [] }
+                        }
+                    }
+                })
+            } else {
+                json!({"errors": [{"message": format!("unexpected upstream query: {query}")}]})
+            };
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: response,
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query OrderMetafieldPassthroughRead($id: ID!) {
+          order(id: $id) {
+            id
+            name
+            updatedAt
+            email
+            note
+            tags
+            gift: metafield(namespace: "custom", key: "gift") { id namespace key type value }
+            metafields(first: 10) { nodes { id namespace key type value } }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Order/6830627356905" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["order"]["email"],
+        json!("live-order@example.com")
+    );
+    assert_eq!(response.body["data"]["order"]["note"], json!("live note"));
+    let queries = upstream_queries.lock().unwrap();
+    assert_eq!(queries.len(), 1);
+    assert!(queries[0].contains("OrderMetafieldPassthroughRead"));
+    assert!(!queries[0].contains("OwnerMetafieldsHydrateNodes"));
+}
+
 fn stage_fulfillment_for_event(proxy: &mut DraftProxy) -> (Value, Value) {
     let create_order = proxy.process_request(json_graphql_request(
         r#"
