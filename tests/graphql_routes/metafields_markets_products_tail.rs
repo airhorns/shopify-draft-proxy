@@ -590,6 +590,29 @@ fn singular_metafield_delete_removes_staged_owner_metafields_by_id() {
         .as_str()
         .unwrap()
         .contains("SingularMetafieldDelete"));
+
+    let repeat_log_len = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    let repeat_deleted = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({"input": {"id": product_metafield_id}}),
+    ));
+    assert_eq!(repeat_deleted.status, 200);
+    assert_eq!(
+        repeat_deleted.body["data"]["remove"]["deletedId"],
+        Value::Null
+    );
+    assert_eq!(
+        repeat_deleted.body["data"]["remove"]["userErrors"],
+        json!([{"field": ["id"], "message": "Metafield does not exist"}])
+    );
+    assert!(!repeat_deleted.body["data"]["remove"]["userErrors"][0]
+        .as_object()
+        .unwrap()
+        .contains_key("code"));
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        repeat_log_len
+    );
 }
 
 #[test]
