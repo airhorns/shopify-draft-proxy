@@ -6,6 +6,11 @@ mod b2b_companies;
 /// `(firstName, lastName, addressesV2.nodes, defaultAddress.id)`.
 type CustomerAddressContext = (Option<String>, Option<String>, Vec<Value>, Option<String>);
 
+enum StoreCreditAccountMutationResolution {
+    Existing(String),
+    CreateForOwner(String),
+}
+
 // Shared with the parity capture scripts via include_str! so recorded `CustomerHydrate`
 // cassettes byte-match what `hydrate_customer_for_mutation` forwards upstream. The leading
 // newline is significant: the cassette matcher only trims trailing whitespace.
@@ -420,20 +425,16 @@ impl DraftProxy {
             .and_then(|value| value.parse::<f64>().ok())
             .unwrap_or(0.0);
 
-        if amount <= 0.0 {
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let Some(account_resolution) =
+            self.resolve_store_credit_account_for_mutation(&id, &currency, is_credit)
+        else {
             return self.store_credit_error_outcome(
                 field,
-                store_credit_user_error(
-                    &[input_name, amount_name, "amount"],
-                    if is_credit {
-                        "A positive amount must be used to credit a store credit account"
-                    } else {
-                        "A positive amount must be used to debit a store credit account"
-                    },
-                    "NEGATIVE_OR_ZERO_AMOUNT",
-                ),
+                store_credit_missing_id_user_error(&id, is_credit),
             );
-        }
+        };
+
         if is_credit
             && resolved_string_field(&input, "expiresAt")
                 .as_deref()
@@ -450,36 +451,45 @@ impl DraftProxy {
             );
         }
 
-        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let Some(account_id) =
-            self.resolve_store_credit_account_id_for_mutation(&id, &currency, is_credit)
-        else {
-            return self.store_credit_error_outcome(
-                field,
-                store_credit_missing_id_user_error(&id, is_credit),
-            );
-        };
-
-        let Some(existing) = self
-            .store
-            .staged
-            .store_credit_accounts
-            .get(&account_id)
-            .cloned()
-        else {
+        if amount <= 0.0 {
             return self.store_credit_error_outcome(
                 field,
                 store_credit_user_error(
-                    &["id"],
-                    "Store credit account does not exist",
-                    "ACCOUNT_NOT_FOUND",
+                    &[input_name, amount_name, "amount"],
+                    if is_credit {
+                        "A positive amount must be used to credit a store credit account"
+                    } else {
+                        "A positive amount must be used to debit a store credit account"
+                    },
+                    "NEGATIVE_OR_ZERO_AMOUNT",
                 ),
             );
+        }
+
+        let (account_currency, current_balance) = match &account_resolution {
+            StoreCreditAccountMutationResolution::Existing(account_id) => {
+                let Some(existing) = self.store.staged.store_credit_accounts.get(account_id) else {
+                    return self.store_credit_error_outcome(
+                        field,
+                        store_credit_user_error(
+                            &["id"],
+                            "Store credit account does not exist",
+                            "ACCOUNT_NOT_FOUND",
+                        ),
+                    );
+                };
+                let account_currency = existing["balance"]["currencyCode"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string();
+                let current_balance = existing["balance"]["amount"]
+                    .as_str()
+                    .and_then(|value| value.parse::<f64>().ok())
+                    .unwrap_or(0.0);
+                (account_currency, current_balance)
+            }
+            StoreCreditAccountMutationResolution::CreateForOwner(_) => (currency.clone(), 0.0),
         };
-        let account_currency = existing["balance"]["currencyCode"]
-            .as_str()
-            .unwrap_or_default()
-            .to_string();
         if currency != account_currency {
             return self.store_credit_error_outcome(
                 field,
@@ -491,10 +501,6 @@ impl DraftProxy {
             );
         }
 
-        let current_balance = existing["balance"]["amount"]
-            .as_str()
-            .and_then(|value| value.parse::<f64>().ok())
-            .unwrap_or(0.0);
         if is_credit && current_balance + amount >= STORE_CREDIT_LIMIT {
             return self.store_credit_error_outcome(
                 field,
@@ -515,6 +521,48 @@ impl DraftProxy {
                 ),
             );
         }
+
+        let (account_id, existing) = match account_resolution {
+            StoreCreditAccountMutationResolution::Existing(account_id) => {
+                let Some(existing) = self
+                    .store
+                    .staged
+                    .store_credit_accounts
+                    .get(&account_id)
+                    .cloned()
+                else {
+                    return self.store_credit_error_outcome(
+                        field,
+                        store_credit_user_error(
+                            &["id"],
+                            "Store credit account does not exist",
+                            "ACCOUNT_NOT_FOUND",
+                        ),
+                    );
+                };
+                (account_id, existing)
+            }
+            StoreCreditAccountMutationResolution::CreateForOwner(owner_id) => {
+                let account_id = self.create_store_credit_account_for_owner(&owner_id, &currency);
+                let Some(existing) = self
+                    .store
+                    .staged
+                    .store_credit_accounts
+                    .get(&account_id)
+                    .cloned()
+                else {
+                    return self.store_credit_error_outcome(
+                        field,
+                        store_credit_user_error(
+                            &["id"],
+                            "Store credit account does not exist",
+                            "ACCOUNT_NOT_FOUND",
+                        ),
+                    );
+                };
+                (account_id, existing)
+            }
+        };
 
         let delta = if is_credit { amount } else { -amount };
         let balance_after = current_balance + delta;
@@ -581,19 +629,19 @@ impl DraftProxy {
         ))
     }
 
-    fn resolve_store_credit_account_id_for_mutation(
-        &mut self,
+    fn resolve_store_credit_account_for_mutation(
+        &self,
         id: &str,
         currency: &str,
         allow_create: bool,
-    ) -> Option<String> {
+    ) -> Option<StoreCreditAccountMutationResolution> {
         match shopify_gid_resource_type(id) {
             Some("StoreCreditAccount") => self
                 .store
                 .staged
                 .store_credit_accounts
                 .contains_key(id)
-                .then(|| id.to_string()),
+                .then(|| StoreCreditAccountMutationResolution::Existing(id.to_string())),
             Some("Customer") | Some("CompanyLocation") => {
                 if !self.store_credit_owner_exists(id) {
                     return None;
@@ -601,10 +649,12 @@ impl DraftProxy {
                 if let Some(account_id) =
                     self.store_credit_account_id_for_owner_currency(id, currency)
                 {
-                    return Some(account_id);
+                    return Some(StoreCreditAccountMutationResolution::Existing(account_id));
                 }
                 if allow_create {
-                    Some(self.create_store_credit_account_for_owner(id, currency))
+                    Some(StoreCreditAccountMutationResolution::CreateForOwner(
+                        id.to_string(),
+                    ))
                 } else {
                     None
                 }

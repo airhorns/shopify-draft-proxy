@@ -8138,6 +8138,89 @@ fn store_credit_validations_match_shopify_user_error_shapes_without_staging_fail
 }
 
 #[test]
+fn store_credit_combined_invalid_credit_resolves_account_before_amount() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_store_credit_customer(&mut proxy);
+    store_credit_account_id_from_credit(&mut proxy, &customer_id, "10.00", "USD");
+
+    let missing_account_credit = store_credit_credit_error(
+        &mut proxy,
+        "gid://shopify/StoreCreditAccount/999",
+        json!({ "amount": "0", "currencyCode": "USD" }),
+        None,
+    );
+    assert_eq!(
+        missing_account_credit,
+        json!([{
+            "field": ["id"],
+            "message": "Store credit account does not exist",
+            "code": "ACCOUNT_NOT_FOUND"
+        }])
+    );
+
+    let entries = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    assert_eq!(
+        entries, 2,
+        "only customerCreate and the successful setup credit should be staged"
+    );
+}
+
+#[test]
+fn store_credit_combined_invalid_debit_resolves_account_before_amount() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_store_credit_customer(&mut proxy);
+    store_credit_account_id_from_credit(&mut proxy, &customer_id, "10.00", "USD");
+
+    let missing_account_debit = store_credit_debit_error(
+        &mut proxy,
+        "gid://shopify/StoreCreditAccount/999",
+        json!({ "amount": "0", "currencyCode": "USD" }),
+    );
+    assert_eq!(
+        missing_account_debit,
+        json!([{
+            "field": ["id"],
+            "message": "Store credit account does not exist",
+            "code": "ACCOUNT_NOT_FOUND"
+        }])
+    );
+
+    let entries = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    assert_eq!(
+        entries, 2,
+        "only customerCreate and the successful setup credit should be staged"
+    );
+}
+
+#[test]
+fn store_credit_combined_invalid_credit_expiry_precedes_amount() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_store_credit_customer(&mut proxy);
+    let account_id = store_credit_account_id_from_credit(&mut proxy, &customer_id, "10.00", "USD");
+
+    let past_expiry_and_negative_amount = store_credit_credit_error(
+        &mut proxy,
+        &account_id,
+        json!({ "amount": "-5", "currencyCode": "USD" }),
+        Some("2000-01-01T00:00:00Z"),
+    );
+    assert_eq!(
+        past_expiry_and_negative_amount,
+        json!([{
+            "field": ["creditInput", "expiresAt"],
+            "message": "The expiry date must be in the future",
+            "code": "EXPIRES_AT_IN_PAST"
+        }])
+    );
+
+    let entries = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    assert_eq!(
+        entries, 2,
+        "only customerCreate and the successful setup credit should be staged"
+    );
+}
+
+#[test]
 fn store_credit_credit_accepts_live_accepted_ordinary_currency() {
     let mut proxy = snapshot_proxy();
     let customer_id = create_store_credit_customer(&mut proxy);
