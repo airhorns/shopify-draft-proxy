@@ -1,7 +1,8 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
+import { parse as parseGraphql } from 'graphql';
 
 import { validateComparisonContract, type ParitySpec } from '../../scripts/conformance-parity-spec.js';
 import {
@@ -17,6 +18,28 @@ const allowedScenarioStatuses = new Set(['captured', 'planned']);
 
 function readJson<T>(relativePath: string): T {
   return JSON.parse(readFileSync(resolve(repoRoot, relativePath), 'utf8')) as T;
+}
+
+function listJsonFiles(relativeDirectory: string): string[] {
+  const absoluteDirectory = resolve(repoRoot, relativeDirectory);
+  if (!existsSync(absoluteDirectory)) {
+    return [];
+  }
+
+  return readdirSync(absoluteDirectory, { withFileTypes: true }).flatMap((entry) => {
+    const relativePath = `${relativeDirectory}/${entry.name}`;
+    if (entry.isDirectory()) {
+      return listJsonFiles(relativePath);
+    }
+
+    return entry.isFile() && entry.name.endsWith('.json') ? [relativePath] : [];
+  });
+}
+
+function getRecordProperty(value: unknown, key: string): unknown {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)[key]
+    : undefined;
 }
 
 describe('conformance scenario discovery', () => {
@@ -103,6 +126,51 @@ describe('conformance scenario discovery', () => {
         true,
       );
     }
+  });
+
+  it('keeps orders parity evidence out of local-runtime and descriptor cassettes', () => {
+    const specsWithLocalRuntimeOrdersCapture = listJsonFiles('config/parity-specs')
+      .map((paritySpecPath) => {
+        const spec = readJson<ParitySpec>(paritySpecPath);
+        const localRuntimeCaptureFiles = (spec.liveCaptureFiles ?? []).filter(
+          (captureFile) =>
+            captureFile.startsWith('fixtures/conformance/local-runtime/') && captureFile.includes('/orders/'),
+        );
+        return localRuntimeCaptureFiles.length > 0 ? { paritySpecPath, localRuntimeCaptureFiles } : null;
+      })
+      .filter((entry): entry is { paritySpecPath: string; localRuntimeCaptureFiles: string[] } => entry !== null);
+
+    expect(specsWithLocalRuntimeOrdersCapture).toEqual([]);
+
+    const descriptorPattern = /^(?:hand-synthesized|sha:|cassette-backed|recorded by scripts\/)/u;
+    const badOrderCassetteQueries = listJsonFiles('fixtures/conformance')
+      .filter((fixturePath) => fixturePath.includes('/orders/'))
+      .flatMap((fixturePath) => {
+        const fixture = readJson<Record<string, unknown>>(fixturePath);
+        const upstreamCalls = getRecordProperty(fixture, 'upstreamCalls');
+        if (!Array.isArray(upstreamCalls)) {
+          return [];
+        }
+
+        return upstreamCalls.flatMap((call, index) => {
+          const query = getRecordProperty(call, 'query');
+          if (typeof query !== 'string' || query.trim().length === 0) {
+            return [`${fixturePath}: upstreamCalls[${index}].query is empty or missing`];
+          }
+          if (descriptorPattern.test(query)) {
+            return [`${fixturePath}: upstreamCalls[${index}].query is a descriptor: ${query}`];
+          }
+          try {
+            parseGraphql(query);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return [`${fixturePath}: upstreamCalls[${index}].query is not valid GraphQL: ${message}`];
+          }
+          return [];
+        });
+      });
+
+    expect(badOrderCassetteQueries).toEqual([]);
   });
 
   it('builds conformance status from discovered parity specs', () => {
