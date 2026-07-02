@@ -5095,18 +5095,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-engagement-currency-validation.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-engagement-lifecycle.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-native-activity-validation.json',
-      `${LOCAL_RUNTIME_ROOT}marketing-activity-per-app-scoping.json`,
-      'config/parity-specs/marketing/marketing-activity-per-app-scoping.json',
-      'config/parity-requests/marketing/marketing-activity-per-app-scoping-create.graphql',
-      'config/parity-requests/marketing/marketing-activity-per-app-scoping-delete.graphql',
-      'config/parity-requests/marketing/marketing-activity-per-app-scoping-delete-all.graphql',
-      'config/parity-requests/marketing/marketing-activity-per-app-scoping-engagement.graphql',
-      'config/parity-requests/marketing/marketing-activity-per-app-scoping-read.graphql',
-      'config/parity-requests/marketing/marketing-activity-per-app-scoping-update.graphql',
     ],
     cleanupBehavior: 'Uses synthetic external IDs; cleanup depends on the branch captured.',
-    notes:
-      'The per-app scoping local-runtime protected outputs are listed only to register their deletion with the protected-evidence invariant; this app-scoping behavior remains Rust-runtime covered because a real capture requires two installed app tokens, not the proxy-only request header.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
