@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/orders/draft-order-complete-payment-gateway-paths.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-create.graphql"
   },
@@ -61,5 +61,5 @@
       }
     ]
   },
-  "notes": "Executable local-runtime parity for draftOrderComplete paymentGatewayId guardrails that can be earned through the generic runner without pre-seeding state: the existing paymentPending:true no-gateway baseline remains PENDING with no gateway transaction, and an unknown paymentGatewayId returns INVALID on [paymentGatewayId] with payment_gateway_not_found. Active and disabled synthetic gateway fixture branches are covered by the referenced Gleam runtime test because the generic parity runner intentionally has no setup hook for opt-in shop payment gateway fixtures."
+  "notes": "Executable local-runtime parity for draftOrderComplete paymentGatewayId guardrails that can be earned through the generic runner without pre-seeding state: the existing paymentPending:true no-gateway baseline remains PENDING with no gateway transaction, and an unknown paymentGatewayId returns Shopify's plain base UserError shape with field null and message Invalid payment gateway. The separate live unknown-gateway scenario records Shopify's public schema rejection for selecting code on draftOrderComplete.userErrors."
 }

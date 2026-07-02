@@ -1,0 +1,145 @@
+{
+  "scenarioId": "draft-order-complete-invalid-payment-gateway",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "recordedAt": "2026-07-02T23:07:23.722Z",
+  "source": "live-shopify-admin-graphql",
+  "notes": "Live draft-order completion capture for a paymentGatewayId that does not resolve to an enabled manual payment gateway. Shopify returns a base UserError with field null and message Invalid payment gateway. A separate operation selecting userErrors.code is rejected by the public schema because draftOrderComplete.userErrors is plain UserError.",
+  "setup": {
+    "draftOrderCreate": {
+      "query": "#graphql\n  mutation DraftOrderCompleteInvalidGatewayCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "email": "draft-complete-invalid-gateway-20260702230722@example.com",
+          "note": "invalid payment gateway draft order complete parity probe",
+          "tags": ["draft-order-complete", "invalid-payment-gateway", "parity-probe"],
+          "taxExempt": true,
+          "lineItems": [
+            {
+              "title": "Invalid gateway service",
+              "quantity": 1,
+              "originalUnitPrice": "10.00",
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "invalid-gateway-20260702230722"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "draftOrderCreate": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1274672120114",
+              "name": "#D283"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "variables": {
+    "id": "gid://shopify/DraftOrder/1274672120114",
+    "paymentGatewayId": "gid://shopify/PaymentGateway/999999999999",
+    "paymentPending": false
+  },
+  "mutation": {
+    "query": "mutation DraftOrderCompleteInvalidPaymentGateway($id: ID!, $paymentGatewayId: ID, $paymentPending: Boolean) {\n  draftOrderComplete(id: $id, paymentGatewayId: $paymentGatewayId, paymentPending: $paymentPending) {\n    draftOrder {\n      id\n      status\n      order {\n        id\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "response": {
+      "data": {
+        "draftOrderComplete": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1274672120114",
+            "status": "OPEN",
+            "order": null
+          },
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Invalid payment gateway"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "codeSelection": {
+    "query": "mutation DraftOrderCompleteInvalidGatewayCodeSelection($id: ID!, $paymentGatewayId: ID) {\n  draftOrderComplete(id: $id, paymentGatewayId: $paymentGatewayId) {\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/DraftOrder/1274672120114",
+      "paymentGatewayId": "gid://shopify/PaymentGateway/999999999999"
+    },
+    "response": {
+      "errors": [
+        {
+          "message": "Field 'code' doesn't exist on type 'UserError'",
+          "locations": [
+            {
+              "line": 6,
+              "column": 7
+            }
+          ],
+          "path": [
+            "mutation DraftOrderCompleteInvalidGatewayCodeSelection",
+            "draftOrderComplete",
+            "userErrors",
+            "code"
+          ],
+          "extensions": {
+            "code": "undefinedField",
+            "typeName": "UserError",
+            "fieldName": "code"
+          }
+        }
+      ]
+    }
+  },
+  "cleanup": {
+    "draftOrderDelete": {
+      "query": "#graphql\n  mutation DraftOrderCompleteInvalidGatewayCleanup($input: DraftOrderDeleteInput!) {\n    draftOrderDelete(input: $input) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "response": {
+        "data": {
+          "draftOrderDelete": {
+            "deletedId": "gid://shopify/DraftOrder/1274672120114",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
