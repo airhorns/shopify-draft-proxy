@@ -287,6 +287,26 @@ const fixture = {
     },
   },
   cleanup,
+  upstreamCalls: [
+    {
+      operationName: 'CustomerDataErasureCustomerRead',
+      variables: { id: customerId },
+      query: customerReadQuery,
+      response: { status: 200, body: afterRequestRead?.payload ?? null },
+    },
+    {
+      operationName: 'CustomerAccountPagesHydrate',
+      variables: accountPagesVariables,
+      query: accountPagesQuery,
+      response: { status: 200, body: accountPages.payload },
+    },
+    {
+      operationName: 'CustomerHydrate',
+      variables: { id: customerId },
+      query: customerReadQuery,
+      response: { status: 200, body: afterRequestRead?.payload ?? null },
+    },
+  ],
 };
 
 const outputPath = path.join(outputDir, 'customer-account-page-data-erasure.json');

@@ -19,6 +19,7 @@ const allowedScenarioStatuses = new Set(['captured', 'planned']);
 const appsParitySpecPrefix = 'config/parity-specs/apps/';
 const descriptorCassetteQueryPattern =
   /^\s*(?:hand-synthesized|sha:|cassette-backed|recorded by scripts|local-runtime)/iu;
+const descriptorLikeUpstreamQuery = /(?:hand-synthesized|sha:|cassette-backed|recorded by scripts|local-runtime)/u;
 
 function readJson<T>(relativePath: string): T {
   return JSON.parse(readFileSync(resolve(repoRoot, relativePath), 'utf8')) as T;
@@ -169,6 +170,43 @@ describe('conformance scenario discovery', () => {
     }
 
     expect(errors).toEqual([]);
+  });
+
+  it('keeps marketing captured parity evidence backed by live Shopify fixture paths', () => {
+    const offenders = paritySpecPaths.flatMap((paritySpecPath) => {
+      if (!paritySpecPath.startsWith('config/parity-specs/marketing/')) {
+        return [];
+      }
+
+      const paritySpec = readJson<ParitySpec>(paritySpecPath);
+      if (paritySpec.scenarioStatus !== 'captured') {
+        return [];
+      }
+
+      const capturePathOffenders = (paritySpec.liveCaptureFiles ?? [])
+        .filter((captureFile) => captureFile.startsWith('fixtures/conformance/local-runtime/'))
+        .map((captureFile) => `${paritySpec.scenarioId}: local-runtime liveCaptureFiles entry ${captureFile}`);
+      const assertionKindOffenders = (paritySpec.assertionKinds ?? [])
+        .filter((assertionKind) => assertionKind === 'local-runtime-backed')
+        .map((assertionKind) => `${paritySpec.scenarioId}: captured spec keeps ${assertionKind}`);
+      const descriptorOffenders = (paritySpec.liveCaptureFiles ?? []).flatMap((captureFile) => {
+        const absolutePath = resolve(repoRoot, captureFile);
+        if (!existsSync(absolutePath) || !captureFile.endsWith('.json')) {
+          return [];
+        }
+
+        const fixture = readJson<{ upstreamCalls?: Array<{ query?: unknown }> }>(captureFile);
+        return (fixture.upstreamCalls ?? []).flatMap((call, index) =>
+          typeof call.query === 'string' && descriptorLikeUpstreamQuery.test(call.query)
+            ? [`${paritySpec.scenarioId}: ${captureFile} upstreamCalls[${index}].query is descriptor-like`]
+            : [],
+        );
+      });
+
+      return [...capturePathOffenders, ...assertionKindOffenders, ...descriptorOffenders];
+    });
+
+    expect(offenders).toEqual([]);
   });
 
   it('keeps apps captured parity evidence tied to live Shopify captures', () => {
