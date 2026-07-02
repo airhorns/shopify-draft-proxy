@@ -1,6 +1,7 @@
-mutation DiscountBulkLocalRuntimePreconditions(
+mutation DiscountAppBulkLivePreconditions(
   $bulkInput: DiscountCodeBasicInput!
   $redeemInput: DiscountCodeBasicInput!
+  $automaticInput: DiscountAutomaticBasicInput!
 ) {
   bulkTarget: discountCodeBasicCreate(basicCodeDiscount: $bulkInput) {
     codeDiscountNode {
@@ -40,6 +41,24 @@ mutation DiscountBulkLocalRuntimePreconditions(
               code
             }
           }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBulkTarget: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticInput) {
+    automaticDiscountNode {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+          status
         }
       }
     }

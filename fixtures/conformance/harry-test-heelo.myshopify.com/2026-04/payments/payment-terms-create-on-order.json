@@ -1,18 +1,19 @@
 {
-  "capturedAt": "2026-05-05T04:45:00.000Z",
-  "source": "local-runtime-parity-harness",
+  "capturedAt": "2026-07-02T21:18:44.956Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "notes": "Deterministic local-runtime evidence for HAR-637. The flow creates an in-memory order with CAD presentment money, then exercises paymentTermsCreate on that Order owner plus multiple-schedule and missing-id payment terms error branches.",
+  "notes": "Live Shopify capture replacing the former local-runtime payment-terms-create-on-order parity fixture. The disposable Order is cancelled in cleanup after recording create, multiple-schedule validation, missing update, and missing delete branches.",
   "paymentTermsCreateOnOrder": {
     "orderCreate": {
       "variables": {
         "order": {
-          "email": "har637-payment-terms-order@example.com",
+          "email": "payments-salvage-create-on-order-1783027123703@example.com",
           "currency": "USD",
           "presentmentCurrency": "CAD",
+          "test": true,
           "lineItems": [
             {
-              "title": "HAR-637 payment terms order",
+              "title": "Payments salvage create-on-order",
               "quantity": 1,
               "priceSet": {
                 "shopMoney": {
@@ -23,7 +24,10 @@
                   "amount": "57.00",
                   "currencyCode": "CAD"
                 }
-              }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "payments-salvage-create-on-order-1783027123703"
             }
           ]
         }
@@ -59,7 +63,7 @@
     "missingUpdate": {
       "variables": {
         "input": {
-          "paymentTermsId": "gid://shopify/PaymentTerms/999999",
+          "paymentTermsId": "gid://shopify/PaymentTerms/999999999999999",
           "paymentTermsAttributes": {
             "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
             "paymentSchedules": [
@@ -74,7 +78,7 @@
     "missingDelete": {
       "variables": {
         "input": {
-          "paymentTermsId": "gid://shopify/PaymentTerms/999999"
+          "paymentTermsId": "gid://shopify/PaymentTerms/999999999999999"
         }
       }
     },
@@ -83,7 +87,7 @@
         "data": {
           "orderCreate": {
             "order": {
-              "id": "gid://shopify/Order/1",
+              "id": "gid://shopify/Order/8887330308402",
               "currentTotalPriceSet": {
                 "shopMoney": {
                   "amount": "42.5",
@@ -97,15 +101,26 @@
             },
             "userErrors": []
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
         }
       },
       "create": {
         "data": {
           "paymentTermsCreate": {
             "paymentTerms": {
-              "id": "gid://shopify/PaymentTerms/4",
-              "due": false,
-              "overdue": false,
+              "id": "gid://shopify/PaymentTerms/160379240754",
+              "due": true,
+              "overdue": true,
               "dueInDays": 30,
               "paymentTermsName": "Net 30",
               "paymentTermsType": "NET",
@@ -113,11 +128,11 @@
               "paymentSchedules": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/PaymentSchedule/5",
+                    "id": "gid://shopify/PaymentSchedule/200893956402",
                     "issuedAt": "2026-05-05T00:00:00Z",
                     "dueAt": "2026-06-04T00:00:00Z",
                     "completedAt": null,
-                    "due": false,
+                    "due": true,
                     "amount": {
                       "amount": "57.0",
                       "currencyCode": "CAD"
@@ -135,12 +150,23 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "cursor:gid://shopify/PaymentSchedule/5",
-                  "endCursor": "cursor:gid://shopify/PaymentSchedule/5"
+                  "startCursor": "eyJsYXN0X2lkIjoyMDA4OTM5NTY0MDIsImxhc3RfdmFsdWUiOjIwMDg5Mzk1NjQwMn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMDA4OTM5NTY0MDIsImxhc3RfdmFsdWUiOjIwMDg5Mzk1NjQwMn0="
                 }
               }
             },
             "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
           }
         }
       },
@@ -156,6 +182,17 @@
               }
             ]
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
         }
       },
       "update": {
@@ -164,11 +201,22 @@
             "paymentTerms": null,
             "userErrors": [
               {
-                "field": ["input", "paymentTermsId"],
-                "message": "Payment terms do not exist",
+                "field": null,
+                "message": "Could not find payment terms.",
                 "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
               }
             ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
           }
         }
       },
@@ -183,6 +231,51 @@
                 "code": "PAYMENT_TERMS_DELETE_UNSUCCESSFUL"
               }
             ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "orderCancel": {
+      "query": "mutation PaymentsSalvageOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      orderCancelUserErrors {\n        field\n        message\n        code\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8887330308402",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/40016c90-8c8d-47f2-aa55-f469ee94e6c6",
+              "done": false
+            },
+            "orderCancelUserErrors": [],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
           }
         }
       }

@@ -2,11 +2,24 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
-import { conformanceCaptureIndex } from './conformance-capture-index.js';
+import { conformanceCaptureIndex, retiredConformanceEvidencePaths } from './conformance-capture-index.js';
 import { validateRecordedUpstreamCalls, type RecordedUpstreamCall } from './parity-cassette.js';
 
 const protectedPaths = ['config/parity-specs', 'config/parity-requests', 'fixtures/conformance'];
 const repoRoot = process.cwd();
+const registeredProtectedEvidenceRemovals = new Set([
+  'config/parity-specs/payments/customer-payment-method-credit-card-create-validation.json',
+  'config/parity-specs/payments/customer-payment-method-local-staging.json',
+  'config/parity-specs/payments/customer-payment-method-remote-create-validation.json',
+  'config/parity-specs/payments/customer-payment-method-shop-pay-guards.json',
+  'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-credit-card-create-validation.json',
+  'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-local-staging.json',
+  'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-remote-create-validation.json',
+  'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-shop-pay-guards.json',
+  'fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json',
+  'fixtures/conformance/local-runtime/2026-04/payments/payment-terms-delete-owner-cascade.json',
+  'fixtures/conformance/local-runtime/2026-05/payments/payment-reminder-send-shape.json',
+]);
 
 const result = spawnSync('git', ['diff', '--name-status', 'origin/main', '--', ...protectedPaths], {
   encoding: 'utf8',
@@ -26,6 +39,13 @@ function escapeRegExp(value: string): string {
 }
 
 function fixtureOutputMatchesPath(output: string, candidatePath: string): boolean {
+  if (
+    candidatePath.startsWith('fixtures/conformance/local-runtime/') &&
+    !output.startsWith('fixtures/conformance/local-runtime/')
+  ) {
+    return false;
+  }
+
   const pattern = escapeRegExp(output)
     .replaceAll('<store>', '[^/]+')
     .replaceAll('<api-version>', '[^/]+')
@@ -33,7 +53,10 @@ function fixtureOutputMatchesPath(output: string, candidatePath: string): boolea
   return new RegExp(`^${pattern}$`, 'u').test(candidatePath);
 }
 
-const registeredFixtureOutputs = conformanceCaptureIndex.flatMap((entry) => entry.fixtureOutputs);
+const registeredFixtureOutputs = [
+  ...conformanceCaptureIndex.flatMap((entry) => entry.fixtureOutputs),
+  ...retiredConformanceEvidencePaths,
+];
 
 type ChangedPath = {
   status: string;
@@ -46,19 +69,23 @@ const changed = result.stdout
   .filter(Boolean)
   .map((line): ChangedPath => {
     const [status = '', firstPath = '', secondPath] = line.split('\t');
+    const changedPath = secondPath ?? firstPath;
+    if (!status || !changedPath) {
+      throw new Error(`Unexpected git diff --name-status line: ${line}`);
+    }
     return {
       status,
-      path: secondPath ?? firstPath,
+      path: changedPath,
     };
   })
   .filter((entry) => entry.path.length > 0);
 
-const unregistered = changed.filter(
-  ({ status, path: changedPath }) =>
-    status !== 'D' &&
-    existsSync(changedPath) &&
-    !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath)),
-);
+const unregistered = changed.filter(({ status, path: changedPath }) => {
+  if (status === 'D') return !registeredProtectedEvidenceRemovals.has(changedPath);
+  return (
+    existsSync(changedPath) && !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath))
+  );
+});
 
 function readJson(relativePath: string): unknown {
   return JSON.parse(readFileSync(path.join(repoRoot, relativePath), 'utf8')) as unknown;
@@ -232,6 +259,47 @@ function adminPlatformParityEvidenceErrors(): string[] {
   return errors;
 }
 
+function bulkOperationsParityEvidenceErrors(): string[] {
+  const errors: string[] = [];
+
+  for (const specPath of capturedParitySpecs(path.join('config', 'parity-specs', 'bulk-operations'))) {
+    const spec = readJson(specPath);
+    if (!isRecord(spec)) {
+      continue;
+    }
+
+    const liveCaptureFiles = spec['liveCaptureFiles'];
+    if (!Array.isArray(liveCaptureFiles)) {
+      continue;
+    }
+
+    for (const liveCaptureFile of liveCaptureFiles) {
+      if (typeof liveCaptureFile !== 'string') {
+        errors.push(`${specPath}: liveCaptureFiles entry is not a string`);
+        continue;
+      }
+
+      if (liveCaptureFile.startsWith('fixtures/conformance/local-runtime/')) {
+        errors.push(`${specPath}: bulk-operations captured parity spec references local-runtime evidence`);
+        continue;
+      }
+
+      if (!liveCaptureFile.includes('/bulk-operations/')) {
+        continue;
+      }
+
+      if (!existsSync(path.join(repoRoot, liveCaptureFile))) {
+        errors.push(`${specPath}: referenced bulk-operations fixture does not exist: ${liveCaptureFile}`);
+        continue;
+      }
+
+      errors.push(...fixtureUpstreamErrors(liveCaptureFile));
+    }
+  }
+
+  return errors;
+}
+
 function shippingFulfillmentParityEvidenceErrors(): string[] {
   const errors: string[] = [];
 
@@ -315,6 +383,7 @@ const metafieldDefinitionsErrors = metafieldDefinitionsParityEvidenceErrors();
 const customerErrors = customerParityEvidenceErrors();
 const giftCardErrors = giftCardParityEvidenceErrors();
 const adminPlatformErrors = adminPlatformParityEvidenceErrors();
+const bulkOperationsErrors = bulkOperationsParityEvidenceErrors();
 const shippingFulfillmentErrors = shippingFulfillmentParityEvidenceErrors();
 const marketsErrors = marketsParityEvidenceErrors();
 
@@ -349,6 +418,13 @@ if (adminPlatformErrors.length > 0) {
   for (const error of adminPlatformErrors) process.stderr.write(`- ${error}\n`);
 }
 
+if (bulkOperationsErrors.length > 0) {
+  process.stderr.write(
+    'Bulk-operations captured parity evidence contains local-runtime references or non-GraphQL upstream cassette queries.\n',
+  );
+  for (const error of bulkOperationsErrors) process.stderr.write(`- ${error}\n`);
+}
+
 if (shippingFulfillmentErrors.length > 0) {
   process.stderr.write(
     'shipping-fulfillments parity evidence contains local-runtime fixtures or descriptor upstream calls.\n',
@@ -367,6 +443,7 @@ if (
   customerErrors.length > 0 ||
   giftCardErrors.length > 0 ||
   adminPlatformErrors.length > 0 ||
+  bulkOperationsErrors.length > 0 ||
   shippingFulfillmentErrors.length > 0 ||
   marketsErrors.length > 0
 ) {
@@ -378,6 +455,7 @@ process.stdout.write('metafield-definitions parity evidence uses live fixture pa
 process.stdout.write('Customers parity evidence uses live fixture paths and GraphQL upstream cassette queries.\n');
 process.stdout.write('Gift-card parity evidence contains no local-runtime captures or descriptor cassette queries.\n');
 process.stdout.write('Admin-platform captured parity evidence has no synthetic/local-runtime provenance signals.\n');
+process.stdout.write('Bulk-operations captured parity evidence has no local-runtime or descriptor upstream signals.\n');
 process.stdout.write(
   'shipping-fulfillments protected evidence has no local-runtime parity fixtures or descriptor upstream calls.\n',
 );

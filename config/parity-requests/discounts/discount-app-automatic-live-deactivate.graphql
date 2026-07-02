@@ -1,5 +1,5 @@
-mutation DiscountAutomaticAppLifecycleActivate($id: ID!) {
-  discountAutomaticActivate(id: $id) {
+mutation DiscountAutomaticAppLiveDeactivate($id: ID!) {
+  discountAutomaticDeactivate(id: $id) {
     automaticDiscountNode {
       id
       automaticDiscount {
