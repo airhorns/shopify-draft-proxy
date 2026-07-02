@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-08T02:31:35.298Z",
+  "capturedAt": "2026-06-30T14:12:21.977Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "evidence": {
@@ -13,7 +13,7 @@
       "query": "mutation DeliveryProfileUpdateValidationCreate($profile: DeliveryProfileInput!) {\n    deliveryProfileCreate(profile: $profile) {\n      profile {\n        id\n        name\n        version\n        originLocationCount\n        zoneCountryCount\n        activeMethodDefinitionsCount\n        profileItems(first: 5) {\n          nodes {\n            product {\n              id\n              title\n            }\n            variants(first: 5) {\n              nodes {\n                id\n                title\n              }\n            }\n          }\n        }\n        profileLocationGroups {\n          locationGroup {\n            id\n          }\n          locationGroupZones(first: 5) {\n            nodes {\n              zone {\n                id\n                name\n              }\n              methodDefinitions(first: 5) {\n                nodes {\n                  id\n                  name\n                  active\n                  rateProvider {\n                    ... on DeliveryRateDefinition {\n                      id\n                      price {\n                        amount\n                        currencyCode\n                      }\n                    }\n                  }\n                  methodConditions {\n                    id\n                    field\n                    operator\n                    conditionCriteria {\n                      __typename\n                      ... on Weight {\n                        value\n                        unit\n                      }\n                      ... on MoneyV2 {\n                        amount\n                        currencyCode\n                      }\n                    }\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
         "profile": {
-          "name": "Update validation base 1778207493873",
+          "name": "Update validation base 1782828739929",
           "locationGroupsToCreate": [
             {
               "locations": ["gid://shopify/Location/106318430514"],
@@ -38,8 +38,8 @@
           "data": {
             "deliveryProfileCreate": {
               "profile": {
-                "id": "gid://shopify/DeliveryProfile/131818324274",
-                "name": "Update validation base 1778207493873",
+                "id": "gid://shopify/DeliveryProfile/132621009202",
+                "name": "Update validation base 1782828739929",
                 "version": 1,
                 "originLocationCount": 0,
                 "zoneCountryCount": 0,
@@ -50,13 +50,13 @@
                 "profileLocationGroups": [
                   {
                     "locationGroup": {
-                      "id": "gid://shopify/DeliveryLocationGroup/133505974578"
+                      "id": "gid://shopify/DeliveryLocationGroup/134327664946"
                     },
                     "locationGroupZones": {
                       "nodes": [
                         {
                           "zone": {
-                            "id": "gid://shopify/DeliveryZone/582286016818",
+                            "id": "gid://shopify/DeliveryZone/585226912050",
                             "name": "Domestic"
                           },
                           "methodDefinitions": {
@@ -77,7 +77,7 @@
               "actualQueryCost": 24,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1976,
+                "currentlyAvailable": 1975,
                 "restoreRate": 100
               }
             }
@@ -88,7 +88,7 @@
     "longName": {
       "query": "mutation DeliveryProfileUpdateValidation($id: ID!, $profile: DeliveryProfileInput!) {\n    deliveryProfileUpdate(id: $id, profile: $profile) {\n      profile {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/131818324274",
+        "id": "gid://shopify/DeliveryProfile/132621009202",
         "profile": {
           "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
         }
@@ -124,7 +124,7 @@
     "unknownCreateLocation": {
       "query": "mutation DeliveryProfileUpdateValidation($id: ID!, $profile: DeliveryProfileInput!) {\n    deliveryProfileUpdate(id: $id, profile: $profile) {\n      profile {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/131818324274",
+        "id": "gid://shopify/DeliveryProfile/132621009202",
         "profile": {
           "locationGroupsToCreate": [
             {
@@ -153,7 +153,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1979,
                 "restoreRate": 100
               }
             }
@@ -164,11 +164,11 @@
     "unknownAddLocation": {
       "query": "mutation DeliveryProfileUpdateValidation($id: ID!, $profile: DeliveryProfileInput!) {\n    deliveryProfileUpdate(id: $id, profile: $profile) {\n      profile {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/131818324274",
+        "id": "gid://shopify/DeliveryProfile/132621009202",
         "profile": {
           "locationGroupsToUpdate": [
             {
-              "id": "gid://shopify/DeliveryLocationGroup/133505974578",
+              "id": "gid://shopify/DeliveryLocationGroup/134327664946",
               "locationsToAdd": ["gid://shopify/Location/999999999"]
             }
           ]
@@ -194,7 +194,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1982,
                 "restoreRate": 100
               }
             }
@@ -205,11 +205,11 @@
     "unknownProfileGroupAddLocationProbe": {
       "query": "mutation DeliveryProfileUpdateValidation($id: ID!, $profile: DeliveryProfileInput!) {\n    deliveryProfileUpdate(id: $id, profile: $profile) {\n      profile {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/131818324274",
+        "id": "gid://shopify/DeliveryProfile/132621009202",
         "profile": {
           "profileLocationGroups": [
             {
-              "id": "gid://shopify/DeliveryLocationGroup/133505974578",
+              "id": "gid://shopify/DeliveryLocationGroup/134327664946",
               "locationsToAdd": ["gid://shopify/Location/999999999"]
             }
           ]
@@ -221,8 +221,8 @@
           "data": {
             "deliveryProfileUpdate": {
               "profile": {
-                "id": "gid://shopify/DeliveryProfile/131818324274",
-                "name": "Update validation base 1778207493873"
+                "id": "gid://shopify/DeliveryProfile/132621009202",
+                "name": "Update validation base 1782828739929"
               },
               "userErrors": []
             }
@@ -244,7 +244,7 @@
     "emptyCountries": {
       "query": "mutation DeliveryProfileUpdateValidation($id: ID!, $profile: DeliveryProfileInput!) {\n    deliveryProfileUpdate(id: $id, profile: $profile) {\n      profile {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/131818324274",
+        "id": "gid://shopify/DeliveryProfile/132621009202",
         "profile": {
           "locationGroupsToCreate": [
             {
@@ -279,7 +279,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -290,7 +290,7 @@
     "overlappingZonesProbe": {
       "query": "mutation DeliveryProfileUpdateValidation($id: ID!, $profile: DeliveryProfileInput!) {\n    deliveryProfileUpdate(id: $id, profile: $profile) {\n      profile {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/131818324274",
+        "id": "gid://shopify/DeliveryProfile/132621009202",
         "profile": {
           "locationGroupsToCreate": [
             {
@@ -325,8 +325,41 @@
           "data": {
             "deliveryProfileUpdate": {
               "profile": {
-                "id": "gid://shopify/DeliveryProfile/131818324274",
-                "name": "Update validation base 1778207493873"
+                "id": "gid://shopify/DeliveryProfile/132621009202",
+                "name": "Update validation base 1782828739929"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "removeCreatedProfile": {
+      "query": "mutation DeliveryProfileUpdateValidationCleanup($id: ID!) {\n    deliveryProfileRemove(id: $id) {\n      job {\n        id\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/DeliveryProfile/132621009202"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileRemove": {
+              "job": {
+                "id": "gid://shopify/Job/f174462b-786a-4be5-802b-6451a52ebd67",
+                "done": false
               },
               "userErrors": []
             }
@@ -346,39 +379,6 @@
       }
     }
   },
-  "cleanup": {
-    "removeCreatedProfile": {
-      "query": "mutation DeliveryProfileUpdateValidationCleanup($id: ID!) {\n    deliveryProfileRemove(id: $id) {\n      job {\n        id\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
-      "variables": {
-        "id": "gid://shopify/DeliveryProfile/131818324274"
-      },
-      "result": {
-        "status": 200,
-        "payload": {
-          "data": {
-            "deliveryProfileRemove": {
-              "job": {
-                "id": "gid://shopify/Job/29208342-60b4-47a5-87eb-b80982bc105f",
-                "done": false
-              },
-              "userErrors": []
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    }
-  },
   "notes": [
     "Captured with SHOPIFY_CONFORMANCE_API_VERSION=2026-04 and home-folder conformance auth.",
     "The capture creates one disposable delivery profile, records update-side validation branches against it, then removes the profile in cleanup.",
@@ -390,7 +390,7 @@
     {
       "operationName": "ShippingDeliveryProfileLocationsHydrate",
       "variables": {},
-      "query": "sha:hand-synthesized",
+      "query": "query ShippingDeliveryProfileLocationsHydrate {\n    locationsAvailableForDeliveryProfilesConnection(first: 2) {\n      nodes {\n        id\n        name\n        isActive\n        isFulfillmentService\n      }\n    }\n  }",
       "response": {
         "status": 200,
         "body": {
@@ -431,7 +431,7 @@
       "variables": {
         "ids": []
       },
-      "query": "sha:hand-synthesized",
+      "query": "query ShippingDeliveryProfileVariantsHydrate($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      ... on ProductVariant {\n        id\n        title\n        product {\n          id\n          title\n          handle\n        }\n      }\n    }\n  }",
       "response": {
         "status": 200,
         "body": {
@@ -444,7 +444,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1999,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }

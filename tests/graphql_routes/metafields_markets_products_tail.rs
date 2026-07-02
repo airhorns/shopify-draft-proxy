@@ -1739,6 +1739,76 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
 }
 
 #[test]
+fn market_web_presence_create_uses_observed_shop_host_from_live_preflight() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            assert_eq!(
+                body["operationName"],
+                json!("MarketsMutationPreflightHydrate")
+            );
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(query.contains("webPresences(first: $first)"));
+            assert!(!query.contains("hand-synthesized"));
+            assert_eq!(body["variables"], json!({ "first": 20 }));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "webPresences": {
+                            "nodes": [{
+                                "id": "gid://shopify/MarketWebPresence/62842765618",
+                                "subfolderSuffix": null,
+                                "domain": {
+                                    "id": "gid://shopify/Domain/157391388978",
+                                    "host": "harry-test-heelo.myshopify.com",
+                                    "url": "https://harry-test-heelo.myshopify.com",
+                                    "sslEnabled": true
+                                },
+                                "rootUrls": [{ "locale": "en", "url": "https://harry-test-heelo.myshopify.com/" }],
+                                "defaultLocale": {
+                                    "locale": "en",
+                                    "name": "English",
+                                    "primary": true,
+                                    "published": true
+                                },
+                                "alternateLocales": [],
+                                "markets": { "nodes": [] }
+                            }]
+                        }
+                    }
+                }),
+            }
+        });
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketWebPresenceObservedHost($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence { rootUrls { locale url } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr", "de"], "subfolderSuffix": "intl"}}),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
+        json!([
+            {"locale": "en", "url": "https://harry-test-heelo.myshopify.com/en-intl/"},
+            {"locale": "de", "url": "https://harry-test-heelo.myshopify.com/de-intl/"},
+            {"locale": "fr", "url": "https://harry-test-heelo.myshopify.com/fr-intl/"}
+        ])
+    );
+}
+
+#[test]
 fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
     // Ports old Gleam web-presence helper behavior from markets_mutation_test.gleam:
     // root URL construction for subfolder/domain routing, Shopify locale normalization,
@@ -5098,14 +5168,15 @@ fn market_localizations_register_remove_ported_gleam_helpers_stage_and_validate(
                 headers: Default::default(),
                 body: json!({
                     "data": {
-                        "marketLocalizableResource": {
-                            "resourceId": "gid://shopify/Metafield/localizable",
-                            "marketLocalizableContent": [
-                                {"key": "title", "value": "Title", "digest": "digest-title"},
-                                {"key": "subtitle", "value": "Subtitle", "digest": "digest-subtitle"}
-                            ],
-                            "marketLocalizations": []
-                        },
+                            "marketLocalizableResource": {
+                                "resourceId": "gid://shopify/Metafield/localizable",
+                                "marketLocalizableContent": [
+                                    {"key": "title", "value": "Title", "digest": "digest-title"},
+                                    {"key": "subtitle", "value": "Subtitle", "digest": "digest-subtitle"},
+                                    {"key": "value", "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}", "digest": "digest-money"}
+                                ],
+                                "marketLocalizations": []
+                            },
                         "markets": {
                             "nodes": [
                                 {"id": "gid://shopify/Market/ca", "name": "Canada", "handle": "canada", "status": "ACTIVE", "type": "REGION"}
@@ -5221,7 +5292,7 @@ fn market_localizations_register_remove_ported_gleam_helpers_stage_and_validate(
             json!({"__typename": "TranslationUserError", "field": ["marketLocalizations", "0", "marketId"], "code": "MARKET_DOES_NOT_EXIST"}),
         ),
         (
-            json!({"marketId": "gid://shopify/Market/ca", "key": "value", "value": "Titre", "marketLocalizableContentDigest": "digest-title"}),
+            json!({"marketId": "gid://shopify/Market/ca", "key": "unknown", "value": "Titre", "marketLocalizableContentDigest": "digest-title"}),
             json!({"__typename": "TranslationUserError", "field": ["marketLocalizations", "0", "key"], "code": "INVALID_KEY_FOR_MODEL"}),
         ),
         (
@@ -5243,6 +5314,42 @@ fn market_localizations_register_remove_ported_gleam_helpers_stage_and_validate(
             json!({"marketLocalizations": null, "userErrors": [expected_error]})
         );
     }
+
+    let money_register = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustMarketLocalizationsMoneyMetafieldValidation($resourceId: ID!, $marketLocalizations: [MarketLocalizationInput!]!) {
+          marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {
+            marketLocalizations { key value }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"resourceId": resource_id, "marketLocalizations": [{
+            "marketId": "gid://shopify/Market/ca",
+            "key": "value",
+            "value": "{\"amount\":\"15.67\",\"currency_code\":\"CAD\"}",
+            "marketLocalizableContentDigest": "digest-money"
+        }]}),
+    ));
+    assert_eq!(
+        money_register.body["data"]["marketLocalizationsRegister"],
+        json!({
+            "marketLocalizations": null,
+            "userErrors": [{
+                "field": ["marketLocalizations", "0", "value"],
+                "message": "Market Localizable content is invalid",
+                "code": "FAILS_RESOURCE_VALIDATION"
+            }]
+        })
+    );
+    let money_remove_after_rejection = proxy.process_request(json_graphql_request(
+        remove_query,
+        json!({"resourceId": resource_id, "keys": ["value"], "marketIds": ["gid://shopify/Market/ca"]}),
+    ));
+    assert_eq!(
+        money_remove_after_rejection.body["data"]["marketLocalizationsRemove"],
+        json!({"marketLocalizations": null, "userErrors": []})
+    );
 
     let register = proxy.process_request(json_graphql_request(
         register_query,
@@ -5267,7 +5374,8 @@ fn market_localizations_register_remove_ported_gleam_helpers_stage_and_validate(
         read_after_register.body["data"]["marketLocalizableResource"]["marketLocalizableContent"],
         json!([
             {"key": "title", "value": "Title", "digest": "digest-title"},
-            {"key": "subtitle", "value": "Subtitle", "digest": "digest-subtitle"}
+            {"key": "subtitle", "value": "Subtitle", "digest": "digest-subtitle"},
+            {"key": "value", "value": "{\"amount\":\"12.34\",\"currency_code\":\"CAD\"}", "digest": "digest-money"}
         ])
     );
     assert_eq!(

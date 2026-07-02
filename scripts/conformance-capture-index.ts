@@ -9700,9 +9700,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-request-lifecycle.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-service-lifecycle.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-top-level-reads.json',
-      `${LOCAL_RUNTIME_ROOT}assigned-fulfillment-orders-filtering-local-runtime.json`,
-      `${LOCAL_RUNTIME_ROOT}fulfillment-order-move-assignment-status.json`,
-      `${LOCAL_RUNTIME_ROOT}fulfillment-orders-set-deadline-validation-local-runtime.json`,
       'config/parity-specs/shipping-fulfillments/delivery-settings-read.json',
       'config/parity-specs/shipping-fulfillments/carrier-service-lifecycle.json',
       'config/parity-specs/shipping-fulfillments/fulfillment-order-request-lifecycle.json',
@@ -9783,7 +9780,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}fulfillment-order-open-report-progress-preconditions.json`,
-      'config/parity-specs/shipping-fulfillments/fulfillment-order-open-report-progress-preconditions-local-runtime.json',
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-open-report-progress-preconditions.json',
       'config/parity-requests/shipping-fulfillments/fulfillment-order-status-precondition-open.graphql',
       'config/parity-requests/shipping-fulfillments/fulfillment-order-status-precondition-report-progress.graphql',
       'config/parity-requests/shipping-fulfillments/fulfillment-order-status-precondition-order-read.graphql',
@@ -10175,6 +10172,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'shipping-fulfillments',
     captureId: 'delivery-profiles',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-delivery-profile-conformance.ts',
     purpose: 'Delivery profile read/write lifecycle behavior.',
     requiredAuthScopes: ['read_shipping', 'write_shipping', 'delivery profile management access'],
