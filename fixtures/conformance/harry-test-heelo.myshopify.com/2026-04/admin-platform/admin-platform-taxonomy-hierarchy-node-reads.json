@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-05T01:58:36.108Z",
+  "capturedAt": "2026-06-30T13:35:15.123Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "captures": {
@@ -20,7 +20,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-1-1",
                       "gid://shopify/TaxonomyCategory/ap-2-1-2",
@@ -33,59 +33,94 @@
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-10",
-                    "name": "Pet Bells & Charms",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bells & Charms",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-2",
+                    "name": "Cat Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Cat Supplies",
                     "isRoot": false,
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-10-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-10-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-10-3"
+                      "gid://shopify/TaxonomyCategory/ap-2-2-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-6"
                     ],
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-11",
-                    "name": "Pet Biometric Monitors",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Biometric Monitors",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-3",
+                    "name": "Dog Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Dog Supplies",
                     "isRoot": false,
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-11-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-11-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-11-3"
+                      "gid://shopify/TaxonomyCategory/ap-2-3-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-8",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-9"
                     ],
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-12",
-                    "name": "Pet Bowl Mats",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bowl Mats",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-4",
+                    "name": "Fish & Aquatic Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Fish & Aquatic Supplies",
                     "isRoot": false,
-                    "isLeaf": true,
+                    "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-4-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-8",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-9",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-10",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-11",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-12",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-13",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-14",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-15",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-16"
+                    ],
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-13",
-                    "name": "Pet Bowl Stands",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bowl Stands",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-5",
+                    "name": "Pet Agility Equipment",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Agility Equipment",
                     "isRoot": false,
-                    "isLeaf": true,
+                    "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-5-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-8"
+                    ],
                     "isArchived": false
                   }
                 ],
@@ -98,31 +133,31 @@
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6NjJ9",
+                    "cursor": "eyJpZCI6MTR9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-10",
-                      "name": "Pet Bells & Charms"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-2",
+                      "name": "Cat Supplies"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6NjN9",
+                    "cursor": "eyJpZCI6Mjh9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-11",
-                      "name": "Pet Biometric Monitors"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-3",
+                      "name": "Dog Supplies"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6Njd9",
+                    "cursor": "eyJpZCI6NDJ9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-12",
-                      "name": "Pet Bowl Mats"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-4",
+                      "name": "Fish & Aquatic Supplies"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6Njh9",
+                    "cursor": "eyJpZCI6NTl9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-13",
-                      "name": "Pet Bowl Stands"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-5",
+                      "name": "Pet Agility Equipment"
                     }
                   }
                 ],
@@ -130,7 +165,7 @@
                   "hasNextPage": true,
                   "hasPreviousPage": false,
                   "startCursor": "eyJpZCI6NH0=",
-                  "endCursor": "eyJpZCI6Njh9"
+                  "endCursor": "eyJpZCI6NTl9"
                 }
               },
               "descendants": {
@@ -215,7 +250,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-1-1",
                       "gid://shopify/TaxonomyCategory/ap-2-1-2",
@@ -228,39 +263,35 @@
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-1-1",
-                    "name": "Bird Cage Accessories",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Bird Supplies > Bird Cage Accessories",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-10",
+                    "name": "Pet Bells & Charms",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bells & Charms",
                     "isRoot": false,
                     "isLeaf": false,
-                    "level": 4,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2-1",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-1",
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-1-1-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-1-2"
+                      "gid://shopify/TaxonomyCategory/ap-2-10-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-10-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-10-3"
                     ],
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-1-1-1",
-                    "name": "Bird Cage Bird Baths",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Bird Supplies > Bird Cage Accessories > Bird Cage Bird Baths",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-11",
+                    "name": "Pet Biometric Monitors",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Biometric Monitors",
                     "isRoot": false,
-                    "isLeaf": true,
-                    "level": 5,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2-1-1",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-1-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-1",
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-11-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-11-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-11-3"
                     ],
-                    "childrenIds": [],
                     "isArchived": false
                   }
                 ],
@@ -287,115 +318,6 @@
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6NX0=",
-                    "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-1-1",
-                      "name": "Bird Cage Accessories"
-                    }
-                  },
-                  {
-                    "cursor": "eyJpZCI6Nn0=",
-                    "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-1-1-1",
-                      "name": "Bird Cage Bird Baths"
-                    }
-                  }
-                ],
-                "pageInfo": {
-                  "hasNextPage": true,
-                  "hasPreviousPage": false,
-                  "startCursor": "eyJpZCI6Mn0=",
-                  "endCursor": "eyJpZCI6Nn0="
-                }
-              },
-              "siblings": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-1",
-                    "name": "Bird Supplies",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Bird Supplies",
-                    "isRoot": false,
-                    "isLeaf": false,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-1-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-3",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-4",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-5",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-6",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-7"
-                    ],
-                    "isArchived": false
-                  },
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-10",
-                    "name": "Pet Bells & Charms",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bells & Charms",
-                    "isRoot": false,
-                    "isLeaf": false,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-10-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-10-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-10-3"
-                    ],
-                    "isArchived": false
-                  },
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-11",
-                    "name": "Pet Biometric Monitors",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Biometric Monitors",
-                    "isRoot": false,
-                    "isLeaf": false,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-11-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-11-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-11-3"
-                    ],
-                    "isArchived": false
-                  },
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-12",
-                    "name": "Pet Bowl Mats",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bowl Mats",
-                    "isRoot": false,
-                    "isLeaf": true,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [],
-                    "isArchived": false
-                  },
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-13",
-                    "name": "Pet Bowl Stands",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bowl Stands",
-                    "isRoot": false,
-                    "isLeaf": true,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [],
-                    "isArchived": false
-                  }
-                ],
-                "edges": [
-                  {
-                    "cursor": "eyJpZCI6NH0=",
-                    "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-1",
-                      "name": "Bird Supplies"
-                    }
-                  },
-                  {
                     "cursor": "eyJpZCI6NjJ9",
                     "node": {
                       "id": "gid://shopify/TaxonomyCategory/ap-2-10",
@@ -408,19 +330,163 @@
                       "id": "gid://shopify/TaxonomyCategory/ap-2-11",
                       "name": "Pet Biometric Monitors"
                     }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJpZCI6Mn0=",
+                  "endCursor": "eyJpZCI6NjN9"
+                }
+              },
+              "siblings": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-1",
+                    "name": "Bird Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Bird Supplies",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-1-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-1-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-1-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-1-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-1-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-1-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-1-7"
+                    ],
+                    "isArchived": false
                   },
                   {
-                    "cursor": "eyJpZCI6Njd9",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-2",
+                    "name": "Cat Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Cat Supplies",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-2-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-6"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-3",
+                    "name": "Dog Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Dog Supplies",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-3-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-8",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-9"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-4",
+                    "name": "Fish & Aquatic Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Fish & Aquatic Supplies",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-4-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-8",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-9",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-10",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-11",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-12",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-13",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-14",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-15",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-16"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-5",
+                    "name": "Pet Agility Equipment",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Agility Equipment",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-5-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-8"
+                    ],
+                    "isArchived": false
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJpZCI6NH0=",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-12",
-                      "name": "Pet Bowl Mats"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-1",
+                      "name": "Bird Supplies"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6Njh9",
+                    "cursor": "eyJpZCI6MTR9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-13",
-                      "name": "Pet Bowl Stands"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-2",
+                      "name": "Cat Supplies"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6Mjh9",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-3",
+                      "name": "Dog Supplies"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6NDJ9",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-4",
+                      "name": "Fish & Aquatic Supplies"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6NTl9",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-5",
+                      "name": "Pet Agility Equipment"
                     }
                   }
                 ],
@@ -428,7 +494,7 @@
                   "hasNextPage": true,
                   "hasPreviousPage": false,
                   "startCursor": "eyJpZCI6NH0=",
-                  "endCursor": "eyJpZCI6Njh9"
+                  "endCursor": "eyJpZCI6NTl9"
                 }
               },
               "missingChildren": {
@@ -474,7 +540,7 @@
                 "isLeaf": false,
                 "level": 3,
                 "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                 "childrenIds": [
                   "gid://shopify/TaxonomyCategory/ap-2-6-1",
                   "gid://shopify/TaxonomyCategory/ap-2-6-2",
@@ -530,7 +596,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-1-1",
                       "gid://shopify/TaxonomyCategory/ap-2-1-2",
@@ -543,80 +609,106 @@
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-10",
-                    "name": "Pet Bells & Charms",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bells & Charms",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-2",
+                    "name": "Cat Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Cat Supplies",
                     "isRoot": false,
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-10-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-10-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-10-3"
+                      "gid://shopify/TaxonomyCategory/ap-2-2-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-6"
                     ],
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-11",
-                    "name": "Pet Biometric Monitors",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Biometric Monitors",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-3",
+                    "name": "Dog Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Dog Supplies",
                     "isRoot": false,
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-11-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-11-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-11-3"
+                      "gid://shopify/TaxonomyCategory/ap-2-3-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-8",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-9"
                     ],
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-12",
-                    "name": "Pet Bowl Mats",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bowl Mats",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-4",
+                    "name": "Fish & Aquatic Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Fish & Aquatic Supplies",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-4-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-8",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-9",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-10",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-11",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-12",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-13",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-14",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-15",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-16"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-5",
+                    "name": "Pet Agility Equipment",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Agility Equipment",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-5-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-8"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-7",
+                    "name": "Pet Apparel Hangers",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Apparel Hangers",
                     "isRoot": false,
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [],
-                    "isArchived": false
-                  },
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-13",
-                    "name": "Pet Bowl Stands",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bowl Stands",
-                    "isRoot": false,
-                    "isLeaf": true,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [],
-                    "isArchived": false
-                  },
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-14",
-                    "name": "Pet Bowls, Feeders & Waterers",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bowls, Feeders & Waterers",
-                    "isRoot": false,
-                    "isLeaf": false,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-14-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-14-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-14-3",
-                      "gid://shopify/TaxonomyCategory/ap-2-14-4",
-                      "gid://shopify/TaxonomyCategory/ap-2-14-5",
-                      "gid://shopify/TaxonomyCategory/ap-2-14-6",
-                      "gid://shopify/TaxonomyCategory/ap-2-14-7",
-                      "gid://shopify/TaxonomyCategory/ap-2-14-8"
-                    ],
                     "isArchived": false
                   }
                 ],
@@ -629,38 +721,38 @@
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6NjJ9",
+                    "cursor": "eyJpZCI6MTR9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-10",
-                      "name": "Pet Bells & Charms"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-2",
+                      "name": "Cat Supplies"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6NjN9",
+                    "cursor": "eyJpZCI6Mjh9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-11",
-                      "name": "Pet Biometric Monitors"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-3",
+                      "name": "Dog Supplies"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6Njd9",
+                    "cursor": "eyJpZCI6NDJ9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-12",
-                      "name": "Pet Bowl Mats"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-4",
+                      "name": "Fish & Aquatic Supplies"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6Njh9",
+                    "cursor": "eyJpZCI6NTl9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-13",
-                      "name": "Pet Bowl Stands"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-5",
+                      "name": "Pet Agility Equipment"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6Njl9",
+                    "cursor": "eyJpZCI6NjB9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-14",
-                      "name": "Pet Bowls, Feeders & Waterers"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-7",
+                      "name": "Pet Apparel Hangers"
                     }
                   }
                 ],
@@ -668,7 +760,7 @@
                   "hasNextPage": true,
                   "hasPreviousPage": false,
                   "startCursor": "eyJpZCI6NH0=",
-                  "endCursor": "eyJpZCI6Njl9"
+                  "endCursor": "eyJpZCI6NjB9"
                 }
               }
             }
@@ -679,7 +771,7 @@
               "actualQueryCost": 9,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1980,
+                "currentlyAvailable": 1991,
                 "restoreRate": 100
               }
             }
@@ -708,7 +800,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-1-1",
                       "gid://shopify/TaxonomyCategory/ap-2-1-2",
@@ -721,59 +813,94 @@
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-10",
-                    "name": "Pet Bells & Charms",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bells & Charms",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-2",
+                    "name": "Cat Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Cat Supplies",
                     "isRoot": false,
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-10-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-10-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-10-3"
+                      "gid://shopify/TaxonomyCategory/ap-2-2-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-6"
                     ],
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-11",
-                    "name": "Pet Biometric Monitors",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Biometric Monitors",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-3",
+                    "name": "Dog Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Dog Supplies",
                     "isRoot": false,
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-11-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-11-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-11-3"
+                      "gid://shopify/TaxonomyCategory/ap-2-3-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-8",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-9"
                     ],
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-12",
-                    "name": "Pet Bowl Mats",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bowl Mats",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-4",
+                    "name": "Fish & Aquatic Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Fish & Aquatic Supplies",
                     "isRoot": false,
-                    "isLeaf": true,
+                    "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-4-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-8",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-9",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-10",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-11",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-12",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-13",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-14",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-15",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-16"
+                    ],
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-13",
-                    "name": "Pet Bowl Stands",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bowl Stands",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-5",
+                    "name": "Pet Agility Equipment",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Agility Equipment",
                     "isRoot": false,
-                    "isLeaf": true,
+                    "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-5-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-8"
+                    ],
                     "isArchived": false
                   }
                 ],
@@ -786,31 +913,31 @@
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6NjJ9",
+                    "cursor": "eyJpZCI6MTR9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-10",
-                      "name": "Pet Bells & Charms"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-2",
+                      "name": "Cat Supplies"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6NjN9",
+                    "cursor": "eyJpZCI6Mjh9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-11",
-                      "name": "Pet Biometric Monitors"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-3",
+                      "name": "Dog Supplies"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6Njd9",
+                    "cursor": "eyJpZCI6NDJ9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-12",
-                      "name": "Pet Bowl Mats"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-4",
+                      "name": "Fish & Aquatic Supplies"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6Njh9",
+                    "cursor": "eyJpZCI6NTl9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-13",
-                      "name": "Pet Bowl Stands"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-5",
+                      "name": "Pet Agility Equipment"
                     }
                   }
                 ],
@@ -818,7 +945,7 @@
                   "hasNextPage": true,
                   "hasPreviousPage": false,
                   "startCursor": "eyJpZCI6NH0=",
-                  "endCursor": "eyJpZCI6Njh9"
+                  "endCursor": "eyJpZCI6NTl9"
                 }
               },
               "descendants": {
@@ -903,7 +1030,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-1-1",
                       "gid://shopify/TaxonomyCategory/ap-2-1-2",
@@ -916,39 +1043,35 @@
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-1-1",
-                    "name": "Bird Cage Accessories",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Bird Supplies > Bird Cage Accessories",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-10",
+                    "name": "Pet Bells & Charms",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bells & Charms",
                     "isRoot": false,
                     "isLeaf": false,
-                    "level": 4,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2-1",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-1",
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-1-1-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-1-2"
+                      "gid://shopify/TaxonomyCategory/ap-2-10-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-10-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-10-3"
                     ],
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-1-1-1",
-                    "name": "Bird Cage Bird Baths",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Bird Supplies > Bird Cage Accessories > Bird Cage Bird Baths",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-11",
+                    "name": "Pet Biometric Monitors",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Biometric Monitors",
                     "isRoot": false,
-                    "isLeaf": true,
-                    "level": 5,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2-1-1",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-1-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-1",
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-11-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-11-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-11-3"
                     ],
-                    "childrenIds": [],
                     "isArchived": false
                   }
                 ],
@@ -975,115 +1098,6 @@
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6NX0=",
-                    "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-1-1",
-                      "name": "Bird Cage Accessories"
-                    }
-                  },
-                  {
-                    "cursor": "eyJpZCI6Nn0=",
-                    "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-1-1-1",
-                      "name": "Bird Cage Bird Baths"
-                    }
-                  }
-                ],
-                "pageInfo": {
-                  "hasNextPage": true,
-                  "hasPreviousPage": false,
-                  "startCursor": "eyJpZCI6Mn0=",
-                  "endCursor": "eyJpZCI6Nn0="
-                }
-              },
-              "siblings": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-1",
-                    "name": "Bird Supplies",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Bird Supplies",
-                    "isRoot": false,
-                    "isLeaf": false,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-1-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-3",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-4",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-5",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-6",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-7"
-                    ],
-                    "isArchived": false
-                  },
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-10",
-                    "name": "Pet Bells & Charms",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bells & Charms",
-                    "isRoot": false,
-                    "isLeaf": false,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-10-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-10-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-10-3"
-                    ],
-                    "isArchived": false
-                  },
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-11",
-                    "name": "Pet Biometric Monitors",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Biometric Monitors",
-                    "isRoot": false,
-                    "isLeaf": false,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-11-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-11-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-11-3"
-                    ],
-                    "isArchived": false
-                  },
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-12",
-                    "name": "Pet Bowl Mats",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bowl Mats",
-                    "isRoot": false,
-                    "isLeaf": true,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [],
-                    "isArchived": false
-                  },
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-13",
-                    "name": "Pet Bowl Stands",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bowl Stands",
-                    "isRoot": false,
-                    "isLeaf": true,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [],
-                    "isArchived": false
-                  }
-                ],
-                "edges": [
-                  {
-                    "cursor": "eyJpZCI6NH0=",
-                    "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-1",
-                      "name": "Bird Supplies"
-                    }
-                  },
-                  {
                     "cursor": "eyJpZCI6NjJ9",
                     "node": {
                       "id": "gid://shopify/TaxonomyCategory/ap-2-10",
@@ -1096,19 +1110,163 @@
                       "id": "gid://shopify/TaxonomyCategory/ap-2-11",
                       "name": "Pet Biometric Monitors"
                     }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJpZCI6Mn0=",
+                  "endCursor": "eyJpZCI6NjN9"
+                }
+              },
+              "siblings": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-1",
+                    "name": "Bird Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Bird Supplies",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-1-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-1-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-1-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-1-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-1-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-1-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-1-7"
+                    ],
+                    "isArchived": false
                   },
                   {
-                    "cursor": "eyJpZCI6Njd9",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-2",
+                    "name": "Cat Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Cat Supplies",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-2-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-6"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-3",
+                    "name": "Dog Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Dog Supplies",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-3-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-8",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-9"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-4",
+                    "name": "Fish & Aquatic Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Fish & Aquatic Supplies",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-4-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-8",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-9",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-10",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-11",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-12",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-13",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-14",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-15",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-16"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-5",
+                    "name": "Pet Agility Equipment",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Agility Equipment",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-5-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-8"
+                    ],
+                    "isArchived": false
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJpZCI6NH0=",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-12",
-                      "name": "Pet Bowl Mats"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-1",
+                      "name": "Bird Supplies"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6Njh9",
+                    "cursor": "eyJpZCI6MTR9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-13",
-                      "name": "Pet Bowl Stands"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-2",
+                      "name": "Cat Supplies"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6Mjh9",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-3",
+                      "name": "Dog Supplies"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6NDJ9",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-4",
+                      "name": "Fish & Aquatic Supplies"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6NTl9",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-5",
+                      "name": "Pet Agility Equipment"
                     }
                   }
                 ],
@@ -1116,7 +1274,7 @@
                   "hasNextPage": true,
                   "hasPreviousPage": false,
                   "startCursor": "eyJpZCI6NH0=",
-                  "endCursor": "eyJpZCI6Njh9"
+                  "endCursor": "eyJpZCI6NTl9"
                 }
               },
               "missingChildren": {
@@ -1162,7 +1320,7 @@
                 "isLeaf": false,
                 "level": 3,
                 "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                 "childrenIds": [
                   "gid://shopify/TaxonomyCategory/ap-2-6-1",
                   "gid://shopify/TaxonomyCategory/ap-2-6-2",
