@@ -1804,7 +1804,9 @@ fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field()
 
 #[test]
 fn inventory_adjust_quantities_all_zero_delta_is_unlogged_noop() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = inventory_seed_proxy();
+    let (_variant_id, inventory_item_id) = create_inventory_test_item(&mut proxy, "ZERO-DELTA");
+    let location_id = add_inventory_test_location(&mut proxy, "Zero delta location");
 
     let adjust = proxy.process_request(json_graphql_request(
         r#"
@@ -1820,7 +1822,7 @@ fn inventory_adjust_quantities_all_zero_delta_is_unlogged_noop() {
         }
         "#,
         json!({"idempotencyKey": "inventory-adjust-zero-delta-noop", "input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/adjust/zero", "changes": [
-            {"inventoryItemId": "gid://shopify/InventoryItem/store-backed", "locationId": "gid://shopify/Location/1", "delta": 0, "changeFromQuantity": 0}
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "delta": 0, "changeFromQuantity": 0}
         ]}}),
     ));
 
@@ -1831,14 +1833,17 @@ fn inventory_adjust_quantities_all_zero_delta_is_unlogged_noop() {
             "userErrors": []
         })
     );
-    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_no_inventory_quantity_logs(&proxy);
     assert!(state_snapshot(&proxy)["stagedState"]["inventoryLevels"].is_null());
 }
 
 #[test]
 fn inventory_adjust_quantities_mixed_zero_and_nonzero_delta_stages_nonzero_change() {
-    let mut proxy = snapshot_proxy();
-    let nonzero_item_id = "gid://shopify/InventoryItem/mixed-nonzero";
+    let mut proxy = inventory_seed_proxy();
+    let (_zero_variant_id, zero_item_id) = create_inventory_test_item(&mut proxy, "MIXED-ZERO");
+    let (_nonzero_variant_id, nonzero_item_id) =
+        create_inventory_test_item(&mut proxy, "MIXED-NONZERO");
+    let location_id = add_inventory_test_location(&mut proxy, "Mixed delta location");
 
     let adjust = proxy.process_request(json_graphql_request(
         r#"
@@ -1854,8 +1859,8 @@ fn inventory_adjust_quantities_mixed_zero_and_nonzero_delta_stages_nonzero_chang
         }
         "#,
         json!({"idempotencyKey": "inventory-adjust-mixed-delta", "input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/adjust/mixed", "changes": [
-            {"inventoryItemId": "gid://shopify/InventoryItem/mixed-zero", "locationId": "gid://shopify/Location/1", "delta": 0, "changeFromQuantity": 0},
-            {"inventoryItemId": nonzero_item_id, "locationId": "gid://shopify/Location/1", "delta": 3, "changeFromQuantity": 0}
+            {"inventoryItemId": zero_item_id, "locationId": location_id, "delta": 0, "changeFromQuantity": 0},
+            {"inventoryItemId": nonzero_item_id, "locationId": location_id, "delta": 3, "changeFromQuantity": 0}
         ]}}),
     ));
 
@@ -1902,11 +1907,13 @@ fn inventory_adjust_quantities_mixed_zero_and_nonzero_delta_stages_nonzero_chang
     );
 
     let log = log_snapshot(&proxy);
-    assert_eq!(log["entries"][0]["status"], json!("staged"));
-    assert_eq!(
-        log["entries"][0]["interpreted"]["operationName"],
-        json!("inventoryAdjustQuantities")
-    );
+    let adjust_log = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["interpreted"]["operationName"] == json!("inventoryAdjustQuantities"))
+        .expect("inventoryAdjustQuantities should be logged");
+    assert_eq!(adjust_log["status"], json!("staged"));
 }
 
 #[test]
@@ -2460,6 +2467,7 @@ fn inventory_set_on_hand_quantities_stages_locally_logs_and_reads_back() {
     let variant_id = variant["id"].as_str().unwrap().to_string();
     let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
     let location_id = add_inventory_test_location(&mut proxy, "Source location");
+    calls.store(0, Ordering::SeqCst);
 
     let seed = proxy.process_request(json_graphql_request(
         r#"
@@ -3024,6 +3032,7 @@ fn inventory_activation_roots_stage_locally_and_read_inactive_levels() {
     let source_location_id = add_inventory_test_location(&mut proxy, "Source location");
     let second_location_id = add_inventory_test_location(&mut proxy, "Destination location");
     let source_level_id = inventory_level_id_for_test(&inventory_item_id, &source_location_id);
+    calls.store(0, Ordering::SeqCst);
 
     let seed = proxy.process_request(json_graphql_request(
         r#"
@@ -3288,6 +3297,7 @@ fn inventory_activate_on_hand_seeds_and_validates_locally() {
     let out_of_range_location_id = add_inventory_test_location(&mut proxy, "Overflow location");
     let on_hand_level_id = inventory_level_id_for_test(&inventory_item_id, &on_hand_location_id);
     let conflict_level_id = inventory_level_id_for_test(&inventory_item_id, &conflict_location_id);
+    calls.store(0, Ordering::SeqCst);
 
     let activate_on_hand = proxy.process_request(json_graphql_request(
         r#"
@@ -3926,7 +3936,7 @@ fn inventory_quantity_name_validation_rejects_invalid_names_without_staging() {
 
 #[test]
 fn inventory_adjust_quantities_ledger_document_validation_rejects_without_staging() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = inventory_seed_proxy();
     let mutation = r#"
         mutation LedgerDocumentAdjust($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
           inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
@@ -4020,10 +4030,13 @@ fn inventory_adjust_quantities_ledger_document_validation_rejects_without_stagin
     assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
     assert!(state_snapshot(&proxy)["stagedState"]["inventoryLevels"].is_null());
 
+    let (_variant_id, valid_inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "LEDGER-VALID");
+    let valid_location_id = add_inventory_test_location(&mut proxy, "Ledger valid location");
     let valid_non_available = proxy.process_request(json_graphql_request(
         mutation,
         json!({"idempotencyKey": "ledger-valid-non-available", "input": {"name": "incoming", "reason": "received", "changes": [
-            {"inventoryItemId": "gid://shopify/InventoryItem/ledger-valid", "locationId": "gid://shopify/Location/1", "delta": 5, "changeFromQuantity": 0, "ledgerDocumentUri": "https://example.com/doc/valid"}
+            {"inventoryItemId": valid_inventory_item_id, "locationId": valid_location_id, "delta": 5, "changeFromQuantity": 0, "ledgerDocumentUri": "https://example.com/doc/valid"}
         ]}}),
     ));
     let valid_payload = &valid_non_available.body["data"]["inventoryAdjustQuantities"];
@@ -4038,9 +4051,14 @@ fn inventory_adjust_quantities_ledger_document_validation_rejects_without_stagin
         json!(5)
     );
     let log = log_snapshot(&proxy);
-    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
-    assert_eq!(log["entries"][0]["status"], json!("staged"));
-    assert!(log["entries"][0]["rawBody"]
+    let adjust_log = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["interpreted"]["operationName"] == json!("inventoryAdjustQuantities"))
+        .expect("inventoryAdjustQuantities should be logged");
+    assert_eq!(adjust_log["status"], json!("staged"));
+    assert!(adjust_log["rawBody"]
         .as_str()
         .unwrap()
         .contains("https://example.com/doc/valid"));
