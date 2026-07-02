@@ -2548,6 +2548,83 @@ fn functions_validation_create_errors_return_null_and_do_not_stage_records() {
 }
 
 #[test]
+fn functions_validation_create_title_fallback_uses_hydrated_function_title() {
+    let mut proxy = function_metadata_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ValidationCreateTitleFallbacks {
+          omitted: validationCreate(validation: { functionHandle: "conformance-validation" }) {
+            validation { id title shopifyFunction { title handle } }
+            userErrors { field message code }
+          }
+          explicitNull: validationCreate(validation: { functionHandle: "conformance-validation", title: null }) {
+            validation { id title shopifyFunction { title handle } }
+            userErrors { field message code }
+          }
+          emptyString: validationCreate(validation: { functionHandle: "conformance-validation", title: "" }) {
+            validation { id title shopifyFunction { title handle } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    for alias in ["omitted", "explicitNull", "emptyString"] {
+        assert_eq!(
+            create.body["data"][alias]["userErrors"],
+            json!([]),
+            "{alias} should not return userErrors"
+        );
+    }
+    assert_eq!(
+        create.body["data"]["omitted"]["validation"]["title"],
+        json!("Conformance Validation")
+    );
+    assert_eq!(
+        create.body["data"]["explicitNull"]["validation"]["title"],
+        json!("Conformance Validation")
+    );
+    assert_eq!(
+        create.body["data"]["emptyString"]["validation"]["title"],
+        json!("")
+    );
+    assert_eq!(
+        create.body["data"]["omitted"]["validation"]["shopifyFunction"],
+        json!({ "title": "Conformance Validation", "handle": "conformance-validation" })
+    );
+    let omitted_id = json_string(
+        &create.body["data"]["omitted"]["validation"]["id"],
+        "omitted validation id",
+    );
+    assert_synthetic_gid(&omitted_id, "Validation");
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ValidationTitleFallbackRead($id: ID!) {
+          validation(id: $id) { id title }
+          validations(first: 3) { nodes { title } }
+        }
+        "#,
+        json!({ "id": omitted_id }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["validation"]["title"],
+        json!("Conformance Validation")
+    );
+    assert_eq!(
+        read.body["data"]["validations"]["nodes"],
+        json!([
+            { "title": "Conformance Validation" },
+            { "title": "Conformance Validation" },
+            { "title": "" }
+        ])
+    );
+}
+
+#[test]
 fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
     let upstream_hits = Arc::new(Mutex::new(0usize));
     let hit_counter = Arc::clone(&upstream_hits);

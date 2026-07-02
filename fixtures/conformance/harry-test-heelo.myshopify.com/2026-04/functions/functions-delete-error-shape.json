@@ -1,10 +1,117 @@
 {
   "scenarioId": "functions-delete-error-shape",
-  "capturedAt": "2026-05-05T10:47:18.841Z",
-  "source": "live-shopify-and-cassette-backed-local-runtime",
+  "capturedAt": "2026-06-30T13:25:08.791Z",
+  "source": "live-shopify",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "summary": "Delete error-shape evidence for validationDelete and cartTransformDelete plus cassette-backed cartTransformCreate/delete local lifecycle.",
+  "summary": "Delete error-shape evidence for validationDelete and cartTransformDelete plus live cartTransformCreate/delete lifecycle.",
+  "conformanceApp": {
+    "cartTransformFunctionHandle": "conformance-cart-transform",
+    "cartTransformFunction": {
+      "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+      "title": "conformance-cart-transform",
+      "handle": "conformance-cart-transform",
+      "apiType": "cart_transform",
+      "description": "conformance-cart-transform",
+      "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+      "app": {
+        "__typename": "App",
+        "id": "gid://shopify/App/347082227713",
+        "title": "hermes-conformance-products",
+        "handle": "hermes-conformance-products",
+        "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+      }
+    }
+  },
+  "functionHydrate": {
+    "query": "query FunctionHydrateByHandle {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "handle": "conformance-cart-transform",
+      "apiType": "CART_TRANSFORM"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopifyFunctions": {
+            "nodes": [
+              {
+                "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                "title": "conformance-payment-customization",
+                "handle": "conformance-payment-customization",
+                "apiType": "payment_customization",
+                "description": "conformance-payment-customization",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "title": "conformance-validation",
+                "handle": "conformance-validation",
+                "apiType": "cart_checkout_validation",
+                "description": "conformance-validation",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                "title": "conformance-cart-transform",
+                "handle": "conformance-cart-transform",
+                "apiType": "cart_transform",
+                "description": "conformance-cart-transform",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+                "title": "conformance-discount",
+                "handle": "conformance-discount",
+                "apiType": "discount",
+                "description": "conformance-discount",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1992,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
   "cartTransformDeleteMissing": {
     "query": "mutation CartTransformDeleteMissing($id: ID!) {\n  cartTransformDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
@@ -65,7 +172,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1988,
               "restoreRate": 100
             }
           }
@@ -75,28 +182,60 @@
   },
   "cartTransformCreateThenDelete": {
     "create": {
+      "query": "mutation CartTransformCreateThenDelete($functionHandle: String!) {\n  cartTransformCreate(functionHandle: $functionHandle) {\n    cartTransform {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "functionHandle": "conformance-cart-transform"
+      },
       "response": {
         "data": {
           "cartTransformCreate": {
             "cartTransform": {
-              "id": "gid://shopify/CartTransform/3"
+              "id": "gid://shopify/CartTransform/128942386"
             },
             "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
           }
         }
       }
     },
     "delete": {
+      "query": "mutation CartTransformDeleteMissing($id: ID!) {\n  cartTransformDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/CartTransform/128942386"
+      },
       "response": {
         "data": {
           "cartTransformDelete": {
-            "deletedId": "gid://shopify/CartTransform/3",
+            "deletedId": "gid://shopify/CartTransform/128942386",
             "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
           }
         }
       }
     },
     "postDeleteRead": {
+      "query": "query CartTransformCreateThenDeleteRead {\n  cartTransforms(first: 5) {\n    nodes {\n      id\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {},
       "response": {
         "data": {
           "cartTransforms": {
@@ -108,6 +247,17 @@
               "endCursor": null
             }
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 5,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
         }
       }
     }
@@ -116,10 +266,10 @@
     {
       "operationName": "FunctionHydrateByHandle",
       "variables": {
-        "handle": "cart-transform-delete-shape",
+        "handle": "conformance-cart-transform",
         "apiType": "CART_TRANSFORM"
       },
-      "query": "cassette-backed CART_TRANSFORM ShopifyFunction lookup for local delete-shape lifecycle",
+      "query": "query FunctionHydrateByHandle {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -127,43 +277,77 @@
             "shopifyFunctions": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ShopifyFunction/cart-transform-delete-shape",
-                  "title": "Cart Transform Delete Shape",
-                  "handle": "cart-transform-delete-shape",
-                  "apiType": "CART_TRANSFORM",
-                  "description": null,
-                  "appKey": null,
-                  "app": null
+                  "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                  "title": "conformance-payment-customization",
+                  "handle": "conformance-payment-customization",
+                  "apiType": "payment_customization",
+                  "description": "conformance-payment-customization",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "title": "conformance-validation",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "description": "conformance-validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                {
+                  "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                  "title": "conformance-cart-transform",
+                  "handle": "conformance-cart-transform",
+                  "apiType": "cart_transform",
+                  "description": "conformance-cart-transform",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                {
+                  "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+                  "title": "conformance-discount",
+                  "handle": "conformance-discount",
+                  "apiType": "discount",
+                  "description": "conformance-discount",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
                 }
               ]
             }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "FunctionHydrateByHandle",
-      "variables": {
-        "handle": "validation-delete-shape",
-        "apiType": "VALIDATION"
-      },
-      "query": "cassette-backed VALIDATION ShopifyFunction lookup reserved for this delete-shape fixture",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "shopifyFunctions": {
-              "nodes": [
-                {
-                  "id": "gid://shopify/ShopifyFunction/validation-delete-shape",
-                  "title": "Validation Delete Shape",
-                  "handle": "validation-delete-shape",
-                  "apiType": "VALIDATION",
-                  "description": null,
-                  "appKey": null,
-                  "app": null
-                }
-              ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -172,6 +356,6 @@
   ],
   "notes": {
     "liveMissingDeleteEvidence": "cartTransformDelete and validationDelete missing-id userErrors are captured live from Shopify.",
-    "successPathEvidence": "The current conformance shop has a valid token but no released validation/cart-transform Function handles. The create/delete leg uses a deterministic cassette-backed ShopifyFunction read to prove local lifecycle and canonical deletedId behavior without runtime Shopify writes."
+    "successPathEvidence": "The create/delete leg uses the released conformance cart-transform Function and records the live Shopify lifecycle plus the exact Function hydrate read used by proxy replay."
   }
 }
