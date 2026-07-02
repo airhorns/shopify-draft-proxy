@@ -68,6 +68,31 @@ const DEFAULT_STATUS_CHECKS: StatusCheck[] = ['conformance:status', 'conformance
 const CAPTURE_ROOT = 'fixtures/conformance/<store>/<api-version>/<domain-folder>/';
 const LOCAL_RUNTIME_ROOT = 'fixtures/conformance/local-runtime/<api-version>/<domain-folder>/';
 
+export const retiredConformanceEvidencePaths = [
+  'config/parity-requests/discounts/discount-activation-failure-field-base-automatic-activate.graphql',
+  'config/parity-requests/discounts/discount-activation-failure-field-base-code-activate.graphql',
+  'config/parity-requests/discounts/discount-activation-failure-field-base-create.graphql',
+  'config/parity-requests/discounts/discount-activation-failure-field-base-unknown.graphql',
+  'config/parity-requests/discounts/discount-app-automatic-lifecycle-activate.graphql',
+  'config/parity-requests/discounts/discount-app-automatic-lifecycle-deactivate.graphql',
+  'config/parity-requests/discounts/discount-app-automatic-lifecycle-delete.graphql',
+  'config/parity-requests/discounts/discount-app-automatic-lifecycle-read-after-delete.graphql',
+  'config/parity-requests/discounts/discount-app-bulk-local-runtime-create.graphql',
+  'config/parity-requests/discounts/discount-app-bulk-local-runtime-read.graphql',
+  'config/parity-requests/discounts/discount-app-bulk-local-runtime-update.graphql',
+  'config/parity-requests/discounts/discount-bulk-local-runtime-jobs.graphql',
+  'config/parity-requests/discounts/discount-bulk-local-runtime-preconditions.graphql',
+  'config/parity-requests/discounts/discount-redeem-code-bulk-local-runtime.graphql',
+  'config/parity-requests/discounts/discount-subscription-fields-not-permitted.graphql',
+  'config/parity-specs/discounts/discount-activation-failure-field-base.json',
+  'config/parity-specs/discounts/discount-app-bulk-local-runtime.json',
+  'config/parity-specs/discounts/discount-subscription-fields-not-permitted.json',
+  'fixtures/conformance/local-runtime/2026-04/discounts/discount-activate-deactivate-edge-cases.json',
+  'fixtures/conformance/local-runtime/2026-04/discounts/discount-activation-failure-field-base.json',
+  'fixtures/conformance/local-runtime/2026-04/discounts/discount-app-bulk-local-runtime.json',
+  'fixtures/conformance/local-runtime/2026-04/discounts/discount-subscription-fields-not-permitted.json',
+] as const;
+
 function defineCaptureIndex(entries: Array<z.input<typeof captureIndexEntrySchema>>): ConformanceCaptureIndexEntry[] {
   return captureIndexSchema.parse(entries);
 }
@@ -7640,12 +7665,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-invalid-date-range-all-types.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-minimum-requirement-exclusivity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-redeem-code-bulk-add-validation.json',
-      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-redeem-code-bulk-delete-validation.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-redeem-code-bulk.json',
-      'config/parity-specs/discounts/discount-redeem-code-bulk-delete-validation.json',
-      'config/parity-requests/discounts/discount-redeem-code-bulk-delete-setup.graphql',
-      'config/parity-requests/discounts/discount-redeem-code-bulk-delete-validation.graphql',
-      'config/parity-requests/discounts/discount-redeem-code-bulk-delete-happy.graphql',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-status-time-window-derivation.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-timestamps-monotonic.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-update-edge-cases.json',
@@ -7758,19 +7778,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Creates one disposable scheduled code basic discount, captures status transitions and unknown-id failures, then deletes the setup discount during the scenario with finally-block cleanup on failure.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
-  },
-  {
-    domain: 'discounts',
-    captureId: 'discount-activation-failure-field-base-local-runtime',
-    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
-    scriptPath: 'scripts/capture-discount-activation-failure-field-base-local-runtime.ts',
-    purpose:
-      'Local-runtime recording for app discount activation failure after a staged discount Function becomes unavailable.',
-    requiredAuthScopes: ['local-runtime'],
-    fixtureOutputs: [`${LOCAL_RUNTIME_ROOT}discount-activation-failure-field-base.json`],
-    cleanupBehavior:
-      'Runs only against the local proxy runtime with a deterministic Function cassette; no Shopify cleanup required.',
-    expectedStatusChecks: ['conformance:check', 'rust:test', 'targeted-runtime-test'],
   },
   {
     domain: 'discounts',
@@ -7972,6 +7979,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-redeem-code-bulk-delete-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-redeem-code-bulk-delete-validation-conformance.ts',
+    purpose:
+      'discountCodeRedeemCodeBulkDelete selector validation plus id-scoped happy-path job shape on a disposable native code discount.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-redeem-code-bulk-delete-validation.json`,
+      'config/parity-specs/discounts/discount-redeem-code-bulk-delete-validation.json',
+      'config/parity-requests/discounts/discount-redeem-code-bulk-delete-setup.graphql',
+      'config/parity-requests/discounts/discount-redeem-code-bulk-delete-validation.graphql',
+      'config/parity-requests/discounts/discount-redeem-code-bulk-delete-happy.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable code discount, captures selector validation and one id-scoped delete job, then deletes the setup discount with failure cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-redeem-code-bulk-add-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-redeem-code-bulk-validation-conformance.ts',
@@ -8089,12 +8115,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'released non-discount Shopify Function in the installed conformance app for wrong-API validation',
     ],
     fixtureOutputs: [
-      'config/parity-specs/discounts/discount-app-bulk-local-runtime.json',
-      `${LOCAL_RUNTIME_ROOT}discount-app-bulk-local-runtime.json`,
       `${CAPTURE_ROOT}discount-app-function-validation.json`,
       'config/parity-specs/discounts/discount-app-function-validation.json',
       'config/parity-requests/discounts/discount-app-function-validation.graphql',
-      'config/parity-requests/discounts/discount-bulk-local-runtime-preconditions.graphql',
     ],
     cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -8263,6 +8286,31 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/discounts/discount-customer-gets-value-multiple-types-update.graphql',
     ],
     cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-app-bulk-live-parity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-app-bulk-live-conformance.ts',
+    purpose:
+      'Live app-managed discount create/update/lifecycle and native discount bulk job parity using the released conformance discount Function.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-app-bulk-live-parity.json`,
+      'config/parity-specs/discounts/discount-app-bulk-live-parity.json',
+      'config/parity-requests/discounts/discount-app-bulk-live-create.graphql',
+      'config/parity-requests/discounts/discount-app-bulk-live-update.graphql',
+      'config/parity-requests/discounts/discount-app-bulk-live-preconditions.graphql',
+      'config/parity-requests/discounts/discount-app-bulk-live-jobs.graphql',
+      'config/parity-requests/discounts/discount-app-bulk-live-read.graphql',
+      'config/parity-requests/discounts/discount-app-automatic-live-deactivate.graphql',
+      'config/parity-requests/discounts/discount-app-automatic-live-activate.graphql',
+      'config/parity-requests/discounts/discount-app-automatic-live-delete.graphql',
+      'config/parity-requests/discounts/discount-app-automatic-live-read-after-delete.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable app-managed, code-basic, and automatic-basic discounts, captures app lifecycle and bulk job payloads, then deletes remaining created discounts.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

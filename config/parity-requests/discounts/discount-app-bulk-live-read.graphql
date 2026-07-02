@@ -1,4 +1,4 @@
-query DiscountAppBulkRead(
+query DiscountAppBulkLiveRead(
   $codeId: ID!
   $automaticId: ID!
   $deletedCodeId: ID!

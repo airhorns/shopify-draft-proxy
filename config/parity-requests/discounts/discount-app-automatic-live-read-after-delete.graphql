@@ -1,4 +1,4 @@
-query DiscountAutomaticAppLifecycleReadAfterDelete($id: ID!) {
+query DiscountAutomaticAppLiveReadAfterDelete($id: ID!) {
   automaticDiscountNode(id: $id) {
     id
   }
