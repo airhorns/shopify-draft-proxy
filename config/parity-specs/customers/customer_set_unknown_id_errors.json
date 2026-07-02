@@ -2,8 +2,10 @@
   "scenarioId": "customer-set-unknown-id-errors",
   "operationNames": ["customerSet"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["user-errors-parity", "runtime-staging", "no-upstream-passthrough", "local-runtime-backed"],
-  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/customers/customer-set-unknown-id-errors.json"],
+  "assertionKinds": ["user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-set-unknown-id-errors.json"
+  ],
   "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/customer-set-unknown-id-errors.graphql",
@@ -17,22 +19,15 @@
     "targets": [
       {
         "name": "unknown-id-user-error",
-        "capturePath": "$.cases.unknownId.response",
-        "proxyPath": "$"
-      },
-      {
-        "name": "unknown-id-does-not-stage-customer",
-        "capturePath": "$.cases.unknownId.state",
-        "proxyStatePath": "$",
-        "selectedPaths": ["$.stagedState.customers"]
+        "capturePath": "$.cases.unknownId.response.data",
+        "proxyPath": "$.data"
       },
       {
         "name": "unknown-id-does-not-log-staged-mutation",
-        "capturePath": "$.cases.unknownId.log",
-        "proxyLogPath": "$",
-        "selectedPaths": ["$.entries"]
+        "capturePath": "$.expectedEmptyMutationLog",
+        "proxyLogPath": "$.entries"
       }
     ]
   },
-  "notes": "Unknown identifier.id guard local-runtime control. Presence of identifier.id validates before create/update routing; a missing row returns the fixture-backed NOT_FOUND userError and leaves local customer state/log empty."
+  "notes": "Live Shopify Admin GraphQL 2026-04 evidence for customerSet(identifier.id) not-found validation. Presence of identifier.id validates before create/update routing; a missing row returns NOT_FOUND and leaves the proxy mutation log empty."
 }

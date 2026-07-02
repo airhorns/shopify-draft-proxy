@@ -1,0 +1,72 @@
+mutation DiscountAppBulkLivePreconditions(
+  $bulkInput: DiscountCodeBasicInput!
+  $redeemInput: DiscountCodeBasicInput!
+  $automaticInput: DiscountAutomaticBasicInput!
+) {
+  bulkTarget: discountCodeBasicCreate(basicCodeDiscount: $bulkInput) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          codes(first: 5) {
+            nodes {
+              id
+              code
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  redeemTarget: discountCodeBasicCreate(basicCodeDiscount: $redeemInput) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          codes(first: 5) {
+            nodes {
+              id
+              code
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticBulkTarget: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticInput) {
+    automaticDiscountNode {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+          status
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

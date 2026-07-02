@@ -1,0 +1,295 @@
+{
+  "capturedAt": "2026-06-30T16:07:44.163Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "setup": {
+    "customerCreate": {
+      "operationName": "CustomerDeleteOrderPreconditionCustomerCreate",
+      "query": "mutation CustomerDeleteOrderPreconditionCustomerCreate($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      displayName\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "email": "hermes-delete-blocked-1782835662372@example.com",
+          "firstName": "Blocked",
+          "lastName": "Delete"
+        }
+      },
+      "response": {
+        "data": {
+          "customerCreate": {
+            "customer": {
+              "id": "gid://shopify/Customer/10870524936498",
+              "email": "hermes-delete-blocked-1782835662372@example.com",
+              "displayName": "Blocked Delete"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "orderCreate": {
+      "operationName": "CustomerDeleteOrderPreconditionOrderCreate",
+      "query": "mutation CustomerDeleteOrderPreconditionOrderCreate($order: OrderCreateOrderInput!) {\n  orderCreate(order: $order) {\n    order {\n      id\n      customer {\n        id\n        email\n        displayName\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "order": {
+          "email": "hermes-delete-blocked-1782835662372@example.com",
+          "customerId": "gid://shopify/Customer/10870524936498",
+          "currency": "CAD",
+          "lineItems": [
+            {
+              "title": "Customer delete blocking line",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "9.99",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8882613453106",
+              "customer": {
+                "id": "gid://shopify/Customer/10870524936498",
+                "email": "hermes-delete-blocked-1782835662372@example.com",
+                "displayName": "Blocked Delete"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "customerCreate": {
+      "data": {
+        "customerCreate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10870524936498",
+            "email": "hermes-delete-blocked-1782835662372@example.com",
+            "displayName": "Blocked Delete"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "orderCreate": {
+      "data": {
+        "orderCreate": {
+          "order": {
+            "id": "gid://shopify/Order/8882613453106",
+            "customer": {
+              "id": "gid://shopify/Customer/10870524936498",
+              "email": "hermes-delete-blocked-1782835662372@example.com",
+              "displayName": "Blocked Delete"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "customerDelete": {
+      "data": {
+        "customerDelete": {
+          "deletedCustomerId": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Customer can’t be deleted because they have associated orders"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "readAfterBlockedDelete": {
+      "data": {
+        "customer": {
+          "id": "gid://shopify/Customer/10870524936498",
+          "email": "hermes-delete-blocked-1782835662372@example.com",
+          "displayName": "Blocked Delete",
+          "orders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Order/8882613453106",
+                "customer": {
+                  "id": "gid://shopify/Customer/10870524936498",
+                  "email": "hermes-delete-blocked-1782835662372@example.com",
+                  "displayName": "Blocked Delete"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo4ODgyNjEzNDUzMTA2LCJsYXN0X3ZhbHVlIjoiODg4MjYxMzQ1MzEwNiJ9",
+              "endCursor": "eyJsYXN0X2lkIjo4ODgyNjEzNDUzMTA2LCJsYXN0X3ZhbHVlIjoiODg4MjYxMzQ1MzEwNiJ9"
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 9,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "orderCancel": {
+      "operationName": "CustomerDeleteOrderPreconditionOrderCancel",
+      "query": "#graphql\n  mutation CustomerDeleteOrderPreconditionOrderCancel($orderId: ID!) {\n    orderCancel(orderId: $orderId, reason: OTHER, notifyCustomer: false, restock: true) {\n      job { id done }\n      orderCancelUserErrors { field message code }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "orderId": "gid://shopify/Order/8882613453106"
+      },
+      "response": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/8f443017-389a-44f1-b8e2-df551683e5b1",
+              "done": false
+            },
+            "orderCancelUserErrors": [],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "orderDelete": {
+      "operationName": "CustomerDeleteOrderPreconditionOrderDelete",
+      "query": "#graphql\n  mutation CustomerDeleteOrderPreconditionOrderDelete($orderId: ID!) {\n    orderDelete(orderId: $orderId) {\n      deletedId\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "orderId": "gid://shopify/Order/8882613453106"
+      },
+      "response": {
+        "data": {
+          "orderDelete": {
+            "deletedId": "gid://shopify/Order/8882613453106",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "customerDelete": {
+      "operationName": "CustomerDeleteOrderPreconditionDelete",
+      "query": "mutation CustomerDeleteOrderPreconditionDelete($input: CustomerDeleteInput!) {\n  customerDelete(input: $input) {\n    deletedCustomerId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10870524936498"
+        }
+      },
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Customer can’t be deleted because they have associated orders"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

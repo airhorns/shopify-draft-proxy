@@ -109,6 +109,12 @@ const requests: Array<{ name: string; variables: GraphqlVariables }> = [
       ],
     },
   },
+  {
+    name: 'model3dMissingFileSize',
+    variables: {
+      input: [{ resource: 'MODEL_3D', filename: 'chair.glb', mimeType: 'model/gltf-binary' }],
+    },
+  },
 ];
 
 await mkdir(outputDir, { recursive: true });
@@ -129,7 +135,7 @@ for (const request of requests) {
 const outputPath = path.join(outputDir, 'media-staged-uploads-create-validation.json');
 const payload = {
   notes:
-    'HAR-704 captures stagedUploadsCreate validation branches and success target metadata. No upload bytes are sent; this fixture records resolver validation, enum coercion, and signed target metadata only.',
+    'Captures stagedUploadsCreate validation branches and success target metadata. No upload bytes are sent; this fixture records resolver validation, enum coercion, and signed target metadata only.',
   storeDomain,
   apiVersion,
   cases,

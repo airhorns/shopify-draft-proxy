@@ -138,12 +138,7 @@ impl DraftProxy {
 
         self.ensure_customer_payment_method_seed_state();
         let mut staged_ids = Vec::new();
-        let mut early_response = None;
-        let mut missing_required = false;
         let data = root_payload_json(&fields, |field| {
-            if early_response.is_some() || missing_required {
-                return None;
-            }
             let value = match field.name.as_str() {
                 "customerCreate" => self.customer_payment_method_customer_create(field),
                 "customer" => self.customer_payment_method_customer_read(field),
@@ -195,31 +190,11 @@ impl DraftProxy {
                     }
                     payload
                 }
-                "paymentReminderSend" => {
-                    let Some(reminder) = payment_reminder_local_data(
-                        query,
-                        variables,
-                        &mut self.store.staged.payment_reminder_schedule_ids,
-                    ) else {
-                        missing_required = true;
-                        return None;
-                    };
-                    if reminder.get("errors").is_some() {
-                        early_response = Some(reminder);
-                        return None;
-                    }
-                    reminder["data"][field.response_key.as_str()].clone()
-                }
+                "paymentReminderSend" => return None,
                 _ => return None,
             };
             Some(value)
         });
-        if let Some(response) = early_response {
-            return Some(response);
-        }
-        if missing_required {
-            return None;
-        }
         if !staged_ids.is_empty() {
             self.record_mutation_log_entry(
                 request,

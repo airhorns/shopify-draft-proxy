@@ -19,6 +19,7 @@ const allowedScenarioStatuses = new Set(['captured', 'planned']);
 const appsParitySpecPrefix = 'config/parity-specs/apps/';
 const descriptorCassetteQueryPattern =
   /^\s*(?:hand-synthesized|sha:|cassette-backed|recorded by scripts|local-runtime)/iu;
+const descriptorLikeUpstreamQuery = /(?:hand-synthesized|sha:|cassette-backed|recorded by scripts|local-runtime)/u;
 
 function readJson<T>(relativePath: string): T {
   return JSON.parse(readFileSync(resolve(repoRoot, relativePath), 'utf8')) as T;
@@ -162,6 +163,68 @@ describe('conformance scenario discovery', () => {
       }
     },
   );
+
+  it('keeps discounts parity evidence free of local-runtime captures and descriptor upstream cassettes', () => {
+    const errors: string[] = [];
+    const discountScenarios = scenarios.filter((scenario) =>
+      scenario.paritySpecPath.startsWith('config/parity-specs/discounts/'),
+    );
+
+    for (const scenario of discountScenarios) {
+      const paritySpec = readJson<ParitySpec>(scenario.paritySpecPath);
+      for (const captureFile of paritySpec.liveCaptureFiles ?? []) {
+        if (captureFile.includes('/local-runtime/')) {
+          errors.push(`${scenario.id}: liveCaptureFiles must not point at local-runtime evidence: ${captureFile}`);
+          continue;
+        }
+
+        const capture = readJson<{ upstreamCalls?: RecordedUpstreamCall[] }>(captureFile);
+        const upstreamCalls = Array.isArray(capture.upstreamCalls) ? capture.upstreamCalls : [];
+        for (const error of validateRecordedUpstreamCalls(upstreamCalls)) {
+          errors.push(`${scenario.id} ${captureFile}: ${error}`);
+        }
+      }
+    }
+
+    expect(errors).toEqual([]);
+  });
+
+  it('keeps marketing captured parity evidence backed by live Shopify fixture paths', () => {
+    const offenders = paritySpecPaths.flatMap((paritySpecPath) => {
+      if (!paritySpecPath.startsWith('config/parity-specs/marketing/')) {
+        return [];
+      }
+
+      const paritySpec = readJson<ParitySpec>(paritySpecPath);
+      if (paritySpec.scenarioStatus !== 'captured') {
+        return [];
+      }
+
+      const capturePathOffenders = (paritySpec.liveCaptureFiles ?? [])
+        .filter((captureFile) => captureFile.startsWith('fixtures/conformance/local-runtime/'))
+        .map((captureFile) => `${paritySpec.scenarioId}: local-runtime liveCaptureFiles entry ${captureFile}`);
+      const assertionKindOffenders = (paritySpec.assertionKinds ?? [])
+        .filter((assertionKind) => assertionKind === 'local-runtime-backed')
+        .map((assertionKind) => `${paritySpec.scenarioId}: captured spec keeps ${assertionKind}`);
+      const descriptorOffenders = (paritySpec.liveCaptureFiles ?? []).flatMap((captureFile) => {
+        const absolutePath = resolve(repoRoot, captureFile);
+        if (!existsSync(absolutePath) || !captureFile.endsWith('.json')) {
+          return [];
+        }
+
+        const fixture = readJson<{ upstreamCalls?: Array<{ query?: unknown }> }>(captureFile);
+        return (fixture.upstreamCalls ?? []).flatMap((call, index) =>
+          typeof call.query === 'string' && descriptorLikeUpstreamQuery.test(call.query)
+            ? [`${paritySpec.scenarioId}: ${captureFile} upstreamCalls[${index}].query is descriptor-like`]
+            : [],
+        );
+      });
+
+      return [...capturePathOffenders, ...assertionKindOffenders, ...descriptorOffenders];
+    });
+
+    expect(offenders).toEqual([]);
+  });
 
   it('keeps apps captured parity evidence tied to live Shopify captures', () => {
     const appScenarios = scenarios.filter((scenario) => scenario.paritySpecPath.startsWith(appsParitySpecPrefix));

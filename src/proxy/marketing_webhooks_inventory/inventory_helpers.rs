@@ -228,6 +228,13 @@ pub(in crate::proxy) fn inventory_change_json(
     })
 }
 
+fn inventory_adjust_name_mirrors_on_hand(name: &str) -> bool {
+    matches!(
+        name,
+        "available" | "damaged" | "quality_control" | "reserved" | "safety_stock"
+    )
+}
+
 fn inventory_set_on_hand_change_json(
     item_id: &str,
     name: &str,
@@ -1531,13 +1538,15 @@ impl DraftProxy {
                 let quantity = level.entry(name.clone()).or_insert(0);
                 *quantity += delta;
             }
-            if name == "available" {
+            if inventory_adjust_name_mirrors_on_hand(&name) {
                 {
                     let on_hand = level.entry("on_hand".to_string()).or_insert(0);
                     *on_hand += delta;
                 }
-                level.entry("damaged".to_string()).or_insert(0);
-                self.stamp_inventory_quantity(&item_id, &location_id, "on_hand", &updated_at);
+                if name == "available" {
+                    level.entry("damaged".to_string()).or_insert(0);
+                    self.stamp_inventory_quantity(&item_id, &location_id, "on_hand", &updated_at);
+                }
                 on_hand_changes.push(inventory_change_json(
                     &item_id,
                     "on_hand",
