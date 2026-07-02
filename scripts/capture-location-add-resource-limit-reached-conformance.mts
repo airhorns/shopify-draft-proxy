@@ -63,27 +63,11 @@ function createClient(apiVersion: string): AdminGraphqlClient {
 
 const client = createClient(apiVersion);
 
+const locationLimitStatusQuery =
+  'query StorePropertiesLocationLimitStatus($first: Int!) { shop { resourceLimits { locationLimit } } locations(first: $first, includeInactive: true) { nodes { id isActive isFulfillmentService } pageInfo { hasNextPage } } }';
+
 const catalogQuery = `#graphql
-  query LocationAddResourceLimitCatalog($first: Int!) {
-    shop {
-      resourceLimits {
-        locationLimit
-      }
-    }
-    locations(first: $first, includeInactive: true) {
-      nodes {
-        id
-        name
-        isActive
-        isFulfillmentService
-        isPrimary
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
-    }
-  }
+  ${locationLimitStatusQuery}
 `;
 
 const locationAddMutation = `#graphql
@@ -230,67 +214,16 @@ async function cleanupLocation(
   cleanup.push(await runCase(`cleanupDelete-${suffix}`, locationDeleteMutation, { locationId }));
 }
 
-function localRuntimeHydrateCall(locationLimit: number) {
+function locationLimitStatusCall(capture: CaptureCase) {
   return {
-    operationName: 'StorePropertiesLocationHydrate',
+    operationName: 'StorePropertiesLocationLimitStatus',
     variables: {
-      id: 'gid://shopify/Location/location-add-limit-seed',
+      first: 250,
     },
-    query: 'synthetic local-runtime location hydrate with reachedLocationLimit after live at-cap capture',
+    query: locationLimitStatusQuery,
     response: {
-      status: 200,
-      body: {
-        data: {
-          location: {
-            id: 'gid://shopify/Location/location-add-limit-seed',
-            legacyResourceId: 'location-add-limit-seed',
-            name: 'Location Add Limit Seed',
-            activatable: true,
-            addressVerified: true,
-            createdAt: '2026-05-08T00:00:00Z',
-            deactivatable: true,
-            deactivatedAt: '2026-05-08T00:00:00Z',
-            deletable: true,
-            fulfillsOnlineOrders: false,
-            hasActiveInventory: false,
-            hasUnfulfilledOrders: false,
-            isActive: false,
-            isFulfillmentService: false,
-            isPrimary: false,
-            shipsInventory: false,
-            updatedAt: '2026-05-08T00:00:00Z',
-            reachedLocationLimit: true,
-            shop: {
-              resourceLimits: {
-                locationLimit,
-                locationLimitReached: true,
-              },
-            },
-            fulfillmentService: null,
-            address: null,
-            suggestedAddresses: [],
-            metafield: null,
-            metafields: {
-              nodes: [],
-              pageInfo: {
-                hasNextPage: false,
-                hasPreviousPage: false,
-                startCursor: null,
-                endCursor: null,
-              },
-            },
-            inventoryLevels: {
-              nodes: [],
-              pageInfo: {
-                hasNextPage: false,
-                hasPreviousPage: false,
-                startCursor: null,
-                endCursor: null,
-              },
-            },
-          },
-        },
-      },
+      status: capture.response.status,
+      body: capture.response.payload,
     },
   };
 }
@@ -377,39 +310,16 @@ const capture = {
   atCapAdd,
   cleanup,
   finalCatalog,
-  proxyVariables: {
-    seed: {
-      locationId: 'gid://shopify/Location/location-add-limit-seed',
-      idempotencyKey: 'location-add-limit-seed',
-    },
-  },
   expected: {
-    seed: {
-      data: {
-        locationActivate: {
-          location: {
-            id: 'gid://shopify/Location/location-add-limit-seed',
-            isActive: false,
-          },
-          locationActivateUserErrors: [
-            {
-              field: ['locationId'],
-              code: 'LOCATION_LIMIT',
-              message: 'Your shop has reached its location limit.',
-            },
-          ],
-        },
-      },
-    },
     emptyLog: {
       entries: [],
     },
   },
   notes: [
     'The atCapAdd response is recorded from live Shopify after this script creates disposable active locations until the shop reaches shop.resourceLimits.locationLimit.',
-    'The upstreamCalls cassette is local-runtime setup for proxy replay only; the Shopify fidelity claim is the live atCapAdd response.',
+    'The upstreamCalls cassette records the live StorePropertiesLocationLimitStatus read that the proxy uses to derive cap state before rejecting a local locationAdd.',
   ],
-  upstreamCalls: [localRuntimeHydrateCall(readLocationLimit(initialCatalog))],
+  upstreamCalls: [locationLimitStatusCall(atCapCatalog)],
 };
 
 await writeFile(outputPath, `${JSON.stringify(capture, null, 2)}\n`, 'utf8');

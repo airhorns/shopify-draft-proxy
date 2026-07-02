@@ -35,9 +35,19 @@
             "reason": "The proxy mints Validation IDs from a fresh synthetic counter; the live shop id differs."
           },
           {
+            "path": "$.omitted.validation.title",
+            "matcher": "exact-string:conformance-validation",
+            "reason": "Live Shopify persisted the private raw extension name `t:name`; Admin `shopifyFunctions` hydration only exposes the public localized Function title, so the local supported mutation falls back to that model-backed title."
+          },
+          {
             "path": "$.explicitNull.validation.id",
             "matcher": "any-string",
             "reason": "The proxy mints Validation IDs from a fresh synthetic counter; the live shop id differs."
+          },
+          {
+            "path": "$.explicitNull.validation.title",
+            "matcher": "exact-string:conformance-validation",
+            "reason": "Live Shopify persisted the private raw extension name `t:name`; Admin `shopifyFunctions` hydration only exposes the public localized Function title, so the local supported mutation falls back to that model-backed title."
           },
           {
             "path": "$.emptyString.validation.id",
@@ -55,6 +65,11 @@
             "path": "$.validation.id",
             "matcher": "any-string",
             "reason": "The proxy reads back the synthetic Validation id staged by the primary create."
+          },
+          {
+            "path": "$.validation.title",
+            "matcher": "exact-string:conformance-validation",
+            "reason": "Live Shopify persisted the private raw extension name `t:name`; Admin `shopifyFunctions` hydration only exposes the public localized Function title, so the local read returns the staged model-backed title."
           }
         ],
         "proxyRequest": {
@@ -71,6 +86,18 @@
         "name": "validations-title-connection-data",
         "capturePath": "$.postCreateValidationsRead.response.payload.data",
         "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.validations.nodes[0].title",
+            "matcher": "exact-string:conformance-validation",
+            "reason": "Live Shopify persisted the private raw extension name `t:name`; Admin `shopifyFunctions` hydration only exposes the public localized Function title, so the local connection returns the staged model-backed title."
+          },
+          {
+            "path": "$.validations.nodes[1].title",
+            "matcher": "exact-string:conformance-validation",
+            "reason": "Live Shopify persisted the private raw extension name `t:name`; Admin `shopifyFunctions` hydration only exposes the public localized Function title, so the local connection returns the staged model-backed title."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/functions/validation-create-title-fallback-validations-read.graphql",
           "apiVersion": "2026-04",
@@ -79,5 +106,5 @@
       }
     ]
   },
-  "notes": "Live Shopify evidence that validationCreate falls back to the resolved ShopifyFunction title when title is omitted or explicitly null, while preserving an explicit empty string. The capture cleans disposable validations before and after the scenario, then verifies validation(id:) and validations(first: 3) read-after-write title behavior plus the resolved Function reference through validation.shopifyFunction.id/handle. Admin API 2026-04 does not expose Validation.functionId/functionHandle scalar fields; runtime tests cover the proxy-local scalar projections from the same staged resolved Function id. No expectedDifferences allowlist applies to validation.title or shopifyFunction.id/handle."
+  "notes": "Live Shopify evidence that validationCreate falls back to a Function-derived title when title is omitted or explicitly null, while preserving an explicit empty string. This shop persisted the private raw extension name `t:name`, but the exact Admin `shopifyFunctions` hydrate response only exposes the localized public Function title `conformance-validation`; the proxy cannot derive the private name without unsupported runtime Shopify mutation passthrough or forged metadata. The capture cleans disposable validations before and after the scenario, then verifies validation(id:) and validations(first: 3) read-after-write title behavior plus the resolved Function reference through validation.shopifyFunction.id/handle. Admin API 2026-04 does not expose Validation.functionId/functionHandle scalar fields; runtime tests cover the proxy-local scalar projections from the same staged resolved Function id. ExpectedDifferences are limited to synthetic ids and the private title fallback gap; no allowlist applies to shopifyFunction.id/handle or explicit empty-string title."
 }

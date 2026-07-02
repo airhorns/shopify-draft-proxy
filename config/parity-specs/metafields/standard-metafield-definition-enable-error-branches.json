@@ -1,14 +1,14 @@
 {
   "scenarioId": "standard-metafield-definition-enable-error-branches",
-  "operationNames": ["standardMetafieldDefinitionEnable", "metafieldsSet"],
+  "operationNames": ["standardMetafieldDefinitionEnable"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging", "local-runtime-backed"],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "hidden-argument-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/local-runtime/2026-04/metafields/standard-metafield-definition-enable-error-branches.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/standard-metafield-definition-enable-error-branches.json"
   ],
-  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/metafield_definitions_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/metafield_definitions.rs"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-color-pattern.graphql",
+    "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-smart-capability.graphql",
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
@@ -17,22 +17,13 @@
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "known-good-template-outside-original-three",
-        "capturePath": "$.runtime.cases[0].response.data.standardMetafieldDefinitionEnable",
+        "name": "invalid-smart-collection-capability",
+        "capturePath": "$.captures.invalidSmartCollectionCapability.response.data.standardMetafieldDefinitionEnable",
         "proxyPath": "$.data.standardMetafieldDefinitionEnable"
       },
       {
-        "name": "invalid-smart-collection-capability",
-        "capturePath": "$.live.captures[0].response.data.standardMetafieldDefinitionEnable",
-        "proxyPath": "$.data.standardMetafieldDefinitionEnable",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-smart-capability.graphql",
-          "apiVersion": "2026-04"
-        }
-      },
-      {
         "name": "invalid-unique-values-capability",
-        "capturePath": "$.live.captures[1].response.data.standardMetafieldDefinitionEnable",
+        "capturePath": "$.captures.invalidUniqueValuesCapability.response.data.standardMetafieldDefinitionEnable",
         "proxyPath": "$.data.standardMetafieldDefinitionEnable",
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-unique-capability.graphql",
@@ -41,7 +32,7 @@
       },
       {
         "name": "admin-access-input-not-allowed",
-        "capturePath": "$.runtime.cases[1].response.data.standardMetafieldDefinitionEnable",
+        "capturePath": "$.captures.adminAccessInputNotAllowed.response.data.standardMetafieldDefinitionEnable",
         "proxyPath": "$.data.standardMetafieldDefinitionEnable",
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-admin-access.graphql",
@@ -49,35 +40,17 @@
         }
       },
       {
-        "name": "deprecated-access-and-filter-translation",
-        "capturePath": "$.runtime.cases[2].response.data.standardMetafieldDefinitionEnable",
+        "name": "visible-storefront-translation",
+        "capturePath": "$.captures.visibleStorefrontTranslation.response.data.standardMetafieldDefinitionEnable",
         "proxyPath": "$.data.standardMetafieldDefinitionEnable",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-deprecated-access-filter.graphql",
+          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-visible-storefront.graphql",
           "apiVersion": "2026-04"
         }
       },
       {
-        "name": "unstructured-metafield-setup",
-        "capturePath": "$.runtime.cases[3].response.data.metafieldsSet",
-        "proxyPath": "$.data.metafieldsSet",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-metafields-set-subtitle.graphql",
-          "apiVersion": "2026-04"
-        }
-      },
-      {
-        "name": "unstructured-already-exists-force-false",
-        "capturePath": "$.runtime.cases[4].response.data.standardMetafieldDefinitionEnable",
-        "proxyPath": "$.data.standardMetafieldDefinitionEnable",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-force-false.graphql",
-          "apiVersion": "2026-04"
-        }
-      },
-      {
-        "name": "deprecated-collection-condition-type-not-allowed",
-        "capturePath": "$.runtime.cases[5].response.data.standardMetafieldDefinitionEnable",
+        "name": "deprecated-collection-condition-hidden-argument",
+        "capturePath": "$.captures.deprecatedCollectionConditionHiddenArgument.response.data.standardMetafieldDefinitionEnable",
         "proxyPath": "$.data.standardMetafieldDefinitionEnable",
         "proxyRequest": {
           "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-deprecated-condition.graphql",
@@ -86,5 +59,5 @@
       }
     ]
   },
-  "notes": "Executable error-branch coverage for standardMetafieldDefinitionEnable. Public 2026-04 live captures cover INVALID_CAPABILITY for smartCollectionCondition and uniqueValues. The ticket-required forceEnable and deprecated argument branches are local-runtime-backed because this conformance shop's public 2026-04 schema no longer exposes those inputs. LIMIT_EXCEEDED is covered by the focused Gleam runtime test rather than by a 250-alias generic parity document."
+  "notes": "Live Shopify Admin API 2026-04 error-branch capture for standardMetafieldDefinitionEnable. The retired synthetic fixture claimed payload parity for forceEnable and useAsAdminFilter paths that the public schema rejects; those exact hard-attempt responses are preserved in the fixture but are not strict payload targets."
 }

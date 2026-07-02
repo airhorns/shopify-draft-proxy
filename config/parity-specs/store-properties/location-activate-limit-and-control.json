@@ -1,0 +1,38 @@
+{
+  "scenarioId": "location-activate-limit-and-control",
+  "operationNames": ["locationActivate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-activate-limit-and-control.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-activate-limit-and-control.graphql",
+    "variablesCapturePath": "$.proxyVariables.control"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "location-activate-control-success",
+        "capturePath": "$.expected.control.data.locationActivate",
+        "proxyPath": "$.data.locationActivate"
+      },
+      {
+        "name": "location-activate-limit-guard",
+        "capturePath": "$.expected.limit.data.locationActivate",
+        "proxyPath": "$.data.locationActivate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-activate-limit-and-control.graphql",
+          "variablesCapturePath": "$.proxyVariables.limit"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture for locationActivate LOCATION_LIMIT and successful control activation. The recorder drives the disposable shop to its active merchant-managed location cap, records the at-cap activation rejection, then cleans up every disposable location. HAS_ONGOING_RELOCATION is intentionally covered only by Rust integration tests because a live stocked-source deactivation with destination relocation completed synchronously and immediate reactivation succeeded, so public Admin GraphQL did not expose a deterministic ongoing-relocation state."
+}

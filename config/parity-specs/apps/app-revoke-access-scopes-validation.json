@@ -1,20 +1,22 @@
 {
-  "scenarioId": "app-revoke-access-scopes-codes",
-  "operationNames": ["appPurchaseOneTimeCreate", "appRevokeAccessScopes"],
+  "scenarioId": "app-revoke-access-scopes-validation",
+  "operationNames": ["appRevokeAccessScopes"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["user-errors-parity", "runtime-staging", "mutation-atomicity"],
-  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/apps/app-revoke-access-scopes-codes.json"],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "assertionKinds": ["user-errors-parity", "payload-shape", "mutation-atomicity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/app-revoke-access-scopes-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app.rs"],
   "comparisonMode": "captured-vs-proxy-request",
   "proxyRequest": {
-    "documentPath": "config/parity-requests/apps/appPurchaseOneTimeCreate-local-lifecycle.graphql"
+    "documentPath": "config/parity-requests/apps/appRevokeAccessScopes-fake-scope.graphql"
   },
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "unknown-scope-code",
+        "name": "unknown-scope-user-error",
         "capturePath": "$.evidence.parity.expected.unknownScope.data.appRevokeAccessScopes",
         "proxyPath": "$.data.appRevokeAccessScopes",
         "proxyRequest": {
@@ -22,7 +24,7 @@
         }
       },
       {
-        "name": "mixed-unknown-scope-atomicity",
+        "name": "mixed-unknown-scope-precedence",
         "capturePath": "$.evidence.parity.expected.mixedUnknownScope.data.appRevokeAccessScopes",
         "proxyPath": "$.data.appRevokeAccessScopes",
         "proxyRequest": {
@@ -30,21 +32,14 @@
         }
       },
       {
-        "name": "required-scope-code",
+        "name": "required-scope-user-error",
         "capturePath": "$.evidence.parity.expected.requiredScope.data.appRevokeAccessScopes",
         "proxyPath": "$.data.appRevokeAccessScopes",
         "proxyRequest": {
           "documentPath": "config/parity-requests/apps/appRevokeAccessScopes-required-read-products.graphql"
         }
-      },
-      {
-        "name": "optional-grant-success",
-        "capturePath": "$.evidence.parity.expected.optionalGrant.data.appRevokeAccessScopes",
-        "proxyPath": "$.data.appRevokeAccessScopes",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/apps/appRevokeAccessScopes-optional-write-products.graphql"
-        }
       }
     ]
-  }
+  },
+  "notes": "Captured safe live appRevokeAccessScopes validation branches. Optional grant success remains Rust-test-backed because live recording would revoke a real scope from the active app, and missing-source-app remains local runtime coverage because valid Admin requests carry source app context."
 }
