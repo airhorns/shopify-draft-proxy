@@ -259,6 +259,47 @@ function adminPlatformParityEvidenceErrors(): string[] {
   return errors;
 }
 
+function bulkOperationsParityEvidenceErrors(): string[] {
+  const errors: string[] = [];
+
+  for (const specPath of capturedParitySpecs(path.join('config', 'parity-specs', 'bulk-operations'))) {
+    const spec = readJson(specPath);
+    if (!isRecord(spec)) {
+      continue;
+    }
+
+    const liveCaptureFiles = spec['liveCaptureFiles'];
+    if (!Array.isArray(liveCaptureFiles)) {
+      continue;
+    }
+
+    for (const liveCaptureFile of liveCaptureFiles) {
+      if (typeof liveCaptureFile !== 'string') {
+        errors.push(`${specPath}: liveCaptureFiles entry is not a string`);
+        continue;
+      }
+
+      if (liveCaptureFile.startsWith('fixtures/conformance/local-runtime/')) {
+        errors.push(`${specPath}: bulk-operations captured parity spec references local-runtime evidence`);
+        continue;
+      }
+
+      if (!liveCaptureFile.includes('/bulk-operations/')) {
+        continue;
+      }
+
+      if (!existsSync(path.join(repoRoot, liveCaptureFile))) {
+        errors.push(`${specPath}: referenced bulk-operations fixture does not exist: ${liveCaptureFile}`);
+        continue;
+      }
+
+      errors.push(...fixtureUpstreamErrors(liveCaptureFile));
+    }
+  }
+
+  return errors;
+}
+
 function shippingFulfillmentParityEvidenceErrors(): string[] {
   const errors: string[] = [];
 
@@ -342,6 +383,7 @@ const metafieldDefinitionsErrors = metafieldDefinitionsParityEvidenceErrors();
 const customerErrors = customerParityEvidenceErrors();
 const giftCardErrors = giftCardParityEvidenceErrors();
 const adminPlatformErrors = adminPlatformParityEvidenceErrors();
+const bulkOperationsErrors = bulkOperationsParityEvidenceErrors();
 const shippingFulfillmentErrors = shippingFulfillmentParityEvidenceErrors();
 const marketsErrors = marketsParityEvidenceErrors();
 
@@ -376,6 +418,13 @@ if (adminPlatformErrors.length > 0) {
   for (const error of adminPlatformErrors) process.stderr.write(`- ${error}\n`);
 }
 
+if (bulkOperationsErrors.length > 0) {
+  process.stderr.write(
+    'Bulk-operations captured parity evidence contains local-runtime references or non-GraphQL upstream cassette queries.\n',
+  );
+  for (const error of bulkOperationsErrors) process.stderr.write(`- ${error}\n`);
+}
+
 if (shippingFulfillmentErrors.length > 0) {
   process.stderr.write(
     'shipping-fulfillments parity evidence contains local-runtime fixtures or descriptor upstream calls.\n',
@@ -394,6 +443,7 @@ if (
   customerErrors.length > 0 ||
   giftCardErrors.length > 0 ||
   adminPlatformErrors.length > 0 ||
+  bulkOperationsErrors.length > 0 ||
   shippingFulfillmentErrors.length > 0 ||
   marketsErrors.length > 0
 ) {
@@ -405,6 +455,7 @@ process.stdout.write('metafield-definitions parity evidence uses live fixture pa
 process.stdout.write('Customers parity evidence uses live fixture paths and GraphQL upstream cassette queries.\n');
 process.stdout.write('Gift-card parity evidence contains no local-runtime captures or descriptor cassette queries.\n');
 process.stdout.write('Admin-platform captured parity evidence has no synthetic/local-runtime provenance signals.\n');
+process.stdout.write('Bulk-operations captured parity evidence has no local-runtime or descriptor upstream signals.\n');
 process.stdout.write(
   'shipping-fulfillments protected evidence has no local-runtime parity fixtures or descriptor upstream calls.\n',
 );

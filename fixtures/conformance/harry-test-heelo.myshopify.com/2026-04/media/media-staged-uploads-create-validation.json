@@ -1,5 +1,5 @@
 {
-  "notes": "HAR-704 captures stagedUploadsCreate validation branches and success target metadata. No upload bytes are sent; this fixture records resolver validation, enum coercion, and signed target metadata only.",
+  "notes": "Captures stagedUploadsCreate validation branches and success target metadata. No upload bytes are sent; this fixture records resolver validation, enum coercion, and signed target metadata only.",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "cases": [
@@ -74,7 +74,7 @@
               "stagedTargets": [
                 {
                   "url": "https://shopify-staged-uploads.storage.googleapis.com/",
-                  "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/products/bb4f872d-124c-4442-acd2-e4b0f4105d6b/har-704-image.png",
+                  "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/products/bbe32dd6-ba0e-4d57-b310-bf9f76e675b5/har-704-image.png",
                   "parameters": [
                     {
                       "name": "Content-Type",
@@ -90,15 +90,15 @@
                     },
                     {
                       "name": "key",
-                      "value": "tmp/92891250994/products/bb4f872d-124c-4442-acd2-e4b0f4105d6b/har-704-image.png"
+                      "value": "tmp/92891250994/products/bbe32dd6-ba0e-4d57-b310-bf9f76e675b5/har-704-image.png"
                     },
                     {
                       "name": "x-goog-date",
-                      "value": "20260505T101019Z"
+                      "value": "20260629T210730Z"
                     },
                     {
                       "name": "x-goog-credential",
-                      "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260505/auto/storage/goog4_request"
+                      "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260629/auto/storage/goog4_request"
                     },
                     {
                       "name": "x-goog-algorithm",
@@ -106,11 +106,11 @@
                     },
                     {
                       "name": "x-goog-signature",
-                      "value": "5e7fce92a0cde7b9a88de515b74ab6eb888c95cba66ded6413a3334fcbc759357779e3714f8d806fdbca5e489bcca8d016d0641600fdd42141d9a69791cb038a75a94dfb865796c9ddce2ca0c9484ef6d0061afb2f93a3d247e8e0b189d145db908cb119644e5e1d951b2e49057445d0cca8800542e419b443f4928cecfff33ec97102e5646231665185652dfabd5ff75cab09e349dc2e575847697fbff2cbca357bfa6f20c9fc116047376a5379910339c55282c7f4d03ca6784f53502ae7fdc4da7e845f0c0dd074b0e8c539c8f0fdda99aec3f81144063aca91d6b3991ffb48cea36d2ea4cf77242824e57346b5171f0f5735a7276723e79e855bf07a8f1e"
+                      "value": "617f6af093558f4d07cedcb810c740283a6802cf947934f2c90af0e7c6adaab04aeb1e9fd45de53916690b14aef07fd31aa772c3813bb48d458417014b0d46cab97cc9032dd64fb73a412ad080fb183b9766798b2b8b41cd0a51cfbdaa1bcee93e2f4884f59c603dfd9e8ee5a936de2c5bd806984fff0d0f5d438280c59f024d9a13d51ce839e6774d83371c9d74805b131e90a8486fda60d89c0c0c1d27e99795eaaf3b16ed15b3dea0ea9fa5a726d886a09f4f9e6d0499ae66bc6cead930a9ebd32bb9a099bd75614d210c42ef048bb45519fa86eff97153dd131d52a96b0daebc8d5c5bcb3862696a0c8e54c4ed1b34fef46def039eebb309696b3ae7e934"
                     },
                     {
                       "name": "policy",
-                      "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJpbWFnZVwvcG5nIn0seyJzdWNjZXNzX2FjdGlvbl9zdGF0dXMiOiIyMDEifSx7ImFjbCI6InByaXZhdGUifSxbImNvbnRlbnQtbGVuZ3RoLXJhbmdlIiwxLDIwOTcxNTIwXSx7ImJ1Y2tldCI6InNob3BpZnktc3RhZ2VkLXVwbG9hZHMifSx7ImtleSI6InRtcFwvOTI4OTEyNTA5OTRcL3Byb2R1Y3RzXC9iYjRmODcyZC0xMjRjLTQ0NDItYWNkMi1lNGIwZjQxMDVkNmJcL2hhci03MDQtaW1hZ2UucG5nIn0seyJ4LWdvb2ctZGF0ZSI6IjIwMjYwNTA1VDEwMTAxOVoifSx7IngtZ29vZy1jcmVkZW50aWFsIjoibWVyY2hhbnQtYXNzZXRzQHNob3BpZnktdGllcnMuaWFtLmdzZXJ2aWNlYWNjb3VudC5jb21cLzIwMjYwNTA1XC9hdXRvXC9zdG9yYWdlXC9nb29nNF9yZXF1ZXN0In0seyJ4LWdvb2ctYWxnb3JpdGhtIjoiR09PRzQtUlNBLVNIQTI1NiJ9XSwiZXhwaXJhdGlvbiI6IjIwMjYtMDUtMDZUMTA6MTA6MTlaIn0="
+                      "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJpbWFnZVwvcG5nIn0seyJzdWNjZXNzX2FjdGlvbl9zdGF0dXMiOiIyMDEifSx7ImFjbCI6InByaXZhdGUifSxbImNvbnRlbnQtbGVuZ3RoLXJhbmdlIiwxLDIwOTcxNTIwXSx7ImJ1Y2tldCI6InNob3BpZnktc3RhZ2VkLXVwbG9hZHMifSx7ImtleSI6InRtcFwvOTI4OTEyNTA5OTRcL3Byb2R1Y3RzXC9iYmUzMmRkNi1iYTBlLTRkNTctYjMxMC1iZjlmNzZlNjc1YjVcL2hhci03MDQtaW1hZ2UucG5nIn0seyJ4LWdvb2ctZGF0ZSI6IjIwMjYwNjI5VDIxMDczMFoifSx7IngtZ29vZy1jcmVkZW50aWFsIjoibWVyY2hhbnQtYXNzZXRzQHNob3BpZnktdGllcnMuaWFtLmdzZXJ2aWNlYWNjb3VudC5jb21cLzIwMjYwNjI5XC9hdXRvXC9zdG9yYWdlXC9nb29nNF9yZXF1ZXN0In0seyJ4LWdvb2ctYWxnb3JpdGhtIjoiR09PRzQtUlNBLVNIQTI1NiJ9XSwiZXhwaXJhdGlvbiI6IjIwMjYtMDYtMzBUMjE6MDc6MzBaIn0="
                     }
                   ]
                 }
@@ -124,7 +124,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }
@@ -251,8 +251,8 @@
             "stagedUploadsCreate": {
               "stagedTargets": [
                 {
-                  "url": "https://storage.googleapis.com/threed-models-production/models/75920d31bd249020/har-704-model.glb?external_model3d_id=bW9kZWwzZC0xOTQ0MjQx",
-                  "resourceUrl": "https://storage.googleapis.com/threed-models-production/models/75920d31bd249020/har-704-model.glb?external_model3d_id=bW9kZWwzZC0xOTQ0MjQx",
+                  "url": "https://storage.googleapis.com/threed-models-production/models/f39357904e93173b/har-704-model.glb?external_model3d_id=bW9kZWwzZC0yMDc4Njk5",
+                  "resourceUrl": "https://storage.googleapis.com/threed-models-production/models/f39357904e93173b/har-704-model.glb?external_model3d_id=bW9kZWwzZC0yMDc4Njk5",
                   "parameters": [
                     {
                       "name": "GoogleAccessId",
@@ -260,15 +260,15 @@
                     },
                     {
                       "name": "key",
-                      "value": "models/75920d31bd249020/har-704-model.glb"
+                      "value": "models/f39357904e93173b/har-704-model.glb"
                     },
                     {
                       "name": "policy",
-                      "value": "eyJleHBpcmF0aW9uIjoiMjAyNi0wNS0wNVQxMDoyNToyMFoiLCJjb25kaXRpb25zIjpbWyJlcSIsIiRidWNrZXQiLCJ0aHJlZWQtbW9kZWxzLXByb2R1Y3Rpb24iXSxbImVxIiwiJGtleSIsIm1vZGVscy83NTkyMGQzMWJkMjQ5MDIwL2hhci03MDQtbW9kZWwuZ2xiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMTAyNCwxMDI0XV19"
+                      "value": "eyJleHBpcmF0aW9uIjoiMjAyNi0wNi0yOVQyMToyMjozMVoiLCJjb25kaXRpb25zIjpbWyJlcSIsIiRidWNrZXQiLCJ0aHJlZWQtbW9kZWxzLXByb2R1Y3Rpb24iXSxbImVxIiwiJGtleSIsIm1vZGVscy9mMzkzNTc5MDRlOTMxNzNiL2hhci03MDQtbW9kZWwuZ2xiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMTAyNCwxMDI0XV19"
                     },
                     {
                       "name": "signature",
-                      "value": "GW9yMNrWfTYMOX/0b4vxzNhvpqlA3eTEBJf+AiW2bDUr4q+97mY3AkGbS9YTPDsEhQeqGpcaXk5W917xzwxyJIqT/thhIw8Q38uaWxhJ+5nxfdXGIMfTUb9ukUm+S1Y6OTEUl9B5xKpfrYSJrPkX3JXGYbyGfX8K5W1DSwK8UVyuXAe/BfiHPp55aiHxWlalI4cm4h8mnlpxO8n5WUQ0AJcRZOJkn/o24A7DLFZe/fouXaaeHR4jmKn6JavvSmj1PKbGOry/z/JWF2fus5O3cPmL9AdlkH35J+AL9SGVadCTPzFE2Md4AlZEqeU0ufSCRJWIa3h5fFj9M4ySLPoQEQ=="
+                      "value": "Hcs2DoCENK8i+hNDB5JKKbGjgQPxm7qEZe/J8Zcu4a1X/4lCtyBCzWthLfbZZgiuW7zyu6EdbmuRJsLB+UbWsfun1yHMsqfB/+dRtkA9tAgw5E9uYzVUqgmwp5o2f4DM+D9p8GuyQghKemkuqf7Stc7ZSwO8wGZHWqyDue5ON+tiH6Nbhm8+NpMF1CVF8lTA/OBju0wyOqlFsC41e4h4+SF1S7S65Xd6RGu/fxmvEQoTPvr+2J5EEUy2g7PqHouVHpGytSzQPirvNr/kzhfgXcA6AitobnlRFWn6ApSLBQHsNjZbVIkctg71M+pIhvdPoH9V+XAEO9Xet/Q3MVbVoA=="
                     }
                   ]
                 }
@@ -282,7 +282,55 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "model3dMissingFileSize",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadValidation($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "MODEL_3D",
+              "filename": "chair.glb",
+              "mimeType": "model/gltf-binary"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "stagedUploadsCreate": {
+              "stagedTargets": [
+                {
+                  "url": null,
+                  "resourceUrl": null,
+                  "parameters": []
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["input", "0", "fileSize"],
+                  "message": "file size is required for 3D model resources"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }

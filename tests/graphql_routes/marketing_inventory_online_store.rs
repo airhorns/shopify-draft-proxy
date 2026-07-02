@@ -9255,6 +9255,18 @@ fn media_staged_uploads_create_validates_file_size_mime_and_omits_user_error_cod
         }]})
     );
 
+    let missing_model_size = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"input": [{"resource": "MODEL_3D", "filename": "chair.glb", "mimeType": "model/gltf-binary"}]}),
+    ));
+    assert_eq!(
+        missing_model_size.body["data"]["stagedUploadsCreate"],
+        json!({"stagedTargets": [{"url": null, "resourceUrl": null, "parameters": []}], "userErrors": [{
+            "field": ["input", "0", "fileSize"],
+            "message": "file size is required for 3D model resources"
+        }]})
+    );
+
     let bad_image_mime = proxy.process_request(json_graphql_request(
         mutation,
         json!({"input": [{"resource": "IMAGE", "filename": "image.exe", "mimeType": "application/x-msdownload"}]}),

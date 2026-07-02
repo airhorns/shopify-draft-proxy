@@ -80,7 +80,9 @@ Local staged mutations:
   `acl: private`, and `x-goog-algorithm: GOOG4-RSA-SHA256` for IMAGE and FILE.
 - Admin GraphQL 2026-04 captures cover staged upload validation behavior.
   `VIDEO` and `MODEL_3D` inputs require `fileSize`; missing values return a
-  field-scoped `userErrors` entry and a null placeholder target. Invalid enum
+  field-scoped `userErrors` entry and a null placeholder target. Captured
+  messages are `file size is required for video resources` for `VIDEO` and
+  `file size is required for 3D model resources` for `MODEL_3D`. Invalid enum
   resource values are rejected as top-level GraphQL `INVALID_VARIABLE` errors
   before resolver handling. IMAGE-family resources reject unsupported MIME
   values with a `mimeType` userError. Current Shopify accepts FILE staged

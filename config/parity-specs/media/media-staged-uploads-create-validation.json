@@ -6,14 +6,14 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-staged-uploads-create-validation.json"
   ],
-  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/media_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
   "proxyRequest": {
     "apiVersion": "2026-04",
     "documentPath": "config/parity-requests/media/media-staged-uploads-create-validation.graphql",
     "variablesCapturePath": "$.cases[0].request.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-704 captures stagedUploadsCreate validation and success branches against Shopify Admin GraphQL 2026-04. UserErrors on this payload expose field/message but not code in the live schema; the unsupported MIME branch therefore compares field/message. A direct live probe showed FILE with application/x-msdownload is accepted by current Shopify, so the unsupported MIME evidence uses IMAGE with application/x-msdownload.",
+  "notes": "Captures stagedUploadsCreate validation and success branches against Shopify Admin GraphQL 2026-04. UserErrors on this payload expose field/message but not code in the live schema; the unsupported MIME branch therefore compares field/message. A direct live probe showed FILE with application/x-msdownload is accepted by current Shopify, so the unsupported MIME evidence uses IMAGE with application/x-msdownload.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -117,6 +117,16 @@
             "reason": "MODEL_3D target values are storage-account, key, policy, and signature material."
           }
         ]
+      },
+      {
+        "name": "model-3d-missing-file-size-user-error",
+        "capturePath": "$.cases[5].response.payload.data.stagedUploadsCreate",
+        "proxyPath": "$.data.stagedUploadsCreate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/media/media-staged-uploads-create-validation.graphql",
+          "variablesCapturePath": "$.cases[5].request.variables"
+        }
       }
     ]
   }
