@@ -1651,6 +1651,317 @@ fn inventory_adjust_quantities_mixed_zero_and_nonzero_delta_stages_nonzero_chang
 }
 
 #[test]
+fn inventory_adjust_quantities_mirrors_on_hand_for_captured_non_available_names() {
+    let mut proxy = snapshot_proxy();
+
+    let setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryAdjustMirrorSetup($input: ProductSetInput!, $synchronous: Boolean!) {
+          productSet(input: $input, synchronous: $synchronous) {
+            product {
+              id
+              totalInventory
+              tracksInventory
+              variants(first: 1) {
+                nodes {
+                  id
+                  inventoryQuantity
+                  inventoryItem { id }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "synchronous": true,
+            "input": {
+                "title": "Inventory adjust on-hand mirror runtime seed",
+                "status": "DRAFT",
+                "productOptions": [{
+                    "name": "Title",
+                    "position": 1,
+                    "values": [{ "name": "Default Title" }]
+                }],
+                "variants": [{
+                    "optionValues": [{ "optionName": "Title", "name": "Default Title" }],
+                    "inventoryItem": { "tracked": true, "requiresShipping": true },
+                    "inventoryQuantities": [{
+                        "locationId": "gid://shopify/Location/1",
+                        "name": "available",
+                        "quantity": 0
+                    }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(setup.body["data"]["productSet"]["userErrors"], json!([]));
+    let product = &setup.body["data"]["productSet"]["product"];
+    let product_id = product["id"].as_str().unwrap().to_string();
+    let variant_id = product["variants"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let inventory_item_id = product["variants"]["nodes"][0]["inventoryItem"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let mut expected_damaged = 0;
+    let mut expected_quality_control = 0;
+    let mut expected_reserved = 0;
+    let mut expected_safety_stock = 0;
+    let mut expected_incoming = 0;
+    let mut expected_on_hand = 0;
+
+    for (name, reason, delta) in [
+        ("damaged", "damaged", 2),
+        ("reserved", "reservation_created", 3),
+        ("quality_control", "quality_control", 4),
+        ("safety_stock", "safety_stock", 5),
+    ] {
+        let ledger = format!("https://example.com/inventory-adjust-mirror/{name}");
+        let adjust = proxy.process_request(json_graphql_request(
+            r#"
+            mutation InventoryAdjustMirror($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+              inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+                inventoryAdjustmentGroup {
+                  reason
+                  changes { name delta quantityAfterChange ledgerDocumentUri item { id } location { id } }
+                }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({"idempotencyKey": format!("inventory-adjust-mirror-{name}"), "input": {
+                "name": name,
+                "reason": reason,
+                "changes": [{
+                    "inventoryItemId": inventory_item_id,
+                    "locationId": "gid://shopify/Location/1",
+                    "delta": delta,
+                    "changeFromQuantity": 0,
+                    "ledgerDocumentUri": ledger
+                }]
+            }}),
+        ));
+        let payload = &adjust.body["data"]["inventoryAdjustQuantities"];
+        assert_eq!(payload["userErrors"], json!([]));
+        assert_eq!(payload["inventoryAdjustmentGroup"]["reason"], json!(reason));
+        assert_eq!(
+            payload["inventoryAdjustmentGroup"]["changes"],
+            json!([
+                {
+                    "name": name,
+                    "delta": delta,
+                    "quantityAfterChange": null,
+                    "ledgerDocumentUri": ledger,
+                    "item": { "id": inventory_item_id },
+                    "location": { "id": "gid://shopify/Location/1" }
+                },
+                {
+                    "name": "on_hand",
+                    "delta": delta,
+                    "quantityAfterChange": null,
+                    "ledgerDocumentUri": null,
+                    "item": { "id": inventory_item_id },
+                    "location": { "id": "gid://shopify/Location/1" }
+                }
+            ])
+        );
+
+        match name {
+            "damaged" => expected_damaged += delta,
+            "reserved" => expected_reserved += delta,
+            "quality_control" => expected_quality_control += delta,
+            "safety_stock" => expected_safety_stock += delta,
+            _ => unreachable!(),
+        }
+        expected_on_hand += delta;
+
+        let read = proxy.process_request(json_graphql_request(
+            r#"
+            query InventoryAdjustMirrorRead($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) {
+              product(id: $productId) { totalInventory tracksInventory }
+              productVariant(id: $variantId) {
+                inventoryQuantity
+                inventoryItem {
+                  inventoryLevels(first: 5) {
+                    nodes {
+                      quantities(names: ["available", "incoming", "damaged", "quality_control", "reserved", "safety_stock", "on_hand"]) {
+                        name
+                        quantity
+                        updatedAt
+                      }
+                    }
+                  }
+                }
+              }
+              inventoryItem(id: $inventoryItemId) {
+                variant { inventoryQuantity product { totalInventory tracksInventory } }
+                inventoryLevels(first: 5) {
+                  nodes {
+                    quantities(names: ["available", "incoming", "damaged", "quality_control", "reserved", "safety_stock", "on_hand"]) {
+                      name
+                      quantity
+                      updatedAt
+                    }
+                  }
+                }
+              }
+            }
+            "#,
+            json!({
+                "productId": product_id,
+                "variantId": variant_id,
+                "inventoryItemId": inventory_item_id
+            }),
+        ));
+        assert_eq!(read.body["data"]["product"]["totalInventory"], json!(0));
+        assert_eq!(read.body["data"]["product"]["tracksInventory"], json!(true));
+        assert_eq!(
+            read.body["data"]["productVariant"]["inventoryQuantity"],
+            json!(0)
+        );
+        assert_eq!(
+            read.body["data"]["inventoryItem"]["variant"]["inventoryQuantity"],
+            json!(0)
+        );
+        assert_eq!(
+            read.body["data"]["inventoryItem"]["variant"]["product"],
+            json!({"totalInventory": 0, "tracksInventory": true})
+        );
+        assert_eq!(
+            read.body["data"]["productVariant"]["inventoryItem"]["inventoryLevels"]["nodes"][0]
+                ["quantities"],
+            read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+        );
+        let rows = &read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"];
+        let quantity = |name: &str| {
+            rows.as_array()
+                .unwrap()
+                .iter()
+                .find(|row| row["name"] == json!(name))
+                .and_then(|row| row["quantity"].as_i64())
+                .unwrap()
+        };
+        let updated_at = |name: &str| {
+            rows.as_array()
+                .unwrap()
+                .iter()
+                .find(|row| row["name"] == json!(name))
+                .map(|row| row["updatedAt"].clone())
+                .unwrap()
+        };
+        assert_eq!(quantity("available"), 0);
+        assert_eq!(quantity("incoming"), expected_incoming);
+        assert_eq!(quantity("damaged"), expected_damaged);
+        assert_eq!(quantity("quality_control"), expected_quality_control);
+        assert_eq!(quantity("reserved"), expected_reserved);
+        assert_eq!(quantity("safety_stock"), expected_safety_stock);
+        assert_eq!(quantity("on_hand"), expected_on_hand);
+        assert_eq!(updated_at("on_hand"), Value::Null);
+    }
+
+    let incoming_ledger = "https://example.com/inventory-adjust-mirror/incoming";
+    let incoming = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryAdjustIncomingControl($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+          inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup {
+              reason
+              changes { name delta quantityAfterChange ledgerDocumentUri item { id } location { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "inventory-adjust-mirror-incoming-control", "input": {
+            "name": "incoming",
+            "reason": "received",
+            "changes": [{
+                "inventoryItemId": inventory_item_id,
+                "locationId": "gid://shopify/Location/1",
+                "delta": 6,
+                "changeFromQuantity": 0,
+                "ledgerDocumentUri": incoming_ledger
+            }]
+        }}),
+    ));
+    assert_eq!(
+        incoming.body["data"]["inventoryAdjustQuantities"]["inventoryAdjustmentGroup"]["changes"],
+        json!([{
+            "name": "incoming",
+            "delta": 6,
+            "quantityAfterChange": null,
+            "ledgerDocumentUri": incoming_ledger,
+            "item": { "id": inventory_item_id },
+            "location": { "id": "gid://shopify/Location/1" }
+        }])
+    );
+    assert_eq!(
+        incoming.body["data"]["inventoryAdjustQuantities"]["userErrors"],
+        json!([])
+    );
+    expected_incoming += 6;
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryAdjustIncomingControlRead($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) {
+          product(id: $productId) { totalInventory tracksInventory }
+          productVariant(id: $variantId) { inventoryQuantity }
+          inventoryItem(id: $inventoryItemId) {
+            variant { inventoryQuantity product { totalInventory tracksInventory } }
+            inventoryLevels(first: 5) {
+              nodes {
+                quantities(names: ["available", "incoming", "damaged", "quality_control", "reserved", "safety_stock", "on_hand"]) {
+                  name
+                  quantity
+                  updatedAt
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variantId": variant_id,
+            "inventoryItemId": inventory_item_id
+        }),
+    ));
+    let rows = &read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"];
+    let quantity = |name: &str| {
+        rows.as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["name"] == json!(name))
+            .and_then(|row| row["quantity"].as_i64())
+            .unwrap()
+    };
+    assert_eq!(
+        read.body["data"]["product"],
+        json!({"totalInventory": 0, "tracksInventory": true})
+    );
+    assert_eq!(
+        read.body["data"]["productVariant"]["inventoryQuantity"],
+        json!(0)
+    );
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["variant"],
+        json!({"inventoryQuantity": 0, "product": {"totalInventory": 0, "tracksInventory": true}})
+    );
+    assert_eq!(quantity("available"), 0);
+    assert_eq!(quantity("incoming"), expected_incoming);
+    assert_eq!(quantity("damaged"), expected_damaged);
+    assert_eq!(quantity("quality_control"), expected_quality_control);
+    assert_eq!(quantity("reserved"), expected_reserved);
+    assert_eq!(quantity("safety_stock"), expected_safety_stock);
+    assert_eq!(quantity("on_hand"), expected_on_hand);
+}
+
+#[test]
 fn inventory_quantity_mutations_reject_unknown_inventory_item_without_staging() {
     let mut proxy = snapshot_proxy();
     let unknown_inventory_item_id = "gid://shopify/InventoryItem/999999999999";

@@ -4028,6 +4028,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
+    captureId: 'inventory-adjust-on-hand-name-mirrors',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-inventory-adjust-on-hand-name-mirrors-conformance.ts',
+    purpose:
+      'inventoryAdjustQuantities companion on_hand change rows and downstream read effects for public quantity names that belong to on_hand.',
+    requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-adjust-on-hand-name-mirrors.json`,
+      'config/parity-specs/products/inventory-adjust-on-hand-name-mirrors.json',
+      'config/parity-requests/products/inventory-adjust-on-hand-name-mirrors-setup.graphql',
+      'config/parity-requests/products/inventory-adjust-on-hand-name-mirrors-adjust.graphql',
+      'config/parity-requests/products/inventory-adjust-on-hand-name-mirrors-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable tracked product, records damaged/reserved/quality_control/safety_stock/incoming adjustments and downstream reads, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
     captureId: 'inventory-adjust-name-allowlist',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-inventory-adjust-name-allowlist-conformance.ts',
