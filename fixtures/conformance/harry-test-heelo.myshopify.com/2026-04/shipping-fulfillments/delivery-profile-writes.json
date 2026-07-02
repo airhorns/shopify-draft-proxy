@@ -1,22 +1,15 @@
 {
-  "capturedAt": "2026-04-25T21:32:00.000Z",
+  "capturedAt": "2026-06-30T14:28:21.804Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "evidence": {
-    "credentialProbe": {
-      "ok": true,
-      "apiVersion": "2026-04",
-      "shopId": "gid://shopify/Shop/92891250994"
-    },
-    "schema": {
-      "deliveryProfileCreate": ["profile"],
-      "deliveryProfileUpdate": ["id", "profile"],
-      "deliveryProfileRemove": ["id"],
-      "removePayloadFields": ["job", "userErrors"]
-    }
+    "locationUsed": "gid://shopify/Location/106318430514",
+    "secondaryLocationUsed": "gid://shopify/Location/106318463282",
+    "defaultProfileId": "gid://shopify/DeliveryProfile/125254992178"
   },
   "mutations": {
     "blankCreate": {
+      "query": "mutation DeliveryProfileLifecycleBlankCreate($profile: DeliveryProfileInput!) {\n  deliveryProfileCreate(profile: $profile) {\n    profile {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "profile": {
           "name": ""
@@ -35,20 +28,32 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     "nestedCreate": {
+      "query": "mutation DeliveryProfileLifecycleCreate($profile: DeliveryProfileInput!) {\n  deliveryProfileCreate(profile: $profile) {\n    profile {\n      id\n      name\n      version\n      originLocationCount\n      zoneCountryCount\n      activeMethodDefinitionsCount\n      profileItems(first: 5) {\n        nodes {\n          product {\n            id\n            title\n          }\n          variants(first: 5) {\n            nodes {\n              id\n              title\n            }\n          }\n        }\n      }\n      profileLocationGroups {\n        locationGroup {\n          id\n        }\n        locationGroupZones(first: 5) {\n          nodes {\n            zone {\n              id\n              name\n            }\n            methodDefinitions(first: 5) {\n              nodes {\n                id\n                name\n                active\n                rateProvider {\n                  ... on DeliveryRateDefinition {\n                    id\n                    price {\n                      amount\n                      currencyCode\n                    }\n                  }\n                }\n                methodConditions {\n                  id\n                  field\n                  operator\n                  conditionCriteria {\n                    __typename\n                    ... on Weight {\n                      value\n                      unit\n                    }\n                    ... on MoneyV2 {\n                      amount\n                      currencyCode\n                    }\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "profile": {
-          "name": "HAR-247 nested 1777152157411",
+          "name": "Delivery profile lifecycle 1782829698479",
           "locationGroupsToCreate": [
             {
               "locations": ["gid://shopify/Location/106318430514"],
               "zonesToCreate": [
                 {
-                  "name": "HAR-247 Domestic",
+                  "name": "Domestic",
                   "countries": [
                     {
                       "code": "US",
@@ -57,7 +62,7 @@
                   ],
                   "methodDefinitionsToCreate": [
                     {
-                      "name": "HAR-247 Standard",
+                      "name": "Standard",
                       "active": true,
                       "rateDefinition": {
                         "price": {
@@ -79,8 +84,7 @@
                 }
               ]
             }
-          ],
-          "variantsToAssociate": ["gid://shopify/ProductVariant/51098706739506"]
+          ]
         }
       },
       "result": {
@@ -89,50 +93,35 @@
           "data": {
             "deliveryProfileCreate": {
               "profile": {
-                "id": "gid://shopify/DeliveryProfile/131621028146",
-                "name": "HAR-247 nested 1777152157411",
+                "id": "gid://shopify/DeliveryProfile/132621336882",
+                "name": "Delivery profile lifecycle 1782829698479",
                 "version": 1,
                 "originLocationCount": 1,
                 "zoneCountryCount": 1,
                 "activeMethodDefinitionsCount": 1,
                 "profileItems": {
-                  "nodes": [
-                    {
-                      "product": {
-                        "id": "gid://shopify/Product/10170561036594",
-                        "title": "Hermes Variant Search Conformance 1777150673975"
-                      },
-                      "variants": {
-                        "nodes": [
-                          {
-                            "id": "gid://shopify/ProductVariant/51098706739506",
-                            "title": "Default Title"
-                          }
-                        ]
-                      }
-                    }
-                  ]
+                  "nodes": []
                 },
                 "profileLocationGroups": [
                   {
                     "locationGroup": {
-                      "id": "gid://shopify/DeliveryLocationGroup/133308088626"
+                      "id": "gid://shopify/DeliveryLocationGroup/134328058162"
                     },
                     "locationGroupZones": {
                       "nodes": [
                         {
                           "zone": {
-                            "id": "gid://shopify/DeliveryZone/581656510770",
-                            "name": "HAR-247 Domestic"
+                            "id": "gid://shopify/DeliveryZone/585227403570",
+                            "name": "Domestic"
                           },
                           "methodDefinitions": {
                             "nodes": [
                               {
-                                "id": "gid://shopify/DeliveryMethodDefinition/1088057180466",
-                                "name": "HAR-247 Standard",
+                                "id": "gid://shopify/DeliveryMethodDefinition/1106700501298",
+                                "name": "Standard",
                                 "active": true,
                                 "rateProvider": {
-                                  "id": "gid://shopify/DeliveryRateDefinition/1010671485234",
+                                  "id": "gid://shopify/DeliveryRateDefinition/1028425711922",
                                   "price": {
                                     "amount": "7.25",
                                     "currencyCode": "USD"
@@ -140,7 +129,7 @@
                                 },
                                 "methodConditions": [
                                   {
-                                    "id": "gid://shopify/DeliveryCondition/292281450802?operator=greater_than_or_equal_to",
+                                    "id": "gid://shopify/DeliveryCondition/308000620850?operator=greater_than_or_equal_to",
                                     "field": "TOTAL_WEIGHT",
                                     "operator": "GREATER_THAN_OR_EQUAL_TO",
                                     "conditionCriteria": {
@@ -161,32 +150,43 @@
               },
               "userErrors": []
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 85,
+              "actualQueryCost": 24,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     "nestedUpdate": {
+      "query": "mutation DeliveryProfileLifecycleUpdate($id: ID!, $profile: DeliveryProfileInput!) {\n  deliveryProfileUpdate(id: $id, profile: $profile) {\n    profile {\n      id\n      name\n      version\n      originLocationCount\n      zoneCountryCount\n      activeMethodDefinitionsCount\n      productVariantsCount {\n        count\n        precision\n      }\n      profileItems(first: 5) {\n        nodes {\n          product {\n            id\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/131621028146",
+        "id": "gid://shopify/DeliveryProfile/132621336882",
         "profile": {
-          "name": "HAR-247 nested updated",
-          "variantsToDissociate": ["gid://shopify/ProductVariant/51098706739506"],
-          "conditionsToDelete": ["gid://shopify/DeliveryCondition/292281450802?operator=greater_than_or_equal_to"],
+          "name": "Delivery profile lifecycle updated",
+          "conditionsToDelete": ["gid://shopify/DeliveryCondition/308000620850?operator=greater_than_or_equal_to"],
           "locationGroupsToUpdate": [
             {
-              "id": "gid://shopify/DeliveryLocationGroup/133308088626",
+              "id": "gid://shopify/DeliveryLocationGroup/134328058162",
               "locationsToAdd": ["gid://shopify/Location/106318463282"],
               "zonesToUpdate": [
                 {
-                  "id": "gid://shopify/DeliveryZone/581656510770",
-                  "name": "HAR-247 Domestic Updated",
+                  "id": "gid://shopify/DeliveryZone/585227403570",
+                  "name": "Domestic updated",
                   "methodDefinitionsToUpdate": [
                     {
-                      "id": "gid://shopify/DeliveryMethodDefinition/1088057180466",
-                      "name": "HAR-247 Standard Updated",
+                      "id": "gid://shopify/DeliveryMethodDefinition/1106700501298",
+                      "name": "Standard updated",
                       "active": false,
                       "rateDefinition": {
-                        "id": "gid://shopify/DeliveryRateDefinition/1010671485234",
+                        "id": "gid://shopify/DeliveryRateDefinition/1028425711922",
                         "price": {
                           "amount": "8.50",
                           "currencyCode": "USD"
@@ -196,7 +196,7 @@
                   ],
                   "methodDefinitionsToCreate": [
                     {
-                      "name": "HAR-247 Express",
+                      "name": "Express",
                       "active": true,
                       "rateDefinition": {
                         "price": {
@@ -227,8 +227,8 @@
           "data": {
             "deliveryProfileUpdate": {
               "profile": {
-                "id": "gid://shopify/DeliveryProfile/131621028146",
-                "name": "HAR-247 nested updated",
+                "id": "gid://shopify/DeliveryProfile/132621336882",
+                "name": "Delivery profile lifecycle updated",
                 "version": 2,
                 "originLocationCount": 2,
                 "zoneCountryCount": 1,
@@ -243,13 +243,25 @@
               },
               "userErrors": []
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 28,
+              "actualQueryCost": 25,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     "remove": {
+      "query": "mutation DeliveryProfileLifecycleRemove($id: ID!) {\n  deliveryProfileRemove(id: $id) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/131621028146"
+        "id": "gid://shopify/DeliveryProfile/132621336882"
       },
       "result": {
         "status": 200,
@@ -257,29 +269,53 @@
           "data": {
             "deliveryProfileRemove": {
               "job": {
-                "id": "gid://shopify/Job/bad9d3cd-1922-41a8-af76-8faa33806a70",
+                "id": "gid://shopify/Job/8a7c70d6-575e-4ddb-a7a3-c38a284c709a",
                 "done": false
               },
               "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
             }
           }
         }
       }
     },
     "readAfterRemovePoll": {
+      "query": "query DeliveryProfileLifecycleReadAfterRemove($id: ID!) {\n  deliveryProfile(id: $id) {\n    id\n  }\n}",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/131621028146"
+        "id": "gid://shopify/DeliveryProfile/132621336882"
       },
       "result": {
         "status": 200,
         "payload": {
           "data": {
             "deliveryProfile": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     "missingUpdate": {
+      "query": "mutation DeliveryProfileLifecycleMissingUpdate($id: ID!, $profile: DeliveryProfileInput!) {\n  deliveryProfileUpdate(id: $id, profile: $profile) {\n    profile {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "id": "gid://shopify/DeliveryProfile/999999999999",
         "profile": {
@@ -299,11 +335,23 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     "missingRemove": {
+      "query": "mutation DeliveryProfileLifecycleMissingRemove($id: ID!) {\n  deliveryProfileRemove(id: $id) {\n    job {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "id": "gid://shopify/DeliveryProfile/999999999999"
       },
@@ -320,11 +368,23 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     "defaultRemove": {
+      "query": "mutation DeliveryProfileLifecycleDefaultRemove($id: ID!) {\n  deliveryProfileRemove(id: $id) {\n    job {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "variables": {
         "id": "gid://shopify/DeliveryProfile/125254992178"
       },
@@ -341,21 +401,31 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     }
   },
   "notes": [
-    "Captured with SHOPIFY_CONFORMANCE_API_VERSION=2026-04 and home-folder conformance auth.",
-    "The successful lifecycle used a disposable custom delivery profile, then removed it; Shopify removal returned an asynchronous Job with done=false and the profile read became null after a short poll.",
-    "No access-scope or manage-delivery-settings blocker was encountered for the active conformance credential."
+    "Captured with home-folder conformance auth against a disposable Shopify test store.",
+    "The capture creates one disposable delivery profile, updates nested delivery profile state, removes it, records read-after-remove and missing/default profile validation branches."
   ],
   "upstreamCalls": [
     {
       "operationName": "ShippingDeliveryProfileLocationsHydrate",
       "variables": {},
-      "query": "sha:hand-synthesized",
+      "query": "query ShippingDeliveryProfileLocationsHydrate {\n    locationsAvailableForDeliveryProfilesConnection(first: 3) {\n      nodes {\n        id\n        name\n        isActive\n        isFulfillmentService\n      }\n    }\n  }",
       "response": {
         "status": 200,
         "body": {
@@ -373,34 +443,26 @@
                   "name": "My Custom Location",
                   "isActive": true,
                   "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/106318496050",
+                  "name": "Snow City Warehouse",
+                  "isActive": true,
+                  "isFulfillmentService": true
                 }
               ]
             }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "ShippingDeliveryProfileVariantsHydrate",
-      "variables": {
-        "ids": ["gid://shopify/ProductVariant/51098706739506"]
-      },
-      "query": "query ShippingDeliveryProfileVariantsHydrate($ids: [ID!]!) { nodes(ids: $ids) { ... on ProductVariant { id title product { id title handle } } } }",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "nodes": [
-              {
-                "id": "gid://shopify/ProductVariant/51098706739506",
-                "title": "Default Title",
-                "product": {
-                  "id": "gid://shopify/Product/10170561036594",
-                  "title": "Hermes Variant Search Conformance 1777150673975",
-                  "handle": ""
-                }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
               }
-            ]
+            }
           }
         }
       }
@@ -410,7 +472,7 @@
       "variables": {
         "id": "gid://shopify/DeliveryProfile/125254992178"
       },
-      "query": "query ShippingDeliveryProfileHydrate($id: ID!) { deliveryProfile(id: $id) { id name default merchantOwned version } }",
+      "query": "query ShippingDeliveryProfileHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }",
       "response": {
         "status": 200,
         "body": {
@@ -419,8 +481,18 @@
               "id": "gid://shopify/DeliveryProfile/125254992178",
               "name": "General profile",
               "default": true,
-              "merchantOwned": true,
-              "version": 1
+              "version": 4
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
             }
           }
         }
