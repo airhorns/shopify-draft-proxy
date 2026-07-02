@@ -15,6 +15,9 @@ import {
 
 const repoRoot = resolve(import.meta.dirname, '../..');
 const allowedScenarioStatuses = new Set(['captured', 'planned']);
+const appsParitySpecPrefix = 'config/parity-specs/apps/';
+const descriptorCassetteQueryPattern =
+  /^\s*(?:hand-synthesized|sha:|cassette-backed|recorded by scripts|local-runtime)/iu;
 
 function readJson<T>(relativePath: string): T {
   return JSON.parse(readFileSync(resolve(repoRoot, relativePath), 'utf8')) as T;
@@ -114,6 +117,42 @@ describe('conformance scenario discovery', () => {
       }
     },
   );
+
+  it('keeps apps captured parity evidence tied to live Shopify captures', () => {
+    const appScenarios = scenarios.filter((scenario) => scenario.paritySpecPath.startsWith(appsParitySpecPrefix));
+
+    for (const scenario of appScenarios) {
+      const paritySpec = readJson<ParitySpec>(scenario.paritySpecPath);
+      if (paritySpec.scenarioStatus !== 'captured') {
+        continue;
+      }
+
+      for (const captureFile of paritySpec.liveCaptureFiles ?? []) {
+        expect(
+          captureFile.includes('fixtures/conformance/local-runtime/'),
+          `${scenario.id} must not use local-runtime fixtures as captured apps parity evidence`,
+        ).toBe(false);
+
+        const fixture = readJson<Record<string, unknown>>(captureFile);
+        const upstreamCalls = Array.isArray(fixture['upstreamCalls']) ? fixture['upstreamCalls'] : [];
+
+        for (const [index, upstreamCall] of upstreamCalls.entries()) {
+          const query =
+            typeof (upstreamCall as { query?: unknown })['query'] === 'string'
+              ? (upstreamCall as { query: string })['query']
+              : null;
+          if (!query) {
+            continue;
+          }
+
+          expect(
+            query,
+            `${scenario.id} upstreamCalls[${index}].query must be the exact GraphQL document, not a provenance descriptor`,
+          ).not.toMatch(descriptorCassetteQueryPattern);
+        }
+      }
+    }
+  });
 
   it.each(
     scenarios.flatMap((scenario) =>
