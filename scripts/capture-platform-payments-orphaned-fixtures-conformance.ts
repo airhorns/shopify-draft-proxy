@@ -10,6 +10,7 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 
 type JsonRecord = Record<string, unknown>;
 type FixtureGroup = 'events' | 'payments' | 'apps' | 'bulk-operations' | 'functions';
+type PaymentFixtureTarget = 'reads' | 'customization-validation' | 'payment-reminder-send';
 
 type Capture = {
   query: string;
@@ -33,7 +34,9 @@ type FunctionNode = {
 };
 
 const allGroups: FixtureGroup[] = ['events', 'payments', 'apps', 'bulk-operations', 'functions'];
+const paymentFixtureTargets: PaymentFixtureTarget[] = ['reads', 'customization-validation', 'payment-reminder-send'];
 const requestedGroup = process.env['ORPHAN_FIXTURE_GROUP'];
+const requestedPaymentFixture = process.env['ORPHAN_PAYMENT_FIXTURE'];
 const groupsToCapture =
   requestedGroup === undefined || requestedGroup === ''
     ? allGroups
@@ -43,6 +46,17 @@ const groupsToCapture =
 
 if (groupsToCapture === null) {
   throw new Error(`Unknown ORPHAN_FIXTURE_GROUP: ${requestedGroup}`);
+}
+if (
+  requestedPaymentFixture !== undefined &&
+  requestedPaymentFixture !== '' &&
+  !paymentFixtureTargets.includes(requestedPaymentFixture as PaymentFixtureTarget)
+) {
+  throw new Error(`Unknown ORPHAN_PAYMENT_FIXTURE: ${requestedPaymentFixture}`);
+}
+
+function shouldCapturePaymentFixture(target: PaymentFixtureTarget): boolean {
+  return requestedPaymentFixture === undefined || requestedPaymentFixture === '' || requestedPaymentFixture === target;
 }
 
 const clientCache = new Map<string, CaptureClient>();
@@ -311,10 +325,18 @@ const reminderHydrateDocument = `query PaymentScheduleReminderHydrate($id: ID!) 
         translatedName
         order {
           id
+          email
           closed
           closedAt
           cancelledAt
           displayFinancialStatus
+          lineItems(first: 1) {
+            nodes {
+              sellingPlan {
+                name
+              }
+            }
+          }
         }
         draftOrder {
           id
@@ -543,7 +565,7 @@ async function captureReminderHydrate(
   return {
     operationName: 'PaymentScheduleReminderHydrate',
     variables: { id: paymentScheduleId },
-    query: `captured live hydrate for ${label}`,
+    query: reminderHydrateDocument,
     response: {
       status: response.status,
       body: response.payload,
@@ -614,9 +636,11 @@ async function capturePaymentReminderSend(): Promise<string> {
 }
 
 async function capturePayments(): Promise<string[]> {
-  const written = await capturePaymentReads();
-  written.push(await capturePaymentCustomizationValidation());
-  written.push(await capturePaymentReminderSend());
+  const written: string[] = [];
+  if (shouldCapturePaymentFixture('reads')) written.push(...(await capturePaymentReads()));
+  if (shouldCapturePaymentFixture('customization-validation'))
+    written.push(await capturePaymentCustomizationValidation());
+  if (shouldCapturePaymentFixture('payment-reminder-send')) written.push(await capturePaymentReminderSend());
   return written;
 }
 

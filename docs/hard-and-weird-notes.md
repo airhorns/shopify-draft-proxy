@@ -2231,14 +2231,14 @@ Observed behavior from live writes:
 
 Practical rule for the proxy:
 
-- `available` remains the only quantity name that should mutate `productVariant.inventoryQuantity` and the mirrored synthetic `on_hand` change rows
+- `available` remains the only quantity name that should mutate `productVariant.inventoryQuantity`; quantity names that belong to `on_hand` (`damaged`, `quality_control`, `reserved`, and `safety_stock`) also return mirrored `on_hand` change rows and update downstream `on_hand` totals without changing the available-backed variant quantity
 - Fresh 2026-04 evidence corrects older notes for `inventoryAdjustQuantities`: Admin GraphQL rejects direct `on_hand` and `committed` public adjust names with the valid-values message `available, damaged, incoming, quality_control, reserved, safety_stock`. Public adjust and move validators share that six-name allowlist; `inventorySetQuantities` remains a separate `available` / `on_hand` set path.
 - for non-available mutation names, each change needs its own `ledgerDocumentUri`; Shopify returned that requirement even when the quantity name itself was invalid
 - omitting required nested change inputs such as `inventoryItemId`, `locationId`, or `delta` did **not** yield mutation-scoped `userErrors`; Shopify failed variable coercion first and returned top-level GraphQL `INVALID_VARIABLE` errors naming the exact `changes.<index>.<field>` path
 - by contrast, an unknown-but-present inventory item id did reach the mutation resolver and returned a fielded `userErrors` entry at `['input', 'changes', '0', 'inventoryItemId']` with message `The specified inventory item could not be found.`
 - an unknown-but-present `locationId` also reached the mutation resolver on this host and returned a fielded `userErrors` entry at `['input', 'changes', '0', 'locationId']` with message `The specified location could not be found.` instead of silently creating a new location-scoped adjustment row
 - non-available quantity writes such as `incoming` update downstream `inventoryLevels.quantities(name: ...)` immediately without changing `productVariant.inventoryQuantity` or product-level aggregates
-- a 2026-04 ledger-document validation capture found that a valid `damaged` adjustment returns both the submitted `damaged` change row and a companion `on_hand` change row, unlike the existing `incoming` capture; do not generalize `incoming`'s no-on-hand behavior across every non-available name that belongs to `on_hand`
+- a 2026-04 on-hand-family mirror capture found that valid `damaged`, `quality_control`, `reserved`, and `safety_stock` adjustments return both the submitted quantity row and a companion `on_hand` row, while the `incoming` control remains a single-row adjustment; the companion `on_hand` row has `ledgerDocumentUri: null`, and downstream `on_hand.updatedAt` remains `null` even though its quantity changes
 - `InventoryAdjustmentGroup.id` is worth keeping in the first richer payload slice; Shopify returns a real group gid even when the local proxy still stages the broader inventory model in memory only
 - `InventoryChange.ledgerDocumentUri` is per-change data, not a synonym for the group-level `referenceDocumentUri`; when a non-available write supplies a change-scoped ledger URI, Shopify echoes that URI back on each change entry while leaving `referenceDocumentUri` at the group scope
 - `changes.location` is richer than an id-only echo on this host: live capture returned both `id` and merchant-facing `name` (for example `103 ossington`), so local replay should preserve `name` whenever the effective location graph knows it
@@ -3089,7 +3089,8 @@ Capture prerequisites and safety constraints:
 - A 2026-04 disposable-order capture for successful `paymentTermsCreate` template reprojection confirmed FIXED returns `Fixed`/`FIXED`/`dueInDays: null`, Net 7 returns `Net 7`/`NET`/`dueInDays: 7`, and Due on fulfillment returns `Due on fulfillment`/`FULFILLMENT`/`dueInDays: null` with no schedule nodes. The Net 7 success path required `paymentSchedules.issuedAt`; sending only `dueAt` for that NET template returned user errors for missing issue date and inconsistent due date.
 - A 2026-04 live capture for `paymentTermsCreate` unknown owners showed public Admin GraphQL serializes the internal base reference-not-found error as `field: null`, not `["base"]`: unknown `Order` returns `Cannot find the specific Order with id <numeric id>.`, and unknown `DraftOrder` returns `Cannot find the specific Draft order with id <numeric id>.`
 - A 2026-04 live capture for `paymentTermsCreate` and `paymentTermsUpdate` multiple `paymentSchedules` shows the internal base-scoped error also serializes as `field: null`. Both roots use the exact message `Cannot create payment terms with multiple payment schedules.`, with create/update-specific unsuccessful codes.
-- customer payment method live captures remain blocked on `read_customer_payment_methods` / `write_customer_payment_methods` even though `read_customers`, `write_customers`, and `write_orders` are present on the 2026-04-28 probe. Root introspection confirms the HAR-365 mutations exist on the configured 2025-01 API, but live success paths still need isolated test payment methods and no-recipient/customer-safe email coverage before real captures can be checked in.
+- A 2026-07-02 salvage capture restored the old payment-terms create-on-order, update-missing, delete-owner-cascade, and paymentReminderSend payload-shape parity scenarios as live Shopify recordings rather than local-runtime evidence. The standalone missing `paymentTermsUpdate` branch now matches live Shopify's `field: null`, `message: "Could not find payment terms."`, and `PAYMENT_TERMS_UPDATE_UNSUCCESSFUL` payload.
+- customer payment method live captures remain blocked on `read_customer_payment_methods` / `write_customer_payment_methods` even though `read_customers`, `write_customers`, and `write_orders` are present. The checked-in conformance app config now requests the missing customer-payment-method scopes, but an unattended `corepack pnpm exec shopify app deploy --allow-updates` attempt on 2026-07-02 stopped at interactive Shopify device-code login. The refreshed `customer-payment-method-access-probe` fixture records the active token still lacks both scopes: `customerPaymentMethod(id:)` returns `ACCESS_DENIED` requiring `read_customer_payment_methods`, and `customerPaymentMethodRemoteCreate` returns `ACCESS_DENIED` requiring `write_customer_payment_methods`. Root introspection confirms the HAR-365 mutations exist on the configured Admin API, but live success paths still need a reauthorized token, isolated test payment methods, and no-recipient/customer-safe email coverage before real captures can be checked in.
 - HAR-365 local runtime support stages customer payment-method writes without runtime Shopify calls: credit-card and PayPal roots store scrubbed instrument shells, remote create stores an incomplete `instrument: null` method, duplication uses a non-secret proxy token, update-url returns a non-deliverable `shopify-draft-proxy.local` URL, revoke blocks methods with local subscription-contract links, marks contract-free active methods with `CUSTOMER_REVOKED`, treats already-revoked methods idempotently, and payment reminders record a local intent only.
 - Duplication data and update URLs must remain local/synthetic in runtime support; do not fetch real encrypted duplication data or expiring customer payment update links unless recording an intentional scrubbed conformance fixture with suitable scopes and cleanup.
 - Revoked payment methods must stay hidden from root and customer-owned lookups unless `showRevoked: true` is supplied. `customerPaymentMethodSendUpdateEmail` and `paymentReminderSend` are locally buffered/staged customer-visible side effects; the runtime must not deliver customer email upstream outside explicit commit replay.
@@ -3215,6 +3216,18 @@ re-enabling it, and re-enabling it with `pin: true` all returned the same
 pinned definitions, the `pin: true` re-enable returned empty `userErrors` and
 `pinnedPosition: 21`; it did not return `PINNED_LIMIT_REACHED`, and downstream
 `metafieldDefinition(id:)` by the original id still resolved the definition.
+
+Admin GraphQL 2026-04 introspection on `harry-test-heelo.myshopify.com` omits
+older arguments such as `visibleToStorefrontApi` and `useAsCollectionCondition`,
+but live execution still accepts them. `visibleToStorefrontApi: false` on the
+PRODUCT `facts` / `isbn` template returns a successful payload with
+`access.storefront: NONE`, and `useAsCollectionCondition: true` on an ineligible
+template returns `INVALID_CAPABILITY` for `smart_collection_condition`.
+`forceEnable` and `useAsAdminFilter` are rejected by public schema validation
+before resolver execution, so checked-in parity evidence should not claim
+payload parity for those retired arguments. If the proxy keeps them as local
+compatibility inputs, cover that behavior with runtime tests rather than
+Shopify parity targets.
 
 Practical rule:
 
@@ -3508,21 +3521,23 @@ Practical rule:
 - model async duplicate as a local `ProductDuplicateOperation` whose mutation response is created/pending-shaped and whose helper read exposes completion; do not route supported async duplicate writes upstream
 - keep `productDuplicateJob(id:)` as the older unknown-job compatibility helper unless new evidence links it to current async duplicate operations
 
-## 75a. Async `productDelete` starts pending but duplicate errors use nullable fields
+## 75a. Async `productDelete` starts pending but immediate product visibility is timing-sensitive
 
 HAR-932 captured `productDelete(input:, synchronous: false)` on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`.
+A refreshed 2026-04 capture against the same store showed the operation can complete before the immediate downstream product read.
 
 Captured facts:
 
 - the mutation payload returns `deletedProductId: null`, `productDeleteOperation.status: CREATED`, and empty `userErrors`
-- the product remains visible to an immediate downstream `product(id:)` read after the async delete mutation
+- the 2025-01 capture kept the product visible to an immediate downstream `product(id:)` read after the async delete mutation
+- the refreshed 2026-04 capture returned `product: null` for that immediate downstream read, so local timing should prefer the completed-before-read branch instead of requiring a visible pending product
 - a second async delete for the same product while the operation is pending returns `productDeleteOperation: null` and a public `UserError` with `field: null` and message `Another operation already in progress. Please wait until current one is finished.`
 - the public 2025-01 `UserError` selected under `productDelete` / `ProductDeleteOperation.userErrors` does not expose a `code` field
 - helper reads can advance quickly: the capture saw `productOperation(id:)` with status `ACTIVE` and `node(id:)` with status `COMPLETE`; the final cleanup poll saw `productOperation(id:)` as `COMPLETE` with `deletedProductId`
 
 Practical rule:
 
-- model async delete with an initial `ProductDeleteOperation` response, keep the product visible immediately, reject duplicate pending operations with the nullable-field public userError shape, and expose completed readback through `productOperation(id:)` / `node(id:)` without runtime Shopify writes
+- model async delete with an initial `ProductDeleteOperation` response, tombstone the product for immediate local `product(id:)` reads, reject duplicate pending operations with the nullable-field public userError shape while the local operation is recorded, and expose completed readback through `productOperation(id:)` / `node(id:)` without runtime Shopify writes
 
 ## 76. `locationAdd` required input errors are parser-level, but country validation is schema-sensitive
 
@@ -3833,7 +3848,31 @@ Practical rule:
   so repeated-create parity must wait for a scope-capable dev-store credential
   rather than being replaced with local-runtime evidence
 
-## 88. Standard metafield-definition immutable fields return field-specific public errors
+## 88. appRevokeAccessScopes validation nulls revoked and prioritizes unknown scopes
+
+Admin GraphQL 2026-04 live capture against `harry-test-heelo.myshopify.com`
+records safe `appRevokeAccessScopes` validation probes that do not revoke real
+app grants:
+
+- `scopes: ["fake_scope"]` returns `revoked: null` and `UNKNOWN_SCOPES` on
+  `["scopes"]`
+- `scopes: ["read_products", "fake_scope"]` also returns only
+  `UNKNOWN_SCOPES`; the unknown-handle guard takes precedence over required
+  scope rejection
+- `scopes: ["read_products"]` returns `revoked: null` and
+  `CANNOT_REVOKE_REQUIRED_SCOPES` on `["scopes"]`
+
+Practical rule:
+
+- failed `appRevokeAccessScopes` validation should project `revoked: null`, not
+  an empty list
+- do not accumulate required-scope errors when the same request contains an
+  unknown scope handle
+- keep optional-grant success as runtime-test-backed until a disposable app
+  grant can be revoked and restored safely; do not forge captured parity for
+  that branch
+
+## 89. Standard metafield-definition immutable fields return field-specific public errors
 
 Admin GraphQL 2026-04 live capture against `harry-test-heelo.myshopify.com`
 records `metafieldDefinitionUpdate` on the standard product subtitle definition
@@ -3849,6 +3888,14 @@ The same capture records app-reserved namespace definition deletes without
 `RESERVED_NAMESPACE_ORPHANED_METAFIELDS` and message
 `Deleting a definition in a reserved namespace must have deleteAllAssociatedMetafields set to true.`
 
+A 2025-01 live input-validation capture with the current conformance app accepts
+PRODUCT `metafieldDefinitionCreate` in the literal `shopify_standard` and
+`protected` namespaces, returns empty `userErrors`, and allows immediate cleanup
+with `metafieldDefinitionDelete(deleteAllAssociatedMetafields: true)`. The proxy
+still keeps a conservative local `RESERVED` guard for those business namespaces,
+with focused Rust integration coverage instead of claiming those branches as
+strict Shopify parity.
+
 Practical rule:
 
 - model the public field-specific metafieldDefinitionUpdate errors for standard
@@ -3856,3 +3903,25 @@ Practical rule:
   `["definition"]` error
 - keep the app-reserved namespace delete message aligned with the public
   2026-04 capture, not older/internal wording
+
+## 89. `locationActivate` limit is public-capturable, ongoing relocation was not
+
+Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` can produce a real
+`locationActivate` `LOCATION_LIMIT` branch by creating a disposable active
+location, deactivating it, filling the active merchant-managed location cap, and
+then activating the inactive target. The captured userError is
+`field: ["locationId"]`, `code: LOCATION_LIMIT`, and message
+`Shop has reached its location limit.`
+
+A focused attempt to create `HAS_ONGOING_RELOCATION` through public Admin
+GraphQL did not expose that state: a stocked source location deactivated with a
+destination relocation returned synchronously with `hasActiveInventory: false`,
+and immediate `locationActivate` on the source succeeded with no userErrors.
+
+Practical rule:
+
+- derive location cap state from a live/cassette-backed
+  `StorePropertiesLocationLimitStatus` read rather than synthetic fixture IDs
+- keep `HAS_ONGOING_RELOCATION` as runtime-test-only behavior until a
+  deterministic public or approved disposable-store setup can leave a real
+  incomplete relocation job observable through `locationActivate`

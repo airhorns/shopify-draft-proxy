@@ -3,7 +3,7 @@ use super::*;
 pub(in crate::proxy) const MODELED_FUNCTION_APP_ID: &str = "347082227713";
 
 const FUNCTION_HYDRATE_BY_ID_QUERY: &str = "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n";
-const FUNCTION_HYDRATE_BY_HANDLE_QUERY: &str = "query FunctionHydrateByHandle {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        apiKey\n      }\n    }\n  }\n}\n";
+const FUNCTION_HYDRATE_BY_HANDLE_QUERY: &str = "query FunctionHydrateByHandle {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
 
 impl DraftProxy {
     pub(in crate::proxy) fn functions_metadata_mutation_data(

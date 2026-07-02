@@ -1,0 +1,417 @@
+{
+  "scenarioId": "inventory-adjust-on-hand-name-mirrors",
+  "operationNames": ["productSet", "inventoryAdjustQuantities", "product", "productVariant", "inventoryItem"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "mutation-side-effect-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-adjust-on-hand-name-mirrors.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-adjust-on-hand-name-mirrors-setup.graphql",
+    "apiVersion": "2026-04",
+    "variables": {
+      "input": {
+        "title": "Inventory adjust on-hand mirror parity seed",
+        "status": "DRAFT",
+        "productOptions": [
+          {
+            "name": "Title",
+            "position": 1,
+            "values": [{ "name": "Default Title" }]
+          }
+        ],
+        "variants": [
+          {
+            "optionValues": [{ "optionName": "Title", "name": "Default Title" }],
+            "inventoryItem": {
+              "tracked": true,
+              "requiresShipping": true
+            },
+            "inventoryQuantities": [
+              {
+                "locationId": "gid://shopify/Location/1",
+                "name": "available",
+                "quantity": 0
+              }
+            ]
+          }
+        ]
+      },
+      "synchronous": true
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "damaged-adjust-payload",
+        "capturePath": "$.cases.damaged.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryAdjustmentGroup.changes[*].item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "The live fixture stores disposable Shopify inventory item IDs while the proxy uses a session-local synthetic productSet inventory item."
+          },
+          {
+            "path": "$.inventoryAdjustmentGroup.changes[*].location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The live fixture stores the shop's default location while the proxy uses its local parity setup location."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-on-hand-name-mirrors-adjust.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "damaged",
+              "reason": "damaged",
+              "changes": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "delta": 2,
+                  "changeFromQuantity": 0,
+                  "ledgerDocumentUri": {
+                    "fromCapturePath": "$.cases.damaged.variables.input.changes[0].ledgerDocumentUri"
+                  }
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-adjust-on-hand-name-mirrors-damaged-parity"
+          }
+        }
+      },
+      {
+        "name": "damaged-downstream-read",
+        "capturePath": "$.cases.damaged.downstreamRead.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productVariant.inventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The live fixture stores Shopify write timestamps while the proxy uses deterministic local inventory timestamps."
+          },
+          {
+            "path": "$.inventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The live fixture stores Shopify write timestamps while the proxy uses deterministic local inventory timestamps."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-on-hand-name-mirrors-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.id"
+            },
+            "variantId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].id"
+            },
+            "inventoryItemId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "reserved-adjust-payload",
+        "capturePath": "$.cases.reserved.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryAdjustmentGroup.changes[*].item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "The live fixture stores disposable Shopify inventory item IDs while the proxy uses a session-local synthetic productSet inventory item."
+          },
+          {
+            "path": "$.inventoryAdjustmentGroup.changes[*].location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The live fixture stores the shop's default location while the proxy uses its local parity setup location."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-on-hand-name-mirrors-adjust.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "reserved",
+              "reason": "reservation_created",
+              "changes": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "delta": 3,
+                  "changeFromQuantity": 0,
+                  "ledgerDocumentUri": {
+                    "fromCapturePath": "$.cases.reserved.variables.input.changes[0].ledgerDocumentUri"
+                  }
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-adjust-on-hand-name-mirrors-reserved-parity"
+          }
+        }
+      },
+      {
+        "name": "reserved-downstream-read",
+        "capturePath": "$.cases.reserved.downstreamRead.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productVariant.inventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The live fixture stores Shopify write timestamps while the proxy uses deterministic local inventory timestamps."
+          },
+          {
+            "path": "$.inventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The live fixture stores Shopify write timestamps while the proxy uses deterministic local inventory timestamps."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-on-hand-name-mirrors-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.id"
+            },
+            "variantId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].id"
+            },
+            "inventoryItemId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "quality-control-adjust-payload",
+        "capturePath": "$.cases.qualityControl.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryAdjustmentGroup.changes[*].item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "The live fixture stores disposable Shopify inventory item IDs while the proxy uses a session-local synthetic productSet inventory item."
+          },
+          {
+            "path": "$.inventoryAdjustmentGroup.changes[*].location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The live fixture stores the shop's default location while the proxy uses its local parity setup location."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-on-hand-name-mirrors-adjust.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "quality_control",
+              "reason": "quality_control",
+              "changes": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "delta": 4,
+                  "changeFromQuantity": 0,
+                  "ledgerDocumentUri": {
+                    "fromCapturePath": "$.cases.qualityControl.variables.input.changes[0].ledgerDocumentUri"
+                  }
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-adjust-on-hand-name-mirrors-quality-control-parity"
+          }
+        }
+      },
+      {
+        "name": "quality-control-downstream-read",
+        "capturePath": "$.cases.qualityControl.downstreamRead.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productVariant.inventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The live fixture stores Shopify write timestamps while the proxy uses deterministic local inventory timestamps."
+          },
+          {
+            "path": "$.inventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The live fixture stores Shopify write timestamps while the proxy uses deterministic local inventory timestamps."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-on-hand-name-mirrors-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.id"
+            },
+            "variantId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].id"
+            },
+            "inventoryItemId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "safety-stock-adjust-payload",
+        "capturePath": "$.cases.safetyStock.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryAdjustmentGroup.changes[*].item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "The live fixture stores disposable Shopify inventory item IDs while the proxy uses a session-local synthetic productSet inventory item."
+          },
+          {
+            "path": "$.inventoryAdjustmentGroup.changes[*].location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The live fixture stores the shop's default location while the proxy uses its local parity setup location."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-on-hand-name-mirrors-adjust.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "safety_stock",
+              "reason": "safety_stock",
+              "changes": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "delta": 5,
+                  "changeFromQuantity": 0,
+                  "ledgerDocumentUri": {
+                    "fromCapturePath": "$.cases.safetyStock.variables.input.changes[0].ledgerDocumentUri"
+                  }
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-adjust-on-hand-name-mirrors-safety-stock-parity"
+          }
+        }
+      },
+      {
+        "name": "safety-stock-downstream-read",
+        "capturePath": "$.cases.safetyStock.downstreamRead.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productVariant.inventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The live fixture stores Shopify write timestamps while the proxy uses deterministic local inventory timestamps."
+          },
+          {
+            "path": "$.inventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The live fixture stores Shopify write timestamps while the proxy uses deterministic local inventory timestamps."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-on-hand-name-mirrors-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.id"
+            },
+            "variantId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].id"
+            },
+            "inventoryItemId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "incoming-adjust-payload",
+        "capturePath": "$.cases.incoming.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryAdjustmentGroup.changes[*].item.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "The live fixture stores disposable Shopify inventory item IDs while the proxy uses a session-local synthetic productSet inventory item."
+          },
+          {
+            "path": "$.inventoryAdjustmentGroup.changes[*].location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The live fixture stores the shop's default location while the proxy uses its local parity setup location."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-on-hand-name-mirrors-adjust.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "incoming",
+              "reason": "received",
+              "changes": [
+                {
+                  "inventoryItemId": {
+                    "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+                  },
+                  "locationId": "gid://shopify/Location/1",
+                  "delta": 6,
+                  "changeFromQuantity": 0,
+                  "ledgerDocumentUri": {
+                    "fromCapturePath": "$.cases.incoming.variables.input.changes[0].ledgerDocumentUri"
+                  }
+                }
+              ]
+            },
+            "idempotencyKey": "inventory-adjust-on-hand-name-mirrors-incoming-parity"
+          }
+        }
+      },
+      {
+        "name": "incoming-downstream-read",
+        "capturePath": "$.cases.incoming.downstreamRead.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productVariant.inventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The live fixture stores Shopify write timestamps while the proxy uses deterministic local inventory timestamps."
+          },
+          {
+            "path": "$.inventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The live fixture stores Shopify write timestamps while the proxy uses deterministic local inventory timestamps."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-on-hand-name-mirrors-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.id"
+            },
+            "variantId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].id"
+            },
+            "inventoryItemId": {
+              "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].inventoryItem.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Captured Shopify Admin GraphQL 2026-04 behavior for inventoryAdjustQuantities on quantity names that belong to on_hand. Adjusting damaged, reserved, quality_control, and safety_stock returns the submitted quantity row plus a companion on_hand row and updates downstream inventoryLevels.on_hand without changing available-backed productVariant.inventoryQuantity or product totalInventory. The incoming control remains a single incoming row and does not add an on_hand companion."
+}

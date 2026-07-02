@@ -1,6 +1,6 @@
 {
   "scenarioId": "functions-validation-update-metafields-upsert",
-  "capturedAt": "2026-05-07T08:02:25.898Z",
+  "capturedAt": "2026-06-30T13:24:25.463Z",
   "source": "live-shopify",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
@@ -109,6 +109,95 @@
       }
     }
   },
+  "functionHydrate": {
+    "query": "query FunctionHydrateByHandle {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "handle": "conformance-validation",
+      "apiType": "VALIDATION"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopifyFunctions": {
+            "nodes": [
+              {
+                "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                "title": "conformance-payment-customization",
+                "handle": "conformance-payment-customization",
+                "apiType": "payment_customization",
+                "description": "conformance-payment-customization",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "title": "conformance-validation",
+                "handle": "conformance-validation",
+                "apiType": "cart_checkout_validation",
+                "description": "conformance-validation",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                "title": "conformance-cart-transform",
+                "handle": "conformance-cart-transform",
+                "apiType": "cart_transform",
+                "description": "conformance-cart-transform",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+                "title": "conformance-discount",
+                "handle": "conformance-discount",
+                "apiType": "discount",
+                "description": "conformance-discount",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
   "createInitial": {
     "query": "mutation ValidationUpdateMetafieldsUpsertSetup($validation: ValidationCreateInput!) {\n  validationCreate(validation: $validation) {\n    validation {\n      id\n      title\n      metafields(first: 5) {\n        nodes {\n          namespace\n          key\n          type\n          value\n          updatedAt\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
@@ -137,7 +226,7 @@
         "data": {
           "validationCreate": {
             "validation": {
-              "id": "gid://shopify/Validation/87195954",
+              "id": "gid://shopify/Validation/112951602",
               "title": "Validation metafields upsert original",
               "metafields": {
                 "nodes": [
@@ -146,14 +235,14 @@
                     "key": "mode",
                     "type": "single_line_text_field",
                     "value": "strict",
-                    "updatedAt": "2026-05-07T08:02:25Z"
+                    "updatedAt": "2026-06-30T13:24:24Z"
                   },
                   {
                     "namespace": "custom",
                     "key": "color",
                     "type": "single_line_text_field",
                     "value": "blue",
-                    "updatedAt": "2026-05-07T08:02:25Z"
+                    "updatedAt": "2026-06-30T13:24:24Z"
                   }
                 ]
               }
@@ -178,7 +267,7 @@
   "updateTitleOnly": {
     "query": "mutation ValidationUpdateMetafieldsUpsert($id: ID!, $validation: ValidationUpdateInput!) {\n  validationUpdate(id: $id, validation: $validation) {\n    validation {\n      id\n      title\n      metafields(first: 5) {\n        nodes {\n          namespace\n          key\n          type\n          value\n          updatedAt\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/Validation/87195954",
+      "id": "gid://shopify/Validation/112951602",
       "validation": {
         "title": "Validation metafields upsert renamed"
       }
@@ -189,7 +278,7 @@
         "data": {
           "validationUpdate": {
             "validation": {
-              "id": "gid://shopify/Validation/87195954",
+              "id": "gid://shopify/Validation/112951602",
               "title": "Validation metafields upsert renamed",
               "metafields": {
                 "nodes": [
@@ -198,14 +287,14 @@
                     "key": "mode",
                     "type": "single_line_text_field",
                     "value": "strict",
-                    "updatedAt": "2026-05-07T08:02:25Z"
+                    "updatedAt": "2026-06-30T13:24:24Z"
                   },
                   {
                     "namespace": "custom",
                     "key": "color",
                     "type": "single_line_text_field",
                     "value": "blue",
-                    "updatedAt": "2026-05-07T08:02:25Z"
+                    "updatedAt": "2026-06-30T13:24:24Z"
                   }
                 ]
               }
@@ -230,14 +319,14 @@
   "readAfterTitleOnly": {
     "query": "query ValidationUpdateMetafieldsUpsertRead($id: ID!) {\n  validation(id: $id) {\n    id\n    title\n    metafields(first: 5) {\n      nodes {\n        namespace\n        key\n        type\n        value\n        updatedAt\n      }\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/Validation/87195954"
+      "id": "gid://shopify/Validation/112951602"
     },
     "response": {
       "status": 200,
       "payload": {
         "data": {
           "validation": {
-            "id": "gid://shopify/Validation/87195954",
+            "id": "gid://shopify/Validation/112951602",
             "title": "Validation metafields upsert renamed",
             "metafields": {
               "nodes": [
@@ -246,14 +335,14 @@
                   "key": "mode",
                   "type": "single_line_text_field",
                   "value": "strict",
-                  "updatedAt": "2026-05-07T08:02:25Z"
+                  "updatedAt": "2026-06-30T13:24:24Z"
                 },
                 {
                   "namespace": "custom",
                   "key": "color",
                   "type": "single_line_text_field",
                   "value": "blue",
-                  "updatedAt": "2026-05-07T08:02:25Z"
+                  "updatedAt": "2026-06-30T13:24:24Z"
                 }
               ]
             }
@@ -265,7 +354,7 @@
             "actualQueryCost": 5,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1992,
+              "currentlyAvailable": 1991,
               "restoreRate": 100
             }
           }
@@ -276,7 +365,7 @@
   "updateEmpty": {
     "query": "mutation ValidationUpdateMetafieldsUpsert($id: ID!, $validation: ValidationUpdateInput!) {\n  validationUpdate(id: $id, validation: $validation) {\n    validation {\n      id\n      title\n      metafields(first: 5) {\n        nodes {\n          namespace\n          key\n          type\n          value\n          updatedAt\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/Validation/87195954",
+      "id": "gid://shopify/Validation/112951602",
       "validation": {
         "metafields": []
       }
@@ -287,7 +376,7 @@
         "data": {
           "validationUpdate": {
             "validation": {
-              "id": "gid://shopify/Validation/87195954",
+              "id": "gid://shopify/Validation/112951602",
               "title": "Validation metafields upsert renamed",
               "metafields": {
                 "nodes": [
@@ -296,14 +385,14 @@
                     "key": "mode",
                     "type": "single_line_text_field",
                     "value": "strict",
-                    "updatedAt": "2026-05-07T08:02:25Z"
+                    "updatedAt": "2026-06-30T13:24:24Z"
                   },
                   {
                     "namespace": "custom",
                     "key": "color",
                     "type": "single_line_text_field",
                     "value": "blue",
-                    "updatedAt": "2026-05-07T08:02:25Z"
+                    "updatedAt": "2026-06-30T13:24:24Z"
                   }
                 ]
               }
@@ -328,14 +417,14 @@
   "readAfterEmpty": {
     "query": "query ValidationUpdateMetafieldsUpsertRead($id: ID!) {\n  validation(id: $id) {\n    id\n    title\n    metafields(first: 5) {\n      nodes {\n        namespace\n        key\n        type\n        value\n        updatedAt\n      }\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/Validation/87195954"
+      "id": "gid://shopify/Validation/112951602"
     },
     "response": {
       "status": 200,
       "payload": {
         "data": {
           "validation": {
-            "id": "gid://shopify/Validation/87195954",
+            "id": "gid://shopify/Validation/112951602",
             "title": "Validation metafields upsert renamed",
             "metafields": {
               "nodes": [
@@ -344,14 +433,14 @@
                   "key": "mode",
                   "type": "single_line_text_field",
                   "value": "strict",
-                  "updatedAt": "2026-05-07T08:02:25Z"
+                  "updatedAt": "2026-06-30T13:24:24Z"
                 },
                 {
                   "namespace": "custom",
                   "key": "color",
                   "type": "single_line_text_field",
                   "value": "blue",
-                  "updatedAt": "2026-05-07T08:02:25Z"
+                  "updatedAt": "2026-06-30T13:24:24Z"
                 }
               ]
             }
@@ -363,7 +452,7 @@
             "actualQueryCost": 5,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1992,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -374,7 +463,7 @@
   "updatePartial": {
     "query": "mutation ValidationUpdateMetafieldsUpsert($id: ID!, $validation: ValidationUpdateInput!) {\n  validationUpdate(id: $id, validation: $validation) {\n    validation {\n      id\n      title\n      metafields(first: 5) {\n        nodes {\n          namespace\n          key\n          type\n          value\n          updatedAt\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/Validation/87195954",
+      "id": "gid://shopify/Validation/112951602",
       "validation": {
         "metafields": [
           {
@@ -398,7 +487,7 @@
         "data": {
           "validationUpdate": {
             "validation": {
-              "id": "gid://shopify/Validation/87195954",
+              "id": "gid://shopify/Validation/112951602",
               "title": "Validation metafields upsert renamed",
               "metafields": {
                 "nodes": [
@@ -407,21 +496,21 @@
                     "key": "mode",
                     "type": "single_line_text_field",
                     "value": "relaxed",
-                    "updatedAt": "2026-05-07T08:02:25Z"
+                    "updatedAt": "2026-06-30T13:24:25Z"
                   },
                   {
                     "namespace": "custom",
                     "key": "color",
                     "type": "single_line_text_field",
                     "value": "blue",
-                    "updatedAt": "2026-05-07T08:02:25Z"
+                    "updatedAt": "2026-06-30T13:24:24Z"
                   },
                   {
                     "namespace": "custom",
                     "key": "size",
                     "type": "single_line_text_field",
                     "value": "large",
-                    "updatedAt": "2026-05-07T08:02:25Z"
+                    "updatedAt": "2026-06-30T13:24:25Z"
                   }
                 ]
               }
@@ -446,14 +535,14 @@
   "readAfterPartial": {
     "query": "query ValidationUpdateMetafieldsUpsertRead($id: ID!) {\n  validation(id: $id) {\n    id\n    title\n    metafields(first: 5) {\n      nodes {\n        namespace\n        key\n        type\n        value\n        updatedAt\n      }\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/Validation/87195954"
+      "id": "gid://shopify/Validation/112951602"
     },
     "response": {
       "status": 200,
       "payload": {
         "data": {
           "validation": {
-            "id": "gid://shopify/Validation/87195954",
+            "id": "gid://shopify/Validation/112951602",
             "title": "Validation metafields upsert renamed",
             "metafields": {
               "nodes": [
@@ -462,21 +551,21 @@
                   "key": "mode",
                   "type": "single_line_text_field",
                   "value": "relaxed",
-                  "updatedAt": "2026-05-07T08:02:25Z"
+                  "updatedAt": "2026-06-30T13:24:25Z"
                 },
                 {
                   "namespace": "custom",
                   "key": "color",
                   "type": "single_line_text_field",
                   "value": "blue",
-                  "updatedAt": "2026-05-07T08:02:25Z"
+                  "updatedAt": "2026-06-30T13:24:24Z"
                 },
                 {
                   "namespace": "custom",
                   "key": "size",
                   "type": "single_line_text_field",
                   "value": "large",
-                  "updatedAt": "2026-05-07T08:02:25Z"
+                  "updatedAt": "2026-06-30T13:24:25Z"
                 }
               ]
             }
@@ -499,14 +588,14 @@
   "cleanup": {
     "query": "mutation ValidationUpdateMetafieldsUpsertCleanup($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/Validation/87195954"
+      "id": "gid://shopify/Validation/112951602"
     },
     "response": {
       "status": 200,
       "payload": {
         "data": {
           "validationDelete": {
-            "deletedId": "gid://shopify/Validation/87195954",
+            "deletedId": "gid://shopify/Validation/112951602",
             "userErrors": []
           }
         },
@@ -531,13 +620,28 @@
         "handle": "conformance-validation",
         "apiType": "VALIDATION"
       },
-      "query": "cassette-backed VALIDATION ShopifyFunction lookup captured from the live conformance app",
+      "query": "query FunctionHydrateByHandle {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "shopifyFunctions": {
               "nodes": [
+                {
+                  "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                  "title": "conformance-payment-customization",
+                  "handle": "conformance-payment-customization",
+                  "apiType": "payment_customization",
+                  "description": "conformance-payment-customization",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
                 {
                   "id": "019dd44b-127f-7061-a930-422cbd4a751f",
                   "title": "conformance-validation",
@@ -552,8 +656,49 @@
                     "handle": "hermes-conformance-products",
                     "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
                   }
+                },
+                {
+                  "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                  "title": "conformance-cart-transform",
+                  "handle": "conformance-cart-transform",
+                  "apiType": "cart_transform",
+                  "description": "conformance-cart-transform",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                },
+                {
+                  "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+                  "title": "conformance-discount",
+                  "handle": "conformance-discount",
+                  "apiType": "discount",
+                  "description": "conformance-discount",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "__typename": "App",
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
                 }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
             }
           }
         }

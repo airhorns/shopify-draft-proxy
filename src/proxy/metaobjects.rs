@@ -2157,8 +2157,8 @@ fn metaobject_create_validation_errors(
     if let Some(capabilities) = resolved_object_field(input, "capabilities") {
         // Shopify reports capability guard errors in a fixed capability order
         // (publishable, onlineStore, renderable, translatable) regardless of the
-        // order the caller supplied them, anchored at ["capabilities", <name>]
-        // with a null elementKey.
+        // order the caller supplied them, anchored at
+        // ["metaobject", "capabilities", <name>] with a null elementKey.
         for key in ["publishable", "onlineStore", "renderable", "translatable"] {
             if !capabilities.contains_key(key) {
                 continue;
@@ -2167,9 +2167,14 @@ fn metaobject_create_validation_errors(
                 .as_bool()
                 .unwrap_or(false);
             if !enabled {
+                let message_key = if key == "onlineStore" {
+                    "online_store"
+                } else {
+                    key
+                };
                 errors.push(metaobject_user_error(
-                    vec!["capabilities", key],
-                    "Capability is not enabled on this definition",
+                    vec!["metaobject", "capabilities", key],
+                    &format!("Capability is not enabled: {message_key}"),
                     "CAPABILITY_NOT_ENABLED",
                     Value::Null,
                     Value::Null,

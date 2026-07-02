@@ -3769,7 +3769,7 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
         create_query,
         json!({
             "input": {
-                "email": "har-773-blocked@example.test",
+                "email": "customer-delete-blocked@example.test",
                 "firstName": "Blocked",
                 "lastName": "Delete"
             }
@@ -3795,10 +3795,10 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
         "#,
         json!({
             "order": {
-                "email": "har-773-order@example.test",
+                "email": "customer-delete-order@example.test",
                 "customerId": customer_id,
                 "currency": "CAD",
-                "lineItems": [{ "title": "HAR-773 blocking line", "quantity": 1 }]
+                "lineItems": [{ "title": "Customer delete blocking line", "quantity": 1 }]
             }
         }),
     ));

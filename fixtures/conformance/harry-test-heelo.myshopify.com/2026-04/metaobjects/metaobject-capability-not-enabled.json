@@ -1,0 +1,267 @@
+{
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-06-30T15:18:16.675Z",
+  "scenarioId": "metaobject-capability-not-enabled",
+  "notes": "Live Shopify capture for disabled publishable and onlineStore capability guardrails on metaobject create/update/upsert.",
+  "definitionCreate": {
+    "name": "definition-create",
+    "request": {
+      "query": "mutation MetaobjectCapabilityDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      capabilities {\n        publishable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      metaobjectsCount\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "codex_capability_disabled_1782832694065",
+          "name": "Capability Disabled 1782832694065",
+          "displayNameKey": "title",
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "type": "single_line_text_field",
+              "required": true
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/19482575154",
+            "type": "codex_capability_disabled_1782832694065",
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "metaobjectsCount": 0
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validCreate": {
+    "name": "valid-create",
+    "request": {
+      "query": "mutation MetaobjectCapabilityCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "metaobject": {
+          "type": "codex_capability_disabled_1782832694065",
+          "handle": "existing-1782832694065",
+          "fields": [
+            {
+              "key": "title",
+              "value": "Original"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectCreate": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/203136172338",
+            "handle": "existing-1782832694065",
+            "displayName": "Original"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateOnlineStore": {
+    "name": "update-disabled-online-store",
+    "request": {
+      "query": "mutation MetaobjectCapabilityUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Metaobject/203136172338",
+        "metaobject": {
+          "capabilities": {
+            "onlineStore": {
+              "templateSuffix": "landing"
+            }
+          },
+          "fields": [
+            {
+              "key": "title",
+              "value": "Changed"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectUpdate": {
+          "metaobject": null,
+          "userErrors": [
+            {
+              "field": ["metaobject", "capabilities", "onlineStore"],
+              "message": "Capability is not enabled: online_store",
+              "code": "CAPABILITY_NOT_ENABLED",
+              "elementKey": null,
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "createPublishable": {
+    "name": "create-disabled-publishable",
+    "request": {
+      "query": "mutation MetaobjectCapabilityCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      displayName\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "metaobject": {
+          "type": "codex_capability_disabled_1782832694065",
+          "handle": "rejected-publishable-1782832694065",
+          "capabilities": {
+            "publishable": {
+              "status": "ACTIVE"
+            }
+          },
+          "fields": [
+            {
+              "key": "title",
+              "value": "Rejected"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectCreate": {
+          "metaobject": null,
+          "userErrors": [
+            {
+              "field": ["metaobject", "capabilities", "publishable"],
+              "message": "Capability is not enabled: publishable",
+              "code": "CAPABILITY_NOT_ENABLED",
+              "elementKey": null,
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upsertBoth": {
+    "name": "upsert-disabled-both-capabilities",
+    "request": {
+      "query": "mutation MetaobjectCapabilityUpsert($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "handle": {
+          "type": "codex_capability_disabled_1782832694065",
+          "handle": "upserted-1782832694065"
+        },
+        "metaobject": {
+          "capabilities": {
+            "publishable": {
+              "status": "ACTIVE"
+            },
+            "onlineStore": {
+              "templateSuffix": "landing"
+            }
+          },
+          "fields": [
+            {
+              "key": "title",
+              "value": "Upserted"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectUpsert": {
+          "metaobject": null,
+          "userErrors": [
+            {
+              "field": ["metaobject", "capabilities", "publishable"],
+              "message": "Capability is not enabled: publishable",
+              "code": "CAPABILITY_NOT_ENABLED",
+              "elementKey": null,
+              "elementIndex": null
+            },
+            {
+              "field": ["metaobject", "capabilities", "onlineStore"],
+              "message": "Capability is not enabled: online_store",
+              "code": "CAPABILITY_NOT_ENABLED",
+              "elementKey": null,
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
