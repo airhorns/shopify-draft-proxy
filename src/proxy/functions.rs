@@ -566,6 +566,17 @@ fn payload_error(desc: FunctionPayloadDescriptor, error: Value) -> Value {
     Value::Object(payload)
 }
 
+fn maximum_cart_transforms_error() -> Value {
+    payload_error(
+        CART_TRANSFORM_FUNCTION_PAYLOAD,
+        user_error(
+            ["base"],
+            "The maximum number of cart transforms per shop has been reached.",
+            Some("MAXIMUM_CART_TRANSFORMS"),
+        ),
+    )
+}
+
 fn function_identifier_error(
     desc: FunctionPayloadDescriptor,
     function_id: &Option<String>,
@@ -1625,6 +1636,9 @@ impl DraftProxy {
             Ok(function) => function,
             Err(payload) => return payload,
         };
+        if !self.store.staged.function_cart_transform_order.is_empty() {
+            return maximum_cart_transforms_error();
+        }
         let errors = cart_transform_metafield_errors(field);
         if !errors.is_empty() {
             return json!({ "cartTransform": Value::Null, "userErrors": errors });
