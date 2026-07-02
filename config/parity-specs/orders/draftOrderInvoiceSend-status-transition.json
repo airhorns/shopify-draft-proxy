@@ -1,0 +1,98 @@
+{
+  "scenarioId": "draft-order-invoice-send-status-transition",
+  "operationNames": ["draftOrderCreate", "draftOrderInvoiceSend", "draftOrder"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "lifecycle-parity", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/draft-order-invoice-send-status-transition.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderInvoiceSend-status-transition-create.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-open-draft-with-recipient",
+        "capturePath": "$.create.response.data.draftOrderCreate",
+        "proxyPath": "$.data.draftOrderCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.draftOrder.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "The live store and local proxy allocate independent draft order IDs."
+          },
+          {
+            "path": "$.draftOrder.invoiceUrl",
+            "matcher": "non-empty-string",
+            "reason": "Invoice URLs are generated independently by Shopify and the local proxy."
+          }
+        ]
+      },
+      {
+        "name": "send-invoice-status-transition",
+        "capturePath": "$.send.response.data.draftOrderInvoiceSend",
+        "proxyPath": "$.data.draftOrderInvoiceSend",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderInvoiceSend-status-transition-send.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.draftOrder.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "The live store and local proxy allocate independent draft order IDs."
+          },
+          {
+            "path": "$.draftOrder.invoiceSentAt",
+            "matcher": "iso-timestamp",
+            "reason": "Invoice-send timestamps are generated independently by Shopify and the local proxy."
+          },
+          {
+            "path": "$.draftOrder.invoiceUrl",
+            "matcher": "non-empty-string",
+            "reason": "Invoice URLs are generated independently by Shopify and the local proxy."
+          }
+        ]
+      },
+      {
+        "name": "read-after-send-status-transition",
+        "capturePath": "$.readAfterSend.response.data.draftOrder",
+        "proxyPath": "$.data.draftOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderInvoiceSend-status-transition-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "send-invoice-status-transition",
+              "path": "$.data.draftOrderInvoiceSend.draftOrder.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "The live store and local proxy allocate independent draft order IDs."
+          },
+          {
+            "path": "$.invoiceSentAt",
+            "matcher": "iso-timestamp",
+            "reason": "Invoice-send timestamps are generated independently by Shopify and the local proxy."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 evidence for a successful draftOrderInvoiceSend on a disposable draft with a recipient. Shopify returns status INVOICE_SENT with a non-null invoiceSentAt in the mutation payload and preserves that same transition on an immediate draftOrder(id:) read. The proxy replay earns state through public draftOrderCreate and draftOrderInvoiceSend requests and keeps the send staged locally until explicit commit replay."
+}

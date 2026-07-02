@@ -7,11 +7,12 @@
     "user-errors-parity",
     "runtime-staging",
     "downstream-read-parity",
-    "no-upstream-passthrough",
-    "local-runtime-backed"
+    "no-upstream-passthrough"
   ],
-  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/payments/payment-terms-delete-owner-cascade.json"],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-delete-owner-cascade.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "comparisonMode": "captured-vs-proxy-request",
   "proxyRequest": {
     "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-create.graphql",
@@ -28,26 +29,26 @@
     "targets": [
       {
         "name": "draft-create",
-        "capturePath": "$.draft.expected.create",
-        "proxyPath": "$",
+        "capturePath": "$.draft.expected.create.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate",
         "expectedDifferences": [
           {
-            "path": "$.data.paymentTermsCreate.paymentTerms.id",
+            "path": "$.paymentTerms.id",
             "matcher": "shopify-gid:PaymentTerms",
             "reason": "Shopify and the local proxy generate independent payment terms IDs."
           },
           {
-            "path": "$.data.paymentTermsCreate.paymentTerms.paymentSchedules.nodes[0].id",
+            "path": "$.paymentTerms.paymentSchedules.nodes[0].id",
             "matcher": "shopify-gid:PaymentSchedule",
             "reason": "Shopify and the local proxy generate independent payment schedule IDs."
           },
           {
-            "path": "$.data.paymentTermsCreate.paymentTerms.paymentSchedules.pageInfo.startCursor",
+            "path": "$.paymentTerms.paymentSchedules.pageInfo.startCursor",
             "matcher": "non-empty-string",
             "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
           },
           {
-            "path": "$.data.paymentTermsCreate.paymentTerms.paymentSchedules.pageInfo.endCursor",
+            "path": "$.paymentTerms.paymentSchedules.pageInfo.endCursor",
             "matcher": "non-empty-string",
             "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
           }
@@ -55,11 +56,11 @@
       },
       {
         "name": "draft-delete",
-        "capturePath": "$.draft.expected.delete",
-        "proxyPath": "$",
+        "capturePath": "$.draft.expected.delete.data.paymentTermsDelete",
+        "proxyPath": "$.data.paymentTermsDelete",
         "expectedDifferences": [
           {
-            "path": "$.data.paymentTermsDelete.deletedId",
+            "path": "$.deletedId",
             "matcher": "shopify-gid:PaymentTerms",
             "reason": "Shopify and the local proxy delete their independently generated payment terms IDs."
           }
@@ -77,8 +78,8 @@
       },
       {
         "name": "draft-read-after-delete",
-        "capturePath": "$.draft.expected.readAfterDelete",
-        "proxyPath": "$",
+        "capturePath": "$.draft.expected.readAfterDelete.data.draftOrder",
+        "proxyPath": "$.data.draftOrder",
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-terms-owner-cascade-draft-read.graphql",
           "variables": {
@@ -88,11 +89,11 @@
       },
       {
         "name": "order-create",
-        "capturePath": "$.order.expected.orderCreate",
-        "proxyPath": "$",
+        "capturePath": "$.order.expected.orderCreate.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
         "expectedDifferences": [
           {
-            "path": "$.data.orderCreate.order.id",
+            "path": "$.order.id",
             "matcher": "shopify-gid:Order",
             "reason": "Shopify and the local proxy generate independent order IDs."
           }
@@ -104,26 +105,26 @@
       },
       {
         "name": "order-create-terms",
-        "capturePath": "$.order.expected.create",
-        "proxyPath": "$",
+        "capturePath": "$.order.expected.create.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate",
         "expectedDifferences": [
           {
-            "path": "$.data.paymentTermsCreate.paymentTerms.id",
+            "path": "$.paymentTerms.id",
             "matcher": "shopify-gid:PaymentTerms",
             "reason": "Shopify and the local proxy generate independent payment terms IDs."
           },
           {
-            "path": "$.data.paymentTermsCreate.paymentTerms.paymentSchedules.nodes[0].id",
+            "path": "$.paymentTerms.paymentSchedules.nodes[0].id",
             "matcher": "shopify-gid:PaymentSchedule",
             "reason": "Shopify and the local proxy generate independent payment schedule IDs."
           },
           {
-            "path": "$.data.paymentTermsCreate.paymentTerms.paymentSchedules.pageInfo.startCursor",
+            "path": "$.paymentTerms.paymentSchedules.pageInfo.startCursor",
             "matcher": "non-empty-string",
             "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
           },
           {
-            "path": "$.data.paymentTermsCreate.paymentTerms.paymentSchedules.pageInfo.endCursor",
+            "path": "$.paymentTerms.paymentSchedules.pageInfo.endCursor",
             "matcher": "non-empty-string",
             "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
           }
@@ -143,11 +144,11 @@
       },
       {
         "name": "order-delete",
-        "capturePath": "$.order.expected.delete",
-        "proxyPath": "$",
+        "capturePath": "$.order.expected.delete.data.paymentTermsDelete",
+        "proxyPath": "$.data.paymentTermsDelete",
         "expectedDifferences": [
           {
-            "path": "$.data.paymentTermsDelete.deletedId",
+            "path": "$.deletedId",
             "matcher": "shopify-gid:PaymentTerms",
             "reason": "Shopify and the local proxy delete their independently generated payment terms IDs."
           }
@@ -166,11 +167,11 @@
       },
       {
         "name": "order-read-after-delete",
-        "capturePath": "$.order.expected.readAfterDelete",
-        "proxyPath": "$",
+        "capturePath": "$.order.expected.readAfterDelete.data.order",
+        "proxyPath": "$.data.order",
         "expectedDifferences": [
           {
-            "path": "$.data.order.id",
+            "path": "$.id",
             "matcher": "shopify-gid:Order",
             "reason": "Shopify and the local proxy generate independent order IDs."
           }
@@ -187,8 +188,8 @@
       },
       {
         "name": "missing-delete-error-code",
-        "capturePath": "$.order.expected.missingDelete",
-        "proxyPath": "$",
+        "capturePath": "$.order.expected.missingDelete.data.paymentTermsDelete",
+        "proxyPath": "$.data.paymentTermsDelete",
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-delete.graphql",
           "variablesCapturePath": "$.order.missingDelete.variables"
@@ -196,5 +197,5 @@
       }
     ]
   },
-  "notes": "Executable local-runtime parity for paymentTermsDelete owner cleanup. DraftOrder owner state is cassette-hydrated before local staging; Order owner state is created locally. Both owner reads assert paymentTerms null after delete, and the missing-id branch asserts the captured field-null PAYMENT_TERMS_DELETE_UNSUCCESSFUL userError payload."
+  "notes": "Live 2026-04 Shopify capture for paymentTermsDelete owner cleanup. Disposable DraftOrder and Order owners are created through public Admin GraphQL, payment terms are created and deleted, owner reads assert paymentTerms null after delete, and the missing-id branch asserts the captured field-null PAYMENT_TERMS_DELETE_UNSUCCESSFUL userError payload."
 }

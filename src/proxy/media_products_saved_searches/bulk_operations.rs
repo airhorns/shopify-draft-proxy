@@ -40,6 +40,15 @@ impl DraftProxy {
             .insert(resource_id_path_tail(id).to_string(), jsonl);
     }
 
+    fn next_bulk_operation_gid(&mut self) -> String {
+        let id = shopify_gid(
+            "BulkOperation",
+            7_000_000_000_000_u64 + self.next_synthetic_id,
+        );
+        self.next_synthetic_id += 1;
+        id
+    }
+
     fn bulk_operation_run_query_result_jsonl(&self, query_text: &str) -> String {
         let Some(document) = parsed_document(query_text, &BTreeMap::new()) else {
             return String::new();
@@ -282,11 +291,11 @@ impl DraftProxy {
         if let Some(operation_id) = self.throttled_bulk_operation_id("QUERY", request) {
             let payload = json!({
                 "bulkOperation": null,
-                "userErrors": [{
-                    "field": null,
-                    "message": format!("A bulk query operation for this app and shop is already in progress: {operation_id}."),
-                    "code": "OPERATION_IN_PROGRESS"
-                }]
+                "userErrors": [user_error(
+                    Value::Null,
+                    &format!("A bulk query operation for this app and shop is already in progress: {operation_id}."),
+                    Some("OPERATION_IN_PROGRESS"),
+                )]
             });
             return ok_json(
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
@@ -321,11 +330,7 @@ impl DraftProxy {
             );
         }
 
-        let id = shopify_gid(
-            "BulkOperation",
-            7_000_000_000_000_u64 + self.next_synthetic_id,
-        );
-        self.next_synthetic_id += 1;
+        let id = self.next_bulk_operation_gid();
         let created_at = self.next_product_timestamp();
         let result_jsonl = self.bulk_operation_run_query_result_jsonl(&query_text);
         let (object_count, file_size) = bulk_operation_result_metadata(&result_jsonl);
@@ -442,11 +447,11 @@ impl DraftProxy {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
                 &payload_selection,
-                vec![json!({
-                    "field": null,
-                    "message": format!("A bulk mutation operation for this app and shop is already in progress: {operation_id}."),
-                    "code": "OPERATION_IN_PROGRESS"
-                })],
+                vec![user_error(
+                    Value::Null,
+                    &format!("A bulk mutation operation for this app and shop is already in progress: {operation_id}."),
+                    Some("OPERATION_IN_PROGRESS"),
+                )],
             );
         }
         if staged_upload_file_size.is_none() {
@@ -457,11 +462,7 @@ impl DraftProxy {
             );
         }
 
-        let id = shopify_gid(
-            "BulkOperation",
-            7_000_000_000_000_u64 + self.next_synthetic_id,
-        );
-        self.next_synthetic_id += 1;
+        let id = self.next_bulk_operation_gid();
         let created_at = self.next_product_timestamp();
         let mut terminal_operation = bulk_operation_record_with_type(
             &id,
@@ -554,7 +555,11 @@ impl DraftProxy {
         let Some(existing_operation) = self.bulk_operation_by_id(&id).cloned() else {
             let payload = json!({
                 "bulkOperation": null,
-                "userErrors": [{ "field": ["id"], "message": "Bulk operation does not exist" }]
+                "userErrors": [user_error_omit_code(
+                    ["id"],
+                    "Bulk operation does not exist",
+                    None,
+                )]
             });
             return ok_json(
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
@@ -568,13 +573,14 @@ impl DraftProxy {
         if bulk_operation_status_is_terminal(Some(status)) {
             let payload = json!({
                 "bulkOperation": existing_operation,
-                "userErrors": [{
-                    "field": null,
-                    "message": format!(
+                "userErrors": [user_error_omit_code(
+                    Value::Null,
+                    &format!(
                         "A bulk operation cannot be canceled when it is {}",
                         status.to_ascii_lowercase()
-                    )
-                }]
+                    ),
+                    None,
+                )]
             });
             return ok_json(
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
@@ -877,13 +883,13 @@ fn bulk_operation_result_metadata(jsonl: &str) -> (String, String) {
 /// the local JSONL synthesizer cannot emulate, surfaced only when no upstream replay is
 /// available (e.g. outside LiveHybrid).
 fn unsupported_bulk_query_root_error(root_name: &str) -> Value {
-    json!({
-        "field": ["query"],
-        "message": format!(
+    user_error(
+        ["query"],
+        &format!(
             "Bulk query root `{root_name}` is accepted by Shopify's schema-driven validator but is not yet supported by the local JSONL synthesizer."
         ),
-        "code": "UNSUPPORTED_IN_PROXY"
-    })
+        Some("UNSUPPORTED_IN_PROXY"),
+    )
 }
 
 fn bulk_operation_run_mutation_document_user_errors(mutation_text: &str) -> Option<Vec<Value>> {

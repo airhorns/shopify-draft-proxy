@@ -56,9 +56,10 @@ Billing behavior:
 
 Access and uninstall behavior:
 
-- `appRevokeAccessScopes` removes locally granted optional scopes from the current app installation. Unknown, non-granted, required, and implied scopes return Shopify-shaped userErrors without partial revocation. Local-runtime missing-source-app coverage is modeled through request-owned source-app context rather than the GraphQL operation name.
+- `appRevokeAccessScopes` removes locally granted optional scopes from the current app installation. Live 2026-04 validation evidence covers unknown handles, required-scope rejection, and mixed unknown-plus-required input: failed validation returns `revoked: null`, and unknown handles take precedence over the required-scope guard. Optional-grant success, non-granted, and implied-scope branches remain runtime-test-backed because recording optional success would revoke a real app grant from the active conformance app.
 - The `appRevokeAccessScopes` missing-source-app branch is Core-source-derived, not real-Shopify-recorded: valid public Admin requests carry source app context, while unauthenticated requests fail before the mutation resolver. Local replay uses `x-shopify-draft-proxy-source-app-missing` and returns `MISSING_SOURCE_APP` on `["id"]` with `No app found on the access token.`.
 - `appUninstall` resolves the target app from `input.id` or the current installation, enforces current-installation visibility and the `apps` scope where needed, marks the target installation uninstalled on success, clears its active access grant, cancels locally staged active/pending subscriptions, and destroys stored delegated tokens.
+- `appUninstall` APP_NOT_FOUND and APP_NOT_INSTALLED userError messages follow Core's `apps.admin.graph_api_errors.app_uninstall` i18n strings (`App not found`, `App is not installed on shop`) rather than the mutation's `add_error_code` placeholder text.
 - Downstream `currentAppInstallation` reads return `null` when the current installation is uninstalled, and app-subscription Node reads show cancelled status for locally cancelled subscriptions.
 
 Delegated-token behavior:
@@ -76,41 +77,31 @@ Synthetic confirmation URLs use `signature=shopify-draft-proxy-local-redacted`. 
 
 - The proxy does not perform real billing, merchant approval, app uninstall, app grant changes, or delegated-token changes during normal runtime.
 - Billing approval, charge activation, subscription proration, usage-charge billing, app-plan enforcement, and Shopify Core chargeability guards are not emulated beyond local staged state and validation evidence.
-- Live success-path captures for billing approval, uninstall, and app grant revocation require explicitly approved disposable credentials. Billing mutation success captures specifically require a disposable billing-capable app/store credential that can use Shopify's Billing API and safely approve test charges; the current custom-app conformance credential cannot exercise those success paths. The recurring-line-item `appSubscriptionLineItemUpdate` rejection is therefore marked Core-source-derived in the parity spec rather than live-recorded.
+- Live success-path captures for billing approval, uninstall, and app grant revocation require explicitly approved disposable credentials. Billing mutation success captures specifically require a disposable billing-capable app/store credential that can use Shopify's Billing API and safely approve test charges; the current custom-app conformance credential cannot exercise those success paths. Local billing lifecycle, uninstall cascade, and access-scope mutation branches are therefore runtime-test-backed rather than represented as captured parity evidence until a suitable live app credential exists.
 - Authorized multi-installation catalog behavior for `appInstallations(...)` remains unsupported without a suitable live grant.
-- No listed app root is registry-only. Validation-only behavior is limited to guardrails that reject before staging and to local-runtime evidence for branches that cannot be exercised safely against the current disposable app credential.
+- No listed app root is registry-only. Validation-only behavior is limited to guardrails that reject before staging and to runtime-test-backed coverage for branches that cannot be exercised safely against the current disposable app credential.
 
 ### Evidence
 
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/apps/app-billing-access-read.json`
-- `fixtures/conformance/local-runtime/2026-04/apps/app-billing-access-local-staging.json`
-- `fixtures/conformance/local-runtime/2026-04/apps/app-purchase-one-time-create-validation.json`
-- `fixtures/conformance/local-runtime/2026-04/apps/app-usage-record-create-cap-and-idempotency.json`
-- `fixtures/conformance/local-runtime/2026-04/apps/app-subscription-line-item-update-validation.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/app-revoke-access-scopes-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-create-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-create-expires-after-parent.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-destroy-codes.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-shop-payload.json`
-- `config/parity-specs/apps/app-billing-access-local-staging.json`
-- `config/parity-specs/apps/app-purchase-one-time-create-validation.json`
-- `config/parity-specs/apps/app-usage-record-create-cap-and-idempotency.json`
-- `config/parity-specs/apps/app-subscription-line-item-update-validation.json`
-- `config/parity-specs/apps/app-revoke-access-scopes-error-codes.json`
-- `config/parity-specs/apps/app-uninstall-error-codes-and-cascade.json`
-- `config/parity-specs/apps/app-subscription-cancel-status-transitions.json`
-- `config/parity-specs/apps/app-subscription-trial-extend-validation.json`
-- `config/parity-specs/apps/delegate-access-token-current-input-local-staging.json`
+- `config/parity-specs/apps/app-revoke-access-scopes-validation.json`
 - `config/parity-specs/apps/delegate-access-token-create-validation.json`
 - `config/parity-specs/apps/delegate-access-token-create-expires-after-parent.json`
 - `config/parity-specs/apps/delegate-access-token-destroy-codes.json`
 - `config/parity-specs/apps/delegate-access-token-shop-payload.json`
 - `tests/unit/app-billing-conformance-fixture.test.ts`
+- `tests/graphql_routes/admin_app.rs`
+- `tests/graphql_routes/admin_app_shipping.rs`
 
 ### Validation
 
-- `corepack pnpm parity -- app-billing-access-local-staging`
-- `corepack pnpm parity -- app-usage-record-create-cap-and-idempotency`
-- `corepack pnpm parity -- app-subscription-line-item-update-validation`
-- `corepack pnpm parity -- delegate-access-token-current-input-local-staging`
+- `cargo test --test graphql_routes admin_app`
+- `cargo test --test graphql_routes admin_app_shipping`
+- `corepack pnpm parity -- app-revoke-access-scopes-validation`
 - `corepack pnpm parity -- delegate-access-token-destroy-codes`
 - `corepack pnpm conformance:check`

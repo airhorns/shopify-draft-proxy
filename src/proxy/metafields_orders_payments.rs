@@ -16,7 +16,6 @@ mod returns;
 pub(in crate::proxy) use self::delivery_settings::*;
 pub(in crate::proxy) use self::events::*;
 pub(in crate::proxy) use self::payment_customizations::*;
-pub(in crate::proxy) use self::payment_reminders::*;
 pub(in crate::proxy) use self::payment_terms::*;
 pub(in crate::proxy) use self::quantity_pricing::*;
 pub(in crate::proxy) use self::quantity_rules::*;
@@ -612,70 +611,10 @@ fn metafields_set_variable_name(query: &str) -> Option<String> {
     None
 }
 
-pub(in crate::proxy) fn metafields_set_reference_values(
-    inputs: &[BTreeMap<String, ResolvedValue>],
-) -> Vec<String> {
-    let mut ids = Vec::new();
-    for input in inputs {
-        let Some(metafield_type) = resolved_string_field(input, "type") else {
-            continue;
-        };
-        let value = resolved_string_field(input, "value").unwrap_or_default();
-        if let Some(inner_type) = metafield_type.strip_prefix("list.") {
-            if metafield_reference_type_name(inner_type).is_some() {
-                ids.extend(metafield_list_items(&value).into_iter().filter_map(|item| {
-                    item.as_str()
-                        .filter(|value| !value.is_empty())
-                        .map(str::to_string)
-                }));
-            }
-        } else if metafield_reference_type_name(&metafield_type).is_some() && !value.is_empty() {
-            ids.push(value);
-        }
-    }
-    ids.sort();
-    ids.dedup();
-    ids
-}
-
-pub(in crate::proxy) fn metafields_set_input_errors<F>(
-    inputs: &[BTreeMap<String, ResolvedValue>],
-    mut reference_exists: F,
-) -> Vec<Value>
-where
-    F: FnMut(&str) -> bool,
-{
-    if inputs.len() > 25 {
-        return vec![metafields_set_path_user_error(
-            vec!["metafields"],
-            "LESS_THAN_OR_EQUAL_TO",
-            "Exceeded the maximum metafields input limit of 25.",
-        )];
-    }
-
-    let mut errors = Vec::new();
-    for (index, input) in inputs.iter().enumerate() {
-        if let Some(error) = metafields_set_input_shape_error(index, input) {
-            errors.push(error);
-            continue;
-        }
-        let Some(metafield_type) = resolved_string_field(input, "type") else {
-            continue;
-        };
-        let value = resolved_string_field(input, "value").unwrap_or_default();
-        errors.extend(metafield_value_user_errors(
-            index,
-            &metafield_type,
-            &value,
-            &mut reference_exists,
-        ));
-    }
-    errors
-}
-
 fn metafields_set_input_shape_error(
     index: usize,
     input: &BTreeMap<String, ResolvedValue>,
+    has_effective_type: bool,
 ) -> Option<Value> {
     let namespace =
         canonical_app_metafield_namespace(resolved_string_field(input, "namespace").as_deref());
@@ -702,7 +641,7 @@ fn metafields_set_input_shape_error(
             "APP_NOT_AUTHORIZED",
             "Access to this namespace and key on Metafields for this resource type is not allowed.",
         ))
-    } else if !input.contains_key("type") {
+    } else if !input.contains_key("type") && !has_effective_type {
         Some(metafields_set_path_user_error(
             vec!["metafields", &index.to_string(), "type"],
             "BLANK",
@@ -914,6 +853,91 @@ fn metafield_json_object_message(metafield_type: &str) -> &'static str {
 }
 
 impl DraftProxy {
+    pub(in crate::proxy) fn metafields_set_effective_type(
+        &self,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<String> {
+        resolved_string_field(input, "type").or_else(|| {
+            let owner_id = resolved_string_field(input, "ownerId")?;
+            let namespace = canonical_app_metafield_namespace(
+                resolved_string_field(input, "namespace").as_deref(),
+            );
+            let key = resolved_string_field(input, "key")?;
+            let owner_type = owner_type_from_gid(&owner_id);
+            self.owner_metafield_definition(&owner_type, &namespace, &key)
+                .and_then(|definition| definition["type"]["name"].as_str().map(str::to_string))
+        })
+    }
+
+    pub(in crate::proxy) fn metafields_set_reference_values(
+        &self,
+        inputs: &[BTreeMap<String, ResolvedValue>],
+    ) -> Vec<String> {
+        let mut ids = Vec::new();
+        for input in inputs {
+            let Some(metafield_type) = self.metafields_set_effective_type(input) else {
+                continue;
+            };
+            let value = resolved_string_field(input, "value").unwrap_or_default();
+            if let Some(inner_type) = metafield_type.strip_prefix("list.") {
+                if metafield_reference_type_name(inner_type).is_some() {
+                    ids.extend(metafield_list_items(&value).into_iter().filter_map(|item| {
+                        item.as_str()
+                            .filter(|value| !value.is_empty())
+                            .map(str::to_string)
+                    }));
+                }
+            } else if metafield_reference_type_name(&metafield_type).is_some() && !value.is_empty()
+            {
+                ids.push(value);
+            }
+        }
+        ids.sort();
+        ids.dedup();
+        ids
+    }
+
+    pub(in crate::proxy) fn metafields_set_input_errors<F>(
+        &self,
+        inputs: &[BTreeMap<String, ResolvedValue>],
+        mut reference_exists: F,
+    ) -> Vec<Value>
+    where
+        F: FnMut(&str) -> bool,
+    {
+        if inputs.len() > METAFIELDS_SET_INPUT_LIMIT {
+            return vec![metafields_set_path_user_error(
+                vec!["metafields"],
+                "LESS_THAN_OR_EQUAL_TO",
+                &format!(
+                    "Exceeded the maximum metafields input limit of {METAFIELDS_SET_INPUT_LIMIT}."
+                ),
+            )];
+        }
+
+        let mut errors = Vec::new();
+        for (index, input) in inputs.iter().enumerate() {
+            let metafield_type = self.metafields_set_effective_type(input);
+            if let Some(error) =
+                metafields_set_input_shape_error(index, input, metafield_type.is_some())
+            {
+                errors.push(error);
+                continue;
+            }
+            let Some(metafield_type) = metafield_type else {
+                continue;
+            };
+            let value = resolved_string_field(input, "value").unwrap_or_default();
+            errors.extend(metafield_value_user_errors(
+                index,
+                &metafield_type,
+                &value,
+                &mut reference_exists,
+            ));
+        }
+        errors
+    }
+
     pub(in crate::proxy) fn metafields_set_definition_user_errors(
         &self,
         inputs: &[BTreeMap<String, ResolvedValue>],

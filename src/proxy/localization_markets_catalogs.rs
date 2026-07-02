@@ -46,13 +46,9 @@ fn market_relation_connection<'a>(
 }
 
 /// Variant-level fixed-price mutations (`priceListFixedPricesAdd`/`Update`/`Delete`)
-/// hydrate their baseline price-list/product/variant records from a recorded
-/// preflight keyed on this sentinel query plus the mutation's own variables. The
-/// capture tooling records the real Shopify preflight payload under this synthetic
-/// key, so the proxy must emit the same sentinel to load the baseline. Mirrors the
-/// Gleam preflight (markets/queries.gleam); the cassette matches query + variables.
-const FIXED_PRICE_VARIANT_PREFLIGHT_QUERY: &str =
-    "hand-synthesized from live capture setup baseline";
+/// hydrate their baseline price-list/product/variant records through a real Admin
+/// GraphQL preflight keyed by the mutation's price list and variant ids.
+const FIXED_PRICE_VARIANT_PREFLIGHT_QUERY: &str = "query MarketsMutationPreflightHydrate($priceListId: ID!, $variantIds: [ID!]!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productVariants: nodes(ids: $variantIds) { __typename ... on ProductVariant { id title sku price compareAtPrice product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } } }";
 
 /// `priceListFixedPricesByProductUpdate` hydrates from the real multi-product
 /// preflight query (the canonical Admin GraphQL form recorded from live Shopify)
@@ -64,24 +60,52 @@ const CATALOG_RELATION_PRICE_LIST_PREFLIGHT_QUERY: &str = "query CatalogRelation
 const CATALOG_RELATION_PUBLICATION_PREFLIGHT_QUERY: &str = "query CatalogRelationPublicationHydrate($id: ID!) { publication(id: $id) { __typename id name autoPublish } }";
 
 /// Web-presence mutations (`webPresenceCreate`/`Update`/`Delete`) hydrate the
-/// shop's baseline web presences from a recorded preflight keyed on this sentinel
-/// query plus the mutation's own variables, mirroring the variant-level fixed-price
-/// preflight. On a cold store the first web-presence mutation forwards this sentinel
-/// upstream; the cassette returns the real `webPresences` baseline Shopify served
-/// during capture, which the proxy stages before applying the mutation so downstream
-/// `webPresences` reads return the live baseline plus the locally staged record.
-const WEB_PRESENCE_PREFLIGHT_QUERY: &str = "hand-synthesized from checked-in capture";
+/// shop's baseline web presences from a real Admin GraphQL preflight before
+/// applying the local mutation. The cassette stores the exact request Shopify saw,
+/// so parity cannot hide behind a provenance descriptor string.
+const WEB_PRESENCE_PREFLIGHT_QUERY: &str = "query MarketsMutationPreflightHydrate($first: Int!) { webPresences(first: $first) { nodes { id subfolderSuffix domain { id host url sslEnabled } rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } } }";
+const WEB_PRESENCE_PREFLIGHT_FIRST: i64 = 20;
 
 /// Market-localization mutations (`marketLocalizationsRegister`/`Remove`) hydrate the
-/// target resource's `marketLocalizableContent` (valid keys + digests), the shop's
-/// markets (id -> name), and any existing localizations from a recorded preflight
-/// keyed on this sentinel query plus the mutation's own variables. On a cold store
-/// the first such mutation forwards this sentinel upstream; the cassette returns the
-/// real baseline Shopify served during capture, which the proxy stages before
-/// validating + applying the mutation. Mirrors the web-presence / fixed-price
-/// preflights; the cassette matches query + variables exactly.
-const MARKET_LOCALIZATION_PREFLIGHT_QUERY: &str =
-    "synthesized from live capture setup before disposable cleanup";
+/// target resource's content/digests, the shop's markets, and existing localizations
+/// for the target market from an exact Admin GraphQL preflight.
+const MARKET_LOCALIZATION_PREFLIGHT_QUERY: &str = "query MarketsMutationPreflightHydrate($resourceId: ID!, $marketId: ID!, $marketsFirst: Int!) { marketLocalizableResource(resourceId: $resourceId) { resourceId marketLocalizableContent { key value digest } marketLocalizations(marketId: $marketId) { key value updatedAt outdated market { id name } } } markets(first: $marketsFirst) { nodes { id name handle status type } } }";
+const MARKET_LOCALIZATION_PREFLIGHT_MARKETS_FIRST: i64 = 50;
+
+fn first_market_localization_market_id(
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<String> {
+    variables
+        .get("marketLocalizations")
+        .and_then(resolved_value_list)
+        .and_then(|localizations| {
+            localizations.into_iter().find_map(|localization| {
+                resolved_value_object(&localization)
+                    .and_then(|object| object.get("marketId").and_then(resolved_value_string))
+            })
+        })
+        .or_else(|| {
+            variables
+                .get("marketIds")
+                .and_then(resolved_value_list)
+                .and_then(|market_ids| {
+                    market_ids
+                        .into_iter()
+                        .find_map(|market_id| resolved_value_string(&market_id))
+                })
+        })
+}
+
+fn market_localization_preflight_variables(variables: &BTreeMap<String, ResolvedValue>) -> Value {
+    json!({
+        "resourceId": variables
+            .get("resourceId")
+            .and_then(resolved_value_string)
+            .unwrap_or_default(),
+        "marketId": first_market_localization_market_id(variables).unwrap_or_default(),
+        "marketsFirst": MARKET_LOCALIZATION_PREFLIGHT_MARKETS_FIRST,
+    })
+}
 
 const LOCALIZATION_MUTATION_TARGETS_HYDRATE_QUERY: &str = r#"query LocalizationMutationTargetsHydrate($ids: [ID!]!) {
   nodes(ids: $ids) {
@@ -737,13 +761,7 @@ impl DraftProxy {
     }
 
     fn catalogs_count_value(&self, field: &RootFieldSelection) -> Value {
-        selected_json(
-            &json!({
-                "count": self.store.staged.catalogs.len(),
-                "precision": "EXACT"
-            }),
-            &field.selection,
-        )
+        selected_count_json(self.store.staged.catalogs.len(), &field.selection)
     }
 
     fn markets_resolved_values_value(&self, field: &RootFieldSelection) -> Value {
@@ -1989,12 +2007,10 @@ impl DraftProxy {
     }
 
     /// Hydrate the staged store from a cassette-backed preflight before applying a
-    /// fixed-price mutation, mirroring the Gleam `mutation_preflight_request`
-    /// (markets/queries.gleam). Variant-level mutations replay the sentinel baseline
-    /// keyed on their own variables; the by-product mutation replays the real
-    /// multi-product hydrate query. Gated on LiveHybrid so other read modes are
-    /// untouched. The cassette serves recorded real Shopify data, which the generic
-    /// staging logic below loads into the local store — no fixture is hardcoded.
+    /// fixed-price mutation, mirroring the production Admin GraphQL reads the live
+    /// capture scripts record. Gated on LiveHybrid so other read modes are untouched.
+    /// The cassette serves recorded real Shopify data, which the generic staging
+    /// logic below loads into the local store — no fixture is hardcoded.
     pub(in crate::proxy) fn fixed_price_mutation_preflight(
         &mut self,
         fields: &[RootFieldSelection],
@@ -2024,7 +2040,7 @@ impl DraftProxy {
         } else if variant_level {
             json!({
                 "query": FIXED_PRICE_VARIANT_PREFLIGHT_QUERY,
-                "variables": resolved_variables_json(variables),
+                "variables": variant_fixed_prices_preflight_variables(fields),
                 "operationName": "MarketsMutationPreflightHydrate",
             })
         } else {
@@ -2048,7 +2064,7 @@ impl DraftProxy {
     fn cold_markets_preflight(
         &mut self,
         query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        variables: Value,
         request: &Request,
         stage: impl FnOnce(&mut Self, &Value),
     ) {
@@ -2060,7 +2076,7 @@ impl DraftProxy {
         }
         let body = json!({
             "query": query,
-            "variables": resolved_variables_json(variables),
+            "variables": variables,
             "operationName": "MarketsMutationPreflightHydrate",
         });
         self.run_markets_preflight(request, body, stage);
@@ -2080,6 +2096,13 @@ impl DraftProxy {
         if let Some(nodes) = data.get("productNodes").and_then(Value::as_array) {
             for product in nodes {
                 if product.is_object() {
+                    self.store.stage_observed_product_json(product);
+                }
+            }
+        }
+        if let Some(nodes) = data.get("productVariants").and_then(Value::as_array) {
+            for variant in nodes {
+                if let Some(product) = variant.get("product").filter(|value| value.is_object()) {
                     self.store.stage_observed_product_json(product);
                 }
             }
@@ -2446,12 +2469,12 @@ impl DraftProxy {
     /// into the local store — no fixture is hardcoded.
     pub(in crate::proxy) fn web_presence_mutation_preflight(
         &mut self,
-        variables: &BTreeMap<String, ResolvedValue>,
+        _variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) {
         self.cold_markets_preflight(
             WEB_PRESENCE_PREFLIGHT_QUERY,
-            variables,
+            json!({ "first": WEB_PRESENCE_PREFLIGHT_FIRST }),
             request,
             Self::stage_web_presence_preflight,
         );
@@ -2473,7 +2496,7 @@ impl DraftProxy {
     ) {
         self.cold_markets_preflight(
             MARKET_LOCALIZATION_PREFLIGHT_QUERY,
-            variables,
+            market_localization_preflight_variables(variables),
             request,
             Self::hydrate_markets_from_upstream,
         );
@@ -2982,6 +3005,18 @@ impl DraftProxy {
                     &json!({
                         "marketLocalizations": null,
                         "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "FAILS_RESOURCE_VALIDATION", "Value can't be blank")]
+                    }),
+                    &field.selection,
+                );
+            }
+            // 6. Shopify exposes definition-backed money metafields as a
+            // `value` market-localizable field, but rejects JSON money payloads
+            // during register with a resource-validation error.
+            if market_localizable_content_is_money_metafield(content_entry) {
+                return selected_json(
+                    &json!({
+                        "marketLocalizations": null,
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "FAILS_RESOURCE_VALIDATION", "Market Localizable content is invalid")]
                     }),
                     &field.selection,
                 );
@@ -4261,10 +4296,59 @@ fn web_presence_remove_locale(record: &mut Value, locale: &str) {
 /// lookups).
 fn web_presence_shop_domain(store: &Store) -> String {
     let shop = store.effective_shop();
-    shop.get("myshopifyDomain")
+    if let Some(domain) = shop
+        .get("myshopifyDomain")
         .and_then(Value::as_str)
-        .unwrap_or("shopify-draft-proxy.local")
-        .to_string()
+        .filter(|domain| !domain.is_empty())
+        .filter(|domain| *domain != "shopify-draft-proxy.local")
+    {
+        return domain.to_string();
+    }
+    observed_web_presence_shop_domain(store)
+        .unwrap_or_else(|| "shopify-draft-proxy.local".to_string())
+}
+
+fn observed_web_presence_shop_domain(store: &Store) -> Option<String> {
+    let mut fallback = None;
+    for record in store.staged.web_presences.values() {
+        if let Some(host) = record
+            .get("domain")
+            .and_then(|domain| domain.get("host"))
+            .and_then(Value::as_str)
+            .filter(|host| !host.is_empty())
+        {
+            if host.ends_with(".myshopify.com") {
+                return Some(host.to_string());
+            }
+            fallback.get_or_insert_with(|| host.to_string());
+        }
+        if let Some(root_urls) = record.get("rootUrls").and_then(Value::as_array) {
+            for root_url in root_urls {
+                let Some(host) = root_url
+                    .get("url")
+                    .and_then(Value::as_str)
+                    .and_then(web_presence_host)
+                else {
+                    continue;
+                };
+                if host.ends_with(".myshopify.com") {
+                    return Some(host);
+                }
+                fallback.get_or_insert(host);
+            }
+        }
+    }
+    fallback
+}
+
+fn web_presence_host(url: &str) -> Option<String> {
+    let (_, rest) = url.split_once("://")?;
+    let host = rest.split('/').next().unwrap_or("");
+    if host.is_empty() {
+        None
+    } else {
+        Some(host.to_string())
+    }
 }
 
 /// Extract `scheme://host` from a URL, dropping any path/query suffix.
@@ -4282,6 +4366,21 @@ fn localization_content_digest(value: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(value.as_bytes());
     format!("{:x}", hasher.finalize())
+}
+
+fn market_localizable_content_is_money_metafield(content_entry: &Value) -> bool {
+    if content_entry.get("key").and_then(Value::as_str) != Some("value") {
+        return false;
+    }
+    let Some(value) = content_entry.get("value").and_then(Value::as_str) else {
+        return false;
+    };
+    let Ok(parsed) = serde_json::from_str::<Value>(value) else {
+        return false;
+    };
+    parsed
+        .as_object()
+        .is_some_and(|object| object.contains_key("amount") && object.contains_key("currency_code"))
 }
 
 fn markets_variables_have_local_id(

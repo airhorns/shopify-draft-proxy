@@ -1,10 +1,10 @@
 {
   "scenarioId": "b2b-company-location-tax-settings-sequential",
-  "capturedAt": "2026-06-25T02:10:29.766Z",
+  "capturedAt": "2026-06-26T21:37:56.987Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "intent": {
-    "plan": "Create a disposable B2B company/location, update location tax settings through assign/remove combinations, read back taxSettings after each relevant write, then delete the company."
+    "plan": "Create a disposable B2B company/location, update location tax settings through registration-only, no-knob, and assign/remove combinations, read back taxSettings after each relevant write, then delete the company."
   },
   "companyCreate": {
     "request": {
@@ -12,18 +12,18 @@
       "variables": {
         "input": {
           "company": {
-            "name": "B2B tax settings sequential 1782353427864",
+            "name": "B2B tax settings sequential 1782509872242",
             "note": "B2B tax settings sequential parity",
-            "externalId": "b2b-tax-settings-sequential-1782353427864"
+            "externalId": "b2b-tax-settings-sequential-1782509872242"
           },
           "companyContact": {
             "firstName": "Tax",
             "lastName": "Settings",
-            "email": "b2b-tax-settings-sequential-1782353427864@example.com",
+            "email": "b2b-tax-settings-sequential-1782509872242@example.com",
             "title": "Buyer"
           },
           "companyLocation": {
-            "name": "B2B tax settings sequential 1782353427864 HQ",
+            "name": "B2B tax settings sequential 1782509872242 HQ",
             "phone": "+16135550121",
             "billingAddress": {
               "address1": "1 Sequential Tax Way",
@@ -39,23 +39,23 @@
       "data": {
         "companyCreate": {
           "company": {
-            "id": "gid://shopify/Company/5703205170",
-            "name": "B2B tax settings sequential 1782353427864",
+            "id": "gid://shopify/Company/5707792690",
+            "name": "B2B tax settings sequential 1782509872242",
             "mainContact": {
-              "id": "gid://shopify/CompanyContact/10389356850",
+              "id": "gid://shopify/CompanyContact/10393714994",
               "title": "Buyer",
               "isMainContact": true,
               "roleAssignments": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/CompanyContactRoleAssignment/44894912818",
+                    "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
                     "role": {
-                      "id": "gid://shopify/CompanyContactRole/11194597682",
+                      "id": "gid://shopify/CompanyContactRole/11203772722",
                       "name": "Ordering only"
                     },
                     "companyLocation": {
-                      "id": "gid://shopify/CompanyLocation/8569913650",
-                      "name": "B2B tax settings sequential 1782353427864 HQ"
+                      "id": "gid://shopify/CompanyLocation/8575025458",
+                      "name": "B2B tax settings sequential 1782509872242 HQ"
                     }
                   }
                 ]
@@ -64,20 +64,20 @@
             "contacts": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContact/10389356850",
+                  "id": "gid://shopify/CompanyContact/10393714994",
                   "title": "Buyer",
                   "isMainContact": true,
                   "roleAssignments": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/CompanyContactRoleAssignment/44894912818",
+                        "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
                         "role": {
-                          "id": "gid://shopify/CompanyContactRole/11194597682",
+                          "id": "gid://shopify/CompanyContactRole/11203772722",
                           "name": "Ordering only"
                         },
                         "companyLocation": {
-                          "id": "gid://shopify/CompanyLocation/8569913650",
-                          "name": "B2B tax settings sequential 1782353427864 HQ"
+                          "id": "gid://shopify/CompanyLocation/8575025458",
+                          "name": "B2B tax settings sequential 1782509872242 HQ"
                         }
                       }
                     ]
@@ -88,19 +88,19 @@
             "locations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8569913650",
-                  "name": "B2B tax settings sequential 1782353427864 HQ"
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
                 }
               ]
             },
             "contactRoles": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContactRole/11194564914",
+                  "id": "gid://shopify/CompanyContactRole/11203739954",
                   "name": "Location admin"
                 },
                 {
-                  "id": "gid://shopify/CompanyContactRole/11194597682",
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
                   "name": "Ordering only"
                 }
               ]
@@ -122,15 +122,12 @@
       }
     }
   },
-  "initialTaxUpdate": {
+  "registrationOnlyTaxUpdate": {
     "request": {
       "query": "mutation B2BContactLocationAssignmentsTax(\n  $companyLocationId: ID!\n  $taxRegistrationId: String\n  $taxExempt: Boolean\n  $exemptionsToAssign: [TaxExemption!]\n  $exemptionsToRemove: [TaxExemption!]\n) {\n  companyLocationTaxSettingsUpdate(\n    companyLocationId: $companyLocationId\n    taxRegistrationId: $taxRegistrationId\n    taxExempt: $taxExempt\n    exemptionsToAssign: $exemptionsToAssign\n    exemptionsToRemove: $exemptionsToRemove\n  ) {\n    companyLocation {\n      id\n      taxSettings {\n        taxRegistrationId\n        taxExempt\n        taxExemptions\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "companyLocationId": "gid://shopify/CompanyLocation/8569913650",
-        "taxRegistrationId": "B2B-TAX-SEQUENTIAL",
-        "taxExempt": true,
-        "exemptionsToAssign": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"],
-        "exemptionsToRemove": []
+        "companyLocationId": "gid://shopify/CompanyLocation/8575025458",
+        "taxRegistrationId": "B2B-TAX-REGISTRATION-ONLY"
       }
     },
     "response": {
@@ -138,11 +135,11 @@
       "data": {
         "companyLocationTaxSettingsUpdate": {
           "companyLocation": {
-            "id": "gid://shopify/CompanyLocation/8569913650",
+            "id": "gid://shopify/CompanyLocation/8575025458",
             "taxSettings": {
-              "taxRegistrationId": "B2B-TAX-SEQUENTIAL",
-              "taxExempt": true,
-              "taxExemptions": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
+              "taxRegistrationId": "B2B-TAX-REGISTRATION-ONLY",
+              "taxExempt": false,
+              "taxExemptions": []
             }
           },
           "userErrors": []
@@ -161,177 +158,141 @@
       }
     }
   },
-  "removeAbsentTaxUpdate": {
-    "request": {
-      "query": "mutation B2BContactLocationAssignmentsTax(\n  $companyLocationId: ID!\n  $taxRegistrationId: String\n  $taxExempt: Boolean\n  $exemptionsToAssign: [TaxExemption!]\n  $exemptionsToRemove: [TaxExemption!]\n) {\n  companyLocationTaxSettingsUpdate(\n    companyLocationId: $companyLocationId\n    taxRegistrationId: $taxRegistrationId\n    taxExempt: $taxExempt\n    exemptionsToAssign: $exemptionsToAssign\n    exemptionsToRemove: $exemptionsToRemove\n  ) {\n    companyLocation {\n      id\n      taxSettings {\n        taxRegistrationId\n        taxExempt\n        taxExemptions\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
-      "variables": {
-        "companyLocationId": "gid://shopify/CompanyLocation/8569913650",
-        "exemptionsToRemove": ["US_CA_RESELLER_EXEMPTION"]
-      }
-    },
-    "response": {
-      "status": 200,
-      "data": {
-        "companyLocationTaxSettingsUpdate": {
-          "companyLocation": {
-            "id": "gid://shopify/CompanyLocation/8569913650",
-            "taxSettings": {
-              "taxRegistrationId": "B2B-TAX-SEQUENTIAL",
-              "taxExempt": true,
-              "taxExemptions": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
-            }
-          },
-          "userErrors": []
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 11,
-          "actualQueryCost": 11,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1989,
-            "restoreRate": 100
-          }
-        }
-      }
-    }
-  },
-  "readAfterRemoveAbsent": {
+  "readAfterRegistrationOnly": {
     "request": {
       "query": "query B2BContactLocationAssignmentsRead(\n  $companyContactId: ID!\n  $companyLocationId: ID!\n  $singleAssignmentLocationId: ID!\n  $contactBulkLocationId: ID!\n  $locationBulkLocationId: ID!\n) {\n  companyContact(id: $companyContactId) {\n    id\n    title\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  companyLocation(id: $companyLocationId) {\n    id\n    name\n    billingAddress {\n      id\n      address1\n      city\n      countryCode\n    }\n    taxSettings {\n      taxRegistrationId\n      taxExempt\n      taxExemptions\n    }\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  singleAssignmentLocation: companyLocation(id: $singleAssignmentLocationId) {\n    id\n    name\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  contactBulkLocation: companyLocation(id: $contactBulkLocationId) {\n    id\n    name\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  locationBulkLocation: companyLocation(id: $locationBulkLocationId) {\n    id\n    name\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n}\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10389356850",
-        "companyLocationId": "gid://shopify/CompanyLocation/8569913650",
-        "singleAssignmentLocationId": "gid://shopify/CompanyLocation/8569913650",
-        "contactBulkLocationId": "gid://shopify/CompanyLocation/8569913650",
-        "locationBulkLocationId": "gid://shopify/CompanyLocation/8569913650"
+        "companyContactId": "gid://shopify/CompanyContact/10393714994",
+        "companyLocationId": "gid://shopify/CompanyLocation/8575025458",
+        "singleAssignmentLocationId": "gid://shopify/CompanyLocation/8575025458",
+        "contactBulkLocationId": "gid://shopify/CompanyLocation/8575025458",
+        "locationBulkLocationId": "gid://shopify/CompanyLocation/8575025458"
       }
     },
     "response": {
       "status": 200,
       "data": {
         "companyContact": {
-          "id": "gid://shopify/CompanyContact/10389356850",
+          "id": "gid://shopify/CompanyContact/10393714994",
           "title": "Buyer",
           "roleAssignments": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyContactRoleAssignment/44894912818",
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
                 "companyContact": {
-                  "id": "gid://shopify/CompanyContact/10389356850",
+                  "id": "gid://shopify/CompanyContact/10393714994",
                   "title": "Buyer"
                 },
                 "role": {
-                  "id": "gid://shopify/CompanyContactRole/11194597682",
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
                   "name": "Ordering only"
                 },
                 "companyLocation": {
-                  "id": "gid://shopify/CompanyLocation/8569913650",
-                  "name": "B2B tax settings sequential 1782353427864 HQ"
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
                 }
               }
             ]
           }
         },
         "companyLocation": {
-          "id": "gid://shopify/CompanyLocation/8569913650",
-          "name": "B2B tax settings sequential 1782353427864 HQ",
+          "id": "gid://shopify/CompanyLocation/8575025458",
+          "name": "B2B tax settings sequential 1782509872242 HQ",
           "billingAddress": {
-            "id": "gid://shopify/CompanyAddress/9562358066",
+            "id": "gid://shopify/CompanyAddress/9566617906",
             "address1": "1 Sequential Tax Way",
             "city": "Ottawa",
             "countryCode": "CA"
           },
           "taxSettings": {
-            "taxRegistrationId": "B2B-TAX-SEQUENTIAL",
-            "taxExempt": true,
-            "taxExemptions": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
+            "taxRegistrationId": "B2B-TAX-REGISTRATION-ONLY",
+            "taxExempt": false,
+            "taxExemptions": []
           },
           "roleAssignments": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyContactRoleAssignment/44894912818",
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
                 "companyContact": {
-                  "id": "gid://shopify/CompanyContact/10389356850",
+                  "id": "gid://shopify/CompanyContact/10393714994",
                   "title": "Buyer"
                 },
                 "role": {
-                  "id": "gid://shopify/CompanyContactRole/11194597682",
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
                   "name": "Ordering only"
                 },
                 "companyLocation": {
-                  "id": "gid://shopify/CompanyLocation/8569913650",
-                  "name": "B2B tax settings sequential 1782353427864 HQ"
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
                 }
               }
             ]
           }
         },
         "singleAssignmentLocation": {
-          "id": "gid://shopify/CompanyLocation/8569913650",
-          "name": "B2B tax settings sequential 1782353427864 HQ",
+          "id": "gid://shopify/CompanyLocation/8575025458",
+          "name": "B2B tax settings sequential 1782509872242 HQ",
           "roleAssignments": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyContactRoleAssignment/44894912818",
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
                 "companyContact": {
-                  "id": "gid://shopify/CompanyContact/10389356850",
+                  "id": "gid://shopify/CompanyContact/10393714994",
                   "title": "Buyer"
                 },
                 "role": {
-                  "id": "gid://shopify/CompanyContactRole/11194597682",
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
                   "name": "Ordering only"
                 },
                 "companyLocation": {
-                  "id": "gid://shopify/CompanyLocation/8569913650",
-                  "name": "B2B tax settings sequential 1782353427864 HQ"
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
                 }
               }
             ]
           }
         },
         "contactBulkLocation": {
-          "id": "gid://shopify/CompanyLocation/8569913650",
-          "name": "B2B tax settings sequential 1782353427864 HQ",
+          "id": "gid://shopify/CompanyLocation/8575025458",
+          "name": "B2B tax settings sequential 1782509872242 HQ",
           "roleAssignments": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyContactRoleAssignment/44894912818",
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
                 "companyContact": {
-                  "id": "gid://shopify/CompanyContact/10389356850",
+                  "id": "gid://shopify/CompanyContact/10393714994",
                   "title": "Buyer"
                 },
                 "role": {
-                  "id": "gid://shopify/CompanyContactRole/11194597682",
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
                   "name": "Ordering only"
                 },
                 "companyLocation": {
-                  "id": "gid://shopify/CompanyLocation/8569913650",
-                  "name": "B2B tax settings sequential 1782353427864 HQ"
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
                 }
               }
             ]
           }
         },
         "locationBulkLocation": {
-          "id": "gid://shopify/CompanyLocation/8569913650",
-          "name": "B2B tax settings sequential 1782353427864 HQ",
+          "id": "gid://shopify/CompanyLocation/8575025458",
+          "name": "B2B tax settings sequential 1782509872242 HQ",
           "roleAssignments": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyContactRoleAssignment/44894912818",
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
                 "companyContact": {
-                  "id": "gid://shopify/CompanyContact/10389356850",
+                  "id": "gid://shopify/CompanyContact/10393714994",
                   "title": "Buyer"
                 },
                 "role": {
-                  "id": "gid://shopify/CompanyContactRole/11194597682",
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
                   "name": "Ordering only"
                 },
                 "companyLocation": {
-                  "id": "gid://shopify/CompanyLocation/8569913650",
-                  "name": "B2B tax settings sequential 1782353427864 HQ"
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
                 }
               }
             ]
@@ -351,11 +312,429 @@
       }
     }
   },
+  "noKnobsTaxUpdate": {
+    "request": {
+      "query": "mutation B2BContactLocationAssignmentsTax(\n  $companyLocationId: ID!\n  $taxRegistrationId: String\n  $taxExempt: Boolean\n  $exemptionsToAssign: [TaxExemption!]\n  $exemptionsToRemove: [TaxExemption!]\n) {\n  companyLocationTaxSettingsUpdate(\n    companyLocationId: $companyLocationId\n    taxRegistrationId: $taxRegistrationId\n    taxExempt: $taxExempt\n    exemptionsToAssign: $exemptionsToAssign\n    exemptionsToRemove: $exemptionsToRemove\n  ) {\n    companyLocation {\n      id\n      taxSettings {\n        taxRegistrationId\n        taxExempt\n        taxExemptions\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8575025458"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationTaxSettingsUpdate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8575025458",
+            "taxSettings": {
+              "taxRegistrationId": "B2B-TAX-REGISTRATION-ONLY",
+              "taxExempt": false,
+              "taxExemptions": []
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1971,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterNoKnobs": {
+    "request": {
+      "query": "query B2BContactLocationAssignmentsRead(\n  $companyContactId: ID!\n  $companyLocationId: ID!\n  $singleAssignmentLocationId: ID!\n  $contactBulkLocationId: ID!\n  $locationBulkLocationId: ID!\n) {\n  companyContact(id: $companyContactId) {\n    id\n    title\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  companyLocation(id: $companyLocationId) {\n    id\n    name\n    billingAddress {\n      id\n      address1\n      city\n      countryCode\n    }\n    taxSettings {\n      taxRegistrationId\n      taxExempt\n      taxExemptions\n    }\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  singleAssignmentLocation: companyLocation(id: $singleAssignmentLocationId) {\n    id\n    name\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  contactBulkLocation: companyLocation(id: $contactBulkLocationId) {\n    id\n    name\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  locationBulkLocation: companyLocation(id: $locationBulkLocationId) {\n    id\n    name\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10393714994",
+        "companyLocationId": "gid://shopify/CompanyLocation/8575025458",
+        "singleAssignmentLocationId": "gid://shopify/CompanyLocation/8575025458",
+        "contactBulkLocationId": "gid://shopify/CompanyLocation/8575025458",
+        "locationBulkLocationId": "gid://shopify/CompanyLocation/8575025458"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContact": {
+          "id": "gid://shopify/CompanyContact/10393714994",
+          "title": "Buyer",
+          "roleAssignments": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
+                "companyContact": {
+                  "id": "gid://shopify/CompanyContact/10393714994",
+                  "title": "Buyer"
+                },
+                "role": {
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
+                  "name": "Ordering only"
+                },
+                "companyLocation": {
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
+                }
+              }
+            ]
+          }
+        },
+        "companyLocation": {
+          "id": "gid://shopify/CompanyLocation/8575025458",
+          "name": "B2B tax settings sequential 1782509872242 HQ",
+          "billingAddress": {
+            "id": "gid://shopify/CompanyAddress/9566617906",
+            "address1": "1 Sequential Tax Way",
+            "city": "Ottawa",
+            "countryCode": "CA"
+          },
+          "taxSettings": {
+            "taxRegistrationId": "B2B-TAX-REGISTRATION-ONLY",
+            "taxExempt": false,
+            "taxExemptions": []
+          },
+          "roleAssignments": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
+                "companyContact": {
+                  "id": "gid://shopify/CompanyContact/10393714994",
+                  "title": "Buyer"
+                },
+                "role": {
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
+                  "name": "Ordering only"
+                },
+                "companyLocation": {
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
+                }
+              }
+            ]
+          }
+        },
+        "singleAssignmentLocation": {
+          "id": "gid://shopify/CompanyLocation/8575025458",
+          "name": "B2B tax settings sequential 1782509872242 HQ",
+          "roleAssignments": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
+                "companyContact": {
+                  "id": "gid://shopify/CompanyContact/10393714994",
+                  "title": "Buyer"
+                },
+                "role": {
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
+                  "name": "Ordering only"
+                },
+                "companyLocation": {
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
+                }
+              }
+            ]
+          }
+        },
+        "contactBulkLocation": {
+          "id": "gid://shopify/CompanyLocation/8575025458",
+          "name": "B2B tax settings sequential 1782509872242 HQ",
+          "roleAssignments": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
+                "companyContact": {
+                  "id": "gid://shopify/CompanyContact/10393714994",
+                  "title": "Buyer"
+                },
+                "role": {
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
+                  "name": "Ordering only"
+                },
+                "companyLocation": {
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
+                }
+              }
+            ]
+          }
+        },
+        "locationBulkLocation": {
+          "id": "gid://shopify/CompanyLocation/8575025458",
+          "name": "B2B tax settings sequential 1782509872242 HQ",
+          "roleAssignments": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
+                "companyContact": {
+                  "id": "gid://shopify/CompanyContact/10393714994",
+                  "title": "Buyer"
+                },
+                "role": {
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
+                  "name": "Ordering only"
+                },
+                "companyLocation": {
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 77,
+          "actualQueryCost": 32,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1952,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "initialTaxUpdate": {
+    "request": {
+      "query": "mutation B2BContactLocationAssignmentsTax(\n  $companyLocationId: ID!\n  $taxRegistrationId: String\n  $taxExempt: Boolean\n  $exemptionsToAssign: [TaxExemption!]\n  $exemptionsToRemove: [TaxExemption!]\n) {\n  companyLocationTaxSettingsUpdate(\n    companyLocationId: $companyLocationId\n    taxRegistrationId: $taxRegistrationId\n    taxExempt: $taxExempt\n    exemptionsToAssign: $exemptionsToAssign\n    exemptionsToRemove: $exemptionsToRemove\n  ) {\n    companyLocation {\n      id\n      taxSettings {\n        taxRegistrationId\n        taxExempt\n        taxExemptions\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8575025458",
+        "taxRegistrationId": "B2B-TAX-SEQUENTIAL",
+        "taxExempt": true,
+        "exemptionsToAssign": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"],
+        "exemptionsToRemove": []
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationTaxSettingsUpdate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8575025458",
+            "taxSettings": {
+              "taxRegistrationId": "B2B-TAX-SEQUENTIAL",
+              "taxExempt": true,
+              "taxExemptions": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1957,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "removeAbsentTaxUpdate": {
+    "request": {
+      "query": "mutation B2BContactLocationAssignmentsTax(\n  $companyLocationId: ID!\n  $taxRegistrationId: String\n  $taxExempt: Boolean\n  $exemptionsToAssign: [TaxExemption!]\n  $exemptionsToRemove: [TaxExemption!]\n) {\n  companyLocationTaxSettingsUpdate(\n    companyLocationId: $companyLocationId\n    taxRegistrationId: $taxRegistrationId\n    taxExempt: $taxExempt\n    exemptionsToAssign: $exemptionsToAssign\n    exemptionsToRemove: $exemptionsToRemove\n  ) {\n    companyLocation {\n      id\n      taxSettings {\n        taxRegistrationId\n        taxExempt\n        taxExemptions\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8575025458",
+        "exemptionsToRemove": ["US_CA_RESELLER_EXEMPTION"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationTaxSettingsUpdate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8575025458",
+            "taxSettings": {
+              "taxRegistrationId": "B2B-TAX-SEQUENTIAL",
+              "taxExempt": true,
+              "taxExemptions": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1971,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterRemoveAbsent": {
+    "request": {
+      "query": "query B2BContactLocationAssignmentsRead(\n  $companyContactId: ID!\n  $companyLocationId: ID!\n  $singleAssignmentLocationId: ID!\n  $contactBulkLocationId: ID!\n  $locationBulkLocationId: ID!\n) {\n  companyContact(id: $companyContactId) {\n    id\n    title\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  companyLocation(id: $companyLocationId) {\n    id\n    name\n    billingAddress {\n      id\n      address1\n      city\n      countryCode\n    }\n    taxSettings {\n      taxRegistrationId\n      taxExempt\n      taxExemptions\n    }\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  singleAssignmentLocation: companyLocation(id: $singleAssignmentLocationId) {\n    id\n    name\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  contactBulkLocation: companyLocation(id: $contactBulkLocationId) {\n    id\n    name\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  locationBulkLocation: companyLocation(id: $locationBulkLocationId) {\n    id\n    name\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10393714994",
+        "companyLocationId": "gid://shopify/CompanyLocation/8575025458",
+        "singleAssignmentLocationId": "gid://shopify/CompanyLocation/8575025458",
+        "contactBulkLocationId": "gid://shopify/CompanyLocation/8575025458",
+        "locationBulkLocationId": "gid://shopify/CompanyLocation/8575025458"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContact": {
+          "id": "gid://shopify/CompanyContact/10393714994",
+          "title": "Buyer",
+          "roleAssignments": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
+                "companyContact": {
+                  "id": "gid://shopify/CompanyContact/10393714994",
+                  "title": "Buyer"
+                },
+                "role": {
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
+                  "name": "Ordering only"
+                },
+                "companyLocation": {
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
+                }
+              }
+            ]
+          }
+        },
+        "companyLocation": {
+          "id": "gid://shopify/CompanyLocation/8575025458",
+          "name": "B2B tax settings sequential 1782509872242 HQ",
+          "billingAddress": {
+            "id": "gid://shopify/CompanyAddress/9566617906",
+            "address1": "1 Sequential Tax Way",
+            "city": "Ottawa",
+            "countryCode": "CA"
+          },
+          "taxSettings": {
+            "taxRegistrationId": "B2B-TAX-SEQUENTIAL",
+            "taxExempt": true,
+            "taxExemptions": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
+          },
+          "roleAssignments": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
+                "companyContact": {
+                  "id": "gid://shopify/CompanyContact/10393714994",
+                  "title": "Buyer"
+                },
+                "role": {
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
+                  "name": "Ordering only"
+                },
+                "companyLocation": {
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
+                }
+              }
+            ]
+          }
+        },
+        "singleAssignmentLocation": {
+          "id": "gid://shopify/CompanyLocation/8575025458",
+          "name": "B2B tax settings sequential 1782509872242 HQ",
+          "roleAssignments": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
+                "companyContact": {
+                  "id": "gid://shopify/CompanyContact/10393714994",
+                  "title": "Buyer"
+                },
+                "role": {
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
+                  "name": "Ordering only"
+                },
+                "companyLocation": {
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
+                }
+              }
+            ]
+          }
+        },
+        "contactBulkLocation": {
+          "id": "gid://shopify/CompanyLocation/8575025458",
+          "name": "B2B tax settings sequential 1782509872242 HQ",
+          "roleAssignments": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
+                "companyContact": {
+                  "id": "gid://shopify/CompanyContact/10393714994",
+                  "title": "Buyer"
+                },
+                "role": {
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
+                  "name": "Ordering only"
+                },
+                "companyLocation": {
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
+                }
+              }
+            ]
+          }
+        },
+        "locationBulkLocation": {
+          "id": "gid://shopify/CompanyLocation/8575025458",
+          "name": "B2B tax settings sequential 1782509872242 HQ",
+          "roleAssignments": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
+                "companyContact": {
+                  "id": "gid://shopify/CompanyContact/10393714994",
+                  "title": "Buyer"
+                },
+                "role": {
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
+                  "name": "Ordering only"
+                },
+                "companyLocation": {
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 77,
+          "actualQueryCost": 32,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1951,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
   "assignRemoveTaxUpdate": {
     "request": {
       "query": "mutation B2BContactLocationAssignmentsTax(\n  $companyLocationId: ID!\n  $taxRegistrationId: String\n  $taxExempt: Boolean\n  $exemptionsToAssign: [TaxExemption!]\n  $exemptionsToRemove: [TaxExemption!]\n) {\n  companyLocationTaxSettingsUpdate(\n    companyLocationId: $companyLocationId\n    taxRegistrationId: $taxRegistrationId\n    taxExempt: $taxExempt\n    exemptionsToAssign: $exemptionsToAssign\n    exemptionsToRemove: $exemptionsToRemove\n  ) {\n    companyLocation {\n      id\n      taxSettings {\n        taxRegistrationId\n        taxExempt\n        taxExemptions\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "companyLocationId": "gid://shopify/CompanyLocation/8569913650",
+        "companyLocationId": "gid://shopify/CompanyLocation/8575025458",
         "exemptionsToAssign": ["CA_BC_RESELLER_EXEMPTION"],
         "exemptionsToRemove": ["US_CA_RESELLER_EXEMPTION"]
       }
@@ -365,7 +744,7 @@
       "data": {
         "companyLocationTaxSettingsUpdate": {
           "companyLocation": {
-            "id": "gid://shopify/CompanyLocation/8569913650",
+            "id": "gid://shopify/CompanyLocation/8575025458",
             "taxSettings": {
               "taxRegistrationId": "B2B-TAX-SEQUENTIAL",
               "taxExempt": true,
@@ -381,7 +760,7 @@
           "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1973,
+            "currentlyAvailable": 1954,
             "restoreRate": 100
           }
         }
@@ -392,44 +771,44 @@
     "request": {
       "query": "query B2BContactLocationAssignmentsRead(\n  $companyContactId: ID!\n  $companyLocationId: ID!\n  $singleAssignmentLocationId: ID!\n  $contactBulkLocationId: ID!\n  $locationBulkLocationId: ID!\n) {\n  companyContact(id: $companyContactId) {\n    id\n    title\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  companyLocation(id: $companyLocationId) {\n    id\n    name\n    billingAddress {\n      id\n      address1\n      city\n      countryCode\n    }\n    taxSettings {\n      taxRegistrationId\n      taxExempt\n      taxExemptions\n    }\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  singleAssignmentLocation: companyLocation(id: $singleAssignmentLocationId) {\n    id\n    name\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  contactBulkLocation: companyLocation(id: $contactBulkLocationId) {\n    id\n    name\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  locationBulkLocation: companyLocation(id: $locationBulkLocationId) {\n    id\n    name\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n}\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10389356850",
-        "companyLocationId": "gid://shopify/CompanyLocation/8569913650",
-        "singleAssignmentLocationId": "gid://shopify/CompanyLocation/8569913650",
-        "contactBulkLocationId": "gid://shopify/CompanyLocation/8569913650",
-        "locationBulkLocationId": "gid://shopify/CompanyLocation/8569913650"
+        "companyContactId": "gid://shopify/CompanyContact/10393714994",
+        "companyLocationId": "gid://shopify/CompanyLocation/8575025458",
+        "singleAssignmentLocationId": "gid://shopify/CompanyLocation/8575025458",
+        "contactBulkLocationId": "gid://shopify/CompanyLocation/8575025458",
+        "locationBulkLocationId": "gid://shopify/CompanyLocation/8575025458"
       }
     },
     "response": {
       "status": 200,
       "data": {
         "companyContact": {
-          "id": "gid://shopify/CompanyContact/10389356850",
+          "id": "gid://shopify/CompanyContact/10393714994",
           "title": "Buyer",
           "roleAssignments": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyContactRoleAssignment/44894912818",
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
                 "companyContact": {
-                  "id": "gid://shopify/CompanyContact/10389356850",
+                  "id": "gid://shopify/CompanyContact/10393714994",
                   "title": "Buyer"
                 },
                 "role": {
-                  "id": "gid://shopify/CompanyContactRole/11194597682",
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
                   "name": "Ordering only"
                 },
                 "companyLocation": {
-                  "id": "gid://shopify/CompanyLocation/8569913650",
-                  "name": "B2B tax settings sequential 1782353427864 HQ"
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
                 }
               }
             ]
           }
         },
         "companyLocation": {
-          "id": "gid://shopify/CompanyLocation/8569913650",
-          "name": "B2B tax settings sequential 1782353427864 HQ",
+          "id": "gid://shopify/CompanyLocation/8575025458",
+          "name": "B2B tax settings sequential 1782509872242 HQ",
           "billingAddress": {
-            "id": "gid://shopify/CompanyAddress/9562358066",
+            "id": "gid://shopify/CompanyAddress/9566617906",
             "address1": "1 Sequential Tax Way",
             "city": "Ottawa",
             "countryCode": "CA"
@@ -442,87 +821,87 @@
           "roleAssignments": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyContactRoleAssignment/44894912818",
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
                 "companyContact": {
-                  "id": "gid://shopify/CompanyContact/10389356850",
+                  "id": "gid://shopify/CompanyContact/10393714994",
                   "title": "Buyer"
                 },
                 "role": {
-                  "id": "gid://shopify/CompanyContactRole/11194597682",
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
                   "name": "Ordering only"
                 },
                 "companyLocation": {
-                  "id": "gid://shopify/CompanyLocation/8569913650",
-                  "name": "B2B tax settings sequential 1782353427864 HQ"
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
                 }
               }
             ]
           }
         },
         "singleAssignmentLocation": {
-          "id": "gid://shopify/CompanyLocation/8569913650",
-          "name": "B2B tax settings sequential 1782353427864 HQ",
+          "id": "gid://shopify/CompanyLocation/8575025458",
+          "name": "B2B tax settings sequential 1782509872242 HQ",
           "roleAssignments": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyContactRoleAssignment/44894912818",
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
                 "companyContact": {
-                  "id": "gid://shopify/CompanyContact/10389356850",
+                  "id": "gid://shopify/CompanyContact/10393714994",
                   "title": "Buyer"
                 },
                 "role": {
-                  "id": "gid://shopify/CompanyContactRole/11194597682",
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
                   "name": "Ordering only"
                 },
                 "companyLocation": {
-                  "id": "gid://shopify/CompanyLocation/8569913650",
-                  "name": "B2B tax settings sequential 1782353427864 HQ"
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
                 }
               }
             ]
           }
         },
         "contactBulkLocation": {
-          "id": "gid://shopify/CompanyLocation/8569913650",
-          "name": "B2B tax settings sequential 1782353427864 HQ",
+          "id": "gid://shopify/CompanyLocation/8575025458",
+          "name": "B2B tax settings sequential 1782509872242 HQ",
           "roleAssignments": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyContactRoleAssignment/44894912818",
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
                 "companyContact": {
-                  "id": "gid://shopify/CompanyContact/10389356850",
+                  "id": "gid://shopify/CompanyContact/10393714994",
                   "title": "Buyer"
                 },
                 "role": {
-                  "id": "gid://shopify/CompanyContactRole/11194597682",
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
                   "name": "Ordering only"
                 },
                 "companyLocation": {
-                  "id": "gid://shopify/CompanyLocation/8569913650",
-                  "name": "B2B tax settings sequential 1782353427864 HQ"
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
                 }
               }
             ]
           }
         },
         "locationBulkLocation": {
-          "id": "gid://shopify/CompanyLocation/8569913650",
-          "name": "B2B tax settings sequential 1782353427864 HQ",
+          "id": "gid://shopify/CompanyLocation/8575025458",
+          "name": "B2B tax settings sequential 1782509872242 HQ",
           "roleAssignments": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyContactRoleAssignment/44894912818",
+                "id": "gid://shopify/CompanyContactRoleAssignment/44899172658",
                 "companyContact": {
-                  "id": "gid://shopify/CompanyContact/10389356850",
+                  "id": "gid://shopify/CompanyContact/10393714994",
                   "title": "Buyer"
                 },
                 "role": {
-                  "id": "gid://shopify/CompanyContactRole/11194597682",
+                  "id": "gid://shopify/CompanyContactRole/11203772722",
                   "name": "Ordering only"
                 },
                 "companyLocation": {
-                  "id": "gid://shopify/CompanyLocation/8569913650",
-                  "name": "B2B tax settings sequential 1782353427864 HQ"
+                  "id": "gid://shopify/CompanyLocation/8575025458",
+                  "name": "B2B tax settings sequential 1782509872242 HQ"
                 }
               }
             ]
@@ -535,7 +914,7 @@
           "actualQueryCost": 32,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1960,
+            "currentlyAvailable": 1939,
             "restoreRate": 100
           }
         }
@@ -546,14 +925,14 @@
     "request": {
       "query": "#graphql\n  mutation B2BTaxSettingsSequentialCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Company/5703205170"
+        "id": "gid://shopify/Company/5707792690"
       }
     },
     "response": {
       "status": 200,
       "data": {
         "companyDelete": {
-          "deletedCompanyId": "gid://shopify/Company/5703205170",
+          "deletedCompanyId": "gid://shopify/Company/5707792690",
           "userErrors": []
         }
       },
@@ -563,7 +942,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1965,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }

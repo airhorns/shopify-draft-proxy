@@ -18,6 +18,17 @@ fn assert_core_metaobject_auto_handle(handle: &str, prefix: &str) {
     );
 }
 
+fn assert_online_store_operation_timestamp(value: &Value, context: &str) -> String {
+    let timestamp = value
+        .as_str()
+        .unwrap_or_else(|| panic!("{context} should be a timestamp string"));
+    time::OffsetDateTime::parse(timestamp, &time::format_description::well_known::Rfc3339)
+        .unwrap_or_else(|error| panic!("{context} should parse as RFC3339: {error}"));
+    assert_ne!(timestamp, "2024-01-01T00:00:00.000Z", "{context}");
+    assert_ne!(timestamp, "2024-01-01T00:00:01.000Z", "{context}");
+    timestamp.to_string()
+}
+
 fn create_metaobject_definition_for_test(
     proxy: &mut DraftProxy,
     meta_type: &str,
@@ -372,6 +383,27 @@ fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
         json!({"marketingActivity": null, "userErrors": [{"field": null, "message": "Marketing activity does not exist.", "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"}]})
     );
 
+    let mut app_b_delete = json_graphql_request(
+        r#"
+        mutation MarketingActivityPerAppDelete {
+          deleteExternal: marketingActivityDeleteExternal(remoteId: "campaign-1") {
+            deletedMarketingActivityId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    app_b_delete.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-b".to_string(),
+    );
+    let app_b_delete = proxy.process_request(app_b_delete);
+    assert_eq!(
+        app_b_delete.body["data"]["deleteExternal"],
+        json!({"deletedMarketingActivityId": null, "userErrors": [{"field": null, "message": "Marketing activity does not exist.", "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"}]})
+    );
+
     let mut app_b_engagement = json_graphql_request(
         r#"
         mutation MarketingActivityPerAppEngagement {
@@ -415,7 +447,7 @@ fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
         r#"
         query MarketingActivityPerAppRead($activityId: ID!) { marketingActivity(id: $activityId) { title remoteId } }
         "#,
-        json!({"activityId": activity_id}),
+        json!({"activityId": activity_id.clone()}),
     );
     app_a_read.headers.insert(
         "x-shopify-draft-proxy-api-client-id".to_string(),
@@ -425,6 +457,43 @@ fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
     assert_eq!(
         app_a_read.body["data"]["marketingActivity"],
         json!({"title": "Per App Campaign", "remoteId": "campaign-1"})
+    );
+
+    let mut app_a_delete = json_graphql_request(
+        r#"
+        mutation MarketingActivityPerAppOwnerDelete {
+          deleteExternal: marketingActivityDeleteExternal(remoteId: "campaign-1") {
+            deletedMarketingActivityId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    app_a_delete.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    let app_a_delete = proxy.process_request(app_a_delete);
+    assert_eq!(
+        app_a_delete.body["data"]["deleteExternal"],
+        json!({"deletedMarketingActivityId": activity_id.clone(), "userErrors": []})
+    );
+
+    let mut app_a_read_after_delete = json_graphql_request(
+        r#"
+        query MarketingActivityPerAppReadAfterDelete($activityId: ID!) { marketingActivity(id: $activityId) { title remoteId } }
+        "#,
+        json!({"activityId": activity_id}),
+    );
+    app_a_read_after_delete.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    let app_a_read_after_delete = proxy.process_request(app_a_read_after_delete);
+    assert_eq!(
+        app_a_read_after_delete.body["data"]["marketingActivity"],
+        Value::Null
     );
 }
 
@@ -1637,6 +1706,317 @@ fn inventory_adjust_quantities_mixed_zero_and_nonzero_delta_stages_nonzero_chang
         log["entries"][0]["interpreted"]["operationName"],
         json!("inventoryAdjustQuantities")
     );
+}
+
+#[test]
+fn inventory_adjust_quantities_mirrors_on_hand_for_captured_non_available_names() {
+    let mut proxy = snapshot_proxy();
+
+    let setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryAdjustMirrorSetup($input: ProductSetInput!, $synchronous: Boolean!) {
+          productSet(input: $input, synchronous: $synchronous) {
+            product {
+              id
+              totalInventory
+              tracksInventory
+              variants(first: 1) {
+                nodes {
+                  id
+                  inventoryQuantity
+                  inventoryItem { id }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "synchronous": true,
+            "input": {
+                "title": "Inventory adjust on-hand mirror runtime seed",
+                "status": "DRAFT",
+                "productOptions": [{
+                    "name": "Title",
+                    "position": 1,
+                    "values": [{ "name": "Default Title" }]
+                }],
+                "variants": [{
+                    "optionValues": [{ "optionName": "Title", "name": "Default Title" }],
+                    "inventoryItem": { "tracked": true, "requiresShipping": true },
+                    "inventoryQuantities": [{
+                        "locationId": "gid://shopify/Location/1",
+                        "name": "available",
+                        "quantity": 0
+                    }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(setup.body["data"]["productSet"]["userErrors"], json!([]));
+    let product = &setup.body["data"]["productSet"]["product"];
+    let product_id = product["id"].as_str().unwrap().to_string();
+    let variant_id = product["variants"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let inventory_item_id = product["variants"]["nodes"][0]["inventoryItem"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let mut expected_damaged = 0;
+    let mut expected_quality_control = 0;
+    let mut expected_reserved = 0;
+    let mut expected_safety_stock = 0;
+    let mut expected_incoming = 0;
+    let mut expected_on_hand = 0;
+
+    for (name, reason, delta) in [
+        ("damaged", "damaged", 2),
+        ("reserved", "reservation_created", 3),
+        ("quality_control", "quality_control", 4),
+        ("safety_stock", "safety_stock", 5),
+    ] {
+        let ledger = format!("https://example.com/inventory-adjust-mirror/{name}");
+        let adjust = proxy.process_request(json_graphql_request(
+            r#"
+            mutation InventoryAdjustMirror($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+              inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+                inventoryAdjustmentGroup {
+                  reason
+                  changes { name delta quantityAfterChange ledgerDocumentUri item { id } location { id } }
+                }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({"idempotencyKey": format!("inventory-adjust-mirror-{name}"), "input": {
+                "name": name,
+                "reason": reason,
+                "changes": [{
+                    "inventoryItemId": inventory_item_id,
+                    "locationId": "gid://shopify/Location/1",
+                    "delta": delta,
+                    "changeFromQuantity": 0,
+                    "ledgerDocumentUri": ledger
+                }]
+            }}),
+        ));
+        let payload = &adjust.body["data"]["inventoryAdjustQuantities"];
+        assert_eq!(payload["userErrors"], json!([]));
+        assert_eq!(payload["inventoryAdjustmentGroup"]["reason"], json!(reason));
+        assert_eq!(
+            payload["inventoryAdjustmentGroup"]["changes"],
+            json!([
+                {
+                    "name": name,
+                    "delta": delta,
+                    "quantityAfterChange": null,
+                    "ledgerDocumentUri": ledger,
+                    "item": { "id": inventory_item_id },
+                    "location": { "id": "gid://shopify/Location/1" }
+                },
+                {
+                    "name": "on_hand",
+                    "delta": delta,
+                    "quantityAfterChange": null,
+                    "ledgerDocumentUri": null,
+                    "item": { "id": inventory_item_id },
+                    "location": { "id": "gid://shopify/Location/1" }
+                }
+            ])
+        );
+
+        match name {
+            "damaged" => expected_damaged += delta,
+            "reserved" => expected_reserved += delta,
+            "quality_control" => expected_quality_control += delta,
+            "safety_stock" => expected_safety_stock += delta,
+            _ => unreachable!(),
+        }
+        expected_on_hand += delta;
+
+        let read = proxy.process_request(json_graphql_request(
+            r#"
+            query InventoryAdjustMirrorRead($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) {
+              product(id: $productId) { totalInventory tracksInventory }
+              productVariant(id: $variantId) {
+                inventoryQuantity
+                inventoryItem {
+                  inventoryLevels(first: 5) {
+                    nodes {
+                      quantities(names: ["available", "incoming", "damaged", "quality_control", "reserved", "safety_stock", "on_hand"]) {
+                        name
+                        quantity
+                        updatedAt
+                      }
+                    }
+                  }
+                }
+              }
+              inventoryItem(id: $inventoryItemId) {
+                variant { inventoryQuantity product { totalInventory tracksInventory } }
+                inventoryLevels(first: 5) {
+                  nodes {
+                    quantities(names: ["available", "incoming", "damaged", "quality_control", "reserved", "safety_stock", "on_hand"]) {
+                      name
+                      quantity
+                      updatedAt
+                    }
+                  }
+                }
+              }
+            }
+            "#,
+            json!({
+                "productId": product_id,
+                "variantId": variant_id,
+                "inventoryItemId": inventory_item_id
+            }),
+        ));
+        assert_eq!(read.body["data"]["product"]["totalInventory"], json!(0));
+        assert_eq!(read.body["data"]["product"]["tracksInventory"], json!(true));
+        assert_eq!(
+            read.body["data"]["productVariant"]["inventoryQuantity"],
+            json!(0)
+        );
+        assert_eq!(
+            read.body["data"]["inventoryItem"]["variant"]["inventoryQuantity"],
+            json!(0)
+        );
+        assert_eq!(
+            read.body["data"]["inventoryItem"]["variant"]["product"],
+            json!({"totalInventory": 0, "tracksInventory": true})
+        );
+        assert_eq!(
+            read.body["data"]["productVariant"]["inventoryItem"]["inventoryLevels"]["nodes"][0]
+                ["quantities"],
+            read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+        );
+        let rows = &read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"];
+        let quantity = |name: &str| {
+            rows.as_array()
+                .unwrap()
+                .iter()
+                .find(|row| row["name"] == json!(name))
+                .and_then(|row| row["quantity"].as_i64())
+                .unwrap()
+        };
+        let updated_at = |name: &str| {
+            rows.as_array()
+                .unwrap()
+                .iter()
+                .find(|row| row["name"] == json!(name))
+                .map(|row| row["updatedAt"].clone())
+                .unwrap()
+        };
+        assert_eq!(quantity("available"), 0);
+        assert_eq!(quantity("incoming"), expected_incoming);
+        assert_eq!(quantity("damaged"), expected_damaged);
+        assert_eq!(quantity("quality_control"), expected_quality_control);
+        assert_eq!(quantity("reserved"), expected_reserved);
+        assert_eq!(quantity("safety_stock"), expected_safety_stock);
+        assert_eq!(quantity("on_hand"), expected_on_hand);
+        assert_eq!(updated_at("on_hand"), Value::Null);
+    }
+
+    let incoming_ledger = "https://example.com/inventory-adjust-mirror/incoming";
+    let incoming = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryAdjustIncomingControl($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+          inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup {
+              reason
+              changes { name delta quantityAfterChange ledgerDocumentUri item { id } location { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "inventory-adjust-mirror-incoming-control", "input": {
+            "name": "incoming",
+            "reason": "received",
+            "changes": [{
+                "inventoryItemId": inventory_item_id,
+                "locationId": "gid://shopify/Location/1",
+                "delta": 6,
+                "changeFromQuantity": 0,
+                "ledgerDocumentUri": incoming_ledger
+            }]
+        }}),
+    ));
+    assert_eq!(
+        incoming.body["data"]["inventoryAdjustQuantities"]["inventoryAdjustmentGroup"]["changes"],
+        json!([{
+            "name": "incoming",
+            "delta": 6,
+            "quantityAfterChange": null,
+            "ledgerDocumentUri": incoming_ledger,
+            "item": { "id": inventory_item_id },
+            "location": { "id": "gid://shopify/Location/1" }
+        }])
+    );
+    assert_eq!(
+        incoming.body["data"]["inventoryAdjustQuantities"]["userErrors"],
+        json!([])
+    );
+    expected_incoming += 6;
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryAdjustIncomingControlRead($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) {
+          product(id: $productId) { totalInventory tracksInventory }
+          productVariant(id: $variantId) { inventoryQuantity }
+          inventoryItem(id: $inventoryItemId) {
+            variant { inventoryQuantity product { totalInventory tracksInventory } }
+            inventoryLevels(first: 5) {
+              nodes {
+                quantities(names: ["available", "incoming", "damaged", "quality_control", "reserved", "safety_stock", "on_hand"]) {
+                  name
+                  quantity
+                  updatedAt
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variantId": variant_id,
+            "inventoryItemId": inventory_item_id
+        }),
+    ));
+    let rows = &read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"];
+    let quantity = |name: &str| {
+        rows.as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["name"] == json!(name))
+            .and_then(|row| row["quantity"].as_i64())
+            .unwrap()
+    };
+    assert_eq!(
+        read.body["data"]["product"],
+        json!({"totalInventory": 0, "tracksInventory": true})
+    );
+    assert_eq!(
+        read.body["data"]["productVariant"]["inventoryQuantity"],
+        json!(0)
+    );
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["variant"],
+        json!({"inventoryQuantity": 0, "product": {"totalInventory": 0, "tracksInventory": true}})
+    );
+    assert_eq!(quantity("available"), 0);
+    assert_eq!(quantity("incoming"), expected_incoming);
+    assert_eq!(quantity("damaged"), expected_damaged);
+    assert_eq!(quantity("quality_control"), expected_quality_control);
+    assert_eq!(quantity("reserved"), expected_reserved);
+    assert_eq!(quantity("safety_stock"), expected_safety_stock);
+    assert_eq!(quantity("on_hand"), expected_on_hand);
 }
 
 #[test]
@@ -3285,6 +3665,128 @@ fn inventory_quantity_name_validation_rejects_invalid_names_without_staging() {
     );
 
     assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn inventory_adjust_quantities_ledger_document_validation_rejects_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let mutation = r#"
+        mutation LedgerDocumentAdjust($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+          inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup {
+              id
+              changes { name delta ledgerDocumentUri }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#;
+
+    let missing_non_available = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "ledger-required-non-available", "input": {"name": "damaged", "reason": "damaged", "changes": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/ledger-required", "locationId": "gid://shopify/Location/1", "delta": 5, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        missing_non_available.body["data"]["inventoryAdjustQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "changes", "0", "ledgerDocumentUri"],
+                "message": "A ledger document URI is required except when adjusting available.",
+                "code": "INVALID_QUANTITY_DOCUMENT"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert!(state_snapshot(&proxy)["stagedState"]["inventoryLevels"].is_null());
+
+    let available_with_ledger = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "ledger-forbidden-available", "input": {"name": "available", "reason": "correction", "changes": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/ledger-forbidden", "locationId": "gid://shopify/Location/1", "delta": 5, "changeFromQuantity": 0, "ledgerDocumentUri": "https://example.com/doc/1"}
+        ]}}),
+    ));
+    assert_eq!(
+        available_with_ledger.body["data"]["inventoryAdjustQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "changes", "0", "ledgerDocumentUri"],
+                "message": "A ledger document URI is not allowed when adjusting available.",
+                "code": "INVALID_AVAILABLE_DOCUMENT"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert!(state_snapshot(&proxy)["stagedState"]["inventoryLevels"].is_null());
+
+    let internal_gid_ledger = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "ledger-internal-gid", "input": {"name": "reserved", "reason": "correction", "changes": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/ledger-internal", "locationId": "gid://shopify/Location/1", "delta": 5, "changeFromQuantity": 0, "ledgerDocumentUri": "gid://shopify/Order/123"}
+        ]}}),
+    ));
+    assert_eq!(
+        internal_gid_ledger.body["data"]["inventoryAdjustQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "changes", "0", "ledgerDocumentUri"],
+                "message": "Internal (gid://shopify/) ledger documents are not allowed to be adjusted via API.",
+                "code": "INTERNAL_LEDGER_DOCUMENT"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert!(state_snapshot(&proxy)["stagedState"]["inventoryLevels"].is_null());
+
+    let multiple_distinct_ledgers = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "ledger-max-one-document", "input": {"name": "damaged", "reason": "damaged", "changes": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/ledger-first", "locationId": "gid://shopify/Location/1", "delta": 5, "changeFromQuantity": 0, "ledgerDocumentUri": "https://example.com/doc/1"},
+            {"inventoryItemId": "gid://shopify/InventoryItem/ledger-second", "locationId": "gid://shopify/Location/1", "delta": 6, "changeFromQuantity": 0, "ledgerDocumentUri": "https://example.com/doc/2"}
+        ]}}),
+    ));
+    assert_eq!(
+        multiple_distinct_ledgers.body["data"]["inventoryAdjustQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "changes"],
+                "message": "All changes must have the same ledger document URI or, in the case of adjusting available, no ledger document URI.",
+                "code": "MAX_ONE_LEDGER_DOCUMENT"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert!(state_snapshot(&proxy)["stagedState"]["inventoryLevels"].is_null());
+
+    let valid_non_available = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"idempotencyKey": "ledger-valid-non-available", "input": {"name": "incoming", "reason": "received", "changes": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/ledger-valid", "locationId": "gid://shopify/Location/1", "delta": 5, "changeFromQuantity": 0, "ledgerDocumentUri": "https://example.com/doc/valid"}
+        ]}}),
+    ));
+    let valid_payload = &valid_non_available.body["data"]["inventoryAdjustQuantities"];
+    assert_eq!(valid_payload["userErrors"], json!([]));
+    assert_ne!(valid_payload["inventoryAdjustmentGroup"], Value::Null);
+    assert_eq!(
+        valid_payload["inventoryAdjustmentGroup"]["changes"][0]["ledgerDocumentUri"],
+        json!("https://example.com/doc/valid")
+    );
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["inventoryLevels"][0]["quantities"]["incoming"],
+        json!(5)
+    );
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(log["entries"][0]["status"], json!("staged"));
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("https://example.com/doc/valid"));
 }
 
 #[test]
@@ -5529,20 +6031,62 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
           first: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello" } }]) { upsertedThemeFiles { filename createdAt updatedAt checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
           second: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello world" } }]) { upsertedThemeFiles { filename createdAt updatedAt checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
           invalid: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "evil/path.liquid", body: { type: TEXT, value: "ignored" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
-          app: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/app.js", body: { type: TEXT, value: "console.log(1)" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
-          theme: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/theme.js", body: { type: TEXT, value: "hello" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
+          app: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/app.js", body: { type: TEXT, value: "console.log(1)" } }]) { upsertedThemeFiles { filename createdAt updatedAt } userErrors { field message code } }
+          theme: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/theme.js", body: { type: TEXT, value: "hello" } }]) { upsertedThemeFiles { filename createdAt updatedAt } userErrors { field message code } }
         }
         "#,
         json!({}),
     ));
-    assert_eq!(
-        upserts.body["data"]["first"]["upsertedThemeFiles"][0],
-        json!({"filename": "templates/index.json", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}})
+    let first_file = &upserts.body["data"]["first"]["upsertedThemeFiles"][0];
+    let first_created_at = assert_online_store_operation_timestamp(
+        &first_file["createdAt"],
+        "themeFilesUpsert.first.createdAt",
     );
-    assert_eq!(
-        upserts.body["data"]["second"]["upsertedThemeFiles"][0],
-        json!({"filename": "templates/index.json", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:01.000Z", "checksumMd5": "5eb63bbbe01eeed093cb22bb8f5acdc3", "size": 11, "body": {"content": "hello world"}})
+    let first_updated_at = assert_online_store_operation_timestamp(
+        &first_file["updatedAt"],
+        "themeFilesUpsert.first.updatedAt",
     );
+    assert_eq!(first_created_at, first_updated_at);
+    assert_eq!(
+        first_file,
+        &json!({"filename": "templates/index.json", "createdAt": first_created_at.clone(), "updatedAt": first_updated_at.clone(), "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}})
+    );
+    let second_file = &upserts.body["data"]["second"]["upsertedThemeFiles"][0];
+    let second_created_at = assert_online_store_operation_timestamp(
+        &second_file["createdAt"],
+        "themeFilesUpsert.second.createdAt",
+    );
+    let second_updated_at = assert_online_store_operation_timestamp(
+        &second_file["updatedAt"],
+        "themeFilesUpsert.second.updatedAt",
+    );
+    assert_eq!(second_created_at, first_created_at);
+    assert_eq!(
+        second_file,
+        &json!({"filename": "templates/index.json", "createdAt": second_created_at.clone(), "updatedAt": second_updated_at.clone(), "checksumMd5": "5eb63bbbe01eeed093cb22bb8f5acdc3", "size": 11, "body": {"content": "hello world"}})
+    );
+    let app_file = &upserts.body["data"]["app"]["upsertedThemeFiles"][0];
+    let app_created_at = assert_online_store_operation_timestamp(
+        &app_file["createdAt"],
+        "themeFilesUpsert.app.createdAt",
+    );
+    let app_updated_at = assert_online_store_operation_timestamp(
+        &app_file["updatedAt"],
+        "themeFilesUpsert.app.updatedAt",
+    );
+    assert_eq!(app_file["filename"], json!("assets/app.js"));
+    assert_eq!(app_created_at, app_updated_at);
+    let theme_file = &upserts.body["data"]["theme"]["upsertedThemeFiles"][0];
+    let theme_created_at = assert_online_store_operation_timestamp(
+        &theme_file["createdAt"],
+        "themeFilesUpsert.theme.createdAt",
+    );
+    let theme_updated_at = assert_online_store_operation_timestamp(
+        &theme_file["updatedAt"],
+        "themeFilesUpsert.theme.updatedAt",
+    );
+    assert_eq!(theme_file["filename"], json!("assets/theme.js"));
+    assert_eq!(theme_created_at, theme_updated_at);
     assert_eq!(
         upserts.body["data"]["invalid"],
         json!({"upsertedThemeFiles": [], "userErrors": [{"field": ["files", "0", "filename"], "message": "Filename is invalid", "code": "INVALID"}]})
@@ -5554,7 +6098,7 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
           missingCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/missing.js", dstFilename: "assets/copy.js" }]) { copiedThemeFiles { filename } userErrors { field message code } }
           copy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/app.js", dstFilename: "assets/copy.js" }]) { copiedThemeFiles { filename createdAt updatedAt checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
           multiCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/app.js", dstFilename: "assets/app-copy.js" }, { srcFilename: "assets/theme.js", dstFilename: "assets/theme-copy.js" }]) { copiedThemeFiles { filename createdAt updatedAt checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
-          mixedCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/missing.js", dstFilename: "assets/missing-copy.js" }, { srcFilename: "assets/theme.js", dstFilename: "assets/theme-copy-2.js" }]) { copiedThemeFiles { filename } userErrors { field message code } }
+          mixedCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/missing.js", dstFilename: "assets/missing-copy.js" }, { srcFilename: "assets/theme.js", dstFilename: "assets/theme-copy-2.js" }]) { copiedThemeFiles { filename createdAt updatedAt } userErrors { field message code } }
           requiredDelete: themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["config/settings_data.json", "config/settings_schema.json"]) { deletedThemeFiles { filename } userErrors { field message code } }
           deleteCopy: themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["assets/copy.js"]) { deletedThemeFiles { filename createdAt updatedAt checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
         }
@@ -5565,20 +6109,60 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
         copy_delete.body["data"]["missingCopy"],
         json!({"copiedThemeFiles": [], "userErrors": [{"field": ["files", "0", "srcFilename"], "message": "File not found", "code": "NOT_FOUND"}]})
     );
-    assert_eq!(
-        copy_delete.body["data"]["copy"]["copiedThemeFiles"][0],
-        json!({"filename": "assets/copy.js", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}})
+    let copied_file = &copy_delete.body["data"]["copy"]["copiedThemeFiles"][0];
+    let copy_created_at = assert_online_store_operation_timestamp(
+        &copied_file["createdAt"],
+        "themeFilesCopy.copy.createdAt",
     );
+    let copy_updated_at = assert_online_store_operation_timestamp(
+        &copied_file["updatedAt"],
+        "themeFilesCopy.copy.updatedAt",
+    );
+    assert_eq!(copy_created_at, copy_updated_at);
+    assert_eq!(
+        copied_file,
+        &json!({"filename": "assets/copy.js", "createdAt": copy_created_at.clone(), "updatedAt": copy_updated_at.clone(), "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}})
+    );
+    let app_copy_file = &copy_delete.body["data"]["multiCopy"]["copiedThemeFiles"][0];
+    let app_copy_created_at = assert_online_store_operation_timestamp(
+        &app_copy_file["createdAt"],
+        "themeFilesCopy.app-copy.createdAt",
+    );
+    let app_copy_updated_at = assert_online_store_operation_timestamp(
+        &app_copy_file["updatedAt"],
+        "themeFilesCopy.app-copy.updatedAt",
+    );
+    assert_eq!(app_copy_created_at, app_copy_updated_at);
+    let theme_copy_file = &copy_delete.body["data"]["multiCopy"]["copiedThemeFiles"][1];
+    let theme_copy_created_at = assert_online_store_operation_timestamp(
+        &theme_copy_file["createdAt"],
+        "themeFilesCopy.theme-copy.createdAt",
+    );
+    let theme_copy_updated_at = assert_online_store_operation_timestamp(
+        &theme_copy_file["updatedAt"],
+        "themeFilesCopy.theme-copy.updatedAt",
+    );
+    assert_eq!(theme_copy_created_at, theme_copy_updated_at);
     assert_eq!(
         copy_delete.body["data"]["multiCopy"],
         json!({"copiedThemeFiles": [
-            {"filename": "assets/app-copy.js", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
-            {"filename": "assets/theme-copy.js", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}}
+            {"filename": "assets/app-copy.js", "createdAt": app_copy_created_at.clone(), "updatedAt": app_copy_updated_at.clone(), "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
+            {"filename": "assets/theme-copy.js", "createdAt": theme_copy_created_at.clone(), "updatedAt": theme_copy_updated_at.clone(), "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}}
         ], "userErrors": []})
     );
+    let theme_copy_2_file = &copy_delete.body["data"]["mixedCopy"]["copiedThemeFiles"][0];
+    let theme_copy_2_created_at = assert_online_store_operation_timestamp(
+        &theme_copy_2_file["createdAt"],
+        "themeFilesCopy.theme-copy-2.createdAt",
+    );
+    let theme_copy_2_updated_at = assert_online_store_operation_timestamp(
+        &theme_copy_2_file["updatedAt"],
+        "themeFilesCopy.theme-copy-2.updatedAt",
+    );
+    assert_eq!(theme_copy_2_created_at, theme_copy_2_updated_at);
     assert_eq!(
         copy_delete.body["data"]["mixedCopy"],
-        json!({"copiedThemeFiles": [{"filename": "assets/theme-copy-2.js"}], "userErrors": [{"field": ["files", "0", "srcFilename"], "message": "File not found", "code": "NOT_FOUND"}]})
+        json!({"copiedThemeFiles": [{"filename": "assets/theme-copy-2.js", "createdAt": theme_copy_2_created_at.clone(), "updatedAt": theme_copy_2_updated_at.clone()}], "userErrors": [{"field": ["files", "0", "srcFilename"], "message": "File not found", "code": "NOT_FOUND"}]})
     );
     assert_eq!(
         copy_delete.body["data"]["requiredDelete"]["userErrors"],
@@ -5589,7 +6173,7 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
     );
     assert_eq!(
         copy_delete.body["data"]["deleteCopy"],
-        json!({"deletedThemeFiles": [{"filename": "assets/copy.js", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}}], "userErrors": []})
+        json!({"deletedThemeFiles": [{"filename": "assets/copy.js", "createdAt": copy_created_at.clone(), "updatedAt": copy_updated_at.clone(), "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}}], "userErrors": []})
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -5603,12 +6187,12 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
     assert_eq!(
         read.body["data"]["theme"]["files"]["nodes"],
         json!([
-            {"filename": "templates/index.json", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:01.000Z", "checksumMd5": "5eb63bbbe01eeed093cb22bb8f5acdc3", "size": 11, "body": {"content": "hello world"}},
-            {"filename": "assets/app.js", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
-            {"filename": "assets/theme.js", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}},
-            {"filename": "assets/app-copy.js", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
-            {"filename": "assets/theme-copy.js", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}},
-            {"filename": "assets/theme-copy-2.js", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}}
+            {"filename": "templates/index.json", "createdAt": second_created_at, "updatedAt": second_updated_at, "checksumMd5": "5eb63bbbe01eeed093cb22bb8f5acdc3", "size": 11, "body": {"content": "hello world"}},
+            {"filename": "assets/app.js", "createdAt": app_created_at, "updatedAt": app_updated_at, "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
+            {"filename": "assets/theme.js", "createdAt": theme_created_at, "updatedAt": theme_updated_at, "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}},
+            {"filename": "assets/app-copy.js", "createdAt": app_copy_created_at, "updatedAt": app_copy_updated_at, "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
+            {"filename": "assets/theme-copy.js", "createdAt": theme_copy_created_at, "updatedAt": theme_copy_updated_at, "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}},
+            {"filename": "assets/theme-copy-2.js", "createdAt": theme_copy_2_created_at, "updatedAt": theme_copy_2_updated_at, "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}}
         ])
     );
 
@@ -7096,6 +7680,20 @@ fn metaobject_create_validates_definition_fields_and_capabilities() {
     assert!(codes.contains(&"UNDEFINED_OBJECT_FIELD"));
     assert!(codes.contains(&"INVALID_VALUE"));
     assert!(codes.contains(&"CAPABILITY_NOT_ENABLED"));
+    let capability_error = invalid.body["data"]["metaobjectCreate"]["userErrors"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|error| error["code"] == "CAPABILITY_NOT_ENABLED")
+        .unwrap();
+    assert_eq!(
+        capability_error["field"],
+        json!(["metaobject", "capabilities", "publishable"])
+    );
+    assert_eq!(
+        capability_error["message"],
+        json!("Capability is not enabled: publishable")
+    );
     assert_eq!(
         invalid.body["data"]["metaobjectCreate"]["metaobject"],
         Value::Null
@@ -8979,11 +9577,11 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         r#"
         mutation DeliberatelyNotAnOnlineStoreOperation($blog: BlogCreateInput!, $page: PageCreateInput!) {
           madeBlog: blogCreate(blog: $blog) {
-            blog { id title handle commentPolicy articlesCount { count precision } }
+            blog { id title handle commentPolicy createdAt updatedAt articlesCount { count precision } }
             userErrors { field message code }
           }
           madePage: pageCreate(page: $page) {
-            page { id title handle body bodySummary isPublished publishedAt }
+            page { id title handle body bodySummary isPublished publishedAt createdAt updatedAt }
             userErrors { field message code }
           }
         }
@@ -9000,10 +9598,28 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         .as_str()
         .unwrap()
         .to_string();
+    let blog_created_at = assert_online_store_operation_timestamp(
+        &create.body["data"]["madeBlog"]["blog"]["createdAt"],
+        "blogCreate.createdAt",
+    );
+    let blog_updated_at = assert_online_store_operation_timestamp(
+        &create.body["data"]["madeBlog"]["blog"]["updatedAt"],
+        "blogCreate.updatedAt",
+    );
+    assert_eq!(blog_created_at, blog_updated_at);
     let page_id = create.body["data"]["madePage"]["page"]["id"]
         .as_str()
         .unwrap()
         .to_string();
+    let page_created_at = assert_online_store_operation_timestamp(
+        &create.body["data"]["madePage"]["page"]["createdAt"],
+        "pageCreate.createdAt",
+    );
+    let page_updated_at = assert_online_store_operation_timestamp(
+        &create.body["data"]["madePage"]["page"]["updatedAt"],
+        "pageCreate.updatedAt",
+    );
+    assert_eq!(page_created_at, page_updated_at);
     assert_eq!(
         create.body["data"]["madePage"]["page"]["body"],
         json!("<p>Hello <strong>page</strong></p>")
@@ -9021,7 +9637,7 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         r#"
         mutation AnotherUnrelatedOperationName($article: ArticleCreateInput!) {
           madeArticle: articleCreate(article: $article) {
-            article { id title handle body summary tags isPublished author { name } blog { id title handle } commentsCount { count precision } }
+            article { id title handle body summary tags isPublished publishedAt createdAt updatedAt author { name } blog { id title handle } commentsCount { count precision } }
             userErrors { field message code }
           }
         }
@@ -9045,6 +9661,20 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         .as_str()
         .unwrap()
         .to_string();
+    let article_created_at = assert_online_store_operation_timestamp(
+        &article_create.body["data"]["madeArticle"]["article"]["createdAt"],
+        "articleCreate.createdAt",
+    );
+    let article_updated_at = assert_online_store_operation_timestamp(
+        &article_create.body["data"]["madeArticle"]["article"]["updatedAt"],
+        "articleCreate.updatedAt",
+    );
+    let article_published_at = assert_online_store_operation_timestamp(
+        &article_create.body["data"]["madeArticle"]["article"]["publishedAt"],
+        "articleCreate.publishedAt",
+    );
+    assert_eq!(article_created_at, article_updated_at);
+    assert_eq!(article_created_at, article_published_at);
 
     let read = proxy.process_request(json_graphql_request(
         r#"
@@ -9052,11 +9682,13 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
           blog(id: $blogId) {
             id
             title
+            createdAt
+            updatedAt
             articlesCount { count precision }
             articles(first: 5) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } }
           }
-          page(id: $pageId) { id title handle isPublished }
-          article(id: $articleId) { id title isPublished blog { id title } commentsCount { count precision } }
+          page(id: $pageId) { id title handle isPublished createdAt updatedAt }
+          article(id: $articleId) { id title isPublished publishedAt createdAt updatedAt blog { id title } commentsCount { count precision } }
           blogsCount { count precision }
           pagesCount { count precision }
         }
@@ -9072,6 +9704,34 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         json!(article_id)
     );
     assert_eq!(read.body["data"]["page"]["isPublished"], json!(false));
+    assert_eq!(
+        read.body["data"]["blog"]["createdAt"],
+        json!(blog_created_at)
+    );
+    assert_eq!(
+        read.body["data"]["blog"]["updatedAt"],
+        json!(blog_updated_at)
+    );
+    assert_eq!(
+        read.body["data"]["page"]["createdAt"],
+        json!(page_created_at)
+    );
+    assert_eq!(
+        read.body["data"]["page"]["updatedAt"],
+        json!(page_updated_at)
+    );
+    assert_eq!(
+        read.body["data"]["article"]["createdAt"],
+        json!(article_created_at)
+    );
+    assert_eq!(
+        read.body["data"]["article"]["updatedAt"],
+        json!(article_updated_at)
+    );
+    assert_eq!(
+        read.body["data"]["article"]["publishedAt"],
+        json!(article_published_at)
+    );
     assert_eq!(
         read.body["data"]["blogsCount"],
         json!({"count": 1, "precision": "EXACT"})
@@ -9239,10 +9899,10 @@ fn online_store_comment_moderation_state_machine_and_delete_are_local() {
     let transitions = proxy.process_request(json_graphql_request(
         r#"
         mutation CommentTransitions($unapproved: ID!, $stillUnapproved: ID!, $spam: ID!, $published: ID!) {
-          approve: commentApprove(id: $unapproved) { comment { id status isPublished publishedAt } userErrors { field message code } }
+          approve: commentApprove(id: $unapproved) { comment { id status isPublished publishedAt createdAt updatedAt } userErrors { field message code } }
           approveSpam: commentApprove(id: $spam) { comment { id status } userErrors { field message code } }
           notSpamUnapproved: commentNotSpam(id: $stillUnapproved) { comment { id status } userErrors { field message code } }
-          spamPublished: commentSpam(id: $published) { comment { id status isPublished publishedAt } userErrors { field message code } }
+          spamPublished: commentSpam(id: $published) { comment { id status isPublished publishedAt createdAt updatedAt } userErrors { field message code } }
         }
         "#,
         json!({"unapproved": unapproved_id, "stillUnapproved": still_unapproved_id, "spam": spam_id, "published": published_id}),
@@ -9251,6 +9911,19 @@ fn online_store_comment_moderation_state_machine_and_delete_are_local() {
         transitions.body["data"]["approve"]["comment"]["status"],
         json!("PUBLISHED")
     );
+    assert_eq!(
+        transitions.body["data"]["approve"]["comment"]["createdAt"],
+        json!("2026-01-01T00:00:00Z")
+    );
+    let approved_published_at = assert_online_store_operation_timestamp(
+        &transitions.body["data"]["approve"]["comment"]["publishedAt"],
+        "commentApprove.publishedAt",
+    );
+    let approved_updated_at = assert_online_store_operation_timestamp(
+        &transitions.body["data"]["approve"]["comment"]["updatedAt"],
+        "commentApprove.updatedAt",
+    );
+    assert_eq!(approved_published_at, approved_updated_at);
     assert_eq!(transitions.body["data"]["approve"]["userErrors"], json!([]));
     assert_eq!(
         transitions.body["data"]["approveSpam"]["userErrors"],
@@ -9263,6 +9936,18 @@ fn online_store_comment_moderation_state_machine_and_delete_are_local() {
     assert_eq!(
         transitions.body["data"]["spamPublished"]["comment"]["status"],
         json!("SPAM")
+    );
+    assert_eq!(
+        transitions.body["data"]["spamPublished"]["comment"]["createdAt"],
+        json!("2026-01-01T00:00:00Z")
+    );
+    assert_eq!(
+        transitions.body["data"]["spamPublished"]["comment"]["publishedAt"],
+        Value::Null
+    );
+    assert_online_store_operation_timestamp(
+        &transitions.body["data"]["spamPublished"]["comment"]["updatedAt"],
+        "commentSpam.updatedAt",
     );
 
     let delete = proxy.process_request(json_graphql_request(

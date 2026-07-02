@@ -1,0 +1,80 @@
+{
+  "scenarioId": "inventory-adjust-ledger-document-validation",
+  "operationNames": ["inventoryAdjustQuantities"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "mutation-side-effect-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-adjust-ledger-document-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-adjust-ledger-document-validation.graphql",
+    "variablesCapturePath": "$.missingLedgerDocument.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-ledger-document-user-error",
+        "capturePath": "$.missingLedgerDocument.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities"
+      },
+      {
+        "name": "available-ledger-document-user-error",
+        "capturePath": "$.availableLedgerDocument.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-ledger-document-validation.graphql",
+          "variablesCapturePath": "$.availableLedgerDocument.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "internal-ledger-document-user-error",
+        "capturePath": "$.internalLedgerDocument.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-ledger-document-validation.graphql",
+          "variablesCapturePath": "$.internalLedgerDocument.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "max-one-ledger-document-user-error",
+        "capturePath": "$.maxOneLedgerDocument.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-ledger-document-validation.graphql",
+          "variablesCapturePath": "$.maxOneLedgerDocument.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "valid-non-available-ledger-document-payload",
+        "capturePath": "$.validNonAvailableLedgerDocument.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-adjust-ledger-document-validation.graphql",
+          "variablesCapturePath": "$.validNonAvailableLedgerDocument.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryAdjustmentGroup.id",
+            "matcher": "shopify-gid:InventoryAdjustmentGroup",
+            "reason": "The live fixture stores Shopify's adjustment-group id while the proxy uses a deterministic session-local synthetic adjustment-group id."
+          },
+          {
+            "path": "$.inventoryAdjustmentGroup.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The live fixture stores Shopify's write timestamp while the proxy uses its synthetic session timestamp."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Captured 2026-04 evidence for inventoryAdjustQuantities ledgerDocumentUri validation. Shopify rejects non-available changes without a ledger document, available changes with a ledger document, internal gid://shopify ledger documents, and multiple distinct ledger document URIs before creating an adjustment group. A non-available incoming adjustment with one external ledger document URI is accepted and echoes that URI on the returned change."
+}

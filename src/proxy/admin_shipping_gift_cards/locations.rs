@@ -1,6 +1,7 @@
 use super::*;
 
 const LOCATION_HYDRATE_QUERY: &str = r#"query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: "custom", key: "hours") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: ["available", "committed", "on_hand"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"#;
+const LOCATION_LIMIT_STATUS_QUERY: &str = r#"query StorePropertiesLocationLimitStatus($first: Int!) { shop { resourceLimits { locationLimit } } locations(first: $first, includeInactive: true) { nodes { id isActive isFulfillmentService } pageInfo { hasNextPage } } }"#;
 
 impl DraftProxy {
     pub(in crate::proxy) fn location_mutation(
@@ -229,7 +230,7 @@ impl DraftProxy {
                 return ok_json(location_add_metafield_blank_key_error(field, &document));
             }
 
-            let user_errors = self.location_add_user_errors(&input);
+            let user_errors = self.location_add_user_errors(&input, request);
             let location = if user_errors.is_empty() {
                 let id = self.next_proxy_synthetic_gid("Location");
                 let location = self.location_record_from_add_input(&id, &input);
@@ -271,6 +272,7 @@ impl DraftProxy {
             let location_id =
                 resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
             self.ensure_location_hydrated(&location_id, request);
+            self.hydrate_location_limit_status(request);
             let source_location = self.location_source_record(&location_id);
             let errors = self.location_activate_errors(&source_location);
             let location = if errors.is_empty() {
@@ -289,12 +291,6 @@ impl DraftProxy {
                 );
                 location
             } else {
-                if errors.iter().any(|error| {
-                    error.get("code").and_then(Value::as_str) == Some("LOCATION_LIMIT")
-                }) && location_id == "gid://shopify/Location/location-add-limit-seed"
-                {
-                    self.store.staged.location_limit_reached = true;
-                }
                 source_location
             };
             data.insert(
@@ -777,7 +773,11 @@ impl DraftProxy {
         None
     }
 
-    fn location_add_user_errors(&self, input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    fn location_add_user_errors(
+        &mut self,
+        input: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Vec<Value> {
         let mut errors = Vec::new();
         let name = resolved_string_field(input, "name").unwrap_or_default();
         if let Some(error) = self.location_name_user_error(&name, None) {
@@ -785,6 +785,7 @@ impl DraftProxy {
         }
         errors.extend(location_address_length_user_errors(input, false));
         errors.extend(location_metafield_type_user_errors(input, 0));
+        self.hydrate_location_limit_status(request);
         if self.location_limit_reached() {
             errors.push(user_error(
                 ["input"],
@@ -870,15 +871,10 @@ impl DraftProxy {
                 Some("LOCATION_NOT_FOUND"),
             )];
         }
-        if self.location_limit_reached()
-            || location
-                .get("reachedLocationLimit")
-                .and_then(Value::as_bool)
-                == Some(true)
-        {
+        if self.location_limit_reached() {
             return vec![user_error(
                 ["locationId"],
-                "Your shop has reached its location limit.",
+                "Shop has reached its location limit.",
                 Some("LOCATION_LIMIT"),
             )];
         }
@@ -923,12 +919,12 @@ impl DraftProxy {
 
     /// Hydrates a baseline location from upstream for lifecycle mutations
     /// (activate/deactivate) when it is neither already staged nor covered by a
-    /// synthetic guard fixture. Issues the recorded `StorePropertiesLocationHydrate`
-    /// query so the cassette replays the real captured location, letting the
-    /// proxy preserve the baseline name/scope/state across the mutation instead
-    /// of fabricating one. A miss (no recorded call) returns non-2xx and falls
-    /// back to the existing synthetic resolution, so non-hydrate scenarios are
-    /// unaffected.
+    /// fixture-backed deactivation state-machine record. Issues the recorded
+    /// `StorePropertiesLocationHydrate` query so the cassette replays the real
+    /// captured location, letting the proxy preserve the baseline
+    /// name/scope/state across the mutation instead of fabricating one. A miss
+    /// (no recorded call) returns non-2xx and falls back to the default staged
+    /// record for non-hydrate scenarios.
     fn ensure_location_hydrated(&mut self, location_id: &str, request: &Request) {
         if self.config.read_mode == ReadMode::Snapshot {
             return;
@@ -942,9 +938,7 @@ impl DraftProxy {
         {
             return;
         }
-        if fixture_location_activate_guard_location(location_id).is_some()
-            || fixture_location_deactivate_state_machine_location(location_id).is_some()
-        {
+        if fixture_location_deactivate_state_machine_location(location_id).is_some() {
             return;
         }
         let response = self.upstream_post(
@@ -976,6 +970,27 @@ impl DraftProxy {
                 .insert(location_id.to_string(), record);
         } else {
             self.stage_location(record);
+        }
+    }
+
+    fn hydrate_location_limit_status(&mut self, request: &Request) {
+        if self.config.read_mode != ReadMode::LiveHybrid || self.store.staged.location_limit_reached
+        {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": LOCATION_LIMIT_STATUS_QUERY,
+                "operationName": "StorePropertiesLocationLimitStatus",
+                "variables": { "first": 250 }
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        if location_limit_reached_in_response(&response.body).unwrap_or(false) {
+            self.store.staged.location_limit_reached = true;
         }
     }
 
@@ -1138,7 +1153,6 @@ impl DraftProxy {
 
     fn location_source_record(&self, location_id: &str) -> Value {
         self.location_for_read(location_id)
-            .or_else(|| fixture_location_activate_guard_location(location_id))
             .unwrap_or_else(|| self.staged_location_record(location_id))
     }
 
@@ -1974,21 +1988,8 @@ fn location_delete_user_error(code: &str, message: &str) -> Value {
 }
 
 fn location_requires_idempotency(request: &Request, query: &str) -> bool {
-    admin_graphql_version(&request.path).is_some_and(location_version_requires_idempotency)
+    admin_graphql_version(&request.path).is_some_and(|version| version_at_least(version, 2026, 4))
         && !query.contains("@idempotent")
-}
-
-fn location_version_requires_idempotency(version: &str) -> bool {
-    let Some((year, month)) = version.split_once('-') else {
-        return false;
-    };
-    let Ok(year) = year.parse::<u16>() else {
-        return false;
-    };
-    let Ok(month) = month.parse::<u8>() else {
-        return false;
-    };
-    year > 2026 || (year == 2026 && month >= 4)
 }
 
 fn location_idempotency_required_error(
@@ -2150,43 +2151,34 @@ fn location_metafields_connection_json(location: &Value, selection: &SelectedFie
     )
 }
 
-fn fixture_location_activate_guard_location(location_id: &str) -> Option<Value> {
-    match location_id {
-        "gid://shopify/Location/activate-limit"
-        | "gid://shopify/Location/location-add-limit-seed" => Some(json!({
-            "__typename": "Location",
-            "id": location_id,
-            "name": "Location limit guard",
-            "isActive": false,
-            "activatable": true,
-            "deactivatable": false,
-            "fulfillsOnlineOrders": false,
-            "hasActiveInventory": false,
-            "hasUnfulfilledOrders": false,
-            "isFulfillmentService": false,
-            "shipsInventory": false,
-            "address": {},
-            "metafields": [],
-            "reachedLocationLimit": true
-        })),
-        "gid://shopify/Location/activate-relocation" => Some(json!({
-            "__typename": "Location",
-            "id": location_id,
-            "name": "Relocation guard",
-            "isActive": false,
-            "activatable": true,
-            "deactivatable": false,
-            "fulfillsOnlineOrders": false,
-            "hasActiveInventory": false,
-            "hasUnfulfilledOrders": false,
-            "isFulfillmentService": false,
-            "shipsInventory": false,
-            "address": {},
-            "metafields": [],
-            "hasOngoingRelocation": true
-        })),
-        _ => None,
+fn location_limit_reached_in_response(body: &Value) -> Option<bool> {
+    let data = body.get("data")?;
+    let limit = data
+        .get("shop")?
+        .get("resourceLimits")?
+        .get("locationLimit")?
+        .as_u64()? as usize;
+    if limit == 0 {
+        return Some(false);
     }
+    let locations = data.get("locations")?;
+    let has_next_page = locations
+        .get("pageInfo")
+        .and_then(|page_info| page_info.get("hasNextPage"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let nodes = locations.get("nodes")?.as_array()?;
+    let active_merchant_managed_count = nodes
+        .iter()
+        .filter(|location| {
+            location.get("isActive").and_then(Value::as_bool) == Some(true)
+                && location
+                    .get("isFulfillmentService")
+                    .and_then(Value::as_bool)
+                    != Some(true)
+        })
+        .count();
+    Some(active_merchant_managed_count >= limit || (has_next_page && nodes.len() >= limit))
 }
 
 fn fixture_location_deactivate_state_machine_location(location_id: &str) -> Option<Value> {

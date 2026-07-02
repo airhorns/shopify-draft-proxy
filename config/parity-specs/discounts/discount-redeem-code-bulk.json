@@ -12,8 +12,8 @@
     "variables": {
       "input": {
         "title": "Redeem code bulk generic lifecycle parity",
-        "code": "HAR438BASE1777416023154",
-        "startsAt": "2026-04-28T22:39:23Z",
+        "code": "SDPBULKBASE20260630150101",
+        "startsAt": "2026-06-30T14:55:42.880Z",
         "combinesWith": {
           "productDiscounts": false,
           "orderDiscounts": true,
@@ -56,10 +56,10 @@
             },
             "codes": [
               {
-                "code": "HAR438ADD1777416023154"
+                "code": "SDPBULKADD20260630150101"
               },
               {
-                "code": "HAR438PLUS1777416023154"
+                "code": "SDPBULKPLUS20260630150101"
               }
             ]
           }
@@ -82,9 +82,9 @@
             "id": {
               "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
             },
-            "exactAddedCode": "HAR438ADD1777416023154",
-            "lowerAddedCode": "har438add1777416023154",
-            "removedCode": "HAR438BASE1777416023154"
+            "exactAddedCode": "SDPBULKADD20260630150101",
+            "lowerAddedCode": "sdpbulkadd20260630150101",
+            "removedCode": "SDPBULKBASE20260630150101"
           }
         },
         "expectedDifferences": [
@@ -145,9 +145,9 @@
             "id": {
               "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
             },
-            "exactAddedCode": "HAR438ADD1777416023154",
-            "lowerAddedCode": "har438add1777416023154",
-            "removedCode": "HAR438BASE1777416023154"
+            "exactAddedCode": "SDPBULKADD20260630150101",
+            "lowerAddedCode": "sdpbulkadd20260630150101",
+            "removedCode": "SDPBULKBASE20260630150101"
           }
         },
         "expectedDifferences": [

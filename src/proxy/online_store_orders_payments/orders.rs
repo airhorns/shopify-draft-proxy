@@ -202,21 +202,13 @@ pub(in crate::proxy) fn order_mark_as_paid_not_found_error() -> Value {
 }
 
 pub(in crate::proxy) fn order_read_selects_order_edit_existing_fields(
-    field: RootFieldSelection,
+    field: &RootFieldSelection,
 ) -> bool {
     field.selection.iter().any(|field| {
         matches!(
             field.name.as_str(),
             "merchantEditable" | "merchantEditableErrors" | "currentSubtotalLineItemsQuantity"
         )
-    })
-}
-
-pub(in crate::proxy) fn orders_empty_count_payload() -> Value {
-    json!({
-        "data": {
-            "ordersCount": count_object(0)
-        }
     })
 }
 
@@ -2068,44 +2060,48 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
-        let field = root_fields(query, variables)
-            .and_then(|fields| fields.into_iter().find(|field| field.name == root_field));
+        let fields = root_fields(query, variables)?;
+        let field = fields.iter().find(|field| field.name == root_field);
         if root_field == "fulfillment" {
             let field = field?;
-            let payload = self.staged_fulfillment_read_payload(&field)?;
+            let payload = self.staged_fulfillment_read_payload(field)?;
             return Some(data_response(&field.response_key, payload));
         }
         if root_field == "fulfillmentCreate" {
             let field = field?;
-            if let Some(error) = fulfillment_create_invalid_id_error(&field) {
+            if let Some(error) = fulfillment_create_invalid_id_error(field) {
                 return Some(error);
             }
             return Some(data_response(
                 &field.response_key,
-                self.staged_fulfillment_payload(request, query, variables, &field),
+                self.staged_fulfillment_payload(request, query, variables, field),
             ));
         }
         if root_field == "fulfillmentEventCreate" {
             let field = field?;
             return Some(data_response(
                 &field.response_key,
-                self.staged_fulfillment_event_create_payload(request, query, variables, &field),
+                self.staged_fulfillment_event_create_payload(request, query, variables, field),
             ));
         }
         if root_field == "fulfillmentCancel" {
             let field = field?;
             let payload =
-                self.cancel_staged_fulfillment_payload(request, query, variables, &field)?;
+                self.cancel_staged_fulfillment_payload(request, query, variables, field)?;
             return Some(data_response(&field.response_key, payload));
         }
         if root_field == "fulfillmentTrackingInfoUpdate" {
             let field = field?;
             let payload =
-                self.update_staged_fulfillment_tracking_payload(request, query, variables, &field)?;
+                self.update_staged_fulfillment_tracking_payload(request, query, variables, field)?;
             return Some(data_response(&field.response_key, payload));
         }
         if root_field == "ordersCount" {
-            return Some(orders_empty_count_payload());
+            let field = field?;
+            return Some(data_response(
+                &field.response_key,
+                selected_json(&count_object(0), &field.selection),
+            ));
         }
         if root_field == "orderCreate" {
             let field = field?;
@@ -2114,12 +2110,12 @@ impl DraftProxy {
             if !email.starts_with("order-customer-") {
                 return None;
             }
-            let order = self.order_customer_paths_order_create(&field)?;
+            let order = self.order_customer_paths_order_create(field)?;
             return Some(data_response(&field.response_key, order));
         }
         if root_field == "orderDelete" {
             let field = field?;
-            let payload = self.stage_order_delete(request, query, variables, &field)?;
+            let payload = self.stage_order_delete(request, query, variables, field)?;
             return Some(data_response(&field.response_key, payload));
         }
         if root_field == "orderUpdate"
@@ -2142,53 +2138,50 @@ impl DraftProxy {
         match root_field {
             "orderEditBegin" => {
                 let field = field?;
-                return self.order_edit_begin_local(request, query, variables, &field);
+                return self.order_edit_begin_local(request, query, variables, field);
             }
             "orderEditAddVariant" => {
                 let field = field?;
-                return self.order_edit_add_variant_local(request, query, variables, &field);
+                return self.order_edit_add_variant_local(request, query, variables, field);
             }
             "orderEditSetQuantity" => {
                 let field = field?;
-                return self.order_edit_set_quantity_local(request, query, variables, &field);
+                return self.order_edit_set_quantity_local(request, query, variables, field);
             }
             "orderEditAddCustomItem" => {
                 let field = field?;
-                return self.order_edit_add_custom_item_local(request, query, variables, &field);
+                return self.order_edit_add_custom_item_local(request, query, variables, field);
             }
             "orderEditAddLineItemDiscount" => {
                 let field = field?;
                 return self
-                    .order_edit_add_line_item_discount_local(request, query, variables, &field);
+                    .order_edit_add_line_item_discount_local(request, query, variables, field);
             }
             "orderEditRemoveDiscount" => {
                 let field = field?;
-                return self.order_edit_remove_discount_local(request, query, variables, &field);
+                return self.order_edit_remove_discount_local(request, query, variables, field);
             }
             "orderEditAddShippingLine" => {
                 let field = field?;
-                return self.order_edit_add_shipping_line_local(request, query, variables, &field);
+                return self.order_edit_add_shipping_line_local(request, query, variables, field);
             }
             "orderEditUpdateShippingLine" => {
                 let field = field?;
                 return self
-                    .order_edit_update_shipping_line_local(request, query, variables, &field);
+                    .order_edit_update_shipping_line_local(request, query, variables, field);
             }
             "orderEditRemoveShippingLine" => {
                 let field = field?;
                 return self
-                    .order_edit_remove_shipping_line_local(request, query, variables, &field);
+                    .order_edit_remove_shipping_line_local(request, query, variables, field);
             }
             "orderEditCommit" => {
                 let field = field?;
-                return self.order_edit_commit_local(request, query, variables, &field);
+                return self.order_edit_commit_local(request, query, variables, field);
             }
             _ => {}
         }
-        if root_field == "order"
-            && root_fields(query, variables)
-                .and_then(|fields| fields.into_iter().find(|field| field.name == "order"))
-                .is_some_and(order_read_selects_order_edit_existing_fields)
+        if root_field == "order" && field.is_some_and(order_read_selects_order_edit_existing_fields)
         {
             let field = field?;
             let order = self.store.staged.order_edit_existing_order.as_ref()?;
@@ -3273,16 +3266,18 @@ impl DraftProxy {
         }
         let id = synthetic_shopify_gid("Order", self.store.staged.next_order_customer_order_id);
         self.store.staged.next_order_customer_order_id += 1;
-        if email == "order-customer-b2b@example.com" {
+        let customer_id = resolved_string_field(&order_input, "customerId");
+        // Retain the purchasing entity so a later company delete can detect that an
+        // order still references the company (mirrors a real B2B Order).
+        let purchasing_entity = draft_order_purchasing_entity(&order_input);
+        if email == "order-customer-b2b@example.com"
+            || order_customer_purchasing_entity_is_b2b(&purchasing_entity)
+        {
             self.store
                 .staged
                 .order_customer_b2b_order_ids
                 .insert(id.clone());
         }
-        let customer_id = resolved_string_field(&order_input, "customerId");
-        // Retain the purchasing entity so a later company delete can detect that an
-        // order still references the company (mirrors a real B2B Order).
-        let purchasing_entity = draft_order_purchasing_entity(&order_input);
         let order = json!({
             "id": id,
             "customer": customer_id.map(|id| json!({ "id": id })).unwrap_or(Value::Null),
@@ -3306,7 +3301,14 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Option<Value> {
         let order_id = resolved_string_field(&field.arguments, "orderId")?;
-        let refund_method_cancel = field.arguments.contains_key("refundMethod");
+        let argument_present = |name: &str| {
+            field
+                .arguments
+                .get(name)
+                .is_some_and(|value| !matches!(value, ResolvedValue::Null))
+        };
+        let refund_present = argument_present("refund");
+        let refund_method_cancel = argument_present("refundMethod");
         let order_locally_known = self.store.staged.orders.contains_key(&order_id)
             || self
                 .store
@@ -3342,22 +3344,18 @@ impl DraftProxy {
                 return Some(selected_json(
                     &error_payload(
                         "staffNote",
-                        "Staff note is too long (maximum is 255 characters)",
+                        "Staff note is too long. Maximum length is 255 characters.",
                         "INVALID",
                     ),
                     &field.selection,
                 ));
             }
         }
-        if matches!(
-            field.arguments.get("refund"),
-            Some(ResolvedValue::Bool(true))
-        ) && field.arguments.contains_key("refundMethod")
-        {
+        if refund_present && refund_method_cancel {
             return Some(selected_json(
                 &error_payload(
                     "refund",
-                    "Refund and refundMethod cannot both be present.",
+                    "Only one of the arguments `refund` or `refund_method` is allowed.",
                     "INVALID",
                 ),
                 &field.selection,
@@ -3408,7 +3406,11 @@ impl DraftProxy {
                 .is_some_and(|cancelled_at| !cancelled_at.is_null());
             if already_cancelled {
                 return Some(selected_json(
-                    &error_payload("orderId", "Order has already been cancelled", "INVALID"),
+                    &error_payload(
+                        "orderId",
+                        "Cannot cancel an order that has already been canceled",
+                        "INVALID",
+                    ),
                     &field.selection,
                 ));
             }
@@ -3477,7 +3479,11 @@ impl DraftProxy {
             .contains(&order_id)
         {
             return Some(selected_json(
-                &error_payload("orderId", "Order has already been cancelled", "INVALID"),
+                &error_payload(
+                    "orderId",
+                    "Cannot cancel an order that has already been canceled",
+                    "INVALID",
+                ),
                 &field.selection,
             ));
         }
@@ -3575,11 +3581,7 @@ impl DraftProxy {
                 &field.selection,
             );
         };
-        if self
-            .store
-            .staged
-            .order_customer_b2b_order_ids
-            .contains(&order_id)
+        if self.order_customer_order_is_b2b(&order_id, &order)
             && self
                 .store
                 .staged
@@ -3589,7 +3591,11 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [user_error(["customerId"], "no_customer_role_error", Some("NOT_PERMITTED"))]
+                    "userErrors": [user_error(
+                        ["customerId"],
+                        "Customer does not have the permissions to place this order",
+                        Some("NOT_PERMITTED"),
+                    )]
                 }),
                 &field.selection,
             );
@@ -3670,16 +3676,15 @@ impl DraftProxy {
                 &field.selection,
             );
         };
-        if self
-            .store
-            .staged
-            .order_customer_cancelled_ids
-            .contains(&order_id)
-        {
+        if self.order_customer_order_is_b2b(&order_id, &order) {
             return selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [user_error(["orderId"], "customer_cannot_be_removed", Some("INVALID"))]
+                    "userErrors": [user_error(
+                        ["orderId"],
+                        "Action not permitted on B2B Orders",
+                        Some("INVALID"),
+                    )]
                 }),
                 &field.selection,
             );
@@ -3704,5 +3709,30 @@ impl DraftProxy {
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,
         )
+    }
+
+    fn order_customer_order_is_b2b(&self, order_id: &str, order: &Value) -> bool {
+        self.store
+            .staged
+            .order_customer_b2b_order_ids
+            .contains(order_id)
+            || order_customer_purchasing_entity_is_b2b(&order["purchasingEntity"])
+    }
+}
+
+fn order_customer_purchasing_entity_is_b2b(entity: &Value) -> bool {
+    match entity {
+        Value::Object(map) => {
+            map.get("purchasingCompany")
+                .is_some_and(|purchasing_company| !purchasing_company.is_null())
+                || map
+                    .get("company")
+                    .and_then(|company| company.get("id"))
+                    .is_some_and(Value::is_string)
+                || map.get("companyId").is_some_and(Value::is_string)
+                || map.values().any(order_customer_purchasing_entity_is_b2b)
+        }
+        Value::Array(items) => items.iter().any(order_customer_purchasing_entity_is_b2b),
+        _ => false,
     }
 }

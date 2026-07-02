@@ -1,0 +1,15 @@
+mutation DraftOrderInvoiceSendStatusTransitionSend($id: ID!) {
+  draftOrderInvoiceSend(id: $id) {
+    draftOrder {
+      id
+      status
+      invoiceSentAt
+      email
+      invoiceUrl
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

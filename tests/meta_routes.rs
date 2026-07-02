@@ -1830,6 +1830,25 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
         json!("NOT_PERMITTED")
     );
 
+    let b2b_remove = restored.process_request(graphql_request(
+        &json!({
+            "query": r#"
+                mutation RemoveB2bOrderCustomer($orderId: ID!) {
+                  orderCustomerRemove(orderId: $orderId) {
+                    order { id customer { id } }
+                    userErrors { field message code }
+                  }
+                }
+            "#,
+            "variables": { "orderId": b2b_order_id }
+        })
+        .to_string(),
+    ));
+    assert_eq!(
+        b2b_remove.body["data"]["orderCustomerRemove"]["userErrors"][0]["code"],
+        json!("INVALID")
+    );
+
     let cancelled_remove = restored.process_request(graphql_request(
         &json!({
             "query": r#"
@@ -1845,8 +1864,8 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
         .to_string(),
     ));
     assert_eq!(
-        cancelled_remove.body["data"]["orderCustomerRemove"]["userErrors"][0]["code"],
-        json!("INVALID")
+        cancelled_remove.body["data"]["orderCustomerRemove"]["userErrors"],
+        json!([])
     );
 
     let next_order = restored.process_request(graphql_request(

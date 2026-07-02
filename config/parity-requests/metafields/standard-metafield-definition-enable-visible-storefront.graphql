@@ -1,0 +1,20 @@
+mutation StandardMetafieldDefinitionEnableVisibleStorefront {
+  standardMetafieldDefinitionEnable(
+    ownerType: PRODUCT
+    id: "gid://shopify/StandardMetafieldDefinitionTemplate/3"
+    visibleToStorefrontApi: false
+  ) {
+    createdDefinition {
+      namespace
+      key
+      access {
+        storefront
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

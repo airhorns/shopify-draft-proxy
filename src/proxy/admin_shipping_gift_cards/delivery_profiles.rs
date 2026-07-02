@@ -5,7 +5,8 @@ const DELIVERY_PROFILE_VARIANTS_HYDRATE_QUERY: &str = "query ShippingDeliveryPro
 // the same captures. Issued when removing a profile the proxy has not staged
 // locally, to learn whether the target is the shop's default profile (which
 // cannot be deleted) from real store state rather than guessing.
-const DELIVERY_PROFILE_DEFAULT_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileHydrate($id: ID!) { deliveryProfile(id: $id) { id name default merchantOwned version } }";
+const DELIVERY_PROFILE_DEFAULT_HYDRATE_QUERY: &str =
+    "query ShippingDeliveryProfileHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }";
 const DELIVERY_PROFILE_UPDATE_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileUpdateHydrate($id: ID!) { deliveryProfile(id: $id) { id name default version } }";
 const DELIVERY_PROFILE_DEFAULT_REMOVE_MESSAGE: &str = "Cannot delete the default profile.";
 

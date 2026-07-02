@@ -188,18 +188,21 @@ pub(in crate::proxy) fn app_uninstall_payload_json(
 }
 
 pub(in crate::proxy) fn app_revoke_access_scopes_payload_json(
-    revoked: Vec<Value>,
+    revoked: Option<Vec<Value>>,
     user_errors: Vec<Value>,
     payload_selection: &[SelectedField],
 ) -> Value {
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
-            "revoked" => Some(Value::Array(
-                revoked
-                    .iter()
-                    .map(|scope| selected_json(scope, &selection.selection))
-                    .collect(),
-            )),
+            "revoked" => Some(match &revoked {
+                Some(scopes) => Value::Array(
+                    scopes
+                        .iter()
+                        .map(|scope| selected_json(scope, &selection.selection))
+                        .collect(),
+                ),
+                None => Value::Null,
+            }),
             "userErrors" => Some(app_user_errors_json(
                 user_errors.clone(),
                 "AppRevokeScopeError",
@@ -1412,10 +1415,6 @@ pub(in crate::proxy) fn segment_payload_json(
     })
 }
 
-pub(in crate::proxy) fn segment_count_json(count: usize, selections: &[SelectedField]) -> Value {
-    selected_json(&count_object(count), selections)
-}
-
 pub(in crate::proxy) fn customer_segment_members_query_payload_json(
     query_record: Value,
     payload_selection: &[SelectedField],
@@ -2167,8 +2166,6 @@ impl DraftProxy {
                 "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic".to_string()
             });
         let tax_exempt_argument = field.raw_arguments.get("taxExempt");
-        let has_tax_exempt =
-            tax_exempt_argument.is_some_and(|argument| !argument.is_unbound_variable());
         let tax_exempt_is_null = matches!(
             tax_exempt_argument,
             Some(RawArgumentValue::Null)
@@ -2187,20 +2184,6 @@ impl DraftProxy {
                         ["companyLocationId"],
                         "The company location doesn't exist",
                         Some("RESOURCE_NOT_FOUND"),
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
-        }
-        if !has_tax_exempt && assign.is_empty() && remove.is_empty() {
-            return (
-                b2b_company_location_payload(
-                    None,
-                    vec![user_error(
-                        ["companyLocationId"],
-                        "No tax settings input was provided",
-                        Some("NO_INPUT"),
                     )],
                 ),
                 "failed",

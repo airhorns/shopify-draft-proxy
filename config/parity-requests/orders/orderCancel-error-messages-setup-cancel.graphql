@@ -1,0 +1,17 @@
+mutation OrderCancelErrorMessagesSetupCancel($orderId: ID!, $restock: Boolean!, $reason: OrderCancelReason!) {
+  orderCancel(orderId: $orderId, restock: $restock, reason: $reason) {
+    job {
+      id
+      done
+    }
+    orderCancelUserErrors {
+      field
+      message
+      code
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
