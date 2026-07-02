@@ -2067,7 +2067,7 @@ impl DraftProxy {
             let payload = self.staged_fulfillment_read_payload(field)?;
             return Some(data_response(&field.response_key, payload));
         }
-        if root_field == "fulfillmentCreate" {
+        if root_field == "fulfillmentCreate" || root_field == "fulfillmentCreateV2" {
             let field = field?;
             if let Some(error) = fulfillment_create_invalid_id_error(field) {
                 return Some(error);

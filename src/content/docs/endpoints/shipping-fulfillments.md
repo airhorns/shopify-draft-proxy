@@ -64,6 +64,7 @@ The registry-only read roots are:
 The registry-only mutation roots are:
 
 - `fulfillmentCreate`
+- `fulfillmentCreateV2`
 - `fulfillmentTrackingInfoUpdate`
 - `fulfillmentCancel`
 - `fulfillmentOrderCancel`
@@ -151,8 +152,9 @@ localized `displayReason` strings for the public hold reason set, including
 `AWAITING_RETURN_ITEMS` as `Exchange items awaiting return delivery`, and
 unknown or non-visible reasons fall back to `Other`. Store-backed local staging
 now covers
-`fulfillmentCreate` payload `Fulfillment.name` reference numbers as
-`<orderName>-F<n>` for order-backed fulfillment sequences, plus
+`fulfillmentCreate` and deprecated `fulfillmentCreateV2` payload
+`Fulfillment.name` reference numbers as `<orderName>-F<n>` for order-backed
+fulfillment sequences, plus
 `fulfillmentOrderSubmitFulfillmentRequest`,
 `fulfillmentOrderAcceptFulfillmentRequest`,
 `fulfillmentOrderRejectFulfillmentRequest`,

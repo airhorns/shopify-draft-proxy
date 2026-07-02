@@ -331,11 +331,28 @@ pub(in crate::proxy) fn fulfillment_create_invalid_quantity_error() -> Value {
     })
 }
 
+pub(in crate::proxy) fn fulfillment_create_non_positive_quantity_error(
+    group_index: usize,
+    line_index: usize,
+) -> Value {
+    json!({
+        "field": [
+            "fulfillment",
+            "lineItemsByFulfillmentOrder",
+            group_index.to_string(),
+            "fulfillmentOrderLineItems",
+            line_index.to_string(),
+            "quantity"
+        ],
+        "message": "Quantity must be greater than 0"
+    })
+}
+
 pub(in crate::proxy) fn fulfillment_create_precondition_error(
     order: &Value,
     groups: &[BTreeMap<String, ResolvedValue>],
 ) -> Option<Value> {
-    for group in groups {
+    for (group_index, group) in groups.iter().enumerate() {
         let group_id = resolved_string_field(group, "fulfillmentOrderId").unwrap_or_default();
         let fulfillment_order = order["fulfillmentOrders"]["nodes"]
             .as_array()
@@ -350,11 +367,17 @@ pub(in crate::proxy) fn fulfillment_create_precondition_error(
             .as_array()
             .cloned()
             .unwrap_or_default();
-        for requested in resolved_object_list_field(group, "fulfillmentOrderLineItems") {
-            let Some(requested_id) = resolved_string_field(&requested, "id") else {
+        for (line_index, requested) in
+            resolved_object_list_field(group, "fulfillmentOrderLineItems")
+                .iter()
+                .enumerate()
+        {
+            let Some(requested_id) = resolved_string_field(requested, "id") else {
                 return Some(fulfillment_create_invalid_quantity_error());
             };
-            let requested_quantity = resolved_int_field(&requested, "quantity").unwrap_or(0);
+            let Some(requested_quantity) = resolved_int_field(requested, "quantity") else {
+                return Some(fulfillment_create_invalid_quantity_error());
+            };
             let Some(line) = line_nodes
                 .iter()
                 .find(|line| line["id"].as_str() == Some(requested_id.as_str()))
@@ -362,7 +385,13 @@ pub(in crate::proxy) fn fulfillment_create_precondition_error(
                 return Some(fulfillment_create_invalid_quantity_error());
             };
             let remaining = line["remainingQuantity"].as_i64().unwrap_or(0);
-            if requested_quantity <= 0 || requested_quantity > remaining {
+            if requested_quantity <= 0 {
+                return Some(fulfillment_create_non_positive_quantity_error(
+                    group_index,
+                    line_index,
+                ));
+            }
+            if requested_quantity > remaining {
                 return Some(fulfillment_create_invalid_quantity_error());
             }
         }
@@ -1324,7 +1353,7 @@ impl DraftProxy {
     pub(super) fn staged_fulfillment_not_found_payload(field: &RootFieldSelection) -> Value {
         Self::staged_fulfillment_error_payload(
             field,
-            "Fulfillment order could not be found.",
+            "Fulfillment order does not exist.",
             "NOT_FOUND",
         )
     }
@@ -1475,7 +1504,7 @@ impl DraftProxy {
             request,
             query,
             variables,
-            "fulfillmentCreate",
+            field.name.as_str(),
             vec![order_id, fulfillment_id],
         );
 
