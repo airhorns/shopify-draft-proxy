@@ -116,9 +116,7 @@ function capturedParitySpecs(specDirectory: string): string[] {
   return listJsonFiles(specDirectory).filter((specPath) => {
     const spec = readJson(specPath);
     return (
-      isRecord(spec) &&
-      spec['scenarioStatus'] === 'captured' &&
-      spec['comparisonMode'] === 'captured-vs-proxy-request'
+      isRecord(spec) && spec['scenarioStatus'] === 'captured' && spec['comparisonMode'] === 'captured-vs-proxy-request'
     );
   });
 }

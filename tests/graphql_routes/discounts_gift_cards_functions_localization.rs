@@ -8012,7 +8012,7 @@ fn gift_card_create_notify_false_stages_card_and_notification_disabled_error() {
 }
 
 #[test]
-fn gift_card_retired_parity_scenarios_have_explicit_runtime_coverage() {
+fn gift_card_local_only_and_schema_hidden_branches_have_explicit_runtime_coverage() {
     // gift-card-entitlement-disabled
     {
         let mut proxy = snapshot_proxy();
@@ -8020,7 +8020,7 @@ fn gift_card_retired_parity_scenarios_have_explicit_runtime_coverage() {
         set_gift_cards_unavailable(&mut proxy);
 
         let response = proxy.process_request(json_graphql_request(
-            r#"mutation GiftCardRetiredEntitlementDisabled {
+            r#"mutation GiftCardLocalEntitlementDisabled {
               createError: giftCardCreate(input: { initialValue: "0", customerId: "gid://shopify/Customer/retired-entitlement" }) { giftCard { id } giftCardCode userErrors { field code message } }
               updateError: giftCardUpdate(id: "gid://shopify/GiftCard/disabled-entitlement-card", input: { note: "x" }) { giftCard { id } userErrors { field code message } }
               creditError: giftCardCredit(id: "gid://shopify/GiftCard/disabled-entitlement-card", creditInput: { creditAmount: { amount: "-1", currencyCode: CAD } }) { giftCardCreditTransaction { id } userErrors { field code message } }
@@ -8052,7 +8052,7 @@ fn gift_card_retired_parity_scenarios_have_explicit_runtime_coverage() {
         let mut proxy = snapshot_proxy();
 
         let response = proxy.process_request(json_graphql_request(
-            r#"mutation GiftCardRetiredCreateNotify {
+            r#"mutation GiftCardLocalCreateNotify {
               createNotifyFalse: giftCardCreate(input: { initialValue: "10", notify: false }) {
                 giftCard { id }
                 userErrors { field code message }
@@ -8091,7 +8091,7 @@ fn gift_card_retired_parity_scenarios_have_explicit_runtime_coverage() {
         set_gift_card_trial_shop(&mut proxy);
 
         let response = proxy.process_request(json_graphql_request(
-            r#"mutation GiftCardRetiredTrialShopAssignment($customerId: ID!, $recipientId: ID!, $updateGiftCardId: ID!) {
+            r#"mutation GiftCardLocalTrialShopAssignment($customerId: ID!, $recipientId: ID!, $updateGiftCardId: ID!) {
               createCustomerAssignment: giftCardCreate(input: { initialValue: "10", customerId: $customerId }) { giftCard { id } giftCardCode userErrors { field code message } }
               createRecipientAssignment: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId } }) { giftCard { id } giftCardCode userErrors { field code message } }
               updateCustomerAssignment: giftCardUpdate(id: $updateGiftCardId, input: { customerId: $customerId }) { giftCard { id } userErrors { field code message } }
@@ -8134,7 +8134,7 @@ fn gift_card_retired_parity_scenarios_have_explicit_runtime_coverage() {
         assert_eq!(restore.status, 200);
 
         let customer = proxy.process_request(json_graphql_request(
-            r#"mutation GiftCardRetiredExpiryCustomer {
+            r#"mutation GiftCardLocalExpiryCustomer {
               customerCreate(input: { firstName: "Retired", lastName: "Timezone", email: "retired-timezone@example.com" }) {
                 customer { id }
                 userErrors { field message code }
@@ -8152,7 +8152,7 @@ fn gift_card_retired_parity_scenarios_have_explicit_runtime_coverage() {
         );
 
         let setup = proxy.process_request(json_graphql_request(
-            r#"mutation GiftCardRetiredExpirySetup($customerId: ID!) {
+            r#"mutation GiftCardLocalExpirySetup($customerId: ID!) {
               creditCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28" }) { giftCard { id } userErrors { field code message } }
               debitCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28" }) { giftCard { id } userErrors { field code message } }
               customerNotificationCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28", customerId: $customerId }) { giftCard { id } userErrors { field code message } }
@@ -8188,7 +8188,7 @@ fn gift_card_retired_parity_scenarios_have_explicit_runtime_coverage() {
         );
 
         let response = proxy.process_request(json_graphql_request(
-            r#"mutation GiftCardRetiredExpiryTimezone($creditId: ID!, $debitId: ID!, $customerNotificationId: ID!, $recipientNotificationId: ID!) {
+            r#"mutation GiftCardLocalExpiryTimezone($creditId: ID!, $debitId: ID!, $customerNotificationId: ID!, $recipientNotificationId: ID!) {
               credit: giftCardCredit(id: $creditId, creditInput: { creditAmount: { amount: "5.00", currencyCode: CAD } }) { giftCardCreditTransaction { __typename } userErrors { field code message } }
               debit: giftCardDebit(id: $debitId, debitInput: { debitAmount: { amount: "2.00", currencyCode: CAD } }) { giftCardDebitTransaction { __typename } userErrors { field code message } }
               customerNotification: giftCardSendNotificationToCustomer(id: $customerNotificationId) { giftCard { id } userErrors { field code message } }
@@ -8212,12 +8212,12 @@ fn gift_card_retired_parity_scenarios_have_explicit_runtime_coverage() {
         );
     }
 
-    // gift-card-mutation-user-error-codes
+    // gift-card-mutation-user-error-codes schema-hidden update code supplement
     {
         let mut proxy = cad_snapshot_proxy();
 
         let response = proxy.process_request(json_graphql_request(
-            r#"mutation GiftCardRetiredMutationUserErrorCodes {
+            r#"mutation GiftCardLocalMutationUserErrorCodes {
               setupSmallBalance: giftCardCreate(input: { initialValue: "5", code: "retirederrors" }) { giftCard { id } userErrors { field code message } }
               zeroInitialValue: giftCardCreate(input: { initialValue: "0" }) { giftCard { id } userErrors { field code message } }
               missingUpdate: giftCardUpdate(id: "gid://shopify/GiftCard/retired-missing", input: { note: "x" }) { giftCard { id } userErrors { field code message } }

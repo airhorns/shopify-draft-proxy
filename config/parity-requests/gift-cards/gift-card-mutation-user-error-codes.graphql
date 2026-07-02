@@ -1,0 +1,48 @@
+mutation GiftCardMutationUserErrorCodes($cardId: ID!, $missingUpdateId: ID!, $cardCurrency: CurrencyCode!) {
+  zeroInitialValue: giftCardCreate(input: { initialValue: "0" }) {
+    giftCard {
+      id
+    }
+    giftCardCode
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  missingUpdate: giftCardUpdate(id: $missingUpdateId, input: { note: "x" }) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  negativeCredit: giftCardCredit(
+    id: $cardId
+    creditInput: { creditAmount: { amount: "-1", currencyCode: $cardCurrency } }
+  ) {
+    giftCardCreditTransaction {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  insufficientDebit: giftCardDebit(
+    id: $cardId
+    debitInput: { debitAmount: { amount: "9999", currencyCode: $cardCurrency } }
+  ) {
+    giftCardDebitTransaction {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}
