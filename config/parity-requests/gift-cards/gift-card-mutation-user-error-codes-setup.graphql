@@ -1,0 +1,17 @@
+mutation GiftCardMutationUserErrorCodesSetup($input: GiftCardCreateInput!) {
+  giftCardCreate(input: $input) {
+    giftCard {
+      id
+      balance {
+        amount
+        currencyCode
+      }
+    }
+    giftCardCode
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}
