@@ -171,6 +171,31 @@ describe('conformance scenario discovery', () => {
     }
   });
 
+  it('keeps discounts parity evidence free of local-runtime captures and descriptor upstream cassettes', () => {
+    const errors: string[] = [];
+    const discountScenarios = scenarios.filter((scenario) =>
+      scenario.paritySpecPath.startsWith('config/parity-specs/discounts/'),
+    );
+
+    for (const scenario of discountScenarios) {
+      const paritySpec = readJson<ParitySpec>(scenario.paritySpecPath);
+      for (const captureFile of paritySpec.liveCaptureFiles ?? []) {
+        if (captureFile.includes('/local-runtime/')) {
+          errors.push(`${scenario.id}: liveCaptureFiles must not point at local-runtime evidence: ${captureFile}`);
+          continue;
+        }
+
+        const capture = readJson<{ upstreamCalls?: RecordedUpstreamCall[] }>(captureFile);
+        const upstreamCalls = Array.isArray(capture.upstreamCalls) ? capture.upstreamCalls : [];
+        for (const error of validateRecordedUpstreamCalls(upstreamCalls)) {
+          errors.push(`${scenario.id} ${captureFile}: ${error}`);
+        }
+      }
+    }
+
+    expect(errors).toEqual([]);
+  });
+
   it('keeps marketing captured parity evidence backed by live Shopify fixture paths', () => {
     const offenders = paritySpecPaths.flatMap((paritySpecPath) => {
       if (!paritySpecPath.startsWith('config/parity-specs/marketing/')) {

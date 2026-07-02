@@ -1,0 +1,38 @@
+query InventoryAdjustOnHandNameMirrorsRead($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) {
+  product(id: $productId) {
+    totalInventory
+    tracksInventory
+  }
+  productVariant(id: $variantId) {
+    inventoryQuantity
+    inventoryItem {
+      inventoryLevels(first: 5) {
+        nodes {
+          quantities(names: ["available", "incoming", "damaged", "quality_control", "reserved", "safety_stock", "on_hand"]) {
+            name
+            quantity
+            updatedAt
+          }
+        }
+      }
+    }
+  }
+  inventoryItem(id: $inventoryItemId) {
+    variant {
+      inventoryQuantity
+      product {
+        totalInventory
+        tracksInventory
+      }
+    }
+    inventoryLevels(first: 5) {
+      nodes {
+        quantities(names: ["available", "incoming", "damaged", "quality_control", "reserved", "safety_stock", "on_hand"]) {
+          name
+          quantity
+          updatedAt
+        }
+      }
+    }
+  }
+}
