@@ -6,6 +6,8 @@ import { conformanceCaptureIndex } from './conformance-capture-index.js';
 import { validateRecordedUpstreamCalls, type RecordedUpstreamCall } from './parity-cassette.js';
 
 const protectedPaths = ['config/parity-specs', 'config/parity-requests', 'fixtures/conformance'];
+const metafieldDefinitionsParitySpecDir = path.join('config', 'parity-specs', 'metafield-definitions');
+const descriptorQueryPattern = /hand-synthesized|sha:|cassette-backed|recorded by scripts|local-runtime/iu;
 
 const result = spawnSync('git', ['diff', '--name-status', 'origin/main', '--', ...protectedPaths], {
   encoding: 'utf8',
@@ -85,6 +87,56 @@ function readJsonFile(filePath: string): unknown {
   return JSON.parse(readFileSync(filePath, 'utf8'));
 }
 
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function findForbiddenMetafieldDefinitionsEvidence(): string[] {
+  const failures: string[] = [];
+
+  for (const specPath of walkJsonFiles(metafieldDefinitionsParitySpecDir)) {
+    const spec = readJsonFile(specPath) as {
+      comparisonMode?: unknown;
+      liveCaptureFiles?: unknown;
+      scenarioStatus?: unknown;
+    };
+    if (spec.scenarioStatus !== 'captured' || spec.comparisonMode !== 'captured-vs-proxy-request') {
+      continue;
+    }
+
+    for (const liveCaptureFile of stringList(spec.liveCaptureFiles)) {
+      if (liveCaptureFile.startsWith('fixtures/conformance/local-runtime/')) {
+        failures.push(`${specPath}: liveCaptureFiles must not use local-runtime evidence (${liveCaptureFile})`);
+        continue;
+      }
+
+      if (!existsSync(liveCaptureFile)) {
+        continue;
+      }
+
+      const fixture = readJsonFile(liveCaptureFile) as { upstreamCalls?: unknown };
+      const upstreamCalls = Array.isArray(fixture.upstreamCalls) ? fixture.upstreamCalls : [];
+      upstreamCalls.forEach((call, index) => {
+        const query = call && typeof call === 'object' ? (call as { query?: unknown }).query : undefined;
+        if (typeof query === 'string' && descriptorQueryPattern.test(query)) {
+          failures.push(`${liveCaptureFile}: upstreamCalls[${index}].query is descriptor provenance, not GraphQL`);
+        }
+      });
+    }
+  }
+
+  return failures;
+}
+
+const metafieldDefinitionsFailures = findForbiddenMetafieldDefinitionsEvidence();
+if (metafieldDefinitionsFailures.length > 0) {
+  process.stderr.write(
+    'metafield-definitions parity evidence must use live Shopify captures, not local-runtime or descriptor provenance.\n',
+  );
+  for (const failure of metafieldDefinitionsFailures) process.stderr.write(`- ${failure}\n`);
+  process.exit(1);
+}
+
 function collectShippingFulfillmentFixtureFiles(): string[] {
   return walkJsonFiles('fixtures/conformance').filter((filePath) =>
     filePath.split(path.sep).includes('shipping-fulfillments'),
@@ -134,7 +186,6 @@ if (shippingFulfillmentEvidenceFailures.length > 0) {
   process.exit(1);
 }
 
-const descriptorQueryPattern = /^(?:hand-synthesized|sha:|cassette-backed|recorded by scripts\/|local-runtime)/u;
 const customerSpecDir = path.join(process.cwd(), 'config/parity-specs/customers');
 const customerEvidenceViolations: string[] = [];
 
