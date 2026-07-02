@@ -3272,6 +3272,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-lifecycle-and-capability',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-lifecycle-and-capability-conformance.ts',
+    purpose:
+      'Metaobject definition create/update/delete/read-after-write, standard template enablement, and disabled entry capability validation.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-definition-draft-flow.json`,
+      `${CAPTURE_ROOT}metaobject-capability-not-enabled.json`,
+      'config/parity-specs/metaobjects/metaobject-definition-lifecycle-local-staging.json',
+      'config/parity-specs/metaobjects/metaobject_capability_not_enabled.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable metaobject definitions and one entry, temporarily enables a standard definition, then deletes every created row and definition during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-delete-not-found',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-delete-not-found-conformance.mts',
