@@ -1,5 +1,11 @@
 use crate::proxy::*;
 
+// Runtime messages mirror Core i18n keys under
+// apps.admin.graph_api_errors.app_uninstall; the add_error_code placeholders
+// use different text.
+const APP_UNINSTALL_APP_NOT_FOUND_MESSAGE: &str = "App not found";
+const APP_UNINSTALL_APP_NOT_INSTALLED_MESSAGE: &str = "App is not installed on shop";
+
 impl DraftProxy {
     pub(in crate::proxy) fn current_app_installation_read_data(
         &self,
@@ -58,7 +64,7 @@ impl DraftProxy {
                 Value::Null,
                 vec![user_error(
                     ["id"],
-                    "App is not installed on this shop.",
+                    APP_UNINSTALL_APP_NOT_INSTALLED_MESSAGE,
                     Some("APP_NOT_INSTALLED"),
                 )],
             ),
@@ -66,7 +72,7 @@ impl DraftProxy {
                 Value::Null,
                 vec![user_error(
                     ["id"],
-                    "The app cannot be found.",
+                    APP_UNINSTALL_APP_NOT_FOUND_MESSAGE,
                     Some("APP_NOT_FOUND"),
                 )],
             ),
@@ -893,21 +899,20 @@ impl DraftProxy {
                 Some("MISSING_SOURCE_APP"),
             ));
         } else {
-            if scopes.iter().any(|scope| scope == "read_products") {
-                user_errors.push(user_error(
-                    ["scopes"],
-                    "Scopes that are declared as required cannot be revoked.",
-                    Some("CANNOT_REVOKE_REQUIRED_SCOPES"),
-                ));
-            }
-            if scopes
+            let has_unknown_scope = scopes
                 .iter()
-                .any(|scope| !matches!(scope.as_str(), "read_products" | "write_products"))
-            {
+                .any(|scope| !matches!(scope.as_str(), "read_products" | "write_products"));
+            if has_unknown_scope {
                 user_errors.push(user_error(
                     ["scopes"],
                     "The requested list of scopes to revoke includes invalid handles.",
                     Some("UNKNOWN_SCOPES"),
+                ));
+            } else if scopes.iter().any(|scope| scope == "read_products") {
+                user_errors.push(user_error(
+                    ["scopes"],
+                    "Scopes that are declared as required cannot be revoked.",
+                    Some("CANNOT_REVOKE_REQUIRED_SCOPES"),
                 ));
             }
         }
@@ -926,6 +931,13 @@ impl DraftProxy {
         } else {
             Vec::new()
         };
+        let revoked_payload = if user_errors.is_empty() {
+            Some(revoked)
+        } else if app_revoke_access_scopes_missing_source_app(request) {
+            Some(Vec::new())
+        } else {
+            None
+        };
         if user_errors.is_empty() {
             self.record_mutation_log_entry(
                 request,
@@ -939,7 +951,7 @@ impl DraftProxy {
         ok_json(json!({
             "data": {
                 response_key: app_revoke_access_scopes_payload_json(
-                    revoked,
+                    revoked_payload,
                     user_errors,
                     &payload_selection,
                 )

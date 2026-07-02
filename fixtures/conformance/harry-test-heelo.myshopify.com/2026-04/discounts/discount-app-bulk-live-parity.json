@@ -1,0 +1,955 @@
+{
+  "scenarioId": "discount-app-bulk-live-parity",
+  "capturedAt": "2026-07-02T21:05:52.241Z",
+  "source": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scopeProbe": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "functionCatalog": {
+    "query": "#graphql\n  query DiscountAppBulkLiveFunctionCatalog {\n    shopifyFunctions(first: 50) {\n      nodes {\n        id\n        title\n        apiType\n        description\n        appKey\n        app {\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n    }\n  }\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopifyFunctions": {
+            "nodes": [
+              {
+                "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                "title": "conformance-payment-customization",
+                "apiType": "payment_customization",
+                "description": "conformance-payment-customization",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "title": "conformance-validation",
+                "apiType": "cart_checkout_validation",
+                "description": "conformance-validation",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                "title": "conformance-cart-transform",
+                "apiType": "cart_transform",
+                "description": "conformance-cart-transform",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+                "title": "conformance-discount",
+                "apiType": "discount",
+                "description": "conformance-discount",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+  "requests": {
+    "create": {
+      "query": "mutation DiscountAppBulkLiveCreate($codeInput: DiscountCodeAppInput!, $automaticInput: DiscountAutomaticAppInput!) {\n  discountCodeAppCreate(codeAppDiscount: $codeInput) {\n    codeAppDiscount {\n      __typename\n      discountId\n      title\n      status\n      usageLimit\n      combinesWith {\n        orderDiscounts\n        productDiscounts\n        shippingDiscounts\n      }\n      codes(first: 5) {\n        nodes {\n          code\n        }\n      }\n      appDiscountType {\n        appKey\n        functionId\n        title\n        description\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  discountAutomaticAppCreate(automaticAppDiscount: $automaticInput) {\n    automaticAppDiscount {\n      __typename\n      discountId\n      title\n      status\n      recurringCycleLimit\n      appDiscountType {\n        appKey\n        functionId\n        title\n        description\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "codeInput": {
+          "title": "SDP app bulk code 20260702223001",
+          "code": "SDPAPPCODE20260702223001",
+          "startsAt": "2026-07-02T21:04:49.737Z",
+          "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+          "discountClasses": ["ORDER"],
+          "usageLimit": 10,
+          "combinesWith": {
+            "orderDiscounts": true,
+            "productDiscounts": false,
+            "shippingDiscounts": true
+          }
+        },
+        "automaticInput": {
+          "title": "SDP app bulk automatic 20260702223001",
+          "startsAt": "2026-07-02T21:04:49.737Z",
+          "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+          "discountClasses": ["ORDER"],
+          "recurringCycleLimit": 0
+        }
+      }
+    },
+    "update": {
+      "query": "mutation DiscountAppBulkLiveUpdate(\n  $codeId: ID!\n  $codeInput: DiscountCodeAppInput!\n  $automaticId: ID!\n  $automaticInput: DiscountAutomaticAppInput!\n) {\n  discountCodeAppUpdate(id: $codeId, codeAppDiscount: $codeInput) {\n    codeAppDiscount {\n      discountId\n      title\n      codes(first: 5) {\n        nodes {\n          code\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  discountAutomaticAppUpdate(id: $automaticId, automaticAppDiscount: $automaticInput) {\n    automaticAppDiscount {\n      discountId\n      title\n      recurringCycleLimit\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "codeId": "gid://shopify/DiscountCodeNode/1657857147186",
+        "codeInput": {
+          "title": "SDP app bulk code updated 20260702223001",
+          "code": "SDPAPPUP20260702223001",
+          "startsAt": "2026-07-02T21:04:49.737Z",
+          "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+          "discountClasses": ["ORDER"]
+        },
+        "automaticId": "gid://shopify/DiscountAutomaticNode/1657857179954",
+        "automaticInput": {
+          "title": "SDP app bulk automatic updated 20260702223001",
+          "startsAt": "2026-07-02T21:04:49.737Z",
+          "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+          "discountClasses": ["ORDER"],
+          "recurringCycleLimit": 2
+        }
+      }
+    },
+    "preconditions": {
+      "query": "mutation DiscountAppBulkLivePreconditions(\n  $bulkInput: DiscountCodeBasicInput!\n  $redeemInput: DiscountCodeBasicInput!\n  $automaticInput: DiscountAutomaticBasicInput!\n) {\n  bulkTarget: discountCodeBasicCreate(basicCodeDiscount: $bulkInput) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          codes(first: 5) {\n            nodes {\n              id\n              code\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  redeemTarget: discountCodeBasicCreate(basicCodeDiscount: $redeemInput) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          codes(first: 5) {\n            nodes {\n              id\n              code\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticBulkTarget: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticInput) {\n    automaticDiscountNode {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "bulkInput": {
+          "title": "SDP bulk lifecycle 20260702223001",
+          "code": "SDPBULK20260702223001",
+          "startsAt": "2026-07-02T21:04:49.737Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          },
+          "customerSelection": {
+            "all": true
+          }
+        },
+        "redeemInput": {
+          "title": "SDP redeem target 20260702223001",
+          "code": "SDPREDEEM20260702223001",
+          "startsAt": "2026-07-02T21:04:49.737Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          },
+          "customerSelection": {
+            "all": true
+          }
+        },
+        "automaticInput": {
+          "title": "SDP automatic bulk 20260702223001",
+          "startsAt": "2026-07-02T21:04:49.737Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      }
+    },
+    "downstreamRead": {
+      "query": "query DiscountAppBulkLiveRead(\n  $codeId: ID!\n  $automaticId: ID!\n  $deletedCodeId: ID!\n  $deletedAutomaticId: ID!\n  $redeemDiscountId: ID!\n  $removedCode: String!\n) {\n  codeDiscountNode(id: $codeId) {\n    codeDiscount {\n      ... on DiscountCodeApp {\n        title\n        appDiscountType {\n          functionId\n        }\n        codes(first: 5) {\n          nodes {\n            code\n          }\n        }\n      }\n    }\n  }\n  automaticDiscountNode(id: $automaticId) {\n    automaticDiscount {\n      ... on DiscountAutomaticApp {\n        title\n        recurringCycleLimit\n        appDiscountType {\n          functionId\n        }\n      }\n    }\n  }\n  active: discountNodesCount(query: \"status:active\") {\n    count\n    precision\n  }\n  expired: discountNodesCount(query: \"status:expired\") {\n    count\n    precision\n  }\n  deletedCode: codeDiscountNode(id: $deletedCodeId) {\n    id\n  }\n  deletedAutomatic: automaticDiscountNode(id: $deletedAutomaticId) {\n    id\n  }\n  redeemDiscount: codeDiscountNode(id: $redeemDiscountId) {\n    codeDiscount {\n      ... on DiscountCodeBasic {\n        codes(first: 5) {\n          nodes {\n            code\n          }\n        }\n        codesCount {\n          count\n          precision\n        }\n      }\n    }\n  }\n  removedRedeemCode: codeDiscountNodeByCode(code: $removedCode) {\n    id\n  }\n}\n",
+      "variables": {
+        "codeId": "gid://shopify/DiscountCodeNode/1657857147186",
+        "automaticId": "gid://shopify/DiscountAutomaticNode/1657857179954",
+        "deletedCodeId": "gid://shopify/DiscountCodeNode/1",
+        "deletedAutomaticId": "gid://shopify/DiscountAutomaticNode/1",
+        "redeemDiscountId": "gid://shopify/DiscountCodeNode/1657857245490",
+        "removedCode": "SDPUNKNOWN20260702223001"
+      }
+    },
+    "deactivate": {
+      "query": "mutation DiscountAutomaticAppLiveDeactivate($id: ID!) {\n  discountAutomaticDeactivate(id: $id) {\n    automaticDiscountNode {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticApp {\n          title\n          status\n          endsAt\n          appDiscountType {\n            functionId\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1657857179954"
+      }
+    },
+    "activate": {
+      "query": "mutation DiscountAutomaticAppLiveActivate($id: ID!) {\n  discountAutomaticActivate(id: $id) {\n    automaticDiscountNode {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticApp {\n          title\n          status\n          endsAt\n          appDiscountType {\n            functionId\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1657857179954"
+      }
+    },
+    "bulkJobs": {
+      "query": "mutation DiscountAppBulkLiveJobs(\n  $activateIds: [ID!]\n  $deactivateIds: [ID!]\n  $deleteCodeIds: [ID!]\n  $deleteAutomaticIds: [ID!]\n) {\n  activate: discountCodeBulkActivate(ids: $activateIds) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  deactivate: discountCodeBulkDeactivate(ids: $deactivateIds) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  deleteCode: discountCodeBulkDelete(ids: $deleteCodeIds) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  deleteAutomatic: discountAutomaticBulkDelete(ids: $deleteAutomaticIds) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "activateIds": ["gid://shopify/DiscountCodeNode/1657857212722"],
+        "deactivateIds": ["gid://shopify/DiscountCodeNode/1657857212722"],
+        "deleteCodeIds": ["gid://shopify/DiscountCodeNode/1657857212722"],
+        "deleteAutomaticIds": ["gid://shopify/DiscountAutomaticNode/1657857278258"]
+      }
+    },
+    "deleteAutomatic": {
+      "query": "mutation DiscountAutomaticAppLiveDelete($id: ID!) {\n  discountAutomaticDelete(id: $id) {\n    deletedAutomaticDiscountId\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1657857179954"
+      }
+    },
+    "readAfterDelete": {
+      "query": "query DiscountAutomaticAppLiveReadAfterDelete($id: ID!) {\n  automaticDiscountNode(id: $id) {\n    id\n  }\n  discountNodesCount(query: \"type:app\") {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1657857179954"
+      }
+    },
+    "cleanupCode": {
+      "query": "#graphql\n  mutation DiscountAppBulkLiveCleanupCode($id: ID!) {\n    discountCodeDelete(id: $id) {\n      deletedCodeDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n"
+    },
+    "cleanupAutomatic": {
+      "query": "#graphql\n  mutation DiscountAppBulkLiveCleanupAutomatic($id: ID!) {\n    discountAutomaticDelete(id: $id) {\n      deletedAutomaticDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n"
+    }
+  },
+  "create": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeAppCreate": {
+          "codeAppDiscount": {
+            "__typename": "DiscountCodeApp",
+            "discountId": "gid://shopify/DiscountCodeNode/1657857147186",
+            "title": "SDP app bulk code 20260702223001",
+            "status": "ACTIVE",
+            "usageLimit": 10,
+            "combinesWith": {
+              "orderDiscounts": true,
+              "productDiscounts": false,
+              "shippingDiscounts": true
+            },
+            "codes": {
+              "nodes": [
+                {
+                  "code": "SDPAPPCODE20260702223001"
+                }
+              ]
+            },
+            "appDiscountType": {
+              "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+              "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+              "title": "conformance-discount",
+              "description": "conformance-discount"
+            }
+          },
+          "userErrors": []
+        },
+        "discountAutomaticAppCreate": {
+          "automaticAppDiscount": {
+            "__typename": "DiscountAutomaticApp",
+            "discountId": "gid://shopify/DiscountAutomaticNode/1657857179954",
+            "title": "SDP app bulk automatic 20260702223001",
+            "status": "ACTIVE",
+            "recurringCycleLimit": 0,
+            "appDiscountType": {
+              "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+              "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+              "title": "conformance-discount",
+              "description": "conformance-discount"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 28,
+          "actualQueryCost": 28,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1972,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "update": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeAppUpdate": {
+          "codeAppDiscount": {
+            "discountId": "gid://shopify/DiscountCodeNode/1657857147186",
+            "title": "SDP app bulk code updated 20260702223001",
+            "codes": {
+              "nodes": [
+                {
+                  "code": "SDPAPPUP20260702223001"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        },
+        "discountAutomaticAppUpdate": {
+          "automaticAppDiscount": {
+            "discountId": "gid://shopify/DiscountAutomaticNode/1657857179954",
+            "title": "SDP app bulk automatic updated 20260702223001",
+            "recurringCycleLimit": 2
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 25,
+          "actualQueryCost": 23,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1977,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "preconditions": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "bulkTarget": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1657857212722",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBasic",
+              "title": "SDP bulk lifecycle 20260702223001",
+              "status": "ACTIVE",
+              "codes": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/DiscountRedeemCode/22239055413554",
+                    "code": "SDPBULK20260702223001"
+                  }
+                ]
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "redeemTarget": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1657857245490",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBasic",
+              "title": "SDP redeem target 20260702223001",
+              "status": "ACTIVE",
+              "codes": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/DiscountRedeemCode/22239055446322",
+                    "code": "SDPREDEEM20260702223001"
+                  }
+                ]
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "automaticBulkTarget": {
+          "automaticDiscountNode": {
+            "id": "gid://shopify/DiscountAutomaticNode/1657857278258",
+            "automaticDiscount": {
+              "__typename": "DiscountAutomaticBasic",
+              "title": "SDP automatic bulk 20260702223001",
+              "status": "ACTIVE"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 43,
+          "actualQueryCost": 42,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1958,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "codeDiscountNode": {
+          "codeDiscount": {
+            "title": "SDP app bulk code updated 20260702223001",
+            "appDiscountType": {
+              "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505"
+            },
+            "codes": {
+              "nodes": [
+                {
+                  "code": "SDPAPPUP20260702223001"
+                }
+              ]
+            }
+          }
+        },
+        "automaticDiscountNode": {
+          "automaticDiscount": {
+            "title": "SDP app bulk automatic updated 20260702223001",
+            "recurringCycleLimit": 2,
+            "appDiscountType": {
+              "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505"
+            }
+          }
+        },
+        "active": {
+          "count": 5,
+          "precision": "EXACT"
+        },
+        "expired": {
+          "count": 0,
+          "precision": "EXACT"
+        },
+        "deletedCode": null,
+        "deletedAutomatic": null,
+        "redeemDiscount": {
+          "codeDiscount": {
+            "codes": {
+              "nodes": [
+                {
+                  "code": "SDPREDEEM20260702223001"
+                }
+              ]
+            },
+            "codesCount": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          }
+        },
+        "removedRedeemCode": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 42,
+          "actualQueryCost": 38,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1952,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "deactivate": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountAutomaticDeactivate": {
+          "automaticDiscountNode": {
+            "id": "gid://shopify/DiscountAutomaticNode/1657857179954",
+            "automaticDiscount": {
+              "__typename": "DiscountAutomaticApp",
+              "title": "SDP app bulk automatic updated 20260702223001",
+              "status": "EXPIRED",
+              "endsAt": "2026-07-02T21:05:50Z",
+              "appDiscountType": {
+                "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1955,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "activate": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountAutomaticActivate": {
+          "automaticDiscountNode": {
+            "id": "gid://shopify/DiscountAutomaticNode/1657857179954",
+            "automaticDiscount": {
+              "__typename": "DiscountAutomaticApp",
+              "title": "SDP app bulk automatic updated 20260702223001",
+              "status": "ACTIVE",
+              "endsAt": null,
+              "appDiscountType": {
+                "functionId": "019e00a2-c8b0-7cbf-a6bf-35119ec10505"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1957,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "bulkJobs": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "activate": {
+          "job": {
+            "id": "gid://shopify/Job/f0e59483-08eb-491a-95c0-ddab712a956e",
+            "done": false
+          },
+          "userErrors": []
+        },
+        "deactivate": {
+          "job": {
+            "id": "gid://shopify/Job/f0e59483-08eb-491a-95c0-ddab712a956e",
+            "done": false
+          },
+          "userErrors": []
+        },
+        "deleteCode": {
+          "job": {
+            "id": "gid://shopify/Job/f0e59483-08eb-491a-95c0-ddab712a956e",
+            "done": false
+          },
+          "userErrors": []
+        },
+        "deleteAutomatic": {
+          "job": null,
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 40,
+          "actualQueryCost": 40,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1937,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "deleteAutomatic": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountAutomaticDelete": {
+          "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1657857179954",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1944,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterDelete": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "automaticDiscountNode": null,
+        "discountNodesCount": {
+          "count": 1,
+          "precision": "EXACT"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1951,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657857147186",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1951,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Code discount does not exist.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1964,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657857245490",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1963,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountAutomaticDelete": {
+            "deletedAutomaticDiscountId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Automatic discount does not exist.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1973,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "ShopifyFunctionById",
+      "variables": {
+        "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505"
+      },
+      "query": "query ShopifyFunctionById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      id\n      title\n      handle\n      apiKey\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunction": {
+              "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+              "title": "conformance-discount",
+              "apiType": "discount",
+              "description": "conformance-discount",
+              "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+              "app": {
+                "id": "gid://shopify/App/347082227713",
+                "title": "hermes-conformance-products",
+                "handle": "hermes-conformance-products",
+                "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShopifyFunctionById",
+      "variables": {
+        "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505"
+      },
+      "query": "query ShopifyFunctionById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      id\n      title\n      handle\n      apiKey\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunction": {
+              "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+              "title": "conformance-discount",
+              "apiType": "discount",
+              "description": "conformance-discount",
+              "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+              "app": {
+                "id": "gid://shopify/App/347082227713",
+                "title": "hermes-conformance-products",
+                "handle": "hermes-conformance-products",
+                "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DiscountAppBulkLiveJobs",
+      "variables": {
+        "activateIds": ["gid://shopify/DiscountCodeNode/1657857212722"],
+        "deactivateIds": ["gid://shopify/DiscountCodeNode/1657857212722"],
+        "deleteCodeIds": ["gid://shopify/DiscountCodeNode/1657857212722"],
+        "deleteAutomaticIds": ["gid://shopify/DiscountAutomaticNode/1657857278258"]
+      },
+      "query": "mutation DiscountAppBulkLiveJobs(\n  $activateIds: [ID!]\n  $deactivateIds: [ID!]\n  $deleteCodeIds: [ID!]\n  $deleteAutomaticIds: [ID!]\n) {\n  activate: discountCodeBulkActivate(ids: $activateIds) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  deactivate: discountCodeBulkDeactivate(ids: $deactivateIds) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  deleteCode: discountCodeBulkDelete(ids: $deleteCodeIds) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  deleteAutomatic: discountAutomaticBulkDelete(ids: $deleteAutomaticIds) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "activate": {
+              "job": {
+                "id": "gid://shopify/Job/f0e59483-08eb-491a-95c0-ddab712a956e",
+                "done": false
+              },
+              "userErrors": []
+            },
+            "deactivate": {
+              "job": {
+                "id": "gid://shopify/Job/f0e59483-08eb-491a-95c0-ddab712a956e",
+                "done": false
+              },
+              "userErrors": []
+            },
+            "deleteCode": {
+              "job": {
+                "id": "gid://shopify/Job/f0e59483-08eb-491a-95c0-ddab712a956e",
+                "done": false
+              },
+              "userErrors": []
+            },
+            "deleteAutomatic": {
+              "job": null,
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 40,
+              "actualQueryCost": 40,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1937,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Live Shopify Admin evidence for app-managed code/automatic discount create, update, automatic lifecycle, downstream reads, and bulk job payloads using the released conformance discount Function. The non-subscription shop-gating and revoked-Function activation-failure branches remain covered by Rust route tests because this conformance shop sells subscriptions and the installed app exposes an available discount Function."
+}

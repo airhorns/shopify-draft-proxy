@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-create-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-create-parity.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/productCreate-parity-plan.graphql",
@@ -20,6 +20,11 @@
         "name": "blank-title-product-create-data",
         "capturePath": "$.validation.response.data",
         "proxyPath": "$.data"
+      },
+      {
+        "name": "blank-title-product-create-payload-shop",
+        "capturePath": "$.validation.response.data.productCreate.shop",
+        "proxyPath": "$.data.productCreate.shop"
       }
     ]
   }

@@ -1,0 +1,567 @@
+{
+  "capturedAt": "2026-07-02T21:18:47.066Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": "Live Shopify capture replacing the former local-runtime paymentTermsDelete owner-cascade parity fixture. Disposable DraftOrder and Order owners are created through public Admin GraphQL, payment terms are created and deleted, and owner reads confirm paymentTerms is null after delete.",
+  "draft": {
+    "setup": {
+      "draftOrderCreate": {
+        "query": "mutation PaymentsSalvageDraftOrderCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        name\n        subtotalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n        totalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "input": {
+            "email": "payments-salvage-draft-delete-cascade-1783027125097@example.com",
+            "note": "payments salvage draft delete-cascade",
+            "tags": ["shopify-draft-proxy", "payments-salvage", "delete-cascade"],
+            "presentmentCurrencyCode": "CAD",
+            "lineItems": [
+              {
+                "title": "Payments salvage draft delete-cascade",
+                "quantity": 1,
+                "originalUnitPriceWithCurrency": {
+                  "amount": "18.50",
+                  "currencyCode": "CAD"
+                },
+                "requiresShipping": false,
+                "taxable": false,
+                "sku": "payments-salvage-draft-delete-cascade-1783027125097"
+              }
+            ]
+          }
+        },
+        "response": {
+          "data": {
+            "draftOrderCreate": {
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1274637484338",
+                "name": "#D281",
+                "subtotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "18.5",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "18.5",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "18.5",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "18.5",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "owner": {
+      "id": "gid://shopify/DraftOrder/1274637484338",
+      "name": "#D281"
+    },
+    "paymentTermsCreate": {
+      "variables": {
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-05-05T00:00:00Z"
+            }
+          ]
+        }
+      }
+    },
+    "expected": {
+      "create": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/160379273522",
+              "due": true,
+              "overdue": true,
+              "dueInDays": 30,
+              "paymentTermsName": "Net 30",
+              "paymentTermsType": "NET",
+              "translatedName": "Net 30",
+              "paymentSchedules": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/PaymentSchedule/200893989170",
+                    "issuedAt": "2026-05-05T00:00:00Z",
+                    "dueAt": "2026-06-04T00:00:00Z",
+                    "completedAt": null,
+                    "due": true,
+                    "amount": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    },
+                    "balanceDue": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    },
+                    "totalBalance": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoyMDA4OTM5ODkxNzAsImxhc3RfdmFsdWUiOjIwMDg5Mzk4OTE3MH0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMDA4OTM5ODkxNzAsImxhc3RfdmFsdWUiOjIwMDg5Mzk4OTE3MH0="
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "delete": {
+        "data": {
+          "paymentTermsDelete": {
+            "deletedId": "gid://shopify/PaymentTerms/160379273522",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "readAfterDelete": {
+        "data": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1274637484338",
+            "name": "#D281",
+            "paymentTerms": null
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "order": {
+    "orderCreate": {
+      "variables": {
+        "order": {
+          "email": "payments-salvage-delete-cascade-1783027125097@example.com",
+          "currency": "USD",
+          "presentmentCurrency": "CAD",
+          "test": true,
+          "lineItems": [
+            {
+              "title": "Payments salvage delete-cascade",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "42.50",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "57.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "payments-salvage-delete-cascade-1783027125097"
+            }
+          ]
+        }
+      }
+    },
+    "paymentTermsCreate": {
+      "variables": {
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-05-05T00:00:00Z"
+            }
+          ]
+        }
+      }
+    },
+    "missingDelete": {
+      "variables": {
+        "input": {
+          "paymentTermsId": "gid://shopify/PaymentTerms/999999999999999"
+        }
+      }
+    },
+    "expected": {
+      "orderCreate": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8887330373938",
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "42.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "57.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "create": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/160379306290",
+              "due": true,
+              "overdue": true,
+              "dueInDays": 30,
+              "paymentTermsName": "Net 30",
+              "paymentTermsType": "NET",
+              "translatedName": "Net 30",
+              "paymentSchedules": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/PaymentSchedule/200894021938",
+                    "issuedAt": "2026-05-05T00:00:00Z",
+                    "dueAt": "2026-06-04T00:00:00Z",
+                    "completedAt": null,
+                    "due": true,
+                    "amount": {
+                      "amount": "57.0",
+                      "currencyCode": "CAD"
+                    },
+                    "balanceDue": {
+                      "amount": "57.0",
+                      "currencyCode": "CAD"
+                    },
+                    "totalBalance": {
+                      "amount": "57.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoyMDA4OTQwMjE5MzgsImxhc3RfdmFsdWUiOjIwMDg5NDAyMTkzOH0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMDA4OTQwMjE5MzgsImxhc3RfdmFsdWUiOjIwMDg5NDAyMTkzOH0="
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "delete": {
+        "data": {
+          "paymentTermsDelete": {
+            "deletedId": "gid://shopify/PaymentTerms/160379306290",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "readAfterDelete": {
+        "data": {
+          "order": {
+            "id": "gid://shopify/Order/8887330373938",
+            "paymentTerms": null
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "missingDelete": {
+        "data": {
+          "paymentTermsDelete": {
+            "deletedId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Could not find payment terms.",
+                "code": "PAYMENT_TERMS_DELETE_UNSUCCESSFUL"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "draftOrderDelete": {
+      "query": "mutation PaymentsSalvageDraftOrderDelete($input: DraftOrderDeleteInput!) {\n    draftOrderDelete(input: $input) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/DraftOrder/1274637484338"
+        }
+      },
+      "response": {
+        "data": {
+          "draftOrderDelete": {
+            "deletedId": "gid://shopify/DraftOrder/1274637484338",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "orderCancel": {
+      "query": "mutation PaymentsSalvageOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      orderCancelUserErrors {\n        field\n        message\n        code\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8887330373938",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/33b25dfe-1bc7-4bfb-a0eb-106f956d6225",
+              "done": false
+            },
+            "orderCancelUserErrors": [],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "PaymentTermsDraftHydrate",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1274637484338"
+      },
+      "query": "query PaymentTermsDraftHydrate($id: ID!) {\n    draftOrder(id: $id) {\n      id\n      name\n      paymentTerms {\n        id\n      }\n      subtotalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1274637484338",
+              "name": "#D281",
+              "paymentTerms": null,
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "18.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "18.5",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "18.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "18.5",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PaymentTermsOwnerHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8887330373938"
+      },
+      "query": "query PaymentTermsOwnerHydrate($id: ID!) {\n    order(id: $id) {\n      id\n      displayFinancialStatus\n      closed\n      closedAt\n      cancelledAt\n      paymentTerms {\n        id\n      }\n      totalOutstandingSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      currentTotalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8887330373938",
+              "displayFinancialStatus": null,
+              "closed": false,
+              "closedAt": null,
+              "cancelledAt": null,
+              "paymentTerms": null,
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "42.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "57.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "42.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "57.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "42.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "57.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

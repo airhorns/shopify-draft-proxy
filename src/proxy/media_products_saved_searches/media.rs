@@ -65,19 +65,14 @@ impl DraftProxy {
         for (index, input) in inputs.iter().enumerate() {
             match resolved_string_field(input, "originalSource") {
                 None => {
+                    let message = format!("Variable $files of type [FileCreateInput!]! was provided invalid value for {index}.originalSource (Expected value to not be null)");
                     return MutationOutcome::response(ok_json(json!({
-                        "errors": [{
-                            "message": format!("Variable $files of type [FileCreateInput!]! was provided invalid value for {index}.originalSource (Expected value to not be null)"),
-                            "locations": [{"line": 2, "column": 43}],
-                            "extensions": {
-                                "code": "INVALID_VARIABLE",
-                                "value": resolved_variables_json(variables).get("files").cloned().unwrap_or(Value::Null),
-                                "problems": [{
-                                    "path": [index, "originalSource"],
-                                    "explanation": "Expected value to not be null"
-                                }]
-                            }
-                        }]
+                        "errors": [invalid_variable_error_envelope(
+                            message,
+                            SourceLocation { line: 2, column: 43 },
+                            resolved_variables_json(variables).get("files").cloned().unwrap_or(Value::Null),
+                            json!([{ "path": [index, "originalSource"], "explanation": "Expected value to not be null" }]),
+                        )]
                     })));
                 }
                 Some(source) if source.is_empty() => {
@@ -237,11 +232,11 @@ impl DraftProxy {
             return MutationOutcome::response(media_file_update_error_response(
                 &response_key,
                 &payload_selection,
-                vec![json!({
-                    "field": ["files"],
-                    "message": "Non-ready files cannot be updated.",
-                    "code": "NON_READY_STATE"
-                })],
+                vec![user_error(
+                    ["files"],
+                    "Non-ready files cannot be updated.",
+                    Some("NON_READY_STATE"),
+                )],
             ));
         }
 
@@ -519,19 +514,20 @@ impl DraftProxy {
             })
             .find(|(_, resource)| !valid_staged_upload_resource(resource))
         {
+            let allowed = "COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD";
+            let message = format!(
+                "Variable $input of type [StagedUploadInput!]! was provided invalid value for {index}.resource (Expected \"{resource}\" to be one of: {allowed})"
+            );
             return MutationOutcome::response(ok_json(json!({
-                "errors": [{
-                    "message": format!("Variable $input of type [StagedUploadInput!]! was provided invalid value for {index}.resource (Expected \"{resource}\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD)"),
-                    "locations": [{"line": 2, "column": 35}],
-                    "extensions": {
-                        "code": "INVALID_VARIABLE",
-                        "value": resolved_variables_json(variables).get("input").cloned().unwrap_or(Value::Null),
-                        "problems": [{
-                            "path": [index, "resource"],
-                            "explanation": format!("Expected \"{resource}\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD")
-                        }]
-                    }
-                }]
+                "errors": [invalid_variable_error_envelope(
+                    message,
+                    SourceLocation { line: 2, column: 35 },
+                    resolved_variables_json(variables).get("input").cloned().unwrap_or(Value::Null),
+                    json!([{
+                        "path": [index, "resource"],
+                        "explanation": format!("Expected \"{resource}\" to be one of: {allowed}")
+                    }]),
+                )]
             })));
         }
         // Validate every input up front so we know whether the mutation will
@@ -821,11 +817,11 @@ impl DraftProxy {
             })
         });
         if any_missing {
-            vec![json!({
-                "field": ["files"],
-                "message": "The reference target does not exist",
-                "code": "REFERENCE_TARGET_DOES_NOT_EXIST"
-            })]
+            vec![user_error(
+                ["files"],
+                "The reference target does not exist",
+                Some("REFERENCE_TARGET_DOES_NOT_EXIST"),
+            )]
         } else {
             Vec::new()
         }
@@ -853,28 +849,29 @@ impl DraftProxy {
             .is_some()
             && !allows_source_or_filename
         {
-            errors.push(json!({
-                "field": ["files", index.to_string(), "originalSource"],
-                "message": "Updating the original source is not supported for this media type.",
-                "code": "INVALID"
-            }));
+            errors.push(media_file_user_error(
+                index,
+                "originalSource",
+                "Updating the original source is not supported for this media type.",
+                "INVALID",
+            ));
         }
         if let Some(filename) =
             resolved_string_field(input, "filename").filter(|value| !value.is_empty())
         {
             if !allows_source_or_filename {
-                errors.push(json!({
-                    "field": ["files"],
-                    "message": "Updating the filename is only supported on images and generic files",
-                    "code": "UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE"
-                }));
+                errors.push(user_error(
+                    ["files"],
+                    "Updating the filename is only supported on images and generic files",
+                    Some("UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE"),
+                ));
             } else if let Some(existing) = file.get("filename").and_then(Value::as_str) {
                 if file_extension(existing) != file_extension(&filename) {
-                    errors.push(json!({
-                        "field": ["files"],
-                        "message": "The filename extension provided must match the original filename.",
-                        "code": "INVALID_FILENAME_EXTENSION"
-                    }));
+                    errors.push(user_error(
+                        ["files"],
+                        "The filename extension provided must match the original filename.",
+                        Some("INVALID_FILENAME_EXTENSION"),
+                    ));
                 }
             }
         }
@@ -1037,11 +1034,12 @@ fn media_quota_errors(request: &Request, inputs: &[BTreeMap<String, ResolvedValu
             } else {
                 None
             }?;
-            Some(json!({
-                "field": ["files", index.to_string(), "contentType"],
-                "message": media_quota_message(code),
-                "code": code
-            }))
+            Some(media_file_user_error(
+                index,
+                "contentType",
+                media_quota_message(code),
+                code,
+            ))
         })
         .collect()
 }
@@ -1055,27 +1053,50 @@ fn media_quota_message(code: &str) -> &'static str {
     }
 }
 
+fn media_file_user_error(index: usize, field: &str, message: &str, code: &str) -> Value {
+    user_error(
+        vec!["files".to_string(), index.to_string(), field.to_string()],
+        message,
+        Some(code),
+    )
+}
+
+fn media_file_row_user_error(index: usize, message: &str, code: &str) -> Value {
+    user_error(
+        vec!["files".to_string(), index.to_string()],
+        message,
+        Some(code),
+    )
+}
+
 fn validate_file_create_input(
     input: &BTreeMap<String, ResolvedValue>,
     index: usize,
 ) -> Option<Value> {
     let original_source = resolved_string_field(input, "originalSource").unwrap_or_default();
     if !is_http_url(&original_source) {
-        return Some(json!({
-            "field": ["files", index.to_string(), "originalSource"],
-            "message": "File URL is invalid",
-            "code": if has_uri_scheme(&original_source) { "INVALID_IMAGE_SOURCE_URL" } else { "INVALID" }
-        }));
+        let code = if has_uri_scheme(&original_source) {
+            "INVALID_IMAGE_SOURCE_URL"
+        } else {
+            "INVALID"
+        };
+        return Some(media_file_user_error(
+            index,
+            "originalSource",
+            "File URL is invalid",
+            code,
+        ));
     }
     if let Some(filename) =
         resolved_string_field(input, "filename").filter(|value| !value.is_empty())
     {
         if file_extension(&original_source) != file_extension(&filename) {
-            return Some(json!({
-                "field": ["files", index.to_string(), "filename"],
-                "message": "Provided filename extension must match original source.",
-                "code": "MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE"
-            }));
+            return Some(media_file_user_error(
+                index,
+                "filename",
+                "Provided filename extension must match original source.",
+                "MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE",
+            ));
         }
     }
     match resolved_string_field(input, "duplicateResolutionMode").as_deref() {
@@ -1083,22 +1104,27 @@ fn validate_file_create_input(
             let mode = resolved_string_field(input, "duplicateResolutionMode").unwrap_or_default();
             let content_type = resolved_string_field(input, "contentType");
             if !duplicate_mode_allowed(&mode, content_type.as_deref()) {
-                return Some(json!({
-                    "field": ["files", index.to_string(), "duplicateResolutionMode"],
-                    "message": format!("Duplicate resolution mode '{mode}' is not supported for '{}' media type.", duplicate_media_type_name(content_type.as_deref())),
-                    "code": "INVALID_DUPLICATE_MODE_FOR_TYPE"
-                }));
+                return Some(media_file_user_error(
+                    index,
+                    "duplicateResolutionMode",
+                    &format!(
+                        "Duplicate resolution mode '{mode}' is not supported for '{}' media type.",
+                        duplicate_media_type_name(content_type.as_deref())
+                    ),
+                    "INVALID_DUPLICATE_MODE_FOR_TYPE",
+                ));
             }
             if mode == "REPLACE"
                 && resolved_string_field(input, "filename")
                     .filter(|value| !value.is_empty())
                     .is_none()
             {
-                return Some(json!({
-                    "field": ["files", index.to_string(), "filename"],
-                    "message": "Missing filename argument when attempting to use REPLACE duplicate mode.",
-                    "code": "MISSING_FILENAME_FOR_DUPLICATE_MODE_REPLACE"
-                }));
+                return Some(media_file_user_error(
+                    index,
+                    "filename",
+                    "Missing filename argument when attempting to use REPLACE duplicate mode.",
+                    "MISSING_FILENAME_FOR_DUPLICATE_MODE_REPLACE",
+                ));
             }
         }
         _ => {}
@@ -1130,11 +1156,12 @@ fn validate_file_update_post_readiness_fields(
     let mut errors = Vec::new();
     if let Some(alt) = resolved_string_field(input, "alt") {
         if alt.chars().count() > 512 {
-            errors.push(json!({
-                "field": ["files", index.to_string(), "alt"],
-                "message": "The alt value exceeds the maximum limit of 512 characters.",
-                "code": "ALT_VALUE_LIMIT_EXCEEDED"
-            }));
+            errors.push(media_file_user_error(
+                index,
+                "alt",
+                "The alt value exceeds the maximum limit of 512 characters.",
+                "ALT_VALUE_LIMIT_EXCEEDED",
+            ));
         }
     }
     // Gleam parity (validate_optional_url): an invalid originalSource OR
@@ -1143,11 +1170,12 @@ fn validate_file_update_post_readiness_fields(
     for source_field in ["originalSource", "previewImageSource"] {
         if let Some(source) = resolved_string_field(input, source_field) {
             if !source.is_empty() && !is_http_url(&source) {
-                errors.push(json!({
-                    "field": ["files", index.to_string(), "previewImageSource"],
-                    "message": "Invalid image source url value provided",
-                    "code": "INVALID_IMAGE_SOURCE_URL"
-                }));
+                errors.push(media_file_user_error(
+                    index,
+                    "previewImageSource",
+                    "Invalid image source url value provided",
+                    "INVALID_IMAGE_SOURCE_URL",
+                ));
             }
         }
     }
@@ -1165,16 +1193,18 @@ fn validate_file_update_ready_source_fields(
     if original.is_some() && preview.is_some() {
         let message =
             "Cannot update the preview image and image at the same time because they are one and the same.";
-        errors.push(json!({
-            "field": ["files", index.to_string(), "previewImageSource"],
-            "message": message,
-            "code": "INVALID"
-        }));
-        errors.push(json!({
-            "field": ["files", index.to_string(), "originalSource"],
-            "message": message,
-            "code": "INVALID"
-        }));
+        errors.push(media_file_user_error(
+            index,
+            "previewImageSource",
+            message,
+            "INVALID",
+        ));
+        errors.push(media_file_user_error(
+            index,
+            "originalSource",
+            message,
+            "INVALID",
+        ));
     }
     errors
 }
@@ -1191,11 +1221,11 @@ fn file_update_source_version_conflict(
             .filter(|value| !value.is_empty())
             .is_some()
     {
-        return Some(json!({
-            "field": ["files", index.to_string()],
-            "message": "Specify either a source or revertToVersionId, not both.",
-            "code": "CANNOT_SPECIFY_SOURCE_AND_VERSION_ID"
-        }));
+        return Some(media_file_row_user_error(
+            index,
+            "Specify either a source or revertToVersionId, not both.",
+            "CANNOT_SPECIFY_SOURCE_AND_VERSION_ID",
+        ));
     }
     None
 }
@@ -1228,15 +1258,14 @@ fn file_update_missing_ids_error(file_ids: &[String]) -> Value {
 }
 
 fn file_ack_missing_ids_error(file_ids: &[String]) -> Value {
-    let message = if file_ids.len() == 1 {
-        format!("File id {} does not exist.", file_ids[0])
-    } else {
-        format!("File ids {} do not exist.", file_ids.join(","))
-    };
-    user_error(["fileIds"], &message, Some("FILE_DOES_NOT_EXIST"))
+    file_ids_missing_error(file_ids)
 }
 
 fn file_delete_missing_ids_error(file_ids: &[String]) -> Value {
+    file_ids_missing_error(file_ids)
+}
+
+fn file_ids_missing_error(file_ids: &[String]) -> Value {
     let message = if file_ids.len() == 1 {
         format!("File id {} does not exist.", file_ids[0])
     } else {
@@ -1269,16 +1298,33 @@ fn validate_staged_upload_input(
         && resolved_string_field(input, "fileSize").is_none()
         && !matches!(input.get("fileSize"), Some(ResolvedValue::Int(_)))
     {
-        errors.push(json!({
-            "field": ["input", index.to_string(), "fileSize"],
-            "message": format!("file size is required for {} resources", if resource == "VIDEO" { "video" } else { "model3d" })
-        }));
+        errors.push(user_error_omit_code(
+            vec![
+                "input".to_string(),
+                index.to_string(),
+                "fileSize".to_string(),
+            ],
+            &format!(
+                "file size is required for {} resources",
+                if resource == "VIDEO" {
+                    "video"
+                } else {
+                    "model3d"
+                }
+            ),
+            None,
+        ));
     }
     if image_family_resource(&resource) && !valid_image_mime_type(&mime_type) {
-        errors.push(json!({
-            "field": ["input", index.to_string(), "mimeType"],
-            "message": format!("{filename}: ({mime_type}) is not a recognized format")
-        }));
+        errors.push(user_error_omit_code(
+            vec![
+                "input".to_string(),
+                index.to_string(),
+                "mimeType".to_string(),
+            ],
+            &format!("{filename}: ({mime_type}) is not a recognized format"),
+            None,
+        ));
     }
     errors
 }

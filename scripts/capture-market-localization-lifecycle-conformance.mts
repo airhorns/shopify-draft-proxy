@@ -198,6 +198,9 @@ const localizableReadQuery = `#graphql
   }
 `;
 
+const marketLocalizationPreflightQuery =
+  'query MarketsMutationPreflightHydrate($resourceId: ID!, $marketId: ID!, $marketsFirst: Int!) { marketLocalizableResource(resourceId: $resourceId) { resourceId marketLocalizableContent { key value digest } marketLocalizations(marketId: $marketId) { key value updatedAt outdated market { id name } } } markets(first: $marketsFirst) { nodes { id name handle status type } } }';
+
 const registerMutation = `#graphql
   mutation MarketLocalizationMetafieldRegister(
     $resourceId: ID!
@@ -280,52 +283,8 @@ function assertNoUserErrors(payload: unknown, root: string, label: string): void
   }
 }
 
-function objectOrNull(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
-}
-
 function caseResponsePayload(entry: { response: { payload: unknown } }): unknown {
   return entry.response.payload;
-}
-
-function marketLocalizableResourceFrom(response: unknown): unknown {
-  return dataObject(response)['marketLocalizableResource'];
-}
-
-function resourceNodeFromProduct(product: unknown, resourceId: string): Record<string, unknown> | null {
-  const productObject = objectOrNull(product);
-  const metafields = objectOrNull(productObject?.['metafields']);
-  const nodes = metafields?.['nodes'];
-  if (!Array.isArray(nodes)) {
-    return null;
-  }
-  const metafield = nodes.find((node) => objectOrNull(node)?.['id'] === resourceId);
-  const metafieldObject = objectOrNull(metafield);
-  if (!metafieldObject || !productObject) {
-    return null;
-  }
-  return {
-    __typename: 'Metafield',
-    ...metafieldObject,
-    owner: {
-      __typename: 'Product',
-      id: productObject['id'],
-      handle: productObject['handle'],
-      title: productObject['title'],
-      status: productObject['status'],
-      metafields: productObject['metafields'],
-    },
-  };
-}
-
-function preflightBody(product: unknown, resourceId: string, localizableResource: unknown, markets: unknown): unknown {
-  return {
-    data: {
-      resource: resourceNodeFromProduct(product, resourceId),
-      marketLocalizableResource: localizableResource,
-      markets,
-    },
-  };
 }
 
 function upstreamReadCall(entry: {
@@ -344,20 +303,46 @@ function upstreamReadCall(entry: {
   };
 }
 
-function upstreamPreflightCall(
-  entry: { variables: Record<string, unknown> },
-  product: unknown,
-  resourceId: string,
-  localizableResource: unknown,
-  markets: unknown,
-) {
+function firstPreflightMarketId(variables: Record<string, unknown>): string {
+  const marketLocalizations = variables['marketLocalizations'];
+  if (Array.isArray(marketLocalizations)) {
+    for (const localization of marketLocalizations) {
+      if (
+        typeof localization === 'object' &&
+        localization !== null &&
+        typeof (localization as { marketId?: unknown }).marketId === 'string'
+      ) {
+        return (localization as { marketId: string }).marketId;
+      }
+    }
+  }
+  const marketIds = variables['marketIds'];
+  if (Array.isArray(marketIds)) {
+    const marketId = marketIds.find((candidate): candidate is string => typeof candidate === 'string');
+    if (marketId) return marketId;
+  }
+  throw new Error(`Unable to derive market-localization preflight market id from ${JSON.stringify(variables)}`);
+}
+
+function marketLocalizationPreflightVariables(variables: Record<string, unknown>): Record<string, unknown> {
+  if (typeof variables['resourceId'] !== 'string') {
+    throw new Error(`Unable to derive market-localization preflight resource id from ${JSON.stringify(variables)}`);
+  }
+  return {
+    resourceId: variables['resourceId'],
+    marketId: firstPreflightMarketId(variables),
+    marketsFirst: 50,
+  };
+}
+
+function upstreamPreflightCall(entry: { variables: Record<string, unknown> }, responseBody: unknown) {
   return {
     operationName: 'MarketsMutationPreflightHydrate',
-    variables: entry.variables,
-    query: 'synthesized from live capture setup before disposable cleanup',
+    variables: marketLocalizationPreflightVariables(entry.variables),
+    query: marketLocalizationPreflightQuery,
     response: {
       status: 200,
-      body: preflightBody(product, resourceId, localizableResource, markets),
+      body: responseBody,
     },
   };
 }
@@ -449,8 +434,16 @@ try {
   };
 
   const readBeforeRegister = await runGraphql(localizableReadQuery, readVariables);
+  const registerPreflightResponse = await runGraphql(
+    marketLocalizationPreflightQuery,
+    marketLocalizationPreflightVariables(registerVariables),
+  );
   const registerResponse = await runGraphql(registerMutation, registerVariables);
   const readAfterRegister = await runGraphql(localizableReadQuery, readVariables);
+  const removePreflightResponse = await runGraphql(
+    marketLocalizationPreflightQuery,
+    marketLocalizationPreflightVariables(removeVariables),
+  );
   const removeResponse = await runGraphql(removeMutation, removeVariables);
   const readAfterRemove = await runGraphql(localizableReadQuery, readVariables);
 
@@ -488,7 +481,6 @@ try {
     id: createdProductId,
     namespace: moneyDefinitionInput.namespace,
   });
-  const seededMoneyProduct = moneyProductRead.data?.product;
   const moneyReadVariables = { resourceId: moneyResourceId, marketId };
   const moneyReadBeforeRegister = await runGraphql(localizableReadQuery, moneyReadVariables);
   const moneyContent = moneyReadBeforeRegister.data?.marketLocalizableResource?.marketLocalizableContent?.[0];
@@ -523,10 +515,26 @@ try {
     keys: [moneyContentKey],
     marketIds: [marketId],
   };
+  const moneyRegisterPreflightResponse = await runGraphql(
+    marketLocalizationPreflightQuery,
+    marketLocalizationPreflightVariables(moneyRegisterVariables),
+  );
   const moneyRegisterResponse = await runGraphql(registerMutation, moneyRegisterVariables);
   const moneyReadAfterRegister = await runGraphql(localizableReadQuery, moneyReadVariables);
+  const moneyUnknownMarketRemovePreflightResponse = await runGraphql(
+    marketLocalizationPreflightQuery,
+    marketLocalizationPreflightVariables(moneyUnknownMarketVariables),
+  );
   const moneyUnknownMarketRemoveResponse = await runGraphql(removeMutation, moneyUnknownMarketVariables);
+  const moneyEmptyKeysRemovePreflightResponse = await runGraphql(
+    marketLocalizationPreflightQuery,
+    marketLocalizationPreflightVariables(moneyEmptyKeysVariables),
+  );
   const moneyEmptyKeysRemoveResponse = await runGraphql(removeMutation, moneyEmptyKeysVariables);
+  const moneyRemovePreflightResponse = await runGraphql(
+    marketLocalizationPreflightQuery,
+    marketLocalizationPreflightVariables(moneyRemoveVariables),
+  );
   const moneyRemoveResponse = await runGraphql(removeMutation, moneyRemoveVariables);
   const moneyReadAfterRemove = await runGraphql(localizableReadQuery, moneyReadVariables);
 
@@ -589,7 +597,7 @@ try {
       },
     },
     {
-      name: 'marketLocalizationsRegisterMoneyMetafieldSuccess',
+      name: 'marketLocalizationsRegisterMoneyMetafieldValidation',
       query: registerMutation,
       variables: moneyRegisterVariables,
       response: {
@@ -598,7 +606,7 @@ try {
       },
     },
     {
-      name: 'marketLocalizableMoneyMetafieldReadAfterRegister',
+      name: 'marketLocalizableMoneyMetafieldReadAfterRejectedRegister',
       query: localizableReadQuery,
       variables: moneyReadVariables,
       response: {
@@ -625,7 +633,7 @@ try {
       },
     },
     {
-      name: 'marketLocalizationsRemoveMoneyMetafieldSuccess',
+      name: 'marketLocalizationsRemoveMoneyMetafieldAfterRejectedRegister',
       query: removeMutation,
       variables: moneyRemoveVariables,
       response: {
@@ -634,7 +642,7 @@ try {
       },
     },
     {
-      name: 'marketLocalizableMoneyMetafieldReadAfterRemove',
+      name: 'marketLocalizableMoneyMetafieldReadAfterEmptyRemove',
       query: localizableReadQuery,
       variables: moneyReadVariables,
       response: {
@@ -643,17 +651,13 @@ try {
       },
     },
   ];
-  const marketsPreflightPayload = marketsRead.data?.markets;
-  const defaultLocalizableResource = marketLocalizableResourceFrom(readBeforeRegister);
-  const moneyLocalizableResource = marketLocalizableResourceFrom(moneyReadBeforeRegister);
-
   const fixture = {
     capturedAt: new Date().toISOString(),
     storeDomain,
     apiVersion,
     disposableProductHandle: productInput.handle,
     scope:
-      'Default product-metafield market localization validation plus definition-backed money metafield successful remove parity',
+      'Default product-metafield market localization validation plus definition-backed money metafield validation parity',
     data: {
       markets: marketsRead.data?.markets,
     },
@@ -738,37 +742,13 @@ try {
     },
     upstreamCalls: [
       upstreamReadCall(cases[0]),
-      upstreamPreflightCall(cases[1], seedProduct, resourceId, defaultLocalizableResource, marketsPreflightPayload),
-      upstreamPreflightCall(cases[3], seedProduct, resourceId, defaultLocalizableResource, marketsPreflightPayload),
+      upstreamPreflightCall(cases[1], registerPreflightResponse),
+      upstreamPreflightCall(cases[3], removePreflightResponse),
       upstreamReadCall(cases[5]),
-      upstreamPreflightCall(
-        cases[6],
-        seededMoneyProduct,
-        moneyResourceId,
-        moneyLocalizableResource,
-        marketsPreflightPayload,
-      ),
-      upstreamPreflightCall(
-        cases[8],
-        seededMoneyProduct,
-        moneyResourceId,
-        moneyLocalizableResource,
-        marketsPreflightPayload,
-      ),
-      upstreamPreflightCall(
-        cases[9],
-        seededMoneyProduct,
-        moneyResourceId,
-        moneyLocalizableResource,
-        marketsPreflightPayload,
-      ),
-      upstreamPreflightCall(
-        cases[10],
-        seededMoneyProduct,
-        moneyResourceId,
-        moneyLocalizableResource,
-        marketsPreflightPayload,
-      ),
+      upstreamPreflightCall(cases[6], moneyRegisterPreflightResponse),
+      upstreamPreflightCall(cases[8], moneyUnknownMarketRemovePreflightResponse),
+      upstreamPreflightCall(cases[9], moneyEmptyKeysRemovePreflightResponse),
+      upstreamPreflightCall(cases[10], moneyRemovePreflightResponse),
     ],
   };
 

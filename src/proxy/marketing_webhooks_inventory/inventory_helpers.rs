@@ -224,6 +224,13 @@ pub(in crate::proxy) fn inventory_change_json(
     })
 }
 
+fn inventory_adjust_name_mirrors_on_hand(name: &str) -> bool {
+    matches!(
+        name,
+        "available" | "damaged" | "quality_control" | "reserved" | "safety_stock"
+    )
+}
+
 fn inventory_set_on_hand_change_json(
     item_id: &str,
     name: &str,
@@ -1665,9 +1672,26 @@ impl DraftProxy {
             "locationId",
         );
         if let Some(error_payload) =
+            inventory_invalid_adjust_ledger_document_payload(field, &changes_input, &name)
+        {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
+        if let Some(error_payload) =
             self.inventory_existence_payload(field, &changes_input, "changes")
         {
             return MutationFieldOutcome::unlogged(error_payload);
+        }
+        if changes_input
+            .iter()
+            .all(|change| resolved_int_field(change, "delta").unwrap_or(0) == 0)
+        {
+            return MutationFieldOutcome::unlogged(selected_json(
+                &json!({
+                    "inventoryAdjustmentGroup": null,
+                    "userErrors": []
+                }),
+                &field.selection,
+            ));
         }
         let reason =
             resolved_string_field(&input, "reason").unwrap_or_else(|| "correction".to_string());
@@ -1681,6 +1705,9 @@ impl DraftProxy {
             let location_name = self.inventory_location_display_name(&location_id);
             let ledger = resolved_string_field(&change, "ledgerDocumentUri");
             let delta = resolved_int_field(&change, "delta").unwrap_or(0);
+            if delta == 0 {
+                continue;
+            }
             let level = self
                 .store
                 .staged
@@ -1691,13 +1718,15 @@ impl DraftProxy {
                 let quantity = level.entry(name.clone()).or_insert(0);
                 *quantity += delta;
             }
-            if name == "available" {
+            if inventory_adjust_name_mirrors_on_hand(&name) {
                 {
                     let on_hand = level.entry("on_hand".to_string()).or_insert(0);
                     *on_hand += delta;
                 }
-                level.entry("damaged".to_string()).or_insert(0);
-                self.stamp_inventory_quantity(&item_id, &location_id, "on_hand", &updated_at);
+                if name == "available" {
+                    level.entry("damaged".to_string()).or_insert(0);
+                    self.stamp_inventory_quantity(&item_id, &location_id, "on_hand", &updated_at);
+                }
                 on_hand_changes.push(inventory_change_json(
                     &item_id,
                     "on_hand",
@@ -5015,6 +5044,67 @@ fn inventory_invalid_public_quantity_name_payload(
             Some("INVALID_QUANTITY_NAME"),
         )],
     ))
+}
+
+fn inventory_invalid_adjust_ledger_document_payload(
+    field: &RootFieldSelection,
+    changes: &[BTreeMap<String, ResolvedValue>],
+    name: &str,
+) -> Option<Value> {
+    let distinct_ledgers = changes
+        .iter()
+        .filter_map(|change| resolved_string_field(change, "ledgerDocumentUri"))
+        .collect::<BTreeSet<_>>();
+    if distinct_ledgers.len() > 1 {
+        return Some(inventory_invalid_adjustment_payload(
+            field,
+            vec![user_error(
+                ["input", "changes"],
+                "All changes must have the same ledger document URI or, in the case of adjusting available, no ledger document URI.",
+                Some("MAX_ONE_LEDGER_DOCUMENT"),
+            )],
+        ));
+    }
+
+    for (index, change) in changes.iter().enumerate() {
+        let ledger = resolved_string_field(change, "ledgerDocumentUri");
+        let field_path = json!(["input", "changes", index.to_string(), "ledgerDocumentUri"]);
+        match (name == "available", ledger.as_deref()) {
+            (true, Some(_)) => {
+                return Some(inventory_invalid_adjustment_payload(
+                    field,
+                    vec![user_error(
+                        field_path,
+                        "A ledger document URI is not allowed when adjusting available.",
+                        Some("INVALID_AVAILABLE_DOCUMENT"),
+                    )],
+                ));
+            }
+            (false, None) => {
+                return Some(inventory_invalid_adjustment_payload(
+                    field,
+                    vec![user_error(
+                        field_path,
+                        "A ledger document URI is required except when adjusting available.",
+                        Some("INVALID_QUANTITY_DOCUMENT"),
+                    )],
+                ));
+            }
+            (_, Some(ledger)) if ledger.starts_with("gid://shopify/") => {
+                return Some(inventory_invalid_adjustment_payload(
+                    field,
+                    vec![user_error(
+                        field_path,
+                        "Internal (gid://shopify/) ledger documents are not allowed to be adjusted via API.",
+                        Some("INTERNAL_LEDGER_DOCUMENT"),
+                    )],
+                ));
+            }
+            _ => {}
+        }
+    }
+
+    None
 }
 
 fn inventory_invalid_set_quantity_name_payload(

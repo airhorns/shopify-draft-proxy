@@ -369,11 +369,11 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "deletedId": null,
-                    "userErrors": [{
-                        "field": ["id"],
-                        "message": "Cannot delete the default publication",
-                        "code": "CANNOT_DELETE_DEFAULT_PUBLICATION"
-                    }]
+                    "userErrors": [user_error(
+                        ["id"],
+                        "Cannot delete the default publication",
+                        Some("CANNOT_DELETE_DEFAULT_PUBLICATION"),
+                    )]
                 }),
                 &field.selection,
             );
@@ -435,10 +435,10 @@ impl DraftProxy {
         publishables_to_remove: &[String],
     ) -> Vec<Value> {
         if publishables_to_add.len() + publishables_to_remove.len() > PUBLICATION_UPDATE_LIMIT {
-            return vec![publication_error(
+            return vec![user_error(
                 publication_update_limit_field(publishables_to_add, publishables_to_remove),
                 "The limit for simultaneous publication updates has been exceeded.",
-                "PUBLICATION_UPDATE_LIMIT_EXCEEDED",
+                Some("PUBLICATION_UPDATE_LIMIT_EXCEEDED"),
             )];
         }
 
@@ -449,11 +449,14 @@ impl DraftProxy {
         ] {
             for (index, id) in ids.iter().enumerate() {
                 if !self.publication_update_publishable_exists(id) {
-                    user_errors.push(publication_indexed_error(
-                        field_name,
-                        index,
+                    user_errors.push(user_error(
+                        vec![
+                            "input".to_string(),
+                            field_name.to_string(),
+                            index.to_string(),
+                        ],
                         "Publishable ID not found.",
-                        "INVALID_PUBLISHABLE_ID",
+                        Some("INVALID_PUBLISHABLE_ID"),
                     ));
                 }
             }
@@ -574,11 +577,11 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "productFeed": null,
-                    "userErrors": [{
-                        "field": ["country"],
-                        "message": "Product feed already exists for this country/language pair",
-                        "code": "TAKEN"
-                    }]
+                    "userErrors": [user_error(
+                        ["country"],
+                        "Product feed already exists for this country/language pair",
+                        Some("TAKEN"),
+                    )]
                 }),
                 &field.selection,
             );
@@ -621,11 +624,7 @@ impl DraftProxy {
                     "__typename": "ProductFullSyncPayload",
                     "id": null,
                     "job": null,
-                    "userErrors": [{
-                        "field": ["id"],
-                        "message": "ProductFeed does not exist",
-                        "code": "NOT_FOUND"
-                    }]
+                    "userErrors": [user_error(["id"], "ProductFeed does not exist", Some("NOT_FOUND"))]
                 }),
                 Vec::new(),
                 "failed",
@@ -639,11 +638,11 @@ impl DraftProxy {
                     "__typename": "ProductFullSyncPayload",
                     "id": null,
                     "job": null,
-                    "userErrors": [{
-                        "field": ["updatedAtSince"],
-                        "message": "updatedAtSince must be before beforeUpdatedAt",
-                        "code": Value::Null
-                    }]
+                    "userErrors": [user_error(
+                        ["updatedAtSince"],
+                        "updatedAtSince must be before beforeUpdatedAt",
+                        None,
+                    )]
                 }),
                 Vec::new(),
                 "failed",
@@ -832,10 +831,10 @@ fn publication_create_name(id: &str, catalog: Option<&Value>) -> String {
 fn publication_catalog_not_found_payload(catalog_id: &str) -> Value {
     json!({
         "publication": null,
-        "userErrors": [publication_error(
-            vec!["input", "catalogId"],
+        "userErrors": [user_error(
+            ["input", "catalogId"],
             &format!("A catalog was not found for id= {catalog_id}."),
-            "CATALOG_NOT_FOUND",
+            Some("CATALOG_NOT_FOUND"),
         )]
     })
 }
@@ -845,10 +844,10 @@ fn publication_not_found_payload(root_field: &str) -> Value {
     payload.insert(root_field.to_string(), Value::Null);
     payload.insert(
         "userErrors".to_string(),
-        json!([publication_error(
-            vec!["id"],
+        json!([user_error(
+            ["id"],
             "Publication was not found",
-            "PUBLICATION_NOT_FOUND",
+            Some("PUBLICATION_NOT_FOUND"),
         )]),
     );
     Value::Object(payload)
@@ -868,22 +867,6 @@ fn publication_update_limit_field(
         "publishablesToAdd"
     };
     vec!["input", field_name, "51"]
-}
-
-fn publication_error(field: Vec<&str>, message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
-}
-
-fn publication_indexed_error(field_name: &str, index: usize, message: &str, code: &str) -> Value {
-    json!({
-        "field": ["input", field_name, index.to_string()],
-        "message": message,
-        "code": code
-    })
 }
 
 /// When `publicationCreate`'s `$input.defaultState` is not a valid
@@ -923,26 +906,19 @@ fn publication_default_state_invalid_response(
     let message = format!(
         "Variable ${variable_name} of type PublicationCreateInput! was provided invalid value for defaultState (Expected \"{state}\" to be one of: {one_of})"
     );
-    let mut error = serde_json::Map::new();
-    error.insert("message".to_string(), json!(message));
-    if let Some((line, column)) = graphql_variable_definition_location(query, variable_name) {
-        error.insert(
-            "locations".to_string(),
-            json!([{ "line": line, "column": column }]),
-        );
-    }
-    error.insert(
-        "extensions".to_string(),
-        json!({
-            "code": "INVALID_VARIABLE",
-            "value": provided,
-            "problems": [{
+    let (line, column) =
+        graphql_variable_definition_location(query, variable_name).unwrap_or((1, 1));
+    ok_json(json!({
+        "errors": [invalid_variable_error_envelope(
+            message,
+            SourceLocation { line, column },
+            provided.clone(),
+            json!([{
                 "path": ["defaultState"],
                 "explanation": format!("Expected \"{state}\" to be one of: {one_of}"),
-            }],
-        }),
-    );
-    ok_json(json!({ "errors": [Value::Object(error)] }))
+            }]),
+        )]
+    }))
 }
 
 fn product_full_sync_updated_at_range_invalid(

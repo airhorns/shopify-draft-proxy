@@ -139,6 +139,8 @@ const DELETE_CUSTOMER_MUTATION = `#graphql
   }
 `;
 
+const NEVER_CREATED_STORE_CREDIT_ACCOUNT_ID = 'gid://shopify/StoreCreditAccount/999999999999999';
+
 function readResponseData(result: ConformanceGraphqlResult): Record<string, unknown> | null {
   return result.payload.data && typeof result.payload.data === 'object'
     ? (result.payload.data as Record<string, unknown>)
@@ -251,6 +253,61 @@ try {
       `storeCreditAccountCredit did not create/return an account id: ${JSON.stringify(setupCredit.payload, null, 2)}`,
     );
   }
+
+  const missingAccountZeroCreditVariables = {
+    id: NEVER_CREATED_STORE_CREDIT_ACCOUNT_ID,
+    creditInput: {
+      creditAmount: {
+        amount: '0.00',
+        currencyCode: 'USD',
+      },
+    },
+  };
+  const missingAccountZeroCredit = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+    missingAccountZeroCreditVariables,
+  );
+  assertNoGraphqlFailure(
+    missingAccountZeroCredit,
+    'storeCreditAccountCredit missing account plus zero amount validation',
+  );
+
+  const missingAccountZeroDebitVariables = {
+    id: NEVER_CREATED_STORE_CREDIT_ACCOUNT_ID,
+    debitInput: {
+      debitAmount: {
+        amount: '0.00',
+        currencyCode: 'USD',
+      },
+    },
+  };
+  const missingAccountZeroDebit = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_DEBIT_MUTATION,
+    missingAccountZeroDebitVariables,
+  );
+  assertNoGraphqlFailure(
+    missingAccountZeroDebit,
+    'storeCreditAccountDebit missing account plus zero amount validation',
+  );
+
+  const pastExpiryNegativeCreditVariables = {
+    id: accountId,
+    creditInput: {
+      creditAmount: {
+        amount: '-5.00',
+        currencyCode: 'USD',
+      },
+      expiresAt: '2000-01-01T00:00:00Z',
+    },
+  };
+  const pastExpiryNegativeCredit = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+    pastExpiryNegativeCreditVariables,
+  );
+  assertNoGraphqlFailure(
+    pastExpiryNegativeCredit,
+    'storeCreditAccountCredit past expiresAt plus negative amount validation',
+  );
 
   const accountCurrencyMismatchVariables = {
     id: accountId,
@@ -534,6 +591,21 @@ try {
       createAccountCredit: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, setupCreditVariables, setupCredit),
     },
     validations: {
+      missingAccountZeroCredit: record(
+        STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+        missingAccountZeroCreditVariables,
+        missingAccountZeroCredit,
+      ),
+      missingAccountZeroDebit: record(
+        STORE_CREDIT_ACCOUNT_DEBIT_MUTATION,
+        missingAccountZeroDebitVariables,
+        missingAccountZeroDebit,
+      ),
+      pastExpiryNegativeCredit: record(
+        STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+        pastExpiryNegativeCreditVariables,
+        pastExpiryNegativeCredit,
+      ),
       accountCurrencyMismatch: record(
         STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
         accountCurrencyMismatchVariables,

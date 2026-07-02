@@ -16,6 +16,7 @@ type DraftProxyInstance = {
   ) => Promise<ProxyResponse>;
   getState: () => JsonRecord;
   getLog: () => JsonRecord;
+  dispose: () => void;
 };
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -32,15 +33,15 @@ const fixturePath = path.join(
   'draft-order-invoice-send-invoice-errors.json',
 );
 
-function ensureGleamJsBuild(): void {
-  const result = spawnSync('corepack', ['pnpm', 'gleam:build:js'], {
+function ensureRustReleaseBuild(): void {
+  const result = spawnSync('cargo', ['build', '--release', '--bin', 'shopify-draft-proxy-server'], {
     cwd: repoRoot,
     stdio: 'inherit',
     shell: process.platform === 'win32',
   });
 
   if (result.status !== 0) {
-    throw new Error(`Gleam JS build failed with status ${String(result.status)}`);
+    throw new Error(`Rust release build failed with status ${String(result.status)}`);
   }
 }
 
@@ -111,7 +112,7 @@ async function runProxyRequest(
   return assertResponseOk(await proxy.processGraphQLRequest({ query, variables }, { apiVersion }), context);
 }
 
-ensureGleamJsBuild();
+ensureRustReleaseBuild();
 
 const { createDraftProxy } = (await import('../js/src/index.js')) as {
   createDraftProxy: (options: { readMode: string; port: number; shopifyAdminOrigin: string }) => DraftProxyInstance;
@@ -219,5 +220,6 @@ const fixture = {
 await mkdir(path.dirname(fixturePath), { recursive: true });
 await writeFile(fixturePath, `${JSON.stringify(fixture, null, 2)}\n`);
 formatFixture();
+proxy.dispose();
 
 console.log(JSON.stringify({ ok: true, fixturePath: path.relative(repoRoot, fixturePath), draftOrderId }, null, 2));

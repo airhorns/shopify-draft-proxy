@@ -681,7 +681,7 @@ impl DraftProxy {
             let role = json!({
                 "id": role_id,
                 "name": role_name,
-                "note": format!("System-defined {role_name} role"),
+                "note": Value::Null,
                 "companyId": id
             });
             self.store
@@ -2646,11 +2646,11 @@ impl DraftProxy {
             )),
             "contactsCount" => {
                 let count = b2b_json_id_list(company, "contactIds").len();
-                Some(segment_count_json(count, &selection.selection))
+                Some(selected_count_json(count, &selection.selection))
             }
             "locationsCount" => {
                 let count = b2b_json_id_list(company, "locationIds").len();
-                Some(segment_count_json(count, &selection.selection))
+                Some(selected_count_json(count, &selection.selection))
             }
             "mainContact" => Some(self.b2b_selected_reference_json(
                 company,

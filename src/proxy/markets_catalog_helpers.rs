@@ -41,6 +41,32 @@ pub(in crate::proxy) fn catalog_markets_connection(
     })
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(in crate::proxy) enum CatalogContextDriver {
+    Market,
+    CompanyLocation,
+    Country,
+}
+
+impl CatalogContextDriver {
+    pub(in crate::proxy) fn from_type_name(type_name: &str) -> Option<Self> {
+        Some(match type_name {
+            "MarketCatalog" | "MARKET" => Self::Market,
+            "CompanyLocationCatalog" | "COMPANY_LOCATION" => Self::CompanyLocation,
+            "CountryCatalog" | "COUNTRY" => Self::Country,
+            _ => return None,
+        })
+    }
+
+    pub(in crate::proxy) fn catalog_type_name(self) -> &'static str {
+        match self {
+            Self::Market => "MarketCatalog",
+            Self::CompanyLocation => "CompanyLocationCatalog",
+            Self::Country => "CountryCatalog",
+        }
+    }
+}
+
 pub(in crate::proxy) fn catalog_record(
     id: &str,
     title: &str,
@@ -53,6 +79,7 @@ pub(in crate::proxy) fn catalog_record(
         "id": id,
         "title": title,
         "status": status,
+        "contextDriverType": "MARKET",
         "marketIds": market_ids,
         "markets": catalog_markets_connection(market_ids, market_names),
         "operations": [],
@@ -61,8 +88,83 @@ pub(in crate::proxy) fn catalog_record(
     })
 }
 
+pub(in crate::proxy) fn company_location_catalog_record(
+    id: &str,
+    title: &str,
+    status: &str,
+    company_location_ids: &[String],
+    company_locations: &BTreeMap<String, Value>,
+) -> Value {
+    json!({
+        "__typename": "CompanyLocationCatalog",
+        "id": id,
+        "title": title,
+        "status": status,
+        "contextDriverType": "COMPANY_LOCATION",
+        "companyLocationIds": company_location_ids,
+        "locationIds": company_location_ids,
+        "companyLocations": catalog_company_locations_connection(company_location_ids, company_locations),
+        "companyLocationsCount": count_object(company_location_ids.len()),
+        "operations": [],
+        "priceList": null,
+        "publication": null
+    })
+}
+
+pub(in crate::proxy) fn country_catalog_record(
+    id: &str,
+    title: &str,
+    status: &str,
+    country_codes: &[String],
+) -> Value {
+    json!({
+        "__typename": "CountryCatalog",
+        "id": id,
+        "title": title,
+        "status": status,
+        "contextDriverType": "COUNTRY",
+        "countryCodes": country_codes,
+        "countries": catalog_countries_connection(country_codes),
+        "countriesCount": count_object(country_codes.len()),
+        "operations": [],
+        "priceList": null,
+        "publication": null
+    })
+}
+
 pub(in crate::proxy) fn catalog_market_ids(catalog: &Value) -> Vec<String> {
     string_array_from_json(&catalog["marketIds"])
+}
+
+pub(in crate::proxy) fn catalog_company_location_ids(catalog: &Value) -> Vec<String> {
+    let ids = string_array_from_json(&catalog["companyLocationIds"]);
+    if ids.is_empty() {
+        string_array_from_json(&catalog["locationIds"])
+    } else {
+        ids
+    }
+}
+
+pub(in crate::proxy) fn catalog_country_codes(catalog: &Value) -> Vec<String> {
+    string_array_from_json(&catalog["countryCodes"])
+}
+
+pub(in crate::proxy) fn catalog_context_driver(catalog: &Value) -> CatalogContextDriver {
+    catalog["contextDriverType"]
+        .as_str()
+        .and_then(CatalogContextDriver::from_type_name)
+        .or_else(|| {
+            catalog["__typename"]
+                .as_str()
+                .and_then(CatalogContextDriver::from_type_name)
+        })
+        .or_else(|| {
+            catalog["id"]
+                .as_str()
+                .and_then(shopify_gid_resource_type)
+                .and_then(CatalogContextDriver::from_type_name)
+        })
+        .unwrap_or(CatalogContextDriver::Market)
 }
 
 pub(in crate::proxy) fn set_catalog_market_ids(
@@ -77,6 +179,68 @@ pub(in crate::proxy) fn set_catalog_market_ids(
             catalog_markets_connection(market_ids, market_names),
         );
     }
+}
+
+pub(in crate::proxy) fn set_catalog_company_location_ids(
+    catalog: &mut Value,
+    company_location_ids: &[String],
+    company_locations: &BTreeMap<String, Value>,
+) {
+    if let Some(object) = catalog.as_object_mut() {
+        object.insert(
+            "companyLocationIds".to_string(),
+            json!(company_location_ids),
+        );
+        object.insert("locationIds".to_string(), json!(company_location_ids));
+        object.insert(
+            "companyLocations".to_string(),
+            catalog_company_locations_connection(company_location_ids, company_locations),
+        );
+        object.insert(
+            "companyLocationsCount".to_string(),
+            count_object(company_location_ids.len()),
+        );
+    }
+}
+
+pub(in crate::proxy) fn set_catalog_country_codes(catalog: &mut Value, country_codes: &[String]) {
+    if let Some(object) = catalog.as_object_mut() {
+        object.insert("countryCodes".to_string(), json!(country_codes));
+        object.insert(
+            "countries".to_string(),
+            catalog_countries_connection(country_codes),
+        );
+        object.insert(
+            "countriesCount".to_string(),
+            count_object(country_codes.len()),
+        );
+    }
+}
+
+pub(in crate::proxy) fn catalog_company_locations_connection(
+    company_location_ids: &[String],
+    company_locations: &BTreeMap<String, Value>,
+) -> Value {
+    json!({
+        "nodes": company_location_ids
+            .iter()
+            .map(|id| {
+                company_locations
+                    .get(id)
+                    .cloned()
+                    .unwrap_or_else(|| json!({ "id": id }))
+            })
+            .collect::<Vec<_>>()
+    })
+}
+
+pub(in crate::proxy) fn catalog_countries_connection(country_codes: &[String]) -> Value {
+    json!({
+        "nodes": country_codes
+            .iter()
+            .map(|code| json!({ "code": code }))
+            .collect::<Vec<_>>()
+    })
 }
 
 pub(in crate::proxy) fn web_presence_market_ids(web_presence: &Value) -> Vec<String> {
@@ -582,15 +746,17 @@ pub(in crate::proxy) fn fixed_price_currency_errors(
     let expected = price_list_currency(price_list);
     let mut errors = Vec::new();
     for (index, input) in inputs.iter().enumerate() {
-        if let Some(actual) =
-            fixed_price_input_currency(input, "price").filter(|value| !value.is_empty())
-        {
-            if actual != expected {
-                errors.push(price_list_price_error(
-                    json!([field_name, index.to_string(), "price", "currencyCode"]),
-                    "The specified currency does not match the price list's currency.",
-                    "PRICE_LIST_CURRENCY_MISMATCH",
-                ));
+        for money_field in ["price", "compareAtPrice"] {
+            if let Some(actual) =
+                fixed_price_input_currency(input, money_field).filter(|value| !value.is_empty())
+            {
+                if actual != expected {
+                    errors.push(price_list_price_error(
+                        json!([field_name, index.to_string(), money_field, "currencyCode"]),
+                        "The specified currency does not match the price list's currency.",
+                        "PRICE_LIST_CURRENCY_MISMATCH",
+                    ));
+                }
             }
         }
     }
@@ -712,6 +878,61 @@ pub(in crate::proxy) fn product_fixed_prices_preflight_variables(
         "priceQuery": string_variable("priceQuery"),
         "productIds": product_ids,
     })
+}
+
+pub(in crate::proxy) fn variant_fixed_prices_preflight_variables(
+    fields: &[RootFieldSelection],
+) -> Value {
+    let mut price_list_id: Option<String> = None;
+    let mut variant_ids: Vec<String> = Vec::new();
+    let mut output = serde_json::Map::new();
+
+    for field in fields {
+        if !matches!(
+            field.name.as_str(),
+            "priceListFixedPricesAdd" | "priceListFixedPricesUpdate" | "priceListFixedPricesDelete"
+        ) {
+            continue;
+        }
+        if price_list_id.is_none() {
+            price_list_id = read_price_list_id(&field.arguments);
+        }
+        for argument_name in ["prices", "pricesToAdd", "variantIdsToDelete", "variantIds"] {
+            if let Some(value) = field.arguments.get(argument_name) {
+                output.insert(argument_name.to_string(), resolved_value_json(value));
+            }
+        }
+        match field.name.as_str() {
+            "priceListFixedPricesAdd" => {
+                extend_unique_strings(
+                    &mut variant_ids,
+                    mutation_variant_ids(&resolved_object_list(&field.arguments, "prices")),
+                );
+            }
+            "priceListFixedPricesUpdate" => {
+                let (price_inputs, _) = read_fixed_price_update_inputs(&field.arguments);
+                extend_unique_strings(&mut variant_ids, mutation_variant_ids(&price_inputs));
+                extend_unique_strings(
+                    &mut variant_ids,
+                    resolved_string_list_arg(&field.arguments, "variantIdsToDelete"),
+                );
+            }
+            "priceListFixedPricesDelete" => {
+                extend_unique_strings(
+                    &mut variant_ids,
+                    resolved_string_list_arg(&field.arguments, "variantIds"),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    output.insert(
+        "priceListId".to_string(),
+        price_list_id.map(Value::String).unwrap_or(Value::Null),
+    );
+    output.insert("variantIds".to_string(), json!(variant_ids));
+    Value::Object(output)
 }
 
 /// `product_level_fixed_price_errors` (serializers.gleam): the ordered validation

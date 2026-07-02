@@ -261,19 +261,49 @@ pub(in crate::proxy) fn invalid_variable_required_field_error(
     value: Value,
     column: u64,
 ) -> Value {
-    json!({
-        "message": format!("Variable $input of type {}! was provided invalid value for {} (Expected value to not be null)", input_object_type, field),
-        "locations": [{ "line": 1, "column": column }],
-        "extensions": {
-            "code": "INVALID_VARIABLE",
-            "value": value,
-            "problems": [{ "path": [field], "explanation": "Expected value to not be null" }]
-        }
-    })
+    invalid_variable_error_envelope(
+        format!(
+            "Variable $input of type {input_object_type}! was provided invalid value for {field} (Expected value to not be null)"
+        ),
+        SourceLocation {
+            line: 1,
+            column: column as usize,
+        },
+        value,
+        json!([{ "path": [field], "explanation": "Expected value to not be null" }]),
+    )
 }
 
 pub(in crate::proxy) fn saved_search_name_taken_user_error() -> Value {
     user_error_omit_code(["input", "name"], "Name has already been taken", None)
+}
+
+fn saved_search_input_required_user_error() -> Value {
+    user_error_omit_code(["input"], "Saved search input is required", None)
+}
+
+fn saved_search_missing_user_error() -> Value {
+    user_error_omit_code(["input", "id"], "Saved Search does not exist", None)
+}
+
+fn saved_search_name_blank_user_error() -> Value {
+    user_error_omit_code(["input", "name"], "Name can't be blank", None)
+}
+
+fn saved_search_name_too_long_user_error() -> Value {
+    user_error_omit_code(
+        ["input", "name"],
+        "Name is too long (maximum is 40 characters)",
+        None,
+    )
+}
+
+fn saved_search_customer_deprecated_user_error() -> Value {
+    user_error_omit_code(
+        Value::Null,
+        "Customer saved searches have been deprecated. Use Segmentation API instead.",
+        None,
+    )
 }
 
 pub(in crate::proxy) fn saved_search_delete_payload_json(
@@ -321,10 +351,11 @@ pub(in crate::proxy) fn saved_search_query_user_errors(
             SavedSearchQueryValidationOperation::Create => json!(["input", "query"]),
             SavedSearchQueryValidationOperation::Update => json!(["input", "searchTerms"]),
         };
-        errors.push(json!({
-            "field": field,
-            "message": "Search terms is invalid, 'reference_location_id' is a reserved filter name"
-        }));
+        errors.push(user_error_omit_code(
+            field,
+            "Search terms is invalid, 'reference_location_id' is a reserved filter name",
+            None,
+        ));
     }
     let filters = saved_search_filters(query);
     let mut invalid_filters: Vec<String> = filters
@@ -342,10 +373,11 @@ pub(in crate::proxy) fn saved_search_query_user_errors(
     invalid_filters.sort();
     invalid_filters.dedup();
     for key in invalid_filters {
-        errors.push(json!({
-            "field": ["input", "query"],
-            "message": format!("Query is invalid, '{}' is not a valid filter", key)
-        }));
+        errors.push(user_error_omit_code(
+            ["input", "query"],
+            &format!("Query is invalid, '{key}' is not a valid filter"),
+            None,
+        ));
     }
     if resource_type == "PRODUCT" {
         let has_collection = filters.iter().any(|(key, _)| key == "collection_id");
@@ -357,10 +389,11 @@ pub(in crate::proxy) fn saved_search_query_user_errors(
         if has_collection && !incompatible.is_empty() {
             let mut keys = vec!["collection_id"];
             keys.extend(incompatible);
-            errors.push(json!({
-                "field": ["input", "query"],
-                "message": format!("Query has incompatible filters: {}", keys.join(", "))
-            }));
+            errors.push(user_error_omit_code(
+                ["input", "query"],
+                &format!("Query has incompatible filters: {}", keys.join(", ")),
+                None,
+            ));
         }
     }
     errors
@@ -910,10 +943,7 @@ impl DraftProxy {
                 payload_selection,
                 &saved_search_selection,
                 api_client_id,
-                vec![json!({
-                    "field": ["input"],
-                    "message": "Saved search input is required"
-                })],
+                vec![saved_search_input_required_user_error()],
             ));
         };
         let name = resolved_string_field(&input, "name").unwrap_or_default();
@@ -926,25 +956,16 @@ impl DraftProxy {
             user_errors.push(saved_search_name_taken_user_error());
         }
         if name_is_blank {
-            user_errors.push(json!({
-                "field": ["input", "name"],
-                "message": "Name can't be blank"
-            }));
+            user_errors.push(saved_search_name_blank_user_error());
         }
         if !name_is_blank && self.saved_search_name_exists(&resource_type, &name, None) {
             user_errors.push(saved_search_name_taken_user_error());
         }
         if resource_type == "CUSTOMER" {
-            user_errors.push(json!({
-                "field": null,
-                "message": "Customer saved searches have been deprecated. Use Segmentation API instead."
-            }));
+            user_errors.push(saved_search_customer_deprecated_user_error());
         }
         if name.chars().count() > 40 {
-            user_errors.push(json!({
-                "field": ["input", "name"],
-                "message": "Name is too long (maximum is 40 characters)"
-            }));
+            user_errors.push(saved_search_name_too_long_user_error());
         }
         user_errors.extend(saved_search_query_user_errors(
             SavedSearchQueryValidationOperation::Create,
@@ -993,10 +1014,7 @@ impl DraftProxy {
                 payload_selection,
                 &saved_search_selection,
                 api_client_id,
-                vec![json!({
-                    "field": ["input"],
-                    "message": "Saved search input is required"
-                })],
+                vec![saved_search_input_required_user_error()],
             ));
         };
         let id = resolved_string_field(&input, "id").unwrap_or_default();
@@ -1007,10 +1025,7 @@ impl DraftProxy {
                 payload_selection,
                 &saved_search_selection,
                 api_client_id,
-                vec![json!({
-                    "field": ["input", "id"],
-                    "message": "Saved Search does not exist"
-                })],
+                vec![saved_search_missing_user_error()],
             ));
         };
         let requested_name =
@@ -1023,10 +1038,7 @@ impl DraftProxy {
         let mut user_errors = Vec::new();
         let name_is_blank = requested_name.trim().is_empty();
         if name_is_blank {
-            user_errors.push(json!({
-                "field": ["input", "name"],
-                "message": "Name can't be blank"
-            }));
+            user_errors.push(saved_search_name_blank_user_error());
         }
         if !name_is_blank
             && (is_reserved_saved_search_name(&existing.resource_type, &requested_name)
@@ -1039,10 +1051,7 @@ impl DraftProxy {
             user_errors.push(saved_search_name_taken_user_error());
         }
         if requested_name.chars().count() > 40 {
-            user_errors.push(json!({
-                "field": ["input", "name"],
-                "message": "Name is too long (maximum is 40 characters)"
-            }));
+            user_errors.push(saved_search_name_too_long_user_error());
         }
         user_errors.extend(saved_search_query_user_errors(
             SavedSearchQueryValidationOperation::Update,
@@ -1094,10 +1103,7 @@ impl DraftProxy {
             if deleted {
                 Vec::new()
             } else {
-                vec![json!({
-                    "field": ["input", "id"],
-                    "message": "Saved Search does not exist"
-                })]
+                vec![saved_search_missing_user_error()]
             },
         );
         if deleted {

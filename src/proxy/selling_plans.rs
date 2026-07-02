@@ -732,11 +732,11 @@ impl DraftProxy {
                 self.store.shop_money_format().as_deref(),
             ))),
             "createdAt" => Some(json!(group.created_at)),
-            "productsCount" => Some(product_count_json(
+            "productsCount" => Some(selected_count_json(
                 group.product_ids.len(),
                 &selection.selection,
             )),
-            "productVariantsCount" => Some(product_count_json(
+            "productVariantsCount" => Some(selected_count_json(
                 group.product_variant_ids.len(),
                 &selection.selection,
             )),
@@ -874,7 +874,7 @@ impl DraftProxy {
                     selling_plan_group_summary_json,
                     |group| group.id.clone(),
                 )),
-                "sellingPlanGroupsCount" => Some(product_count_json(count, &selection.selection)),
+                "sellingPlanGroupsCount" => Some(selected_count_json(count, &selection.selection)),
                 _ => None,
             };
             if let Some(value) = value {
@@ -1114,6 +1114,26 @@ fn selling_plan_input_user_errors(
             Some("SELLING_PLAN_PRICING_POLICIES_LIMIT"),
         ));
     }
+    if pricing_policies.len() <= 2 && pricing_policies_must_contain_fixed_error(&pricing_policies) {
+        let message = match mode {
+            SellingPlanInputMode::Create => {
+                "Selling plans to create pricing policies must contain one fixed pricing policy"
+            }
+            SellingPlanInputMode::Update => {
+                "Selling plans to update pricing policies must contain one fixed pricing policy"
+            }
+        };
+        errors.push(user_error(
+            vec![
+                "input".to_string(),
+                list_field.to_string(),
+                index.clone(),
+                "pricingPolicies".to_string(),
+            ],
+            message,
+            Some("SELLING_PLAN_PRICING_POLICIES_MUST_CONTAIN_A_FIXED_PRICING_POLICY"),
+        ));
+    }
     if let Some(position) = resolved_int_field(plan, "position") {
         if !is_int32(position) {
             errors.push(position_invalid_error(vec![
@@ -1233,6 +1253,18 @@ fn selling_plan_input_user_errors(
     errors
 }
 
+fn pricing_policies_must_contain_fixed_error(
+    pricing_policies: &[BTreeMap<String, ResolvedValue>],
+) -> bool {
+    let contains_recurring = pricing_policies
+        .iter()
+        .any(|policy| resolved_object_field(policy, "recurring").is_some());
+    let contains_fixed = pricing_policies
+        .iter()
+        .any(|policy| resolved_object_field(policy, "fixed").is_some());
+    contains_recurring && !contains_fixed
+}
+
 fn is_int32(value: i64) -> bool {
     (INT32_MIN..=INT32_MAX).contains(&value)
 }
@@ -1295,6 +1327,7 @@ fn selling_plan_record_from_input(
         pricing_policies: pricing_policies_json(
             &resolved_object_list_field(input, "pricingPolicies"),
             shop_currency_code,
+            created_at,
         ),
     }
 }
@@ -1331,6 +1364,7 @@ fn apply_selling_plan_update(
     plan.pricing_policies = pricing_policies_json(
         &resolved_object_list_field(input, "pricingPolicies"),
         shop_currency_code,
+        &plan.created_at,
     );
 }
 
@@ -1379,34 +1413,59 @@ fn inventory_policy_json(policy: &Option<BTreeMap<String, ResolvedValue>>) -> Va
 fn pricing_policies_json(
     policies: &[BTreeMap<String, ResolvedValue>],
     shop_currency_code: &str,
+    created_at: &str,
 ) -> Vec<Value> {
     policies
         .iter()
         .filter_map(|policy| {
-            let fixed = resolved_object_field(policy, "fixed")?;
-            let adjustment_value = resolved_object_field(&fixed, "adjustmentValue").unwrap_or_default();
-            let adjustment_type = resolved_string_field(&fixed, "adjustmentType")
-                .unwrap_or_else(|| "PERCENTAGE".to_string());
-            let adjustment_value_json =
-                if let Some(fixed_value) = resolved_decimal_text_field(&adjustment_value, "fixedValue") {
-                    json!({
-                        "__typename": "MoneyV2",
-                        "amount": fixed_value,
-                        "currencyCode": shop_currency_code
-                    })
-                } else {
-                    json!({
-                        "__typename": "SellingPlanPricingPolicyPercentageValue",
-                        "percentage": resolved_number_field(&adjustment_value, "percentage").unwrap_or(0.0)
-                    })
-                };
+            if let Some(fixed) = resolved_object_field(policy, "fixed") {
+                return Some(json!({
+                    "__typename": "SellingPlanFixedPricingPolicy",
+                    "adjustmentType": pricing_policy_adjustment_type(&fixed),
+                    "adjustmentValue": pricing_policy_adjustment_value_json(&fixed, shop_currency_code)
+                }));
+            }
+            let recurring = resolved_object_field(policy, "recurring")?;
+            let after_cycle = resolved_int_field(&recurring, "afterCycle").unwrap_or(0);
+            if after_cycle <= 0 {
+                return Some(json!({
+                    "__typename": "SellingPlanFixedPricingPolicy",
+                    "adjustmentType": pricing_policy_adjustment_type(&recurring),
+                    "adjustmentValue": pricing_policy_adjustment_value_json(&recurring, shop_currency_code)
+                }));
+            }
             Some(json!({
-                "__typename": "SellingPlanFixedPricingPolicy",
-                "adjustmentType": adjustment_type,
-                "adjustmentValue": adjustment_value_json
+                "__typename": "SellingPlanRecurringPricingPolicy",
+                "afterCycle": after_cycle,
+                "createdAt": created_at,
+                "adjustmentType": pricing_policy_adjustment_type(&recurring),
+                "adjustmentValue": pricing_policy_adjustment_value_json(&recurring, shop_currency_code)
             }))
         })
         .collect()
+}
+
+fn pricing_policy_adjustment_type(policy: &BTreeMap<String, ResolvedValue>) -> String {
+    resolved_string_field(policy, "adjustmentType").unwrap_or_else(|| "PERCENTAGE".to_string())
+}
+
+fn pricing_policy_adjustment_value_json(
+    policy: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
+) -> Value {
+    let adjustment_value = resolved_object_field(policy, "adjustmentValue").unwrap_or_default();
+    if let Some(fixed_value) = resolved_decimal_text_field(&adjustment_value, "fixedValue") {
+        json!({
+            "__typename": "MoneyV2",
+            "amount": fixed_value,
+            "currencyCode": shop_currency_code
+        })
+    } else {
+        json!({
+            "__typename": "SellingPlanPricingPolicyPercentageValue",
+            "percentage": resolved_number_field(&adjustment_value, "percentage").unwrap_or(0.0)
+        })
+    }
 }
 
 fn selling_plan_json(plan: &SellingPlanRecord, selections: &[SelectedField]) -> Value {

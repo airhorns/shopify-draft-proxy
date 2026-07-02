@@ -3,8 +3,10 @@
   "operationNames": ["customerCreate", "customerDelete", "customer"],
   "scenarioStatus": "captured",
   "assertionKinds": ["runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
-  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2025-01/customers/customer_delete_no_orders_control.json"],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/customers_test.gleam"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-delete-no-orders-control.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/customer-delete-order-precondition-customer-create.graphql",
     "variablesCapturePath": "$.setup.customerCreate.variables",
@@ -24,6 +26,13 @@
         "name": "delete-no-orders",
         "capturePath": "$.expected.customerDelete.data.customerDelete",
         "proxyPath": "$.data.customerDelete",
+        "expectedDifferences": [
+          {
+            "path": "$.deletedCustomerId",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy deletes the customer staged by the primary proxy request and returns that synthetic Customer GID instead of Shopify's live Customer GID."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-delete-order-precondition-delete.graphql",
           "variables": {
@@ -52,5 +61,5 @@
       }
     ]
   },
-  "notes": "HAR-773 executable local-runtime control proving customerDelete still stages a successful delete when the customer has no associated orders, and downstream customer(id:) returns null afterward."
+  "notes": "Live Shopify Admin GraphQL 2025-01 control proving customerDelete succeeds when the customer has no associated orders, and downstream customer(id:) returns null afterward."
 }

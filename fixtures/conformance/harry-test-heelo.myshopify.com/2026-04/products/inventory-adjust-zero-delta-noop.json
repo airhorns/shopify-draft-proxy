@@ -1,0 +1,387 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "setup": {
+    "fallbackLocation": {
+      "id": "gid://shopify/Location/112829759794",
+      "name": "HAR-571 transfer destination 20260505000619"
+    },
+    "zeroProduct": {
+      "productId": "gid://shopify/Product/10224179806514",
+      "variantId": "gid://shopify/ProductVariant/51384977686834",
+      "inventoryItemId": "gid://shopify/InventoryItem/53489877745970",
+      "location": {
+        "id": "gid://shopify/Location/106318430514",
+        "name": "Shop location"
+      },
+      "create": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10224179806514",
+              "title": "Hermes Inventory Adjust Zero Delta Noop 1782705210086",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51384977686834",
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53489877745970",
+                      "tracked": false,
+                      "requiresShipping": true
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 14,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "track": {
+        "data": {
+          "productVariantsBulkUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/10224179806514",
+              "tracksInventory": true,
+              "totalInventory": 0
+            },
+            "productVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/51384977686834",
+                "inventoryQuantity": 0,
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53489877745970",
+                  "tracked": true,
+                  "requiresShipping": true
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "inventoryItemLevel": {
+        "data": {
+          "inventoryItem": {
+            "id": "gid://shopify/InventoryItem/53489877745970",
+            "inventoryLevels": {
+              "nodes": [
+                {
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 0
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "nonzeroProduct": {
+      "productId": "gid://shopify/Product/10224179839282",
+      "variantId": "gid://shopify/ProductVariant/51384977719602",
+      "inventoryItemId": "gid://shopify/InventoryItem/53489877778738",
+      "location": {
+        "id": "gid://shopify/Location/106318430514",
+        "name": "Shop location"
+      },
+      "create": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10224179839282",
+              "title": "Hermes Inventory Adjust Mixed Delta 1782705210086",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51384977719602",
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53489877778738",
+                      "tracked": false,
+                      "requiresShipping": true
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 14,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "track": {
+        "data": {
+          "productVariantsBulkUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/10224179839282",
+              "tracksInventory": true,
+              "totalInventory": 0
+            },
+            "productVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/51384977719602",
+                "inventoryQuantity": 0,
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53489877778738",
+                  "tracked": true,
+                  "requiresShipping": true
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "inventoryItemLevel": {
+        "data": {
+          "inventoryItem": {
+            "id": "gid://shopify/InventoryItem/53489877778738",
+            "inventoryLevels": {
+              "nodes": [
+                {
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 0
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "allZero": {
+    "variables": {
+      "input": {
+        "name": "available",
+        "reason": "correction",
+        "referenceDocumentUri": "logistics://inventory-adjust-zero-delta/noop/1782705210086",
+        "changes": [
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/53489877745970",
+            "locationId": "gid://shopify/Location/106318430514",
+            "delta": 0,
+            "changeFromQuantity": 0
+          }
+        ]
+      },
+      "idempotencyKey": "inventory-adjust-zero-delta-noop-1782705210086"
+    },
+    "response": {
+      "data": {
+        "inventoryAdjustQuantities": {
+          "inventoryAdjustmentGroup": null,
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "mixedZeroAndNonzero": {
+    "variables": {
+      "input": {
+        "name": "available",
+        "reason": "correction",
+        "referenceDocumentUri": "logistics://inventory-adjust-zero-delta/mixed/1782705210086",
+        "changes": [
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/53489877745970",
+            "locationId": "gid://shopify/Location/106318430514",
+            "delta": 0,
+            "changeFromQuantity": 0
+          },
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/53489877778738",
+            "locationId": "gid://shopify/Location/106318430514",
+            "delta": 3,
+            "changeFromQuantity": 0
+          }
+        ]
+      },
+      "idempotencyKey": "inventory-adjust-zero-delta-mixed-1782705210086"
+    },
+    "response": {
+      "data": {
+        "inventoryAdjustQuantities": {
+          "inventoryAdjustmentGroup": {
+            "reason": "correction",
+            "referenceDocumentUri": "logistics://inventory-adjust-zero-delta/mixed/1782705210086",
+            "changes": [
+              {
+                "name": "available",
+                "delta": 3,
+                "quantityAfterChange": null,
+                "item": {
+                  "id": "gid://shopify/InventoryItem/53489877778738"
+                },
+                "location": {
+                  "id": "gid://shopify/Location/106318430514"
+                }
+              },
+              {
+                "name": "on_hand",
+                "delta": 3,
+                "quantityAfterChange": null,
+                "item": {
+                  "id": "gid://shopify/InventoryItem/53489877778738"
+                },
+                "location": {
+                  "id": "gid://shopify/Location/106318430514"
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10224179806514",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10224179839282",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  ]
+}

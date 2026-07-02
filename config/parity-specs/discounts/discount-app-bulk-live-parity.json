@@ -1,0 +1,267 @@
+{
+  "scenarioId": "discount-app-bulk-live-parity",
+  "operationNames": [
+    "discountCodeAppCreate",
+    "discountCodeAppUpdate",
+    "discountAutomaticAppCreate",
+    "discountAutomaticAppUpdate",
+    "discountAutomaticDeactivate",
+    "discountAutomaticActivate",
+    "discountAutomaticDelete",
+    "discountCodeBulkActivate",
+    "discountCodeBulkDeactivate",
+    "discountCodeBulkDelete",
+    "discountAutomaticBulkDelete",
+    "discountNode",
+    "codeDiscountNode",
+    "codeDiscountNodeByCode",
+    "automaticDiscountNode",
+    "discountNodesCount"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "async-job-payload", "downstream-read-parity", "function-metadata-live"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-app-bulk-live-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-app-bulk-live-create.graphql",
+    "variablesCapturePath": "$.requests.create.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "app-discount-create-payloads",
+        "capturePath": "$.create.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountCodeAppCreate.codeAppDiscount.__typename",
+          "$.discountCodeAppCreate.codeAppDiscount.title",
+          "$.discountCodeAppCreate.codeAppDiscount.status",
+          "$.discountCodeAppCreate.codeAppDiscount.usageLimit",
+          "$.discountCodeAppCreate.codeAppDiscount.combinesWith",
+          "$.discountCodeAppCreate.codeAppDiscount.codes.nodes[0].code",
+          "$.discountCodeAppCreate.codeAppDiscount.appDiscountType.functionId",
+          "$.discountCodeAppCreate.codeAppDiscount.appDiscountType.title",
+          "$.discountCodeAppCreate.codeAppDiscount.appDiscountType.description",
+          "$.discountCodeAppCreate.userErrors",
+          "$.discountAutomaticAppCreate.automaticAppDiscount.__typename",
+          "$.discountAutomaticAppCreate.automaticAppDiscount.title",
+          "$.discountAutomaticAppCreate.automaticAppDiscount.status",
+          "$.discountAutomaticAppCreate.automaticAppDiscount.recurringCycleLimit",
+          "$.discountAutomaticAppCreate.automaticAppDiscount.appDiscountType.functionId",
+          "$.discountAutomaticAppCreate.automaticAppDiscount.appDiscountType.title",
+          "$.discountAutomaticAppCreate.automaticAppDiscount.appDiscountType.description",
+          "$.discountAutomaticAppCreate.userErrors"
+        ]
+      },
+      {
+        "name": "app-discount-update-payloads",
+        "capturePath": "$.update.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountCodeAppUpdate.codeAppDiscount.title",
+          "$.discountCodeAppUpdate.codeAppDiscount.codes.nodes[0].code",
+          "$.discountCodeAppUpdate.userErrors",
+          "$.discountAutomaticAppUpdate.automaticAppDiscount.title",
+          "$.discountAutomaticAppUpdate.automaticAppDiscount.recurringCycleLimit",
+          "$.discountAutomaticAppUpdate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-app-bulk-live-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "codeId": {
+              "fromPrimaryProxyPath": "$.data.discountCodeAppCreate.codeAppDiscount.discountId"
+            },
+            "codeInput": {
+              "fromCapturePath": "$.requests.update.variables.codeInput"
+            },
+            "automaticId": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticAppCreate.automaticAppDiscount.discountId"
+            },
+            "automaticInput": {
+              "fromCapturePath": "$.requests.update.variables.automaticInput"
+            }
+          }
+        }
+      },
+      {
+        "name": "precondition-bulk-targets",
+        "capturePath": "$.preconditions.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.bulkTarget.codeDiscountNode.codeDiscount.__typename",
+          "$.bulkTarget.codeDiscountNode.codeDiscount.title",
+          "$.bulkTarget.codeDiscountNode.codeDiscount.status",
+          "$.bulkTarget.codeDiscountNode.codeDiscount.codes.nodes[0].code",
+          "$.bulkTarget.userErrors",
+          "$.redeemTarget.codeDiscountNode.codeDiscount.__typename",
+          "$.redeemTarget.codeDiscountNode.codeDiscount.title",
+          "$.redeemTarget.codeDiscountNode.codeDiscount.status",
+          "$.redeemTarget.codeDiscountNode.codeDiscount.codes.nodes[0].code",
+          "$.redeemTarget.userErrors",
+          "$.automaticBulkTarget.automaticDiscountNode.automaticDiscount.__typename",
+          "$.automaticBulkTarget.automaticDiscountNode.automaticDiscount.title",
+          "$.automaticBulkTarget.automaticDiscountNode.automaticDiscount.status",
+          "$.automaticBulkTarget.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-app-bulk-live-preconditions.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.requests.preconditions.variables"
+        }
+      },
+      {
+        "name": "app-and-bulk-downstream-reads",
+        "capturePath": "$.downstreamRead.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.codeDiscountNode.codeDiscount.title",
+          "$.codeDiscountNode.codeDiscount.appDiscountType.functionId",
+          "$.codeDiscountNode.codeDiscount.codes.nodes[0].code",
+          "$.automaticDiscountNode.automaticDiscount.title",
+          "$.automaticDiscountNode.automaticDiscount.recurringCycleLimit",
+          "$.automaticDiscountNode.automaticDiscount.appDiscountType.functionId",
+          "$.deletedCode",
+          "$.deletedAutomatic",
+          "$.redeemDiscount.codeDiscount.codes.nodes[0].code",
+          "$.removedRedeemCode"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-app-bulk-live-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "codeId": {
+              "fromPrimaryProxyPath": "$.data.discountCodeAppCreate.codeAppDiscount.discountId"
+            },
+            "automaticId": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticAppCreate.automaticAppDiscount.discountId"
+            },
+            "deletedCodeId": {
+              "fromCapturePath": "$.requests.downstreamRead.variables.deletedCodeId"
+            },
+            "deletedAutomaticId": {
+              "fromCapturePath": "$.requests.downstreamRead.variables.deletedAutomaticId"
+            },
+            "redeemDiscountId": {
+              "fromProxyResponse": "precondition-bulk-targets",
+              "path": "$.data.redeemTarget.codeDiscountNode.id"
+            },
+            "removedCode": {
+              "fromCapturePath": "$.requests.downstreamRead.variables.removedCode"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-app-deactivate-payload",
+        "capturePath": "$.deactivate.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountAutomaticDeactivate.automaticDiscountNode.automaticDiscount.__typename",
+          "$.discountAutomaticDeactivate.automaticDiscountNode.automaticDiscount.title",
+          "$.discountAutomaticDeactivate.automaticDiscountNode.automaticDiscount.status",
+          "$.discountAutomaticDeactivate.automaticDiscountNode.automaticDiscount.appDiscountType.functionId",
+          "$.discountAutomaticDeactivate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-app-automatic-live-deactivate.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticAppCreate.automaticAppDiscount.discountId"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-app-activate-payload",
+        "capturePath": "$.activate.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountAutomaticActivate.automaticDiscountNode.automaticDiscount.__typename",
+          "$.discountAutomaticActivate.automaticDiscountNode.automaticDiscount.title",
+          "$.discountAutomaticActivate.automaticDiscountNode.automaticDiscount.status",
+          "$.discountAutomaticActivate.automaticDiscountNode.automaticDiscount.endsAt",
+          "$.discountAutomaticActivate.automaticDiscountNode.automaticDiscount.appDiscountType.functionId",
+          "$.discountAutomaticActivate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-app-automatic-live-activate.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticAppCreate.automaticAppDiscount.discountId"
+            }
+          }
+        }
+      },
+      {
+        "name": "discount-bulk-job-payloads",
+        "capturePath": "$.bulkJobs.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.activate.job.done",
+          "$.activate.userErrors",
+          "$.deactivate.job.done",
+          "$.deactivate.userErrors",
+          "$.deleteCode.job.done",
+          "$.deleteCode.userErrors",
+          "$.deleteAutomatic.job.done",
+          "$.deleteAutomatic.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-app-bulk-live-jobs.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.requests.bulkJobs.variables"
+        }
+      },
+      {
+        "name": "automatic-app-delete-payload",
+        "capturePath": "$.deleteAutomatic.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountAutomaticDelete.deletedAutomaticDiscountId",
+          "$.discountAutomaticDelete.userErrors"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.discountAutomaticDelete.deletedAutomaticDiscountId",
+            "matcher": "shopify-gid:DiscountAutomaticNode",
+            "reason": "Live Shopify and local replay create different automatic discount node IDs; this target asserts delete returns an automatic discount GID and no userErrors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-app-automatic-live-delete.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticAppCreate.automaticAppDiscount.discountId"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-app-read-after-delete",
+        "capturePath": "$.readAfterDelete.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.automaticDiscountNode"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-app-automatic-live-read-after-delete.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticAppCreate.automaticAppDiscount.discountId"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for app-managed discount create/update, automatic app activate/deactivate/delete/read-after-delete, app-discount downstream reads, and native discount bulk job payloads using the released conformance discount Function. The older synthetic app/bulk fixture was removed because it used invented Function metadata and staged-only IDs; this scenario keeps the salvageable lifecycle and bulk coverage with exact live Admin GraphQL request/response data. Subscription-disabled gating and revoked-Function activation failure cannot be produced from the current conformance shop/app state and remain covered by Rust route tests."
+}
