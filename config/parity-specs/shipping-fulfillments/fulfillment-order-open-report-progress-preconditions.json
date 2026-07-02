@@ -1,5 +1,5 @@
 {
-  "scenarioId": "fulfillment-order-open-report-progress-preconditions-local-runtime",
+  "scenarioId": "fulfillment-order-open-report-progress-preconditions",
   "operationNames": ["fulfillmentOrderOpen", "fulfillmentOrderReportProgress"],
   "scenarioStatus": "captured",
   "assertionKinds": ["runtime-staging", "user-errors-parity", "local-state-parity", "no-upstream-passthrough"],
