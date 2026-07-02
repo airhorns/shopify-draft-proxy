@@ -1,0 +1,49 @@
+{
+  "scenarioId": "productUnpublish-aggregate-parity",
+  "operationNames": ["productUnpublish"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-unpublish-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productUnpublish-aggregate-parity.graphql",
+    "variables": {
+      "input": {
+        "fromCapturePath": "$.mutation.variables.input"
+      },
+      "publicationId": {
+        "fromCapturePath": "$.mutation.variables.input.productPublications[0].publicationId"
+      }
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live `productUnpublish` aggregate publication fields are recorded by the registered `product-publications` capture script against the harry-test-heelo dev store. This scenario keeps the aggregate mutation payload and immediate downstream aggregate read request as strict Shopify parity evidence instead of relying on local-runtime fixture data.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "aggregate mutation payload",
+        "capturePath": "$.aggregateSelection.response.payload.data.productUnpublish",
+        "proxyPath": "$.data.productUnpublish"
+      },
+      {
+        "name": "downstream aggregate read",
+        "capturePath": "$.downstreamRead.response.payload.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-publication-aggregate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productUnpublish.product.id"
+            },
+            "publicationId": {
+              "fromCapturePath": "$.mutation.variables.input.productPublications[0].publicationId"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

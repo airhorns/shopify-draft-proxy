@@ -4321,6 +4321,151 @@ fn product_publish_unpublish_stage_publication_state_for_downstream_reads() {
 }
 
 #[test]
+fn product_unpublish_hydrated_aggregate_only_publication_state_does_not_false_error() {
+    let product_id = "gid://shopify/Product/publication-aggregate-only";
+    let publication_id = "gid://shopify/Publication/aggregate-only";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream hydrate request parses");
+            assert_eq!(body["variables"], json!({ "ids": [product_id] }));
+            let query = body["query"]
+                .as_str()
+                .expect("upstream hydrate query should be a string");
+            assert!(query.contains("availablePublicationsCount"));
+            assert!(query.contains("resourcePublicationsCount"));
+            assert!(query.contains("publications(first: 10)"));
+            captured_requests.lock().unwrap().push(request.body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "nodes": [{
+                            "__typename": "Product",
+                            "id": product_id,
+                            "title": "Aggregate-only publication product",
+                            "handle": "aggregate-only-publication-product",
+                            "status": "ACTIVE",
+                            "vendor": "conformance",
+                            "productType": "",
+                            "tags": [],
+                            "totalInventory": 0,
+                            "tracksInventory": false,
+                            "createdAt": "2026-07-02T22:49:10Z",
+                            "updatedAt": "2026-07-02T22:49:10Z",
+                            "publishedAt": Value::Null,
+                            "descriptionHtml": "",
+                            "templateSuffix": Value::Null,
+                            "seo": { "title": Value::Null, "description": Value::Null },
+                            "availablePublicationsCount": { "count": 2, "precision": "EXACT" },
+                            "resourcePublicationsCount": { "count": 2, "precision": "EXACT" },
+                            "resourcePublicationsV2": { "nodes": [] },
+                            "publications": {
+                                "nodes": [{
+                                    "isPublished": true,
+                                    "publishDate": "2026-07-02T22:49:10Z",
+                                    "product": { "id": product_id }
+                                }]
+                            }
+                        }]
+                    }
+                }),
+            }
+        });
+
+    let unpublish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductUnpublishAggregateOnly($input: ProductUnpublishInput!, $publicationId: ID!) {
+          productUnpublish(input: $input) {
+            product {
+              id
+              publishedAt
+              publishedOnPublication(publicationId: $publicationId)
+              availablePublicationsCount { count precision }
+              resourcePublicationsCount { count precision }
+              resourcePublicationsV2(first: 10) { nodes { publication { id } isPublished publishDate } }
+              publications(first: 10) { nodes { isPublished publishDate product { id } } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": product_id,
+                "productPublications": [{ "publicationId": publication_id }]
+            },
+            "publicationId": publication_id
+        }),
+    ));
+    assert_eq!(unpublish.status, 200);
+    assert_eq!(
+        unpublish.body["data"]["productUnpublish"],
+        json!({
+            "product": {
+                "id": product_id,
+                "publishedAt": Value::Null,
+                "publishedOnPublication": false,
+                "availablePublicationsCount": { "count": 2, "precision": "EXACT" },
+                "resourcePublicationsCount": { "count": 2, "precision": "EXACT" },
+                "resourcePublicationsV2": { "nodes": [] },
+                "publications": {
+                    "nodes": [{
+                        "isPublished": true,
+                        "publishDate": "2026-07-02T22:49:10Z",
+                        "product": { "id": product_id }
+                    }]
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let read_after_unpublish = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductPublicationAggregateOnlyRead($id: ID!, $publicationId: ID!) {
+          product(id: $id) {
+            id
+            publishedAt
+            publishedOnPublication(publicationId: $publicationId)
+            availablePublicationsCount { count precision }
+            resourcePublicationsCount { count precision }
+            resourcePublicationsV2(first: 10) { nodes { publication { id } isPublished publishDate } }
+            publications(first: 10) { nodes { isPublished publishDate product { id } } }
+          }
+        }
+        "#,
+        json!({ "id": product_id, "publicationId": publication_id }),
+    ));
+    assert_eq!(
+        read_after_unpublish.body["data"]["product"],
+        json!({
+            "id": product_id,
+            "publishedAt": Value::Null,
+            "publishedOnPublication": false,
+            "availablePublicationsCount": { "count": 2, "precision": "EXACT" },
+            "resourcePublicationsCount": { "count": 2, "precision": "EXACT" },
+            "resourcePublicationsV2": { "nodes": [] },
+            "publications": {
+                "nodes": [{
+                    "isPublished": true,
+                    "publishDate": "2026-07-02T22:49:10Z",
+                    "product": { "id": product_id }
+                }]
+            }
+        })
+    );
+    assert_eq!(
+        upstream_requests.lock().unwrap().len(),
+        1,
+        "downstream read should reuse the staged hydrated product"
+    );
+}
+
+#[test]
 fn product_publish_unpublish_validate_publication_state_locally() {
     let product_id = "gid://shopify/Product/publication-validation";
     let mut product = ProductRecord {

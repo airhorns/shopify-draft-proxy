@@ -263,7 +263,10 @@ function marketsParityEvidenceErrors(): string[] {
 }
 
 const changed = changedProtectedEvidencePaths();
-const protectedEvidenceErrors = [...findUnregisteredProtectedEvidenceChanges(changed), ...findProductsProvenanceFailures()];
+const protectedEvidenceErrors = [
+  ...findUnregisteredProtectedEvidenceChanges(changed),
+  ...findProductsProvenanceFailures(),
+];
 const metafieldDefinitionsErrors = metafieldDefinitionsParityEvidenceErrors();
 const customerErrors = customerParityEvidenceErrors();
 const giftCardErrors = giftCardParityEvidenceErrors();

@@ -1231,6 +1231,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products', 'write_products', 'publication/channel access for the app'],
     fixtureOutputs: [
       'config/parity-specs/products/productUnpublish-parity-plan.json',
+      'config/parity-specs/products/productUnpublish-aggregate-parity.json',
       'config/parity-specs/store-properties/publishableUnpublish-product-parity.json',
       'config/parity-specs/store-properties/publishableUnpublishToCurrentChannel-product-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/publications-catalog.json',
@@ -1253,6 +1254,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/product-publish-unpublish-publish.graphql',
       'config/parity-requests/products/product-publish-unpublish-unpublish.graphql',
       'config/parity-requests/products/product-publish-unpublish-downstream-read.graphql',
+      'config/parity-requests/products/product-publication-aggregate-downstream-read.graphql',
+      'config/parity-requests/products/productUnpublish-aggregate-parity.graphql',
       'config/parity-requests/products/publication-resource-hydrate-nodes.graphql',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/publications-catalog.json',
     ],

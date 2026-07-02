@@ -11,7 +11,7 @@ const TAGGABLE_DRAFT_ORDER_HYDRATE_QUERY: &str =
 const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/customers/taggable-customer-hydrate.graphql");
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
-const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n    }\n  }\n}";
+const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      availablePublicationsCount { count precision }\n      resourcePublicationsCount { count precision }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n      publications(first: 10) { nodes { isPublished publishDate product { id } } }\n    }\n  }\n}";
 const PRODUCT_PAYLOAD_SHOP_HYDRATE_QUERY: &str = r#"#graphql
   query ProductPayloadShopHydrate {
     shop {
@@ -3131,21 +3131,23 @@ impl DraftProxy {
         };
         let product_id = resolved_string_field(&input, "id").unwrap_or_default();
         let local_product = self.store.product_staged_or_base(&product_id);
-        let enforce_known_publication_state = local_product
+        let needs_publication_hydration = local_product
             .as_ref()
-            .is_some_and(product_publication_state_known);
-        let mut product = local_product
-            .or_else(|| self.hydrate_product_for_tags(&product_id, request))
-            .unwrap_or_else(|| {
-                let timestamp = default_product_timestamp();
-                ProductRecord {
-                    id: product_id.clone(),
-                    created_at: timestamp.clone(),
-                    updated_at: timestamp,
-                    status: "ACTIVE".to_string(),
-                    ..ProductRecord::default()
-                }
-            });
+            .is_none_or(|product| !product_publication_state_known(product));
+        let hydrated_product = needs_publication_hydration
+            .then(|| self.hydrate_product_for_tags(&product_id, request))
+            .flatten();
+        let mut product = hydrated_product.or(local_product).unwrap_or_else(|| {
+            let timestamp = default_product_timestamp();
+            ProductRecord {
+                id: product_id.clone(),
+                created_at: timestamp.clone(),
+                updated_at: timestamp,
+                status: "ACTIVE".to_string(),
+                ..ProductRecord::default()
+            }
+        });
+        let enforce_known_publication_state = product_publication_state_known(&product);
 
         let targets = product_publication_input_entries(&input);
         let user_errors = self.product_publication_user_errors(
