@@ -6573,6 +6573,103 @@ fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
 }
 
 #[test]
+fn order_payment_transactions_dispatch_by_root_for_ordinary_operation_names() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
+    ))
+    .unwrap();
+
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-non-recording-create.graphql"
+        ),
+        fixture["paymentCaptureFlow"]["create"]["variables"].clone(),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["orderCreate"]["order"]["displayFinancialStatus"],
+        json!("AUTHORIZED")
+    );
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let authorization_id =
+        create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone();
+
+    let capture = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-non-recording-capture.graphql"
+        ),
+        json!({
+            "input": {
+                "id": order_id.clone(),
+                "parentTransactionId": authorization_id.clone(),
+                "amount": "10.00",
+                "currency": "CAD",
+                "finalCapture": false
+            }
+        }),
+    ));
+    assert_eq!(capture.status, 200);
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["order"]["displayFinancialStatus"],
+        json!("PARTIALLY_PAID")
+    );
+
+    let read_after_capture = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-non-recording-read.graphql"
+        ),
+        json!({ "id": order_id.clone() }),
+    ));
+    assert_eq!(
+        read_after_capture.body["data"]["order"]["displayFinancialStatus"],
+        json!("PARTIALLY_PAID")
+    );
+
+    let mandate = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-non-recording-mandate.graphql"
+        ),
+        json!({
+            "id": order_id,
+            "mandateId": "gid://shopify/PaymentMandate/non-recording-payment",
+            "idempotencyKey": "ordinary-operation-name-payment",
+            "amount": { "amount": "15.00", "currencyCode": "CAD" }
+        }),
+    ));
+    assert_eq!(mandate.status, 200);
+    assert_eq!(
+        mandate.body["data"]["orderCreateMandatePayment"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        mandate.body["data"]["orderCreateMandatePayment"]["order"]["displayFinancialStatus"],
+        json!("PAID")
+    );
+
+    let mut void_proxy = snapshot_proxy();
+    let void_create = void_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-non-recording-create.graphql"
+        ),
+        fixture["voidFlow"]["create"]["variables"].clone(),
+    ));
+    let void_response = void_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-non-recording-void.graphql"
+        ),
+        json!({
+            "id": void_create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone()
+        }),
+    ));
+    assert_eq!(void_response.status, 200);
+    assert_eq!(
+        void_response.body["data"]["transactionVoid"]["transaction"]["kind"],
+        json!("VOID")
+    );
+}
+
+#[test]
 fn order_capture_accepts_omitted_currency_for_single_currency_order() {
     let mut proxy = snapshot_proxy();
 

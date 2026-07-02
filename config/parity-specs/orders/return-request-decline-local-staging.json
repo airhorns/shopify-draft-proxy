@@ -1,0 +1,187 @@
+{
+  "scenarioId": "return-request-decline-local-staging",
+  "operationNames": ["returnRequest", "returnApproveRequest", "returnDeclineRequest"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["validation-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnApprove-decline-state-preconditions.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/return-request-recorded.graphql",
+    "variablesCapturePath": "$.openCase.returnRequest.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-open-return",
+        "capturePath": "$.setup.noop",
+        "proxyPath": "$.setup.noop",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-approve-request-recorded.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "approve-open-invalid-state",
+        "capturePath": "$.openCase.approveOpenInvalid.response.payload.data.returnApproveRequest",
+        "proxyPath": "$.data.returnApproveRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-approve-request-recorded.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "setup-open-return",
+                "path": "$.data.returnApproveRequest.return.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "decline-open-invalid-state",
+        "capturePath": "$.openCase.declineOpenInvalid.response.payload.data.returnDeclineRequest",
+        "proxyPath": "$.data.returnDeclineRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-decline-request-local-staging.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "setup-open-return",
+                "path": "$.data.returnApproveRequest.return.id"
+              },
+              "declineReason": {
+                "fromCapturePath": "$.declineRequest.declineInput.declineReason"
+              },
+              "declineNote": {
+                "fromCapturePath": "$.declineRequest.declineInput.declineNote"
+              },
+              "notifyCustomer": {
+                "fromCapturePath": "$.declineRequest.declineInput.notifyCustomer"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "setup-declined-request",
+        "capturePath": "$.setup.noop",
+        "proxyPath": "$.setup.noop",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-request-recorded.graphql",
+          "variablesCapturePath": "$.declinedCase.returnRequest.variables"
+        }
+      },
+      {
+        "name": "setup-declined-return",
+        "capturePath": "$.setup.noop",
+        "proxyPath": "$.setup.noop",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-decline-request-local-staging.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "setup-declined-request",
+                "path": "$.data.returnRequest.return.id"
+              },
+              "declineReason": {
+                "fromCapturePath": "$.declineRequest.declineInput.declineReason"
+              },
+              "declineNote": {
+                "fromCapturePath": "$.declineRequest.declineInput.declineNote"
+              },
+              "notifyCustomer": {
+                "fromCapturePath": "$.declineRequest.declineInput.notifyCustomer"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "approve-declined-invalid-state",
+        "capturePath": "$.declinedCase.approveDeclinedInvalid.response.payload.data.returnApproveRequest",
+        "proxyPath": "$.data.returnApproveRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-approve-request-recorded.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "setup-declined-return",
+                "path": "$.data.returnDeclineRequest.return.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "decline-declined-invalid-state",
+        "capturePath": "$.declinedCase.declineDeclinedInvalid.response.payload.data.returnDeclineRequest",
+        "proxyPath": "$.data.returnDeclineRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-decline-request-local-staging.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "setup-declined-return",
+                "path": "$.data.returnDeclineRequest.return.id"
+              },
+              "declineReason": {
+                "fromCapturePath": "$.declineRequest.declineInput.declineReason"
+              },
+              "declineNote": {
+                "fromCapturePath": "$.declineRequest.declineInput.declineNote"
+              },
+              "notifyCustomer": {
+                "fromCapturePath": "$.declineRequest.declineInput.notifyCustomer"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "approve-missing-return",
+        "capturePath": "$.unknownIdCase.approveMissing.response.payload.data.returnApproveRequest",
+        "proxyPath": "$.data.returnApproveRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-approve-request-recorded.graphql",
+          "variables": {
+            "input": {
+              "id": "gid://shopify/Return/999999999991"
+            }
+          }
+        }
+      },
+      {
+        "name": "decline-missing-return",
+        "capturePath": "$.unknownIdCase.declineMissing.response.payload.data.returnDeclineRequest",
+        "proxyPath": "$.data.returnDeclineRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-decline-request-local-staging.graphql",
+          "variables": {
+            "input": {
+              "id": "gid://shopify/Return/999999999992",
+              "declineReason": {
+                "fromCapturePath": "$.declineRequest.declineInput.declineReason"
+              },
+              "declineNote": {
+                "fromCapturePath": "$.declineRequest.declineInput.declineNote"
+              },
+              "notifyCustomer": {
+                "fromCapturePath": "$.declineRequest.declineInput.notifyCustomer"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for returnApproveRequest and returnDeclineRequest invalid-state userError shapes on non-REQUESTED OPEN/DECLINED returns, already-declined decline, and missing Return IDs. Replacement for retired synthetic/local-runtime orders evidence. This scenario ID is preserved for continuity but now reuses the real Shopify capture and proxy request contract from config/parity-specs/orders/returnApprove-decline-state-preconditions-live.json (returnApprove-decline-state-preconditions-live); the old local-runtime cassette is no longer parity evidence."
+}

@@ -1,0 +1,73 @@
+{
+  "scenarioId": "draftOrderBulkTag-validation",
+  "operationNames": ["draftOrderCreate", "draftOrderBulkAddTags", "draftOrder"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/draft-order-bulk-tag-case-preservation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderBulkTag-validation-create.graphql",
+    "variablesCapturePath": "$.setup.draftOrderCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-create-user-errors",
+        "capturePath": "$.setup.draftOrderCreate.response.data.draftOrderCreate.userErrors",
+        "proxyPath": "$.data.draftOrderCreate.userErrors"
+      },
+      {
+        "name": "bulk-add-tags-payload",
+        "capturePath": "$.draftOrderBulkAddTags.response.data.draftOrderBulkAddTags",
+        "proxyPath": "$.data.draftOrderBulkAddTags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draft-order-residual-helper-bulk-add-tags.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+              }
+            ],
+            "tags": [" vip ", " Wholesale ", "wholesale"]
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The proxy creates a deterministic local Job id while Shopify returns an async live Job id."
+          }
+        ]
+      },
+      {
+        "name": "read-after-case-preserving-bulk-add",
+        "capturePath": "$.draftOrderBulkAddTags.downstreamRead.response.data.draftOrder",
+        "proxyPath": "$.data.draftOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderBulkTag-validation-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "The local setup draft gets a synthetic DraftOrder GID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Shopify bulk-add trims tags and deduplicates by case-insensitive identity while preserving the display case of the first stored occurrence. The scenario uses a disposable draft order and public GraphQL requests only. Replacement for retired synthetic/local-runtime orders evidence. This scenario ID is preserved for continuity but now reuses the real Shopify capture and proxy request contract from config/parity-specs/orders/draftOrderBulkTag-case-preservation.json (draftOrderBulkTag-case-preservation); the old local-runtime cassette is no longer parity evidence."
+}
