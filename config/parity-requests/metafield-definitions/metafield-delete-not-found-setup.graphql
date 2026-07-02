@@ -11,6 +11,7 @@ mutation MetafieldDeleteNotFoundSetup($metafields: [MetafieldsSetInput!]!) {
       field
       message
       code
+      elementIndex
     }
   }
 }
