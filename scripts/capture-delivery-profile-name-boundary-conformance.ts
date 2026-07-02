@@ -326,7 +326,7 @@ try {
           {
             operationName: 'ShippingDeliveryProfileLocationsHydrate',
             variables: {},
-            query: 'sha:hand-synthesized',
+            query: trimGraphql(locationsHydrateQuery),
             response: {
               status: locationsHydrate.status,
               body: locationsHydrate.payload,
