@@ -8,7 +8,7 @@
     "productVariantRelationshipBulkUpdate"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "local-runtime-backed"],
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-merchandising-mutation-probes.json",
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-feedback-mutation-access-blockers.json"
@@ -66,5 +66,5 @@
       }
     ]
   },
-  "notes": "Executable guardrail parity for product-adjacent merchandising roots whose validation branches can be replayed without live Shopify writes. Success-path local staging is covered by runtime tests; the current disposable store still blocks productFeedCreate success with channel lookup and feedback success with write_resource_feedbacks/sales-channel access requirements. ProductFullSync unknown-feed rejection is covered by the product feed local-runtime lifecycle fixture because the public capture currently returns the older null-code shape."
+  "notes": "Executable guardrail parity for product-adjacent merchandising roots whose validation branches can be replayed without live Shopify writes. Success-path local staging is covered by runtime tests; the current disposable store still blocks productFeedCreate success with channel lookup and feedback success with write_resource_feedbacks/sales-channel access requirements. ProductFullSync unknown-feed rejection is covered by focused Rust tests because the public capture currently returns the older null-code shape."
 }
