@@ -83,6 +83,58 @@ const metaobjectDefinitionDeleteMutation = `#graphql
   }
 `;
 
+const definitionHydrateByTypeQuery = `#graphql
+  query MetaobjectDefinitionHydrateByType($type: String!) {
+    metaobjectDefinitionByType(type: $type) {
+      id
+      type
+      name
+      description
+      displayNameKey
+      access {
+        admin
+        storefront
+      }
+      capabilities {
+        publishable {
+          enabled
+        }
+        translatable {
+          enabled
+        }
+        renderable {
+          enabled
+        }
+        onlineStore {
+          enabled
+        }
+      }
+      fieldDefinitions {
+        key
+        name
+        description
+        required
+        type {
+          name
+          category
+        }
+        validations {
+          name
+          value
+        }
+      }
+      hasThumbnailField
+      metaobjectsCount
+      standardTemplate {
+        type
+        name
+      }
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
 function jsonString(value: unknown): string {
   return JSON.stringify(value);
 }
@@ -515,6 +567,9 @@ try {
     );
   }
 
+  const definitionHydrate = await runGraphqlRaw(definitionHydrateByTypeQuery, { type: matrixType });
+  assertGraphqlOk(definitionHydrate, 'definition hydrate by type');
+
   await cleanup(createdMetaobjectIds, definitionIds, cleanupCaptures);
   definitionIds.splice(0, definitionIds.length);
 
@@ -553,14 +608,10 @@ try {
           {
             operationName: 'MetaobjectDefinitionHydrateByType',
             variables: { type: matrixType },
-            query: 'sha:hand-synthesized-from-capture',
+            query: definitionHydrateByTypeQuery,
             response: {
-              status: 200,
-              body: {
-                data: {
-                  metaobjectDefinitionByType: null,
-                },
-              },
+              status: definitionHydrate.status,
+              body: definitionHydrate.payload,
             },
           },
         ],

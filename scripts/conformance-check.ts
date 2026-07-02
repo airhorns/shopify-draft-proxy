@@ -3,7 +3,6 @@ import { spawnSync } from 'node:child_process';
 const conformanceTestFiles = [
   'tests/unit/conformance-scenario-discovery.test.ts',
   'tests/unit/operation-registry.test.ts',
-  'tests/unit/payments-provenance.test.ts',
 ];
 
 function parseArgs(argv: string[]): { filter: string | null; passthroughArgs: string[] } {

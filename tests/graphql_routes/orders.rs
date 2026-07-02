@@ -5755,8 +5755,8 @@ fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
     assert_eq!(
         missing_update.body["data"]["paymentTermsUpdate"]["userErrors"][0],
         json!({
-            "field": ["input", "paymentTermsId"],
-            "message": "Payment terms do not exist",
+            "field": null,
+            "message": "Could not find payment terms.",
             "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
         })
     );
@@ -5783,13 +5783,30 @@ fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
         json!("Cannot create payment terms on an Order where the sales channel does not allow payment terms.")
     );
 
+    let draft_update_seed = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/DraftOrder/draft-update",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+                "paymentSchedules": [{ "dueAt": "2026-01-01T00:00:00Z" }]
+            }
+        }),
+    ));
+    assert_eq!(
+        draft_update_seed.body["data"]["paymentTermsCreate"]["userErrors"],
+        json!([])
+    );
+    let draft_update_id =
+        draft_update_seed.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone();
+
     let draft_update = proxy.process_request(json_graphql_request(
         update_query,
-        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/draft-update", "paymentTermsAttributes": net_attrs.clone() } }),
+        json!({ "input": { "paymentTermsId": draft_update_id.clone(), "paymentTermsAttributes": net_attrs.clone() } }),
     ));
     assert_eq!(
         draft_update.body["data"]["paymentTermsUpdate"]["paymentTerms"]["id"],
-        json!("gid://shopify/PaymentTerms/draft-update")
+        draft_update_id
     );
     assert_eq!(
         draft_update.body["data"]["paymentTermsUpdate"]["userErrors"],
@@ -5910,6 +5927,7 @@ fn payment_terms_create_update_reprojects_from_template_catalog() {
             .all(|node| node["paymentTermsType"] == json!("NET"))));
 
     let mut create_attrs_for_log = Vec::new();
+    let mut created_terms_ids = Vec::new();
 
     for (reference_id, attrs, expected_name, expected_type, expected_due_days, schedule_count) in [
         (
@@ -5964,6 +5982,12 @@ fn payment_terms_create_update_reprojects_from_template_catalog() {
             Some(schedule_count)
         );
         create_attrs_for_log.push(attrs);
+        created_terms_ids.push(
+            terms["id"]
+                .as_str()
+                .expect("created payment terms id")
+                .to_string(),
+        );
     }
 
     let log = log_snapshot(&proxy);
@@ -5991,14 +6015,9 @@ fn payment_terms_create_update_reprojects_from_template_catalog() {
 
     for (
         payment_terms_id,
-        attrs,
-        expected_name,
-        expected_type,
-        expected_due_days,
-        schedule_count,
-    ) in [
+        (attrs, expected_name, expected_type, expected_due_days, schedule_count),
+    ) in created_terms_ids.into_iter().zip([
         (
-            "gid://shopify/PaymentTerms/fixed-update",
             json!({
                 "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
                 "paymentSchedules": [{ "dueAt": "2026-08-01T00:00:00Z" }]
@@ -6009,7 +6028,6 @@ fn payment_terms_create_update_reprojects_from_template_catalog() {
             1_usize,
         ),
         (
-            "gid://shopify/PaymentTerms/net-7-update",
             json!({
                 "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/2",
                 "paymentSchedules": [{ "issuedAt": "2026-08-01T00:00:00Z" }]
@@ -6020,7 +6038,6 @@ fn payment_terms_create_update_reprojects_from_template_catalog() {
             1_usize,
         ),
         (
-            "gid://shopify/PaymentTerms/fulfillment-update",
             json!({
                 "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/9"
             }),
@@ -6029,7 +6046,7 @@ fn payment_terms_create_update_reprojects_from_template_catalog() {
             Value::Null,
             0_usize,
         ),
-    ] {
+    ]) {
         let update = proxy.process_request(json_graphql_request(
             update_query,
             json!({
@@ -6123,7 +6140,7 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
     );
     assert_payment_terms_due_state(
         &create_terms.body["data"]["paymentTermsCreate"]["paymentTerms"],
-        false,
+        true,
         "2026-06-04T00:00:00Z",
     );
 
@@ -6175,7 +6192,7 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
     );
     assert_eq!(
         missing_update.body["data"]["paymentTermsUpdate"]["userErrors"][0]["message"],
-        json!("Payment terms do not exist")
+        json!("Could not find payment terms.")
     );
 
     let draft_terms = proxy.process_request(json_graphql_request(
@@ -6195,7 +6212,7 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         draft_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone();
     assert_payment_terms_due_state(
         &draft_terms.body["data"]["paymentTermsCreate"]["paymentTerms"],
-        false,
+        true,
         "2026-06-04T00:00:00Z",
     );
 
@@ -6266,7 +6283,7 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         cascade_order_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone();
     assert_payment_terms_due_state(
         &cascade_order_terms.body["data"]["paymentTermsCreate"]["paymentTerms"],
-        false,
+        true,
         "2026-06-04T00:00:00Z",
     );
 

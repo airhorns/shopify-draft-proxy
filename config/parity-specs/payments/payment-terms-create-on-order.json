@@ -1,0 +1,106 @@
+{
+  "scenarioId": "payment-terms-create-on-order",
+  "operationNames": ["orderCreate", "paymentTermsCreate", "paymentTermsUpdate", "paymentTermsDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-create-on-order.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-terms-create-on-order-create.graphql",
+    "variablesCapturePath": "$.paymentTermsCreateOnOrder.orderCreate.variables"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "order-create-setup",
+        "capturePath": "$.paymentTermsCreateOnOrder.expected.orderCreate.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.order.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "Shopify and the local proxy generate independent order IDs."
+          }
+        ]
+      },
+      {
+        "name": "create-payment-terms-on-order",
+        "capturePath": "$.paymentTermsCreateOnOrder.expected.create.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.paymentTerms.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy generate independent payment terms IDs."
+          },
+          {
+            "path": "$.paymentTerms.paymentSchedules.nodes[0].id",
+            "matcher": "shopify-gid:PaymentSchedule",
+            "reason": "Shopify and the local proxy generate independent payment schedule IDs."
+          },
+          {
+            "path": "$.paymentTerms.paymentSchedules.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
+          },
+          {
+            "path": "$.paymentTerms.paymentSchedules.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-create.graphql",
+          "variables": {
+            "referenceId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "attrs": {
+              "fromCapturePath": "$.paymentTermsCreateOnOrder.paymentTermsCreate.variables.attrs"
+            }
+          }
+        }
+      },
+      {
+        "name": "multiple-schedules-create-error",
+        "capturePath": "$.paymentTermsCreateOnOrder.expected.multiple.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-create-on-order-multiple.graphql",
+          "variables": {
+            "referenceId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "attrs": {
+              "fromCapturePath": "$.paymentTermsCreateOnOrder.multipleSchedules.variables.attrs"
+            }
+          }
+        }
+      },
+      {
+        "name": "missing-update-error-code",
+        "capturePath": "$.paymentTermsCreateOnOrder.expected.update.data.paymentTermsUpdate",
+        "proxyPath": "$.data.paymentTermsUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-update.graphql",
+          "variablesCapturePath": "$.paymentTermsCreateOnOrder.missingUpdate.variables"
+        }
+      },
+      {
+        "name": "missing-delete-error-code",
+        "capturePath": "$.paymentTermsCreateOnOrder.expected.delete.data.paymentTermsDelete",
+        "proxyPath": "$.data.paymentTermsDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-delete.graphql",
+          "variablesCapturePath": "$.paymentTermsCreateOnOrder.missingDelete.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live 2026-04 Shopify capture for paymentTermsCreate on a disposable Order plus multiple-schedule, missing-update, and missing-delete validation branches. The recorder cancels the disposable order after capture."
+}

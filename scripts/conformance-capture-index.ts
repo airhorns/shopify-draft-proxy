@@ -3294,6 +3294,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-lifecycle-and-capability',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-lifecycle-and-capability-conformance.ts',
+    purpose:
+      'Metaobject definition create/update/delete/read-after-write, standard template enablement, and disabled entry capability validation.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-definition-draft-flow.json`,
+      `${CAPTURE_ROOT}metaobject-capability-not-enabled.json`,
+      'config/parity-specs/metaobjects/metaobject-definition-lifecycle-local-staging.json',
+      'config/parity-specs/metaobjects/metaobject_capability_not_enabled.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable metaobject definitions and one entry, temporarily enables a standard definition, then deletes every created row and definition during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-delete-not-found',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-delete-not-found-conformance.mts',
@@ -8891,6 +8909,45 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Read and validation captures do not create resources; payment reminder eligibility creates disposable draft/order/payment-terms records and cancels the completed orders during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
+    captureId: 'payments-salvaged-parity-replacements',
+    scriptPath: 'scripts/capture-payments-salvaged-parity-conformance.ts',
+    purpose:
+      'Replaces retired payments local-runtime parity evidence with live payment-terms owner lifecycle recordings, live paymentReminderSend schema-shape validation, and a customer-payment-method scope/access probe for still-unrecordable vaulted payment-method scenarios.',
+    requiredAuthScopes: [
+      'read_orders',
+      'write_orders',
+      'read_draft_orders',
+      'write_draft_orders',
+      'read_payment_terms',
+      'write_payment_terms',
+      'read_customer_payment_methods/write_customer_payment_methods requested in app config but active token reauthorization still required',
+    ],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/customer-payment-method-access-probe.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-create-on-order.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-delete-owner-cascade.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-shape.json',
+      'config/parity-specs/payments/payment-terms-create-on-order.json',
+      'config/parity-specs/payments/payment-terms-update-missing-local-runtime.json',
+      'config/parity-specs/payments/payment_terms_delete_owner_cascade.json',
+      'config/parity-specs/payments/payment-reminder-send-shape.json',
+      'config/parity-requests/payments/payment-terms-create-on-order-create.graphql',
+      'config/parity-requests/payments/payment-terms-create-on-order-multiple.graphql',
+      'config/parity-requests/payments/payment-terms-lifecycle-create.graphql',
+      'config/parity-requests/payments/payment-terms-lifecycle-delete.graphql',
+      'config/parity-requests/payments/payment-terms-lifecycle-update.graphql',
+      'config/parity-requests/payments/payment-terms-owner-cascade-draft-read.graphql',
+      'config/parity-requests/payments/payment-terms-owner-cascade-order-read.graphql',
+      'config/parity-requests/payments/payment-reminder-send-invalid-field.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable live Orders and a DraftOrder for payment-terms parity, deletes the DraftOrder and cancels Orders in cleanup, records paymentReminderSend schema validation with no mutation execution, and records customer-payment-method access probes without creating vaulted payment data.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The script records that unattended `shopify app deploy --allow-updates` is blocked by interactive device-code login after adding customer-payment-method scopes to the checked-in conformance app config; those parity scenarios remain removed until a reauthorized token exposes the requested scopes.',
   },
   {
     domain: 'payments',

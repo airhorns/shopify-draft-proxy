@@ -1,0 +1,27 @@
+{
+  "scenarioId": "payment-terms-update-missing-local-runtime",
+  "operationNames": ["paymentTermsUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-create-on-order.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-terms-update-missing-local-runtime.graphql",
+    "variablesCapturePath": "$.paymentTermsCreateOnOrder.missingUpdate.variables"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-update-user-error",
+        "capturePath": "$.paymentTermsCreateOnOrder.expected.update.data.paymentTermsUpdate",
+        "proxyPath": "$.data.paymentTermsUpdate"
+      }
+    ]
+  },
+  "notes": "Legacy scenario id retained for continuity, but the expected payload now comes from the live 2026-04 payment-terms-create-on-order capture rather than local-runtime evidence."
+}
