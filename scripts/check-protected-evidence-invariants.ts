@@ -132,6 +132,60 @@ if (shippingFulfillmentEvidenceFailures.length > 0) {
   process.exit(1);
 }
 
+const descriptorQueryPattern = /^(?:hand-synthesized|sha:|cassette-backed|recorded by scripts\/|local-runtime)/u;
+const customerSpecDir = path.join(process.cwd(), 'config/parity-specs/customers');
+const customerEvidenceViolations: string[] = [];
+
+function readJson(filePath: string): unknown {
+  return JSON.parse(readFileSync(filePath, 'utf8')) as unknown;
+}
+
+function readRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+if (existsSync(customerSpecDir)) {
+  for (const fileName of readdirSync(customerSpecDir)
+    .filter((file) => file.endsWith('.json'))
+    .sort()) {
+    const specPath = path.join(customerSpecDir, fileName);
+    const spec = readRecord(readJson(specPath));
+    if (!spec) continue;
+    const scenarioStatus = spec?.['scenarioStatus'];
+    const comparisonMode = spec?.['comparisonMode'];
+    if (scenarioStatus !== 'captured' || comparisonMode !== 'captured-vs-proxy-request') continue;
+
+    const liveCaptureFiles = Array.isArray(spec['liveCaptureFiles']) ? spec['liveCaptureFiles'] : [];
+    for (const captureFile of liveCaptureFiles) {
+      if (typeof captureFile !== 'string') continue;
+      if (captureFile.startsWith('fixtures/conformance/local-runtime/')) {
+        customerEvidenceViolations.push(`${specPath}: liveCaptureFiles contains local-runtime fixture ${captureFile}`);
+        continue;
+      }
+      if (!captureFile.includes('/customers/') || !existsSync(captureFile)) continue;
+      const fixture = readRecord(readJson(captureFile));
+      const upstreamCalls = Array.isArray(fixture?.['upstreamCalls']) ? fixture['upstreamCalls'] : [];
+      for (const [index, upstreamCall] of upstreamCalls.entries()) {
+        const call = readRecord(upstreamCall);
+        const query = call?.['query'];
+        if (typeof query === 'string' && descriptorQueryPattern.test(query)) {
+          customerEvidenceViolations.push(
+            `${captureFile}: upstreamCalls[${index}].query is a provenance descriptor (${JSON.stringify(query)})`,
+          );
+        }
+      }
+    }
+  }
+}
+
+if (customerEvidenceViolations.length > 0) {
+  process.stderr.write('Customers parity evidence contains local-runtime captures or descriptor upstream queries.\n');
+  for (const violation of customerEvidenceViolations) process.stderr.write(`- ${violation}\n`);
+  process.exit(1);
+}
+
 process.stdout.write('Protected parity evidence changes are registered in the capture index.\n');
 
 function trackedFiles(pathspec: string): string[] {
