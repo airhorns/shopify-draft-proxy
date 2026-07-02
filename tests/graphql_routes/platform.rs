@@ -646,6 +646,153 @@ fn fulfillment_order_request_and_cancellation_transitions_stage_and_read_back() 
 }
 
 #[test]
+fn assigned_fulfillment_orders_filters_by_assignment_status_and_location_ids() {
+    let mut proxy = snapshot_proxy();
+    let (_order, fulfillment_order) = create_fulfillment_order_test_order(&mut proxy, 2);
+    let fulfillment_order_id = fulfillment_order["id"].clone();
+    let fulfillment_order_line_item_id = fulfillment_order["lineItems"]["nodes"][0]["id"].clone();
+    let query = r#"
+        query AssignedFulfillmentOrdersFiltering($locationIds: [ID!]) {
+          requested: assignedFulfillmentOrders(
+            first: 10
+            assignmentStatus: FULFILLMENT_REQUESTED
+            locationIds: $locationIds
+            sortKey: ID
+          ) {
+            nodes {
+              id
+              requestStatus
+              assignedLocation { location { id } }
+              merchantRequests(first: 10) { nodes { kind responseData } }
+            }
+          }
+          accepted: assignedFulfillmentOrders(
+            first: 10
+            assignmentStatus: FULFILLMENT_ACCEPTED
+            locationIds: $locationIds
+            sortKey: ID
+          ) {
+            nodes { id requestStatus merchantRequests(first: 10) { nodes { kind responseData } } }
+          }
+          cancellationRequested: assignedFulfillmentOrders(
+            first: 10
+            assignmentStatus: CANCELLATION_REQUESTED
+            locationIds: $locationIds
+            sortKey: ID
+          ) {
+            nodes { id requestStatus merchantRequests(first: 10) { nodes { kind responseData } } }
+          }
+        }
+    "#;
+
+    let submit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SubmitFulfillmentOrderRequest($id: ID!, $lineItems: [FulfillmentOrderLineItemInput!]) {
+          fulfillmentOrderSubmitFulfillmentRequest(
+            id: $id
+            fulfillmentOrderLineItems: $lineItems
+            message: "please ship"
+            notifyCustomer: false
+          ) {
+            submittedFulfillmentOrder { id requestStatus }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": fulfillment_order_id,
+            "lineItems": [{ "id": fulfillment_order_line_item_id, "quantity": 1 }]
+        }),
+    ));
+    assert_eq!(
+        submit.body["data"]["fulfillmentOrderSubmitFulfillmentRequest"]["userErrors"],
+        json!([])
+    );
+
+    let requested =
+        proxy.process_request(json_graphql_request(query, json!({ "locationIds": null })));
+    assert_eq!(
+        requested.body["data"]["requested"]["nodes"][0]["id"],
+        fulfillment_order_id
+    );
+    assert_eq!(
+        requested.body["data"]["requested"]["nodes"][0]["requestStatus"],
+        json!("SUBMITTED")
+    );
+    assert_eq!(requested.body["data"]["accepted"]["nodes"], json!([]));
+    let assigned_location_id = requested.body["data"]["requested"]["nodes"][0]["assignedLocation"]
+        ["location"]["id"]
+        .clone();
+
+    let matching_location = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "locationIds": [assigned_location_id] }),
+    ));
+    assert_eq!(
+        matching_location.body["data"]["requested"]["nodes"][0]["id"],
+        fulfillment_order_id
+    );
+
+    let mismatched_location = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "locationIds": ["gid://shopify/Location/not-this-order"] }),
+    ));
+    assert_eq!(
+        mismatched_location.body["data"]["requested"]["nodes"],
+        json!([])
+    );
+
+    let accept = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AcceptFulfillmentOrderRequest($id: ID!) {
+          fulfillmentOrderAcceptFulfillmentRequest(id: $id, message: "accepted") {
+            fulfillmentOrder { id requestStatus }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    assert_eq!(
+        accept.body["data"]["fulfillmentOrderAcceptFulfillmentRequest"]["userErrors"],
+        json!([])
+    );
+    let accepted =
+        proxy.process_request(json_graphql_request(query, json!({ "locationIds": null })));
+    assert_eq!(accepted.body["data"]["requested"]["nodes"], json!([]));
+    assert_eq!(
+        accepted.body["data"]["accepted"]["nodes"][0]["id"],
+        fulfillment_order_id
+    );
+
+    let submit_cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SubmitFulfillmentOrderCancellationRequest($id: ID!) {
+          fulfillmentOrderSubmitCancellationRequest(id: $id, message: "cancel please") {
+            fulfillmentOrder { id requestStatus merchantRequests(first: 10) { nodes { kind responseData } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    assert_eq!(
+        submit_cancel.body["data"]["fulfillmentOrderSubmitCancellationRequest"]["userErrors"],
+        json!([])
+    );
+    let cancellation_requested =
+        proxy.process_request(json_graphql_request(query, json!({ "locationIds": null })));
+    assert_eq!(
+        cancellation_requested.body["data"]["cancellationRequested"]["nodes"][0]["id"],
+        fulfillment_order_id
+    );
+    assert_eq!(
+        cancellation_requested.body["data"]["accepted"]["nodes"],
+        json!([])
+    );
+}
+
+#[test]
 fn fulfillment_order_reject_and_accept_cancellation_transitions_stage_locally() {
     let mut proxy = snapshot_proxy();
     let (_, fulfillment_order) = create_fulfillment_order_test_order(&mut proxy, 1);
