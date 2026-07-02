@@ -152,8 +152,8 @@ The local implementation intentionally covers pin/unpin for definitions already 
 - `config/parity-specs/metafields/metafields-set-input-validation.json`
 - `config/parity-specs/metafield-definitions/access-validation.json`
 - `config/parity-specs/metafield-definitions/validation-affects-values.json`
-- `config/parity-specs/metafield-definitions/metafields-set-delete-app-namespace-resolution.json`
 - `config/parity-specs/metafield-definitions/metafield-delete-not-found.json`
+- `config/parity-specs/metafield-definitions/metafields-set-delete-app-namespace-resolution.json`
 - `config/parity-specs/products/metafieldsSet-*.json`
 - `config/parity-specs/products/metafieldsDelete-parity-plan.json`
 - `corepack pnpm conformance:capture -- --run metafield-definition-pinning`
@@ -162,6 +162,7 @@ The local implementation intentionally covers pin/unpin for definitions already 
 - `corepack pnpm conformance:capture -- --run metafield-definition-non-product-owner-types`
 - `corepack pnpm conformance:capture -- --run metafield-definition-non-product-metafields`
 - `corepack pnpm conformance:capture -- --run metafield-definition-validation-affects-values`
+- `corepack pnpm conformance:capture -- --run metafields-delete-not-found`
 - `corepack pnpm conformance:capture -- --run metafields-custom-namespace-typed-keys`
 - `corepack pnpm conformance:capture -- --run metafields-set-delete-app-namespace-resolution`
 
