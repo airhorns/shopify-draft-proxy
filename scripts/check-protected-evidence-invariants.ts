@@ -1,12 +1,13 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import path from 'node:path';
 
 import { conformanceCaptureIndex } from './conformance-capture-index.js';
 import { validateRecordedUpstreamCalls, type RecordedUpstreamCall } from './parity-cassette.js';
 
 const protectedPaths = ['config/parity-specs', 'config/parity-requests', 'fixtures/conformance'];
 
-const result = spawnSync('git', ['diff', '--name-only', 'origin/main', '--', ...protectedPaths], {
+const result = spawnSync('git', ['diff', '--name-status', 'origin/main', '--', ...protectedPaths], {
   encoding: 'utf8',
 });
 
@@ -33,20 +34,101 @@ function fixtureOutputMatchesPath(output: string, path: string): boolean {
 
 const registeredFixtureOutputs = conformanceCaptureIndex.flatMap((entry) => entry.fixtureOutputs);
 
+type ChangedPath = {
+  status: string;
+  path: string;
+};
+
 const changed = result.stdout
   .split('\n')
   .map((line) => line.trim())
-  .filter(Boolean);
+  .filter(Boolean)
+  .map((line): ChangedPath => {
+    const [status = '', firstPath = '', secondPath] = line.split('\t');
+    return {
+      status,
+      path: secondPath ?? firstPath,
+    };
+  });
 
 const unregistered = changed.filter(
-  (path) => !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, path)),
+  ({ path: changedPath }) =>
+    existsSync(changedPath) &&
+    !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath)),
 );
 
 if (unregistered.length > 0) {
   process.stderr.write(
     'Protected parity specs, parity requests, or conformance fixtures changed without capture-index registration.\n',
   );
-  for (const path of unregistered) process.stderr.write(`- ${path}\n`);
+  for (const { status, path } of unregistered) process.stderr.write(`- ${status}\t${path}\n`);
+  process.exit(1);
+}
+
+function walkJsonFiles(directory: string): string[] {
+  if (!existsSync(directory)) {
+    return [];
+  }
+
+  return readdirSync(directory).flatMap((entry) => {
+    const entryPath = path.join(directory, entry);
+    if (statSync(entryPath).isDirectory()) {
+      return walkJsonFiles(entryPath);
+    }
+    return entryPath.endsWith('.json') ? [entryPath] : [];
+  });
+}
+
+function readJsonFile(filePath: string): unknown {
+  return JSON.parse(readFileSync(filePath, 'utf8'));
+}
+
+function collectShippingFulfillmentFixtureFiles(): string[] {
+  return walkJsonFiles('fixtures/conformance').filter((filePath) =>
+    filePath.split(path.sep).includes('shipping-fulfillments'),
+  );
+}
+
+function findForbiddenShippingFulfillmentEvidence(): string[] {
+  const failures: string[] = [];
+  const descriptorPattern =
+    /^(?:sha:|hand-synthesized|cassette-backed|recorded by scripts\/)|hand-synthesized|local-runtime/u;
+
+  for (const specPath of walkJsonFiles('config/parity-specs/shipping-fulfillments')) {
+    const spec = readJsonFile(specPath) as { liveCaptureFiles?: unknown };
+    const liveCaptureFiles = Array.isArray(spec.liveCaptureFiles) ? spec.liveCaptureFiles : [];
+    for (const liveCaptureFile of liveCaptureFiles) {
+      if (typeof liveCaptureFile === 'string' && liveCaptureFile.startsWith('fixtures/conformance/local-runtime/')) {
+        failures.push(`${specPath}: liveCaptureFiles contains local-runtime fixture ${liveCaptureFile}`);
+      }
+    }
+  }
+
+  for (const fixturePath of collectShippingFulfillmentFixtureFiles()) {
+    if (fixturePath.startsWith('fixtures/conformance/local-runtime/')) {
+      failures.push(`${fixturePath}: local-runtime shipping-fulfillments fixtures cannot be parity evidence`);
+      continue;
+    }
+
+    const fixture = readJsonFile(fixturePath) as { upstreamCalls?: unknown };
+    const upstreamCalls = Array.isArray(fixture.upstreamCalls) ? fixture.upstreamCalls : [];
+    upstreamCalls.forEach((call, index) => {
+      const query = call && typeof call === 'object' ? (call as { query?: unknown }).query : undefined;
+      if (typeof query === 'string' && descriptorPattern.test(query)) {
+        failures.push(`${fixturePath}: upstreamCalls[${index}].query is a descriptor, not GraphQL`);
+      }
+    });
+  }
+
+  return failures;
+}
+
+const shippingFulfillmentEvidenceFailures = findForbiddenShippingFulfillmentEvidence();
+if (shippingFulfillmentEvidenceFailures.length > 0) {
+  process.stderr.write(
+    'shipping-fulfillments parity evidence contains local-runtime fixtures or descriptor upstream calls.\n',
+  );
+  for (const failure of shippingFulfillmentEvidenceFailures) process.stderr.write(`- ${failure}\n`);
   process.exit(1);
 }
 
@@ -63,10 +145,6 @@ function trackedFiles(pathspec: string): string[] {
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
-}
-
-function readJsonFile(path: string): Record<string, unknown> {
-  return JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
 }
 
 const marketsEvidenceErrors: string[] = [];
@@ -87,7 +165,7 @@ const checkedMarketsFixtureSuffixes = [
 ];
 
 for (const specPath of trackedFiles('config/parity-specs/markets').filter((path) => path.endsWith('.json'))) {
-  const spec = readJsonFile(specPath);
+  const spec = readJsonFile(specPath) as Record<string, unknown>;
   const scenarioId = spec['scenarioId'];
   const isCheckedScenario = typeof scenarioId === 'string' && checkedMarketsScenarioIds.has(scenarioId);
   const liveCaptureFiles = Array.isArray(spec['liveCaptureFiles']) ? spec['liveCaptureFiles'] : [];
@@ -104,9 +182,9 @@ for (const specPath of trackedFiles('config/parity-specs/markets').filter((path)
 }
 
 for (const fixturePath of [...referencedMarketsFixtures].sort()) {
-  const fixture = readJsonFile(fixturePath);
-  if (!Array.isArray(fixture['upstreamCalls'])) continue;
-  const errors = validateRecordedUpstreamCalls(fixture['upstreamCalls'] as RecordedUpstreamCall[]);
+  const fixture = readJsonFile(fixturePath) as { upstreamCalls?: unknown };
+  if (!Array.isArray(fixture.upstreamCalls)) continue;
+  const errors = validateRecordedUpstreamCalls(fixture.upstreamCalls as RecordedUpstreamCall[]);
   for (const error of errors) marketsEvidenceErrors.push(`${fixturePath}: ${error}`);
 }
 
@@ -117,3 +195,6 @@ if (marketsEvidenceErrors.length > 0) {
 }
 
 process.stdout.write('Markets parity evidence uses GraphQL upstream cassette queries and live fixture paths.\n');
+process.stdout.write(
+  'shipping-fulfillments protected evidence has no local-runtime parity fixtures or descriptor upstream calls.\n',
+);
