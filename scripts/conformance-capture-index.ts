@@ -11063,21 +11063,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'gift-cards',
-    captureId: 'gift-card-unrecordable-local-runtime-errors',
-    scriptPath: 'scripts/capture-gift-card-unrecordable-local-runtime.ts',
-    purpose:
-      'Local-runtime fallback fixtures for gift-card entitlement-disabled and notify-disabled branches that cannot be constructed through the public conformance harness.',
-    requiredAuthScopes: ['local-runtime'],
-    fixtureOutputs: [
-      `${LOCAL_RUNTIME_ROOT}gift-card-entitlement-disabled.json`,
-      `${LOCAL_RUNTIME_ROOT}gift-card-create-notify.json`,
-    ],
-    cleanupBehavior:
-      'No Shopify cleanup required; fixtures encode deterministic local-runtime fallback evidence for unrecordable branches.',
-    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
-  },
-  {
-    domain: 'gift-cards',
     captureId: 'gift-card-transaction-validation',
     scriptPath: 'scripts/capture-gift-card-transaction-validation-conformance.ts',
     purpose:
@@ -11098,6 +11083,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Creates disposable active, expired, and deactivated gift cards; deactivates any setup cards not already deactivated during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'gift-cards',
+    captureId: 'gift-card-mutation-user-error-codes',
+    scriptPath: 'scripts/capture-gift-card-mutation-user-error-codes-conformance.ts',
+    purpose:
+      'Gift-card create/update/credit/debit userError code and field-path branches that are representable through the public Admin GraphQL schema.',
+    requiredAuthScopes: [
+      'read_gift_cards',
+      'write_gift_cards',
+      'read_gift_card_transactions',
+      'write_gift_card_transactions',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-mutation-user-error-codes.json`,
+      'config/parity-specs/gift-cards/gift-card-mutation-user-error-codes.json',
+      'config/parity-requests/gift-cards/gift-card-mutation-user-error-codes-setup.graphql',
+      'config/parity-requests/gift-cards/gift-card-mutation-user-error-codes.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable small-balance gift card, records public validation branches plus a GiftCardHydrate miss cassette, then deactivates the setup gift card.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The public GiftCardUpdatePayload.userErrors type is generic UserError, so this live capture compares update field/message only while Rust integration tests cover the local typed-code contract.',
   },
   {
     domain: 'gift-cards',
