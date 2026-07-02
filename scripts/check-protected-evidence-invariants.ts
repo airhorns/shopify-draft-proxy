@@ -10,7 +10,6 @@ import {
 } from './protected-evidence-invariants.js';
 
 const repoRoot = process.cwd();
-
 function readJson(relativePath: string): unknown {
   return JSON.parse(readFileSync(path.join(repoRoot, relativePath), 'utf8')) as unknown;
 }

@@ -1,4 +1,4 @@
-mutation DiscountAutomaticAppLifecycleDelete($id: ID!) {
+mutation DiscountAutomaticAppLiveDelete($id: ID!) {
   discountAutomaticDelete(id: $id) {
     deletedAutomaticDiscountId
     userErrors {

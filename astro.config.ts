@@ -26,6 +26,8 @@ export default defineConfig({
           label: 'API Reference',
           items: [
             { label: 'JavaScript Library', slug: 'api/javascript' },
+            { label: 'Ruby Gem', slug: 'api/ruby' },
+            { label: 'Python Library', slug: 'api/python' },
             { label: 'HTTP Service', slug: 'api/http-service' },
           ],
         },

@@ -1,0 +1,1084 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "quantityNames": ["available", "incoming", "damaged", "quality_control", "reserved", "safety_stock", "on_hand"],
+  "setup": {
+    "fallbackLocation": {
+      "id": "gid://shopify/Location/112829759794",
+      "name": "HAR-571 transfer destination 20260505000619"
+    },
+    "product": {
+      "productId": "gid://shopify/Product/10229653340466",
+      "variantId": "gid://shopify/ProductVariant/51414365864242",
+      "inventoryItemId": "gid://shopify/InventoryItem/53519404040498",
+      "location": {
+        "id": "gid://shopify/Location/106318430514",
+        "name": "Shop location"
+      },
+      "create": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10229653340466",
+              "title": "Hermes Inventory Adjust On Hand Mirrors 1783027954009",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51414365864242",
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53519404040498",
+                      "tracked": false,
+                      "requiresShipping": true
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 14,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "track": {
+        "data": {
+          "productVariantsBulkUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/10229653340466",
+              "tracksInventory": true,
+              "totalInventory": 0
+            },
+            "productVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/51414365864242",
+                "inventoryQuantity": 0,
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53519404040498",
+                  "tracked": true,
+                  "requiresShipping": true
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "inventoryItemLevel": {
+        "data": {
+          "inventoryItem": {
+            "id": "gid://shopify/InventoryItem/53519404040498",
+            "inventoryLevels": {
+              "nodes": [
+                {
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 0,
+                      "updatedAt": "2026-07-02T21:32:34Z"
+                    },
+                    {
+                      "name": "incoming",
+                      "quantity": 0,
+                      "updatedAt": null
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 0,
+                      "updatedAt": null
+                    },
+                    {
+                      "name": "quality_control",
+                      "quantity": 0,
+                      "updatedAt": null
+                    },
+                    {
+                      "name": "reserved",
+                      "quantity": 0,
+                      "updatedAt": null
+                    },
+                    {
+                      "name": "safety_stock",
+                      "quantity": 0,
+                      "updatedAt": null
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 0,
+                      "updatedAt": null
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "damaged": {
+      "variables": {
+        "input": {
+          "name": "damaged",
+          "reason": "damaged",
+          "changes": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53519404040498",
+              "locationId": "gid://shopify/Location/106318430514",
+              "delta": 2,
+              "changeFromQuantity": 0,
+              "ledgerDocumentUri": "https://example.com/inventory-adjust-on-hand-mirrors/damaged/1783027954009"
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-adjust-on-hand-mirrors-damaged-1783027954009"
+      },
+      "response": {
+        "data": {
+          "inventoryAdjustQuantities": {
+            "inventoryAdjustmentGroup": {
+              "reason": "damaged",
+              "changes": [
+                {
+                  "name": "damaged",
+                  "delta": 2,
+                  "quantityAfterChange": null,
+                  "ledgerDocumentUri": "https://example.com/inventory-adjust-on-hand-mirrors/damaged/1783027954009",
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53519404040498"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514"
+                  }
+                },
+                {
+                  "name": "on_hand",
+                  "delta": 2,
+                  "quantityAfterChange": null,
+                  "ledgerDocumentUri": null,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53519404040498"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514"
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "downstreamRead": {
+        "data": {
+          "product": {
+            "totalInventory": 0,
+            "tracksInventory": true
+          },
+          "productVariant": {
+            "inventoryQuantity": 0,
+            "inventoryItem": {
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 0,
+                        "updatedAt": "2026-07-02T21:32:34Z"
+                      },
+                      {
+                        "name": "incoming",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "damaged",
+                        "quantity": 2,
+                        "updatedAt": "2026-07-02T21:32:35Z"
+                      },
+                      {
+                        "name": "quality_control",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "reserved",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "safety_stock",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 2,
+                        "updatedAt": null
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "inventoryItem": {
+            "variant": {
+              "inventoryQuantity": 0,
+              "product": {
+                "totalInventory": 0,
+                "tracksInventory": true
+              }
+            },
+            "inventoryLevels": {
+              "nodes": [
+                {
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 0,
+                      "updatedAt": "2026-07-02T21:32:34Z"
+                    },
+                    {
+                      "name": "incoming",
+                      "quantity": 0,
+                      "updatedAt": null
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 2,
+                      "updatedAt": "2026-07-02T21:32:35Z"
+                    },
+                    {
+                      "name": "quality_control",
+                      "quantity": 0,
+                      "updatedAt": null
+                    },
+                    {
+                      "name": "reserved",
+                      "quantity": 0,
+                      "updatedAt": null
+                    },
+                    {
+                      "name": "safety_stock",
+                      "quantity": 0,
+                      "updatedAt": null
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 2,
+                      "updatedAt": null
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 22,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "reserved": {
+      "variables": {
+        "input": {
+          "name": "reserved",
+          "reason": "reservation_created",
+          "changes": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53519404040498",
+              "locationId": "gid://shopify/Location/106318430514",
+              "delta": 3,
+              "changeFromQuantity": 0,
+              "ledgerDocumentUri": "https://example.com/inventory-adjust-on-hand-mirrors/reserved/1783027954009"
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-adjust-on-hand-mirrors-reserved-1783027954009"
+      },
+      "response": {
+        "data": {
+          "inventoryAdjustQuantities": {
+            "inventoryAdjustmentGroup": {
+              "reason": "reservation_created",
+              "changes": [
+                {
+                  "name": "reserved",
+                  "delta": 3,
+                  "quantityAfterChange": null,
+                  "ledgerDocumentUri": "https://example.com/inventory-adjust-on-hand-mirrors/reserved/1783027954009",
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53519404040498"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514"
+                  }
+                },
+                {
+                  "name": "on_hand",
+                  "delta": 3,
+                  "quantityAfterChange": null,
+                  "ledgerDocumentUri": null,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53519404040498"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514"
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "downstreamRead": {
+        "data": {
+          "product": {
+            "totalInventory": 0,
+            "tracksInventory": true
+          },
+          "productVariant": {
+            "inventoryQuantity": 0,
+            "inventoryItem": {
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 0,
+                        "updatedAt": "2026-07-02T21:32:34Z"
+                      },
+                      {
+                        "name": "incoming",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "damaged",
+                        "quantity": 2,
+                        "updatedAt": "2026-07-02T21:32:35Z"
+                      },
+                      {
+                        "name": "quality_control",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "reserved",
+                        "quantity": 3,
+                        "updatedAt": "2026-07-02T21:32:35Z"
+                      },
+                      {
+                        "name": "safety_stock",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 5,
+                        "updatedAt": null
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "inventoryItem": {
+            "variant": {
+              "inventoryQuantity": 0,
+              "product": {
+                "totalInventory": 0,
+                "tracksInventory": true
+              }
+            },
+            "inventoryLevels": {
+              "nodes": [
+                {
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 0,
+                      "updatedAt": "2026-07-02T21:32:34Z"
+                    },
+                    {
+                      "name": "incoming",
+                      "quantity": 0,
+                      "updatedAt": null
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 2,
+                      "updatedAt": "2026-07-02T21:32:35Z"
+                    },
+                    {
+                      "name": "quality_control",
+                      "quantity": 0,
+                      "updatedAt": null
+                    },
+                    {
+                      "name": "reserved",
+                      "quantity": 3,
+                      "updatedAt": "2026-07-02T21:32:35Z"
+                    },
+                    {
+                      "name": "safety_stock",
+                      "quantity": 0,
+                      "updatedAt": null
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 5,
+                      "updatedAt": null
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 22,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "qualityControl": {
+      "variables": {
+        "input": {
+          "name": "quality_control",
+          "reason": "quality_control",
+          "changes": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53519404040498",
+              "locationId": "gid://shopify/Location/106318430514",
+              "delta": 4,
+              "changeFromQuantity": 0,
+              "ledgerDocumentUri": "https://example.com/inventory-adjust-on-hand-mirrors/quality_control/1783027954009"
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-adjust-on-hand-mirrors-quality_control-1783027954009"
+      },
+      "response": {
+        "data": {
+          "inventoryAdjustQuantities": {
+            "inventoryAdjustmentGroup": {
+              "reason": "quality_control",
+              "changes": [
+                {
+                  "name": "quality_control",
+                  "delta": 4,
+                  "quantityAfterChange": null,
+                  "ledgerDocumentUri": "https://example.com/inventory-adjust-on-hand-mirrors/quality_control/1783027954009",
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53519404040498"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514"
+                  }
+                },
+                {
+                  "name": "on_hand",
+                  "delta": 4,
+                  "quantityAfterChange": null,
+                  "ledgerDocumentUri": null,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53519404040498"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514"
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "downstreamRead": {
+        "data": {
+          "product": {
+            "totalInventory": 0,
+            "tracksInventory": true
+          },
+          "productVariant": {
+            "inventoryQuantity": 0,
+            "inventoryItem": {
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 0,
+                        "updatedAt": "2026-07-02T21:32:34Z"
+                      },
+                      {
+                        "name": "incoming",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "damaged",
+                        "quantity": 2,
+                        "updatedAt": "2026-07-02T21:32:35Z"
+                      },
+                      {
+                        "name": "quality_control",
+                        "quantity": 4,
+                        "updatedAt": "2026-07-02T21:32:36Z"
+                      },
+                      {
+                        "name": "reserved",
+                        "quantity": 3,
+                        "updatedAt": "2026-07-02T21:32:35Z"
+                      },
+                      {
+                        "name": "safety_stock",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 9,
+                        "updatedAt": null
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "inventoryItem": {
+            "variant": {
+              "inventoryQuantity": 0,
+              "product": {
+                "totalInventory": 0,
+                "tracksInventory": true
+              }
+            },
+            "inventoryLevels": {
+              "nodes": [
+                {
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 0,
+                      "updatedAt": "2026-07-02T21:32:34Z"
+                    },
+                    {
+                      "name": "incoming",
+                      "quantity": 0,
+                      "updatedAt": null
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 2,
+                      "updatedAt": "2026-07-02T21:32:35Z"
+                    },
+                    {
+                      "name": "quality_control",
+                      "quantity": 4,
+                      "updatedAt": "2026-07-02T21:32:36Z"
+                    },
+                    {
+                      "name": "reserved",
+                      "quantity": 3,
+                      "updatedAt": "2026-07-02T21:32:35Z"
+                    },
+                    {
+                      "name": "safety_stock",
+                      "quantity": 0,
+                      "updatedAt": null
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 9,
+                      "updatedAt": null
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 22,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "safetyStock": {
+      "variables": {
+        "input": {
+          "name": "safety_stock",
+          "reason": "safety_stock",
+          "changes": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53519404040498",
+              "locationId": "gid://shopify/Location/106318430514",
+              "delta": 5,
+              "changeFromQuantity": 0,
+              "ledgerDocumentUri": "https://example.com/inventory-adjust-on-hand-mirrors/safety_stock/1783027954009"
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-adjust-on-hand-mirrors-safety_stock-1783027954009"
+      },
+      "response": {
+        "data": {
+          "inventoryAdjustQuantities": {
+            "inventoryAdjustmentGroup": {
+              "reason": "safety_stock",
+              "changes": [
+                {
+                  "name": "safety_stock",
+                  "delta": 5,
+                  "quantityAfterChange": null,
+                  "ledgerDocumentUri": "https://example.com/inventory-adjust-on-hand-mirrors/safety_stock/1783027954009",
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53519404040498"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514"
+                  }
+                },
+                {
+                  "name": "on_hand",
+                  "delta": 5,
+                  "quantityAfterChange": null,
+                  "ledgerDocumentUri": null,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53519404040498"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514"
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "downstreamRead": {
+        "data": {
+          "product": {
+            "totalInventory": 0,
+            "tracksInventory": true
+          },
+          "productVariant": {
+            "inventoryQuantity": 0,
+            "inventoryItem": {
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 0,
+                        "updatedAt": "2026-07-02T21:32:34Z"
+                      },
+                      {
+                        "name": "incoming",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "damaged",
+                        "quantity": 2,
+                        "updatedAt": "2026-07-02T21:32:35Z"
+                      },
+                      {
+                        "name": "quality_control",
+                        "quantity": 4,
+                        "updatedAt": "2026-07-02T21:32:36Z"
+                      },
+                      {
+                        "name": "reserved",
+                        "quantity": 3,
+                        "updatedAt": "2026-07-02T21:32:35Z"
+                      },
+                      {
+                        "name": "safety_stock",
+                        "quantity": 5,
+                        "updatedAt": "2026-07-02T21:32:36Z"
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 14,
+                        "updatedAt": null
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "inventoryItem": {
+            "variant": {
+              "inventoryQuantity": 0,
+              "product": {
+                "totalInventory": 0,
+                "tracksInventory": true
+              }
+            },
+            "inventoryLevels": {
+              "nodes": [
+                {
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 0,
+                      "updatedAt": "2026-07-02T21:32:34Z"
+                    },
+                    {
+                      "name": "incoming",
+                      "quantity": 0,
+                      "updatedAt": null
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 2,
+                      "updatedAt": "2026-07-02T21:32:35Z"
+                    },
+                    {
+                      "name": "quality_control",
+                      "quantity": 4,
+                      "updatedAt": "2026-07-02T21:32:36Z"
+                    },
+                    {
+                      "name": "reserved",
+                      "quantity": 3,
+                      "updatedAt": "2026-07-02T21:32:35Z"
+                    },
+                    {
+                      "name": "safety_stock",
+                      "quantity": 5,
+                      "updatedAt": "2026-07-02T21:32:36Z"
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 14,
+                      "updatedAt": null
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 22,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "incoming": {
+      "variables": {
+        "input": {
+          "name": "incoming",
+          "reason": "received",
+          "changes": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53519404040498",
+              "locationId": "gid://shopify/Location/106318430514",
+              "delta": 6,
+              "changeFromQuantity": 0,
+              "ledgerDocumentUri": "https://example.com/inventory-adjust-on-hand-mirrors/incoming/1783027954009"
+            }
+          ]
+        },
+        "idempotencyKey": "inventory-adjust-on-hand-mirrors-incoming-1783027954009"
+      },
+      "response": {
+        "data": {
+          "inventoryAdjustQuantities": {
+            "inventoryAdjustmentGroup": {
+              "reason": "received",
+              "changes": [
+                {
+                  "name": "incoming",
+                  "delta": 6,
+                  "quantityAfterChange": null,
+                  "ledgerDocumentUri": "https://example.com/inventory-adjust-on-hand-mirrors/incoming/1783027954009",
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53519404040498"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514"
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "downstreamRead": {
+        "data": {
+          "product": {
+            "totalInventory": 0,
+            "tracksInventory": true
+          },
+          "productVariant": {
+            "inventoryQuantity": 0,
+            "inventoryItem": {
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 0,
+                        "updatedAt": "2026-07-02T21:32:34Z"
+                      },
+                      {
+                        "name": "incoming",
+                        "quantity": 6,
+                        "updatedAt": "2026-07-02T21:32:36Z"
+                      },
+                      {
+                        "name": "damaged",
+                        "quantity": 2,
+                        "updatedAt": "2026-07-02T21:32:35Z"
+                      },
+                      {
+                        "name": "quality_control",
+                        "quantity": 4,
+                        "updatedAt": "2026-07-02T21:32:36Z"
+                      },
+                      {
+                        "name": "reserved",
+                        "quantity": 3,
+                        "updatedAt": "2026-07-02T21:32:35Z"
+                      },
+                      {
+                        "name": "safety_stock",
+                        "quantity": 5,
+                        "updatedAt": "2026-07-02T21:32:36Z"
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 14,
+                        "updatedAt": null
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "inventoryItem": {
+            "variant": {
+              "inventoryQuantity": 0,
+              "product": {
+                "totalInventory": 0,
+                "tracksInventory": true
+              }
+            },
+            "inventoryLevels": {
+              "nodes": [
+                {
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 0,
+                      "updatedAt": "2026-07-02T21:32:34Z"
+                    },
+                    {
+                      "name": "incoming",
+                      "quantity": 6,
+                      "updatedAt": "2026-07-02T21:32:36Z"
+                    },
+                    {
+                      "name": "damaged",
+                      "quantity": 2,
+                      "updatedAt": "2026-07-02T21:32:35Z"
+                    },
+                    {
+                      "name": "quality_control",
+                      "quantity": 4,
+                      "updatedAt": "2026-07-02T21:32:36Z"
+                    },
+                    {
+                      "name": "reserved",
+                      "quantity": 3,
+                      "updatedAt": "2026-07-02T21:32:35Z"
+                    },
+                    {
+                      "name": "safety_stock",
+                      "quantity": 5,
+                      "updatedAt": "2026-07-02T21:32:36Z"
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 14,
+                      "updatedAt": null
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 22,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10229653340466",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,12 +1,15 @@
 {
+  "capturedAt": "2026-07-02T21:18:47.591Z",
   "scenarioId": "payment-reminder-send-shape",
-  "storeDomain": "local-runtime",
-  "notes": "HAR-655 executable local-runtime schema-shape fixture. Live paymentReminderSend success and missing-schedule payload parity are covered by payment-reminder-send-eligibility; this shape fixture exercises the negative schema selection branch that must reject customerPaymentMethod before staging.",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": "Live Shopify schema-validation capture replacing the former local-runtime paymentReminderSend payload-shape fixture. The invalid customerPaymentMethod selection is rejected before mutation execution.",
   "cases": {
     "invalidSelection": {
       "request": {
+        "query": "mutation PaymentReminderSendInvalidField($paymentScheduleId: ID!) {\n  paymentReminderSend(paymentScheduleId: $paymentScheduleId) {\n    customerPaymentMethod {\n      id\n    }\n    success\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}\n",
         "variables": {
-          "paymentScheduleId": "gid://shopify/PaymentSchedule/shape"
+          "paymentScheduleId": "gid://shopify/PaymentSchedule/999999999999999"
         }
       },
       "response": {

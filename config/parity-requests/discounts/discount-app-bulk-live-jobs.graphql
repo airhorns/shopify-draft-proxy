@@ -1,4 +1,4 @@
-mutation DiscountBulkJobs(
+mutation DiscountAppBulkLiveJobs(
   $activateIds: [ID!]
   $deactivateIds: [ID!]
   $deleteCodeIds: [ID!]
@@ -8,7 +8,6 @@ mutation DiscountBulkJobs(
     job {
       id
       done
-      query
     }
     userErrors {
       field
@@ -21,7 +20,6 @@ mutation DiscountBulkJobs(
     job {
       id
       done
-      query
     }
     userErrors {
       field
@@ -34,7 +32,6 @@ mutation DiscountBulkJobs(
     job {
       id
       done
-      query
     }
     userErrors {
       field
@@ -47,7 +44,6 @@ mutation DiscountBulkJobs(
     job {
       id
       done
-      query
     }
     userErrors {
       field

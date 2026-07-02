@@ -1,4 +1,4 @@
-mutation DiscountAppBulkUpdate(
+mutation DiscountAppBulkLiveUpdate(
   $codeId: ID!
   $codeInput: DiscountCodeAppInput!
   $automaticId: ID!
