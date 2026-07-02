@@ -21,7 +21,6 @@ type BulkOperationNode = {
   id?: unknown;
   status?: unknown;
   url?: unknown;
-  rootObjectCount?: unknown;
 };
 
 const scenarioId = 'bulk-operation-run-query-group-objects';
@@ -193,15 +192,6 @@ function readBulkOperationUrl(node: BulkOperationNode | null): string | null {
   return typeof node?.url === 'string' ? node.url : null;
 }
 
-function readRootObjectCount(node: BulkOperationNode | null): number {
-  const value = node?.rootObjectCount;
-  if (typeof value !== 'string') {
-    return 0;
-  }
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
 async function pollBulkOperationToTerminal(id: string): Promise<CapturedInteraction[]> {
   const polls: CapturedInteraction[] = [];
 
@@ -281,24 +271,6 @@ async function captureRunQueryLifecycle(operationName: string, mutation: string)
   return lifecycle;
 }
 
-function synthesizeProductCountCall(source: Record<string, unknown>, label: string): Record<string, unknown> {
-  return {
-    operationName: 'BulkOperationRunQueryProductCount',
-    variables: {},
-    query: `hand-synthesized from ${scenarioId}.${label}.terminalOperation`,
-    response: {
-      status: 200,
-      body: {
-        data: {
-          productsCount: {
-            count: readRootObjectCount(asRecord(source['terminalOperation'])),
-          },
-        },
-      },
-    },
-  };
-}
-
 await mkdir(outputDir, { recursive: true });
 
 const runQueryGroupObjectsTrue = await captureRunQueryLifecycle(
@@ -323,10 +295,7 @@ const fixture: Record<string, unknown> = {
     runQueryGroupObjectsTrue,
     runQueryGroupObjectsDefault,
   },
-  upstreamCalls: [
-    synthesizeProductCountCall(runQueryGroupObjectsTrue, 'runQueryGroupObjectsTrue'),
-    synthesizeProductCountCall(runQueryGroupObjectsDefault, 'runQueryGroupObjectsDefault'),
-  ],
+  upstreamCalls: [],
 };
 
 await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
