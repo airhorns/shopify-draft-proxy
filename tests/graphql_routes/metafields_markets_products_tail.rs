@@ -7692,7 +7692,7 @@ fn product_duplicate_respects_new_status_override_and_validates_invalid_status()
 }
 
 #[test]
-fn product_delete_async_operation_preserves_pending_delete_readbacks() {
+fn product_delete_async_operation_tombstones_immediate_product_read() {
     let mut proxy = snapshot_proxy();
 
     let source_create = proxy.process_request(json_graphql_request(
@@ -7760,11 +7760,7 @@ fn product_delete_async_operation_preserves_pending_delete_readbacks() {
         json!({ "id": product_id.clone() }),
     ));
     assert_eq!(immediate_read.status, 200);
-    assert_eq!(immediate_read.body["data"]["product"]["id"], product_id);
-    assert_eq!(
-        immediate_read.body["data"]["product"]["title"],
-        json!("Async delete source")
-    );
+    assert_eq!(immediate_read.body["data"]["product"], Value::Null);
 
     let operation_read = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/products/productDelete-operation-read.graphql"),
