@@ -3216,6 +3216,18 @@ pinned definitions, the `pin: true` re-enable returned empty `userErrors` and
 `pinnedPosition: 21`; it did not return `PINNED_LIMIT_REACHED`, and downstream
 `metafieldDefinition(id:)` by the original id still resolved the definition.
 
+Admin GraphQL 2026-04 introspection on `harry-test-heelo.myshopify.com` omits
+older arguments such as `visibleToStorefrontApi` and `useAsCollectionCondition`,
+but live execution still accepts them. `visibleToStorefrontApi: false` on the
+PRODUCT `facts` / `isbn` template returns a successful payload with
+`access.storefront: NONE`, and `useAsCollectionCondition: true` on an ineligible
+template returns `INVALID_CAPABILITY` for `smart_collection_condition`.
+`forceEnable` and `useAsAdminFilter` are rejected by public schema validation
+before resolver execution, so checked-in parity evidence should not claim
+payload parity for those retired arguments. If the proxy keeps them as local
+compatibility inputs, cover that behavior with runtime tests rather than
+Shopify parity targets.
+
 Practical rule:
 
 - keep proxy runtime support constrained to captured standard template IDs/namespaces until broader template catalog reads are modeled
@@ -3848,6 +3860,14 @@ The same capture records app-reserved namespace definition deletes without
 `deleteAllAssociatedMetafields: true` returning
 `RESERVED_NAMESPACE_ORPHANED_METAFIELDS` and message
 `Deleting a definition in a reserved namespace must have deleteAllAssociatedMetafields set to true.`
+
+A 2025-01 live input-validation capture with the current conformance app accepts
+PRODUCT `metafieldDefinitionCreate` in the literal `shopify_standard` and
+`protected` namespaces, returns empty `userErrors`, and allows immediate cleanup
+with `metafieldDefinitionDelete(deleteAllAssociatedMetafields: true)`. The proxy
+still keeps a conservative local `RESERVED` guard for those business namespaces,
+with focused Rust integration coverage instead of claiming those branches as
+strict Shopify parity.
 
 Practical rule:
 

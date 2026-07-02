@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { validateComparisonContract, type ParitySpec } from '../../scripts/conformance-parity-spec.js';
+import { validateRecordedUpstreamCalls } from '../../scripts/parity-cassette.js';
 import {
   buildConformanceStatusDocument,
   listConformanceParitySpecPaths,
@@ -49,6 +50,36 @@ describe('conformance scenario discovery', () => {
 
     for (const scenarioId of scenarioOverrides.keys()) {
       expect(scenarioIds).toContain(scenarioId);
+    }
+  });
+
+  it('keeps metafields captured proxy parity free of local-runtime and descriptor cassette evidence', () => {
+    const descriptorPattern = /hand-synthesized|cassette-backed|recorded by scripts|sha:|local-runtime/u;
+    const metafieldsCapturedProxySpecs = scenarios.filter((scenario) => {
+      if (!scenario.paritySpecPath.startsWith('config/parity-specs/metafields/')) return false;
+      if (scenario.status !== 'captured') return false;
+      const paritySpec = readJson<ParitySpec>(scenario.paritySpecPath);
+      return paritySpec.comparisonMode === 'captured-vs-proxy-request';
+    });
+
+    expect(metafieldsCapturedProxySpecs.length).toBeGreaterThan(0);
+
+    for (const scenario of metafieldsCapturedProxySpecs) {
+      const paritySpec = readJson<ParitySpec>(scenario.paritySpecPath);
+      expect(paritySpec.assertionKinds ?? [], scenario.id).not.toContain('local-runtime-backed');
+      for (const captureFile of paritySpec.liveCaptureFiles ?? []) {
+        expect(captureFile, scenario.id).not.toContain('fixtures/conformance/local-runtime/');
+        expect(captureFile, scenario.id).not.toMatch(descriptorPattern);
+
+        const fixture = readJson<Record<string, unknown>>(captureFile);
+        const upstreamCalls = Array.isArray(fixture['upstreamCalls']) ? fixture['upstreamCalls'] : [];
+        expect(validateRecordedUpstreamCalls(upstreamCalls), captureFile).toEqual([]);
+        for (const call of upstreamCalls) {
+          if (typeof call === 'object' && call !== null && 'query' in call) {
+            expect(String((call as { query?: unknown }).query), captureFile).not.toMatch(descriptorPattern);
+          }
+        }
+      }
     }
   });
 
