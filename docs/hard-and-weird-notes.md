@@ -3521,21 +3521,23 @@ Practical rule:
 - model async duplicate as a local `ProductDuplicateOperation` whose mutation response is created/pending-shaped and whose helper read exposes completion; do not route supported async duplicate writes upstream
 - keep `productDuplicateJob(id:)` as the older unknown-job compatibility helper unless new evidence links it to current async duplicate operations
 
-## 75a. Async `productDelete` starts pending but duplicate errors use nullable fields
+## 75a. Async `productDelete` starts pending but immediate product visibility is timing-sensitive
 
 HAR-932 captured `productDelete(input:, synchronous: false)` on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`.
+A refreshed 2026-04 capture against the same store showed the operation can complete before the immediate downstream product read.
 
 Captured facts:
 
 - the mutation payload returns `deletedProductId: null`, `productDeleteOperation.status: CREATED`, and empty `userErrors`
-- the product remains visible to an immediate downstream `product(id:)` read after the async delete mutation
+- the 2025-01 capture kept the product visible to an immediate downstream `product(id:)` read after the async delete mutation
+- the refreshed 2026-04 capture returned `product: null` for that immediate downstream read, so local timing should prefer the completed-before-read branch instead of requiring a visible pending product
 - a second async delete for the same product while the operation is pending returns `productDeleteOperation: null` and a public `UserError` with `field: null` and message `Another operation already in progress. Please wait until current one is finished.`
 - the public 2025-01 `UserError` selected under `productDelete` / `ProductDeleteOperation.userErrors` does not expose a `code` field
 - helper reads can advance quickly: the capture saw `productOperation(id:)` with status `ACTIVE` and `node(id:)` with status `COMPLETE`; the final cleanup poll saw `productOperation(id:)` as `COMPLETE` with `deletedProductId`
 
 Practical rule:
 
-- model async delete with an initial `ProductDeleteOperation` response, keep the product visible immediately, reject duplicate pending operations with the nullable-field public userError shape, and expose completed readback through `productOperation(id:)` / `node(id:)` without runtime Shopify writes
+- model async delete with an initial `ProductDeleteOperation` response, tombstone the product for immediate local `product(id:)` reads, reject duplicate pending operations with the nullable-field public userError shape while the local operation is recorded, and expose completed readback through `productOperation(id:)` / `node(id:)` without runtime Shopify writes
 
 ## 76. `locationAdd` required input errors are parser-level, but country validation is schema-sensitive
 
@@ -3901,3 +3903,25 @@ Practical rule:
   `["definition"]` error
 - keep the app-reserved namespace delete message aligned with the public
   2026-04 capture, not older/internal wording
+
+## 89. `locationActivate` limit is public-capturable, ongoing relocation was not
+
+Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` can produce a real
+`locationActivate` `LOCATION_LIMIT` branch by creating a disposable active
+location, deactivating it, filling the active merchant-managed location cap, and
+then activating the inactive target. The captured userError is
+`field: ["locationId"]`, `code: LOCATION_LIMIT`, and message
+`Shop has reached its location limit.`
+
+A focused attempt to create `HAS_ONGOING_RELOCATION` through public Admin
+GraphQL did not expose that state: a stocked source location deactivated with a
+destination relocation returned synchronously with `hasActiveInventory: false`,
+and immediate `locationActivate` on the source succeeded with no userErrors.
+
+Practical rule:
+
+- derive location cap state from a live/cassette-backed
+  `StorePropertiesLocationLimitStatus` read rather than synthetic fixture IDs
+- keep `HAS_ONGOING_RELOCATION` as runtime-test-only behavior until a
+  deterministic public or approved disposable-store setup can leave a real
+  incomplete relocation job observable through `locationActivate`

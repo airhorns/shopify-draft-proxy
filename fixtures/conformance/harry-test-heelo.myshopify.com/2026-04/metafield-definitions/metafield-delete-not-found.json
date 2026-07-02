@@ -1,0 +1,238 @@
+{
+  "capturedAt": "2026-07-02T01:09:39.323Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "metafieldsSet plus metafieldsDelete not-found behavior for product-owned metafields: existing identifier deletes, repeat deletes return ordered nulls, and never-created identifiers return ordered nulls.",
+  "seed": {
+    "runId": "mr2t4ctb",
+    "productId": "gid://shopify/Product/10227336610098",
+    "namespace": "custom",
+    "key": "delete_not_found_mr2t4ctb",
+    "neverCreatedKey": "never_created_mr2t4ctb"
+  },
+  "productCreate": {
+    "name": "product-create-setup",
+    "request": {
+      "query": "#graphql\n  mutation MetafieldDeleteNotFoundProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "product": {
+          "title": "Metafields delete not found mr2t4ctb",
+          "status": "DRAFT"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10227336610098",
+            "title": "Metafields delete not found mr2t4ctb"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "setup": {
+    "name": "setup-metafields-set",
+    "request": {
+      "query": "mutation MetafieldDeleteNotFoundSetup($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      id\n      namespace\n      key\n      type\n      value\n    }\n    userErrors {\n      field\n      message\n      code\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "metafields": [
+          {
+            "ownerId": "gid://shopify/Product/10227336610098",
+            "namespace": "custom",
+            "key": "delete_not_found_mr2t4ctb",
+            "type": "single_line_text_field",
+            "value": "delete me mr2t4ctb"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [
+            {
+              "id": "gid://shopify/Metafield/44658166366514",
+              "namespace": "custom",
+              "key": "delete_not_found_mr2t4ctb",
+              "type": "single_line_text_field",
+              "value": "delete me mr2t4ctb"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "deleteExisting": {
+    "name": "delete-existing-identifier",
+    "request": {
+      "query": "mutation MetafieldsDeleteNotFound($metafields: [MetafieldIdentifierInput!]!) {\n  metafieldsDelete(metafields: $metafields) {\n    deletedMetafields {\n      ownerId\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "metafields": [
+          {
+            "ownerId": "gid://shopify/Product/10227336610098",
+            "namespace": "custom",
+            "key": "delete_not_found_mr2t4ctb"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsDelete": {
+          "deletedMetafields": [
+            {
+              "ownerId": "gid://shopify/Product/10227336610098",
+              "namespace": "custom",
+              "key": "delete_not_found_mr2t4ctb"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "repeatDelete": {
+    "name": "repeat-delete-by-just-deleted-identifier",
+    "request": {
+      "query": "mutation MetafieldsDeleteNotFound($metafields: [MetafieldIdentifierInput!]!) {\n  metafieldsDelete(metafields: $metafields) {\n    deletedMetafields {\n      ownerId\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "metafields": [
+          {
+            "ownerId": "gid://shopify/Product/10227336610098",
+            "namespace": "custom",
+            "key": "delete_not_found_mr2t4ctb"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsDelete": {
+          "deletedMetafields": [null],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "neverCreatedDelete": {
+    "name": "delete-never-created-identifier",
+    "request": {
+      "query": "mutation MetafieldsDeleteNotFound($metafields: [MetafieldIdentifierInput!]!) {\n  metafieldsDelete(metafields: $metafields) {\n    deletedMetafields {\n      ownerId\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "metafields": [
+          {
+            "ownerId": "gid://shopify/Product/10227336610098",
+            "namespace": "custom",
+            "key": "never_created_mr2t4ctb"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsDelete": {
+          "deletedMetafields": [null],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "cleanup-product-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetafieldDeleteNotFoundProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10227336610098"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10227336610098",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

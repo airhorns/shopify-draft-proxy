@@ -1221,25 +1221,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Live public Admin GraphQL 2026-04 and unstable expose plural metafieldsDelete but not singular metafieldDelete, so the singular compatibility alias is covered by local-runtime parity plus live plural-root evidence.',
   },
   {
-    domain: 'metafields',
-    captureId: 'metafield-delete-not-found-local-runtime',
-    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
-    scriptPath: 'scripts/capture-metafield-delete-not-found-local-runtime.ts',
-    purpose:
-      'Executable local-runtime parity for singular metafieldDelete happy, repeat-delete, and never-created not-found payloads.',
-    requiredAuthScopes: ['local-runtime'],
-    fixtureOutputs: [
-      'fixtures/conformance/local-runtime/2026-04/metafield-definitions/metafield-delete-not-found.json',
-      'config/parity-specs/metafield-definitions/metafield-delete-not-found.json',
-      'config/parity-requests/metafield-definitions/metafield-delete-not-found-setup.graphql',
-      'config/parity-requests/metafield-definitions/metafield-delete-by-id.graphql',
-    ],
-    cleanupBehavior: 'Local-runtime only; supported mutations stage locally and no Shopify cleanup is required.',
-    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
-    notes:
-      'Live public Admin GraphQL exposes plural metafieldsDelete but not singular metafieldDelete, so this compatibility-root not-found branch is local-runtime-backed.',
-  },
-  {
     domain: 'products',
     captureId: 'tags-add-multi-resource',
     scriptPath: 'scripts/capture-tags-add-multi-resource-conformance.ts',
@@ -2157,7 +2138,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/products/metafieldsSet-missing-namespace.json',
       'config/parity-specs/products/metafieldsSet-owner-expansion.json',
       'config/parity-specs/products/metafieldsSet-parity-plan.json',
-      'config/parity-specs/metafield-definitions/metafield-delete-not-found.json',
       'config/parity-specs/products/metafieldsSet-invalid-compare-digest.json',
       'config/parity-specs/products/metafieldsSet-missing-namespace.json',
       'config/parity-specs/products/metafieldsSet-owner-expansion.json',
@@ -2628,6 +2608,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Creates one disposable product, writes app-owned metafields, deletes the product-owned app-prefixed metafield through metafieldsDelete, and deletes the product during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
+    captureId: 'metafields-delete-not-found',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafields-delete-not-found-conformance.mts',
+    purpose:
+      'metafieldsSet setup plus metafieldsDelete existing, repeat-delete, and never-created identifier payloads.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-delete-not-found.json`,
+      'config/parity-specs/metafield-definitions/metafield-delete-not-found.json',
+      'config/parity-requests/metafield-definitions/metafield-delete-not-found-setup.graphql',
+      'config/parity-requests/metafield-definitions/metafields-delete-not-found.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, writes one product-owned metafield, captures delete and not-found delete branches, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Modern public Admin GraphQL exposes plural metafieldsDelete; the singular metafieldDelete compatibility root remains covered by local runtime tests only.',
   },
   {
     domain: 'products',
@@ -6324,19 +6324,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
-    captureId: 'location-activate-limit-relocation-local-runtime',
+    captureId: 'location-activate-limit',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
-    scriptPath: 'scripts/capture-location-activate-limit-relocation-local-runtime.ts',
+    scriptPath: 'scripts/capture-location-activate-limit-conformance.mts',
     purpose:
-      'Local-runtime recording for locationActivate LOCATION_LIMIT, HAS_ONGOING_RELOCATION, and successful control branches; relocation message text is sourced from Shopify Core i18n because public Admin GraphQL cannot deterministically create an incomplete mass-relocation job.',
-    requiredAuthScopes: ['local-runtime'],
+      'Live locationActivate LOCATION_LIMIT and successful control branches. HAS_ONGOING_RELOCATION remains runtime-test-only because public Admin GraphQL relocation completed synchronously in the disposable shop.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
     fixtureOutputs: [
+      `${CAPTURE_ROOT}location-activate-limit-and-control.json`,
       `${LOCAL_RUNTIME_ROOT}location-activate-limit-and-relocation.json`,
+      'config/parity-specs/store-properties/location-activate-limit-and-control.json',
       'config/parity-specs/store-properties/location-activate-limit-and-relocation.json',
+      'config/parity-requests/store-properties/location-activate-limit-and-control.graphql',
     ],
     cleanupBehavior:
-      'Runs only against the local proxy runtime; the public disposable shop is not at its location limit and exposes no deterministic incomplete mass-relocation setup through Admin GraphQL, so no Shopify cleanup is required.',
-    expectedStatusChecks: ['conformance:check', 'rust:test', 'targeted-runtime-test'],
+      'Creates one disposable inactive control location, one disposable inactive limit target, and enough disposable active locations to reach the shop location cap; deactivates and deletes every disposable location after capture.',
+    notes:
+      'The location-activate-limit-and-relocation protected outputs are retained here only to register deletion of the fabricated local-runtime scenario with the protected-evidence invariant.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'store-properties',
@@ -8536,7 +8541,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04', ORPHAN_FIXTURE_GROUP: 'functions' },
     scriptPath: 'scripts/capture-platform-payments-orphaned-fixtures-conformance.ts',
     purpose:
-      'Re-records cartTransformCreate validation plus local-runtime Function validation/update fixtures consumed by the standard parity runner.',
+      'Re-records live cartTransformCreate validation and registers retirement of stale local-runtime Function parity evidence.',
     requiredAuthScopes: [
       'shopifyFunctions read access',
       'read_cart_transforms',
@@ -8547,9 +8552,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${LOCAL_RUNTIME_ROOT}functions-metadata-flow.json`,
       `${LOCAL_RUNTIME_ROOT}functions-owner-metadata-flow.json`,
       `${LOCAL_RUNTIME_ROOT}functions-validation-create-validation.json`,
+      `${LOCAL_RUNTIME_ROOT}functions-validation-max-cap.json`,
+      `${LOCAL_RUNTIME_ROOT}functions-validation-update-shape.json`,
       `${LOCAL_RUNTIME_ROOT}functions-create-guardrails.json`,
       'config/parity-specs/functions/functions-cart-transform-create-validation.json',
       'config/parity-specs/functions/functions-create-guardrails.json',
+      'config/parity-specs/functions/functions-metadata-local-staging.json',
+      'config/parity-specs/functions/functions-owner-metadata-local-staging.json',
       'config/parity-specs/functions/functions-validation-create-validation.json',
       'config/parity-specs/functions/functions-validation-max-cap.json',
       'config/parity-specs/functions/functions-validation-update-shape.json',
@@ -8568,7 +8577,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Deletes pre-existing cartTransforms before capture, captures unresolved identifier branches with empty readbacks, creates one disposable cartTransform, captures duplicate/API-mismatch/both-identifier branches and downstream readback, then deletes the disposable cartTransform.',
     notes:
-      'The functions-create-guardrails protected outputs are retained here only to register their deletion with the protected-evidence invariant; the fabricated local-runtime scenario is no longer generated or checked.',
+      'The local-runtime protected outputs are retained here only to register their deletion with the protected-evidence invariant; fabricated functions parity scenarios are no longer generated or checked.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -8594,7 +8603,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-delete-error-shape-conformance.ts',
     purpose:
-      'validationDelete/cartTransformDelete missing-id userError shape plus cassette-backed cartTransformCreate/delete canonical deletedId lifecycle.',
+      'validationDelete/cartTransformDelete missing-id userError shape plus live cartTransformCreate/delete canonical deletedId lifecycle.',
     requiredAuthScopes: [
       'read_validations',
       'write_validations for missing validationDelete userError capture',
@@ -8606,7 +8615,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/functions/functions-delete-error-shape.json',
     ],
     cleanupBehavior:
-      'Captures missing-delete userErrors only; no live resources are created. The local lifecycle leg is cassette-backed because the current unattended shop lacks released cart-transform/validation Function handles.',
+      'Captures missing-delete userErrors, cleans existing cartTransforms, creates one disposable cartTransform from the released conformance Function, deletes it, then captures the empty downstream read.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -8695,7 +8704,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'released conformance-validation Function in the installed conformance app',
     ],
     fixtureOutputs: [
-      `${LOCAL_RUNTIME_ROOT}functions-validation-update-shape.json`,
       `${CAPTURE_ROOT}functions-validation-update-defaults.json`,
       'config/parity-specs/functions/functions-validation-update-defaults.json',
     ],
@@ -11556,12 +11564,39 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_customers', 'write_customers'],
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-set-parity.json',
+      `${CAPTURE_ROOT}customer-set-unknown-id-errors.json`,
+      `${CAPTURE_ROOT}customer-set-email-upsert-when-id-absent.json`,
       'fixtures/conformance/local-runtime/2026-04/customers/customer-set-unknown-id-errors.json',
+      'fixtures/conformance/local-runtime/2026-04/customers/customer-set-email-upsert-when-id-absent.json',
       'config/parity-specs/customers/customer-set-unknown-id-code.json',
       'config/parity-specs/customers/customer_set_unknown_id_errors.json',
+      'config/parity-specs/customers/customer_set_email_upsert_when_id_absent.json',
     ],
     cleanupBehavior: 'Tracks all created/upserted customer IDs and deletes remaining records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The local-runtime customerSet fixture outputs are retained only to register deletion of forged parity evidence; the recorder now writes live Shopify replacements.',
+  },
+  {
+    domain: 'customers',
+    captureId: 'customer-delete-order-preconditions',
+    scriptPath: 'scripts/capture-customer-delete-order-preconditions-conformance.ts',
+    purpose:
+      'customerDelete success with no orders and blocked deletion when a real order is associated to the customer.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-delete-no-orders-control.json`,
+      `${CAPTURE_ROOT}customer-delete-blocked-by-orders.json`,
+      'fixtures/conformance/local-runtime/2025-01/customers/customer_delete_no_orders_control.json',
+      'fixtures/conformance/local-runtime/2025-01/customers/customer_delete_blocked_by_orders.json',
+      'config/parity-specs/customers/customer_delete_no_orders_control.json',
+      'config/parity-specs/customers/customer_delete_blocked_by_orders.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable customers plus one disposable order, records delete behavior, then best-effort cancels/deletes the order and deletes remaining customers.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The local-runtime customerDelete fixture outputs are retained only to register deletion of forged parity evidence; the recorder writes live Shopify replacements.',
   },
   {
     domain: 'customers',
