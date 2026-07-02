@@ -188,18 +188,21 @@ pub(in crate::proxy) fn app_uninstall_payload_json(
 }
 
 pub(in crate::proxy) fn app_revoke_access_scopes_payload_json(
-    revoked: Vec<Value>,
+    revoked: Option<Vec<Value>>,
     user_errors: Vec<Value>,
     payload_selection: &[SelectedField],
 ) -> Value {
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
-            "revoked" => Some(Value::Array(
-                revoked
-                    .iter()
-                    .map(|scope| selected_json(scope, &selection.selection))
-                    .collect(),
-            )),
+            "revoked" => Some(match &revoked {
+                Some(scopes) => Value::Array(
+                    scopes
+                        .iter()
+                        .map(|scope| selected_json(scope, &selection.selection))
+                        .collect(),
+                ),
+                None => Value::Null,
+            }),
             "userErrors" => Some(app_user_errors_json(
                 user_errors.clone(),
                 "AppRevokeScopeError",
