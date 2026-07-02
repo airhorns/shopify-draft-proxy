@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { validateComparisonContract, type ParitySpec } from '../../scripts/conformance-parity-spec.js';
+import { validateRecordedUpstreamCalls, type RecordedUpstreamCall } from '../../scripts/parity-cassette.js';
 import {
   buildConformanceStatusDocument,
   listConformanceParitySpecPaths,
@@ -103,6 +104,40 @@ describe('conformance scenario discovery', () => {
         true,
       );
     }
+  });
+
+  it('keeps functions parity evidence free of synthetic provenance markers', () => {
+    const syntheticEvidencePattern = /hand-synthesized|cassette-backed|local-runtime|sha:|recorded by scripts\//u;
+    const failures: string[] = [];
+
+    for (const specPath of paritySpecPaths.filter((candidate) =>
+      candidate.startsWith('config/parity-specs/functions/'),
+    )) {
+      const specText = readFileSync(resolve(repoRoot, specPath), 'utf8');
+      if (syntheticEvidencePattern.test(specText)) {
+        failures.push(`${specPath} contains a synthetic provenance marker`);
+      }
+
+      const paritySpec = readJson<ParitySpec>(specPath);
+      for (const captureFile of paritySpec.liveCaptureFiles ?? []) {
+        if (captureFile.includes('/local-runtime/')) {
+          failures.push(`${specPath} references local-runtime capture ${captureFile}`);
+          continue;
+        }
+
+        const fixtureText = readFileSync(resolve(repoRoot, captureFile), 'utf8');
+        if (syntheticEvidencePattern.test(fixtureText)) {
+          failures.push(`${captureFile} contains a synthetic provenance marker`);
+        }
+
+        const fixture = JSON.parse(fixtureText) as { upstreamCalls?: RecordedUpstreamCall[] };
+        for (const error of validateRecordedUpstreamCalls(fixture.upstreamCalls ?? [])) {
+          failures.push(`${captureFile}: ${error}`);
+        }
+      }
+    }
+
+    expect(failures).toEqual([]);
   });
 
   it('builds conformance status from discovered parity specs', () => {
