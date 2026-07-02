@@ -3640,17 +3640,18 @@ Practical rule:
 ## 80. `marketLocalizationsRemove` treats unmatched filters as no-op removals
 
 Admin GraphQL 2026-04 live probes against `harry-test-heelo.myshopify.com`
-found a disposable success path by creating a product-owned `money` metafield
-definition, setting a CAD money metafield, registering a market localization,
-then removing it.
+created a product-owned `money` metafield definition and set a CAD money
+metafield to probe market localization registration/removal behavior.
 
 Observed behavior:
 
 - `single_line_text_field` product metafields and translatable metaobjects can
   still return empty `marketLocalizableContent`; a definition-backed `money`
   metafield exposed `marketLocalizableContent: [{ key: "value", ... }]`
-- successful remove returned a non-null `marketLocalizations` array containing
-  the removed `key`, `value`, `outdated`, and `market` payload
+- registering a JSON money value for that exposed `value` key returned field
+  `["marketLocalizations", "0", "value"]`, message
+  `Market Localizable content is invalid`, and code
+  `FAILS_RESOURCE_VALIDATION`
 - remove with `marketLocalizationKeys: []` returned `marketLocalizations: null`
   and `userErrors: []`
 - remove with an unknown key or an unknown `marketIds` filter also returned
@@ -3659,6 +3660,8 @@ Observed behavior:
 
 Practical rule:
 
+- reject money-metafield market localization register attempts from observed
+  `marketLocalizableContent` instead of staging an invented translation
 - model `marketLocalizationsRemove` as a filter/removal operation after
   resource existence is established; do not invent resolver-level key or market
   validation errors for unmatched filters without newer live evidence
