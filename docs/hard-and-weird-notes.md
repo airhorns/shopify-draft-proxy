@@ -3216,6 +3216,18 @@ pinned definitions, the `pin: true` re-enable returned empty `userErrors` and
 `pinnedPosition: 21`; it did not return `PINNED_LIMIT_REACHED`, and downstream
 `metafieldDefinition(id:)` by the original id still resolved the definition.
 
+Admin GraphQL 2026-04 introspection on `harry-test-heelo.myshopify.com` omits
+older arguments such as `visibleToStorefrontApi` and `useAsCollectionCondition`,
+but live execution still accepts them. `visibleToStorefrontApi: false` on the
+PRODUCT `facts` / `isbn` template returns a successful payload with
+`access.storefront: NONE`, and `useAsCollectionCondition: true` on an ineligible
+template returns `INVALID_CAPABILITY` for `smart_collection_condition`.
+`forceEnable` and `useAsAdminFilter` are rejected by public schema validation
+before resolver execution, so checked-in parity evidence should not claim
+payload parity for those retired arguments. If the proxy keeps them as local
+compatibility inputs, cover that behavior with runtime tests rather than
+Shopify parity targets.
+
 Practical rule:
 
 - keep proxy runtime support constrained to captured standard template IDs/namespaces until broader template catalog reads are modeled
@@ -3628,17 +3640,18 @@ Practical rule:
 ## 80. `marketLocalizationsRemove` treats unmatched filters as no-op removals
 
 Admin GraphQL 2026-04 live probes against `harry-test-heelo.myshopify.com`
-found a disposable success path by creating a product-owned `money` metafield
-definition, setting a CAD money metafield, registering a market localization,
-then removing it.
+created a product-owned `money` metafield definition and set a CAD money
+metafield to probe market localization registration/removal behavior.
 
 Observed behavior:
 
 - `single_line_text_field` product metafields and translatable metaobjects can
   still return empty `marketLocalizableContent`; a definition-backed `money`
   metafield exposed `marketLocalizableContent: [{ key: "value", ... }]`
-- successful remove returned a non-null `marketLocalizations` array containing
-  the removed `key`, `value`, `outdated`, and `market` payload
+- registering a JSON money value for that exposed `value` key returned field
+  `["marketLocalizations", "0", "value"]`, message
+  `Market Localizable content is invalid`, and code
+  `FAILS_RESOURCE_VALIDATION`
 - remove with `marketLocalizationKeys: []` returned `marketLocalizations: null`
   and `userErrors: []`
 - remove with an unknown key or an unknown `marketIds` filter also returned
@@ -3647,6 +3660,8 @@ Observed behavior:
 
 Practical rule:
 
+- reject money-metafield market localization register attempts from observed
+  `marketLocalizableContent` instead of staging an invented translation
 - model `marketLocalizationsRemove` as a filter/removal operation after
   resource existence is established; do not invent resolver-level key or market
   validation errors for unmatched filters without newer live evidence
@@ -3830,7 +3845,31 @@ Practical rule:
   so repeated-create parity must wait for a scope-capable dev-store credential
   rather than being replaced with local-runtime evidence
 
-## 88. Standard metafield-definition immutable fields return field-specific public errors
+## 88. appRevokeAccessScopes validation nulls revoked and prioritizes unknown scopes
+
+Admin GraphQL 2026-04 live capture against `harry-test-heelo.myshopify.com`
+records safe `appRevokeAccessScopes` validation probes that do not revoke real
+app grants:
+
+- `scopes: ["fake_scope"]` returns `revoked: null` and `UNKNOWN_SCOPES` on
+  `["scopes"]`
+- `scopes: ["read_products", "fake_scope"]` also returns only
+  `UNKNOWN_SCOPES`; the unknown-handle guard takes precedence over required
+  scope rejection
+- `scopes: ["read_products"]` returns `revoked: null` and
+  `CANNOT_REVOKE_REQUIRED_SCOPES` on `["scopes"]`
+
+Practical rule:
+
+- failed `appRevokeAccessScopes` validation should project `revoked: null`, not
+  an empty list
+- do not accumulate required-scope errors when the same request contains an
+  unknown scope handle
+- keep optional-grant success as runtime-test-backed until a disposable app
+  grant can be revoked and restored safely; do not forge captured parity for
+  that branch
+
+## 89. Standard metafield-definition immutable fields return field-specific public errors
 
 Admin GraphQL 2026-04 live capture against `harry-test-heelo.myshopify.com`
 records `metafieldDefinitionUpdate` on the standard product subtitle definition
@@ -3845,6 +3884,14 @@ The same capture records app-reserved namespace definition deletes without
 `deleteAllAssociatedMetafields: true` returning
 `RESERVED_NAMESPACE_ORPHANED_METAFIELDS` and message
 `Deleting a definition in a reserved namespace must have deleteAllAssociatedMetafields set to true.`
+
+A 2025-01 live input-validation capture with the current conformance app accepts
+PRODUCT `metafieldDefinitionCreate` in the literal `shopify_standard` and
+`protected` namespaces, returns empty `userErrors`, and allows immediate cleanup
+with `metafieldDefinitionDelete(deleteAllAssociatedMetafields: true)`. The proxy
+still keeps a conservative local `RESERVED` guard for those business namespaces,
+with focused Rust integration coverage instead of claiming those branches as
+strict Shopify parity.
 
 Practical rule:
 
