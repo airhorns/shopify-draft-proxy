@@ -8,6 +8,8 @@ import { conformanceCaptureIndex } from './conformance-capture-index.js';
 import { validateRecordedUpstreamCalls, type RecordedUpstreamCall } from './parity-cassette.js';
 
 const protectedPaths = ['config/parity-specs', 'config/parity-requests', 'fixtures/conformance'];
+const metafieldDefinitionsParitySpecDir = path.join('config', 'parity-specs', 'metafield-definitions');
+const descriptorQueryPattern = /hand-synthesized|sha:|cassette-backed|recorded by scripts|local-runtime/iu;
 
 const result = spawnSync('git', ['diff', '--name-status', 'origin/main', '--', ...protectedPaths], {
   encoding: 'utf8',
@@ -93,6 +95,45 @@ function walkJsonFiles(directory: string): string[] {
     if (entry.isDirectory()) return walkJsonFiles(entryPath);
     return entry.isFile() && entry.name.endsWith('.json') ? [entryPath] : [];
   });
+}
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function findForbiddenMetafieldDefinitionsEvidence(): string[] {
+  const failures: string[] = [];
+
+  for (const specPath of walkJsonFiles(metafieldDefinitionsParitySpecDir)) {
+    const spec = readJsonObject(specPath);
+    if (!isCapturedProxyParitySpec(spec)) {
+      continue;
+    }
+
+    for (const liveCaptureFile of stringList(spec['liveCaptureFiles'])) {
+      if (liveCaptureFile.startsWith('fixtures/conformance/local-runtime/')) {
+        failures.push(`${specPath}: liveCaptureFiles must not use local-runtime evidence (${liveCaptureFile})`);
+        continue;
+      }
+
+      const absoluteFixturePath = path.resolve(liveCaptureFile);
+      if (!existsSync(absoluteFixturePath)) {
+        continue;
+      }
+
+      const fixture = readJsonObject(absoluteFixturePath);
+      const upstreamCalls = fixture['upstreamCalls'];
+      if (!Array.isArray(upstreamCalls)) continue;
+      upstreamCalls.forEach((call, index) => {
+        const query = isJsonObject(call) ? call['query'] : undefined;
+        if (typeof query === 'string' && descriptorQueryPattern.test(query)) {
+          failures.push(`${liveCaptureFile}: upstreamCalls[${index}].query is descriptor provenance, not GraphQL`);
+        }
+      });
+    }
+  }
+
+  return failures;
 }
 
 function collectShippingFulfillmentFixtureFiles(): string[] {
@@ -246,6 +287,15 @@ function customerEvidenceErrors(repoRoot = process.cwd()): string[] {
   }
 
   return errors;
+}
+
+const metafieldDefinitionsFailures = findForbiddenMetafieldDefinitionsEvidence();
+if (metafieldDefinitionsFailures.length > 0) {
+  process.stderr.write(
+    'metafield-definitions parity evidence must use live Shopify captures, not local-runtime or descriptor provenance.\n',
+  );
+  for (const failure of metafieldDefinitionsFailures) process.stderr.write(`- ${failure}\n`);
+  process.exit(1);
 }
 
 const shippingFulfillmentEvidenceFailures = findForbiddenShippingFulfillmentEvidence();
