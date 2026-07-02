@@ -2,11 +2,11 @@
   "scenarioId": "customer-set-email-upsert-when-id-absent",
   "operationNames": ["customerSet"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "runtime-staging", "no-upstream-passthrough", "local-runtime-backed"],
+  "assertionKinds": ["payload-shape", "runtime-staging", "no-upstream-passthrough"],
   "liveCaptureFiles": [
-    "fixtures/conformance/local-runtime/2026-04/customers/customer-set-email-upsert-when-id-absent.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-set-email-upsert-when-id-absent.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/customers_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/customer-set-email-upsert-when-id-absent.graphql",
     "apiVersion": "2026-04",
@@ -19,10 +19,17 @@
     "targets": [
       {
         "name": "email-upsert-without-id-creates",
-        "capturePath": "$.cases.emailCreate.response",
-        "proxyPath": "$"
+        "capturePath": "$.cases.emailCreate.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.customerSet.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy stages customerSet locally and returns a stable synthetic Customer GID instead of Shopify's live Customer GID."
+          }
+        ]
       }
     ]
   },
-  "notes": "HAR-770 control scenario: customerSet with identifier.email and no identifier.id remains on the upsert/create path."
+  "notes": "Live Shopify Admin GraphQL 2026-04 control scenario: customerSet with identifier.email and no identifier.id remains on the upsert/create path."
 }

@@ -136,6 +136,27 @@ const functionLookupDocument = `#graphql
   }
 `;
 
+const functionHydrateByHandleDocument = `query FunctionHydrateByHandle {
+  shopifyFunctions(first: 100) {
+    nodes {
+      id
+      title
+      handle
+      apiType
+      description
+      appKey
+      app {
+        __typename
+        id
+        title
+        handle
+        apiKey
+      }
+    }
+  }
+}
+`;
+
 const validationCreateDocument = `mutation ValidationMetafieldsSetup($validation: ValidationCreateInput!) {
   validationCreate(validation: $validation) {
     validation {
@@ -313,6 +334,11 @@ const validationFunction = functionNodes
 if (!validationFunction) {
   throw new Error(`Missing released validation Function handle ${validationFunctionHandle}`);
 }
+const functionHydrate = await capture(functionHydrateByHandleDocument, {
+  handle: validationFunctionHandle,
+  apiType: 'VALIDATION',
+});
+assertNoTopLevelErrors(functionHydrate, 'FunctionHydrateByHandle validation Function hydrate');
 
 const runId = Date.now().toString(36);
 const baseValidation = {
@@ -406,7 +432,7 @@ try {
   const fixture = {
     scenarioId: 'functions-validation-metafields-input-validation',
     capturedAt: new Date().toISOString(),
-    source: 'live-shopify-and-cassette-backed-local-runtime',
+    source: 'live-shopify',
     storeDomain,
     apiVersion,
     summary:
@@ -416,6 +442,7 @@ try {
       validationFunction,
     },
     functionLookup,
+    functionHydrate,
     createSetup,
     invalidUpdate,
     postRejectedUpdateRead,
@@ -428,24 +455,18 @@ try {
           handle: validationFunctionHandle,
           apiType: 'VALIDATION',
         },
-        query: 'cassette-backed VALIDATION ShopifyFunction lookup captured from the live conformance app',
+        query: functionHydrate.query,
         response: {
-          status: 200,
-          body: {
-            data: {
-              shopifyFunctions: {
-                nodes: [validationFunction],
-              },
-            },
-          },
+          status: functionHydrate.response.status,
+          body: functionHydrate.response.payload,
         },
       },
     ],
     notes: {
       lifecycle:
         'The script creates one disposable validation with a valid metafield, rejects an invalid validationUpdate metafield payload, verifies the original metafield is still readable, records validationCreate rejection branches, and deletes the disposable validation.',
-      localRuntimeEvidence:
-        'The upstream cassette contains only the ShopifyFunction lookup needed for local validationCreate staging; supported mutations stay local-only under the proxy.',
+      upstreamHydration:
+        'The upstream call is the exact ShopifyFunction lookup the proxy sends when it needs to hydrate Function metadata for local validationCreate staging.',
     },
   };
 

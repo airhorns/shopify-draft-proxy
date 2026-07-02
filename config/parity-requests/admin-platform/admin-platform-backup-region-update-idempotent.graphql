@@ -1,5 +1,5 @@
 mutation BackupRegionUpdateIdempotent {
-  backupRegionUpdate(region: { countryCode: CA }) {
+  backupRegionUpdate(region: { countryCode: AE }) {
     backupRegion {
       __typename
       id

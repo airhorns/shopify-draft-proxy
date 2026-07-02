@@ -47,8 +47,10 @@ the synthetic confirmation URL is still returned for shape fidelity.
 Activated test subscriptions are added to
 `AppInstallation.activeSubscriptions` and receive a deterministic
 `currentPeriodEnd` from the activation timestamp plus the line item's
-billing interval and `trialDays`. The executable local-runtime proof is
-`config/parity-specs/apps/app-subscription-activation-readback.json`.
+billing interval and `trialDays`. This local billing activation behavior is
+runtime-test-backed in `tests/graphql_routes/admin_app.rs`; it is not kept as
+captured parity evidence until a billing-capable disposable app can record the
+same lifecycle from Shopify.
 
 ## Spec shape
 
