@@ -33,6 +33,15 @@ corepack pnpm build
 
 The root package builds the Rust HTTP server first, then compiles the TypeScript shim under `js/`.
 
+## Use a Language Package
+
+The JavaScript package starts and owns the Rust HTTP service. The Ruby and Python
+packages embed the same Rust runtime in-process as native extensions.
+
+- [JavaScript Library](/api/javascript/) for TypeScript and JavaScript tests.
+- [Ruby Gem](/api/ruby/) for Ruby tests and host-language transport hooks.
+- [Python Library](/api/python/) for Python tests and host-language transport hooks.
+
 ## Start the Local HTTP Service
 
 ```sh

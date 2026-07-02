@@ -423,6 +423,62 @@ fn function_metadata_proxy_with_hits(hits: Arc<Mutex<Vec<Value>>>) -> DraftProxy
     })
 }
 
+fn discount_app_test_function() -> Value {
+    json!({
+        "id": "gid://shopify/ShopifyFunction/discount-function",
+        "title": "Discount Function",
+        "handle": "discount-function",
+        "apiType": "discount",
+        "description": "Local discount function",
+        "appKey": "discount-app-key",
+        "app": {
+            "id": "gid://shopify/App/discount-app",
+            "title": "Discount App",
+            "handle": "discount-app",
+            "apiKey": "discount-app-key"
+        }
+    })
+}
+
+fn discount_app_function_upstream_response(
+    request: Request,
+    activation_available: bool,
+) -> Response {
+    let body = serde_json::from_str::<Value>(&request.body)
+        .expect("discount app upstream body should parse");
+    let query = body["query"].as_str().unwrap_or_default();
+    let function = discount_app_test_function();
+    let response_body = if query.contains("ShopifyFunctionByHandle") {
+        json!({ "data": { "shopifyFunctions": { "nodes": [function] } } })
+    } else if query.contains("ShopifyFunctionById") {
+        let mut function = function;
+        function
+            .as_object_mut()
+            .expect("test Function metadata should be an object")
+            .remove("handle");
+        json!({ "data": { "shopifyFunction": function } })
+    } else if query.contains("ShopifyFunctionAvailabilityForDiscountActivation") {
+        let nodes = if activation_available {
+            vec![function]
+        } else {
+            Vec::new()
+        };
+        json!({ "data": { "shopifyFunctions": { "nodes": nodes } } })
+    } else {
+        json!({
+            "errors": [{
+                "message": format!("unexpected discount app upstream request: {body}")
+            }]
+        })
+    };
+
+    Response {
+        status: 200,
+        headers: Default::default(),
+        body: response_body,
+    }
+}
+
 fn cad_snapshot_proxy() -> DraftProxy {
     let mut proxy = snapshot_proxy();
     restore_shop_currency(&mut proxy, "CAD");
@@ -997,6 +1053,414 @@ fn discount_code_app_title_validation_matches_shopify() {
                 "extraInfo": null
             }]
         })
+    );
+}
+
+#[test]
+fn discount_app_lifecycle_stages_updates_reads_and_deletes_without_local_runtime_fixture() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_upstream_transport(|request| discount_app_function_upstream_response(request, true));
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountAppLifecycle($codeInput: DiscountCodeAppInput!, $automaticInput: DiscountAutomaticAppInput!) {
+          discountCodeAppCreate(codeAppDiscount: $codeInput) {
+            codeAppDiscount {
+              __typename
+              discountId
+              title
+              status
+              usageLimit
+              combinesWith { orderDiscounts productDiscounts shippingDiscounts }
+              codes(first: 5) { nodes { code } }
+              appDiscountType { functionId title description }
+            }
+            userErrors { field message code extraInfo }
+          }
+          discountAutomaticAppCreate(automaticAppDiscount: $automaticInput) {
+            automaticAppDiscount {
+              __typename
+              discountId
+              title
+              status
+              recurringCycleLimit
+              appDiscountType { functionId title description }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "codeInput": {
+                "title": "App lifecycle code",
+                "code": "APP-LIFE",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "discount-function",
+                "usageLimit": 10,
+                "combinesWith": {
+                    "orderDiscounts": true,
+                    "productDiscounts": false,
+                    "shippingDiscounts": true
+                },
+                "discountClasses": ["ORDER"]
+            },
+            "automaticInput": {
+                "title": "App lifecycle automatic",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "discount-function",
+                "recurringCycleLimit": 0,
+                "discountClasses": ["ORDER"]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["discountCodeAppCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["discountAutomaticAppCreate"]["userErrors"],
+        json!([])
+    );
+    let code_id = json_string(
+        &create.body["data"]["discountCodeAppCreate"]["codeAppDiscount"]["discountId"],
+        "code app lifecycle id",
+    );
+    let automatic_id = json_string(
+        &create.body["data"]["discountAutomaticAppCreate"]["automaticAppDiscount"]["discountId"],
+        "automatic app lifecycle id",
+    );
+    assert_synthetic_gid(&code_id, "DiscountCodeNode");
+    assert_synthetic_gid(&automatic_id, "DiscountAutomaticNode");
+    assert_eq!(
+        create.body["data"]["discountCodeAppCreate"]["codeAppDiscount"]["appDiscountType"]
+            ["functionId"],
+        json!("discount-function")
+    );
+    assert_eq!(
+        create.body["data"]["discountCodeAppCreate"]["codeAppDiscount"]["codes"],
+        json!({ "nodes": [{ "code": "APP-LIFE" }] })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountAppLifecycleUpdate(
+          $codeId: ID!
+          $codeInput: DiscountCodeAppInput!
+          $automaticId: ID!
+          $automaticInput: DiscountAutomaticAppInput!
+        ) {
+          discountCodeAppUpdate(id: $codeId, codeAppDiscount: $codeInput) {
+            codeAppDiscount { discountId title codes(first: 5) { nodes { code } } }
+            userErrors { field message code extraInfo }
+          }
+          discountAutomaticAppUpdate(id: $automaticId, automaticAppDiscount: $automaticInput) {
+            automaticAppDiscount { discountId title recurringCycleLimit }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "codeId": code_id,
+            "codeInput": {
+                "title": "App lifecycle code updated",
+                "code": "APP-LIFE-UP",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "discount-function",
+                "discountClasses": ["ORDER"]
+            },
+            "automaticId": automatic_id,
+            "automaticInput": {
+                "title": "App lifecycle automatic updated",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "discount-function",
+                "recurringCycleLimit": 2,
+                "discountClasses": ["ORDER"]
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["discountCodeAppUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["discountCodeAppUpdate"]["codeAppDiscount"]["title"],
+        json!("App lifecycle code updated")
+    );
+    assert_eq!(
+        update.body["data"]["discountCodeAppUpdate"]["codeAppDiscount"]["codes"],
+        json!({ "nodes": [{ "code": "APP-LIFE-UP" }] })
+    );
+    assert_eq!(
+        update.body["data"]["discountAutomaticAppUpdate"]["automaticAppDiscount"]
+            ["recurringCycleLimit"],
+        json!(2)
+    );
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountAutomaticAppLifecycleDeactivate($id: ID!) {
+          discountAutomaticDeactivate(id: $id) {
+            automaticDiscountNode {
+              id
+              automaticDiscount { __typename ... on DiscountAutomaticApp { title status endsAt appDiscountType { functionId } } }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": automatic_id }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["discountAutomaticDeactivate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        deactivate.body["data"]["discountAutomaticDeactivate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["status"],
+        json!("EXPIRED")
+    );
+    assert_datetime_string(
+        &deactivate.body["data"]["discountAutomaticDeactivate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["endsAt"],
+        "automatic app deactivate endsAt",
+    );
+
+    let activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountAutomaticAppLifecycleActivate($id: ID!) {
+          discountAutomaticActivate(id: $id) {
+            automaticDiscountNode {
+              id
+              automaticDiscount { __typename ... on DiscountAutomaticApp { title status endsAt appDiscountType { functionId } } }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": automatic_id }),
+    ));
+    assert_eq!(
+        activate.body["data"]["discountAutomaticActivate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["status"],
+        json!("ACTIVE")
+    );
+    assert_eq!(
+        activate.body["data"]["discountAutomaticActivate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["endsAt"],
+        json!(null)
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountAppLifecycleRead($codeId: ID!, $automaticId: ID!, $code: String!) {
+          codeDiscountNode(id: $codeId) {
+            codeDiscount { ... on DiscountCodeApp { title appDiscountType { functionId } codes(first: 5) { nodes { code } } } }
+          }
+          codeDiscountNodeByCode(code: $code) { id }
+          automaticDiscountNode(id: $automaticId) {
+            automaticDiscount { ... on DiscountAutomaticApp { title recurringCycleLimit appDiscountType { functionId } } }
+          }
+          appCount: discountNodesCount(query: "type:app") { count precision }
+        }
+        "#,
+        json!({ "codeId": code_id, "automaticId": automatic_id, "code": "APP-LIFE-UP" }),
+    ));
+    assert_eq!(
+        read.body["data"]["codeDiscountNode"]["codeDiscount"]["title"],
+        json!("App lifecycle code updated")
+    );
+    assert_eq!(
+        read.body["data"]["codeDiscountNodeByCode"]["id"],
+        json!(code_id)
+    );
+    assert_eq!(
+        read.body["data"]["automaticDiscountNode"]["automaticDiscount"]["title"],
+        json!("App lifecycle automatic updated")
+    );
+    assert_eq!(
+        read.body["data"]["appCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountAutomaticAppLifecycleDelete($id: ID!) {
+          discountAutomaticDelete(id: $id) {
+            deletedAutomaticDiscountId
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": automatic_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["discountAutomaticDelete"],
+        json!({
+            "deletedAutomaticDiscountId": automatic_id,
+            "userErrors": []
+        })
+    );
+    let read_after_delete = proxy.process_request(json_graphql_request(
+        r#"query DiscountAutomaticAppReadAfterDelete($id: ID!) {
+          automaticDiscountNode(id: $id) { id }
+          discountNodesCount(query: "type:app") { count precision }
+        }"#,
+        json!({ "id": automatic_id }),
+    ));
+    assert_eq!(
+        read_after_delete.body["data"]["automaticDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["discountNodesCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn discount_app_function_id_hydrate_matches_live_schema_without_function_handle() {
+    let hits = Arc::new(Mutex::new(Vec::new()));
+    let hits_for_transport = hits.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body)
+                .expect("discount app upstream body should parse");
+            hits_for_transport.lock().unwrap().push(body.clone());
+            discount_app_function_upstream_response(request, true)
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountAppFunctionId($input: DiscountCodeAppInput!) {
+          discountCodeAppCreate(codeAppDiscount: $input) {
+            codeAppDiscount {
+              discountId
+              appDiscountType { functionId title description }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Function id app discount",
+                "code": "APP-FUNCTION-ID",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionId": "gid://shopify/ShopifyFunction/discount-function",
+                "discountClasses": ["ORDER"]
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["discountCodeAppCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["discountCodeAppCreate"]["codeAppDiscount"]["appDiscountType"]
+            ["functionId"],
+        json!("gid://shopify/ShopifyFunction/discount-function")
+    );
+
+    let hits = hits.lock().unwrap();
+    let hydrate = hits
+        .iter()
+        .find(|body| {
+            body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("ShopifyFunctionById"))
+        })
+        .expect("functionId app discount create should hydrate the Function by id");
+    let query = hydrate["query"]
+        .as_str()
+        .expect("Function hydrate query should be a string");
+    assert!(
+        !query.contains("\n    handle\n"),
+        "live 2026-04 ShopifyFunction does not expose handle: {query}"
+    );
+}
+
+#[test]
+fn discount_app_activation_fails_when_backing_function_is_unavailable() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_upstream_transport(|request| discount_app_function_upstream_response(request, false));
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountActivationFailureCreate(
+          $codeInput: DiscountCodeAppInput!
+          $automaticInput: DiscountAutomaticAppInput!
+        ) {
+          discountCodeAppCreate(codeAppDiscount: $codeInput) {
+            codeAppDiscount { discountId }
+            userErrors { field message code extraInfo }
+          }
+          discountAutomaticAppCreate(automaticAppDiscount: $automaticInput) {
+            automaticAppDiscount { discountId }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "codeInput": {
+                "title": "Activation failure code app",
+                "code": "ACTIVATEFAILBASE",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "discount-function",
+                "discountClasses": ["ORDER"]
+            },
+            "automaticInput": {
+                "title": "Activation failure automatic app",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "discount-function",
+                "discountClasses": ["ORDER"]
+            }
+        }),
+    ));
+    let code_id = json_string(
+        &create.body["data"]["discountCodeAppCreate"]["codeAppDiscount"]["discountId"],
+        "code activation failure id",
+    );
+    let automatic_id = json_string(
+        &create.body["data"]["discountAutomaticAppCreate"]["automaticAppDiscount"]["discountId"],
+        "automatic activation failure id",
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountActivationFailure($codeId: ID!, $automaticId: ID!) {
+          code: discountCodeActivate(id: $codeId) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          automatic: discountAutomaticActivate(id: $automaticId) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "codeId": code_id, "automaticId": automatic_id }),
+    ));
+
+    let expected_error = json!([{
+        "field": ["base"],
+        "message": "Discount could not be activated.",
+        "code": "INTERNAL_ERROR"
+    }]);
+    assert_eq!(
+        response.body["data"]["code"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(response.body["data"]["code"]["userErrors"], expected_error);
+    assert_eq!(
+        response.body["data"]["automatic"]["automaticDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        response.body["data"]["automatic"]["userErrors"],
+        expected_error
     );
 }
 
@@ -8012,6 +8476,247 @@ fn gift_card_create_notify_false_stages_card_and_notification_disabled_error() {
 }
 
 #[test]
+fn gift_card_local_only_and_schema_hidden_branches_have_explicit_runtime_coverage() {
+    // gift-card-entitlement-disabled
+    {
+        let mut proxy = snapshot_proxy();
+        seed_legacy_gift_card_base_state(&mut proxy);
+        set_gift_cards_unavailable(&mut proxy);
+
+        let response = proxy.process_request(json_graphql_request(
+            r#"mutation GiftCardLocalEntitlementDisabled {
+              createError: giftCardCreate(input: { initialValue: "0", customerId: "gid://shopify/Customer/retired-entitlement" }) { giftCard { id } giftCardCode userErrors { field code message } }
+              updateError: giftCardUpdate(id: "gid://shopify/GiftCard/disabled-entitlement-card", input: { note: "x" }) { giftCard { id } userErrors { field code message } }
+              creditError: giftCardCredit(id: "gid://shopify/GiftCard/disabled-entitlement-card", creditInput: { creditAmount: { amount: "-1", currencyCode: CAD } }) { giftCardCreditTransaction { id } userErrors { field code message } }
+              debitError: giftCardDebit(id: "gid://shopify/GiftCard/disabled-entitlement-card", debitInput: { debitAmount: { amount: "9999", currencyCode: CAD } }) { giftCardDebitTransaction { id } userErrors { field code message } }
+              deactivateError: giftCardDeactivate(id: "gid://shopify/GiftCard/disabled-entitlement-card") { giftCard { id } userErrors { field code message } }
+              customerNotificationError: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/disabled-entitlement-card") { giftCard { id } userErrors { field code message } }
+              recipientNotificationError: giftCardSendNotificationToRecipient(id: "gid://shopify/GiftCard/disabled-entitlement-card") { giftCard { id } userErrors { field code message } }
+            }"#,
+            json!({}),
+        ));
+        let entitlement_error = json!([{ "field": null, "code": null, "message": "Gift cards are unavailable on your plan." }]);
+        assert_eq!(
+            response.body["data"],
+            json!({
+                "createError": { "giftCard": null, "giftCardCode": null, "userErrors": entitlement_error },
+                "updateError": { "giftCard": null, "userErrors": entitlement_error },
+                "creditError": { "giftCardCreditTransaction": null, "userErrors": entitlement_error },
+                "debitError": { "giftCardDebitTransaction": null, "userErrors": entitlement_error },
+                "deactivateError": { "giftCard": null, "userErrors": entitlement_error },
+                "customerNotificationError": { "giftCard": null, "userErrors": entitlement_error },
+                "recipientNotificationError": { "giftCard": null, "userErrors": entitlement_error }
+            })
+        );
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    }
+
+    // gift-card-create-notify
+    {
+        let mut proxy = snapshot_proxy();
+
+        let response = proxy.process_request(json_graphql_request(
+            r#"mutation GiftCardLocalCreateNotify {
+              createNotifyFalse: giftCardCreate(input: { initialValue: "10", notify: false }) {
+                giftCard { id }
+                userErrors { field code message }
+              }
+              notifyDisabled: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic") {
+                giftCard { id }
+                userErrors { field code message }
+              }
+            }"#,
+            json!({}),
+        ));
+        assert_eq!(
+            response.body["data"],
+            json!({
+                "createNotifyFalse": {
+                    "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic" },
+                    "userErrors": []
+                },
+                "notifyDisabled": {
+                    "giftCard": null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "code": "INVALID",
+                        "message": "Notifications for this gift card are disabled."
+                    }]
+                }
+            })
+        );
+        assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+    }
+
+    // gift-card-trial-shop-assignment
+    {
+        let mut proxy = snapshot_proxy();
+        seed_legacy_gift_card_base_state(&mut proxy);
+        set_gift_card_trial_shop(&mut proxy);
+
+        let response = proxy.process_request(json_graphql_request(
+            r#"mutation GiftCardLocalTrialShopAssignment($customerId: ID!, $recipientId: ID!, $updateGiftCardId: ID!) {
+              createCustomerAssignment: giftCardCreate(input: { initialValue: "10", customerId: $customerId }) { giftCard { id } giftCardCode userErrors { field code message } }
+              createRecipientAssignment: giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId } }) { giftCard { id } giftCardCode userErrors { field code message } }
+              updateCustomerAssignment: giftCardUpdate(id: $updateGiftCardId, input: { customerId: $customerId }) { giftCard { id } userErrors { field code message } }
+              updateRecipientAssignment: giftCardUpdate(id: $updateGiftCardId, input: { recipientAttributes: { id: $recipientId } }) { giftCard { id } userErrors { field code message } }
+            }"#,
+            json!({
+                "customerId": "gid://shopify/Customer/retired-trial-customer",
+                "recipientId": "gid://shopify/Customer/retired-trial-recipient",
+                "updateGiftCardId": "gid://shopify/GiftCard/trial-update-card"
+            }),
+        ));
+        assert_eq!(
+            response.body["data"],
+            json!({
+                "createCustomerAssignment": { "giftCard": null, "giftCardCode": null, "userErrors": [{ "field": ["input", "customerId"], "code": "INVALID", "message": "A trial shop cannot assign a customer to a gift card." }] },
+                "createRecipientAssignment": { "giftCard": null, "giftCardCode": null, "userErrors": [{ "field": ["input", "recipientAttributes"], "code": "INVALID", "message": "A trial shop cannot assign a recipient to a gift card." }] },
+                "updateCustomerAssignment": { "giftCard": null, "userErrors": [{ "field": ["input", "customerId"], "code": "INVALID", "message": "A trial shop cannot assign a customer to a gift card." }] },
+                "updateRecipientAssignment": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes"], "code": "INVALID", "message": "A trial shop cannot assign a recipient to a gift card." }] }
+            })
+        );
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    }
+
+    // gift-card-expiry-shop-timezone
+    {
+        let mut proxy = cad_snapshot_proxy();
+        let dump = proxy.process_request(request_with_body(
+            "POST",
+            "/__meta/dump",
+            r#"{"createdAt":"2026-04-29T09:31:02Z"}"#,
+        ));
+        let mut restored = dump.body.clone();
+        restored["state"]["baseState"]["shop"]["ianaTimezone"] = json!("Pacific/Honolulu");
+        restored["state"]["baseState"]["shop"]["timezoneOffsetMinutes"] = json!(-600);
+        let restore = proxy.process_request(request_with_body(
+            "POST",
+            "/__meta/restore",
+            &restored.to_string(),
+        ));
+        assert_eq!(restore.status, 200);
+
+        let customer = proxy.process_request(json_graphql_request(
+            r#"mutation GiftCardLocalExpiryCustomer {
+              customerCreate(input: { firstName: "Retired", lastName: "Timezone", email: "retired-timezone@example.com" }) {
+                customer { id }
+                userErrors { field message code }
+              }
+            }"#,
+            json!({}),
+        ));
+        assert_eq!(
+            customer.body["data"]["customerCreate"]["userErrors"],
+            json!([])
+        );
+        let customer_id = json_string(
+            &customer.body["data"]["customerCreate"]["customer"]["id"],
+            "retired timezone customer id",
+        );
+
+        let setup = proxy.process_request(json_graphql_request(
+            r#"mutation GiftCardLocalExpirySetup($customerId: ID!) {
+              creditCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28" }) { giftCard { id } userErrors { field code message } }
+              debitCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28" }) { giftCard { id } userErrors { field code message } }
+              customerNotificationCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28", customerId: $customerId }) { giftCard { id } userErrors { field code message } }
+              recipientNotificationCard: giftCardCreate(input: { initialValue: "20", expiresOn: "2026-04-28", recipientAttributes: { id: $customerId } }) { giftCard { id } userErrors { field code message } }
+            }"#,
+            json!({ "customerId": customer_id }),
+        ));
+        assert_eq!(setup.body["data"]["creditCard"]["userErrors"], json!([]));
+        assert_eq!(setup.body["data"]["debitCard"]["userErrors"], json!([]));
+        assert_eq!(
+            setup.body["data"]["customerNotificationCard"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            setup.body["data"]["recipientNotificationCard"]["userErrors"],
+            json!([])
+        );
+        let credit_id = json_string(
+            &setup.body["data"]["creditCard"]["giftCard"]["id"],
+            "credit id",
+        );
+        let debit_id = json_string(
+            &setup.body["data"]["debitCard"]["giftCard"]["id"],
+            "debit id",
+        );
+        let customer_notification_id = json_string(
+            &setup.body["data"]["customerNotificationCard"]["giftCard"]["id"],
+            "customer notification id",
+        );
+        let recipient_notification_id = json_string(
+            &setup.body["data"]["recipientNotificationCard"]["giftCard"]["id"],
+            "recipient notification id",
+        );
+
+        let response = proxy.process_request(json_graphql_request(
+            r#"mutation GiftCardLocalExpiryTimezone($creditId: ID!, $debitId: ID!, $customerNotificationId: ID!, $recipientNotificationId: ID!) {
+              credit: giftCardCredit(id: $creditId, creditInput: { creditAmount: { amount: "5.00", currencyCode: CAD } }) { giftCardCreditTransaction { __typename } userErrors { field code message } }
+              debit: giftCardDebit(id: $debitId, debitInput: { debitAmount: { amount: "2.00", currencyCode: CAD } }) { giftCardDebitTransaction { __typename } userErrors { field code message } }
+              customerNotification: giftCardSendNotificationToCustomer(id: $customerNotificationId) { giftCard { id } userErrors { field code message } }
+              recipientNotification: giftCardSendNotificationToRecipient(id: $recipientNotificationId) { giftCard { id } userErrors { field code message } }
+            }"#,
+            json!({
+                "creditId": credit_id,
+                "debitId": debit_id,
+                "customerNotificationId": customer_notification_id,
+                "recipientNotificationId": recipient_notification_id
+            }),
+        ));
+        assert_eq!(
+            response.body["data"],
+            json!({
+                "credit": { "giftCardCreditTransaction": { "__typename": "GiftCardCreditTransaction" }, "userErrors": [] },
+                "debit": { "giftCardDebitTransaction": { "__typename": "GiftCardDebitTransaction" }, "userErrors": [] },
+                "customerNotification": { "giftCard": { "id": customer_notification_id }, "userErrors": [] },
+                "recipientNotification": { "giftCard": { "id": recipient_notification_id }, "userErrors": [] }
+            })
+        );
+    }
+
+    // gift-card-mutation-user-error-codes schema-hidden update code supplement
+    {
+        let mut proxy = cad_snapshot_proxy();
+
+        let response = proxy.process_request(json_graphql_request(
+            r#"mutation GiftCardLocalMutationUserErrorCodes {
+              setupSmallBalance: giftCardCreate(input: { initialValue: "5", code: "retirederrors" }) { giftCard { id } userErrors { field code message } }
+              zeroInitialValue: giftCardCreate(input: { initialValue: "0" }) { giftCard { id } userErrors { field code message } }
+              missingUpdate: giftCardUpdate(id: "gid://shopify/GiftCard/retired-missing", input: { note: "x" }) { giftCard { id } userErrors { field code message } }
+              negativeCredit: giftCardCredit(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", creditInput: { creditAmount: { amount: "-1", currencyCode: CAD } }) { giftCardCreditTransaction { id } userErrors { field code message } }
+              insufficientDebit: giftCardDebit(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", debitInput: { debitAmount: { amount: "9999", currencyCode: CAD } }) { giftCardDebitTransaction { id } userErrors { field code message } }
+            }"#,
+            json!({}),
+        ));
+
+        assert_eq!(
+            response.body["data"],
+            json!({
+                "setupSmallBalance": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic" }, "userErrors": [] },
+                "zeroInitialValue": {
+                    "giftCard": null,
+                    "userErrors": [{ "field": ["input", "initialValue"], "code": "GREATER_THAN", "message": "must be greater than 0" }]
+                },
+                "missingUpdate": {
+                    "giftCard": null,
+                    "userErrors": [{ "field": ["id"], "code": "GIFT_CARD_NOT_FOUND", "message": "The gift card could not be found." }]
+                },
+                "negativeCredit": {
+                    "giftCardCreditTransaction": null,
+                    "userErrors": [{ "field": ["creditInput", "creditAmount", "amount"], "code": "NEGATIVE_OR_ZERO_AMOUNT", "message": "A positive amount must be used." }]
+                },
+                "insufficientDebit": {
+                    "giftCardDebitTransaction": null,
+                    "userErrors": [{ "field": ["debitInput", "debitAmount", "amount"], "code": "INSUFFICIENT_FUNDS", "message": "The gift card does not have sufficient funds to satisfy the request." }]
+                }
+            })
+        );
+    }
+}
+
+#[test]
 fn discount_timestamps_create_update_and_code_reads_preserve_staged_values() {
     let mut proxy = snapshot_proxy();
     let create = r#"mutation DiscountTimestampsMonotonicCreate($input: DiscountCodeBasicInput!) { discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeBasic { title createdAt updatedAt codes(first: 1) { nodes { code } } } } } userErrors { field message code } } }"#;
@@ -8670,6 +9375,34 @@ fn discount_subscription_fields_not_permitted_matches_local_runtime_gating() {
     );
     assert_eq!(
         updated.body["data"]["basicUpdate"]["userErrors"][0]["message"],
+        json!("Customer gets applies on subscription is not permitted for this shop.")
+    );
+
+    let free_shipping_update = r#"mutation DiscountSubscriptionFieldsFreeShippingUpdate($id: ID!) { freeShippingUpdate: discountCodeFreeShippingUpdate(id: $id, freeShippingCodeDiscount: { title: "Setup shipping", code: "SETUP-SHIP-SUB", startsAt: "2026-04-25T00:00:00Z", destination: { all: true }, appliesOnSubscription: true }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }"#;
+    let free_shipping_updated = proxy.process_request(json_graphql_request(
+        free_shipping_update,
+        json!({ "id": setup_free_shipping_id }),
+    ));
+    assert_eq!(
+        free_shipping_updated.body["data"]["freeShippingUpdate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        free_shipping_updated.body["data"]["freeShippingUpdate"]["userErrors"][0]["message"],
+        json!("Applies on subscription is not permitted for this shop.")
+    );
+
+    let automatic_basic_update = r#"mutation DiscountSubscriptionFieldsAutomaticBasicUpdate($id: ID!) { automaticBasicUpdate: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: { title: "Setup automatic basic", startsAt: "2026-04-25T00:00:00Z", customerGets: { value: { percentage: 0.1 }, items: { all: true }, appliesOnSubscription: true } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }"#;
+    let automatic_basic_updated = proxy.process_request(json_graphql_request(
+        automatic_basic_update,
+        json!({ "id": setup_automatic_basic_id }),
+    ));
+    assert_eq!(
+        automatic_basic_updated.body["data"]["automaticBasicUpdate"]["automaticDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        automatic_basic_updated.body["data"]["automaticBasicUpdate"]["userErrors"][0]["message"],
         json!("Customer gets applies on subscription is not permitted for this shop.")
     );
 

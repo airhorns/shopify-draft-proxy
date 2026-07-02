@@ -1,0 +1,37 @@
+{
+  "capturedAt": "2026-07-02T21:18:47.591Z",
+  "scenarioId": "payment-reminder-send-shape",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": "Live Shopify schema-validation capture replacing the former local-runtime paymentReminderSend payload-shape fixture. The invalid customerPaymentMethod selection is rejected before mutation execution.",
+  "cases": {
+    "invalidSelection": {
+      "request": {
+        "query": "mutation PaymentReminderSendInvalidField($paymentScheduleId: ID!) {\n  paymentReminderSend(paymentScheduleId: $paymentScheduleId) {\n    customerPaymentMethod {\n      id\n    }\n    success\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "paymentScheduleId": "gid://shopify/PaymentSchedule/999999999999999"
+        }
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Field 'customerPaymentMethod' doesn't exist on type 'PaymentReminderSendPayload'",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "path": ["mutation PaymentReminderSendInvalidField", "paymentReminderSend", "customerPaymentMethod"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "PaymentReminderSendPayload",
+              "fieldName": "customerPaymentMethod"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "upstreamCalls": []
+}
