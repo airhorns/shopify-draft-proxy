@@ -1,12 +1,12 @@
 {
-  "capturedAt": "2026-06-25T14:05:12.026Z",
+  "capturedAt": "2026-06-30T13:20:04.739Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "scope": "bundled price-list and web-presence local-dispatch parity",
   "cases": [
     {
       "name": "webPresences baseline for bundled preflight",
-      "query": "#graphql\n#graphql\nfragment BundledPriceListWebPresenceFields on MarketWebPresence {\n  id\n  subfolderSuffix\n  domain {\n    id\n    host\n    url\n    sslEnabled\n  }\n  rootUrls {\n    locale\n    url\n  }\n  defaultLocale {\n    locale\n    name\n    primary\n    published\n  }\n  alternateLocales {\n    locale\n    name\n    primary\n    published\n  }\n}\n\nquery BundledPriceListWebPresenceBaselineRead($first: Int!) {\n  webPresences(first: $first) {\n    nodes {\n      ...BundledPriceListWebPresenceFields\n    }\n  }\n}\n",
+      "query": "query MarketsMutationPreflightHydrate($first: Int!) { webPresences(first: $first) { nodes { id subfolderSuffix domain { id host url sslEnabled } rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } } }",
       "variables": {
         "first": 20
       },
@@ -37,7 +37,10 @@
                     "primary": true,
                     "published": true
                   },
-                  "alternateLocales": []
+                  "alternateLocales": [],
+                  "markets": {
+                    "nodes": []
+                  }
                 },
                 {
                   "id": "gid://shopify/MarketWebPresence/69720899890",
@@ -55,7 +58,10 @@
                     "primary": true,
                     "published": true
                   },
-                  "alternateLocales": []
+                  "alternateLocales": [],
+                  "markets": {
+                    "nodes": []
+                  }
                 },
                 {
                   "id": "gid://shopify/MarketWebPresence/69720998194",
@@ -73,18 +79,21 @@
                     "primary": true,
                     "published": true
                   },
-                  "alternateLocales": []
+                  "alternateLocales": [],
+                  "markets": {
+                    "nodes": []
+                  }
                 }
               ]
             }
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 27,
-              "actualQueryCost": 7,
+              "requestedQueryCost": 52,
+              "actualQueryCost": 8,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1993,
+                "currentlyAvailable": 1992,
                 "restoreRate": 100
               }
             }
@@ -97,7 +106,7 @@
       "query": "#graphql\nfragment BundledPriceListWebPresenceFields on MarketWebPresence {\n  id\n  subfolderSuffix\n  domain {\n    id\n    host\n    url\n    sslEnabled\n  }\n  rootUrls {\n    locale\n    url\n  }\n  defaultLocale {\n    locale\n    name\n    primary\n    published\n  }\n  alternateLocales {\n    locale\n    name\n    primary\n    published\n  }\n}\n\nmutation BundledPriceListWebPresenceCreate(\n  $priceListInput: PriceListCreateInput!\n  $webPresenceInput: WebPresenceCreateInput!\n) {\n  priceListCreate(input: $priceListInput) {\n    priceList {\n      id\n      name\n      currency\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  webPresenceCreate(input: $webPresenceInput) {\n    webPresence {\n      ...BundledPriceListWebPresenceFields\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "priceListInput": {
-          "name": "Bundled web presence DKK mqtkqrpy",
+          "name": "Bundled web presence DKK mr0oc076",
           "currency": "DKK",
           "parent": {
             "adjustment": {
@@ -109,7 +118,7 @@
         "webPresenceInput": {
           "defaultLocale": "en",
           "alternateLocales": [],
-          "subfolderSuffix": "harlkaxfwqkjy"
+          "subfolderSuffix": "harxusoodlnyo"
         }
       },
       "response": {
@@ -118,21 +127,21 @@
           "data": {
             "priceListCreate": {
               "priceList": {
-                "id": "gid://shopify/PriceList/32297812274",
-                "name": "Bundled web presence DKK mqtkqrpy",
+                "id": "gid://shopify/PriceList/32302727474",
+                "name": "Bundled web presence DKK mr0oc076",
                 "currency": "DKK"
               },
               "userErrors": []
             },
             "webPresenceCreate": {
               "webPresence": {
-                "id": "gid://shopify/MarketWebPresence/70501237042",
-                "subfolderSuffix": "harlkaxfwqkjy",
+                "id": "gid://shopify/MarketWebPresence/70577062194",
+                "subfolderSuffix": "harxusoodlnyo",
                 "domain": null,
                 "rootUrls": [
                   {
                     "locale": "en",
-                    "url": "https://harry-test-heelo.myshopify.com/en-harlkaxfwqkjy/"
+                    "url": "https://harry-test-heelo.myshopify.com/en-harxusoodlnyo/"
                   }
                 ],
                 "defaultLocale": {
@@ -164,13 +173,39 @@
   "cleanup": [
     {
       "type": "webPresence",
-      "id": "gid://shopify/MarketWebPresence/70501237042",
+      "id": "gid://shopify/MarketWebPresence/70577062194",
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "webPresenceDelete": {
-              "deletedId": "gid://shopify/MarketWebPresence/70501237042",
+              "deletedId": "gid://shopify/MarketWebPresence/70577062194",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "priceList",
+      "id": "gid://shopify/PriceList/32302727474",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListDelete": {
+              "deletedId": "gid://shopify/PriceList/32302727474",
               "userErrors": []
             }
           },
@@ -187,55 +222,15 @@
           }
         }
       }
-    },
-    {
-      "type": "priceList",
-      "id": "gid://shopify/PriceList/32297812274",
-      "response": {
-        "status": 200,
-        "payload": {
-          "data": {
-            "priceListDelete": {
-              "deletedId": "gid://shopify/PriceList/32297812274",
-              "userErrors": []
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
     }
   ],
   "upstreamCalls": [
     {
       "operationName": "MarketsMutationPreflightHydrate",
       "variables": {
-        "priceListInput": {
-          "name": "Bundled web presence DKK mqtkqrpy",
-          "currency": "DKK",
-          "parent": {
-            "adjustment": {
-              "type": "PERCENTAGE_DECREASE",
-              "value": 10
-            }
-          }
-        },
-        "webPresenceInput": {
-          "defaultLocale": "en",
-          "alternateLocales": [],
-          "subfolderSuffix": "harlkaxfwqkjy"
-        }
+        "first": 20
       },
-      "query": "hand-synthesized from checked-in capture",
+      "query": "query MarketsMutationPreflightHydrate($first: Int!) { webPresences(first: $first) { nodes { id subfolderSuffix domain { id host url sslEnabled } rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -263,7 +258,10 @@
                     "primary": true,
                     "published": true
                   },
-                  "alternateLocales": []
+                  "alternateLocales": [],
+                  "markets": {
+                    "nodes": []
+                  }
                 },
                 {
                   "id": "gid://shopify/MarketWebPresence/69720899890",
@@ -281,7 +279,10 @@
                     "primary": true,
                     "published": true
                   },
-                  "alternateLocales": []
+                  "alternateLocales": [],
+                  "markets": {
+                    "nodes": []
+                  }
                 },
                 {
                   "id": "gid://shopify/MarketWebPresence/69720998194",
@@ -299,9 +300,23 @@
                     "primary": true,
                     "published": true
                   },
-                  "alternateLocales": []
+                  "alternateLocales": [],
+                  "markets": {
+                    "nodes": []
+                  }
                 }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 52,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
             }
           }
         }
