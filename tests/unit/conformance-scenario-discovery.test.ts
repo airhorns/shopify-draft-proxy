@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { parse as parseGraphql } from 'graphql';
 import { describe, expect, it } from 'vitest';
 
 import { validateComparisonContract, type ParitySpec } from '../../scripts/conformance-parity-spec.js';
@@ -21,6 +22,33 @@ const descriptorCassetteQueryPattern =
 
 function readJson<T>(relativePath: string): T {
   return JSON.parse(readFileSync(resolve(repoRoot, relativePath), 'utf8')) as T;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function collectUpstreamCallQueries(value: unknown, jsonPath = '$'): Array<{ path: string; query: unknown }> {
+  if (Array.isArray(value)) {
+    return value.flatMap((entry, index) => collectUpstreamCallQueries(entry, `${jsonPath}[${index}]`));
+  }
+
+  if (!isRecord(value)) {
+    return [];
+  }
+
+  const ownQueries = Array.isArray(value['upstreamCalls'])
+    ? value['upstreamCalls'].map((entry, index) => ({
+        path: `${jsonPath}.upstreamCalls[${index}].query`,
+        query: isRecord(entry) ? entry['query'] : undefined,
+      }))
+    : [];
+
+  const nestedQueries = Object.entries(value).flatMap(([key, entry]) =>
+    collectUpstreamCallQueries(entry, `${jsonPath}.${key}`),
+  );
+
+  return [...ownQueries, ...nestedQueries];
 }
 
 describe('conformance scenario discovery', () => {
@@ -186,5 +214,43 @@ describe('conformance scenario discovery', () => {
     expect(status.captureOnlyScenarioIds).toHaveLength(0);
     expect(status.captureOnlyScenarioIds).not.toContain('product-create-live-parity');
     expect(status.implementedOperations.every((entry) => entry.scenarioIds.length > 0)).toBe(true);
+  });
+
+  it('blocks synthetic metaobjects parity evidence from captured scenarios', () => {
+    const failures: string[] = [];
+    const metaobjectScenarios = scenarios.filter((scenario) =>
+      scenario.paritySpecPath.startsWith('config/parity-specs/metaobjects/'),
+    );
+
+    for (const scenario of metaobjectScenarios) {
+      const paritySpec = readJson<ParitySpec>(scenario.paritySpecPath);
+      if (paritySpec.scenarioStatus !== 'captured') {
+        continue;
+      }
+
+      for (const captureFile of paritySpec.liveCaptureFiles ?? []) {
+        if (captureFile.includes('/local-runtime/')) {
+          failures.push(`${scenario.id}: ${captureFile} must not be used as captured metaobjects parity evidence`);
+          continue;
+        }
+
+        const fixture = readJson<unknown>(captureFile);
+        for (const { path, query } of collectUpstreamCallQueries(fixture)) {
+          if (typeof query !== 'string') {
+            failures.push(`${scenario.id}: ${captureFile} ${path} must be an exact GraphQL document string`);
+            continue;
+          }
+
+          try {
+            parseGraphql(query);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            failures.push(`${scenario.id}: ${captureFile} ${path} is not parseable GraphQL: ${message}`);
+          }
+        }
+      }
+    }
+
+    expect(failures).toEqual([]);
   });
 });

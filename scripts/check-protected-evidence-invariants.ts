@@ -49,7 +49,8 @@ const changed = result.stdout
       status,
       path: secondPath ?? firstPath,
     };
-  });
+  })
+  .filter((entry) => entry.path.length > 0);
 
 const unregistered = changed.filter(
   ({ status, path: changedPath }) =>
