@@ -6324,19 +6324,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
-    captureId: 'location-activate-limit-relocation-local-runtime',
+    captureId: 'location-activate-limit',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
-    scriptPath: 'scripts/capture-location-activate-limit-relocation-local-runtime.ts',
+    scriptPath: 'scripts/capture-location-activate-limit-conformance.mts',
     purpose:
-      'Local-runtime recording for locationActivate LOCATION_LIMIT, HAS_ONGOING_RELOCATION, and successful control branches; relocation message text is sourced from Shopify Core i18n because public Admin GraphQL cannot deterministically create an incomplete mass-relocation job.',
-    requiredAuthScopes: ['local-runtime'],
+      'Live locationActivate LOCATION_LIMIT and successful control branches. HAS_ONGOING_RELOCATION remains runtime-test-only because public Admin GraphQL relocation completed synchronously in the disposable shop.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
     fixtureOutputs: [
+      `${CAPTURE_ROOT}location-activate-limit-and-control.json`,
       `${LOCAL_RUNTIME_ROOT}location-activate-limit-and-relocation.json`,
+      'config/parity-specs/store-properties/location-activate-limit-and-control.json',
       'config/parity-specs/store-properties/location-activate-limit-and-relocation.json',
+      'config/parity-requests/store-properties/location-activate-limit-and-control.graphql',
     ],
     cleanupBehavior:
-      'Runs only against the local proxy runtime; the public disposable shop is not at its location limit and exposes no deterministic incomplete mass-relocation setup through Admin GraphQL, so no Shopify cleanup is required.',
-    expectedStatusChecks: ['conformance:check', 'rust:test', 'targeted-runtime-test'],
+      'Creates one disposable inactive control location, one disposable inactive limit target, and enough disposable active locations to reach the shop location cap; deactivates and deletes every disposable location after capture.',
+    notes:
+      'The location-activate-limit-and-relocation protected outputs are retained here only to register deletion of the fabricated local-runtime scenario with the protected-evidence invariant.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'store-properties',
