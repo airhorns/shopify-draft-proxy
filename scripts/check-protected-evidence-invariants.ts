@@ -205,12 +205,62 @@ function adminPlatformEvidenceErrors(repoRoot = process.cwd()): string[] {
   return errors;
 }
 
+function customerEvidenceErrors(repoRoot = process.cwd()): string[] {
+  const specRoot = path.join(repoRoot, 'config', 'parity-specs', 'customers');
+  const errors: string[] = [];
+  if (!existsSync(specRoot)) return errors;
+
+  const descriptorPattern = /^(?:hand-synthesized|sha:|cassette-backed|recorded by scripts\/|local-runtime)/u;
+
+  for (const specPath of walkJsonFiles(specRoot)) {
+    const spec = readJsonObject(specPath);
+    if (!isCapturedProxyParitySpec(spec)) continue;
+
+    const liveCaptureFiles = spec['liveCaptureFiles'];
+    if (!Array.isArray(liveCaptureFiles)) continue;
+
+    for (const captureFile of liveCaptureFiles) {
+      if (typeof captureFile !== 'string') continue;
+      if (captureFile.startsWith('fixtures/conformance/local-runtime/')) {
+        errors.push(`${specPath}: liveCaptureFiles contains local-runtime fixture ${captureFile}`);
+        continue;
+      }
+      if (!captureFile.includes('/customers/')) continue;
+
+      const absoluteFixturePath = path.resolve(repoRoot, captureFile);
+      if (!existsSync(absoluteFixturePath)) continue;
+
+      const fixture = readJsonObject(absoluteFixturePath);
+      const upstreamCalls = fixture['upstreamCalls'];
+      if (!Array.isArray(upstreamCalls)) continue;
+
+      upstreamCalls.forEach((upstreamCall, index) => {
+        const query = isJsonObject(upstreamCall) ? upstreamCall['query'] : undefined;
+        if (typeof query === 'string' && descriptorPattern.test(query)) {
+          errors.push(
+            `${captureFile}: upstreamCalls[${index}].query is a provenance descriptor (${JSON.stringify(query)})`,
+          );
+        }
+      });
+    }
+  }
+
+  return errors;
+}
+
 const shippingFulfillmentEvidenceFailures = findForbiddenShippingFulfillmentEvidence();
 if (shippingFulfillmentEvidenceFailures.length > 0) {
   process.stderr.write(
     'shipping-fulfillments parity evidence contains local-runtime fixtures or descriptor upstream calls.\n',
   );
   for (const failure of shippingFulfillmentEvidenceFailures) process.stderr.write(`- ${failure}\n`);
+  process.exit(1);
+}
+
+const customerErrors = customerEvidenceErrors();
+if (customerErrors.length > 0) {
+  process.stderr.write('Customers parity evidence contains local-runtime captures or descriptor upstream queries.\n');
+  for (const error of customerErrors) process.stderr.write(`- ${error}\n`);
   process.exit(1);
 }
 
@@ -224,6 +274,8 @@ if (adminPlatformErrors.length > 0) {
 }
 
 process.stdout.write('Protected parity evidence additions/modifications are registered in the capture index.\n');
+
+process.stdout.write('Customers parity evidence uses live fixture paths and GraphQL upstream cassette queries.\n');
 
 function trackedFiles(pathspec: string): string[] {
   const trackedResult = spawnSync('git', ['ls-files', '--', pathspec], { encoding: 'utf8' });
