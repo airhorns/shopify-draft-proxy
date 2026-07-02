@@ -56,7 +56,7 @@ Billing behavior:
 
 Access and uninstall behavior:
 
-- `appRevokeAccessScopes` removes locally granted optional scopes from the current app installation. Unknown, non-granted, required, and implied scopes return Shopify-shaped userErrors without partial revocation. Local-runtime missing-source-app coverage is modeled through request-owned source-app context rather than the GraphQL operation name.
+- `appRevokeAccessScopes` removes locally granted optional scopes from the current app installation. Live 2026-04 validation evidence covers unknown handles, required-scope rejection, and mixed unknown-plus-required input: failed validation returns `revoked: null`, and unknown handles take precedence over the required-scope guard. Optional-grant success, non-granted, and implied-scope branches remain runtime-test-backed because recording optional success would revoke a real app grant from the active conformance app.
 - The `appRevokeAccessScopes` missing-source-app branch is Core-source-derived, not real-Shopify-recorded: valid public Admin requests carry source app context, while unauthenticated requests fail before the mutation resolver. Local replay uses `x-shopify-draft-proxy-source-app-missing` and returns `MISSING_SOURCE_APP` on `["id"]` with `No app found on the access token.`.
 - `appUninstall` resolves the target app from `input.id` or the current installation, enforces current-installation visibility and the `apps` scope where needed, marks the target installation uninstalled on success, clears its active access grant, cancels locally staged active/pending subscriptions, and destroys stored delegated tokens.
 - `appUninstall` APP_NOT_FOUND and APP_NOT_INSTALLED userError messages follow Core's `apps.admin.graph_api_errors.app_uninstall` i18n strings (`App not found`, `App is not installed on shop`) rather than the mutation's `add_error_code` placeholder text.
@@ -84,10 +84,12 @@ Synthetic confirmation URLs use `signature=shopify-draft-proxy-local-redacted`. 
 ### Evidence
 
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/apps/app-billing-access-read.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/app-revoke-access-scopes-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-create-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-create-expires-after-parent.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-destroy-codes.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-shop-payload.json`
+- `config/parity-specs/apps/app-revoke-access-scopes-validation.json`
 - `config/parity-specs/apps/delegate-access-token-create-validation.json`
 - `config/parity-specs/apps/delegate-access-token-create-expires-after-parent.json`
 - `config/parity-specs/apps/delegate-access-token-destroy-codes.json`
@@ -100,5 +102,6 @@ Synthetic confirmation URLs use `signature=shopify-draft-proxy-local-redacted`. 
 
 - `cargo test --test graphql_routes admin_app`
 - `cargo test --test graphql_routes admin_app_shipping`
+- `corepack pnpm parity -- app-revoke-access-scopes-validation`
 - `corepack pnpm parity -- delegate-access-token-destroy-codes`
 - `corepack pnpm conformance:check`

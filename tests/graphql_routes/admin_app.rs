@@ -256,7 +256,7 @@ fn app_revoke_access_scopes_validates_atomically_and_updates_current_installatio
     assert_eq!(
         unknown.body["data"]["appRevokeAccessScopes"],
         json!({
-            "revoked": [],
+            "revoked": null,
             "userErrors": [{
                 "field": ["scopes"],
                 "message": "The requested list of scopes to revoke includes invalid handles.",
@@ -277,23 +277,15 @@ fn app_revoke_access_scopes_validates_atomically_and_updates_current_installatio
         json!({}),
     ));
     assert_eq!(
-        mixed.body["data"]["appRevokeAccessScopes"]["revoked"],
-        json!([])
-    );
-    assert_eq!(
-        mixed.body["data"]["appRevokeAccessScopes"]["userErrors"],
-        json!([
-            {
-                "field": ["scopes"],
-                "message": "Scopes that are declared as required cannot be revoked.",
-                "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
-            },
-            {
+        mixed.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "revoked": null,
+            "userErrors": [{
                 "field": ["scopes"],
                 "message": "The requested list of scopes to revoke includes invalid handles.",
                 "code": "UNKNOWN_SCOPES"
-            }
-        ])
+            }]
+        })
     );
 
     let required = proxy.process_request(json_graphql_request(
@@ -310,7 +302,7 @@ fn app_revoke_access_scopes_validates_atomically_and_updates_current_installatio
     assert_eq!(
         required.body["data"]["appRevokeAccessScopes"],
         json!({
-            "revoked": [],
+            "revoked": null,
             "userErrors": [{
                 "field": ["scopes"],
                 "message": "Scopes that are declared as required cannot be revoked.",
@@ -1594,7 +1586,7 @@ fn removed_app_revoke_access_scopes_codes_scenario_has_rust_coverage() {
     assert_eq!(
         unknown.body["data"]["appRevokeAccessScopes"],
         json!({
-            "revoked": [],
+            "revoked": null,
             "userErrors": [{
                 "field": ["scopes"],
                 "message": "The requested list of scopes to revoke includes invalid handles.",
@@ -1617,19 +1609,12 @@ fn removed_app_revoke_access_scopes_codes_scenario_has_rust_coverage() {
     assert_eq!(
         mixed.body["data"]["appRevokeAccessScopes"],
         json!({
-            "revoked": [],
-            "userErrors": [
-                {
-                    "field": ["scopes"],
-                    "message": "Scopes that are declared as required cannot be revoked.",
-                    "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
-                },
-                {
-                    "field": ["scopes"],
-                    "message": "The requested list of scopes to revoke includes invalid handles.",
-                    "code": "UNKNOWN_SCOPES"
-                }
-            ]
+            "revoked": null,
+            "userErrors": [{
+                "field": ["scopes"],
+                "message": "The requested list of scopes to revoke includes invalid handles.",
+                "code": "UNKNOWN_SCOPES"
+            }]
         })
     );
 
@@ -1647,7 +1632,7 @@ fn removed_app_revoke_access_scopes_codes_scenario_has_rust_coverage() {
     assert_eq!(
         required.body["data"]["appRevokeAccessScopes"],
         json!({
-            "revoked": [],
+            "revoked": null,
             "userErrors": [{
                 "field": ["scopes"],
                 "message": "Scopes that are declared as required cannot be revoked.",

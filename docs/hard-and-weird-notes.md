@@ -3833,7 +3833,31 @@ Practical rule:
   so repeated-create parity must wait for a scope-capable dev-store credential
   rather than being replaced with local-runtime evidence
 
-## 88. Standard metafield-definition immutable fields return field-specific public errors
+## 88. appRevokeAccessScopes validation nulls revoked and prioritizes unknown scopes
+
+Admin GraphQL 2026-04 live capture against `harry-test-heelo.myshopify.com`
+records safe `appRevokeAccessScopes` validation probes that do not revoke real
+app grants:
+
+- `scopes: ["fake_scope"]` returns `revoked: null` and `UNKNOWN_SCOPES` on
+  `["scopes"]`
+- `scopes: ["read_products", "fake_scope"]` also returns only
+  `UNKNOWN_SCOPES`; the unknown-handle guard takes precedence over required
+  scope rejection
+- `scopes: ["read_products"]` returns `revoked: null` and
+  `CANNOT_REVOKE_REQUIRED_SCOPES` on `["scopes"]`
+
+Practical rule:
+
+- failed `appRevokeAccessScopes` validation should project `revoked: null`, not
+  an empty list
+- do not accumulate required-scope errors when the same request contains an
+  unknown scope handle
+- keep optional-grant success as runtime-test-backed until a disposable app
+  grant can be revoked and restored safely; do not forge captured parity for
+  that branch
+
+## 89. Standard metafield-definition immutable fields return field-specific public errors
 
 Admin GraphQL 2026-04 live capture against `harry-test-heelo.myshopify.com`
 records `metafieldDefinitionUpdate` on the standard product subtitle definition

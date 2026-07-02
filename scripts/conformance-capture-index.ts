@@ -8301,6 +8301,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'apps',
+    captureId: 'app-revoke-access-scopes-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-app-revoke-access-scopes-validation-conformance.ts',
+    purpose: 'Safe appRevokeAccessScopes validation branches that do not revoke real app grants.',
+    requiredAuthScopes: ['active Admin API token with current app source context'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}app-revoke-access-scopes-validation.json`,
+      'config/parity-specs/apps/app-revoke-access-scopes-validation.json',
+      'config/parity-requests/apps/appRevokeAccessScopes-fake-scope.graphql',
+      'config/parity-requests/apps/appRevokeAccessScopes-mixed-fake-scope.graphql',
+      'config/parity-requests/apps/appRevokeAccessScopes-required-read-products.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only capture; unknown and required-scope probes do not revoke app grants. Optional-grant success is intentionally excluded because it would revoke a real active-app scope.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'apps',
     captureId: 'delegate-access-token-shop-payload',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-delegate-access-token-shop-payload-conformance.ts',
