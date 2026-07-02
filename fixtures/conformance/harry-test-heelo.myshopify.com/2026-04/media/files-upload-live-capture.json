@@ -1,0 +1,206 @@
+{
+  "capturedAt": "2026-07-02T20:51:41.951Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "files-upload-local-runtime",
+  "create": {
+    "variables": {
+      "files": [
+        {
+          "alt": "Media parity replacement file",
+          "contentType": "IMAGE",
+          "filename": "media-replacement-files-upload-1783025499615.jpg",
+          "originalSource": "https://placehold.co/600x400.jpg"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "fileCreate": {
+          "files": [
+            {
+              "id": "gid://shopify/MediaImage/43987958759730",
+              "alt": "Media parity replacement file",
+              "createdAt": "2026-07-02T20:51:39Z",
+              "fileStatus": "UPLOADED",
+              "image": null,
+              "preview": {
+                "image": null
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 23,
+          "actualQueryCost": 23,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1977,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterCreate": {
+    "variables": {},
+    "response": {
+      "data": {
+        "files": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MediaImage/43987958759730",
+              "alt": "Media parity replacement file",
+              "createdAt": "2026-07-02T20:51:39Z",
+              "fileStatus": "PROCESSING",
+              "image": null,
+              "preview": {
+                "image": null
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0Mzk4Nzk1ODc1OTczMCwibGFzdF92YWx1ZSI6IjQzOTg3OTU4NzU5NzMwIn0=",
+            "endCursor": "eyJsYXN0X2lkIjo0Mzk4Nzk1ODc1OTczMCwibGFzdF92YWx1ZSI6IjQzOTg3OTU4NzU5NzMwIn0="
+          }
+        },
+        "fileSavedSearches": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1981,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "stagedUploadsCreate": {
+    "variables": {
+      "input": [
+        {
+          "filename": "safe-upload.txt",
+          "mimeType": "text/plain",
+          "resource": "FILE",
+          "httpMethod": "POST"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "stagedUploadsCreate": {
+          "stagedTargets": [
+            {
+              "url": "https://shopify-staged-uploads.storage.googleapis.com/",
+              "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/files/bce185ea-3497-4aaf-9550-4f9095a8a3c1/safe-upload.txt",
+              "parameters": [
+                {
+                  "name": "Content-Type",
+                  "value": "text/plain"
+                },
+                {
+                  "name": "success_action_status",
+                  "value": "201"
+                },
+                {
+                  "name": "acl",
+                  "value": "private"
+                },
+                {
+                  "name": "key",
+                  "value": "tmp/92891250994/files/bce185ea-3497-4aaf-9550-4f9095a8a3c1/safe-upload.txt"
+                },
+                {
+                  "name": "x-goog-date",
+                  "value": "20260702T205139Z"
+                },
+                {
+                  "name": "x-goog-credential",
+                  "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260702/auto/storage/goog4_request"
+                },
+                {
+                  "name": "x-goog-algorithm",
+                  "value": "GOOG4-RSA-SHA256"
+                },
+                {
+                  "name": "x-goog-signature",
+                  "value": "2792c9a1644288546599ca95d2653d35ed1c003677440d35ce6b37e8c44d2a63820a74b43d76e74c708dd479f3656878d1ccc59edf172e49de119ba6fd5d8ccbe781568c08f311c2cb4eeedc3f99cdfbe1693da8797b44b71f595673a32003c9fcd709067183b40e75e398c17ceccd9bb2070e44b37d974bc1bb20d857583de0baef9d115a45b3d44cdf54eaa212f8b48abfd8b271f1900700634898148cbb00576fa24783a6487a1f6f385e952edcc9e788f4223aaa0c49097620af38b5fda8ef9626f04891a4b1381691ac1c582b92317ccefbd2cbecbd26327054c235fbda299e853b83b08ad7941ac95c46091d490f6005083b864e7be787e99cbf23448a"
+                },
+                {
+                  "name": "policy",
+                  "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJ0ZXh0XC9wbGFpbiJ9LHsic3VjY2Vzc19hY3Rpb25fc3RhdHVzIjoiMjAxIn0seyJhY2wiOiJwcml2YXRlIn0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMSwyMDk3MTUyMF0seyJidWNrZXQiOiJzaG9waWZ5LXN0YWdlZC11cGxvYWRzIn0seyJrZXkiOiJ0bXBcLzkyODkxMjUwOTk0XC9maWxlc1wvYmNlMTg1ZWEtMzQ5Ny00YWFmLTk1NTAtNGY5MDk1YThhM2MxXC9zYWZlLXVwbG9hZC50eHQifSx7IngtZ29vZy1kYXRlIjoiMjAyNjA3MDJUMjA1MTM5WiJ9LHsieC1nb29nLWNyZWRlbnRpYWwiOiJtZXJjaGFudC1hc3NldHNAc2hvcGlmeS10aWVycy5pYW0uZ3NlcnZpY2VhY2NvdW50LmNvbVwvMjAyNjA3MDJcL2F1dG9cL3N0b3JhZ2VcL2dvb2c0X3JlcXVlc3QifSx7IngtZ29vZy1hbGdvcml0aG0iOiJHT09HNC1SU0EtU0hBMjU2In1dLCJleHBpcmF0aW9uIjoiMjAyNi0wNy0wM1QyMDo1MTozOVoifQ=="
+                }
+              ]
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1982,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "fileUpdateConflictingSources": {
+    "variables": {
+      "files": [
+        {
+          "id": "gid://shopify/MediaImage/43987958759730",
+          "originalSource": "https://placehold.co/800x600.jpg",
+          "previewImageSource": "https://placehold.co/600x400.jpg"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "fileUpdate": {
+          "files": [],
+          "userErrors": [
+            {
+              "field": ["files"],
+              "message": "Non-ready files cannot be updated.",
+              "code": "NON_READY_STATE"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1982,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

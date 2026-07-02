@@ -1,0 +1,131 @@
+{
+  "scenarioId": "file-update-product-reference-local-staging",
+  "operationNames": ["fileCreate", "fileUpdate", "files", "product"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/file-update-product-reference-local-staging.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/fileUpdate-product-reference-create.graphql",
+    "variablesCapturePath": "$.create.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify capture for fileUpdate.referencesToAdd against an existing product while the file is still non-ready; the product remains unattached and downstream files preserve the staged file.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "file-create",
+        "capturePath": "$.create.response.data.fileCreate",
+        "proxyPath": "$.data.fileCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.files[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates a local MediaImage GID; Shopify returns the dev-store MediaImage GID."
+          },
+          {
+            "path": "$.files[0].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic staged timestamps; Shopify returns the live creation timestamp."
+          },
+          {
+            "path": "$.files[0].image",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify image materialization is asynchronous; the proxy keeps the accepted source URL immediately."
+          },
+          {
+            "path": "$.files[0].preview",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify preview materialization is asynchronous; the proxy keeps the accepted source URL immediately."
+          }
+        ]
+      },
+      {
+        "name": "file-update-attach-product-reference",
+        "capturePath": "$.attach.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/fileUpdate-product-reference-attach.graphql",
+          "variables": {
+            "files": [
+              {
+                "id": {
+                  "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+                },
+                "alt": "Media parity product reference attached",
+                "originalSource": "https://placehold.co/800x600.jpg",
+                "referencesToAdd": [
+                  {
+                    "fromCapturePath": "$.setup.productCreate.response.data.productCreate.product.id"
+                  }
+                ]
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "product-media-read-after-file-reference-attach",
+        "capturePath": "$.productReadAfterAttach.response.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/fileUpdate-product-reference-product-read.graphql",
+          "variables": {
+            "productId": {
+              "fromCapturePath": "$.setup.productCreate.response.data.productCreate.product.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "files-read-after-product-reference-attach",
+        "capturePath": "$.filesReadAfterAttach.response.data.files.nodes[0]",
+        "proxyPath": "$.data.files.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/fileUpdate-product-reference-files-read.graphql",
+          "variablesCapturePath": "$.filesReadAfterAttach.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates a local MediaImage GID; Shopify returns the dev-store MediaImage GID."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic staged timestamps; Shopify returns the live creation timestamp."
+          },
+          {
+            "path": "$.fileStatus",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify media processing status can advance asynchronously; the proxy keeps deterministic staged status."
+          },
+          {
+            "path": "$.image",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify image materialization is asynchronous; the proxy keeps the accepted source URL immediately."
+          },
+          {
+            "path": "$.preview",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify preview materialization is asynchronous; the proxy keeps the accepted source URL immediately."
+          }
+        ]
+      }
+    ]
+  }
+}

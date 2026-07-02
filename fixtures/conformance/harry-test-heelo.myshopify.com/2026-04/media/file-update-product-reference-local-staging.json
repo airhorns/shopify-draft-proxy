@@ -1,0 +1,229 @@
+{
+  "capturedAt": "2026-07-02T20:51:41.951Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "file-update-product-reference-local-staging",
+  "setup": {
+    "productCreate": {
+      "variables": {
+        "product": {
+          "title": "Media parity file reference target 1783025499615",
+          "status": "ACTIVE"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10229424619826",
+              "title": "Media parity file reference target 1783025499615"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "create": {
+    "variables": {
+      "files": [
+        {
+          "alt": "Media parity product reference source",
+          "contentType": "IMAGE",
+          "filename": "media-replacement-product-reference-1783025499615.jpg",
+          "originalSource": "https://placehold.co/600x400.jpg"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "fileCreate": {
+          "files": [
+            {
+              "id": "gid://shopify/MediaImage/43987959120178",
+              "alt": "Media parity product reference source",
+              "createdAt": "2026-07-02T20:51:41Z",
+              "fileStatus": "UPLOADED",
+              "image": null
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 21,
+          "actualQueryCost": 21,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1976,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "attach": {
+    "variables": {
+      "files": [
+        {
+          "id": "gid://shopify/MediaImage/43987959120178",
+          "alt": "Media parity product reference attached",
+          "originalSource": "https://placehold.co/800x600.jpg",
+          "referencesToAdd": ["gid://shopify/Product/10229424619826"]
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "fileUpdate": {
+          "files": [],
+          "userErrors": [
+            {
+              "field": ["files"],
+              "message": "Non-ready files cannot be updated.",
+              "code": "NON_READY_STATE"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "productReadAfterAttach": {
+    "variables": {
+      "productId": "gid://shopify/Product/10229424619826"
+    },
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10229424619826",
+          "title": "Media parity file reference target 1783025499615",
+          "media": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 19,
+          "actualQueryCost": 7,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "filesReadAfterAttach": {
+    "variables": {},
+    "response": {
+      "data": {
+        "files": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MediaImage/43987959120178",
+              "alt": "Media parity product reference source",
+              "createdAt": "2026-07-02T20:51:41Z",
+              "fileStatus": "PROCESSING",
+              "image": null
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0Mzk4Nzk1OTEyMDE3OCwibGFzdF92YWx1ZSI6IjQzOTg3OTU5MTIwMTc4In0=",
+            "endCursor": "eyJsYXN0X2lkIjo0Mzk4Nzk1OTEyMDE3OCwibGFzdF92YWx1ZSI6IjQzOTg3OTU5MTIwMTc4In0="
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1993,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "MediaProductHydrate",
+      "variables": {
+        "id": "gid://shopify/Product/10229424619826"
+      },
+      "query": "query MediaProductHydrate($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    status\n    media(first: 50) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n        preview { image { url width height } }\n        ... on MediaImage { image { url width height } }\n      }\n    }\n    variants(first: 50) {\n      nodes {\n        id\n        title\n        media(first: 10) { nodes { id } }\n      }\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10229424619826",
+              "title": "Media parity file reference target 1783025499615",
+              "handle": "media-parity-file-reference-target-1783025499615",
+              "status": "ACTIVE",
+              "media": {
+                "nodes": []
+              },
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51413217116466",
+                    "title": "Default Title",
+                    "media": {
+                      "nodes": []
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 82,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

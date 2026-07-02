@@ -1,0 +1,32 @@
+query MediaFileAcknowledgeUpdateFailedSemanticsRead {
+  files(first: 1, reverse: true) {
+    nodes {
+      id
+      alt
+      createdAt
+      fileStatus
+      __typename
+      ... on MediaImage {
+        mediaErrors {
+          code
+          message
+        }
+        mediaWarnings {
+          code
+          message
+        }
+        image {
+          url
+          width
+          height
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

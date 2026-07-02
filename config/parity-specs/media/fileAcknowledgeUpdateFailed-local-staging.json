@@ -1,0 +1,106 @@
+{
+  "scenarioId": "fileAcknowledgeUpdateFailed-local-staging",
+  "operationNames": ["fileCreate", "fileUpdate", "fileAcknowledgeUpdateFailed", "files"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "side-effect-boundary", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/file-acknowledge-update-failed-local-staging.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-acknowledge-update-failed-semantics-create.graphql",
+    "variablesCapturePath": "$.create.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify capture for the non-ready fileUpdate and fileAcknowledgeUpdateFailed validation branches plus immediate downstream files read.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "update-to-ready",
+        "capturePath": "$.updateToReady.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/fileUpdate-parity.graphql",
+          "variables": {
+            "files": [
+              {
+                "id": {
+                  "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+                },
+                "alt": "Media parity file acknowledgement ready attempt",
+                "originalSource": "https://placehold.co/800x600.jpg"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "acknowledge-update-failed",
+        "capturePath": "$.acknowledge.response.data.fileAcknowledgeUpdateFailed",
+        "proxyPath": "$.data.fileAcknowledgeUpdateFailed",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/fileAcknowledgeUpdateFailed-parity.graphql",
+          "variables": {
+            "fileIds": [
+              {
+                "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.userErrors[0].message",
+            "matcher": "regex:^File with id gid://shopify/MediaImage/.+ is not in the READY state\\.$",
+            "reason": "The message embeds the file id; the proxy emits its synthetic GID and Shopify emits the live GID."
+          }
+        ]
+      },
+      {
+        "name": "files-read-after-acknowledge",
+        "capturePath": "$.readAfterAcknowledge.response.data.files.nodes[0]",
+        "proxyPath": "$.data.files.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/fileAcknowledgeUpdateFailed-downstream-read.graphql",
+          "variablesCapturePath": "$.readAfterAcknowledge.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates a local MediaImage GID; Shopify returns the dev-store MediaImage GID."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic staged timestamps; Shopify returns the live creation timestamp."
+          },
+          {
+            "path": "$.fileStatus",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify media processing status can advance asynchronously; the proxy keeps deterministic staged status."
+          },
+          {
+            "path": "$.image",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify image materialization is asynchronous; the proxy keeps the accepted source URL immediately."
+          },
+          {
+            "path": "$.preview",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify preview materialization is asynchronous; the proxy keeps the accepted source URL immediately."
+          }
+        ]
+      }
+    ]
+  }
+}

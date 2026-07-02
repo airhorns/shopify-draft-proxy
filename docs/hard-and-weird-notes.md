@@ -3920,3 +3920,23 @@ Practical rule:
 - future file-delete cascade improvements should prefer a public, version-stable
   product/media hydration path over relying on `MediaImage.references` in API
   versions where the field is not exposed
+
+## 90. Public 2026-04 Files API selection boundaries for local replacement parity
+
+The live replacement captures for the older media parity scenarios exposed two
+public-schema boundaries that the former local fixtures had papered over:
+
+- `filename` is accepted in `FileCreateInput`, but public Admin GraphQL 2026-04
+  rejects selecting `filename` on the `File` interface.
+- `mediaErrors` and `mediaWarnings` are not `File` interface fields; select
+  them under concrete media fragments such as `... on MediaImage`.
+- An immediate `files(query: "filename:'name.jpg'")` read did not return the
+  freshly created files in this capture. The stable live read shape for these
+  scenarios is `files(first: 1, reverse: true)`, matching the existing
+  immediate media read captures.
+
+Practical rule:
+
+- keep restored media parity request documents on public fields only, and use
+  reverse-order immediate reads when the scenario needs the newly created file
+  without relying on full file-search semantics.

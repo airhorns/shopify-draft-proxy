@@ -229,18 +229,24 @@ Local staged mutations:
   covers omitted `contentType` inference for image, video, document,
   extensionless, and `.glb` sources. The `.glb` branch records Shopify's
   GenericFile behavior; `MODEL_3D` remains an explicit-contentType path.
-- Focused Rust runtime coverage covers local `files`, empty
-  `fileSavedSearches`, `stagedUploadsCreate`, and
-  `fileAcknowledgeUpdateFailed` payload/read-after-write behavior without
-  treating those local-only assertions as Shopify parity recordings. Live
-  staged-upload target payload captures cover IMAGE, FILE, VIDEO, and MODEL_3D
-  target metadata while preserving the no-upload/no-storage runtime boundary.
+- The historically named
+  `config/parity-specs/media/files-upload-local-runtime.json`,
+  `media-file-acknowledge-update-failed-semantics.json`,
+  `fileUpdate-product-reference-local-staging.json`, and
+  `fileAcknowledgeUpdateFailed-local-staging.json` scenarios are now backed by
+  live Shopify Admin GraphQL 2026-04 recordings under
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/`, not by
+  `fixtures/conformance/local-runtime`. They cover local `files`, empty
+  `fileSavedSearches`, `stagedUploadsCreate`, non-ready `fileUpdate`, product
+  reference validation, and `fileAcknowledgeUpdateFailed`
+  payload/read-after-write behavior from real request/response captures.
+  Focused Rust runtime tests still guard the local staging implementation.
 - `config/parity-specs/media/staged_uploads_create_required_args.json` and
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/staged_uploads_create_required_args.json`
   cover top-level `stagedUploadsCreate` schema coercion for omitted required
   `filename` and `mimeType` fields.
-- Focused Rust runtime coverage for `fileAcknowledgeUpdateFailed` covers
-  acknowledgement payloads and downstream `files` reads. The Shopify 2026-04
+- `fileAcknowledgeUpdateFailed` parity covers acknowledgement payloads and
+  downstream `files` reads. The Shopify 2026-04
   live capture records that the mutation takes `fileIds`, returns a `files`
   list, accepts READY files, reports `FILE_DOES_NOT_EXIST` for unknown/deleted
   IDs, and reports `NON_READY_STATE` for FAILED files produced by a bad-source
@@ -253,14 +259,11 @@ Local staged mutations:
   READY files. It preserves the mutation payload shape, parent READY
   validation, downstream empty error/warning list shape, and raw mutation log
   behavior without stamping synthetic acknowledgement metadata.
-- Focused Rust runtime coverage exercises the Files API product-reference
-  boundary for locally staged files: a local `fileCreate` MediaImage rejected by
-  `fileUpdate.referencesToAdd` while non-ready remains visible through
-  top-level `files`, and product media reads stay computed from known store
-  state. This is intentionally local behavior coverage because external upload
-  byte transfer and Shopify processing are still outside the proxy boundary;
-  existing live Files API fixtures anchor the generic create/update payload
-  family.
+- Live parity now exercises the Files API product-reference boundary for a
+  newly created non-ready file: `fileUpdate.referencesToAdd` rejects the edit,
+  the file remains visible through top-level `files`, and product media reads
+  stay empty. External upload byte transfer and Shopify processing remain
+  outside the proxy boundary.
 - Remaining media parity scenarios use cassette-backed LiveHybrid execution.
   `fileUpdate.referencesToAdd` uses a product hydrate
   cassette entry before local staging, and `fileDelete` of a product-owned
