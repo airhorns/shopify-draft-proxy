@@ -1,7 +1,7 @@
 {
   "scenarioId": "functions-validation-create-error-shape",
-  "capturedAt": "2026-05-05T23:20:51.207Z",
-  "source": "live-shopify-and-cassette-backed-local-runtime",
+  "capturedAt": "2026-06-30T13:25:20.707Z",
+  "source": "live-shopify",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "summary": "validationCreate userError shape evidence for unknown Function id, wrong Function API type, missing Function identifier, and multiple Function identifiers.",
@@ -58,6 +58,21 @@
                   "handle": "hermes-conformance-products",
                   "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
                 }
+              },
+              {
+                "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+                "title": "conformance-discount",
+                "handle": "conformance-discount",
+                "apiType": "discount",
+                "description": "conformance-discount",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
               }
             ]
           }
@@ -69,6 +84,68 @@
             "throttleStatus": {
               "maximumAvailable": 2000,
               "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "unknownFunctionHydrate": {
+    "query": "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n",
+    "variables": {
+      "id": "01900000-0000-7000-8000-000000000000"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopifyFunction": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cartFunctionHydrate": {
+    "query": "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n",
+    "variables": {
+      "id": "019dd44b-127f-724b-a49c-70fc98ff4d72"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopifyFunction": {
+            "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+            "title": "conformance-cart-transform",
+            "apiType": "cart_transform",
+            "description": "conformance-cart-transform",
+            "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+            "app": {
+              "__typename": "App",
+              "id": "gid://shopify/App/347082227713",
+              "title": "hermes-conformance-products",
+              "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
               "restoreRate": 100
             }
           }
@@ -148,12 +225,23 @@
       "variables": {
         "id": "01900000-0000-7000-8000-000000000000"
       },
-      "query": "query FunctionHydrateById($id: String!) { shopifyFunction(id: $id) { id title handle apiType description appKey app { __typename id title handle apiKey }  } }",
+      "query": "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "shopifyFunction": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -163,7 +251,7 @@
       "variables": {
         "id": "019dd44b-127f-724b-a49c-70fc98ff4d72"
       },
-      "query": "query FunctionHydrateById($id: String!) { shopifyFunction(id: $id) { id title handle apiType description appKey app { __typename id title handle apiKey }  } }",
+      "query": "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -171,7 +259,6 @@
             "shopifyFunction": {
               "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
               "title": "conformance-cart-transform",
-              "handle": "conformance-cart-transform",
               "apiType": "cart_transform",
               "description": "conformance-cart-transform",
               "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
@@ -179,8 +266,18 @@
                 "__typename": "App",
                 "id": "gid://shopify/App/347082227713",
                 "title": "hermes-conformance-products",
-                "handle": "hermes-conformance-products",
                 "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
               }
             }
           }
@@ -190,6 +287,6 @@
   ],
   "notes": {
     "liveUserErrorEvidence": "All four validationCreate userError branches are captured live from Shopify on the conformance shop.",
-    "localRuntimeEvidence": "The upstream cassette contains only ShopifyFunction hydration reads required for the proxy to evaluate the same Function references in LiveHybrid mode."
+    "upstreamHydration": "The upstream calls are the exact ShopifyFunction hydration reads required for the proxy to evaluate the same Function references in LiveHybrid mode."
   }
 }
