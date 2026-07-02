@@ -46,6 +46,7 @@ const { runGraphqlRequest } = createAdminGraphqlClient({
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+const upstreamCalls: CapturedInteraction[] = [];
 
 const bulkOperationFields = `
   id
@@ -94,6 +95,15 @@ const bulkOperationByIdQuery = `#graphql
   query BulkOperationByIdCapture($id: ID!) {
     bulkOperation(id: $id) {
       ${bulkOperationFields}
+    }
+  }
+`;
+
+const productsCountQuery = `#graphql
+  query BulkOperationRunQueryProductCount {
+    productsCount {
+      count
+      precision
     }
   }
 `;
@@ -266,6 +276,9 @@ async function captureRunQueryLifecycle(operationName: string, mutation: string)
     if (resultUrl) {
       lifecycle['result'] = await captureBulkOperationResult(resultUrl);
     }
+    const productCount = await capture('BulkOperationRunQueryProductCount', productsCountQuery);
+    upstreamCalls.push(productCount);
+    lifecycle['productCount'] = productCount;
   }
 
   return lifecycle;
@@ -295,7 +308,7 @@ const fixture: Record<string, unknown> = {
     runQueryGroupObjectsTrue,
     runQueryGroupObjectsDefault,
   },
-  upstreamCalls: [],
+  upstreamCalls,
 };
 
 await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
