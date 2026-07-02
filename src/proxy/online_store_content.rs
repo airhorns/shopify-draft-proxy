@@ -925,6 +925,19 @@ impl DraftProxy {
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        if self
+            .store
+            .staged
+            .deleted_online_store_comment_ids
+            .contains(&id)
+        {
+            return online_store_payload(
+                &field.selection,
+                "comment",
+                Value::Null,
+                vec![comment_not_found_error()],
+            );
+        }
         if !self.store.staged.online_store_comments.contains_key(&id) {
             self.hydrate_online_store_content_from_upstream(
                 request,
@@ -1016,6 +1029,19 @@ impl DraftProxy {
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        if self
+            .store
+            .staged
+            .deleted_online_store_comment_ids
+            .contains(&id)
+        {
+            return delete_payload(
+                &field.selection,
+                "deletedCommentId",
+                Value::Null,
+                vec![comment_not_found_error()],
+            );
+        }
         if !self.store.staged.online_store_comments.contains_key(&id) {
             self.hydrate_online_store_content_from_upstream(
                 request,
@@ -1023,13 +1049,7 @@ impl DraftProxy {
                 ONLINE_STORE_COMMENT_HYDRATE_QUERY,
             );
         }
-        if self
-            .store
-            .staged
-            .deleted_online_store_comment_ids
-            .contains(&id)
-            || !self.store.staged.online_store_comments.contains_key(&id)
-        {
+        if !self.store.staged.online_store_comments.contains_key(&id) {
             return delete_payload(
                 &field.selection,
                 "deletedCommentId",
