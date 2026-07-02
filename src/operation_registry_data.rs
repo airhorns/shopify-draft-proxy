@@ -472,7 +472,15 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
         entry!("taxSummaryCreate", Mutation, Orders, false, []),
         entry!("orderCancel", Mutation, Orders, true, []),
         entry!("fulfillmentCreate", Mutation, Orders, true, []),
+        entry!("fulfillmentCreateV2", Mutation, Orders, false, []),
         entry!("fulfillmentTrackingInfoUpdate", Mutation, Orders, true, []),
+        entry!(
+            "fulfillmentTrackingInfoUpdateV2",
+            Mutation,
+            Orders,
+            false,
+            []
+        ),
         entry!("fulfillmentCancel", Mutation, Orders, true, []),
         entry!("fulfillment", Query, Orders, true, ["tests/graphql_routes/orders.rs"]),
         entry!("fulfillmentEventCreate", Mutation, Orders, true, ["tests/graphql_routes.rs"]),

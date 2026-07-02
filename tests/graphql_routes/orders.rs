@@ -161,7 +161,7 @@ fn stage_fulfillment_for_event(proxy: &mut DraftProxy) -> (Value, Value) {
               displayStatus
               events(first: 5) { nodes { id status } }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -243,7 +243,7 @@ fn stage_fulfilled_order_for_return(proxy: &mut DraftProxy) -> (Value, Value) {
                 nodes { id quantity lineItem { id title } }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -276,6 +276,89 @@ fn return_removal_setup_from_payload(order_id: Value, payload: &Value) -> Return
         order_id,
         return_id: payload["return"]["id"].clone(),
         return_line_item_id: payload["return"]["returnLineItems"]["nodes"][0]["id"].clone(),
+    }
+}
+
+#[test]
+fn order_refund_and_fulfillment_plain_user_errors_reject_code_selection() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrdersPlainUserErrorCodeSelectionRejected {
+          refund: refundCreate(input: { orderId: "gid://shopify/Order/999999999" }) {
+            userErrors { field message code }
+          }
+          create: fulfillmentCreate(fulfillment: {
+            lineItemsByFulfillmentOrder: [{ fulfillmentOrderId: "gid://shopify/FulfillmentOrder/1" }]
+          }) {
+            userErrors { code }
+          }
+          createV2: fulfillmentCreateV2(fulfillment: {
+            lineItemsByFulfillmentOrder: [{ fulfillmentOrderId: "gid://shopify/FulfillmentOrder/1" }]
+          }) {
+            userErrors { code }
+          }
+          cancel: fulfillmentCancel(id: "gid://shopify/Fulfillment/1") {
+            userErrors { code }
+          }
+          tracking: fulfillmentTrackingInfoUpdate(
+            fulfillmentId: "gid://shopify/Fulfillment/1"
+            trackingInfoInput: { number: "TRACK-1" }
+          ) {
+            userErrors { code }
+          }
+          trackingV2: fulfillmentTrackingInfoUpdateV2(
+            fulfillmentId: "gid://shopify/Fulfillment/1"
+            trackingInfoInput: { number: "TRACK-1" }
+          ) {
+            userErrors { code }
+          }
+          event: fulfillmentEventCreate(fulfillmentEvent: {
+            fulfillmentId: "gid://shopify/Fulfillment/1"
+            status: IN_TRANSIT
+          }) {
+            userErrors { code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert!(response.body.get("data").is_none());
+    let errors = response.body["errors"].as_array().unwrap();
+    assert_eq!(errors.len(), 7);
+    for (error, response_key) in errors.iter().zip([
+        "refund",
+        "create",
+        "createV2",
+        "cancel",
+        "tracking",
+        "trackingV2",
+        "event",
+    ]) {
+        assert_eq!(
+            error["message"],
+            json!("Field 'code' doesn't exist on type 'UserError'")
+        );
+        assert_eq!(
+            error["path"],
+            json!([
+                "mutation OrdersPlainUserErrorCodeSelectionRejected",
+                response_key,
+                "userErrors",
+                "code"
+            ])
+        );
+        assert_eq!(
+            error["extensions"],
+            json!({
+                "code": "undefinedField",
+                "typeName": "UserError",
+                "fieldName": "code"
+            })
+        );
     }
 }
 
@@ -747,7 +830,7 @@ fn stage_two_line_reverse_fulfillment_order(proxy: &mut DraftProxy) -> (Value, V
                 }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -1512,7 +1595,7 @@ fn fulfillment_lifecycle_stages_against_created_order_fulfillment_order() {
               status
               trackingInfo { number url company }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -1566,7 +1649,7 @@ fn fulfillment_lifecycle_stages_against_created_order_fulfillment_order() {
               status
               trackingInfo { number url company }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -1608,7 +1691,7 @@ fn fulfillment_lifecycle_stages_against_created_order_fulfillment_order() {
         mutation CancelFulfillment($id: ID!) {
           fulfillmentCancel(id: $id) {
             fulfillment { id status trackingInfo { number url company } }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -1756,7 +1839,7 @@ fn fulfillment_create_names_are_order_scoped_sequence_numbers() {
               name
               status
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#;
@@ -1834,7 +1917,7 @@ fn fulfillment_event_create_stages_event_and_top_level_read_after_write() {
               latitude
               longitude
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -1959,7 +2042,7 @@ fn fulfillment_event_create_rejects_unknown_real_fulfillment_gid() {
         mutation FulfillmentEventCreateUnknown($fulfillmentEvent: FulfillmentEventInput!) {
           fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
             fulfillmentEvent { id status }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -1978,8 +2061,7 @@ fn fulfillment_event_create_rejects_unknown_real_fulfillment_gid() {
             "fulfillmentEvent": null,
             "userErrors": [{
                 "field": ["fulfillmentEvent", "fulfillmentId"],
-                "message": "Fulfillment does not exist.",
-                "code": "NOT_FOUND"
+                "message": "Fulfillment does not exist."
             }]
         })
     );
@@ -1996,7 +2078,7 @@ fn fulfillment_cancel_and_tracking_accept_cancelled_or_delivered_fulfillments() 
         mutation CancelBeforeRetry($id: ID!) {
           fulfillmentCancel(id: $id) {
             fulfillment { id status displayStatus }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2012,7 +2094,7 @@ fn fulfillment_cancel_and_tracking_accept_cancelled_or_delivered_fulfillments() 
         mutation CancelAlreadyCancelled($id: ID!) {
           fulfillmentCancel(id: $id) {
             fulfillment { id status displayStatus }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2043,7 +2125,7 @@ fn fulfillment_cancel_and_tracking_accept_cancelled_or_delivered_fulfillments() 
               displayStatus
               trackingInfo { number url company }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2075,7 +2157,7 @@ fn fulfillment_cancel_and_tracking_accept_cancelled_or_delivered_fulfillments() 
         mutation MarkFulfillmentDelivered($fulfillmentEvent: FulfillmentEventInput!) {
           fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
             fulfillmentEvent { id status }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2097,7 +2179,7 @@ fn fulfillment_cancel_and_tracking_accept_cancelled_or_delivered_fulfillments() 
         mutation CancelDeliveredFulfillment($id: ID!) {
           fulfillmentCancel(id: $id) {
             fulfillment { id status displayStatus }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2143,7 +2225,7 @@ fn fulfillment_event_create_accepts_cancelled_parent_and_logs() {
         mutation CancelBeforeEvent($id: ID!) {
           fulfillmentCancel(id: $id) {
             fulfillment { id status displayStatus }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2159,7 +2241,7 @@ fn fulfillment_event_create_accepts_cancelled_parent_and_logs() {
         mutation FulfillmentEventCreateCancelled($fulfillmentEvent: FulfillmentEventInput!) {
           fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
             fulfillmentEvent { id status }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2246,7 +2328,7 @@ fn fulfillment_event_create_hydrates_real_fulfillment_without_passthrough_mutati
         mutation FulfillmentEventCreateHydrated($fulfillmentEvent: FulfillmentEventInput!) {
           fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
             fulfillmentEvent { id status message }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -7973,7 +8055,6 @@ fn refund_create_stages_refund_and_downstream_order_reads() {
             userErrors {
               field
               message
-              code
             }
           }
         }
@@ -8233,7 +8314,6 @@ fn refund_create_user_errors_do_not_fall_back_to_not_implemented_or_stage_state(
             userErrors {
               field
               message
-              code
             }
           }
         }
@@ -8257,12 +8337,11 @@ fn refund_create_user_errors_do_not_fall_back_to_not_implemented_or_stage_state(
         Value::Null
     );
     assert_eq!(
-        over_refund.body["data"]["refundCreate"]["userErrors"][0]["message"],
-        json!("Refund amount $15.00 is greater than net payment received $10.00")
-    );
-    assert_eq!(
-        over_refund.body["data"]["refundCreate"]["userErrors"][0]["code"],
-        json!("OVER_REFUND")
+        over_refund.body["data"]["refundCreate"]["userErrors"][0],
+        json!({
+            "field": null,
+            "message": "Refund amount $15.00 is greater than net payment received $10.00"
+        })
     );
     assert_ne!(
         over_refund.body["data"]["refundCreate"]["userErrors"][0]["message"],
@@ -8296,12 +8375,11 @@ fn refund_create_user_errors_do_not_fall_back_to_not_implemented_or_stage_state(
         Value::Null
     );
     assert_eq!(
-        over_quantity.body["data"]["refundCreate"]["userErrors"][0]["field"],
-        json!(["refundLineItems", "0", "quantity"])
-    );
-    assert_eq!(
-        over_quantity.body["data"]["refundCreate"]["userErrors"][0]["message"],
-        json!("Quantity cannot refund more items than were purchased")
+        over_quantity.body["data"]["refundCreate"]["userErrors"][0],
+        json!({
+            "field": ["refundLineItems", "0", "quantity"],
+            "message": "Quantity cannot refund more items than were purchased"
+        })
     );
 
     let log = log_snapshot(&proxy);

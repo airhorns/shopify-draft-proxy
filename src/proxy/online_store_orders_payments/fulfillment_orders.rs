@@ -8,6 +8,10 @@ pub(in crate::proxy) fn fulfillment_order_user_error(
     user_error(field, message, code)
 }
 
+fn fulfillment_user_error(field: &[&str], message: &str) -> Value {
+    user_error_omit_code(field, message, None)
+}
+
 pub(in crate::proxy) fn fulfillment_order_supported_actions(include_split: bool) -> Value {
     let mut actions = vec![
         json!({ "action": "CREATE_FULFILLMENT" }),
@@ -1310,23 +1314,18 @@ impl DraftProxy {
     pub(super) fn staged_fulfillment_error_payload(
         field: &RootFieldSelection,
         message: &str,
-        code: &str,
     ) -> Value {
         selected_json(
             &json!({
                 "fulfillment": Value::Null,
-                "userErrors": [orders_error(&["fulfillment"], message, code)]
+                "userErrors": [fulfillment_user_error(&["fulfillment"], message)]
             }),
             &field.selection,
         )
     }
 
     pub(super) fn staged_fulfillment_not_found_payload(field: &RootFieldSelection) -> Value {
-        Self::staged_fulfillment_error_payload(
-            field,
-            "Fulfillment order could not be found.",
-            "NOT_FOUND",
-        )
+        Self::staged_fulfillment_error_payload(field, "Fulfillment order could not be found.")
     }
 
     pub(super) fn staged_fulfillment_payload(
@@ -1337,18 +1336,13 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let Some(fulfillment_input) = resolved_object_field(&field.arguments, "fulfillment") else {
-            return Self::staged_fulfillment_error_payload(
-                field,
-                "Fulfillment is required",
-                "INVALID",
-            );
+            return Self::staged_fulfillment_error_payload(field, "Fulfillment is required");
         };
         let groups = resolved_object_list_field(&fulfillment_input, "lineItemsByFulfillmentOrder");
         let Some(first_group) = groups.first() else {
             return Self::staged_fulfillment_error_payload(
                 field,
                 "Line items by fulfillment order must be specified",
-                "INVALID",
             );
         };
         let Some(fulfillment_order_id) = resolved_string_field(first_group, "fulfillmentOrderId")
@@ -1356,7 +1350,6 @@ impl DraftProxy {
             return Self::staged_fulfillment_error_payload(
                 field,
                 "Fulfillment order must be specified",
-                "INVALID",
             );
         };
         let Some(order_id) = self.order_id_for_fulfillment_order(&fulfillment_order_id, request)
@@ -1516,10 +1509,9 @@ impl DraftProxy {
         selected_json(
             &json!({
                 "fulfillmentEvent": Value::Null,
-                "userErrors": [orders_error(
+                "userErrors": [fulfillment_user_error(
                     &["fulfillmentEvent", "fulfillmentId"],
-                    "Fulfillment does not exist.",
-                    "NOT_FOUND"
+                    "Fulfillment does not exist."
                 )]
             }),
             &field.selection,
@@ -1537,7 +1529,10 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "fulfillmentEvent": Value::Null,
-                    "userErrors": [orders_error(&["fulfillmentEvent"], "Fulfillment event is required", "INVALID")]
+                    "userErrors": [fulfillment_user_error(
+                        &["fulfillmentEvent"],
+                        "Fulfillment event is required"
+                    )]
                 }),
                 &field.selection,
             );
@@ -1553,10 +1548,9 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "fulfillmentEvent": Value::Null,
-                    "userErrors": [orders_error(
+                    "userErrors": [fulfillment_user_error(
                         &["fulfillmentEvent", "status"],
-                        "Fulfillment event status is invalid.",
-                        "INVALID"
+                        "Fulfillment event status is invalid."
                     )]
                 }),
                 &field.selection,

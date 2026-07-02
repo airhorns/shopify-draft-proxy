@@ -7,13 +7,9 @@ use super::*;
 const REFUND_ORDER_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/orders/refund-order-hydrate.graphql");
 
-pub(in crate::proxy) fn refund_user_error(
-    field: Value,
-    message: impl Into<String>,
-    code: &str,
-) -> Value {
+pub(in crate::proxy) fn refund_user_error(field: Value, message: impl Into<String>) -> Value {
     let message = message.into();
-    user_error(field, &message, Some(code))
+    user_error_omit_code(field, &message, None)
 }
 
 pub(in crate::proxy) fn order_currency(order: &Value, shop_currency_code: &str) -> String {
@@ -274,7 +270,6 @@ pub(in crate::proxy) fn refund_transaction_validation_error(
                     "Kind {} is not a valid transaction",
                     kind.to_ascii_lowercase()
                 ),
-                "INVALID",
             ));
         }
         let parent_id = resolved_string_field(&transaction, "parentId").unwrap_or_default();
@@ -284,7 +279,6 @@ pub(in crate::proxy) fn refund_transaction_validation_error(
             return Some(refund_user_error(
                 json!(["transactions"]),
                 "Transactions require a parent_id associated with the order",
-                "INVALID",
             ));
         }
     }
@@ -306,7 +300,6 @@ pub(in crate::proxy) fn refund_quantity_validation_error(
             return Some(refund_user_error(
                 json!(["refundLineItems", index.to_string(), "lineItemId"]),
                 "Line item does not exist",
-                "NOT_FOUND",
             ));
         };
         let quantity = refund_line_item_quantity(line_input);
@@ -318,7 +311,6 @@ pub(in crate::proxy) fn refund_quantity_validation_error(
             return Some(refund_user_error(
                 json!(["refundLineItems", index.to_string(), "quantity"]),
                 "Quantity cannot refund more items than were purchased",
-                "INVALID",
             ));
         }
     }
@@ -338,7 +330,6 @@ pub(in crate::proxy) fn refund_amount_validation_error(
                 "Refund amount ${:.2} is greater than net payment received ${:.2}",
                 refund_amount, refundable
             ),
-            "OVER_REFUND",
         ));
     }
     None
@@ -794,7 +785,7 @@ impl DraftProxy {
                 refund_input_error(
                     field,
                     None,
-                    refund_user_error(json!(["input"]), "Input is required", "INVALID"),
+                    refund_user_error(json!(["input"]), "Input is required"),
                     &shop_currency_code,
                 ),
                 Vec::new(),
@@ -805,7 +796,7 @@ impl DraftProxy {
                 refund_input_error(
                     field,
                     None,
-                    refund_user_error(json!(["orderId"]), "Order does not exist", "NOT_FOUND"),
+                    refund_user_error(json!(["orderId"]), "Order does not exist"),
                     &shop_currency_code,
                 ),
                 Vec::new(),
@@ -818,7 +809,7 @@ impl DraftProxy {
                 refund_input_error(
                     field,
                     None,
-                    refund_user_error(json!(["orderId"]), "Order does not exist", "NOT_FOUND"),
+                    refund_user_error(json!(["orderId"]), "Order does not exist"),
                     &shop_currency_code,
                 ),
                 Vec::new(),
