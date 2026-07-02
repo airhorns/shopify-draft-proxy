@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
-import { conformanceCaptureIndex } from './conformance-capture-index.js';
+import { conformanceCaptureIndex, retiredConformanceEvidencePaths } from './conformance-capture-index.js';
 import { validateRecordedUpstreamCalls, type RecordedUpstreamCall } from './parity-cassette.js';
 
 const protectedPaths = ['config/parity-specs', 'config/parity-requests', 'fixtures/conformance'];
@@ -25,6 +25,13 @@ function escapeRegExp(value: string): string {
 }
 
 function fixtureOutputMatchesPath(output: string, path: string): boolean {
+  if (
+    path.startsWith('fixtures/conformance/local-runtime/') &&
+    !output.startsWith('fixtures/conformance/local-runtime/')
+  ) {
+    return false;
+  }
+
   const pattern = escapeRegExp(output)
     .replaceAll('<store>', '[^/]+')
     .replaceAll('<api-version>', '[^/]+')
@@ -32,7 +39,10 @@ function fixtureOutputMatchesPath(output: string, path: string): boolean {
   return new RegExp(`^${pattern}$`, 'u').test(path);
 }
 
-const registeredFixtureOutputs = conformanceCaptureIndex.flatMap((entry) => entry.fixtureOutputs);
+const registeredFixtureOutputs = [
+  ...conformanceCaptureIndex.flatMap((entry) => entry.fixtureOutputs),
+  ...retiredConformanceEvidencePaths,
+];
 
 type ChangedPath = {
   status: string;
@@ -52,9 +62,7 @@ const changed = result.stdout
   });
 
 const unregistered = changed.filter(
-  ({ path: changedPath }) =>
-    existsSync(changedPath) &&
-    !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath)),
+  ({ path: changedPath }) => !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath)),
 );
 
 if (unregistered.length > 0) {

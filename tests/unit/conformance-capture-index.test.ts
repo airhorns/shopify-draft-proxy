@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -5,6 +8,7 @@ import {
   loadConformanceCaptureScriptPaths,
   profileConformanceFixtureProvenance,
   renderCaptureIndexMarkdown,
+  retiredConformanceEvidencePaths,
   validateCaptureIndexAgainstScriptFiles,
 } from '../../scripts/conformance-capture-index.js';
 
@@ -69,5 +73,13 @@ describe('conformance capture index', () => {
       profile.orphanedFixturePaths,
       'every checked-in live Shopify fixture under fixtures/conformance/**/*.json must be declared by a capture index fixtureOutputs entry',
     ).toEqual([]);
+  });
+
+  it('keeps retired protected evidence absent from disk', () => {
+    const presentRetiredPaths = retiredConformanceEvidencePaths.filter((retiredPath) =>
+      existsSync(path.join(repoRoot, retiredPath)),
+    );
+
+    expect(presentRetiredPaths).toEqual([]);
   });
 });
