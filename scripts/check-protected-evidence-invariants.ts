@@ -20,6 +20,7 @@ const registeredProtectedEvidenceRemovals = new Set([
   'fixtures/conformance/local-runtime/2026-04/payments/payment-terms-delete-owner-cascade.json',
   'fixtures/conformance/local-runtime/2026-05/payments/payment-reminder-send-shape.json',
 ]);
+const retiredProtectedEvidencePaths = new Set<string>(retiredConformanceEvidencePaths);
 
 const result = spawnSync('git', ['diff', '--name-status', 'origin/main', '--', ...protectedPaths], {
   encoding: 'utf8',
@@ -81,7 +82,9 @@ const changed = result.stdout
   .filter((entry) => entry.path.length > 0);
 
 const unregistered = changed.filter(({ status, path: changedPath }) => {
-  if (status === 'D') return !registeredProtectedEvidenceRemovals.has(changedPath);
+  if (status === 'D') {
+    return !registeredProtectedEvidenceRemovals.has(changedPath) && !retiredProtectedEvidencePaths.has(changedPath);
+  }
   return (
     existsSync(changedPath) && !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath))
   );

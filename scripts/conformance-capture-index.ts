@@ -91,6 +91,8 @@ export const retiredConformanceEvidencePaths = [
   'fixtures/conformance/local-runtime/2026-04/discounts/discount-activation-failure-field-base.json',
   'fixtures/conformance/local-runtime/2026-04/discounts/discount-app-bulk-local-runtime.json',
   'fixtures/conformance/local-runtime/2026-04/discounts/discount-subscription-fields-not-permitted.json',
+  'fixtures/conformance/local-runtime/2026-04/segments/segment-local-runtime-dispatch-validation.json',
+  'fixtures/conformance/local-runtime/2026-04/segments/segment-payload-non-null-fields.json',
 ] as const;
 
 function defineCaptureIndex(entries: Array<z.input<typeof captureIndexEntrySchema>>): ConformanceCaptureIndexEntry[] {
