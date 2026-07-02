@@ -1,12 +1,12 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 import { conformanceCaptureIndex } from './conformance-capture-index.js';
 import { validateRecordedUpstreamCalls, type RecordedUpstreamCall } from './parity-cassette.js';
 
 const protectedPaths = ['config/parity-specs', 'config/parity-requests', 'fixtures/conformance'];
-const bulkOperationsSpecRoot = path.join('config', 'parity-specs', 'bulk-operations');
+const repoRoot = process.cwd();
 
 const result = spawnSync('git', ['diff', '--name-status', 'origin/main', '--', ...protectedPaths], {
   encoding: 'utf8',
@@ -25,12 +25,12 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 }
 
-function fixtureOutputMatchesPath(output: string, path: string): boolean {
+function fixtureOutputMatchesPath(output: string, candidatePath: string): boolean {
   const pattern = escapeRegExp(output)
     .replaceAll('<store>', '[^/]+')
     .replaceAll('<api-version>', '[^/]+')
     .replaceAll('<domain-folder>', '[^/]+');
-  return new RegExp(`^${pattern}$`, 'u').test(path);
+  return new RegExp(`^${pattern}$`, 'u').test(candidatePath);
 }
 
 const registeredFixtureOutputs = conformanceCaptureIndex.flatMap((entry) => entry.fixtureOutputs);
@@ -50,154 +50,42 @@ const changed = result.stdout
       status,
       path: secondPath ?? firstPath,
     };
-  });
+  })
+  .filter((entry) => entry.path.length > 0);
 
 const unregistered = changed.filter(
-  ({ path: changedPath }) =>
+  ({ status, path: changedPath }) =>
+    status !== 'D' &&
     existsSync(changedPath) &&
     !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath)),
 );
 
-if (unregistered.length > 0) {
-  process.stderr.write(
-    'Protected parity specs, parity requests, or conformance fixtures changed without capture-index registration.\n',
-  );
-  for (const { status, path } of unregistered) process.stderr.write(`- ${status}\t${path}\n`);
-  process.exit(1);
+function readJson(relativePath: string): unknown {
+  return JSON.parse(readFileSync(path.join(repoRoot, relativePath), 'utf8')) as unknown;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function readJsonFile(filePath: string): unknown {
-  return JSON.parse(readFileSync(filePath, 'utf8')) as unknown;
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((candidate): candidate is string => typeof candidate === 'string') : [];
 }
 
-function collectJsonFiles(directory: string): string[] {
-  if (!existsSync(directory)) {
+function listJsonFiles(relativeDirectory: string): string[] {
+  const absoluteDirectory = path.join(repoRoot, relativeDirectory);
+  if (!existsSync(absoluteDirectory)) {
     return [];
   }
 
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const entryPath = path.join(directory, entry.name);
+  return readdirSync(absoluteDirectory, { withFileTypes: true }).flatMap((entry) => {
+    const relativePath = path.join(relativeDirectory, entry.name);
     if (entry.isDirectory()) {
-      return collectJsonFiles(entryPath);
+      return listJsonFiles(relativePath);
     }
-    return entry.isFile() && entry.name.endsWith('.json') ? [entryPath] : [];
+
+    return entry.isFile() && entry.name.endsWith('.json') ? [relativePath] : [];
   });
-}
-
-function findForbiddenShippingFulfillmentEvidence(): string[] {
-  const failures: string[] = [];
-  const descriptorPattern =
-    /^(?:sha:|hand-synthesized|cassette-backed|recorded by scripts\/)|hand-synthesized|local-runtime/u;
-
-  for (const specPath of collectJsonFiles('config/parity-specs/shipping-fulfillments')) {
-    const spec = readJsonFile(specPath) as { liveCaptureFiles?: unknown };
-    const liveCaptureFiles = Array.isArray(spec.liveCaptureFiles) ? spec.liveCaptureFiles : [];
-    for (const liveCaptureFile of liveCaptureFiles) {
-      if (typeof liveCaptureFile === 'string' && liveCaptureFile.startsWith('fixtures/conformance/local-runtime/')) {
-        failures.push(`${specPath}: liveCaptureFiles contains local-runtime fixture ${liveCaptureFile}`);
-      }
-    }
-  }
-
-  for (const fixturePath of collectJsonFiles('fixtures/conformance').filter((filePath) =>
-    filePath.split(path.sep).includes('shipping-fulfillments'),
-  )) {
-    if (fixturePath.startsWith('fixtures/conformance/local-runtime/')) {
-      failures.push(`${fixturePath}: local-runtime shipping-fulfillments fixtures cannot be parity evidence`);
-      continue;
-    }
-
-    const fixture = readJsonFile(fixturePath) as { upstreamCalls?: unknown };
-    const upstreamCalls = Array.isArray(fixture.upstreamCalls) ? fixture.upstreamCalls : [];
-    upstreamCalls.forEach((call, index) => {
-      const query = call && typeof call === 'object' ? (call as { query?: unknown }).query : undefined;
-      if (typeof query === 'string' && descriptorPattern.test(query)) {
-        failures.push(`${fixturePath}: upstreamCalls[${index}].query is a descriptor, not GraphQL`);
-      }
-    });
-  }
-
-  return failures;
-}
-
-const shippingFulfillmentEvidenceFailures = findForbiddenShippingFulfillmentEvidence();
-if (shippingFulfillmentEvidenceFailures.length > 0) {
-  process.stderr.write(
-    'shipping-fulfillments parity evidence contains local-runtime fixtures or descriptor upstream calls.\n',
-  );
-  for (const failure of shippingFulfillmentEvidenceFailures) process.stderr.write(`- ${failure}\n`);
-  process.exit(1);
-}
-
-function shouldAuditBulkOperationsSpec(spec: Record<string, unknown>): boolean {
-  return spec['scenarioStatus'] === 'captured' || spec['comparisonMode'] === 'captured-vs-proxy-request';
-}
-
-function auditBulkOperationsParityEvidence(): string[] {
-  const errors: string[] = [];
-  for (const specPath of collectJsonFiles(bulkOperationsSpecRoot)) {
-    const spec = readJsonFile(specPath);
-    if (!isRecord(spec) || !shouldAuditBulkOperationsSpec(spec)) {
-      continue;
-    }
-
-    const liveCaptureFiles = spec['liveCaptureFiles'];
-    if (!Array.isArray(liveCaptureFiles)) {
-      continue;
-    }
-
-    for (const capturePath of liveCaptureFiles) {
-      if (typeof capturePath !== 'string') {
-        errors.push(`${specPath}: liveCaptureFiles entry is not a string`);
-        continue;
-      }
-      if (capturePath.includes('fixtures/conformance/local-runtime/')) {
-        errors.push(
-          `${specPath}: bulk-operations captured parity spec references local-runtime evidence: ${capturePath}`,
-        );
-        continue;
-      }
-      if (!capturePath.includes('/bulk-operations/')) {
-        continue;
-      }
-      if (!existsSync(capturePath)) {
-        errors.push(`${specPath}: referenced bulk-operations fixture does not exist: ${capturePath}`);
-        continue;
-      }
-
-      const fixture = readJsonFile(capturePath);
-      if (!isRecord(fixture)) {
-        errors.push(`${capturePath}: expected fixture JSON object`);
-        continue;
-      }
-      const upstreamCalls = fixture['upstreamCalls'];
-      if (upstreamCalls === undefined) {
-        continue;
-      }
-      if (!Array.isArray(upstreamCalls)) {
-        errors.push(`${capturePath}: upstreamCalls is not an array`);
-        continue;
-      }
-      for (const error of validateRecordedUpstreamCalls(upstreamCalls as RecordedUpstreamCall[])) {
-        errors.push(`${capturePath}: ${error}`);
-      }
-    }
-  }
-
-  return errors;
-}
-
-const bulkOperationsEvidenceErrors = auditBulkOperationsParityEvidence();
-if (bulkOperationsEvidenceErrors.length > 0) {
-  process.stderr.write(
-    'Bulk-operations captured parity evidence contains local-runtime references or non-GraphQL upstream cassette queries.\n',
-  );
-  for (const error of bulkOperationsEvidenceErrors) process.stderr.write(`- ${error}\n`);
-  process.exit(1);
 }
 
 function trackedFiles(pathspec: string): string[] {
@@ -213,56 +101,335 @@ function trackedFiles(pathspec: string): string[] {
     .filter(Boolean);
 }
 
-const marketsEvidenceErrors: string[] = [];
-const referencedMarketsFixtures = new Set<string>();
-const checkedMarketsScenarioIds = new Set([
-  'bundled-price-list-web-presence-create',
-  'web-presence-create-case-insensitive-locale',
-  'web-presence-create-french-default-locale',
-  'web-presence-delete-primary-blocked',
-  'web-presence-create-invalid-default-locale',
-  'web-presence-root-urls-multi-locale',
-  'market-localization-metafield-default-validation',
-]);
-const checkedMarketsFixtureSuffixes = [
-  '/markets/bundled-price-list-web-presence.json',
-  '/markets/market-web-presence-lifecycle-parity.json',
-  '/markets/market-localization-metafield-lifecycle-parity.json',
-];
-
-for (const specPath of trackedFiles('config/parity-specs/markets').filter((path) => path.endsWith('.json'))) {
-  const spec = readJsonFile(specPath) as Record<string, unknown>;
-  const scenarioId = spec['scenarioId'];
-  const isCheckedScenario = typeof scenarioId === 'string' && checkedMarketsScenarioIds.has(scenarioId);
-  const liveCaptureFiles = Array.isArray(spec['liveCaptureFiles']) ? spec['liveCaptureFiles'] : [];
-  const isCapturedParity =
-    spec['scenarioStatus'] === 'captured' && spec['comparisonMode'] === 'captured-vs-proxy-request';
-  for (const liveCaptureFile of liveCaptureFiles) {
-    if (typeof liveCaptureFile !== 'string') continue;
-    const isCheckedFixture = checkedMarketsFixtureSuffixes.some((suffix) => liveCaptureFile.endsWith(suffix));
-    if (isCheckedScenario && isCapturedParity && liveCaptureFile.startsWith('fixtures/conformance/local-runtime/')) {
-      marketsEvidenceErrors.push(`${specPath}: captured markets parity spec points at local-runtime evidence`);
-    }
-    if (isCheckedScenario || isCheckedFixture) referencedMarketsFixtures.add(liveCaptureFile);
+function fixtureUpstreamErrors(fixturePath: string): string[] {
+  const fixture = readJson(fixturePath);
+  if (!isRecord(fixture) || !Array.isArray(fixture['upstreamCalls'])) {
+    return [];
   }
+
+  return validateRecordedUpstreamCalls(fixture['upstreamCalls'] as RecordedUpstreamCall[]).map(
+    (error) => `${fixturePath}: ${error}`,
+  );
 }
 
-for (const fixturePath of [...referencedMarketsFixtures].sort()) {
-  const fixture = readJsonFile(fixturePath) as { upstreamCalls?: unknown };
-  if (!Array.isArray(fixture.upstreamCalls)) continue;
-  const errors = validateRecordedUpstreamCalls(fixture.upstreamCalls as RecordedUpstreamCall[]);
-  for (const error of errors) marketsEvidenceErrors.push(`${fixturePath}: ${error}`);
+function capturedParitySpecs(specDirectory: string): string[] {
+  return listJsonFiles(specDirectory).filter((specPath) => {
+    const spec = readJson(specPath);
+    return (
+      isRecord(spec) && spec['scenarioStatus'] === 'captured' && spec['comparisonMode'] === 'captured-vs-proxy-request'
+    );
+  });
 }
 
-if (marketsEvidenceErrors.length > 0) {
+function metafieldDefinitionsParityEvidenceErrors(): string[] {
+  const errors: string[] = [];
+
+  for (const specPath of capturedParitySpecs(path.join('config', 'parity-specs', 'metafield-definitions'))) {
+    const spec = readJson(specPath);
+    if (!isRecord(spec)) {
+      continue;
+    }
+
+    for (const liveCaptureFile of stringArray(spec['liveCaptureFiles'])) {
+      if (liveCaptureFile.startsWith('fixtures/conformance/local-runtime/')) {
+        errors.push(`${specPath}: liveCaptureFiles must not use local-runtime evidence (${liveCaptureFile})`);
+        continue;
+      }
+
+      if (existsSync(path.join(repoRoot, liveCaptureFile))) {
+        errors.push(...fixtureUpstreamErrors(liveCaptureFile));
+      }
+    }
+  }
+
+  return errors;
+}
+
+function customerParityEvidenceErrors(): string[] {
+  const errors: string[] = [];
+
+  for (const specPath of capturedParitySpecs(path.join('config', 'parity-specs', 'customers'))) {
+    const spec = readJson(specPath);
+    if (!isRecord(spec)) {
+      continue;
+    }
+
+    for (const liveCaptureFile of stringArray(spec['liveCaptureFiles'])) {
+      if (liveCaptureFile.startsWith('fixtures/conformance/local-runtime/')) {
+        errors.push(`${specPath}: liveCaptureFiles contains local-runtime fixture ${liveCaptureFile}`);
+        continue;
+      }
+
+      if (liveCaptureFile.includes('/customers/') && existsSync(path.join(repoRoot, liveCaptureFile))) {
+        errors.push(...fixtureUpstreamErrors(liveCaptureFile));
+      }
+    }
+  }
+
+  return errors;
+}
+
+function giftCardParityEvidenceErrors(): string[] {
+  const errors: string[] = [];
+
+  for (const specPath of listJsonFiles(path.join('config', 'parity-specs', 'gift-cards'))) {
+    const spec = readJson(specPath);
+    if (!isRecord(spec)) {
+      continue;
+    }
+
+    const scenarioId = typeof spec['scenarioId'] === 'string' ? spec['scenarioId'] : specPath;
+    const liveCaptureFiles = stringArray(spec['liveCaptureFiles']);
+
+    if (spec['scenarioStatus'] === 'captured') {
+      for (const captureFile of liveCaptureFiles) {
+        if (captureFile.startsWith('fixtures/conformance/local-runtime/')) {
+          errors.push(
+            `${specPath}: captured gift-card scenario ${scenarioId} must not use local-runtime parity evidence (${captureFile}).`,
+          );
+        }
+      }
+    }
+
+    for (const captureFile of liveCaptureFiles) {
+      if (captureFile.startsWith('fixtures/conformance/') && existsSync(path.join(repoRoot, captureFile))) {
+        errors.push(...fixtureUpstreamErrors(captureFile));
+      }
+    }
+  }
+
+  return errors;
+}
+
+function adminPlatformParityEvidenceErrors(): string[] {
+  const errors: string[] = [];
+
+  for (const specPath of capturedParitySpecs(path.join('config', 'parity-specs', 'admin-platform'))) {
+    const spec = readJson(specPath);
+    if (!isRecord(spec)) {
+      continue;
+    }
+
+    const scenarioId = typeof spec['scenarioId'] === 'string' ? spec['scenarioId'] : specPath;
+
+    for (const liveCaptureFile of stringArray(spec['liveCaptureFiles'])) {
+      if (liveCaptureFile.startsWith('fixtures/conformance/local-runtime/')) {
+        errors.push(`${specPath}: captured admin-platform scenario ${scenarioId} uses local-runtime fixture evidence`);
+        continue;
+      }
+
+      if (!existsSync(path.join(repoRoot, liveCaptureFile))) {
+        errors.push(
+          `${specPath}: captured admin-platform scenario ${scenarioId} references missing fixture ${liveCaptureFile}`,
+        );
+        continue;
+      }
+
+      errors.push(...fixtureUpstreamErrors(liveCaptureFile));
+    }
+  }
+
+  return errors;
+}
+
+function bulkOperationsParityEvidenceErrors(): string[] {
+  const errors: string[] = [];
+
+  for (const specPath of capturedParitySpecs(path.join('config', 'parity-specs', 'bulk-operations'))) {
+    const spec = readJson(specPath);
+    if (!isRecord(spec)) {
+      continue;
+    }
+
+    const liveCaptureFiles = spec['liveCaptureFiles'];
+    if (!Array.isArray(liveCaptureFiles)) {
+      continue;
+    }
+
+    for (const liveCaptureFile of liveCaptureFiles) {
+      if (typeof liveCaptureFile !== 'string') {
+        errors.push(`${specPath}: liveCaptureFiles entry is not a string`);
+        continue;
+      }
+
+      if (liveCaptureFile.startsWith('fixtures/conformance/local-runtime/')) {
+        errors.push(`${specPath}: bulk-operations captured parity spec references local-runtime evidence`);
+        continue;
+      }
+
+      if (!liveCaptureFile.includes('/bulk-operations/')) {
+        continue;
+      }
+
+      if (!existsSync(path.join(repoRoot, liveCaptureFile))) {
+        errors.push(`${specPath}: referenced bulk-operations fixture does not exist: ${liveCaptureFile}`);
+        continue;
+      }
+
+      errors.push(...fixtureUpstreamErrors(liveCaptureFile));
+    }
+  }
+
+  return errors;
+}
+
+function shippingFulfillmentParityEvidenceErrors(): string[] {
+  const errors: string[] = [];
+
+  for (const specPath of listJsonFiles(path.join('config', 'parity-specs', 'shipping-fulfillments'))) {
+    const spec = readJson(specPath);
+    if (!isRecord(spec)) {
+      continue;
+    }
+
+    for (const liveCaptureFile of stringArray(spec['liveCaptureFiles'])) {
+      if (liveCaptureFile.startsWith('fixtures/conformance/local-runtime/')) {
+        errors.push(`${specPath}: liveCaptureFiles contains local-runtime fixture ${liveCaptureFile}`);
+      }
+    }
+  }
+
+  for (const fixturePath of listJsonFiles('fixtures/conformance').filter((filePath) =>
+    filePath.split(path.sep).includes('shipping-fulfillments'),
+  )) {
+    if (fixturePath.startsWith('fixtures/conformance/local-runtime/')) {
+      errors.push(`${fixturePath}: local-runtime shipping-fulfillments fixtures cannot be parity evidence`);
+      continue;
+    }
+
+    errors.push(...fixtureUpstreamErrors(fixturePath));
+  }
+
+  return errors;
+}
+
+function marketsParityEvidenceErrors(): string[] {
+  const errors: string[] = [];
+  const referencedMarketsFixtures = new Set<string>();
+  const checkedMarketsScenarioIds = new Set([
+    'bundled-price-list-web-presence-create',
+    'web-presence-create-case-insensitive-locale',
+    'web-presence-create-french-default-locale',
+    'web-presence-delete-primary-blocked',
+    'web-presence-create-invalid-default-locale',
+    'web-presence-root-urls-multi-locale',
+    'market-localization-metafield-default-validation',
+  ]);
+  const checkedMarketsFixtureSuffixes = [
+    '/markets/bundled-price-list-web-presence.json',
+    '/markets/market-web-presence-lifecycle-parity.json',
+    '/markets/market-localization-metafield-lifecycle-parity.json',
+  ];
+
+  for (const specPath of trackedFiles('config/parity-specs/markets').filter((filePath) => filePath.endsWith('.json'))) {
+    const spec = readJson(specPath);
+    if (!isRecord(spec)) {
+      continue;
+    }
+
+    const scenarioId = spec['scenarioId'];
+    const isCheckedScenario = typeof scenarioId === 'string' && checkedMarketsScenarioIds.has(scenarioId);
+    const isCapturedParity =
+      spec['scenarioStatus'] === 'captured' && spec['comparisonMode'] === 'captured-vs-proxy-request';
+
+    for (const liveCaptureFile of stringArray(spec['liveCaptureFiles'])) {
+      const isCheckedFixture = checkedMarketsFixtureSuffixes.some((suffix) => liveCaptureFile.endsWith(suffix));
+      if (isCheckedScenario && isCapturedParity && liveCaptureFile.startsWith('fixtures/conformance/local-runtime/')) {
+        errors.push(`${specPath}: captured markets parity spec points at local-runtime evidence`);
+      }
+      if (isCheckedScenario || isCheckedFixture) {
+        referencedMarketsFixtures.add(liveCaptureFile);
+      }
+    }
+  }
+
+  for (const fixturePath of [...referencedMarketsFixtures].sort()) {
+    if (existsSync(path.join(repoRoot, fixturePath))) {
+      errors.push(...fixtureUpstreamErrors(fixturePath));
+    }
+  }
+
+  return errors;
+}
+
+const metafieldDefinitionsErrors = metafieldDefinitionsParityEvidenceErrors();
+const customerErrors = customerParityEvidenceErrors();
+const giftCardErrors = giftCardParityEvidenceErrors();
+const adminPlatformErrors = adminPlatformParityEvidenceErrors();
+const bulkOperationsErrors = bulkOperationsParityEvidenceErrors();
+const shippingFulfillmentErrors = shippingFulfillmentParityEvidenceErrors();
+const marketsErrors = marketsParityEvidenceErrors();
+
+if (unregistered.length > 0) {
+  process.stderr.write(
+    'Protected parity specs, parity requests, or conformance fixtures changed without capture-index registration.\n',
+  );
+  for (const { status, path } of unregistered) process.stderr.write(`- ${status}\t${path}\n`);
+}
+
+if (metafieldDefinitionsErrors.length > 0) {
+  process.stderr.write(
+    'metafield-definitions parity evidence must use live Shopify captures, not local-runtime or descriptor provenance.\n',
+  );
+  for (const error of metafieldDefinitionsErrors) process.stderr.write(`- ${error}\n`);
+}
+
+if (customerErrors.length > 0) {
+  process.stderr.write('Customers parity evidence contains local-runtime captures or descriptor upstream queries.\n');
+  for (const error of customerErrors) process.stderr.write(`- ${error}\n`);
+}
+
+if (giftCardErrors.length > 0) {
+  process.stderr.write('Gift-card parity evidence contains disallowed local-runtime or descriptor cassette data.\n');
+  for (const error of giftCardErrors) process.stderr.write(`- ${error}\n`);
+}
+
+if (adminPlatformErrors.length > 0) {
+  process.stderr.write(
+    'Admin-platform captured parity evidence contains synthetic/local-runtime provenance signals.\n',
+  );
+  for (const error of adminPlatformErrors) process.stderr.write(`- ${error}\n`);
+}
+
+if (bulkOperationsErrors.length > 0) {
+  process.stderr.write(
+    'Bulk-operations captured parity evidence contains local-runtime references or non-GraphQL upstream cassette queries.\n',
+  );
+  for (const error of bulkOperationsErrors) process.stderr.write(`- ${error}\n`);
+}
+
+if (shippingFulfillmentErrors.length > 0) {
+  process.stderr.write(
+    'shipping-fulfillments parity evidence contains local-runtime fixtures or descriptor upstream calls.\n',
+  );
+  for (const error of shippingFulfillmentErrors) process.stderr.write(`- ${error}\n`);
+}
+
+if (marketsErrors.length > 0) {
   process.stderr.write('Markets parity evidence contains local-runtime references or descriptor upstream cassettes.\n');
-  for (const error of marketsEvidenceErrors) process.stderr.write(`- ${error}\n`);
+  for (const error of marketsErrors) process.stderr.write(`- ${error}\n`);
+}
+
+if (
+  unregistered.length > 0 ||
+  metafieldDefinitionsErrors.length > 0 ||
+  customerErrors.length > 0 ||
+  giftCardErrors.length > 0 ||
+  adminPlatformErrors.length > 0 ||
+  bulkOperationsErrors.length > 0 ||
+  shippingFulfillmentErrors.length > 0 ||
+  marketsErrors.length > 0
+) {
   process.exit(1);
 }
 
 process.stdout.write('Protected parity evidence changes are registered in the capture index.\n');
+process.stdout.write('metafield-definitions parity evidence uses live fixture paths and GraphQL upstream queries.\n');
+process.stdout.write('Customers parity evidence uses live fixture paths and GraphQL upstream cassette queries.\n');
+process.stdout.write('Gift-card parity evidence contains no local-runtime captures or descriptor cassette queries.\n');
+process.stdout.write('Admin-platform captured parity evidence has no synthetic/local-runtime provenance signals.\n');
+process.stdout.write('Bulk-operations captured parity evidence has no local-runtime or descriptor upstream signals.\n');
 process.stdout.write(
   'shipping-fulfillments protected evidence has no local-runtime parity fixtures or descriptor upstream calls.\n',
 );
-process.stdout.write('Bulk-operations captured parity evidence has no local-runtime or descriptor upstream signals.\n');
 process.stdout.write('Markets parity evidence uses GraphQL upstream cassette queries and live fixture paths.\n');

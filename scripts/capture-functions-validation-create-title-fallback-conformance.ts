@@ -141,6 +141,27 @@ const functionLookupDocument = `#graphql
   }
 `;
 
+const functionHydrateByHandleDocument = `query FunctionHydrateByHandle {
+  shopifyFunctions(first: 100) {
+    nodes {
+      id
+      title
+      handle
+      apiType
+      description
+      appKey
+      app {
+        __typename
+        id
+        title
+        handle
+        apiKey
+      }
+    }
+  }
+}
+`;
+
 const validationInventoryDocument = `#graphql
   query ValidationCreateTitleFallbackInventory {
     validations(first: 50) {
@@ -293,6 +314,11 @@ if (!validationFunction) {
 }
 readString(validationFunction['title'], 'validation Function title');
 const validationFunctionId = readString(validationFunction['id'], 'validation Function id');
+const functionHydrate = await capture(functionHydrateByHandleDocument, {
+  handle: validationFunctionHandle,
+  apiType: 'VALIDATION',
+});
+assertNoTopLevelErrors(functionHydrate, 'FunctionHydrateByHandle validation Function hydrate');
 
 const preCleanup = await cleanupExistingValidations();
 let createdValidationIds: string[] = [];
@@ -383,6 +409,7 @@ try {
       observedFallbackTitle,
     },
     functionLookup,
+    functionHydrate,
     preCleanup,
     createTitleFallback,
     postCreateValidationRead,
@@ -395,21 +422,10 @@ try {
           handle: validationFunctionHandle,
           apiType: 'VALIDATION',
         },
-        query: 'cassette-backed VALIDATION ShopifyFunction lookup captured from the live conformance app',
+        query: functionHydrate.query,
         response: {
-          status: 200,
-          body: {
-            data: {
-              shopifyFunctions: {
-                nodes: [
-                  {
-                    ...validationFunction,
-                    title: observedFallbackTitle,
-                  },
-                ],
-              },
-            },
-          },
+          status: functionHydrate.response.status,
+          body: functionHydrate.response.payload,
         },
       },
     ],
@@ -417,7 +433,7 @@ try {
       lifecycle:
         'The script deletes disposable validations before capture, creates omitted-title/null-title/empty-string-title validations, verifies mutation payload titles and downstream reads, then deletes the created validations.',
       titleFallback:
-        'Shopify persisted the same Function-derived fallback for omitted and explicit null title input. The current conformance extension stores raw name t:name while shopifyFunctions.title returns the localized name, so the cassette title uses the mutation-observed fallback for local replay. An explicit empty string stayed empty.',
+        'Shopify persisted the same Function-derived fallback for omitted and explicit null title input. An explicit empty string stayed empty.',
       functionReference:
         'Shopify persisted the resolved Function reference for handle-only validationCreate input and read it back through validation.shopifyFunction.id/handle. Admin API 2026-04 does not expose Validation.functionId/functionHandle scalar fields.',
     },

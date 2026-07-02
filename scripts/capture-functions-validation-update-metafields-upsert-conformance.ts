@@ -195,6 +195,27 @@ const functionLookupDocument = `#graphql
   }
 `;
 
+const functionHydrateByHandleDocument = `query FunctionHydrateByHandle {
+  shopifyFunctions(first: 100) {
+    nodes {
+      id
+      title
+      handle
+      apiType
+      description
+      appKey
+      app {
+        __typename
+        id
+        title
+        handle
+        apiKey
+      }
+    }
+  }
+}
+`;
+
 const validationCreateDocument = `mutation ValidationUpdateMetafieldsUpsertSetup($validation: ValidationCreateInput!) {
   validationCreate(validation: $validation) {
     validation {
@@ -281,6 +302,11 @@ const validationFunction = Array.isArray(functionNodes)
 if (!validationFunction) {
   throw new Error(`Missing released validation Function handle ${validationFunctionHandle}`);
 }
+const functionHydrate = await capture(functionHydrateByHandleDocument, {
+  handle: validationFunctionHandle,
+  apiType: 'VALIDATION',
+});
+assertNoTopLevelErrors(functionHydrate, 'FunctionHydrateByHandle validation Function hydrate');
 
 let createdValidationId: string | null = null;
 let cleanup: Capture | null = null;
@@ -377,6 +403,7 @@ try {
       validationFunction,
     },
     functionLookup,
+    functionHydrate,
     createInitial,
     updateTitleOnly,
     readAfterTitleOnly,
@@ -392,16 +419,10 @@ try {
           handle: validationFunctionHandle,
           apiType: 'VALIDATION',
         },
-        query: 'cassette-backed VALIDATION ShopifyFunction lookup captured from the live conformance app',
+        query: functionHydrate.query,
         response: {
-          status: 200,
-          body: {
-            data: {
-              shopifyFunctions: {
-                nodes: [validationFunction],
-              },
-            },
-          },
+          status: functionHydrate.response.status,
+          body: functionHydrate.response.payload,
         },
       },
     ],

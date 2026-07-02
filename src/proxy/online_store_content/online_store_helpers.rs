@@ -175,11 +175,11 @@ pub(in crate::proxy) fn theme_file_operation_result(record: &Value) -> Value {
         "createdAt": record
             .get("createdAt")
             .cloned()
-            .unwrap_or_else(|| json!("2024-01-01T00:00:00.000Z")),
+            .unwrap_or(Value::Null),
         "updatedAt": record
             .get("updatedAt")
             .cloned()
-            .unwrap_or_else(|| json!("2024-01-01T00:00:00.000Z")),
+            .unwrap_or(Value::Null),
         "checksumMd5": record["checksumMd5"],
         "size": record["size"],
         "body": record
@@ -206,9 +206,11 @@ pub(in crate::proxy) fn mobile_app_payload(
     record: Option<Value>,
     errors: Vec<Value>,
 ) -> Value {
-    selected_json(
-        &json!({"mobilePlatformApplication": record, "userErrors": errors}),
+    resource_payload(
         selection,
+        "mobilePlatformApplication",
+        record.unwrap_or(Value::Null),
+        errors,
     )
 }
 
@@ -217,8 +219,77 @@ pub(in crate::proxy) fn script_tag_payload(
     record: Option<Value>,
     errors: Vec<Value>,
 ) -> Value {
+    resource_payload(
+        selection,
+        "scriptTag",
+        record.unwrap_or(Value::Null),
+        errors,
+    )
+}
+
+pub(in crate::proxy) fn resource_payload(
+    selection: &[SelectedField],
+    resource_key: &str,
+    resource: Value,
+    user_errors: Vec<Value>,
+) -> Value {
     selected_json(
-        &json!({"scriptTag": record, "userErrors": errors}),
+        &json!({
+            resource_key: resource,
+            "userErrors": user_errors
+        }),
+        selection,
+    )
+}
+
+pub(in crate::proxy) fn theme_payload(
+    selection: &[SelectedField],
+    record: Value,
+    errors: Vec<Value>,
+) -> Value {
+    resource_payload(selection, "theme", record, errors)
+}
+
+pub(in crate::proxy) fn deleted_theme_payload(
+    selection: &[SelectedField],
+    deleted_id: Value,
+    errors: Vec<Value>,
+) -> Value {
+    resource_payload(selection, "deletedThemeId", deleted_id, errors)
+}
+
+pub(in crate::proxy) fn deleted_script_tag_payload(
+    selection: &[SelectedField],
+    deleted_id: Value,
+    errors: Vec<Value>,
+) -> Value {
+    resource_payload(selection, "deletedScriptTagId", deleted_id, errors)
+}
+
+pub(in crate::proxy) fn web_pixel_payload(
+    selection: &[SelectedField],
+    record: Value,
+    errors: Vec<Value>,
+) -> Value {
+    resource_payload(selection, "webPixel", record, errors)
+}
+
+pub(in crate::proxy) fn server_pixel_payload(
+    selection: &[SelectedField],
+    record: Value,
+    errors: Vec<Value>,
+) -> Value {
+    resource_payload(selection, "serverPixel", record, errors)
+}
+
+pub(in crate::proxy) fn storefront_access_token_payload(
+    selection: &[SelectedField],
+    record: Value,
+    shop: Value,
+    errors: Vec<Value>,
+) -> Value {
+    selected_json(
+        &json!({"storefrontAccessToken": record, "shop": shop, "userErrors": errors}),
         selection,
     )
 }
