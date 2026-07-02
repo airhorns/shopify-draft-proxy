@@ -2588,6 +2588,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'metafields',
+    captureId: 'metafields-delete-not-found',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafields-delete-not-found-conformance.mts',
+    purpose:
+      'metafieldsSet setup plus metafieldsDelete existing, repeat-delete, and never-created identifier payloads.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-delete-not-found.json`,
+      'config/parity-specs/metafield-definitions/metafield-delete-not-found.json',
+      'config/parity-requests/metafield-definitions/metafield-delete-not-found-setup.graphql',
+      'config/parity-requests/metafield-definitions/metafields-delete-not-found.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, writes one product-owned metafield, captures delete and not-found delete branches, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Modern public Admin GraphQL exposes plural metafieldsDelete; the singular metafieldDelete compatibility root remains covered by local runtime tests only.',
+  },
+  {
     domain: 'products',
     captureId: 'product-graph-mutations',
     scriptPath: 'scripts/capture-product-graph-mutation-conformance.mts',

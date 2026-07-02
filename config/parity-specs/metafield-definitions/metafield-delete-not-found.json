@@ -1,0 +1,65 @@
+{
+  "scenarioId": "metafield-delete-not-found",
+  "operationNames": ["metafieldsSet", "metafieldsDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "payload-shape", "user-errors-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafield-definitions/metafield-delete-not-found.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafield-definitions/metafield-delete-not-found-setup.graphql",
+    "variablesCapturePath": "$.setup.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-metafields-set",
+        "capturePath": "$.setup.response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet",
+        "expectedDifferences": [
+          {
+            "path": "$.metafields[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages a deterministic synthetic metafield ID while Shopify returned the live-store metafield ID."
+          }
+        ]
+      },
+      {
+        "name": "delete-existing-identifier",
+        "capturePath": "$.deleteExisting.response.data.metafieldsDelete",
+        "proxyPath": "$.data.metafieldsDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/metafields-delete-not-found.graphql",
+          "variablesCapturePath": "$.deleteExisting.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "repeat-delete-by-just-deleted-identifier",
+        "capturePath": "$.repeatDelete.response.data.metafieldsDelete",
+        "proxyPath": "$.data.metafieldsDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/metafields-delete-not-found.graphql",
+          "variablesCapturePath": "$.repeatDelete.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "delete-never-created-identifier",
+        "capturePath": "$.neverCreatedDelete.response.data.metafieldsDelete",
+        "proxyPath": "$.data.metafieldsDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/metafields-delete-not-found.graphql",
+          "variablesCapturePath": "$.neverCreatedDelete.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live 2026-04 evidence for Shopify's public plural `metafieldsDelete` root: deleting an existing product-owned metafield returns the identifier object, while repeating the same delete and deleting a never-created namespace/key return ordered null `deletedMetafields` entries with no payload userErrors. The singular `metafieldDelete(input: { id })` compatibility root remains runtime-test-backed because modern public Shopify schemas expose `metafieldsDelete`, not the singular root."
+}
