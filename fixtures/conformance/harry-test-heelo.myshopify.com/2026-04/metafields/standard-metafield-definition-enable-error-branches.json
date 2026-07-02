@@ -1,0 +1,267 @@
+{
+  "scenarioId": "standard-metafield-definition-enable-error-branches",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-06-30T13:29:23.100Z",
+  "captures": {
+    "invalidSmartCollectionCapability": {
+      "request": {
+        "query": "mutation StandardMetafieldDefinitionEnableSmartCapability {\n  standardMetafieldDefinitionEnable(\n    ownerType: PRODUCT\n    id: \"gid://shopify/StandardMetafieldDefinitionTemplate/2\"\n    capabilities: { smartCollectionCondition: { enabled: true } }\n  ) {\n    createdDefinition {\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {}
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetafieldDefinitionEnable": {
+            "createdDefinition": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "The capability smart_collection_condition is not valid for this definition.",
+                "code": "INVALID_CAPABILITY"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidUniqueValuesCapability": {
+      "request": {
+        "query": "mutation StandardMetafieldDefinitionEnableUniqueCapability {\n  standardMetafieldDefinitionEnable(\n    ownerType: PRODUCT\n    id: \"gid://shopify/StandardMetafieldDefinitionTemplate/2\"\n    capabilities: { uniqueValues: { enabled: true } }\n  ) {\n    createdDefinition {\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {}
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetafieldDefinitionEnable": {
+            "createdDefinition": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "The capability unique_values is not valid for this definition.",
+                "code": "INVALID_CAPABILITY"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "adminAccessInputNotAllowed": {
+      "request": {
+        "query": "mutation StandardMetafieldDefinitionEnableAdminAccess {\n  standardMetafieldDefinitionEnable(\n    ownerType: PRODUCT\n    id: \"gid://shopify/StandardMetafieldDefinitionTemplate/1\"\n    access: { admin: MERCHANT_READ }\n  ) {\n    createdDefinition {\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {}
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetafieldDefinitionEnable": {
+            "createdDefinition": null,
+            "userErrors": [
+              {
+                "field": ["access"],
+                "message": "Setting this access control is not permitted. It must be one of [\"public_read_write\"].",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "visibleStorefrontTranslation": {
+      "request": {
+        "query": "mutation StandardMetafieldDefinitionEnableVisibleStorefront {\n  standardMetafieldDefinitionEnable(\n    ownerType: PRODUCT\n    id: \"gid://shopify/StandardMetafieldDefinitionTemplate/3\"\n    visibleToStorefrontApi: false\n  ) {\n    createdDefinition {\n      namespace\n      key\n      access {\n        storefront\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {}
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetafieldDefinitionEnable": {
+            "createdDefinition": {
+              "namespace": "facts",
+              "key": "isbn",
+              "access": {
+                "storefront": "NONE"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "deprecatedCollectionConditionHiddenArgument": {
+      "request": {
+        "query": "mutation StandardMetafieldDefinitionEnableDeprecatedCondition {\n  standardMetafieldDefinitionEnable(\n    ownerType: PRODUCT\n    id: \"gid://shopify/StandardMetafieldDefinitionTemplate/2\"\n    useAsCollectionCondition: true\n  ) {\n    createdDefinition {\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {}
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetafieldDefinitionEnable": {
+            "createdDefinition": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "The capability smart_collection_condition is not valid for this definition.",
+                "code": "INVALID_CAPABILITY"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "hardAttempts": {
+    "forceEnableSchemaRejection": {
+      "request": {
+        "query": "mutation StandardMetafieldDefinitionEnableForceFalse {\n  standardMetafieldDefinitionEnable(\n    ownerType: PRODUCT\n    id: \"gid://shopify/StandardMetafieldDefinitionTemplate/1\"\n    forceEnable: false\n  ) {\n    createdDefinition {\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {}
+      },
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Field 'standardMetafieldDefinitionEnable' doesn't accept argument 'forceEnable'",
+            "locations": [
+              {
+                "line": 5,
+                "column": 5
+              }
+            ],
+            "path": [
+              "mutation StandardMetafieldDefinitionEnableForceFalse",
+              "standardMetafieldDefinitionEnable",
+              "forceEnable"
+            ],
+            "extensions": {
+              "code": "argumentNotAccepted",
+              "name": "standardMetafieldDefinitionEnable",
+              "typeName": "Field",
+              "argumentName": "forceEnable"
+            }
+          }
+        ]
+      }
+    },
+    "adminFilterSchemaRejection": {
+      "request": {
+        "query": "mutation StandardMetafieldDefinitionEnableDeprecatedAccessFilter {\n  standardMetafieldDefinitionEnable(\n    ownerType: PRODUCT\n    id: \"gid://shopify/StandardMetafieldDefinitionTemplate/3\"\n    useAsAdminFilter: true\n    visibleToStorefrontApi: false\n  ) {\n    createdDefinition {\n      namespace\n      key\n      access {\n        storefront\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {}
+      },
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Field 'standardMetafieldDefinitionEnable' doesn't accept argument 'useAsAdminFilter'",
+            "locations": [
+              {
+                "line": 5,
+                "column": 5
+              }
+            ],
+            "path": [
+              "mutation StandardMetafieldDefinitionEnableDeprecatedAccessFilter",
+              "standardMetafieldDefinitionEnable",
+              "useAsAdminFilter"
+            ],
+            "extensions": {
+              "code": "argumentNotAccepted",
+              "name": "standardMetafieldDefinitionEnable",
+              "typeName": "Field",
+              "argumentName": "useAsAdminFilter"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "request": {
+        "query": "#graphql\n      mutation CleanupMetafieldDefinitionProvenanceReplacement($id: ID!) {\n        metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n          deletedDefinitionId\n          userErrors {\n            field\n            message\n            code\n          }\n        }\n      }\n    ",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/222100947250"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/222100947250",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [],
+  "notes": {
+    "publicSchema": "Admin API 2026-04 introspection lists ownerType, id, namespace, key, pin, capabilities, and access for standardMetafieldDefinitionEnable. Live execution still accepts hidden visibleToStorefrontApi and useAsCollectionCondition arguments, but forceEnable and useAsAdminFilter are rejected by public schema validation.",
+    "cleanup": "The visibleToStorefrontApi probe can create the PRODUCT facts/isbn standard definition. The recorder reads before and after the probe and deletes the definition only when this capture created it."
+  }
+}

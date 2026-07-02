@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { validateComparisonContract, type ParitySpec } from '../../scripts/conformance-parity-spec.js';
+import { validateRecordedUpstreamCalls } from '../../scripts/parity-cassette.js';
 import {
   buildConformanceStatusDocument,
   listConformanceParitySpecPaths,
@@ -14,6 +15,9 @@ import {
 
 const repoRoot = resolve(import.meta.dirname, '../..');
 const allowedScenarioStatuses = new Set(['captured', 'planned']);
+const appsParitySpecPrefix = 'config/parity-specs/apps/';
+const descriptorCassetteQueryPattern =
+  /^\s*(?:hand-synthesized|sha:|cassette-backed|recorded by scripts|local-runtime)/iu;
 
 function readJson<T>(relativePath: string): T {
   return JSON.parse(readFileSync(resolve(repoRoot, relativePath), 'utf8')) as T;
@@ -52,6 +56,36 @@ describe('conformance scenario discovery', () => {
     }
   });
 
+  it('keeps metafields captured proxy parity free of local-runtime and descriptor cassette evidence', () => {
+    const descriptorPattern = /hand-synthesized|cassette-backed|recorded by scripts|sha:|local-runtime/u;
+    const metafieldsCapturedProxySpecs = scenarios.filter((scenario) => {
+      if (!scenario.paritySpecPath.startsWith('config/parity-specs/metafields/')) return false;
+      if (scenario.status !== 'captured') return false;
+      const paritySpec = readJson<ParitySpec>(scenario.paritySpecPath);
+      return paritySpec.comparisonMode === 'captured-vs-proxy-request';
+    });
+
+    expect(metafieldsCapturedProxySpecs.length).toBeGreaterThan(0);
+
+    for (const scenario of metafieldsCapturedProxySpecs) {
+      const paritySpec = readJson<ParitySpec>(scenario.paritySpecPath);
+      expect(paritySpec.assertionKinds ?? [], scenario.id).not.toContain('local-runtime-backed');
+      for (const captureFile of paritySpec.liveCaptureFiles ?? []) {
+        expect(captureFile, scenario.id).not.toContain('fixtures/conformance/local-runtime/');
+        expect(captureFile, scenario.id).not.toMatch(descriptorPattern);
+
+        const fixture = readJson<Record<string, unknown>>(captureFile);
+        const upstreamCalls = Array.isArray(fixture['upstreamCalls']) ? fixture['upstreamCalls'] : [];
+        expect(validateRecordedUpstreamCalls(upstreamCalls), captureFile).toEqual([]);
+        for (const call of upstreamCalls) {
+          if (typeof call === 'object' && call !== null && 'query' in call) {
+            expect(String((call as { query?: unknown }).query), captureFile).not.toMatch(descriptorPattern);
+          }
+        }
+      }
+    }
+  });
+
   it.each(scenarios.map((scenario) => [scenario.id, scenario] as const))(
     'keeps parity spec file references present on disk for %s',
     (_scenarioId, scenario) => {
@@ -83,6 +117,42 @@ describe('conformance scenario discovery', () => {
       }
     },
   );
+
+  it('keeps apps captured parity evidence tied to live Shopify captures', () => {
+    const appScenarios = scenarios.filter((scenario) => scenario.paritySpecPath.startsWith(appsParitySpecPrefix));
+
+    for (const scenario of appScenarios) {
+      const paritySpec = readJson<ParitySpec>(scenario.paritySpecPath);
+      if (paritySpec.scenarioStatus !== 'captured') {
+        continue;
+      }
+
+      for (const captureFile of paritySpec.liveCaptureFiles ?? []) {
+        expect(
+          captureFile.includes('fixtures/conformance/local-runtime/'),
+          `${scenario.id} must not use local-runtime fixtures as captured apps parity evidence`,
+        ).toBe(false);
+
+        const fixture = readJson<Record<string, unknown>>(captureFile);
+        const upstreamCalls = Array.isArray(fixture['upstreamCalls']) ? fixture['upstreamCalls'] : [];
+
+        for (const [index, upstreamCall] of upstreamCalls.entries()) {
+          const query =
+            typeof (upstreamCall as { query?: unknown })['query'] === 'string'
+              ? (upstreamCall as { query: string })['query']
+              : null;
+          if (!query) {
+            continue;
+          }
+
+          expect(
+            query,
+            `${scenario.id} upstreamCalls[${index}].query must be the exact GraphQL document, not a provenance descriptor`,
+          ).not.toMatch(descriptorCassetteQueryPattern);
+        }
+      }
+    }
+  });
 
   it.each(
     scenarios.flatMap((scenario) =>

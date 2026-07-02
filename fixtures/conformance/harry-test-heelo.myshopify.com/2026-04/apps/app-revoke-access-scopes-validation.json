@@ -1,0 +1,188 @@
+{
+  "capturedAt": "2026-07-02T01:49:25.201Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenario": "app-revoke-access-scopes-validation",
+  "notes": [
+    "Captured live Admin GraphQL appRevokeAccessScopes validation branches that do not revoke real app grants.",
+    "The optional-grant success branch is intentionally not captured by this script because recording it would revoke a real access scope from the active conformance app.",
+    "The missing-source-app branch is not live-recordable through a valid public Admin request because valid requests carry source app context and unauthenticated requests fail before the mutation resolver."
+  ],
+  "operationNames": ["appRevokeAccessScopes"],
+  "upstreamCalls": [],
+  "evidence": {
+    "live": {
+      "safeProbes": {
+        "unknownScope": {
+          "documentPath": "config/parity-requests/apps/appRevokeAccessScopes-fake-scope.graphql",
+          "query": "mutation AppRevokeAccessScopesFakeScope {\n  appRevokeAccessScopes(scopes: [\"fake_scope\"]) {\n    revoked {\n      handle\n      description\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+          "status": 200,
+          "payload": {
+            "data": {
+              "appRevokeAccessScopes": {
+                "revoked": null,
+                "userErrors": [
+                  {
+                    "field": ["scopes"],
+                    "message": "The requested list of scopes to revoke includes invalid handles.",
+                    "code": "UNKNOWN_SCOPES"
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "mixedUnknownScope": {
+          "documentPath": "config/parity-requests/apps/appRevokeAccessScopes-mixed-fake-scope.graphql",
+          "query": "mutation AppRevokeAccessScopesMixedFakeScope {\n  appRevokeAccessScopes(scopes: [\"read_products\", \"fake_scope\"]) {\n    revoked {\n      handle\n      description\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+          "status": 200,
+          "payload": {
+            "data": {
+              "appRevokeAccessScopes": {
+                "revoked": null,
+                "userErrors": [
+                  {
+                    "field": ["scopes"],
+                    "message": "The requested list of scopes to revoke includes invalid handles.",
+                    "code": "UNKNOWN_SCOPES"
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1988,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "requiredScope": {
+          "documentPath": "config/parity-requests/apps/appRevokeAccessScopes-required-read-products.graphql",
+          "query": "mutation AppRevokeAccessScopesRequiredReadProducts {\n  appRevokeAccessScopes(scopes: [\"read_products\"]) {\n    revoked {\n      handle\n      description\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+          "status": 200,
+          "payload": {
+            "data": {
+              "appRevokeAccessScopes": {
+                "revoked": null,
+                "userErrors": [
+                  {
+                    "field": ["scopes"],
+                    "message": "Scopes that are declared as required cannot be revoked.",
+                    "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1988,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "parity": {
+      "expected": {
+        "unknownScope": {
+          "data": {
+            "appRevokeAccessScopes": {
+              "revoked": null,
+              "userErrors": [
+                {
+                  "field": ["scopes"],
+                  "message": "The requested list of scopes to revoke includes invalid handles.",
+                  "code": "UNKNOWN_SCOPES"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "mixedUnknownScope": {
+          "data": {
+            "appRevokeAccessScopes": {
+              "revoked": null,
+              "userErrors": [
+                {
+                  "field": ["scopes"],
+                  "message": "The requested list of scopes to revoke includes invalid handles.",
+                  "code": "UNKNOWN_SCOPES"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "requiredScope": {
+          "data": {
+            "appRevokeAccessScopes": {
+              "revoked": null,
+              "userErrors": [
+                {
+                  "field": ["scopes"],
+                  "message": "Scopes that are declared as required cannot be revoked.",
+                  "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

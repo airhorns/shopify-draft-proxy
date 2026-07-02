@@ -72,11 +72,12 @@ const changed = result.stdout
     };
   });
 
-const unregistered = changed.filter(
-  ({ status, path }) =>
-    !(status === 'D' && registeredProtectedEvidenceRemovals.has(path)) &&
-    !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, path)),
-);
+const unregistered = changed.filter(({ status, path: changedPath }) => {
+  if (status === 'D') return !registeredProtectedEvidenceRemovals.has(changedPath);
+  return (
+    existsSync(changedPath) && !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath))
+  );
+});
 
 if (unregistered.length > 0) {
   process.stderr.write(
@@ -153,7 +154,7 @@ if (shippingFulfillmentEvidenceFailures.length > 0) {
   process.exit(1);
 }
 
-process.stdout.write('Protected parity evidence changes are registered in the capture index.\n');
+process.stdout.write('Protected parity evidence additions/modifications are registered in the capture index.\n');
 
 function trackedFiles(pathspec: string): string[] {
   const trackedResult = spawnSync('git', ['ls-files', '--', pathspec], { encoding: 'utf8' });

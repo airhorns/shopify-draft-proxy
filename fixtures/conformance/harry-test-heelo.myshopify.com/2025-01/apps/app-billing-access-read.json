@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-04-27T00:49:29.560Z",
+  "capturedAt": "2026-07-02T01:43:26.275Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "notes": [
@@ -569,6 +569,10 @@
               "description": "Read store content like articles, blogs, comments, pages, and redirects"
             },
             {
+              "handle": "read_customer_merge",
+              "description": "Read access for customer merge"
+            },
+            {
               "handle": "read_customers",
               "description": "Read customer details and customer groups"
             },
@@ -591,6 +595,14 @@
             {
               "handle": "read_inventory",
               "description": "Read inventory"
+            },
+            {
+              "handle": "read_legal_policies",
+              "description": "Read legal policies"
+            },
+            {
+              "handle": "read_locales",
+              "description": "Read shop locales"
             },
             {
               "handle": "read_locations",
@@ -617,12 +629,28 @@
               "description": "Read metaobjects"
             },
             {
+              "handle": "read_online_store_navigation",
+              "description": "Read data from Online Store Navigation GraphQL API"
+            },
+            {
               "handle": "read_order_edits",
               "description": "Read order edits"
             },
             {
               "handle": "read_orders",
               "description": "Read orders, transactions, and fulfillments"
+            },
+            {
+              "handle": "read_payment_customizations",
+              "description": "Read access for payment customizations"
+            },
+            {
+              "handle": "read_payment_terms",
+              "description": "Read payment terms"
+            },
+            {
+              "handle": "read_privacy_settings",
+              "description": "Read privacy settings of the shop"
             },
             {
               "handle": "read_product_listings",
@@ -645,6 +673,22 @@
               "description": "Read shipping rates, countries, and provinces"
             },
             {
+              "handle": "read_shopify_payments_disputes",
+              "description": "Read Shopify Payments disputes"
+            },
+            {
+              "handle": "read_shopify_payments_payouts",
+              "description": "Read Shopify Payments balance and payouts"
+            },
+            {
+              "handle": "read_store_credit_account_transactions",
+              "description": "Read store credit account transactions."
+            },
+            {
+              "handle": "read_store_credit_accounts",
+              "description": "Read store credit account balance and currency."
+            },
+            {
               "handle": "read_themes",
               "description": "Read theme templates and theme assets"
             },
@@ -661,12 +705,32 @@
               "description": "Modify assigned fulfillment"
             },
             {
+              "handle": "write_cart_transforms",
+              "description": "Write cart transforms."
+            },
+            {
+              "handle": "write_cash_tracking",
+              "description": "Write cash balance tracking for retail cash registers"
+            },
+            {
               "handle": "write_content",
               "description": "Modify store content like articles, blogs, comments, pages, and redirects"
             },
             {
+              "handle": "write_customer_data_erasure",
+              "description": "Write access for customer data erasure"
+            },
+            {
+              "handle": "write_customer_merge",
+              "description": "Write access for customer merge"
+            },
+            {
               "handle": "write_customers",
               "description": "Modify customer details and customer groups"
+            },
+            {
+              "handle": "write_delivery_customizations",
+              "description": "Write access for delivery customizations"
             },
             {
               "handle": "write_discounts",
@@ -681,8 +745,16 @@
               "description": "Write files"
             },
             {
+              "handle": "write_fulfillment_constraint_rules",
+              "description": "Write access for fulfillment constraint rules"
+            },
+            {
               "handle": "write_fulfillments",
               "description": "Modify fulfillment services"
+            },
+            {
+              "handle": "write_gift_card_transactions",
+              "description": "Credit and debit gift cards"
             },
             {
               "handle": "write_gift_cards",
@@ -691,6 +763,22 @@
             {
               "handle": "write_inventory",
               "description": "Modify inventory"
+            },
+            {
+              "handle": "write_inventory_shipments",
+              "description": "Modify inventory shipments"
+            },
+            {
+              "handle": "write_inventory_transfers",
+              "description": "Modify inventory transfers"
+            },
+            {
+              "handle": "write_legal_policies",
+              "description": "Write legal policies"
+            },
+            {
+              "handle": "write_locales",
+              "description": "Modify shop locales"
             },
             {
               "handle": "write_locations",
@@ -717,12 +805,28 @@
               "description": "Write metaobjects"
             },
             {
+              "handle": "write_online_store_navigation",
+              "description": "Write data from Online Store Navigation GraphQL API"
+            },
+            {
               "handle": "write_order_edits",
               "description": "Modify orders"
             },
             {
               "handle": "write_orders",
               "description": "Modify orders, transactions, and fulfillments"
+            },
+            {
+              "handle": "write_payment_customizations",
+              "description": "Write access for payment customizations"
+            },
+            {
+              "handle": "write_payment_terms",
+              "description": "Write payment terms"
+            },
+            {
+              "handle": "write_privacy_settings",
+              "description": "Modify privacy settings of the shop"
             },
             {
               "handle": "write_products",
@@ -733,12 +837,20 @@
               "description": "Modify publications"
             },
             {
+              "handle": "write_purchase_options",
+              "description": "App can manage their own purchase options"
+            },
+            {
               "handle": "write_returns",
               "description": "Write access for returns"
             },
             {
               "handle": "write_shipping",
               "description": "Modify shipping rates, countries, and provinces"
+            },
+            {
+              "handle": "write_store_credit_account_transactions",
+              "description": "Credit and debit store credit accounts."
             },
             {
               "handle": "write_third_party_fulfillment_orders",
@@ -749,8 +861,52 @@
               "description": "Write dynamic content translations"
             },
             {
+              "handle": "write_validations",
+              "description": "Write cart and checkout validations."
+            },
+            {
+              "handle": "read_cart_transforms",
+              "description": "Read cart transforms."
+            },
+            {
+              "handle": "read_cash_tracking",
+              "description": "Read cash balance tracking for retail cash registers"
+            },
+            {
+              "handle": "read_customer_data_erasure",
+              "description": "Read access for customer data erasure"
+            },
+            {
+              "handle": "read_delivery_customizations",
+              "description": "Read access for delivery customizations"
+            },
+            {
+              "handle": "read_fulfillment_constraint_rules",
+              "description": "Read access for fulfillment constraint rules"
+            },
+            {
+              "handle": "read_gift_card_transactions",
+              "description": "Read gift card transactions"
+            },
+            {
               "handle": "read_gift_cards",
               "description": "Read gift cards"
+            },
+            {
+              "handle": "read_inventory_shipments",
+              "description": "Read inventory shipments"
+            },
+            {
+              "handle": "read_inventory_transfers",
+              "description": "Read inventory transfers"
+            },
+            {
+              "handle": "read_purchase_options",
+              "description": "App can read their own purchase options"
+            },
+            {
+              "handle": "read_validations",
+              "description": "Read cart and checkout validations."
             }
           ],
           "app": {
@@ -767,8 +923,16 @@
                 "description": "Read assigned fulfillment"
               },
               {
+                "handle": "read_cart_transforms",
+                "description": "Read cart transforms."
+              },
+              {
                 "handle": "read_content",
                 "description": "Read store content like articles, blogs, comments, pages, and redirects"
+              },
+              {
+                "handle": "read_customer_merge",
+                "description": "Read access for customer merge"
               },
               {
                 "handle": "read_customers",
@@ -795,6 +959,14 @@
                 "description": "Read inventory"
               },
               {
+                "handle": "read_legal_policies",
+                "description": "Read legal policies"
+              },
+              {
+                "handle": "read_locales",
+                "description": "Read shop locales"
+              },
+              {
                 "handle": "read_locations",
                 "description": "Read locations"
               },
@@ -819,12 +991,28 @@
                 "description": "Read metaobjects"
               },
               {
+                "handle": "read_online_store_navigation",
+                "description": "Read data from Online Store Navigation GraphQL API"
+              },
+              {
                 "handle": "read_order_edits",
                 "description": "Read order edits"
               },
               {
                 "handle": "read_orders",
                 "description": "Read orders, transactions, and fulfillments"
+              },
+              {
+                "handle": "read_payment_customizations",
+                "description": "Read access for payment customizations"
+              },
+              {
+                "handle": "read_payment_terms",
+                "description": "Read payment terms"
+              },
+              {
+                "handle": "read_privacy_settings",
+                "description": "Read privacy settings of the shop"
               },
               {
                 "handle": "read_product_listings",
@@ -847,6 +1035,22 @@
                 "description": "Read shipping rates, countries, and provinces"
               },
               {
+                "handle": "read_shopify_payments_disputes",
+                "description": "Read Shopify Payments disputes"
+              },
+              {
+                "handle": "read_shopify_payments_payouts",
+                "description": "Read Shopify Payments balance and payouts"
+              },
+              {
+                "handle": "read_store_credit_account_transactions",
+                "description": "Read store credit account transactions."
+              },
+              {
+                "handle": "read_store_credit_accounts",
+                "description": "Read store credit account balance and currency."
+              },
+              {
                 "handle": "read_themes",
                 "description": "Read theme templates and theme assets"
               },
@@ -859,8 +1063,16 @@
                 "description": "Read dynamic content translations"
               },
               {
+                "handle": "read_validations",
+                "description": "Read cart and checkout validations."
+              },
+              {
                 "handle": "write_assigned_fulfillment_orders",
                 "description": "Modify assigned fulfillment"
+              },
+              {
+                "handle": "write_cart_transforms",
+                "description": "Write cart transforms."
               },
               {
                 "handle": "write_cash_tracking",
@@ -871,8 +1083,20 @@
                 "description": "Modify store content like articles, blogs, comments, pages, and redirects"
               },
               {
+                "handle": "write_customer_data_erasure",
+                "description": "Write access for customer data erasure"
+              },
+              {
+                "handle": "write_customer_merge",
+                "description": "Write access for customer merge"
+              },
+              {
                 "handle": "write_customers",
                 "description": "Modify customer details and customer groups"
+              },
+              {
+                "handle": "write_delivery_customizations",
+                "description": "Write access for delivery customizations"
               },
               {
                 "handle": "write_discounts",
@@ -887,8 +1111,16 @@
                 "description": "Write files"
               },
               {
+                "handle": "write_fulfillment_constraint_rules",
+                "description": "Write access for fulfillment constraint rules"
+              },
+              {
                 "handle": "write_fulfillments",
                 "description": "Modify fulfillment services"
+              },
+              {
+                "handle": "write_gift_card_transactions",
+                "description": "Credit and debit gift cards"
               },
               {
                 "handle": "write_gift_cards",
@@ -897,6 +1129,22 @@
               {
                 "handle": "write_inventory",
                 "description": "Modify inventory"
+              },
+              {
+                "handle": "write_inventory_shipments",
+                "description": "Modify inventory shipments"
+              },
+              {
+                "handle": "write_inventory_transfers",
+                "description": "Modify inventory transfers"
+              },
+              {
+                "handle": "write_legal_policies",
+                "description": "Write legal policies"
+              },
+              {
+                "handle": "write_locales",
+                "description": "Modify shop locales"
               },
               {
                 "handle": "write_locations",
@@ -923,12 +1171,28 @@
                 "description": "Write metaobjects"
               },
               {
+                "handle": "write_online_store_navigation",
+                "description": "Write data from Online Store Navigation GraphQL API"
+              },
+              {
                 "handle": "write_order_edits",
                 "description": "Modify orders"
               },
               {
                 "handle": "write_orders",
                 "description": "Modify orders, transactions, and fulfillments"
+              },
+              {
+                "handle": "write_payment_customizations",
+                "description": "Write access for payment customizations"
+              },
+              {
+                "handle": "write_payment_terms",
+                "description": "Write payment terms"
+              },
+              {
+                "handle": "write_privacy_settings",
+                "description": "Modify privacy settings of the shop"
               },
               {
                 "handle": "write_products",
@@ -939,12 +1203,20 @@
                 "description": "Modify publications"
               },
               {
+                "handle": "write_purchase_options",
+                "description": "App can manage their own purchase options"
+              },
+              {
                 "handle": "write_returns",
                 "description": "Write access for returns"
               },
               {
                 "handle": "write_shipping",
                 "description": "Modify shipping rates, countries, and provinces"
+              },
+              {
+                "handle": "write_store_credit_account_transactions",
+                "description": "Credit and debit store credit accounts."
               },
               {
                 "handle": "write_third_party_fulfillment_orders",
@@ -955,12 +1227,44 @@
                 "description": "Write dynamic content translations"
               },
               {
+                "handle": "write_validations",
+                "description": "Write cart and checkout validations."
+              },
+              {
                 "handle": "read_cash_tracking",
                 "description": "Read cash balance tracking for retail cash registers"
               },
               {
+                "handle": "read_customer_data_erasure",
+                "description": "Read access for customer data erasure"
+              },
+              {
+                "handle": "read_delivery_customizations",
+                "description": "Read access for delivery customizations"
+              },
+              {
+                "handle": "read_fulfillment_constraint_rules",
+                "description": "Read access for fulfillment constraint rules"
+              },
+              {
+                "handle": "read_gift_card_transactions",
+                "description": "Read gift card transactions"
+              },
+              {
                 "handle": "read_gift_cards",
                 "description": "Read gift cards"
+              },
+              {
+                "handle": "read_inventory_shipments",
+                "description": "Read inventory shipments"
+              },
+              {
+                "handle": "read_inventory_transfers",
+                "description": "Read inventory transfers"
+              },
+              {
+                "handle": "read_purchase_options",
+                "description": "App can read their own purchase options"
               }
             ]
           },
@@ -994,7 +1298,7 @@
           "actualQueryCost": 16,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1978,
+            "currentlyAvailable": 1984,
             "restoreRate": 100
           }
         }
@@ -1028,8 +1332,16 @@
               "description": "Read assigned fulfillment"
             },
             {
+              "handle": "read_cart_transforms",
+              "description": "Read cart transforms."
+            },
+            {
               "handle": "read_content",
               "description": "Read store content like articles, blogs, comments, pages, and redirects"
+            },
+            {
+              "handle": "read_customer_merge",
+              "description": "Read access for customer merge"
             },
             {
               "handle": "read_customers",
@@ -1056,6 +1368,14 @@
               "description": "Read inventory"
             },
             {
+              "handle": "read_legal_policies",
+              "description": "Read legal policies"
+            },
+            {
+              "handle": "read_locales",
+              "description": "Read shop locales"
+            },
+            {
               "handle": "read_locations",
               "description": "Read locations"
             },
@@ -1080,12 +1400,28 @@
               "description": "Read metaobjects"
             },
             {
+              "handle": "read_online_store_navigation",
+              "description": "Read data from Online Store Navigation GraphQL API"
+            },
+            {
               "handle": "read_order_edits",
               "description": "Read order edits"
             },
             {
               "handle": "read_orders",
               "description": "Read orders, transactions, and fulfillments"
+            },
+            {
+              "handle": "read_payment_customizations",
+              "description": "Read access for payment customizations"
+            },
+            {
+              "handle": "read_payment_terms",
+              "description": "Read payment terms"
+            },
+            {
+              "handle": "read_privacy_settings",
+              "description": "Read privacy settings of the shop"
             },
             {
               "handle": "read_product_listings",
@@ -1108,6 +1444,22 @@
               "description": "Read shipping rates, countries, and provinces"
             },
             {
+              "handle": "read_shopify_payments_disputes",
+              "description": "Read Shopify Payments disputes"
+            },
+            {
+              "handle": "read_shopify_payments_payouts",
+              "description": "Read Shopify Payments balance and payouts"
+            },
+            {
+              "handle": "read_store_credit_account_transactions",
+              "description": "Read store credit account transactions."
+            },
+            {
+              "handle": "read_store_credit_accounts",
+              "description": "Read store credit account balance and currency."
+            },
+            {
               "handle": "read_themes",
               "description": "Read theme templates and theme assets"
             },
@@ -1120,8 +1472,16 @@
               "description": "Read dynamic content translations"
             },
             {
+              "handle": "read_validations",
+              "description": "Read cart and checkout validations."
+            },
+            {
               "handle": "write_assigned_fulfillment_orders",
               "description": "Modify assigned fulfillment"
+            },
+            {
+              "handle": "write_cart_transforms",
+              "description": "Write cart transforms."
             },
             {
               "handle": "write_cash_tracking",
@@ -1132,8 +1492,20 @@
               "description": "Modify store content like articles, blogs, comments, pages, and redirects"
             },
             {
+              "handle": "write_customer_data_erasure",
+              "description": "Write access for customer data erasure"
+            },
+            {
+              "handle": "write_customer_merge",
+              "description": "Write access for customer merge"
+            },
+            {
               "handle": "write_customers",
               "description": "Modify customer details and customer groups"
+            },
+            {
+              "handle": "write_delivery_customizations",
+              "description": "Write access for delivery customizations"
             },
             {
               "handle": "write_discounts",
@@ -1148,8 +1520,16 @@
               "description": "Write files"
             },
             {
+              "handle": "write_fulfillment_constraint_rules",
+              "description": "Write access for fulfillment constraint rules"
+            },
+            {
               "handle": "write_fulfillments",
               "description": "Modify fulfillment services"
+            },
+            {
+              "handle": "write_gift_card_transactions",
+              "description": "Credit and debit gift cards"
             },
             {
               "handle": "write_gift_cards",
@@ -1158,6 +1538,22 @@
             {
               "handle": "write_inventory",
               "description": "Modify inventory"
+            },
+            {
+              "handle": "write_inventory_shipments",
+              "description": "Modify inventory shipments"
+            },
+            {
+              "handle": "write_inventory_transfers",
+              "description": "Modify inventory transfers"
+            },
+            {
+              "handle": "write_legal_policies",
+              "description": "Write legal policies"
+            },
+            {
+              "handle": "write_locales",
+              "description": "Modify shop locales"
             },
             {
               "handle": "write_locations",
@@ -1184,12 +1580,28 @@
               "description": "Write metaobjects"
             },
             {
+              "handle": "write_online_store_navigation",
+              "description": "Write data from Online Store Navigation GraphQL API"
+            },
+            {
               "handle": "write_order_edits",
               "description": "Modify orders"
             },
             {
               "handle": "write_orders",
               "description": "Modify orders, transactions, and fulfillments"
+            },
+            {
+              "handle": "write_payment_customizations",
+              "description": "Write access for payment customizations"
+            },
+            {
+              "handle": "write_payment_terms",
+              "description": "Write payment terms"
+            },
+            {
+              "handle": "write_privacy_settings",
+              "description": "Modify privacy settings of the shop"
             },
             {
               "handle": "write_products",
@@ -1200,12 +1612,20 @@
               "description": "Modify publications"
             },
             {
+              "handle": "write_purchase_options",
+              "description": "App can manage their own purchase options"
+            },
+            {
               "handle": "write_returns",
               "description": "Write access for returns"
             },
             {
               "handle": "write_shipping",
               "description": "Modify shipping rates, countries, and provinces"
+            },
+            {
+              "handle": "write_store_credit_account_transactions",
+              "description": "Credit and debit store credit accounts."
             },
             {
               "handle": "write_third_party_fulfillment_orders",
@@ -1216,12 +1636,44 @@
               "description": "Write dynamic content translations"
             },
             {
+              "handle": "write_validations",
+              "description": "Write cart and checkout validations."
+            },
+            {
               "handle": "read_cash_tracking",
               "description": "Read cash balance tracking for retail cash registers"
             },
             {
+              "handle": "read_customer_data_erasure",
+              "description": "Read access for customer data erasure"
+            },
+            {
+              "handle": "read_delivery_customizations",
+              "description": "Read access for delivery customizations"
+            },
+            {
+              "handle": "read_fulfillment_constraint_rules",
+              "description": "Read access for fulfillment constraint rules"
+            },
+            {
+              "handle": "read_gift_card_transactions",
+              "description": "Read gift card transactions"
+            },
+            {
               "handle": "read_gift_cards",
               "description": "Read gift cards"
+            },
+            {
+              "handle": "read_inventory_shipments",
+              "description": "Read inventory shipments"
+            },
+            {
+              "handle": "read_inventory_transfers",
+              "description": "Read inventory transfers"
+            },
+            {
+              "handle": "read_purchase_options",
+              "description": "App can read their own purchase options"
             }
           ]
         },
@@ -1253,7 +1705,7 @@
           "actualQueryCost": 7,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1985,
+            "currentlyAvailable": 1993,
             "restoreRate": 100
           }
         }
@@ -1290,6 +1742,10 @@
               "description": "Read store content like articles, blogs, comments, pages, and redirects"
             },
             {
+              "handle": "read_customer_merge",
+              "description": "Read access for customer merge"
+            },
+            {
               "handle": "read_customers",
               "description": "Read customer details and customer groups"
             },
@@ -1312,6 +1768,14 @@
             {
               "handle": "read_inventory",
               "description": "Read inventory"
+            },
+            {
+              "handle": "read_legal_policies",
+              "description": "Read legal policies"
+            },
+            {
+              "handle": "read_locales",
+              "description": "Read shop locales"
             },
             {
               "handle": "read_locations",
@@ -1338,12 +1802,28 @@
               "description": "Read metaobjects"
             },
             {
+              "handle": "read_online_store_navigation",
+              "description": "Read data from Online Store Navigation GraphQL API"
+            },
+            {
               "handle": "read_order_edits",
               "description": "Read order edits"
             },
             {
               "handle": "read_orders",
               "description": "Read orders, transactions, and fulfillments"
+            },
+            {
+              "handle": "read_payment_customizations",
+              "description": "Read access for payment customizations"
+            },
+            {
+              "handle": "read_payment_terms",
+              "description": "Read payment terms"
+            },
+            {
+              "handle": "read_privacy_settings",
+              "description": "Read privacy settings of the shop"
             },
             {
               "handle": "read_product_listings",
@@ -1366,6 +1846,22 @@
               "description": "Read shipping rates, countries, and provinces"
             },
             {
+              "handle": "read_shopify_payments_disputes",
+              "description": "Read Shopify Payments disputes"
+            },
+            {
+              "handle": "read_shopify_payments_payouts",
+              "description": "Read Shopify Payments balance and payouts"
+            },
+            {
+              "handle": "read_store_credit_account_transactions",
+              "description": "Read store credit account transactions."
+            },
+            {
+              "handle": "read_store_credit_accounts",
+              "description": "Read store credit account balance and currency."
+            },
+            {
               "handle": "read_themes",
               "description": "Read theme templates and theme assets"
             },
@@ -1382,12 +1878,32 @@
               "description": "Modify assigned fulfillment"
             },
             {
+              "handle": "write_cart_transforms",
+              "description": "Write cart transforms."
+            },
+            {
+              "handle": "write_cash_tracking",
+              "description": "Write cash balance tracking for retail cash registers"
+            },
+            {
               "handle": "write_content",
               "description": "Modify store content like articles, blogs, comments, pages, and redirects"
             },
             {
+              "handle": "write_customer_data_erasure",
+              "description": "Write access for customer data erasure"
+            },
+            {
+              "handle": "write_customer_merge",
+              "description": "Write access for customer merge"
+            },
+            {
               "handle": "write_customers",
               "description": "Modify customer details and customer groups"
+            },
+            {
+              "handle": "write_delivery_customizations",
+              "description": "Write access for delivery customizations"
             },
             {
               "handle": "write_discounts",
@@ -1402,8 +1918,16 @@
               "description": "Write files"
             },
             {
+              "handle": "write_fulfillment_constraint_rules",
+              "description": "Write access for fulfillment constraint rules"
+            },
+            {
               "handle": "write_fulfillments",
               "description": "Modify fulfillment services"
+            },
+            {
+              "handle": "write_gift_card_transactions",
+              "description": "Credit and debit gift cards"
             },
             {
               "handle": "write_gift_cards",
@@ -1412,6 +1936,22 @@
             {
               "handle": "write_inventory",
               "description": "Modify inventory"
+            },
+            {
+              "handle": "write_inventory_shipments",
+              "description": "Modify inventory shipments"
+            },
+            {
+              "handle": "write_inventory_transfers",
+              "description": "Modify inventory transfers"
+            },
+            {
+              "handle": "write_legal_policies",
+              "description": "Write legal policies"
+            },
+            {
+              "handle": "write_locales",
+              "description": "Modify shop locales"
             },
             {
               "handle": "write_locations",
@@ -1438,12 +1978,28 @@
               "description": "Write metaobjects"
             },
             {
+              "handle": "write_online_store_navigation",
+              "description": "Write data from Online Store Navigation GraphQL API"
+            },
+            {
               "handle": "write_order_edits",
               "description": "Modify orders"
             },
             {
               "handle": "write_orders",
               "description": "Modify orders, transactions, and fulfillments"
+            },
+            {
+              "handle": "write_payment_customizations",
+              "description": "Write access for payment customizations"
+            },
+            {
+              "handle": "write_payment_terms",
+              "description": "Write payment terms"
+            },
+            {
+              "handle": "write_privacy_settings",
+              "description": "Modify privacy settings of the shop"
             },
             {
               "handle": "write_products",
@@ -1454,12 +2010,20 @@
               "description": "Modify publications"
             },
             {
+              "handle": "write_purchase_options",
+              "description": "App can manage their own purchase options"
+            },
+            {
               "handle": "write_returns",
               "description": "Write access for returns"
             },
             {
               "handle": "write_shipping",
               "description": "Modify shipping rates, countries, and provinces"
+            },
+            {
+              "handle": "write_store_credit_account_transactions",
+              "description": "Credit and debit store credit accounts."
             },
             {
               "handle": "write_third_party_fulfillment_orders",
@@ -1470,8 +2034,52 @@
               "description": "Write dynamic content translations"
             },
             {
+              "handle": "write_validations",
+              "description": "Write cart and checkout validations."
+            },
+            {
+              "handle": "read_cart_transforms",
+              "description": "Read cart transforms."
+            },
+            {
+              "handle": "read_cash_tracking",
+              "description": "Read cash balance tracking for retail cash registers"
+            },
+            {
+              "handle": "read_customer_data_erasure",
+              "description": "Read access for customer data erasure"
+            },
+            {
+              "handle": "read_delivery_customizations",
+              "description": "Read access for delivery customizations"
+            },
+            {
+              "handle": "read_fulfillment_constraint_rules",
+              "description": "Read access for fulfillment constraint rules"
+            },
+            {
+              "handle": "read_gift_card_transactions",
+              "description": "Read gift card transactions"
+            },
+            {
               "handle": "read_gift_cards",
               "description": "Read gift cards"
+            },
+            {
+              "handle": "read_inventory_shipments",
+              "description": "Read inventory shipments"
+            },
+            {
+              "handle": "read_inventory_transfers",
+              "description": "Read inventory transfers"
+            },
+            {
+              "handle": "read_purchase_options",
+              "description": "App can read their own purchase options"
+            },
+            {
+              "handle": "read_validations",
+              "description": "Read cart and checkout validations."
             }
           ],
           "activeSubscriptions": []
