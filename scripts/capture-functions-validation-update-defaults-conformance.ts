@@ -125,6 +125,27 @@ const functionLookupDocument = `#graphql
   }
 `;
 
+const functionHydrateByHandleDocument = `query FunctionHydrateByHandle {
+  shopifyFunctions(first: 100) {
+    nodes {
+      id
+      title
+      handle
+      apiType
+      description
+      appKey
+      app {
+        __typename
+        id
+        title
+        handle
+        apiKey
+      }
+    }
+  }
+}
+`;
+
 const validationCreateDocument = `mutation ValidationUpdateDefaultsSetup($validation: ValidationCreateInput!) {
   validationCreate(validation: $validation) {
     validation {
@@ -204,6 +225,11 @@ const validationFunction = Array.isArray(functionNodes)
 if (!validationFunction) {
   throw new Error(`Missing released validation Function handle ${validationFunctionHandle}`);
 }
+const functionHydrate = await capture(functionHydrateByHandleDocument, {
+  handle: validationFunctionHandle,
+  apiType: 'VALIDATION',
+});
+assertNoTopLevelErrors(functionHydrate, 'FunctionHydrateByHandle validation Function hydrate');
 
 let createdValidationId: string | null = null;
 let cleanup: Capture | null = null;
@@ -212,7 +238,7 @@ try {
   const createActive = await capture(validationCreateDocument, {
     validation: {
       functionHandle: validationFunctionHandle,
-      title: 'HAR-778 validation update defaults',
+      title: 'Validation update defaults',
       enable: true,
       blockOnFailure: true,
     },
@@ -230,7 +256,7 @@ try {
   const updateTitleOnly = await capture(validationUpdateDocument, {
     id: createdId,
     validation: {
-      title: 'HAR-778 validation update renamed',
+      title: 'Validation update renamed',
     },
   });
   assertNoTopLevelErrors(updateTitleOnly, 'validationUpdate title-only');
@@ -266,12 +292,13 @@ try {
     storeDomain,
     apiVersion,
     summary:
-      'HAR-778 live validationUpdate evidence for omitted enable input/defaults, enabled output, blockOnFailure defaults, and unknown-id userError shape.',
+      'Live validationUpdate evidence for omitted enable input/defaults, enabled output, blockOnFailure defaults, and unknown-id userError shape.',
     conformanceApp: {
       validationFunctionHandle,
       validationFunction,
     },
     functionLookup,
+    functionHydrate,
     createActive,
     updateTitleOnly,
     postUpdateRead,
@@ -284,16 +311,10 @@ try {
           handle: validationFunctionHandle,
           apiType: 'VALIDATION',
         },
-        query: 'cassette-backed VALIDATION ShopifyFunction lookup captured from the live conformance app',
+        query: functionHydrate.query,
         response: {
-          status: 200,
-          body: {
-            data: {
-              shopifyFunctions: {
-                nodes: [validationFunction],
-              },
-            },
-          },
+          status: functionHydrate.response.status,
+          body: functionHydrate.response.payload,
         },
       },
     ],

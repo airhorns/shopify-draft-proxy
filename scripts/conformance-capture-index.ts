@@ -2301,6 +2301,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafields-parity-provenance-replacements',
+    scriptPath: 'scripts/capture-metafields-parity-provenance-replacements.mts',
+    purpose:
+      'Real Shopify recorder replacement for legacy local-runtime metafieldDefinitionCreate input validation and standardMetafieldDefinitionEnable error-branch parity evidence.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-create-input-validation.json`,
+      `${CAPTURE_ROOT}standard-metafield-definition-enable-error-branches.json`,
+      `${LOCAL_RUNTIME_ROOT}metafield-definition-create-input-validation.json`,
+      `${LOCAL_RUNTIME_ROOT}standard-metafield-definition-enable-error-branches.json`,
+      'config/parity-specs/metafields/metafield-definition-create-input-validation.json',
+      'config/parity-specs/metafields/standard-metafield-definition-enable-error-branches.json',
+      'config/parity-requests/metafields/standard-metafield-definition-enable-visible-storefront.graphql',
+    ],
+    cleanupBehavior:
+      'Validation branches create no records except app-permitted shopify_standard/protected definitions and the visibleToStorefrontApi standard definition probe; the recorder deletes each definition it creates.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The script records fixed API versions 2025-01 and 2026-04 in one run so the two retired local-runtime fixtures are replaced together.',
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-validations-input',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-metafield-definition-validations-input-conformance.ts',
@@ -3293,6 +3315,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
     fixtureOutputs: [`${CAPTURE_ROOT}metaobjects-read.json`, 'config/parity-specs/metaobjects/metaobjects-read.json'],
     cleanupBehavior: 'Deletes seeded metaobject entries/definitions after read capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'metaobject-definition-lifecycle-and-capability',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-lifecycle-and-capability-conformance.ts',
+    purpose:
+      'Metaobject definition create/update/delete/read-after-write, standard template enablement, and disabled entry capability validation.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-definition-draft-flow.json`,
+      `${CAPTURE_ROOT}metaobject-capability-not-enabled.json`,
+      'config/parity-specs/metaobjects/metaobject-definition-lifecycle-local-staging.json',
+      'config/parity-specs/metaobjects/metaobject_capability_not_enabled.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable metaobject definitions and one entry, temporarily enables a standard definition, then deletes every created row and definition during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -8324,49 +8364,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'apps',
-    captureId: 'apps-billing-local-runtime',
+    captureId: 'app-revoke-access-scopes-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
-    scriptPath: 'scripts/capture-apps-billing-local-runtime.ts',
-    purpose:
-      'Executable local-runtime Apps billing mutation fixtures for billing validation branches that cannot be live-recorded with the conformance custom app.',
-    requiredAuthScopes: ['local-runtime'],
+    scriptPath: 'scripts/capture-app-revoke-access-scopes-validation-conformance.ts',
+    purpose: 'Safe appRevokeAccessScopes validation branches that do not revoke real app grants.',
+    requiredAuthScopes: ['active Admin API token with current app source context'],
     fixtureOutputs: [
-      'fixtures/conformance/local-runtime/2026-04/apps/app-purchase-one-time-create-validation.json',
-      'fixtures/conformance/local-runtime/2026-04/apps/app-billing-access-local-staging.json',
-      'fixtures/conformance/local-runtime/2026-04/apps/app-usage-record-create-cap-and-idempotency.json',
-      'fixtures/conformance/local-runtime/2026-04/apps/app-subscription-line-item-update-validation.json',
-      'config/parity-specs/apps/app-purchase-one-time-create-validation.json',
-      'config/parity-specs/apps/app-usage-record-create-cap-and-idempotency.json',
-      'config/parity-specs/apps/app-subscription-line-item-update-validation.json',
-      'config/parity-specs/apps/app-billing-access-local-staging.json',
-      'config/parity-specs/apps/app-revoke-access-scopes-error-codes.json',
-      'fixtures/conformance/local-runtime/2026-05/apps/app-revoke-access-scopes-error-codes.json',
-      'config/parity-specs/apps/app-uninstall-error-codes-and-cascade.json',
-      'fixtures/conformance/local-runtime/2026-05/apps/app-uninstall-error-codes-and-cascade.json',
-      'config/parity-requests/apps/appRevokeAccessScopes-error-codes.graphql',
-      'config/parity-requests/apps/appRevokeAccessScopes-error-codes-anonymous.graphql',
-      'config/parity-requests/apps/appRevokeAccessScopes-error-codes-ordinary-operation-name.graphql',
-      'config/parity-requests/apps/appUninstall-cascade-current.graphql',
-      'config/parity-requests/apps/appUninstall-unknown-input.graphql',
-      'config/parity-requests/apps/appSubscriptionTrialExtend-anonymous.graphql',
-      'config/parity-requests/apps/appSubscriptionTrialExtend-ordinary-operation-name.graphql',
-      'config/parity-requests/apps/appPurchaseOneTimeCreate-validation-blank-name.graphql',
-      'config/parity-requests/apps/appPurchaseOneTimeCreate-validation-zero-price.graphql',
-      'config/parity-requests/apps/appPurchaseOneTimeCreate-validation-currency-mismatch.graphql',
-      'config/parity-requests/apps/appPurchaseOneTimeCreate-validation-missing-return-url.graphql',
-      'config/parity-requests/apps/appPurchaseOneTimeCreate-validation-success.graphql',
-      'config/parity-requests/apps/appSubscriptionCreate-local-lifecycle.graphql',
-      'config/parity-requests/apps/appUsageRecordCreate-cap-success.graphql',
-      'config/parity-requests/apps/appUsageRecordCreate-cap-over-limit.graphql',
-      'config/parity-requests/apps/appUsageRecordCreate-long-idempotency-key.graphql',
-      'config/parity-requests/apps/app-usage-record-create-cap-read.graphql',
-      'config/parity-requests/apps/appSubscriptionLineItemUpdate-validation.graphql',
+      `${CAPTURE_ROOT}app-revoke-access-scopes-validation.json`,
+      'config/parity-specs/apps/app-revoke-access-scopes-validation.json',
+      'config/parity-requests/apps/appRevokeAccessScopes-fake-scope.graphql',
+      'config/parity-requests/apps/appRevokeAccessScopes-mixed-fake-scope.graphql',
+      'config/parity-requests/apps/appRevokeAccessScopes-required-read-products.graphql',
     ],
     cleanupBehavior:
-      'Local-runtime only; the script executes supported mutations against a local proxy with no Shopify upstream writes.',
+      'Validation-only capture; unknown and required-scope probes do not revoke app grants. Optional-grant success is intentionally excluded because it would revoke a real active-app scope.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
-    notes:
-      'The appRevokeAccessScopes missing-source-app branch is Core-source-derived because valid public Admin requests provide source app context and unauthenticated requests fail before resolver execution.',
   },
   {
     domain: 'apps',
@@ -8547,7 +8559,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04', ORPHAN_FIXTURE_GROUP: 'functions' },
     scriptPath: 'scripts/capture-platform-payments-orphaned-fixtures-conformance.ts',
     purpose:
-      'Re-records cartTransformCreate validation plus local-runtime Function validation/update fixtures consumed by the standard parity runner.',
+      'Re-records live cartTransformCreate validation and registers retirement of stale local-runtime Function parity evidence.',
     requiredAuthScopes: [
       'shopifyFunctions read access',
       'read_cart_transforms',
@@ -8558,9 +8570,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${LOCAL_RUNTIME_ROOT}functions-metadata-flow.json`,
       `${LOCAL_RUNTIME_ROOT}functions-owner-metadata-flow.json`,
       `${LOCAL_RUNTIME_ROOT}functions-validation-create-validation.json`,
+      `${LOCAL_RUNTIME_ROOT}functions-validation-max-cap.json`,
+      `${LOCAL_RUNTIME_ROOT}functions-validation-update-shape.json`,
       `${LOCAL_RUNTIME_ROOT}functions-create-guardrails.json`,
       'config/parity-specs/functions/functions-cart-transform-create-validation.json',
       'config/parity-specs/functions/functions-create-guardrails.json',
+      'config/parity-specs/functions/functions-metadata-local-staging.json',
+      'config/parity-specs/functions/functions-owner-metadata-local-staging.json',
       'config/parity-specs/functions/functions-validation-create-validation.json',
       'config/parity-specs/functions/functions-validation-max-cap.json',
       'config/parity-specs/functions/functions-validation-update-shape.json',
@@ -8579,7 +8595,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Deletes pre-existing cartTransforms before capture, captures unresolved identifier branches with empty readbacks, creates one disposable cartTransform, captures duplicate/API-mismatch/both-identifier branches and downstream readback, then deletes the disposable cartTransform.',
     notes:
-      'The functions-create-guardrails protected outputs are retained here only to register their deletion with the protected-evidence invariant; the fabricated local-runtime scenario is no longer generated or checked.',
+      'The local-runtime protected outputs are retained here only to register their deletion with the protected-evidence invariant; fabricated functions parity scenarios are no longer generated or checked.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -8605,7 +8621,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-delete-error-shape-conformance.ts',
     purpose:
-      'validationDelete/cartTransformDelete missing-id userError shape plus cassette-backed cartTransformCreate/delete canonical deletedId lifecycle.',
+      'validationDelete/cartTransformDelete missing-id userError shape plus live cartTransformCreate/delete canonical deletedId lifecycle.',
     requiredAuthScopes: [
       'read_validations',
       'write_validations for missing validationDelete userError capture',
@@ -8617,7 +8633,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/functions/functions-delete-error-shape.json',
     ],
     cleanupBehavior:
-      'Captures missing-delete userErrors only; no live resources are created. The local lifecycle leg is cassette-backed because the current unattended shop lacks released cart-transform/validation Function handles.',
+      'Captures missing-delete userErrors, cleans existing cartTransforms, creates one disposable cartTransform from the released conformance Function, deletes it, then captures the empty downstream read.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -8706,7 +8722,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'released conformance-validation Function in the installed conformance app',
     ],
     fixtureOutputs: [
-      `${LOCAL_RUNTIME_ROOT}functions-validation-update-shape.json`,
       `${CAPTURE_ROOT}functions-validation-update-defaults.json`,
       'config/parity-specs/functions/functions-validation-update-defaults.json',
     ],

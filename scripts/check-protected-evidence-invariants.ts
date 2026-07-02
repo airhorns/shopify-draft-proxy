@@ -59,10 +59,14 @@ const changed = result.stdout
       status,
       path: secondPath ?? firstPath,
     };
-  });
+  })
+  .filter((entry) => entry.path.length > 0);
 
 const unregistered = changed.filter(
-  ({ path: changedPath }) => !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath)),
+  ({ status, path: changedPath }) =>
+    status !== 'D' &&
+    existsSync(changedPath) &&
+    !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath)),
 );
 
 if (unregistered.length > 0) {
@@ -140,7 +144,7 @@ if (shippingFulfillmentEvidenceFailures.length > 0) {
   process.exit(1);
 }
 
-process.stdout.write('Protected parity evidence changes are registered in the capture index.\n');
+process.stdout.write('Protected parity evidence additions/modifications are registered in the capture index.\n');
 
 function trackedFiles(pathspec: string): string[] {
   const trackedResult = spawnSync('git', ['ls-files', '--', pathspec], { encoding: 'utf8' });
