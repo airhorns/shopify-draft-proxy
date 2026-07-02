@@ -9,6 +9,9 @@ import {
   findUnregisteredProtectedEvidenceChanges,
 } from './protected-evidence-invariants.js';
 
+const metafieldDefinitionsParitySpecDir = path.join('config', 'parity-specs', 'metafield-definitions');
+const descriptorQueryPattern = /hand-synthesized|sha:|cassette-backed|recorded by scripts|local-runtime/iu;
+
 const changed = changedProtectedEvidencePaths();
 const failures = [...findUnregisteredProtectedEvidenceChanges(changed), ...findProductsProvenanceFailures()];
 
@@ -36,6 +39,56 @@ function walkJsonFiles(directory: string): string[] {
 
 function readJsonFile(filePath: string): unknown {
   return JSON.parse(readFileSync(filePath, 'utf8'));
+}
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function findForbiddenMetafieldDefinitionsEvidence(): string[] {
+  const failures: string[] = [];
+
+  for (const specPath of walkJsonFiles(metafieldDefinitionsParitySpecDir)) {
+    const spec = readJsonFile(specPath) as {
+      comparisonMode?: unknown;
+      liveCaptureFiles?: unknown;
+      scenarioStatus?: unknown;
+    };
+    if (spec.scenarioStatus !== 'captured' || spec.comparisonMode !== 'captured-vs-proxy-request') {
+      continue;
+    }
+
+    for (const liveCaptureFile of stringList(spec.liveCaptureFiles)) {
+      if (liveCaptureFile.startsWith('fixtures/conformance/local-runtime/')) {
+        failures.push(`${specPath}: liveCaptureFiles must not use local-runtime evidence (${liveCaptureFile})`);
+        continue;
+      }
+
+      if (!existsSync(liveCaptureFile)) {
+        continue;
+      }
+
+      const fixture = readJsonFile(liveCaptureFile) as { upstreamCalls?: unknown };
+      const upstreamCalls = Array.isArray(fixture.upstreamCalls) ? fixture.upstreamCalls : [];
+      upstreamCalls.forEach((call, index) => {
+        const query = call && typeof call === 'object' ? (call as { query?: unknown }).query : undefined;
+        if (typeof query === 'string' && descriptorQueryPattern.test(query)) {
+          failures.push(`${liveCaptureFile}: upstreamCalls[${index}].query is descriptor provenance, not GraphQL`);
+        }
+      });
+    }
+  }
+
+  return failures;
+}
+
+const metafieldDefinitionsFailures = findForbiddenMetafieldDefinitionsEvidence();
+if (metafieldDefinitionsFailures.length > 0) {
+  process.stderr.write(
+    'metafield-definitions parity evidence must use live Shopify captures, not local-runtime or descriptor provenance.\n',
+  );
+  for (const failure of metafieldDefinitionsFailures) process.stderr.write(`- ${failure}\n`);
+  process.exit(1);
 }
 
 function collectShippingFulfillmentFixtureFiles(): string[] {
@@ -86,6 +139,57 @@ if (shippingFulfillmentEvidenceFailures.length > 0) {
   for (const failure of shippingFulfillmentEvidenceFailures) process.stderr.write(`- ${failure}\n`);
   process.exit(1);
 }
+
+const customerSpecDir = path.join(process.cwd(), 'config/parity-specs/customers');
+const customerEvidenceViolations: string[] = [];
+
+function readRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+if (existsSync(customerSpecDir)) {
+  for (const fileName of readdirSync(customerSpecDir)
+    .filter((file) => file.endsWith('.json'))
+    .sort()) {
+    const specPath = path.join(customerSpecDir, fileName);
+    const spec = readRecord(readJsonFile(specPath));
+    if (!spec) continue;
+    const scenarioStatus = spec?.['scenarioStatus'];
+    const comparisonMode = spec?.['comparisonMode'];
+    if (scenarioStatus !== 'captured' || comparisonMode !== 'captured-vs-proxy-request') continue;
+
+    const liveCaptureFiles = Array.isArray(spec['liveCaptureFiles']) ? spec['liveCaptureFiles'] : [];
+    for (const captureFile of liveCaptureFiles) {
+      if (typeof captureFile !== 'string') continue;
+      if (captureFile.startsWith('fixtures/conformance/local-runtime/')) {
+        customerEvidenceViolations.push(`${specPath}: liveCaptureFiles contains local-runtime fixture ${captureFile}`);
+        continue;
+      }
+      if (!captureFile.includes('/customers/') || !existsSync(captureFile)) continue;
+      const fixture = readRecord(readJsonFile(captureFile));
+      const upstreamCalls = Array.isArray(fixture?.['upstreamCalls']) ? fixture['upstreamCalls'] : [];
+      for (const [index, upstreamCall] of upstreamCalls.entries()) {
+        const call = readRecord(upstreamCall);
+        const query = call?.['query'];
+        if (typeof query === 'string' && descriptorQueryPattern.test(query)) {
+          customerEvidenceViolations.push(
+            `${captureFile}: upstreamCalls[${index}].query is a provenance descriptor (${JSON.stringify(query)})`,
+          );
+        }
+      }
+    }
+  }
+}
+
+if (customerEvidenceViolations.length > 0) {
+  process.stderr.write('Customers parity evidence contains local-runtime captures or descriptor upstream queries.\n');
+  for (const violation of customerEvidenceViolations) process.stderr.write(`- ${violation}\n`);
+  process.exit(1);
+}
+
+process.stdout.write('Customers parity evidence uses live fixture paths and GraphQL upstream cassette queries.\n');
 
 function trackedFiles(pathspec: string): string[] {
   const trackedResult = spawnSync('git', ['ls-files', '--', pathspec], { encoding: 'utf8' });

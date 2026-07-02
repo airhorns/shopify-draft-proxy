@@ -1,0 +1,49 @@
+{
+  "scenarioId": "customer-set-unknown-id-errors",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-06-30T16:02:55.887Z",
+  "notes": "Live Shopify Admin GraphQL customerSet(identifier.id) not-found evidence captured with the parity request document.",
+  "expectedEmptyMutationLog": [],
+  "cases": {
+    "unknownId": {
+      "request": {
+        "query": "mutation CustomerSetUnknownIdErrors($input: CustomerSetInput!, $identifier: CustomerSetIdentifiers) {\n  customerSet(input: $input, identifier: $identifier) {\n    customer {\n      id\n      email\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "identifier": {
+            "id": "gid://shopify/Customer/999999999999999"
+          },
+          "input": {
+            "firstName": "Ghost"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "customerSet": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "Resource matching the identifier was not found.",
+                "code": "NOT_FOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

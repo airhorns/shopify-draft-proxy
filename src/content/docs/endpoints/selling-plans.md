@@ -131,9 +131,10 @@ parity evidence.
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-lifecycle.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-input-validation.json`
 - `config/parity-specs/products/sellingPlanGroupCreate-input-validation.json`
-- `config/parity-specs/products/productJoinLeaveSellingPlanGroups-validation.json`
 - `config/parity-specs/products/selling-plan-product-variant-associations.json`
 - `config/parity-specs/products/selling-plan-group-lifecycle.json`
+- Focused Rust route tests cover product and variant join/leave guardrails that
+  currently diverge from public Admin API probes.
 
 ### Validation
 

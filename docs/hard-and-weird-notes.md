@@ -313,17 +313,17 @@ require validation before staging: blank group ID lists, duplicate IDs within on
 request, too many post-join memberships, and leave requests for groups that are
 not direct members should all return payload `userErrors` without changing local
 membership state. The local runtime models that guard contract and covers it with
-`config/parity-specs/products/productJoinLeaveSellingPlanGroups-validation.json`
-plus focused product mutation tests.
+focused product mutation tests, but no checked-in products parity fixture is
+retained for those divergent local-only branches.
 
 A live public Admin probe against `harry-test-heelo.myshopify.com` on 2025-01,
 2026-04, and `unstable` did not expose the same branches: duplicate joins,
 leave-non-member requests, and 32-group joins returned empty `userErrors`, and
 the public `SellingPlanGroupUserErrorCode` enum lacked `DUPLICATE`,
-`NOT_A_MEMBER`, and `SELLING_PLAN_GROUPS_TOO_MANY`. Treat the checked-in
-local-runtime parity fixture as the current internal guardrail contract, and
-re-capture against a target that reproduces the internal package behavior before
-changing those codes/messages or replacing the fixture with live evidence.
+`NOT_A_MEMBER`, and `SELLING_PLAN_GROUPS_TOO_MANY`. Treat the Rust integration
+coverage as the current internal guardrail contract, and re-capture against a
+target that reproduces the internal package behavior before changing those
+codes/messages or adding parity evidence.
 
 ## Current: Selling-plan group lower-bound validation is create-specific, but update deletes can still reject the final plan
 
@@ -3216,6 +3216,18 @@ pinned definitions, the `pin: true` re-enable returned empty `userErrors` and
 `pinnedPosition: 21`; it did not return `PINNED_LIMIT_REACHED`, and downstream
 `metafieldDefinition(id:)` by the original id still resolved the definition.
 
+Admin GraphQL 2026-04 introspection on `harry-test-heelo.myshopify.com` omits
+older arguments such as `visibleToStorefrontApi` and `useAsCollectionCondition`,
+but live execution still accepts them. `visibleToStorefrontApi: false` on the
+PRODUCT `facts` / `isbn` template returns a successful payload with
+`access.storefront: NONE`, and `useAsCollectionCondition: true` on an ineligible
+template returns `INVALID_CAPABILITY` for `smart_collection_condition`.
+`forceEnable` and `useAsAdminFilter` are rejected by public schema validation
+before resolver execution, so checked-in parity evidence should not claim
+payload parity for those retired arguments. If the proxy keeps them as local
+compatibility inputs, cover that behavior with runtime tests rather than
+Shopify parity targets.
+
 Practical rule:
 
 - keep proxy runtime support constrained to captured standard template IDs/namespaces until broader template catalog reads are modeled
@@ -3508,21 +3520,23 @@ Practical rule:
 - model async duplicate as a local `ProductDuplicateOperation` whose mutation response is created/pending-shaped and whose helper read exposes completion; do not route supported async duplicate writes upstream
 - keep `productDuplicateJob(id:)` as the older unknown-job compatibility helper unless new evidence links it to current async duplicate operations
 
-## 75a. Async `productDelete` starts pending but duplicate errors use nullable fields
+## 75a. Async `productDelete` starts pending but immediate product visibility is timing-sensitive
 
 HAR-932 captured `productDelete(input:, synchronous: false)` on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`.
+A refreshed 2026-04 capture against the same store showed the operation can complete before the immediate downstream product read.
 
 Captured facts:
 
 - the mutation payload returns `deletedProductId: null`, `productDeleteOperation.status: CREATED`, and empty `userErrors`
-- the product remains visible to an immediate downstream `product(id:)` read after the async delete mutation
+- the 2025-01 capture kept the product visible to an immediate downstream `product(id:)` read after the async delete mutation
+- the refreshed 2026-04 capture returned `product: null` for that immediate downstream read, so local timing should prefer the completed-before-read branch instead of requiring a visible pending product
 - a second async delete for the same product while the operation is pending returns `productDeleteOperation: null` and a public `UserError` with `field: null` and message `Another operation already in progress. Please wait until current one is finished.`
 - the public 2025-01 `UserError` selected under `productDelete` / `ProductDeleteOperation.userErrors` does not expose a `code` field
 - helper reads can advance quickly: the capture saw `productOperation(id:)` with status `ACTIVE` and `node(id:)` with status `COMPLETE`; the final cleanup poll saw `productOperation(id:)` as `COMPLETE` with `deletedProductId`
 
 Practical rule:
 
-- model async delete with an initial `ProductDeleteOperation` response, keep the product visible immediately, reject duplicate pending operations with the nullable-field public userError shape, and expose completed readback through `productOperation(id:)` / `node(id:)` without runtime Shopify writes
+- model async delete with an initial `ProductDeleteOperation` response, tombstone the product for immediate local `product(id:)` reads, reject duplicate pending operations with the nullable-field public userError shape while the local operation is recorded, and expose completed readback through `productOperation(id:)` / `node(id:)` without runtime Shopify writes
 
 ## 76. `locationAdd` required input errors are parser-level, but country validation is schema-sensitive
 
@@ -3833,7 +3847,31 @@ Practical rule:
   so repeated-create parity must wait for a scope-capable dev-store credential
   rather than being replaced with local-runtime evidence
 
-## 88. Standard metafield-definition immutable fields return field-specific public errors
+## 88. appRevokeAccessScopes validation nulls revoked and prioritizes unknown scopes
+
+Admin GraphQL 2026-04 live capture against `harry-test-heelo.myshopify.com`
+records safe `appRevokeAccessScopes` validation probes that do not revoke real
+app grants:
+
+- `scopes: ["fake_scope"]` returns `revoked: null` and `UNKNOWN_SCOPES` on
+  `["scopes"]`
+- `scopes: ["read_products", "fake_scope"]` also returns only
+  `UNKNOWN_SCOPES`; the unknown-handle guard takes precedence over required
+  scope rejection
+- `scopes: ["read_products"]` returns `revoked: null` and
+  `CANNOT_REVOKE_REQUIRED_SCOPES` on `["scopes"]`
+
+Practical rule:
+
+- failed `appRevokeAccessScopes` validation should project `revoked: null`, not
+  an empty list
+- do not accumulate required-scope errors when the same request contains an
+  unknown scope handle
+- keep optional-grant success as runtime-test-backed until a disposable app
+  grant can be revoked and restored safely; do not forge captured parity for
+  that branch
+
+## 89. Standard metafield-definition immutable fields return field-specific public errors
 
 Admin GraphQL 2026-04 live capture against `harry-test-heelo.myshopify.com`
 records `metafieldDefinitionUpdate` on the standard product subtitle definition
@@ -3849,6 +3887,14 @@ The same capture records app-reserved namespace definition deletes without
 `RESERVED_NAMESPACE_ORPHANED_METAFIELDS` and message
 `Deleting a definition in a reserved namespace must have deleteAllAssociatedMetafields set to true.`
 
+A 2025-01 live input-validation capture with the current conformance app accepts
+PRODUCT `metafieldDefinitionCreate` in the literal `shopify_standard` and
+`protected` namespaces, returns empty `userErrors`, and allows immediate cleanup
+with `metafieldDefinitionDelete(deleteAllAssociatedMetafields: true)`. The proxy
+still keeps a conservative local `RESERVED` guard for those business namespaces,
+with focused Rust integration coverage instead of claiming those branches as
+strict Shopify parity.
+
 Practical rule:
 
 - model the public field-specific metafieldDefinitionUpdate errors for standard
@@ -3856,3 +3902,25 @@ Practical rule:
   `["definition"]` error
 - keep the app-reserved namespace delete message aligned with the public
   2026-04 capture, not older/internal wording
+
+## 89. `locationActivate` limit is public-capturable, ongoing relocation was not
+
+Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` can produce a real
+`locationActivate` `LOCATION_LIMIT` branch by creating a disposable active
+location, deactivating it, filling the active merchant-managed location cap, and
+then activating the inactive target. The captured userError is
+`field: ["locationId"]`, `code: LOCATION_LIMIT`, and message
+`Shop has reached its location limit.`
+
+A focused attempt to create `HAS_ONGOING_RELOCATION` through public Admin
+GraphQL did not expose that state: a stocked source location deactivated with a
+destination relocation returned synchronously with `hasActiveInventory: false`,
+and immediate `locationActivate` on the source succeeded with no userErrors.
+
+Practical rule:
+
+- derive location cap state from a live/cassette-backed
+  `StorePropertiesLocationLimitStatus` read rather than synthetic fixture IDs
+- keep `HAS_ONGOING_RELOCATION` as runtime-test-only behavior until a
+  deterministic public or approved disposable-store setup can leave a real
+  incomplete relocation job observable through `locationActivate`

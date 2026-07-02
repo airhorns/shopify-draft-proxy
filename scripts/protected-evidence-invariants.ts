@@ -91,8 +91,8 @@ function listJsonFiles(directory: string): string[] {
   });
 }
 
-function strictProductsEvidenceSpec(paritySpecPath: string, paritySpec: ParitySpecEvidence): boolean {
-  if (paritySpec.scenarioStatus !== 'captured' || paritySpec.comparisonMode !== 'captured-vs-proxy-request') {
+function productsEvidenceSpec(paritySpecPath: string, paritySpec: ParitySpecEvidence): boolean {
+  if (paritySpec.scenarioStatus !== 'captured') {
     return false;
   }
 
@@ -107,7 +107,7 @@ export function validateProductsParitySpecEvidence(
   paritySpec: ParitySpecEvidence,
   fixtureLoader: (fixturePath: string) => unknown,
 ): EvidenceInvariantFailure[] {
-  if (!strictProductsEvidenceSpec(paritySpecPath, paritySpec)) {
+  if (!productsEvidenceSpec(paritySpecPath, paritySpec)) {
     return [];
   }
 
@@ -124,7 +124,7 @@ export function validateProductsParitySpecEvidence(
     ) {
       failures.push({
         path: paritySpecPath,
-        message: `strict products parity spec references local-runtime fixture ${fixturePath}; use captured-fixture/local-runtime-backed metadata instead`,
+        message: `products/store-properties parity spec references local-runtime fixture ${fixturePath}; remove the synthetic fixture/spec from parity evidence or replace it with live Shopify capture`,
       });
       continue;
     }

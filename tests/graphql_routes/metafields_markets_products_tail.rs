@@ -590,6 +590,29 @@ fn singular_metafield_delete_removes_staged_owner_metafields_by_id() {
         .as_str()
         .unwrap()
         .contains("SingularMetafieldDelete"));
+
+    let repeat_log_len = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    let repeat_deleted = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({"input": {"id": product_metafield_id}}),
+    ));
+    assert_eq!(repeat_deleted.status, 200);
+    assert_eq!(
+        repeat_deleted.body["data"]["remove"]["deletedId"],
+        Value::Null
+    );
+    assert_eq!(
+        repeat_deleted.body["data"]["remove"]["userErrors"],
+        json!([{"field": ["id"], "message": "Metafield does not exist"}])
+    );
+    assert!(!repeat_deleted.body["data"]["remove"]["userErrors"][0]
+        .as_object()
+        .unwrap()
+        .contains_key("code"));
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        repeat_log_len
+    );
 }
 
 #[test]
@@ -7792,7 +7815,7 @@ fn product_duplicate_respects_new_status_override_and_validates_invalid_status()
 }
 
 #[test]
-fn product_delete_async_operation_preserves_pending_delete_readbacks() {
+fn product_delete_async_operation_tombstones_immediate_product_read() {
     let mut proxy = snapshot_proxy();
 
     let source_create = proxy.process_request(json_graphql_request(
@@ -7860,11 +7883,7 @@ fn product_delete_async_operation_preserves_pending_delete_readbacks() {
         json!({ "id": product_id.clone() }),
     ));
     assert_eq!(immediate_read.status, 200);
-    assert_eq!(immediate_read.body["data"]["product"]["id"], product_id);
-    assert_eq!(
-        immediate_read.body["data"]["product"]["title"],
-        json!("Async delete source")
-    );
+    assert_eq!(immediate_read.body["data"]["product"], Value::Null);
 
     let operation_read = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/products/productDelete-operation-read.graphql"),
