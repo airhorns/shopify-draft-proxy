@@ -3853,3 +3853,23 @@ Practical rule:
   `["definition"]` error
 - keep the app-reserved namespace delete message aligned with the public
   2026-04 capture, not older/internal wording
+
+## 89. Public 2026-04 Files API does not expose `MediaImage.references`
+
+Admin GraphQL 2026-04 live capture against
+`harry-test-heelo.myshopify.com` recorded the runtime
+`MediaFileReferencesHydrate` query returning a top-level schema error:
+`Field 'references' doesn't exist on type 'MediaImage'`.
+
+Older checked-in 2025-01 cascade evidence has a successful
+`MediaImage.references(first:)` response for product/media/variant relationship
+hydration, so do not assume this field is stable across public API versions.
+
+Practical rule:
+
+- media parity cassettes must store the exact hydrate query and exact Shopify
+  response, including public schema errors when that is what the runtime query
+  receives
+- future file-delete cascade improvements should prefer a public, version-stable
+  product/media hydration path over relying on `MediaImage.references` in API
+  versions where the field is not exposed

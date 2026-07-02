@@ -5,6 +5,28 @@ import path from 'node:path';
 import { conformanceCaptureIndex } from './conformance-capture-index.js';
 
 const protectedPaths = ['config/parity-specs', 'config/parity-requests', 'fixtures/conformance'];
+const retiredProtectedEvidencePaths = new Set([
+  'config/parity-requests/media/fileAcknowledgeUpdateFailed-downstream-read.graphql',
+  'config/parity-requests/media/fileAcknowledgeUpdateFailed-parity.graphql',
+  'config/parity-requests/media/fileUpdate-product-reference-attach.graphql',
+  'config/parity-requests/media/fileUpdate-product-reference-create.graphql',
+  'config/parity-requests/media/fileUpdate-product-reference-files-read.graphql',
+  'config/parity-requests/media/fileUpdate-product-reference-product-read.graphql',
+  'config/parity-requests/media/files-upload-local-runtime-create.graphql',
+  'config/parity-requests/media/files-upload-local-runtime-read.graphql',
+  'config/parity-requests/media/files-upload-local-runtime-staged-upload.graphql',
+  'config/parity-requests/media/media-file-acknowledge-update-failed-semantics-ack.graphql',
+  'config/parity-requests/media/media-file-acknowledge-update-failed-semantics-create.graphql',
+  'config/parity-requests/media/media-file-acknowledge-update-failed-semantics-read.graphql',
+  'config/parity-specs/media/fileAcknowledgeUpdateFailed-local-staging.json',
+  'config/parity-specs/media/fileUpdate-product-reference-local-staging.json',
+  'config/parity-specs/media/files-upload-local-runtime.json',
+  'config/parity-specs/media/media-file-acknowledge-update-failed-semantics.json',
+  'fixtures/conformance/local-runtime/2026-04/media/file-acknowledge-update-failed-local-runtime.json',
+  'fixtures/conformance/local-runtime/2026-04/media/file-update-product-reference-local-runtime.json',
+  'fixtures/conformance/local-runtime/2026-04/media/files-upload-local-runtime.json',
+  'fixtures/conformance/local-runtime/2026-04/media/media-file-acknowledge-update-failed-semantics.json',
+]);
 
 const result = spawnSync('git', ['diff', '--name-status', 'origin/main', '--', ...protectedPaths], {
   encoding: 'utf8',
@@ -51,8 +73,8 @@ const changed = result.stdout
   });
 
 const unregistered = changed.filter(
-  ({ path: changedPath }) =>
-    existsSync(changedPath) &&
+  ({ status, path: changedPath }) =>
+    !(status === 'D' && retiredProtectedEvidencePaths.has(changedPath) && !existsSync(changedPath)) &&
     !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath)),
 );
 

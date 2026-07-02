@@ -1406,7 +1406,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose: 'fileCreate/fileUpdate/fileDelete and staged upload interactions.',
     requiredAuthScopes: ['read_files', 'write_files'],
     fixtureOutputs: [
-      `${LOCAL_RUNTIME_ROOT}file-update-product-reference-local-runtime.json`,
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/file-acknowledge-update-failed-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/media/file-create-delete-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/media/file-delete-product-media-parity.json',
@@ -1416,7 +1415,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-create-validation-branches.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-delete-typed-gid-roundtrip.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-update-validation-branches.json',
-      `${LOCAL_RUNTIME_ROOT}files-upload-local-runtime.json`,
     ],
     cleanupBehavior:
       'Deletes created files when Shopify returns file IDs; local-runtime fixtures need no Shopify cleanup.',
@@ -1789,12 +1787,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-file-acknowledge-update-failed-conformance.ts',
     purpose: 'fileAcknowledgeUpdateFailed success and validation behavior.',
     requiredAuthScopes: ['read_files', 'write_files'],
-    fixtureOutputs: [
-      `${CAPTURE_ROOT}file-acknowledge-update-failed-parity.json`,
-      `${LOCAL_RUNTIME_ROOT}file-acknowledge-update-failed-local-runtime.json`,
-      'config/parity-specs/media/fileAcknowledgeUpdateFailed-local-staging.json',
-      'config/parity-specs/media/media-file-acknowledge-update-failed-semantics.json',
-    ],
+    fixtureOutputs: [`${CAPTURE_ROOT}file-acknowledge-update-failed-parity.json`],
     cleanupBehavior: 'Deletes disposable files created for READY acknowledgement and FAILED validation branches.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },

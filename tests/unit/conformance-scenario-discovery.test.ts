@@ -1,9 +1,10 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { relative, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
 import { validateComparisonContract, type ParitySpec } from '../../scripts/conformance-parity-spec.js';
+import { validateRecordedUpstreamCalls, type RecordedUpstreamCall } from '../../scripts/parity-cassette.js';
 import {
   buildConformanceStatusDocument,
   listConformanceParitySpecPaths,
@@ -17,6 +18,23 @@ const allowedScenarioStatuses = new Set(['captured', 'planned']);
 
 function readJson<T>(relativePath: string): T {
   return JSON.parse(readFileSync(resolve(repoRoot, relativePath), 'utf8')) as T;
+}
+
+function listJsonFiles(relativeDirectory: string): string[] {
+  const absoluteDirectory = resolve(repoRoot, relativeDirectory);
+  if (!existsSync(absoluteDirectory)) {
+    return [];
+  }
+
+  return readdirSync(absoluteDirectory, { withFileTypes: true }).flatMap((entry) => {
+    const absoluteEntryPath = resolve(absoluteDirectory, entry.name);
+    const relativeEntryPath = relative(repoRoot, absoluteEntryPath);
+    if (entry.isDirectory()) {
+      return listJsonFiles(relativeEntryPath);
+    }
+
+    return entry.isFile() && entry.name.endsWith('.json') ? [relativeEntryPath] : [];
+  });
 }
 
 describe('conformance scenario discovery', () => {
@@ -90,6 +108,37 @@ describe('conformance scenario discovery', () => {
     ),
   )('keeps discovered scenario operation reachable from the operation registry: %s', (_label, operationName) => {
     expect(operationRegistry.some((entry) => entry.name === operationName)).toBe(true);
+  });
+
+  it('keeps media parity evidence on live captures with exact GraphQL cassette queries', () => {
+    const mediaParitySpecs = paritySpecPaths.filter((paritySpecPath) =>
+      paritySpecPath.startsWith('config/parity-specs/media/'),
+    );
+    const mediaCaptureFiles = new Set<string>();
+
+    for (const paritySpecPath of mediaParitySpecs) {
+      const paritySpec = readJson<ParitySpec>(paritySpecPath);
+      for (const captureFile of paritySpec.liveCaptureFiles ?? []) {
+        expect(
+          captureFile.startsWith('fixtures/conformance/local-runtime/'),
+          `${paritySpec.scenarioId ?? paritySpecPath} must not use local-runtime media parity evidence`,
+        ).toBe(false);
+        mediaCaptureFiles.add(captureFile);
+      }
+    }
+
+    expect(
+      listJsonFiles('fixtures/conformance/local-runtime').filter((fixturePath) => fixturePath.includes('/media/')),
+      'media local-runtime fixtures must be replaced by live captures or Rust integration tests',
+    ).toEqual([]);
+
+    for (const captureFile of mediaCaptureFiles) {
+      if (!captureFile.includes('/media/')) {
+        continue;
+      }
+      const capture = readJson<{ upstreamCalls?: RecordedUpstreamCall[] }>(captureFile);
+      expect(validateRecordedUpstreamCalls(capture.upstreamCalls ?? []), captureFile).toEqual([]);
+    }
   });
 
   it('keeps every runtime-tested operation covered by at least one discovered scenario', () => {
