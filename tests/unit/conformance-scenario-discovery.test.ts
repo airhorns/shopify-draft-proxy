@@ -105,6 +105,19 @@ describe('conformance scenario discovery', () => {
     }
   });
 
+  it('keeps online-store local-runtime fixtures out of captured parity evidence', () => {
+    const localRuntimeOnlineStoreCaptures = scenarios.flatMap((scenario) =>
+      scenario.captureFiles
+        .filter(
+          (captureFile) =>
+            captureFile.startsWith('fixtures/conformance/local-runtime/') && captureFile.includes('/online-store/'),
+        )
+        .map((captureFile) => `${scenario.id}: ${captureFile}`),
+    );
+
+    expect(localRuntimeOnlineStoreCaptures).toEqual([]);
+  });
+
   it('builds conformance status from discovered parity specs', () => {
     const status = buildConformanceStatusDocument(repoRoot);
 

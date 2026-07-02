@@ -4784,6 +4784,57 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
         script_update.body["data"]["scriptTagUpdate"]["scriptTag"]["cache"],
         json!(true)
     );
+    let script_update_log_len = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+
+    let invalid_script_updates = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ScriptTagUpdateValidatesChangedSrc($longSrc: String!) {
+          blank: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "   " }) { scriptTag { id src } userErrors { code field message } }
+          tooLong: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: $longSrc }) { scriptTag { id src } userErrors { code field message } }
+          invalid: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "not-a-url" }) { scriptTag { id src } userErrors { code field message } }
+          http: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { src: "http://example.test/app.js" }) { scriptTag { id src } userErrors { code field message } }
+          badScope: scriptTagUpdate(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", input: { displayScope: STOREFRONT }) { scriptTag { id displayScope } userErrors { code field message } }
+        }
+        "#,
+        json!({"longSrc": format!("https://example.test/{}", "a".repeat(260))}),
+    ));
+    assert_eq!(
+        invalid_script_updates.body["data"]["blank"],
+        json!({"scriptTag": null, "userErrors": [{"code": "BLANK", "field": ["src"], "message": "Source can't be blank"}]})
+    );
+    assert_eq!(
+        invalid_script_updates.body["data"]["tooLong"],
+        json!({"scriptTag": null, "userErrors": [{"code": "TOO_LONG", "field": ["src"], "message": "Source is too long (maximum is 255 characters)"}]})
+    );
+    assert_eq!(
+        invalid_script_updates.body["data"]["invalid"],
+        json!({"scriptTag": null, "userErrors": [{"code": "INVALID", "field": ["src"], "message": "Source is invalid"}]})
+    );
+    assert_eq!(
+        invalid_script_updates.body["data"]["http"],
+        json!({"scriptTag": null, "userErrors": [{"code": "INVALID", "field": ["src"], "message": "Source is invalid"}]})
+    );
+    assert_eq!(
+        invalid_script_updates.body["data"]["badScope"],
+        json!({"scriptTag": null, "userErrors": [{"code": "INCLUSION", "field": ["displayScope"], "message": "Display scope is not included in the list"}]})
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        script_update_log_len
+    );
+
+    let script_read_after_invalid_update = proxy.process_request(json_graphql_request(
+        r#"
+        query ScriptTagReadAfterInvalidUpdate {
+          scriptTag(id: "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic") { id src displayScope event cache }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        script_read_after_invalid_update.body["data"]["scriptTag"],
+        json!({"id": "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", "src": "https://cdn.example.test/app.js", "displayScope": "ALL", "event": "onload", "cache": true})
+    );
 
     let web_pixel = proxy.process_request(json_graphql_request(
         r#"
@@ -4827,6 +4878,110 @@ fn online_store_script_tag_web_pixel_and_theme_file_validation_are_local() {
         theme_files.body["data"]["invalid"]["userErrors"][0]["code"],
         json!("INVALID")
     );
+}
+
+#[test]
+fn online_store_script_tag_root_dispatch_delete_and_not_found_are_local() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliberatelyNotAScriptTagOperationName {
+          first: scriptTagCreate(input: { src: "https://cdn.example.test/first.js", displayScope: ALL }) { scriptTag { id src displayScope event cache } userErrors { code field message } }
+          second: scriptTagCreate(input: { src: "https://cdn.example.test/second.js", displayScope: ORDER_STATUS, cache: true }) { scriptTag { id src displayScope event cache } userErrors { code field message } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.body["data"]["first"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["second"]["userErrors"], json!([]));
+    let first_id = create.body["data"]["first"]["scriptTag"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_id = create.body["data"]["second"]["scriptTag"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadStagedScriptTags($firstId: ID!) {
+          first: scriptTag(id: $firstId) { id src displayScope event cache }
+          scriptTags(first: 10) {
+            nodes { id src displayScope event cache }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"firstId": first_id}),
+    ));
+    assert_eq!(
+        read.body["data"]["first"],
+        json!({"id": first_id, "src": "https://cdn.example.test/first.js", "displayScope": "ALL", "event": "onload", "cache": false})
+    );
+    assert_eq!(
+        read.body["data"]["scriptTags"],
+        json!({
+            "nodes": [
+                {"id": first_id, "src": "https://cdn.example.test/first.js", "displayScope": "ALL", "event": "onload", "cache": false},
+                {"id": second_id, "src": "https://cdn.example.test/second.js", "displayScope": "ORDER_STATUS", "event": "onload", "cache": true}
+            ],
+            "edges": [
+                {"cursor": first_id, "node": {"id": first_id}},
+                {"cursor": second_id, "node": {"id": second_id}}
+            ],
+            "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": first_id, "endCursor": second_id}
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteStagedScriptTags($firstId: ID!, $missingId: ID!) {
+          deleteFirst: scriptTagDelete(id: $firstId) { deletedScriptTagId userErrors { __typename code field message } }
+          deleteMissing: scriptTagDelete(id: $missingId) { deletedScriptTagId userErrors { __typename code field message } }
+        }
+        "#,
+        json!({
+            "firstId": first_id,
+            "missingId": "gid://shopify/ScriptTag/999999?shopify-draft-proxy=synthetic"
+        }),
+    ));
+    assert_eq!(
+        delete.body["data"]["deleteFirst"],
+        json!({"deletedScriptTagId": first_id, "userErrors": []})
+    );
+    assert_eq!(
+        delete.body["data"]["deleteMissing"],
+        json!({"deletedScriptTagId": null, "userErrors": [{
+            "__typename": "ScriptTagUserError",
+            "code": "NOT_FOUND",
+            "field": ["id"],
+            "message": "Script tag not found"
+        }]})
+    );
+
+    let read_after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadScriptTagsAfterDelete($firstId: ID!, $secondId: ID!) {
+          deleted: scriptTag(id: $firstId) { id }
+          kept: scriptTag(id: $secondId) { id src displayScope event cache }
+          scriptTags(first: 10) { nodes { id src displayScope event cache } }
+        }
+        "#,
+        json!({"firstId": first_id, "secondId": second_id}),
+    ));
+    assert_eq!(read_after_delete.body["data"]["deleted"], Value::Null);
+    assert_eq!(
+        read_after_delete.body["data"]["kept"],
+        json!({"id": second_id, "src": "https://cdn.example.test/second.js", "displayScope": "ORDER_STATUS", "event": "onload", "cache": true})
+    );
+    assert_eq!(
+        read_after_delete.body["data"]["scriptTags"]["nodes"],
+        json!([{"id": second_id, "src": "https://cdn.example.test/second.js", "displayScope": "ORDER_STATUS", "event": "onload", "cache": true}])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 2);
 }
 
 #[test]
@@ -5115,7 +5270,7 @@ fn online_store_pixel_endpoint_edges_ported_from_gleam() {
     );
 
     // A malformed ARN fails ARN-scalar coercion: a top-level CoercionError with
-    // no data (recorded in event_bridge_server_pixel_update_arn_format).
+    // no data. This local-only branch is covered here rather than by parity evidence.
     let invalid_arn = proxy.process_request(json_graphql_request(
         r#"
         mutation RustOnlineStoreServerPixelInvalidArn {
@@ -5130,9 +5285,8 @@ fn online_store_pixel_endpoint_edges_ported_from_gleam() {
         json!([{"message": "Invalid ARN 'not-an-arn'", "extensions": {"code": "argumentLiteralsIncompatible", "typeName": "CoercionError"}}])
     );
 
-    // A blank Pub/Sub project is an INVALID_FIELD_ARGUMENTS top-level error
-    // (recorded in pub_sub_server_pixel_update_blank_required); Shopify surfaces
-    // the first blank required field, not a per-field userError array.
+    // A blank Pub/Sub project is an INVALID_FIELD_ARGUMENTS top-level error.
+    // Shopify surfaces the first blank required field, not a per-field userError array.
     let blank_pub_sub = proxy.process_request(json_graphql_request(
         r#"
         mutation RustOnlineStoreServerPixelBlankPubSub {
@@ -9250,6 +9404,75 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
 }
 
 #[test]
+fn online_store_page_create_defaults_to_published_and_reads_back() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PageDefaultPublishLocalStaging {
+          pageCreate(page: { title: "Default Published Page", body: "<p>Visible <strong>body</strong></p>" }) {
+            page { id title handle bodySummary isPublished publishedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.body["data"]["pageCreate"]["userErrors"], json!([]));
+    let page_id = create.body["data"]["pageCreate"]["page"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create.body["data"]["pageCreate"]["page"],
+        json!({
+            "id": page_id,
+            "title": "Default Published Page",
+            "handle": "default-published-page",
+            "bodySummary": "Visible body",
+            "isPublished": true,
+            "publishedAt": "2024-01-01T00:00:00.000Z"
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query PageDefaultPublishRead($id: ID!) {
+          page(id: $id) { id title handle isPublished publishedAt }
+          pages(first: 10) { nodes { id title handle isPublished publishedAt } }
+          pagesCount { count precision }
+        }
+        "#,
+        json!({"id": page_id}),
+    ));
+    assert_eq!(
+        read.body["data"]["page"],
+        json!({
+            "id": page_id,
+            "title": "Default Published Page",
+            "handle": "default-published-page",
+            "isPublished": true,
+            "publishedAt": "2024-01-01T00:00:00.000Z"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["pages"]["nodes"],
+        json!([{
+            "id": page_id,
+            "title": "Default Published Page",
+            "handle": "default-published-page",
+            "isPublished": true,
+            "publishedAt": "2024-01-01T00:00:00.000Z"
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["pagesCount"],
+        json!({"count": 1, "precision": "EXACT"})
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
 fn online_store_comment_moderation_state_machine_and_delete_are_local() {
     let blog_id = "gid://shopify/Blog/9001";
     let article_id = "gid://shopify/Article/9002";
@@ -9412,6 +9635,49 @@ fn online_store_comment_moderation_state_machine_and_delete_are_local() {
     assert_eq!(
         read_after_delete.body["data"]["article"]["commentsCount"],
         json!({"count": 3, "precision": "EXACT"})
+    );
+    let hydrate_calls_before_deleted_moderation = {
+        let calls = hydrate_calls.lock().unwrap();
+        calls.len()
+    };
+    let log_len_before_deleted_moderation =
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    let deleted_moderation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ModerateDeletedComment($id: ID!) {
+          approve: commentApprove(id: $id) { comment { id } userErrors { field message code } }
+          spam: commentSpam(id: $id) { comment { id } userErrors { field message code } }
+          notSpam: commentNotSpam(id: $id) { comment { id } userErrors { field message code } }
+          repeatDelete: commentDelete(id: $id) { deletedCommentId userErrors { field message code } }
+        }
+        "#,
+        json!({"id": published_id}),
+    ));
+    let deleted_comment_error =
+        json!([{"field": ["id"], "message": "Comment does not exist", "code": "NOT_FOUND"}]);
+    assert_eq!(
+        deleted_moderation.body["data"]["approve"],
+        json!({"comment": null, "userErrors": deleted_comment_error})
+    );
+    assert_eq!(
+        deleted_moderation.body["data"]["spam"],
+        json!({"comment": null, "userErrors": deleted_comment_error})
+    );
+    assert_eq!(
+        deleted_moderation.body["data"]["notSpam"],
+        json!({"comment": null, "userErrors": deleted_comment_error})
+    );
+    assert_eq!(
+        deleted_moderation.body["data"]["repeatDelete"],
+        json!({"deletedCommentId": null, "userErrors": deleted_comment_error})
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_before_deleted_moderation
+    );
+    assert_eq!(
+        hydrate_calls.lock().unwrap().len(),
+        hydrate_calls_before_deleted_moderation
     );
     let hydrate_calls = hydrate_calls.lock().unwrap();
     assert!(hydrate_calls
