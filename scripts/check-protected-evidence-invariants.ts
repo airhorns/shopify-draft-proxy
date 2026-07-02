@@ -50,10 +50,12 @@ const changed = result.stdout
       status,
       path: secondPath ?? firstPath,
     };
-  });
+  })
+  .filter((entry) => entry.path.length > 0);
 
 const unregistered = changed.filter(
-  ({ path: changedPath }) =>
+  ({ status, path: changedPath }) =>
+    status !== 'D' &&
     existsSync(changedPath) &&
     !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath)),
 );
@@ -108,6 +110,65 @@ function fixtureUpstreamErrors(fixturePath: string): string[] {
   return validateRecordedUpstreamCalls(fixture['upstreamCalls'] as RecordedUpstreamCall[]).map(
     (error) => `${fixturePath}: ${error}`,
   );
+}
+
+function capturedParitySpecs(specDirectory: string): string[] {
+  return listJsonFiles(specDirectory).filter((specPath) => {
+    const spec = readJson(specPath);
+    return (
+      isRecord(spec) &&
+      spec['scenarioStatus'] === 'captured' &&
+      spec['comparisonMode'] === 'captured-vs-proxy-request'
+    );
+  });
+}
+
+function metafieldDefinitionsParityEvidenceErrors(): string[] {
+  const errors: string[] = [];
+
+  for (const specPath of capturedParitySpecs(path.join('config', 'parity-specs', 'metafield-definitions'))) {
+    const spec = readJson(specPath);
+    if (!isRecord(spec)) {
+      continue;
+    }
+
+    for (const liveCaptureFile of stringArray(spec['liveCaptureFiles'])) {
+      if (liveCaptureFile.startsWith('fixtures/conformance/local-runtime/')) {
+        errors.push(`${specPath}: liveCaptureFiles must not use local-runtime evidence (${liveCaptureFile})`);
+        continue;
+      }
+
+      if (existsSync(path.join(repoRoot, liveCaptureFile))) {
+        errors.push(...fixtureUpstreamErrors(liveCaptureFile));
+      }
+    }
+  }
+
+  return errors;
+}
+
+function customerParityEvidenceErrors(): string[] {
+  const errors: string[] = [];
+
+  for (const specPath of capturedParitySpecs(path.join('config', 'parity-specs', 'customers'))) {
+    const spec = readJson(specPath);
+    if (!isRecord(spec)) {
+      continue;
+    }
+
+    for (const liveCaptureFile of stringArray(spec['liveCaptureFiles'])) {
+      if (liveCaptureFile.startsWith('fixtures/conformance/local-runtime/')) {
+        errors.push(`${specPath}: liveCaptureFiles contains local-runtime fixture ${liveCaptureFile}`);
+        continue;
+      }
+
+      if (liveCaptureFile.includes('/customers/') && existsSync(path.join(repoRoot, liveCaptureFile))) {
+        errors.push(...fixtureUpstreamErrors(liveCaptureFile));
+      }
+    }
+  }
+
+  return errors;
 }
 
 function giftCardParityEvidenceErrors(): string[] {
@@ -221,6 +282,8 @@ function marketsParityEvidenceErrors(): string[] {
   return errors;
 }
 
+const metafieldDefinitionsErrors = metafieldDefinitionsParityEvidenceErrors();
+const customerErrors = customerParityEvidenceErrors();
 const giftCardErrors = giftCardParityEvidenceErrors();
 const shippingFulfillmentErrors = shippingFulfillmentParityEvidenceErrors();
 const marketsErrors = marketsParityEvidenceErrors();
@@ -230,6 +293,18 @@ if (unregistered.length > 0) {
     'Protected parity specs, parity requests, or conformance fixtures changed without capture-index registration.\n',
   );
   for (const { status, path } of unregistered) process.stderr.write(`- ${status}\t${path}\n`);
+}
+
+if (metafieldDefinitionsErrors.length > 0) {
+  process.stderr.write(
+    'metafield-definitions parity evidence must use live Shopify captures, not local-runtime or descriptor provenance.\n',
+  );
+  for (const error of metafieldDefinitionsErrors) process.stderr.write(`- ${error}\n`);
+}
+
+if (customerErrors.length > 0) {
+  process.stderr.write('Customers parity evidence contains local-runtime captures or descriptor upstream queries.\n');
+  for (const error of customerErrors) process.stderr.write(`- ${error}\n`);
 }
 
 if (giftCardErrors.length > 0) {
@@ -251,6 +326,8 @@ if (marketsErrors.length > 0) {
 
 if (
   unregistered.length > 0 ||
+  metafieldDefinitionsErrors.length > 0 ||
+  customerErrors.length > 0 ||
   giftCardErrors.length > 0 ||
   shippingFulfillmentErrors.length > 0 ||
   marketsErrors.length > 0
@@ -259,6 +336,8 @@ if (
 }
 
 process.stdout.write('Protected parity evidence changes are registered in the capture index.\n');
+process.stdout.write('metafield-definitions parity evidence uses live fixture paths and GraphQL upstream queries.\n');
+process.stdout.write('Customers parity evidence uses live fixture paths and GraphQL upstream cassette queries.\n');
 process.stdout.write('Gift-card parity evidence contains no local-runtime captures or descriptor cassette queries.\n');
 process.stdout.write(
   'shipping-fulfillments protected evidence has no local-runtime parity fixtures or descriptor upstream calls.\n',

@@ -1,0 +1,106 @@
+{
+  "scenarioId": "customer-set-email-upsert-when-id-absent",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-06-30T16:02:55.887Z",
+  "notes": "Live Shopify Admin GraphQL customerSet(identifier.email) create evidence captured with the parity request document.",
+  "cases": {
+    "emailCreate": {
+      "request": {
+        "query": "mutation CustomerSetEmailUpsertWhenIdAbsent($input: CustomerSetInput!, $identifier: CustomerSetIdentifiers) {\n  customerSet(input: $input, identifier: $identifier) {\n    customer {\n      id\n      email\n      firstName\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "identifier": {
+            "email": "hermes-customerset-email-create-1782835371283@example.com"
+          },
+          "input": {
+            "email": "hermes-customerset-email-create-1782835371283@example.com",
+            "firstName": "Email"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "customerSet": {
+            "customer": {
+              "id": "gid://shopify/Customer/10870502162738",
+              "email": "hermes-customerset-email-create-1782835371283@example.com",
+              "firstName": "Email"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "data": {
+        "customerDelete": {
+          "deletedCustomerId": "gid://shopify/Customer/10870501769522",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "customerDelete": {
+          "deletedCustomerId": "gid://shopify/Customer/10870501867826",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "customerDelete": {
+          "deletedCustomerId": "gid://shopify/Customer/10870502162738",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

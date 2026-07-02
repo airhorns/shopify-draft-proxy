@@ -27,6 +27,8 @@ type Capture = {
   response: ConformanceGraphqlResult;
 };
 
+type JsonRecord = Record<string, unknown>;
+
 async function capture(query: string, variables: Record<string, unknown>): Promise<Capture> {
   return {
     query,
@@ -45,6 +47,30 @@ function assertNoTopLevelErrors(captureResult: Capture, context: string): void {
   }
 }
 
+function readRecord(value: unknown): JsonRecord | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as JsonRecord) : null;
+}
+
+function readArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function readPath(value: unknown, pathSegments: string[]): unknown {
+  let current: unknown = value;
+  for (const segment of pathSegments) {
+    const record = readRecord(current);
+    if (!record) {
+      return undefined;
+    }
+    current = record[segment];
+  }
+  return current;
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
 const cartTransformDeleteDocument = `mutation CartTransformDeleteMissing($id: ID!) {
   cartTransformDelete(id: $id) {
     deletedId
@@ -52,6 +78,66 @@ const cartTransformDeleteDocument = `mutation CartTransformDeleteMissing($id: ID
       field
       message
       code
+    }
+  }
+}
+`;
+
+const cartTransformCreateDocument = `mutation CartTransformCreateThenDelete($functionHandle: String!) {
+  cartTransformCreate(functionHandle: $functionHandle) {
+    cartTransform {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
+`;
+
+const cartTransformsReadDocument = `query CartTransformCreateThenDeleteRead {
+  cartTransforms(first: 5) {
+    nodes {
+      id
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
+`;
+
+const cartTransformsCleanupReadDocument = `query CartTransformDeleteShapeCleanupRead {
+  cartTransforms(first: 50) {
+    nodes {
+      id
+      functionId
+    }
+  }
+}
+`;
+
+const functionHydrateByHandleDocument = `query FunctionHydrateByHandle {
+  shopifyFunctions(first: 100) {
+    nodes {
+      id
+      title
+      handle
+      apiType
+      description
+      appKey
+      app {
+        __typename
+        id
+        title
+        handle
+        apiKey
+      }
     }
   }
 }
@@ -69,6 +155,8 @@ const validationDeleteDocument = `mutation ValidationDeleteMissing($id: ID!) {
 }
 `;
 
+const cartTransformFunctionHandle = 'conformance-cart-transform';
+
 const cartTransformDeleteMissing = await capture(cartTransformDeleteDocument, {
   id: 'gid://shopify/CartTransform/999999999999',
 });
@@ -78,110 +166,108 @@ const validationDeleteMissing = await capture(validationDeleteDocument, {
 assertNoTopLevelErrors(cartTransformDeleteMissing, 'cartTransformDelete missing-id capture');
 assertNoTopLevelErrors(validationDeleteMissing, 'validationDelete missing-id capture');
 
+const functionHydrate = await capture(functionHydrateByHandleDocument, {
+  handle: cartTransformFunctionHandle,
+  apiType: 'CART_TRANSFORM',
+});
+assertNoTopLevelErrors(functionHydrate, 'FunctionHydrateByHandle cart-transform Function hydrate');
+const cartTransformFunction = readArray(
+  readPath(functionHydrate.response.payload, ['data', 'shopifyFunctions', 'nodes']),
+)
+  .map(readRecord)
+  .find((node) => node?.['handle'] === cartTransformFunctionHandle);
+if (!cartTransformFunction) {
+  throw new Error(`Missing released cart-transform Function handle ${cartTransformFunctionHandle}`);
+}
+
+const cleanupRead = await capture(cartTransformsCleanupReadDocument, {});
+assertNoTopLevelErrors(cleanupRead, 'cartTransforms cleanup read');
+for (const node of readArray(readPath(cleanupRead.response.payload, ['data', 'cartTransforms', 'nodes']))) {
+  const id = readString(readRecord(node)?.['id']);
+  if (id) {
+    const cleanupDelete = await capture(cartTransformDeleteDocument, { id });
+    assertNoTopLevelErrors(cleanupDelete, `cartTransform cleanup delete ${id}`);
+  }
+}
+
+let createdCartTransformId: string | null = null;
+const cartTransformCreate = await capture(cartTransformCreateDocument, {
+  functionHandle: cartTransformFunctionHandle,
+});
+assertNoTopLevelErrors(cartTransformCreate, 'cartTransformCreate live lifecycle capture');
+const createPayload = readRecord(readPath(cartTransformCreate.response.payload, ['data', 'cartTransformCreate']));
+const createUserErrors = readArray(createPayload?.['userErrors']);
+createdCartTransformId = readString(readRecord(createPayload?.['cartTransform'])?.['id']);
+if (createUserErrors.length > 0 || !createdCartTransformId) {
+  throw new Error(`cartTransformCreate live lifecycle failed: ${JSON.stringify(createPayload, null, 2)}`);
+}
+
+let cartTransformDelete: Capture | null = null;
+try {
+  cartTransformDelete = await capture(cartTransformDeleteDocument, { id: createdCartTransformId });
+  assertNoTopLevelErrors(cartTransformDelete, 'cartTransformDelete live lifecycle capture');
+  createdCartTransformId = null;
+} finally {
+  if (createdCartTransformId) {
+    const cleanupDelete = await capture(cartTransformDeleteDocument, { id: createdCartTransformId });
+    if (
+      cleanupDelete.response.status < 200 ||
+      cleanupDelete.response.status >= 300 ||
+      readRecord(cleanupDelete.response.payload)?.['errors']
+    ) {
+      console.error(`Cleanup failed for ${createdCartTransformId}: ${JSON.stringify(cleanupDelete, null, 2)}`);
+    }
+  }
+}
+const postDeleteRead = await capture(cartTransformsReadDocument, {});
+assertNoTopLevelErrors(postDeleteRead, 'cartTransforms post-delete read');
+if (!cartTransformDelete) {
+  throw new Error('cartTransformDelete live lifecycle capture was not recorded.');
+}
+
 const fixture = {
   scenarioId: 'functions-delete-error-shape',
   capturedAt: new Date().toISOString(),
-  source: 'live-shopify-and-cassette-backed-local-runtime',
+  source: 'live-shopify',
   storeDomain,
   apiVersion,
   summary:
-    'Delete error-shape evidence for validationDelete and cartTransformDelete plus cassette-backed cartTransformCreate/delete local lifecycle.',
+    'Delete error-shape evidence for validationDelete and cartTransformDelete plus live cartTransformCreate/delete lifecycle.',
+  conformanceApp: {
+    cartTransformFunctionHandle,
+    cartTransformFunction,
+  },
+  functionHydrate,
   cartTransformDeleteMissing,
   validationDeleteMissing,
   cartTransformCreateThenDelete: {
     create: {
-      response: {
-        data: {
-          cartTransformCreate: {
-            cartTransform: {
-              id: 'gid://shopify/CartTransform/3',
-            },
-            userErrors: [],
-          },
-        },
-      },
+      query: cartTransformCreate.query,
+      variables: cartTransformCreate.variables,
+      response: cartTransformCreate.response.payload,
     },
     delete: {
-      response: {
-        data: {
-          cartTransformDelete: {
-            deletedId: 'gid://shopify/CartTransform/3',
-            userErrors: [],
-          },
-        },
-      },
+      query: cartTransformDelete.query,
+      variables: cartTransformDelete.variables,
+      response: cartTransformDelete.response.payload,
     },
     postDeleteRead: {
-      response: {
-        data: {
-          cartTransforms: {
-            nodes: [],
-            pageInfo: {
-              hasNextPage: false,
-              hasPreviousPage: false,
-              startCursor: null,
-              endCursor: null,
-            },
-          },
-        },
-      },
+      query: postDeleteRead.query,
+      variables: postDeleteRead.variables,
+      response: postDeleteRead.response.payload,
     },
   },
   upstreamCalls: [
     {
       operationName: 'FunctionHydrateByHandle',
       variables: {
-        handle: 'cart-transform-delete-shape',
+        handle: cartTransformFunctionHandle,
         apiType: 'CART_TRANSFORM',
       },
-      query: 'cassette-backed CART_TRANSFORM ShopifyFunction lookup for local delete-shape lifecycle',
+      query: functionHydrate.query,
       response: {
-        status: 200,
-        body: {
-          data: {
-            shopifyFunctions: {
-              nodes: [
-                {
-                  id: 'gid://shopify/ShopifyFunction/cart-transform-delete-shape',
-                  title: 'Cart Transform Delete Shape',
-                  handle: 'cart-transform-delete-shape',
-                  apiType: 'CART_TRANSFORM',
-                  description: null,
-                  appKey: null,
-                  app: null,
-                },
-              ],
-            },
-          },
-        },
-      },
-    },
-    {
-      operationName: 'FunctionHydrateByHandle',
-      variables: {
-        handle: 'validation-delete-shape',
-        apiType: 'VALIDATION',
-      },
-      query: 'cassette-backed VALIDATION ShopifyFunction lookup reserved for this delete-shape fixture',
-      response: {
-        status: 200,
-        body: {
-          data: {
-            shopifyFunctions: {
-              nodes: [
-                {
-                  id: 'gid://shopify/ShopifyFunction/validation-delete-shape',
-                  title: 'Validation Delete Shape',
-                  handle: 'validation-delete-shape',
-                  apiType: 'VALIDATION',
-                  description: null,
-                  appKey: null,
-                  app: null,
-                },
-              ],
-            },
-          },
-        },
+        status: functionHydrate.response.status,
+        body: functionHydrate.response.payload,
       },
     },
   ],
@@ -189,7 +275,7 @@ const fixture = {
     liveMissingDeleteEvidence:
       'cartTransformDelete and validationDelete missing-id userErrors are captured live from Shopify.',
     successPathEvidence:
-      'The current conformance shop has a valid token but no released validation/cart-transform Function handles. The create/delete leg uses a deterministic cassette-backed ShopifyFunction read to prove local lifecycle and canonical deletedId behavior without runtime Shopify writes.',
+      'The create/delete leg uses the released conformance cart-transform Function and records the live Shopify lifecycle plus the exact Function hydrate read used by proxy replay.',
   },
 };
 
