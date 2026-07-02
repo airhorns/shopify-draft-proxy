@@ -2,21 +2,15 @@
   "scenarioId": "location-add-resource-limit-reached",
   "operationNames": ["locationActivate", "locationAdd"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "user-errors-parity",
-    "validation-parity",
-    "runtime-staging",
-    "local-runtime-backed",
-    "no-upstream-passthrough"
-  ],
+  "assertionKinds": ["user-errors-parity", "validation-parity", "runtime-staging", "no-upstream-passthrough"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-add-resource-limit-reached.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes.rs"],
   "proxyRequest": {
     "apiVersion": "2026-04",
-    "documentPath": "config/parity-requests/store-properties/location-activate-limit-and-relocation.graphql",
-    "variablesCapturePath": "$.proxyVariables.seed"
+    "documentPath": "config/parity-requests/store-properties/location-add-resource-limit-reached.graphql",
+    "variablesCapturePath": "$.atCapAdd.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -24,19 +18,9 @@
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "seed-location-limit-state",
-        "capturePath": "$.expected.seed.data.locationActivate",
-        "proxyPath": "$.data.locationActivate"
-      },
-      {
         "name": "location-add-resource-limit-guard",
         "capturePath": "$.atCapAdd.response.payload.data.locationAdd",
-        "proxyPath": "$.data.locationAdd",
-        "proxyRequest": {
-          "apiVersion": "2026-04",
-          "documentPath": "config/parity-requests/store-properties/location-add-resource-limit-reached.graphql",
-          "variablesCapturePath": "$.atCapAdd.variables"
-        }
+        "proxyPath": "$.data.locationAdd"
       },
       {
         "name": "rejected-mutations-are-not-logged",
@@ -45,5 +29,5 @@
       }
     ]
   },
-  "notes": "Live Admin GraphQL 2026-04 capture drives the disposable shop to its location limit, records the first over-cap locationAdd response, then cleans up every disposable location created during setup. The captured public Admin API shape is field [\"input\"], code INVALID, and message \"You have reached the maximum number of locations (200)\". The parity replay earns local limit state through a cassette-backed locationActivate hydration using the same Core-only reachedLocationLimit flag as the existing activate limit scenario; the compared locationAdd payload comes from the live at-cap Shopify response."
+  "notes": "Live Admin GraphQL 2026-04 capture drives the disposable shop to its location limit, records the first over-cap locationAdd response, then cleans up every disposable location created during setup. The captured public Admin API shape is field [\"input\"], code INVALID, and message \"You have reached the maximum number of locations (200)\". The parity replay derives local cap state through the recorded StorePropertiesLocationLimitStatus upstream read before comparing the live at-cap locationAdd payload."
 }

@@ -69,7 +69,9 @@ documents, not only fixture-named parity documents. It stages a synthetic
 Location ID, deterministic timestamps, address data, Location-owned metafields,
 the captured `fulfillsOnlineOrders` default of `true`, blank/duplicate/too-long
 name userErrors, public schema-style address/country-code validation, and the
-captured 200-location create guard. Rejected adds do not append mutation-log
+captured 200-location create guard. In LiveHybrid replay, the guard derives cap
+state from the recorded `StorePropertiesLocationLimitStatus` upstream read
+instead of a synthetic local seed. Rejected adds do not append mutation-log
 entries.
 
 `locationActivate` now has a generic Rust staging path for public Admin GraphQL
@@ -77,8 +79,11 @@ documents. Successful activations flip the local Location `isActive` state,
 stage the changed record, preserve the raw mutation for commit replay, and are
 visible through downstream location reads. Guard branches for location limit,
 ongoing relocation, fulfillment-service managed scope, and duplicate active
-location names return the captured field paths, codes, and messages without
-staging activation.
+location names return field paths, codes, and messages without staging
+activation. The `LOCATION_LIMIT` branch is backed by live 2026-04 evidence; the
+internal/transient `HAS_ONGOING_RELOCATION` branch remains runtime-test-only
+because public Admin GraphQL relocation completed synchronously in the
+disposable shop.
 
 Location reads and lifecycle mutations have local slices for detail reads,
 unknown-ID null behavior, `locationByIdentifier` selected cases,

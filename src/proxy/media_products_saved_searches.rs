@@ -2659,6 +2659,25 @@ impl DraftProxy {
                 self.product_delete_missing_product_response_with_shop(request, query, variables),
             );
         };
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "productDelete".to_string());
+        let is_async_delete = resolved_bool_field(variables, "synchronous") == Some(false);
+        if is_async_delete
+            && self
+                .store
+                .staged
+                .product_delete_operations
+                .values()
+                .any(|pending_id| pending_id == &id)
+        {
+            self.hydrate_product_payload_shop_if_selected(request, &payload_selection);
+            let shop = self.store.effective_shop();
+            return MutationOutcome::response(ok_json(json!({
+                "data": {
+                    response_key.clone(): product_delete_async_duplicate_payload(&shop, &payload_selection)
+                }
+            })));
+        }
         if !self.store.has_product(&id) && self.config.read_mode == ReadMode::LiveHybrid {
             self.hydrate_product_nodes_for_observation_with_request(request, vec![id.clone()]);
         }
@@ -2668,29 +2687,15 @@ impl DraftProxy {
             );
         }
 
-        let (response_key, payload_selection) =
-            primary_root_response_selection(query, variables, || "productDelete".to_string());
         self.hydrate_product_payload_shop_if_selected(request, &payload_selection);
         let shop = self.store.effective_shop();
-        if resolved_bool_field(variables, "synchronous") == Some(false) {
+        if is_async_delete {
             let operation_id = self.next_synthetic_gid("ProductDeleteOperation");
-            if self
-                .store
-                .staged
-                .product_delete_operations
-                .values()
-                .any(|pending_id| pending_id == &id)
-            {
-                return MutationOutcome::response(ok_json(json!({
-                    "data": {
-                        response_key.clone(): product_delete_async_duplicate_payload(&shop, &payload_selection)
-                    }
-                })));
-            }
             self.store
                 .staged
                 .product_delete_operations
                 .insert(operation_id.clone(), id.clone());
+            self.store.delete_product(&id);
             return MutationOutcome::staged(
                 ok_json(json!({
                     "data": {
