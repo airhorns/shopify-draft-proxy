@@ -528,9 +528,11 @@ impl DraftProxy {
             return script_tag_payload(
                 &field.selection,
                 None,
-                vec![
-                    json!({"code": "INCLUSION", "field": ["displayScope"], "message": "Display scope is not included in the list"}),
-                ],
+                vec![user_error(
+                    ["displayScope"],
+                    "Display scope is not included in the list",
+                    Some("INCLUSION"),
+                )],
             );
         }
         let mut record = self.store.staged.online_store_integrations.get(&id).cloned().unwrap_or_else(|| json!({"id": id, "src": "https://cdn.example.test/app.js", "displayScope": "ALL", "event": "onload", "cache": false}));
@@ -565,25 +567,20 @@ impl DraftProxy {
             .get(&id)
             .is_some_and(is_online_store_script_tag_record);
         if !is_staged_script_tag {
-            return selected_json(
-                &json!({
-                    "deletedScriptTagId": Value::Null,
-                    "userErrors": [{
-                        "__typename": "ScriptTagUserError",
-                        "code": "NOT_FOUND",
-                        "field": ["id"],
-                        "message": "Script tag not found"
-                    }]
-                }),
+            return deleted_script_tag_payload(
                 &field.selection,
+                Value::Null,
+                vec![user_error_typed(
+                    "ScriptTagUserError",
+                    ["id"],
+                    "Script tag not found",
+                    Some("NOT_FOUND"),
+                )],
             );
         }
         self.store.staged.online_store_integrations.remove(&id);
         staged_ids.push(id.clone());
-        selected_json(
-            &json!({ "deletedScriptTagId": id, "userErrors": [] }),
-            &field.selection,
-        )
+        deleted_script_tag_payload(&field.selection, json!(id), Vec::new())
     }
 
     pub(in crate::proxy) fn theme_create(
@@ -606,10 +603,7 @@ impl DraftProxy {
             .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
-        selected_json(
-            &json!({"theme": record, "userErrors": []}),
-            &field.selection,
-        )
+        theme_payload(&field.selection, record, Vec::new())
     }
 
     pub(in crate::proxy) fn theme_publish(
@@ -625,9 +619,14 @@ impl DraftProxy {
             .get(&id)
             .cloned()
         else {
-            return selected_json(
-                &json!({"theme": null, "userErrors": [user_error_omit_code(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
+            return theme_payload(
                 &field.selection,
+                Value::Null,
+                vec![user_error_omit_code(
+                    vec!["id"],
+                    "Theme not found",
+                    Some("NOT_FOUND"),
+                )],
             );
         };
         let role = existing
@@ -635,15 +634,25 @@ impl DraftProxy {
             .and_then(Value::as_str)
             .unwrap_or("UNPUBLISHED");
         if role == "DEVELOPMENT" {
-            return selected_json(
-                &json!({"theme": null, "userErrors": [user_error(["base"], "You cannot publish a development theme.", None)]}),
+            return theme_payload(
                 &field.selection,
+                Value::Null,
+                vec![user_error(
+                    ["base"],
+                    "You cannot publish a development theme.",
+                    None,
+                )],
             );
         }
         if matches!(role, "DEMO" | "LOCKED" | "ARCHIVED") {
-            return selected_json(
-                &json!({"theme": null, "userErrors": [user_error_omit_code(["id"], &format!("Theme cannot be published from role {role}"), None)]}),
+            return theme_payload(
                 &field.selection,
+                Value::Null,
+                vec![user_error_omit_code(
+                    ["id"],
+                    &format!("Theme cannot be published from role {role}"),
+                    None,
+                )],
             );
         }
         for record in self.store.staged.online_store_integrations.values_mut() {
@@ -660,7 +669,7 @@ impl DraftProxy {
             .online_store_integrations
             .insert(id.clone(), theme.clone());
         staged_ids.push(id);
-        selected_json(&json!({"theme": theme, "userErrors": []}), &field.selection)
+        theme_payload(&field.selection, theme, Vec::new())
     }
 
     pub(in crate::proxy) fn theme_update(
@@ -676,28 +685,41 @@ impl DraftProxy {
             .get(&id)
             .cloned()
         else {
-            return selected_json(
-                &json!({"theme": null, "userErrors": [user_error_omit_code(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
+            return theme_payload(
                 &field.selection,
+                Value::Null,
+                vec![user_error_omit_code(
+                    vec!["id"],
+                    "Theme not found",
+                    Some("NOT_FOUND"),
+                )],
             );
         };
         if theme.get("role").and_then(Value::as_str) == Some("LOCKED") {
-            return selected_json(
-                &json!({"theme": null, "userErrors": [user_error_omit_code(vec!["id"], "Locked themes cannot be modified.", Some("CANNOT_UPDATE_LOCKED_THEME"))]}),
+            return theme_payload(
                 &field.selection,
+                Value::Null,
+                vec![user_error_omit_code(
+                    vec!["id"],
+                    "Locked themes cannot be modified.",
+                    Some("CANNOT_UPDATE_LOCKED_THEME"),
+                )],
             );
         }
         let input = match field.arguments.get("input") {
             Some(ResolvedValue::Object(input)) => input,
-            _ => {
-                return selected_json(&json!({"theme": theme, "userErrors": []}), &field.selection)
-            }
+            _ => return theme_payload(&field.selection, theme, Vec::new()),
         };
         if let Some(name) = resolved_string_field(input, "name") {
             if name.trim().is_empty() {
-                return selected_json(
-                    &json!({"theme": null, "userErrors": [user_error_omit_code(vec!["input", "name"], "Name can't be blank", Some("INVALID"))]}),
+                return theme_payload(
                     &field.selection,
+                    Value::Null,
+                    vec![user_error_omit_code(
+                        vec!["input", "name"],
+                        "Name can't be blank",
+                        Some("INVALID"),
+                    )],
                 );
             }
             theme["name"] = json!(name);
@@ -707,7 +729,7 @@ impl DraftProxy {
             .online_store_integrations
             .insert(id.clone(), theme.clone());
         staged_ids.push(id);
-        selected_json(&json!({"theme": theme, "userErrors": []}), &field.selection)
+        theme_payload(&field.selection, theme, Vec::new())
     }
 
     pub(in crate::proxy) fn theme_delete(
@@ -723,9 +745,14 @@ impl DraftProxy {
             .get(&id)
             .cloned()
         else {
-            return selected_json(
-                &json!({"deletedThemeId": null, "userErrors": [user_error_omit_code(vec!["id"], "Theme not found", Some("NOT_FOUND"))]}),
+            return deleted_theme_payload(
                 &field.selection,
+                Value::Null,
+                vec![user_error_omit_code(
+                    vec!["id"],
+                    "Theme not found",
+                    Some("NOT_FOUND"),
+                )],
             );
         };
         let main_count = self
@@ -739,17 +766,19 @@ impl DraftProxy {
             })
             .count();
         if theme.get("role").and_then(Value::as_str) == Some("MAIN") && main_count <= 1 {
-            return selected_json(
-                &json!({"deletedThemeId": null, "userErrors": [user_error_omit_code(vec!["id"], "You can't delete your only published theme.", Some("INVALID"))]}),
+            return deleted_theme_payload(
                 &field.selection,
+                Value::Null,
+                vec![user_error_omit_code(
+                    vec!["id"],
+                    "You can't delete your only published theme.",
+                    Some("INVALID"),
+                )],
             );
         }
         self.store.staged.online_store_integrations.remove(&id);
         staged_ids.push(id.clone());
-        selected_json(
-            &json!({"deletedThemeId": id, "userErrors": []}),
-            &field.selection,
-        )
+        deleted_theme_payload(&field.selection, json!(id), Vec::new())
     }
 
     pub(in crate::proxy) fn theme_files_upsert(
@@ -976,23 +1005,22 @@ impl DraftProxy {
             .staged
             .online_store_integrations
             .get_mut(theme_id)?;
+        let timestamp = online_store_operation_timestamp();
         let filename = file["filename"].as_str().unwrap_or_default().to_string();
         let mut nodes = theme_file_nodes(theme);
         let persisted = if let Some(index) = nodes
             .iter()
             .position(|existing| existing["filename"].as_str() == Some(filename.as_str()))
         {
-            let created_at = nodes[index]
-                .get("createdAt")
-                .cloned()
-                .unwrap_or_else(|| json!("2024-01-01T00:00:00.000Z"));
-            file["createdAt"] = created_at;
-            file["updatedAt"] = json!("2024-01-01T00:00:01.000Z");
+            if let Some(created_at) = nodes[index].get("createdAt").cloned() {
+                file["createdAt"] = created_at;
+            }
+            file["updatedAt"] = json!(timestamp);
             nodes[index] = file;
             nodes[index].clone()
         } else {
-            file["createdAt"] = json!("2024-01-01T00:00:00.000Z");
-            file["updatedAt"] = json!("2024-01-01T00:00:00.000Z");
+            file["createdAt"] = json!(timestamp.clone());
+            file["updatedAt"] = json!(timestamp);
             nodes.push(file);
             nodes.last().cloned().unwrap_or(Value::Null)
         };
@@ -1028,9 +1056,15 @@ impl DraftProxy {
             .values()
             .any(is_web_pixel_record)
         {
-            return selected_json(
-                &json!({"webPixel": null, "userErrors": [user_error_typed("WebPixelUserError", Value::Null, "Web pixel is taken.", Some("TAKEN"))]}),
+            return web_pixel_payload(
                 &field.selection,
+                Value::Null,
+                vec![user_error_typed(
+                    "WebPixelUserError",
+                    Value::Null,
+                    "Web pixel is taken.",
+                    Some("TAKEN"),
+                )],
             );
         }
         let id = self.next_online_store_id("WebPixel");
@@ -1055,10 +1089,7 @@ impl DraftProxy {
             .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
-        selected_json(
-            &json!({"webPixel": record, "userErrors": []}),
-            &field.selection,
-        )
+        web_pixel_payload(&field.selection, record, Vec::new())
     }
 
     pub(in crate::proxy) fn web_pixel_update(
@@ -1076,25 +1107,32 @@ impl DraftProxy {
                 .get(&id)
                 .is_some_and(is_web_pixel_record)
         {
-            return selected_json(
-                &json!({"webPixel": null, "userErrors": [{"__typename": "WebPixelUserError", "code": "NOT_FOUND", "field": ["id"], "message": "Pixel not found"}]}),
+            return web_pixel_payload(
                 &field.selection,
+                Value::Null,
+                vec![user_error_typed(
+                    "WebPixelUserError",
+                    ["id"],
+                    "Pixel not found",
+                    Some("NOT_FOUND"),
+                )],
             );
         }
         let input = match field.arguments.get("webPixel") {
             Some(ResolvedValue::Object(input)) => input,
-            _ => {
-                return selected_json(
-                    &json!({"webPixel": null, "userErrors": []}),
-                    &field.selection,
-                )
-            }
+            _ => return web_pixel_payload(&field.selection, Value::Null, Vec::new()),
         };
         let settings_raw = resolved_string_field(input, "settings").unwrap_or_default();
         let Ok(settings) = serde_json::from_str::<Value>(&settings_raw) else {
-            return selected_json(
-                &json!({"webPixel": null, "userErrors": [{"__typename": "WebPixelUserError", "code": "INVALID_CONFIGURATION_JSON", "field": ["settings"], "message": "Settings must be valid JSON"}]}),
+            return web_pixel_payload(
                 &field.selection,
+                Value::Null,
+                vec![user_error_typed(
+                    "WebPixelUserError",
+                    ["settings"],
+                    "Settings must be valid JSON",
+                    Some("INVALID_CONFIGURATION_JSON"),
+                )],
             );
         };
         let record = json!({
@@ -1109,10 +1147,7 @@ impl DraftProxy {
             .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
-        selected_json(
-            &json!({"webPixel": record, "userErrors": []}),
-            &field.selection,
-        )
+        web_pixel_payload(&field.selection, record, Vec::new())
     }
 
     pub(in crate::proxy) fn server_pixel_create(
@@ -1127,10 +1162,7 @@ impl DraftProxy {
             .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
-        selected_json(
-            &json!({"serverPixel": record, "userErrors": []}),
-            &field.selection,
-        )
+        server_pixel_payload(&field.selection, record, Vec::new())
     }
 
     pub(in crate::proxy) fn server_pixel_endpoint_update(
@@ -1146,17 +1178,29 @@ impl DraftProxy {
             .find(|(_, v)| is_server_pixel_record(v))
             .map(|(id, _)| id.clone())
         else {
-            return selected_json(
-                &json!({"serverPixel": null, "userErrors": [user_error_typed("ServerPixelUserError", ["id"], "Server pixel not found", Some("NOT_FOUND"))]}),
+            return server_pixel_payload(
                 &field.selection,
+                Value::Null,
+                vec![user_error_typed(
+                    "ServerPixelUserError",
+                    ["id"],
+                    "Server pixel not found",
+                    Some("NOT_FOUND"),
+                )],
             );
         };
         let endpoint = if kind == "arn" {
             let arn = resolved_string_field(&field.arguments, "arn").unwrap_or_default();
             if !arn.starts_with("arn:aws:events:") || arn.trim().is_empty() {
-                return selected_json(
-                    &json!({"serverPixel": null, "userErrors": [user_error_typed("ServerPixelUserError", ["arn"], &format!("Invalid ARN '{arn}'"), Some("INVALID_FIELD_ARGUMENTS"))]}),
+                return server_pixel_payload(
                     &field.selection,
+                    Value::Null,
+                    vec![user_error_typed(
+                        "ServerPixelUserError",
+                        ["arn"],
+                        &format!("Invalid ARN '{arn}'"),
+                        Some("INVALID_FIELD_ARGUMENTS"),
+                    )],
                 );
             }
             arn
@@ -1182,10 +1226,7 @@ impl DraftProxy {
                 ));
             }
             if !errors.is_empty() {
-                return selected_json(
-                    &json!({"serverPixel": null, "userErrors": errors}),
-                    &field.selection,
-                );
+                return server_pixel_payload(&field.selection, Value::Null, errors);
             }
             format!("{project}/{topic}")
         };
@@ -1194,10 +1235,7 @@ impl DraftProxy {
             .staged
             .online_store_integrations
             .insert(id, record.clone());
-        selected_json(
-            &json!({"serverPixel": record, "userErrors": []}),
-            &field.selection,
-        )
+        server_pixel_payload(&field.selection, record, Vec::new())
     }
 
     pub(in crate::proxy) fn storefront_access_token_create(
@@ -1215,9 +1253,11 @@ impl DraftProxy {
             })
             .unwrap_or_default();
         if title.trim().is_empty() {
-            return selected_json(
-                &json!({"storefrontAccessToken": null, "shop": self.store.effective_shop(), "userErrors": [presence_user_error(["input", "title"], "Title")]}),
+            return storefront_access_token_payload(
                 &field.selection,
+                Value::Null,
+                self.store.effective_shop(),
+                vec![presence_user_error(["input", "title"], "Title")],
             );
         }
         let token_count = self
@@ -1228,9 +1268,15 @@ impl DraftProxy {
             .filter(|record| is_storefront_access_token_record(record))
             .count();
         if token_count >= 100 {
-            return selected_json(
-                &json!({"storefrontAccessToken": null, "shop": self.store.effective_shop(), "userErrors": [user_error(["input"], "apps.admin.graph_api_errors.storefront_access_token_create.reached_limit", Some("REACHED_LIMIT"))]}),
+            return storefront_access_token_payload(
                 &field.selection,
+                Value::Null,
+                self.store.effective_shop(),
+                vec![user_error(
+                    ["input"],
+                    "apps.admin.graph_api_errors.storefront_access_token_create.reached_limit",
+                    Some("REACHED_LIMIT"),
+                )],
             );
         }
         let id = self.next_online_store_id("StorefrontAccessToken");
@@ -1248,9 +1294,11 @@ impl DraftProxy {
             .online_store_integrations
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
-        selected_json(
-            &json!({"storefrontAccessToken": record, "shop": self.store.effective_shop(), "userErrors": []}),
+        storefront_access_token_payload(
             &field.selection,
+            record,
+            self.store.effective_shop(),
+            Vec::new(),
         )
     }
 }
