@@ -68,36 +68,22 @@
         }
       },
       {
-        "name": "market-localizations-register-money-metafield-success",
+        "name": "market-localizations-register-money-metafield-validation",
         "capturePath": "$.cases[6].response.payload.data.marketLocalizationsRegister",
         "proxyPath": "$.data.marketLocalizationsRegister",
         "proxyRequest": {
           "documentPath": "config/parity-requests/markets/market-localization-metafield-register.graphql",
           "variablesCapturePath": "$.cases[6].variables"
-        },
-        "expectedDifferences": [
-          {
-            "path": "$.marketLocalizations[0].updatedAt",
-            "matcher": "iso-timestamp",
-            "reason": "The proxy stages the register mutation locally with its deterministic synthetic clock instead of Shopify's live mutation timestamp."
-          }
-        ]
+        }
       },
       {
-        "name": "market-localizable-money-metafield-read-after-register",
+        "name": "market-localizable-money-metafield-read-after-rejected-register",
         "capturePath": "$.cases[7].response.payload.data.marketLocalizableResource",
         "proxyPath": "$.data.marketLocalizableResource",
         "proxyRequest": {
           "documentPath": "config/parity-requests/markets/market-localization-metafield-read.graphql",
           "variablesCapturePath": "$.cases[7].variables"
-        },
-        "expectedDifferences": [
-          {
-            "path": "$.marketLocalizations[0].updatedAt",
-            "matcher": "iso-timestamp",
-            "reason": "The proxy read reflects the locally staged register timestamp."
-          }
-        ]
+        }
       },
       {
         "name": "market-localizations-remove-money-metafield-unknown-market-noop",
@@ -118,7 +104,7 @@
         }
       },
       {
-        "name": "market-localizations-remove-money-metafield-success",
+        "name": "market-localizations-remove-money-metafield-after-rejected-register",
         "capturePath": "$.cases[10].response.payload.data.marketLocalizationsRemove",
         "proxyPath": "$.data.marketLocalizationsRemove",
         "proxyRequest": {
@@ -127,7 +113,7 @@
         }
       },
       {
-        "name": "market-localizable-money-metafield-read-after-remove",
+        "name": "market-localizable-money-metafield-read-after-empty-remove",
         "capturePath": "$.cases[11].response.payload.data.marketLocalizableResource",
         "proxyPath": "$.data.marketLocalizableResource",
         "proxyRequest": {
@@ -137,5 +123,5 @@
       }
     ]
   },
-  "notes": "Live Admin GraphQL 2026-04 capture creates one disposable draft product with a default text metafield and one definition-backed money metafield, then cleans up the metafield definition and product. The text metafield branch proves default text metafields resolve as MarketLocalizableResource with empty marketLocalizableContent, reject register key `value` with INVALID_KEY_FOR_MODEL, and remove as a null no-op with no userErrors. The money metafield branch proves the `value` marketLocalizableContent surface, successful register, remove empty-key and unknown-market no-op behavior, successful remove returning the removed localization array, and downstream read-after-remove behavior."
+  "notes": "Live Admin GraphQL 2026-04 capture creates one disposable draft product with a default text metafield and one definition-backed money metafield, then cleans up the metafield definition and product. The text metafield branch proves default text metafields resolve as MarketLocalizableResource with empty marketLocalizableContent, reject register key `value` with INVALID_KEY_FOR_MODEL, and remove as a null no-op with no userErrors. The money metafield branch proves the `value` marketLocalizableContent surface, rejects JSON money localization values with FAILS_RESOURCE_VALIDATION, and keeps unknown-market, empty-key, and matching remove calls as null no-ops because no localization was staged."
 }
