@@ -7104,6 +7104,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-lifecycle-plain-usererror-no-code',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-lifecycle-plain-usererror-no-code-conformance.mts',
+    purpose:
+      'orderUpdate, orderClose, orderOpen, and orderMarkAsPaid reject userErrors.code selection because their payloads expose plain UserError.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderLifecycle-plain-usererror-no-code.json`,
+      'config/parity-specs/orders/orderLifecycle-plain-usererror-no-code.json',
+      'config/parity-requests/orders/orderLifecycle-plain-usererror-no-code.graphql',
+      'config/parity-requests/orders/orderLifecycle-plain-usererror-no-code.variables.json',
+    ],
+    cleanupBehavior:
+      'Validation-only capture; selecting userErrors.code fails before order lifecycle resolvers run, so no order state is mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-create-math-matrix',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-order-create-math-matrix-conformance.ts',

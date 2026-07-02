@@ -366,6 +366,10 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
         &[
             "inventoryActivate",
             "inventoryDeactivate",
+            "orderClose",
+            "orderMarkAsPaid",
+            "orderOpen",
+            "orderUpdate",
             "shopLocaleEnable",
             "shopLocaleUpdate",
             "shopLocaleDisable",
