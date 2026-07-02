@@ -7,6 +7,19 @@ import { validateRecordedUpstreamCalls, type RecordedUpstreamCall } from './pari
 
 const protectedPaths = ['config/parity-specs', 'config/parity-requests', 'fixtures/conformance'];
 const repoRoot = process.cwd();
+const registeredProtectedEvidenceRemovals = new Set([
+  'config/parity-specs/payments/customer-payment-method-credit-card-create-validation.json',
+  'config/parity-specs/payments/customer-payment-method-local-staging.json',
+  'config/parity-specs/payments/customer-payment-method-remote-create-validation.json',
+  'config/parity-specs/payments/customer-payment-method-shop-pay-guards.json',
+  'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-credit-card-create-validation.json',
+  'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-local-staging.json',
+  'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-remote-create-validation.json',
+  'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-shop-pay-guards.json',
+  'fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json',
+  'fixtures/conformance/local-runtime/2026-04/payments/payment-terms-delete-owner-cascade.json',
+  'fixtures/conformance/local-runtime/2026-05/payments/payment-reminder-send-shape.json',
+]);
 
 const result = spawnSync('git', ['diff', '--name-status', 'origin/main', '--', ...protectedPaths], {
   encoding: 'utf8',
@@ -56,19 +69,23 @@ const changed = result.stdout
   .filter(Boolean)
   .map((line): ChangedPath => {
     const [status = '', firstPath = '', secondPath] = line.split('\t');
+    const changedPath = secondPath ?? firstPath;
+    if (!status || !changedPath) {
+      throw new Error(`Unexpected git diff --name-status line: ${line}`);
+    }
     return {
       status,
-      path: secondPath ?? firstPath,
+      path: changedPath,
     };
   })
   .filter((entry) => entry.path.length > 0);
 
-const unregistered = changed.filter(
-  ({ status, path: changedPath }) =>
-    status !== 'D' &&
-    existsSync(changedPath) &&
-    !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath)),
-);
+const unregistered = changed.filter(({ status, path: changedPath }) => {
+  if (status === 'D') return !registeredProtectedEvidenceRemovals.has(changedPath);
+  return (
+    existsSync(changedPath) && !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath))
+  );
+});
 
 function readJson(relativePath: string): unknown {
   return JSON.parse(readFileSync(path.join(repoRoot, relativePath), 'utf8')) as unknown;
