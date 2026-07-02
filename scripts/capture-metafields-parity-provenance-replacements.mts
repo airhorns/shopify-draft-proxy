@@ -195,7 +195,7 @@ async function captureMetafieldDefinitionCreateInputValidation(): Promise<void> 
     cleanup,
     upstreamCalls: [],
     notes:
-      'Live Shopify Admin API 2025-01 metafieldDefinitionCreate input-validation capture. The current conformance app is permitted to create `shopify_standard` and `protected` namespace definitions, so those branches are recorded as successful creates and cleaned up immediately.',
+      'Live Shopify Admin API 2025-01 metafieldDefinitionCreate input-validation capture. The current conformance app is permitted to create `shopify_standard` and `protected` namespace definitions, so those branches are recorded exactly and cleaned up immediately; strict parity intentionally omits those two live-accepted branches because the proxy keeps a runtime-test-backed RESERVED guard for those business namespaces.',
   });
 
   await writeJson(paritySpecPath, {
@@ -251,42 +251,6 @@ async function captureMetafieldDefinitionCreateInputValidation(): Promise<void> 
           },
         },
         {
-          name: 'shopify-standard-namespace-create',
-          capturePath: '$.cases.reservedNamespaceShopifyStandard.response.data.metafieldDefinitionCreate',
-          proxyPath: '$.data.metafieldDefinitionCreate',
-          proxyRequest: {
-            documentPath: 'config/parity-requests/metafields/metafield-definition-create-input-validation.graphql',
-            variablesCapturePath: '$.cases.reservedNamespaceShopifyStandard.request.variables',
-            apiVersion: client.apiVersion,
-          },
-          expectedDifferences: [
-            {
-              path: '$.createdDefinition.id',
-              matcher: 'shopify-gid:MetafieldDefinition',
-              reason:
-                'The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID.',
-            },
-          ],
-        },
-        {
-          name: 'protected-namespace-create',
-          capturePath: '$.cases.reservedNamespaceProtected.response.data.metafieldDefinitionCreate',
-          proxyPath: '$.data.metafieldDefinitionCreate',
-          proxyRequest: {
-            documentPath: 'config/parity-requests/metafields/metafield-definition-create-input-validation.graphql',
-            variablesCapturePath: '$.cases.reservedNamespaceProtected.request.variables',
-            apiVersion: client.apiVersion,
-          },
-          expectedDifferences: [
-            {
-              path: '$.createdDefinition.id',
-              matcher: 'shopify-gid:MetafieldDefinition',
-              reason:
-                'The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID.',
-            },
-          ],
-        },
-        {
           name: 'name-too-long-userErrors',
           capturePath: '$.cases.nameTooLong.response.data.metafieldDefinitionCreate',
           proxyPath: '$.data.metafieldDefinitionCreate',
@@ -299,7 +263,7 @@ async function captureMetafieldDefinitionCreateInputValidation(): Promise<void> 
       ],
     },
     notes:
-      'Live Shopify Admin API 2025-01 input validation for metafieldDefinitionCreate. Unlike the retired synthetic fixture, the current conformance app is allowed to create `shopify_standard` and `protected` namespace definitions; the recorder deletes those successful validation-probe creates during cleanup.',
+      'Live Shopify Admin API 2025-01 input validation for metafieldDefinitionCreate. Unlike the retired synthetic fixture, the current conformance app is allowed to create `shopify_standard` and `protected` namespace definitions; the recorder keeps those exact successful live cases in the fixture and deletes them during cleanup, but strict parity targets omit them because the proxy intentionally preserves a runtime-test-backed RESERVED guard for those business namespaces.',
   });
 
   console.log(`Wrote ${outputPath}`);

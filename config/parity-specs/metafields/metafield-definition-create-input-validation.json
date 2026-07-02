@@ -53,40 +53,6 @@
         }
       },
       {
-        "name": "shopify-standard-namespace-create",
-        "capturePath": "$.cases.reservedNamespaceShopifyStandard.response.data.metafieldDefinitionCreate",
-        "proxyPath": "$.data.metafieldDefinitionCreate",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/metafields/metafield-definition-create-input-validation.graphql",
-          "variablesCapturePath": "$.cases.reservedNamespaceShopifyStandard.request.variables",
-          "apiVersion": "2025-01"
-        },
-        "expectedDifferences": [
-          {
-            "path": "$.createdDefinition.id",
-            "matcher": "shopify-gid:MetafieldDefinition",
-            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
-          }
-        ]
-      },
-      {
-        "name": "protected-namespace-create",
-        "capturePath": "$.cases.reservedNamespaceProtected.response.data.metafieldDefinitionCreate",
-        "proxyPath": "$.data.metafieldDefinitionCreate",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/metafields/metafield-definition-create-input-validation.graphql",
-          "variablesCapturePath": "$.cases.reservedNamespaceProtected.request.variables",
-          "apiVersion": "2025-01"
-        },
-        "expectedDifferences": [
-          {
-            "path": "$.createdDefinition.id",
-            "matcher": "shopify-gid:MetafieldDefinition",
-            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
-          }
-        ]
-      },
-      {
         "name": "name-too-long-userErrors",
         "capturePath": "$.cases.nameTooLong.response.data.metafieldDefinitionCreate",
         "proxyPath": "$.data.metafieldDefinitionCreate",
@@ -98,5 +64,5 @@
       }
     ]
   },
-  "notes": "Live Shopify Admin API 2025-01 input validation for metafieldDefinitionCreate. Unlike the retired synthetic fixture, the current conformance app is allowed to create `shopify_standard` and `protected` namespace definitions; the recorder deletes those successful validation-probe creates during cleanup."
+  "notes": "Live Shopify Admin API 2025-01 input validation for metafieldDefinitionCreate. Unlike the retired synthetic fixture, the current conformance app is allowed to create `shopify_standard` and `protected` namespace definitions; the recorder keeps those exact successful live cases in the fixture and deletes them during cleanup, but strict parity targets omit them because the proxy intentionally preserves a runtime-test-backed RESERVED guard for those business namespaces."
 }

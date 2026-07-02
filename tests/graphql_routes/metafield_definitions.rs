@@ -1670,7 +1670,8 @@ fn metafield_definition_capability_create_stays_local_and_logs_raw_mutation() {
 }
 
 #[test]
-fn metafield_definition_create_input_validation_matches_live_branches() {
+fn metafield_definition_create_input_validation_matches_live_branches_and_runtime_reserved_guards()
+{
     let mut proxy = snapshot_proxy();
     let create = |proxy: &mut DraftProxy, definition: Value| {
         proxy
@@ -1746,37 +1747,27 @@ fn metafield_definition_create_input_validation_matches_live_branches() {
     assert!(unknown_type_message.contains("product_taxonomy_disclosure_reference"));
     assert!(unknown_type_message.contains("list.disclosure_reference"));
 
-    let shopify_standard = create(
-        &mut proxy,
-        json!({
-            "namespace": "shopify_standard",
-            "key": "xx",
-            "ownerType": "PRODUCT",
-            "name": "X",
-            "type": "single_line_text_field"
-        }),
-    );
-    assert_eq!(shopify_standard["userErrors"], json!([]));
-    assert!(shopify_standard["createdDefinition"]["id"]
-        .as_str()
-        .unwrap()
-        .starts_with("gid://shopify/MetafieldDefinition/"));
-
-    let protected = create(
-        &mut proxy,
-        json!({
-            "namespace": "protected",
-            "key": "xx",
-            "ownerType": "PRODUCT",
-            "name": "X",
-            "type": "single_line_text_field"
-        }),
-    );
-    assert_eq!(protected["userErrors"], json!([]));
-    assert!(protected["createdDefinition"]["id"]
-        .as_str()
-        .unwrap()
-        .starts_with("gid://shopify/MetafieldDefinition/"));
+    for namespace in ["shopify_standard", "protected"] {
+        let reserved = create(
+            &mut proxy,
+            json!({
+                "namespace": namespace,
+                "key": "xx",
+                "ownerType": "PRODUCT",
+                "name": "X",
+                "type": "single_line_text_field"
+            }),
+        );
+        assert_eq!(reserved["createdDefinition"], Value::Null);
+        assert_eq!(
+            reserved["userErrors"],
+            json!([{
+                "field": ["definition", "namespace"],
+                "message": format!("Namespace {namespace} is reserved."),
+                "code": "RESERVED"
+            }])
+        );
+    }
 
     let name_too_long = create(
         &mut proxy,

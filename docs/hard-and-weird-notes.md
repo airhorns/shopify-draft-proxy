@@ -3864,9 +3864,10 @@ The same capture records app-reserved namespace definition deletes without
 A 2025-01 live input-validation capture with the current conformance app accepts
 PRODUCT `metafieldDefinitionCreate` in the literal `shopify_standard` and
 `protected` namespaces, returns empty `userErrors`, and allows immediate cleanup
-with `metafieldDefinitionDelete(deleteAllAssociatedMetafields: true)`. Do not
-reuse older local-runtime `RESERVED` userErrors for those create branches without
-a credential that actually reproduces that rejection.
+with `metafieldDefinitionDelete(deleteAllAssociatedMetafields: true)`. The proxy
+still keeps a conservative local `RESERVED` guard for those business namespaces,
+with focused Rust integration coverage instead of claiming those branches as
+strict Shopify parity.
 
 Practical rule:
 

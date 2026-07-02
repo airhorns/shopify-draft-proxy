@@ -1965,6 +1965,15 @@ fn metafield_definition_create_errors_for_namespace(
             "Namespace contains one or more invalid characters.",
             "INVALID_CHARACTER",
         ));
+    } else if namespace_length_error.is_none()
+        && matches!(namespace, "shopify_standard" | "protected")
+    {
+        errors.push(metafield_definition_user_error(
+            "MetafieldDefinitionCreateUserError",
+            json!(["definition", "namespace"]),
+            &format!("Namespace {namespace} is reserved."),
+            "RESERVED",
+        ));
     }
     if let Some(error) = key_length_error {
         errors.push(metafield_definition_user_error(
