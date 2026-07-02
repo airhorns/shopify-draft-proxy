@@ -323,7 +323,7 @@ impl DraftProxy {
         } else {
             self.store.product_count()
         };
-        product_count_json(count, &field.selection)
+        selected_count_json(count, &field.selection)
     }
 
     pub(in crate::proxy) fn products_filtered_by_search_query(
@@ -436,18 +436,12 @@ impl DraftProxy {
         };
         if input.contains_key("variants") {
             return MutationOutcome::response(ok_json(json!({
-                "errors": [{
-                    "message": "Variable $input of type ProductInput! was provided invalid value for variants (Field is not defined on ProductInput)",
-                    "locations": [{"line": 2, "column": 39}],
-                    "extensions": {
-                        "code": "INVALID_VARIABLE",
-                        "value": resolved_value_json(&ResolvedValue::Object(input.clone())),
-                        "problems": [{
-                            "path": ["variants"],
-                            "explanation": "Field is not defined on ProductInput"
-                        }]
-                    }
-                }]
+                "errors": [invalid_variable_error_envelope(
+                    "Variable $input of type ProductInput! was provided invalid value for variants (Field is not defined on ProductInput)".to_string(),
+                    SourceLocation { line: 2, column: 39 },
+                    resolved_value_json(&ResolvedValue::Object(input.clone())),
+                    json!([{ "path": ["variants"], "explanation": "Field is not defined on ProductInput" }]),
+                )]
             })));
         }
 
@@ -1329,7 +1323,7 @@ impl DraftProxy {
 
         let product_id = resolved_string_field(&input, "productId").unwrap_or_default();
         let Some(product) = self.store.product_by_id(&product_id).cloned() else {
-            return MutationOutcome::response(self.product_variant_user_error_response(
+            return MutationOutcome::response(self.product_variant_success_response(
                 query,
                 "productVariantCreate",
                 None,
@@ -1400,7 +1394,7 @@ impl DraftProxy {
         let input = product_variant_input(query, variables).unwrap_or_default();
         let id = resolved_string_field(&input, "id").unwrap_or_default();
         let Some(existing) = self.store.product_variant_by_id(&id).cloned() else {
-            return MutationOutcome::response(self.product_variant_user_error_response(
+            return MutationOutcome::response(self.product_variant_success_response(
                 query,
                 "productVariantUpdate",
                 None,
@@ -2279,17 +2273,6 @@ impl DraftProxy {
         }))
     }
 
-    fn product_variant_user_error_response(
-        &self,
-        query: &str,
-        root_field: &str,
-        product: Option<&ProductRecord>,
-        variant: Option<&ProductVariantRecord>,
-        user_errors: Vec<Value>,
-    ) -> Response {
-        self.product_variant_success_response(query, root_field, product, variant, user_errors)
-    }
-
     fn product_variant_validation_response(
         &self,
         query: &str,
@@ -2300,13 +2283,7 @@ impl DraftProxy {
         if user_errors.is_empty() {
             None
         } else {
-            Some(self.product_variant_user_error_response(
-                query,
-                root_field,
-                None,
-                None,
-                user_errors,
-            ))
+            Some(self.product_variant_success_response(query, root_field, None, None, user_errors))
         }
     }
 
@@ -2682,6 +2659,25 @@ impl DraftProxy {
                 self.product_delete_missing_product_response_with_shop(request, query, variables),
             );
         };
+        let (response_key, payload_selection) =
+            primary_root_response_selection(query, variables, || "productDelete".to_string());
+        let is_async_delete = resolved_bool_field(variables, "synchronous") == Some(false);
+        if is_async_delete
+            && self
+                .store
+                .staged
+                .product_delete_operations
+                .values()
+                .any(|pending_id| pending_id == &id)
+        {
+            self.hydrate_product_payload_shop_if_selected(request, &payload_selection);
+            let shop = self.store.effective_shop();
+            return MutationOutcome::response(ok_json(json!({
+                "data": {
+                    response_key.clone(): product_delete_async_duplicate_payload(&shop, &payload_selection)
+                }
+            })));
+        }
         if !self.store.has_product(&id) && self.config.read_mode == ReadMode::LiveHybrid {
             self.hydrate_product_nodes_for_observation_with_request(request, vec![id.clone()]);
         }
@@ -2691,29 +2687,15 @@ impl DraftProxy {
             );
         }
 
-        let (response_key, payload_selection) =
-            primary_root_response_selection(query, variables, || "productDelete".to_string());
         self.hydrate_product_payload_shop_if_selected(request, &payload_selection);
         let shop = self.store.effective_shop();
-        if resolved_bool_field(variables, "synchronous") == Some(false) {
+        if is_async_delete {
             let operation_id = self.next_synthetic_gid("ProductDeleteOperation");
-            if self
-                .store
-                .staged
-                .product_delete_operations
-                .values()
-                .any(|pending_id| pending_id == &id)
-            {
-                return MutationOutcome::response(ok_json(json!({
-                    "data": {
-                        response_key.clone(): product_delete_async_duplicate_payload(&shop, &payload_selection)
-                    }
-                })));
-            }
             self.store
                 .staged
                 .product_delete_operations
                 .insert(operation_id.clone(), id.clone());
+            self.store.delete_product(&id);
             return MutationOutcome::staged(
                 ok_json(json!({
                     "data": {

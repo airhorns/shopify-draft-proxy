@@ -1485,6 +1485,11 @@ impl DraftProxy {
             return MutationFieldOutcome::unlogged(error_payload);
         }
         if let Some(error_payload) =
+            inventory_invalid_adjust_ledger_document_payload(field, &changes_input, &name)
+        {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
+        if let Some(error_payload) =
             self.inventory_existence_payload(field, &changes_input, "changes")
         {
             return MutationFieldOutcome::unlogged(error_payload);
@@ -4755,6 +4760,67 @@ fn inventory_invalid_public_quantity_name_payload(
             Some("INVALID_QUANTITY_NAME"),
         )],
     ))
+}
+
+fn inventory_invalid_adjust_ledger_document_payload(
+    field: &RootFieldSelection,
+    changes: &[BTreeMap<String, ResolvedValue>],
+    name: &str,
+) -> Option<Value> {
+    let distinct_ledgers = changes
+        .iter()
+        .filter_map(|change| resolved_string_field(change, "ledgerDocumentUri"))
+        .collect::<BTreeSet<_>>();
+    if distinct_ledgers.len() > 1 {
+        return Some(inventory_invalid_adjustment_payload(
+            field,
+            vec![user_error(
+                ["input", "changes"],
+                "All changes must have the same ledger document URI or, in the case of adjusting available, no ledger document URI.",
+                Some("MAX_ONE_LEDGER_DOCUMENT"),
+            )],
+        ));
+    }
+
+    for (index, change) in changes.iter().enumerate() {
+        let ledger = resolved_string_field(change, "ledgerDocumentUri");
+        let field_path = json!(["input", "changes", index.to_string(), "ledgerDocumentUri"]);
+        match (name == "available", ledger.as_deref()) {
+            (true, Some(_)) => {
+                return Some(inventory_invalid_adjustment_payload(
+                    field,
+                    vec![user_error(
+                        field_path,
+                        "A ledger document URI is not allowed when adjusting available.",
+                        Some("INVALID_AVAILABLE_DOCUMENT"),
+                    )],
+                ));
+            }
+            (false, None) => {
+                return Some(inventory_invalid_adjustment_payload(
+                    field,
+                    vec![user_error(
+                        field_path,
+                        "A ledger document URI is required except when adjusting available.",
+                        Some("INVALID_QUANTITY_DOCUMENT"),
+                    )],
+                ));
+            }
+            (_, Some(ledger)) if ledger.starts_with("gid://shopify/") => {
+                return Some(inventory_invalid_adjustment_payload(
+                    field,
+                    vec![user_error(
+                        field_path,
+                        "Internal (gid://shopify/) ledger documents are not allowed to be adjusted via API.",
+                        Some("INTERNAL_LEDGER_DOCUMENT"),
+                    )],
+                ));
+            }
+            _ => {}
+        }
+    }
+
+    None
 }
 
 fn inventory_invalid_set_quantity_name_payload(

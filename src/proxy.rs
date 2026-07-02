@@ -17,6 +17,7 @@ use crate::operation_registry::{
 };
 
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
+pub(in crate::proxy) const METAFIELDS_SET_INPUT_LIMIT: usize = 25;
 const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
 const LOCALIZATION_BASELINE_PRODUCT_ID: &str = "gid://shopify/Product/9801098789170";
 

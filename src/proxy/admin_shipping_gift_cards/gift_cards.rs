@@ -182,7 +182,7 @@ impl DraftProxy {
                 "giftCardsCount" => {
                     let query =
                         resolved_string_field(&field.arguments, "query").unwrap_or_default();
-                    gift_card_count_json(
+                    selected_count_json(
                         self.gift_card_lifecycle_matching_cards(&query).len(),
                         &field.selection,
                     )

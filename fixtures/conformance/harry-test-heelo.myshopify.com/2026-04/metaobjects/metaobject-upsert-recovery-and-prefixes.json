@@ -1,17 +1,17 @@
 {
   "apiVersion": "2026-04",
   "storeDomain": "harry-test-heelo.myshopify.com",
-  "capturedAt": "2026-05-05T17:53:00.272Z",
+  "capturedAt": "2026-06-30T15:19:00.930Z",
   "scenarioId": "metaobject-upsert-recovery-and-prefixes",
-  "notes": "Fresh HAR-678 capture for metaobjectUpsert exact-match no-op, handle/value userError prefix partitioning, and cold LiveHybrid hydration.",
+  "notes": "Fresh capture for metaobjectUpsert exact-match payloads, handle/value userError prefix partitioning, and cold LiveHybrid hydration.",
   "definitionCreate": {
     "name": "definition-create",
     "request": {
       "query": "#graphql\n  mutation MetaobjectUpsertRecoveryDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n    metaobjectDefinitionCreate(definition: $definition) {\n      metaobjectDefinition {\n        id\n        type\n        name\n        displayNameKey\n        fieldDefinitions {\n          key\n          name\n          required\n          type {\n            name\n            category\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
         "definition": {
-          "type": "codex_har678_upsert_1778003578332",
-          "name": "HAR-678 upsert 1778003578332",
+          "type": "codex_har678_upsert_1782832738706",
+          "name": "HAR-678 upsert 1782832738706",
           "displayNameKey": "title",
           "fieldDefinitions": [
             {
@@ -29,9 +29,9 @@
       "data": {
         "metaobjectDefinitionCreate": {
           "metaobjectDefinition": {
-            "id": "gid://shopify/MetaobjectDefinition/17869799730",
-            "type": "codex_har678_upsert_1778003578332",
-            "name": "HAR-678 upsert 1778003578332",
+            "id": "gid://shopify/MetaobjectDefinition/19482738994",
+            "type": "codex_har678_upsert_1782832738706",
+            "name": "HAR-678 upsert 1782832738706",
             "displayNameKey": "title",
             "fieldDefinitions": [
               {
@@ -65,17 +65,17 @@
     "primaryCreate": {
       "name": "create-primary",
       "request": {
-        "query": "fragment MetaobjectUpsertRecoveryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectUpsertRecoveryAndPrefixes(\n  $handle: MetaobjectHandleInput!\n  $metaobject: MetaobjectUpsertInput!\n) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectUpsertRecoveryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "query": "fragment MetaobjectUpsertRecoveryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectUpsertRecoveryAndPrefixes($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectUpsertRecoveryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "handle": {
-            "type": "codex_har678_upsert_1778003578332",
-            "handle": "har-678-primary-1778003578332"
+            "type": "codex_har678_upsert_1782832738706",
+            "handle": "har-678-primary-1782832738706"
           },
           "metaobject": {
             "fields": [
               {
                 "key": "title",
-                "value": "Primary 1778003578332"
+                "value": "Primary 1782832738706"
               }
             ]
           }
@@ -86,11 +86,11 @@
         "data": {
           "metaobjectUpsert": {
             "metaobject": {
-              "id": "gid://shopify/Metaobject/188114338098",
-              "handle": "har-678-primary-1778003578332",
-              "type": "codex_har678_upsert_1778003578332",
-              "displayName": "Primary 1778003578332",
-              "updatedAt": "2026-05-05T17:52:58Z",
+              "id": "gid://shopify/Metaobject/203136467250",
+              "handle": "har-678-primary-1782832738706",
+              "type": "codex_har678_upsert_1782832738706",
+              "displayName": "Primary 1782832738706",
+              "updatedAt": "2026-06-30T15:18:59Z",
               "capabilities": {
                 "publishable": null,
                 "onlineStore": null
@@ -99,8 +99,8 @@
                 {
                   "key": "title",
                   "type": "single_line_text_field",
-                  "value": "Primary 1778003578332",
-                  "jsonValue": "Primary 1778003578332",
+                  "value": "Primary 1782832738706",
+                  "jsonValue": "Primary 1782832738706",
                   "definition": {
                     "key": "title",
                     "name": "Title",
@@ -115,8 +115,8 @@
               "titleField": {
                 "key": "title",
                 "type": "single_line_text_field",
-                "value": "Primary 1778003578332",
-                "jsonValue": "Primary 1778003578332",
+                "value": "Primary 1782832738706",
+                "jsonValue": "Primary 1782832738706",
                 "definition": {
                   "key": "title",
                   "name": "Title",
@@ -147,18 +147,18 @@
     "exactMatch": {
       "name": "exact-match-primary",
       "request": {
-        "query": "fragment MetaobjectUpsertRecoveryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectUpsertRecoveryAndPrefixes(\n  $handle: MetaobjectHandleInput!\n  $metaobject: MetaobjectUpsertInput!\n) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectUpsertRecoveryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "query": "fragment MetaobjectUpsertRecoveryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectUpsertRecoveryAndPrefixes($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectUpsertRecoveryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "handle": {
-            "type": "codex_har678_upsert_1778003578332",
-            "handle": "har-678-primary-1778003578332"
+            "type": "codex_har678_upsert_1782832738706",
+            "handle": "har-678-primary-1782832738706"
           },
           "metaobject": {
-            "handle": "har-678-primary-1778003578332",
+            "handle": "har-678-primary-1782832738706",
             "fields": [
               {
                 "key": "title",
-                "value": "Primary 1778003578332"
+                "value": "Primary 1782832738706"
               }
             ]
           }
@@ -169,11 +169,11 @@
         "data": {
           "metaobjectUpsert": {
             "metaobject": {
-              "id": "gid://shopify/Metaobject/188114338098",
-              "handle": "har-678-primary-1778003578332",
-              "type": "codex_har678_upsert_1778003578332",
-              "displayName": "Primary 1778003578332",
-              "updatedAt": "2026-05-05T17:52:58Z",
+              "id": "gid://shopify/Metaobject/203136467250",
+              "handle": "har-678-primary-1782832738706",
+              "type": "codex_har678_upsert_1782832738706",
+              "displayName": "Primary 1782832738706",
+              "updatedAt": "2026-06-30T15:18:59Z",
               "capabilities": {
                 "publishable": null,
                 "onlineStore": null
@@ -182,8 +182,8 @@
                 {
                   "key": "title",
                   "type": "single_line_text_field",
-                  "value": "Primary 1778003578332",
-                  "jsonValue": "Primary 1778003578332",
+                  "value": "Primary 1782832738706",
+                  "jsonValue": "Primary 1782832738706",
                   "definition": {
                     "key": "title",
                     "name": "Title",
@@ -198,8 +198,8 @@
               "titleField": {
                 "key": "title",
                 "type": "single_line_text_field",
-                "value": "Primary 1778003578332",
-                "jsonValue": "Primary 1778003578332",
+                "value": "Primary 1782832738706",
+                "jsonValue": "Primary 1782832738706",
                 "definition": {
                   "key": "title",
                   "name": "Title",
@@ -220,7 +220,7 @@
             "actualQueryCost": 19,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1981,
+              "currentlyAvailable": 1979,
               "restoreRate": 100
             }
           }
@@ -230,17 +230,17 @@
     "conflictOwnerCreate": {
       "name": "create-conflict-owner",
       "request": {
-        "query": "fragment MetaobjectUpsertRecoveryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectUpsertRecoveryAndPrefixes(\n  $handle: MetaobjectHandleInput!\n  $metaobject: MetaobjectUpsertInput!\n) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectUpsertRecoveryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "query": "fragment MetaobjectUpsertRecoveryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectUpsertRecoveryAndPrefixes($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectUpsertRecoveryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "handle": {
-            "type": "codex_har678_upsert_1778003578332",
-            "handle": "har-678-conflict-1778003578332"
+            "type": "codex_har678_upsert_1782832738706",
+            "handle": "har-678-conflict-1782832738706"
           },
           "metaobject": {
             "fields": [
               {
                 "key": "title",
-                "value": "Conflict 1778003578332"
+                "value": "Conflict 1782832738706"
               }
             ]
           }
@@ -251,11 +251,11 @@
         "data": {
           "metaobjectUpsert": {
             "metaobject": {
-              "id": "gid://shopify/Metaobject/188114370866",
-              "handle": "har-678-conflict-1778003578332",
-              "type": "codex_har678_upsert_1778003578332",
-              "displayName": "Conflict 1778003578332",
-              "updatedAt": "2026-05-05T17:52:59Z",
+              "id": "gid://shopify/Metaobject/203136500018",
+              "handle": "har-678-conflict-1782832738706",
+              "type": "codex_har678_upsert_1782832738706",
+              "displayName": "Conflict 1782832738706",
+              "updatedAt": "2026-06-30T15:18:59Z",
               "capabilities": {
                 "publishable": null,
                 "onlineStore": null
@@ -264,8 +264,8 @@
                 {
                   "key": "title",
                   "type": "single_line_text_field",
-                  "value": "Conflict 1778003578332",
-                  "jsonValue": "Conflict 1778003578332",
+                  "value": "Conflict 1782832738706",
+                  "jsonValue": "Conflict 1782832738706",
                   "definition": {
                     "key": "title",
                     "name": "Title",
@@ -280,8 +280,8 @@
               "titleField": {
                 "key": "title",
                 "type": "single_line_text_field",
-                "value": "Conflict 1778003578332",
-                "jsonValue": "Conflict 1778003578332",
+                "value": "Conflict 1782832738706",
+                "jsonValue": "Conflict 1782832738706",
                 "definition": {
                   "key": "title",
                   "name": "Title",
@@ -312,18 +312,18 @@
     "conflictingHandle": {
       "name": "conflicting-handle",
       "request": {
-        "query": "fragment MetaobjectUpsertRecoveryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectUpsertRecoveryAndPrefixes(\n  $handle: MetaobjectHandleInput!\n  $metaobject: MetaobjectUpsertInput!\n) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectUpsertRecoveryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "query": "fragment MetaobjectUpsertRecoveryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectUpsertRecoveryAndPrefixes($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectUpsertRecoveryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "handle": {
-            "type": "codex_har678_upsert_1778003578332",
-            "handle": "har-678-primary-1778003578332"
+            "type": "codex_har678_upsert_1782832738706",
+            "handle": "har-678-primary-1782832738706"
           },
           "metaobject": {
-            "handle": "har-678-conflict-1778003578332",
+            "handle": "har-678-conflict-1782832738706",
             "fields": [
               {
                 "key": "title",
-                "value": "Primary 1778003578332"
+                "value": "Primary 1782832738706"
               }
             ]
           }
@@ -351,7 +351,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1985,
+              "currentlyAvailable": 1982,
               "restoreRate": 100
             }
           }
@@ -361,11 +361,11 @@
     "missingRequired": {
       "name": "missing-required-title",
       "request": {
-        "query": "fragment MetaobjectUpsertRecoveryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectUpsertRecoveryAndPrefixes(\n  $handle: MetaobjectHandleInput!\n  $metaobject: MetaobjectUpsertInput!\n) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectUpsertRecoveryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "query": "fragment MetaobjectUpsertRecoveryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectUpsertRecoveryAndPrefixes($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectUpsertRecoveryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "handle": {
-            "type": "codex_har678_upsert_1778003578332",
-            "handle": "har-678-missing-1778003578332"
+            "type": "codex_har678_upsert_1782832738706",
+            "handle": "har-678-missing-1782832738706"
           },
           "metaobject": {
             "fields": []
@@ -394,7 +394,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1988,
+              "currentlyAvailable": 1984,
               "restoreRate": 100
             }
           }
@@ -404,17 +404,17 @@
     "proxyCreate": {
       "name": "create-proxy-branch",
       "request": {
-        "query": "fragment MetaobjectUpsertRecoveryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectUpsertRecoveryAndPrefixes(\n  $handle: MetaobjectHandleInput!\n  $metaobject: MetaobjectUpsertInput!\n) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectUpsertRecoveryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "query": "fragment MetaobjectUpsertRecoveryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectUpsertRecoveryAndPrefixes($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectUpsertRecoveryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "handle": {
-            "type": "codex_har678_upsert_1778003578332",
-            "handle": "har-678-create-1778003578332"
+            "type": "codex_har678_upsert_1782832738706",
+            "handle": "har-678-create-1782832738706"
           },
           "metaobject": {
             "fields": [
               {
                 "key": "title",
-                "value": "Create 1778003578332"
+                "value": "Create 1782832738706"
               }
             ]
           }
@@ -425,11 +425,11 @@
         "data": {
           "metaobjectUpsert": {
             "metaobject": {
-              "id": "gid://shopify/Metaobject/188114436402",
-              "handle": "har-678-create-1778003578332",
-              "type": "codex_har678_upsert_1778003578332",
-              "displayName": "Create 1778003578332",
-              "updatedAt": "2026-05-05T17:52:59Z",
+              "id": "gid://shopify/Metaobject/203136565554",
+              "handle": "har-678-create-1782832738706",
+              "type": "codex_har678_upsert_1782832738706",
+              "displayName": "Create 1782832738706",
+              "updatedAt": "2026-06-30T15:19:00Z",
               "capabilities": {
                 "publishable": null,
                 "onlineStore": null
@@ -438,8 +438,8 @@
                 {
                   "key": "title",
                   "type": "single_line_text_field",
-                  "value": "Create 1778003578332",
-                  "jsonValue": "Create 1778003578332",
+                  "value": "Create 1782832738706",
+                  "jsonValue": "Create 1782832738706",
                   "definition": {
                     "key": "title",
                     "name": "Title",
@@ -454,8 +454,8 @@
               "titleField": {
                 "key": "title",
                 "type": "single_line_text_field",
-                "value": "Create 1778003578332",
-                "jsonValue": "Create 1778003578332",
+                "value": "Create 1782832738706",
+                "jsonValue": "Create 1782832738706",
                 "definition": {
                   "key": "title",
                   "name": "Title",
@@ -488,18 +488,18 @@
     "conflictingHandle": {
       "name": "conflicting-handle",
       "request": {
-        "query": "fragment MetaobjectUpsertRecoveryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectUpsertRecoveryAndPrefixes(\n  $handle: MetaobjectHandleInput!\n  $metaobject: MetaobjectUpsertInput!\n) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectUpsertRecoveryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "query": "fragment MetaobjectUpsertRecoveryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectUpsertRecoveryAndPrefixes($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectUpsertRecoveryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "handle": {
-            "type": "codex_har678_upsert_1778003578332",
-            "handle": "har-678-primary-1778003578332"
+            "type": "codex_har678_upsert_1782832738706",
+            "handle": "har-678-primary-1782832738706"
           },
           "metaobject": {
-            "handle": "har-678-conflict-1778003578332",
+            "handle": "har-678-conflict-1782832738706",
             "fields": [
               {
                 "key": "title",
-                "value": "Primary 1778003578332"
+                "value": "Primary 1782832738706"
               }
             ]
           }
@@ -527,7 +527,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1985,
+              "currentlyAvailable": 1982,
               "restoreRate": 100
             }
           }
@@ -537,11 +537,11 @@
     "missingRequired": {
       "name": "missing-required-title",
       "request": {
-        "query": "fragment MetaobjectUpsertRecoveryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectUpsertRecoveryAndPrefixes(\n  $handle: MetaobjectHandleInput!\n  $metaobject: MetaobjectUpsertInput!\n) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectUpsertRecoveryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "query": "fragment MetaobjectUpsertRecoveryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectUpsertRecoveryAndPrefixes($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {\n  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectUpsertRecoveryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "handle": {
-            "type": "codex_har678_upsert_1778003578332",
-            "handle": "har-678-missing-1778003578332"
+            "type": "codex_har678_upsert_1782832738706",
+            "handle": "har-678-missing-1782832738706"
           },
           "metaobject": {
             "fields": []
@@ -570,7 +570,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1988,
+              "currentlyAvailable": 1984,
               "restoreRate": 100
             }
           }
@@ -582,17 +582,17 @@
     {
       "operationName": "MetaobjectDefinitionHydrateByType",
       "variables": {
-        "type": "codex_har678_upsert_1778003578332"
+        "type": "codex_har678_upsert_1782832738706"
       },
-      "query": "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }",
+      "query": "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "metaobjectDefinitionByType": {
-              "id": "gid://shopify/MetaobjectDefinition/17869799730",
-              "type": "codex_har678_upsert_1778003578332",
-              "name": "HAR-678 upsert 1778003578332",
+              "id": "gid://shopify/MetaobjectDefinition/19482738994",
+              "type": "codex_har678_upsert_1782832738706",
+              "name": "HAR-678 upsert 1782832738706",
               "description": null,
               "displayNameKey": "title",
               "access": {
@@ -627,10 +627,10 @@
                 }
               ],
               "hasThumbnailField": false,
-              "metaobjectsCount": 3,
+              "metaobjectsCount": 1,
               "standardTemplate": null,
-              "createdAt": "2026-05-05T17:52:58Z",
-              "updatedAt": "2026-05-05T17:52:58Z"
+              "createdAt": "2026-06-30T15:18:58Z",
+              "updatedAt": "2026-06-30T15:18:58Z"
             }
           },
           "extensions": {
@@ -650,21 +650,21 @@
     {
       "operationName": "MetaobjectHydrateByHandle",
       "variables": {
-        "type": "codex_har678_upsert_1778003578332",
-        "handle": "har-678-primary-1778003578332"
+        "type": "codex_har678_upsert_1782832738706",
+        "handle": "har-678-primary-1782832738706"
       },
-      "query": "sha:captured-by-script",
+      "query": "query MetaobjectHydrateByHandle($type: String!, $handle: String!) { metaobjectByHandle(handle: { type: $type, handle: $handle }) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } definition { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "metaobjectByHandle": {
-              "id": "gid://shopify/Metaobject/188114338098",
-              "handle": "har-678-primary-1778003578332",
-              "type": "codex_har678_upsert_1778003578332",
-              "displayName": "Primary 1778003578332",
-              "createdAt": "2026-05-05T17:52:58Z",
-              "updatedAt": "2026-05-05T17:52:58Z",
+              "id": "gid://shopify/Metaobject/203136467250",
+              "handle": "har-678-primary-1782832738706",
+              "type": "codex_har678_upsert_1782832738706",
+              "displayName": "Primary 1782832738706",
+              "createdAt": "2026-06-30T15:18:59Z",
+              "updatedAt": "2026-06-30T15:18:59Z",
               "capabilities": {
                 "publishable": null,
                 "onlineStore": null
@@ -673,8 +673,8 @@
                 {
                   "key": "title",
                   "type": "single_line_text_field",
-                  "value": "Primary 1778003578332",
-                  "jsonValue": "Primary 1778003578332",
+                  "value": "Primary 1782832738706",
+                  "jsonValue": "Primary 1782832738706",
                   "definition": {
                     "key": "title",
                     "name": "Title",
@@ -687,9 +687,9 @@
                 }
               ],
               "definition": {
-                "id": "gid://shopify/MetaobjectDefinition/17869799730",
-                "type": "codex_har678_upsert_1778003578332",
-                "name": "HAR-678 upsert 1778003578332",
+                "id": "gid://shopify/MetaobjectDefinition/19482738994",
+                "type": "codex_har678_upsert_1782832738706",
+                "name": "HAR-678 upsert 1782832738706",
                 "description": null,
                 "displayNameKey": "title",
                 "access": {
@@ -724,10 +724,10 @@
                   }
                 ],
                 "hasThumbnailField": false,
-                "metaobjectsCount": 3,
+                "metaobjectsCount": 1,
                 "standardTemplate": null,
-                "createdAt": "2026-05-05T17:52:58Z",
-                "updatedAt": "2026-05-05T17:52:58Z"
+                "createdAt": "2026-06-30T15:18:58Z",
+                "updatedAt": "2026-06-30T15:18:58Z"
               }
             }
           },
@@ -748,21 +748,21 @@
     {
       "operationName": "MetaobjectHydrateByHandle",
       "variables": {
-        "type": "codex_har678_upsert_1778003578332",
-        "handle": "har-678-conflict-1778003578332"
+        "type": "codex_har678_upsert_1782832738706",
+        "handle": "har-678-conflict-1782832738706"
       },
-      "query": "sha:captured-by-script",
+      "query": "query MetaobjectHydrateByHandle($type: String!, $handle: String!) { metaobjectByHandle(handle: { type: $type, handle: $handle }) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } definition { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "metaobjectByHandle": {
-              "id": "gid://shopify/Metaobject/188114370866",
-              "handle": "har-678-conflict-1778003578332",
-              "type": "codex_har678_upsert_1778003578332",
-              "displayName": "Conflict 1778003578332",
-              "createdAt": "2026-05-05T17:52:59Z",
-              "updatedAt": "2026-05-05T17:52:59Z",
+              "id": "gid://shopify/Metaobject/203136500018",
+              "handle": "har-678-conflict-1782832738706",
+              "type": "codex_har678_upsert_1782832738706",
+              "displayName": "Conflict 1782832738706",
+              "createdAt": "2026-06-30T15:18:59Z",
+              "updatedAt": "2026-06-30T15:18:59Z",
               "capabilities": {
                 "publishable": null,
                 "onlineStore": null
@@ -771,8 +771,8 @@
                 {
                   "key": "title",
                   "type": "single_line_text_field",
-                  "value": "Conflict 1778003578332",
-                  "jsonValue": "Conflict 1778003578332",
+                  "value": "Conflict 1782832738706",
+                  "jsonValue": "Conflict 1782832738706",
                   "definition": {
                     "key": "title",
                     "name": "Title",
@@ -785,9 +785,9 @@
                 }
               ],
               "definition": {
-                "id": "gid://shopify/MetaobjectDefinition/17869799730",
-                "type": "codex_har678_upsert_1778003578332",
-                "name": "HAR-678 upsert 1778003578332",
+                "id": "gid://shopify/MetaobjectDefinition/19482738994",
+                "type": "codex_har678_upsert_1782832738706",
+                "name": "HAR-678 upsert 1782832738706",
                 "description": null,
                 "displayNameKey": "title",
                 "access": {
@@ -822,10 +822,10 @@
                   }
                 ],
                 "hasThumbnailField": false,
-                "metaobjectsCount": 3,
+                "metaobjectsCount": 1,
                 "standardTemplate": null,
-                "createdAt": "2026-05-05T17:52:58Z",
-                "updatedAt": "2026-05-05T17:52:58Z"
+                "createdAt": "2026-06-30T15:18:58Z",
+                "updatedAt": "2026-06-30T15:18:58Z"
               }
             }
           },
@@ -835,7 +835,7 @@
               "actualQueryCost": 18,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1975,
+                "currentlyAvailable": 1981,
                 "restoreRate": 100
               }
             }
@@ -846,10 +846,10 @@
     {
       "operationName": "MetaobjectHydrateByHandle",
       "variables": {
-        "type": "codex_har678_upsert_1778003578332",
-        "handle": "har-678-missing-1778003578332"
+        "type": "codex_har678_upsert_1782832738706",
+        "handle": "har-678-missing-1782832738706"
       },
-      "query": "sha:captured-by-script",
+      "query": "query MetaobjectHydrateByHandle($type: String!, $handle: String!) { metaobjectByHandle(handle: { type: $type, handle: $handle }) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } definition { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }",
       "response": {
         "status": 200,
         "body": {
@@ -862,7 +862,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1988,
+                "currentlyAvailable": 1998,
                 "restoreRate": 100
               }
             }
@@ -873,10 +873,10 @@
     {
       "operationName": "MetaobjectHydrateByHandle",
       "variables": {
-        "type": "codex_har678_upsert_1778003578332",
-        "handle": "har-678-create-1778003578332"
+        "type": "codex_har678_upsert_1782832738706",
+        "handle": "har-678-create-1782832738706"
       },
-      "query": "sha:captured-by-script",
+      "query": "query MetaobjectHydrateByHandle($type: String!, $handle: String!) { metaobjectByHandle(handle: { type: $type, handle: $handle }) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } definition { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }",
       "response": {
         "status": 200,
         "body": {

@@ -146,7 +146,8 @@ updates apply against the current staged location set by removing
 inventing defaults. Omitting `taxExempt` or `taxRegistrationId` preserves the
 current staged value; literal `taxExempt: null` and variable `taxExempt: null`
 return `INVALID_INPUT`, while an unbound optional `$taxExempt` variable is
-treated as omitted.
+treated as omitted. Supplying no tax-setting knobs is a successful no-op that
+returns the unchanged company location.
 `companyLocationUpdate` also stages buyer-experience configuration fields for
 the covered request shape, including `editableShippingAddress`,
 `checkoutToDraft`, `paymentTermsTemplate`, and `deposit`.

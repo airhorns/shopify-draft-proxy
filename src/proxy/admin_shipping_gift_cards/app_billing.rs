@@ -929,21 +929,21 @@ impl DraftProxy {
         } else {
             let granted_scopes = app_granted_access_scopes(request);
             let required_scopes = app_required_access_scopes(request);
-            if scopes.iter().any(|scope| required_scopes.contains(scope)) {
-                user_errors.push(user_error(
-                    ["scopes"],
-                    "Scopes that are declared as required cannot be revoked.",
-                    Some("CANNOT_REVOKE_REQUIRED_SCOPES"),
-                ));
-            }
-            if scopes.iter().any(|scope| {
+            let has_unknown_scope = scopes.iter().any(|scope| {
                 !app_access_scope_handle_is_valid(scope)
                     || !granted_scopes.iter().any(|granted| granted == scope)
-            }) {
+            });
+            if has_unknown_scope {
                 user_errors.push(user_error(
                     ["scopes"],
                     "The requested list of scopes to revoke includes invalid handles.",
                     Some("UNKNOWN_SCOPES"),
+                ));
+            } else if scopes.iter().any(|scope| required_scopes.contains(scope)) {
+                user_errors.push(user_error(
+                    ["scopes"],
+                    "Scopes that are declared as required cannot be revoked.",
+                    Some("CANNOT_REVOKE_REQUIRED_SCOPES"),
                 ));
             }
         }
@@ -962,6 +962,13 @@ impl DraftProxy {
         } else {
             Vec::new()
         };
+        let revoked_payload = if user_errors.is_empty() {
+            Some(revoked)
+        } else if app_revoke_access_scopes_missing_source_app(request) {
+            Some(Vec::new())
+        } else {
+            None
+        };
         if user_errors.is_empty() {
             self.record_mutation_log_entry(
                 request,
@@ -975,7 +982,7 @@ impl DraftProxy {
         ok_json(json!({
             "data": {
                 response_key: app_revoke_access_scopes_payload_json(
-                    revoked,
+                    revoked_payload,
                     user_errors,
                     &payload_selection,
                 )

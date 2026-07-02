@@ -1,0 +1,29 @@
+mutation InventoryAdjustLedgerDocumentValidation(
+  $input: InventoryAdjustQuantitiesInput!
+  $idempotencyKey: String!
+) {
+  inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+    inventoryAdjustmentGroup {
+      id
+      createdAt
+      reason
+      changes {
+        name
+        delta
+        quantityAfterChange
+        ledgerDocumentUri
+        item {
+          id
+        }
+        location {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

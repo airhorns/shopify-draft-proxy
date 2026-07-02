@@ -1,0 +1,642 @@
+{
+  "capturedAt": "2026-06-29T21:40:52.126Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "source": "live-shopify-admin-graphql",
+  "notes": "Live public Admin GraphQL capture for returnRequest with ReturnRequestLineItemInput.customerNote. The mutation payload and follow-up return(id:) read both echo the per-line customerNote.",
+  "schema": {
+    "query": "query ReturnCustomerNoteSchemaEvidence {\n    returnRequestLineItemInput: __type(name: \"ReturnRequestLineItemInput\") {\n      inputFields(includeDeprecated: true) {\n        name\n        isDeprecated\n        deprecationReason\n      }\n    }\n    returnLineItem: __type(name: \"ReturnLineItem\") {\n      fields(includeDeprecated: true) {\n        name\n        isDeprecated\n        deprecationReason\n      }\n    }\n  }",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnRequestLineItemInput": {
+            "inputFields": [
+              {
+                "name": "fulfillmentLineItemId",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "quantity",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "restockingFee",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "returnReason",
+                "isDeprecated": true,
+                "deprecationReason": "Use `returnReasonDefinitionId` instead. This field will be removed in the future."
+              },
+              {
+                "name": "returnReasonDefinitionId",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "customerNote",
+                "isDeprecated": false,
+                "deprecationReason": null
+              }
+            ]
+          },
+          "returnLineItem": {
+            "fields": [
+              {
+                "name": "customerNote",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "fulfillmentLineItem",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "id",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "processableQuantity",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "processedQuantity",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "quantity",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "refundableQuantity",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "refundedQuantity",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "restockingFee",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "returnReason",
+                "isDeprecated": true,
+                "deprecationReason": "Use `returnReasonDefinition` instead. This field will be removed in the future."
+              },
+              {
+                "name": "returnReasonDefinition",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "returnReasonNote",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "totalWeight",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "unprocessedQuantity",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "withCodeDiscountedTotalPriceSet",
+                "isDeprecated": false,
+                "deprecationReason": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "setup": {
+    "orderCreate": {
+      "query": "#graphql\n  fragment ReturnCustomerNoteOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n      }\n    }\n  }\n\n  mutation ReturnCustomerNoteOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        ...ReturnCustomerNoteOrderFields\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "return-customer-note-20260629214049@example.com",
+          "note": "return customer note capture 20260629214049",
+          "tags": ["return-customer-note", "20260629214049"],
+          "test": true,
+          "currency": "USD",
+          "lineItems": [
+            {
+              "title": "Return customer note item 20260629214049",
+              "quantity": 2,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "18.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8881331110194",
+                "name": "#1639",
+                "createdAt": "2026-06-29T21:40:49Z",
+                "updatedAt": "2026-06-29T21:40:49Z",
+                "displayFinancialStatus": null,
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "36.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "36.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "fulfillments": [],
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9818234552626",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19860510638386",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19691177804082",
+                              "title": "Return customer note item 20260629214049"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "returns": {
+                  "nodes": []
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 53,
+              "actualQueryCost": 22,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfillmentCreate": {
+      "query": "mutation ReturnCustomerNoteFulfillmentCreate($fulfillment: FulfillmentInput!, $message: String) {\n    fulfillmentCreate(fulfillment: $fulfillment, message: $message) {\n      fulfillment {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        fulfillmentLineItems(first: 5) {\n          nodes {\n            id\n            quantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "RETURN-CUSTOMER-NOTE-FULFILL-20260629214049",
+            "url": "https://example.com/track/RETURN-CUSTOMER-NOTE-FULFILL-20260629214049",
+            "company": "Hermes Carrier"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9818234552626",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/19860510638386",
+                  "quantity": 2
+                }
+              ]
+            }
+          ]
+        },
+        "message": "return customer note fulfillment 20260629214049"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentCreate": {
+              "fulfillment": {
+                "id": "gid://shopify/Fulfillment/8030223565106",
+                "status": "SUCCESS",
+                "displayStatus": "FULFILLED",
+                "createdAt": "2026-06-29T21:40:50Z",
+                "updatedAt": "2026-06-29T21:40:50Z",
+                "fulfillmentLineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentLineItem/17469827678514",
+                      "quantity": 2,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19691177804082",
+                        "title": "Return customer note item 20260629214049"
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "orderReadAfterFulfillment": {
+      "query": "#graphql\n  fragment ReturnCustomerNoteOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n      }\n    }\n  }\n\n  query ReturnCustomerNoteOrderRead($id: ID!) {\n    order(id: $id) {\n      ...ReturnCustomerNoteOrderFields\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Order/8881331110194"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8881331110194",
+              "name": "#1639",
+              "createdAt": "2026-06-29T21:40:49Z",
+              "updatedAt": "2026-06-29T21:40:50Z",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "FULFILLED",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "36.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "36.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/8030223565106",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-06-29T21:40:50Z",
+                  "updatedAt": "2026-06-29T21:40:50Z",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17469827678514",
+                        "quantity": 2,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19691177804082",
+                          "title": "Return customer note item 20260629214049"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9818234552626",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19860510638386",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 0,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19691177804082",
+                            "title": "Return customer note item 20260629214049"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "returns": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 44,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "returnRequest": {
+    "query": "mutation ReturnRequestCustomerNoteRecorded($input: ReturnRequestInput!) {\n  returnRequest(input: $input) {\n    return {\n      id\n      name\n      status\n      totalQuantity\n      returnLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          processedQuantity\n          unprocessedQuantity\n          customerNote\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "input": {
+        "orderId": "gid://shopify/Order/8881331110194",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17469827678514",
+            "quantity": 1,
+            "returnReason": "DEFECTIVE",
+            "customerNote": "Screen arrived cracked"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnRequest": {
+            "return": {
+              "id": "gid://shopify/Return/14868414770",
+              "name": "#1639-R1",
+              "status": "REQUESTED",
+              "totalQuantity": 1,
+              "returnLineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ReturnLineItem/22656844082",
+                    "quantity": 1,
+                    "processedQuantity": 0,
+                    "unprocessedQuantity": 1,
+                    "customerNote": "Screen arrived cracked"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "query": "query ReturnCustomerNoteReadRecorded($returnId: ID!) {\n  return(id: $returnId) {\n    id\n    name\n    status\n    totalQuantity\n    returnLineItems(first: 5) {\n      nodes {\n        id\n        quantity\n        processedQuantity\n        unprocessedQuantity\n        customerNote\n      }\n    }\n  }\n}",
+    "variables": {
+      "returnId": "gid://shopify/Return/14868414770"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "return": {
+            "id": "gid://shopify/Return/14868414770",
+            "name": "#1639-R1",
+            "status": "REQUESTED",
+            "totalQuantity": 1,
+            "returnLineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ReturnLineItem/22656844082",
+                  "quantity": 1,
+                  "processedQuantity": 0,
+                  "unprocessedQuantity": 1,
+                  "customerNote": "Screen arrived cracked"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "orderCancel": {
+      "query": "mutation ReturnCustomerNoteOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8881331110194",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/f4f86350-9717-46bd-a98a-55e51c4231be"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "orderDelete": {
+      "query": "mutation ReturnCustomerNoteOrderDelete($orderId: ID!) {\n    orderDelete(orderId: $orderId) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8881331110194"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderDelete": {
+              "deletedId": "gid://shopify/Order/8881331110194",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersReturnOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8881331110194"
+      },
+      "query": "query OrdersReturnOrderHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    totalRefundedSet { shopMoney { amount currencyCode } }\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n      }\n    }\n    fulfillments(first: 50) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 50) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n            variant {\n              id\n            }\n          }\n        }\n      }\n    }\n    returns(first: 50) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnLineItems(first: 50) {\n          nodes {\n            ... on ReturnLineItem {\n              id\n              quantity\n              fulfillmentLineItem {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8881331110194",
+              "name": "#1639",
+              "createdAt": "2026-06-29T21:40:49Z",
+              "updatedAt": "2026-06-29T21:40:50Z",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "FULFILLED",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "36.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "36.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19691177804082",
+                    "title": "Return customer note item 20260629214049",
+                    "quantity": 2
+                  }
+                ]
+              },
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/8030223565106",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-06-29T21:40:50Z",
+                  "updatedAt": "2026-06-29T21:40:50Z",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17469827678514",
+                        "quantity": 2,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19691177804082",
+                          "title": "Return customer note item 20260629214049",
+                          "variant": null
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "returns": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 155,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

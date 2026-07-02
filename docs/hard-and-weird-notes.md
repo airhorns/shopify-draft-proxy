@@ -566,6 +566,7 @@ Current and historical live findings on this host:
   - an open draft with no recipient email returns the selected draft plus `field: null`, `message: "To can't be blank"`
   - a completed draft with no recipient email returns the selected completed draft plus two userErrors: `"To can't be blank"` and `"Draft order Invoice can't be sent. This draft order is already paid."`
   - this capture does not prove the success path should be emulated locally as delivered mail; local runtime must keep staging the raw mutation only and must not send email until explicit commit replay
+- A separate 2026-04 live capture for a disposable recipient-backed `draftOrderInvoiceSend` shows a successful send is also a draft-order lifecycle transition: the mutation payload returns `status: INVOICE_SENT` with non-null `invoiceSentAt`, and an immediate `draftOrder(id:)` read returns the same status and timestamp. Model this store-state transition locally while still treating actual email delivery as an out-of-scope side effect until explicit commit replay.
 - easy schema/request traps from promoting those scenarios:
   - `DraftOrder.note` is not selectable on the current Admin GraphQL schema for these payloads, even though draft-order inputs can carry note-like data through local state
   - `DraftOrderInput.shippingLine` does not accept a `code` field; live updates accepted title and price fields, and Shopify returned `code: "custom"` on the resulting `shippingLine`
@@ -2237,6 +2238,7 @@ Practical rule for the proxy:
 - by contrast, an unknown-but-present inventory item id did reach the mutation resolver and returned a fielded `userErrors` entry at `['input', 'changes', '0', 'inventoryItemId']` with message `The specified inventory item could not be found.`
 - an unknown-but-present `locationId` also reached the mutation resolver on this host and returned a fielded `userErrors` entry at `['input', 'changes', '0', 'locationId']` with message `The specified location could not be found.` instead of silently creating a new location-scoped adjustment row
 - non-available quantity writes such as `incoming` update downstream `inventoryLevels.quantities(name: ...)` immediately without changing `productVariant.inventoryQuantity` or product-level aggregates
+- a 2026-04 ledger-document validation capture found that a valid `damaged` adjustment returns both the submitted `damaged` change row and a companion `on_hand` change row, unlike the existing `incoming` capture; do not generalize `incoming`'s no-on-hand behavior across every non-available name that belongs to `on_hand`
 - `InventoryAdjustmentGroup.id` is worth keeping in the first richer payload slice; Shopify returns a real group gid even when the local proxy still stages the broader inventory model in memory only
 - `InventoryChange.ledgerDocumentUri` is per-change data, not a synonym for the group-level `referenceDocumentUri`; when a non-available write supplies a change-scoped ledger URI, Shopify echoes that URI back on each change entry while leaving `referenceDocumentUri` at the group scope
 - `changes.location` is richer than an id-only echo on this host: live capture returned both `id` and merchant-facing `name` (for example `103 ossington`), so local replay should preserve `name` whenever the effective location graph knows it
@@ -3214,6 +3216,18 @@ pinned definitions, the `pin: true` re-enable returned empty `userErrors` and
 `pinnedPosition: 21`; it did not return `PINNED_LIMIT_REACHED`, and downstream
 `metafieldDefinition(id:)` by the original id still resolved the definition.
 
+Admin GraphQL 2026-04 introspection on `harry-test-heelo.myshopify.com` omits
+older arguments such as `visibleToStorefrontApi` and `useAsCollectionCondition`,
+but live execution still accepts them. `visibleToStorefrontApi: false` on the
+PRODUCT `facts` / `isbn` template returns a successful payload with
+`access.storefront: NONE`, and `useAsCollectionCondition: true` on an ineligible
+template returns `INVALID_CAPABILITY` for `smart_collection_condition`.
+`forceEnable` and `useAsAdminFilter` are rejected by public schema validation
+before resolver execution, so checked-in parity evidence should not claim
+payload parity for those retired arguments. If the proxy keeps them as local
+compatibility inputs, cover that behavior with runtime tests rather than
+Shopify parity targets.
+
 Practical rule:
 
 - keep proxy runtime support constrained to captured standard template IDs/namespaces until broader template catalog reads are modeled
@@ -3506,21 +3520,23 @@ Practical rule:
 - model async duplicate as a local `ProductDuplicateOperation` whose mutation response is created/pending-shaped and whose helper read exposes completion; do not route supported async duplicate writes upstream
 - keep `productDuplicateJob(id:)` as the older unknown-job compatibility helper unless new evidence links it to current async duplicate operations
 
-## 75a. Async `productDelete` starts pending but duplicate errors use nullable fields
+## 75a. Async `productDelete` starts pending but immediate product visibility is timing-sensitive
 
 HAR-932 captured `productDelete(input:, synchronous: false)` on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`.
+A refreshed 2026-04 capture against the same store showed the operation can complete before the immediate downstream product read.
 
 Captured facts:
 
 - the mutation payload returns `deletedProductId: null`, `productDeleteOperation.status: CREATED`, and empty `userErrors`
-- the product remains visible to an immediate downstream `product(id:)` read after the async delete mutation
+- the 2025-01 capture kept the product visible to an immediate downstream `product(id:)` read after the async delete mutation
+- the refreshed 2026-04 capture returned `product: null` for that immediate downstream read, so local timing should prefer the completed-before-read branch instead of requiring a visible pending product
 - a second async delete for the same product while the operation is pending returns `productDeleteOperation: null` and a public `UserError` with `field: null` and message `Another operation already in progress. Please wait until current one is finished.`
 - the public 2025-01 `UserError` selected under `productDelete` / `ProductDeleteOperation.userErrors` does not expose a `code` field
 - helper reads can advance quickly: the capture saw `productOperation(id:)` with status `ACTIVE` and `node(id:)` with status `COMPLETE`; the final cleanup poll saw `productOperation(id:)` as `COMPLETE` with `deletedProductId`
 
 Practical rule:
 
-- model async delete with an initial `ProductDeleteOperation` response, keep the product visible immediately, reject duplicate pending operations with the nullable-field public userError shape, and expose completed readback through `productOperation(id:)` / `node(id:)` without runtime Shopify writes
+- model async delete with an initial `ProductDeleteOperation` response, tombstone the product for immediate local `product(id:)` reads, reject duplicate pending operations with the nullable-field public userError shape while the local operation is recorded, and expose completed readback through `productOperation(id:)` / `node(id:)` without runtime Shopify writes
 
 ## 76. `locationAdd` required input errors are parser-level, but country validation is schema-sensitive
 
@@ -3626,17 +3642,18 @@ Practical rule:
 ## 80. `marketLocalizationsRemove` treats unmatched filters as no-op removals
 
 Admin GraphQL 2026-04 live probes against `harry-test-heelo.myshopify.com`
-found a disposable success path by creating a product-owned `money` metafield
-definition, setting a CAD money metafield, registering a market localization,
-then removing it.
+created a product-owned `money` metafield definition and set a CAD money
+metafield to probe market localization registration/removal behavior.
 
 Observed behavior:
 
 - `single_line_text_field` product metafields and translatable metaobjects can
   still return empty `marketLocalizableContent`; a definition-backed `money`
   metafield exposed `marketLocalizableContent: [{ key: "value", ... }]`
-- successful remove returned a non-null `marketLocalizations` array containing
-  the removed `key`, `value`, `outdated`, and `market` payload
+- registering a JSON money value for that exposed `value` key returned field
+  `["marketLocalizations", "0", "value"]`, message
+  `Market Localizable content is invalid`, and code
+  `FAILS_RESOURCE_VALIDATION`
 - remove with `marketLocalizationKeys: []` returned `marketLocalizations: null`
   and `userErrors: []`
 - remove with an unknown key or an unknown `marketIds` filter also returned
@@ -3645,6 +3662,8 @@ Observed behavior:
 
 Practical rule:
 
+- reject money-metafield market localization register attempts from observed
+  `marketLocalizableContent` instead of staging an invented translation
 - model `marketLocalizationsRemove` as a filter/removal operation after
   resource existence is established; do not invent resolver-level key or market
   validation errors for unmatched filters without newer live evidence
@@ -3828,7 +3847,31 @@ Practical rule:
   so repeated-create parity must wait for a scope-capable dev-store credential
   rather than being replaced with local-runtime evidence
 
-## 88. Standard metafield-definition immutable fields return field-specific public errors
+## 88. appRevokeAccessScopes validation nulls revoked and prioritizes unknown scopes
+
+Admin GraphQL 2026-04 live capture against `harry-test-heelo.myshopify.com`
+records safe `appRevokeAccessScopes` validation probes that do not revoke real
+app grants:
+
+- `scopes: ["fake_scope"]` returns `revoked: null` and `UNKNOWN_SCOPES` on
+  `["scopes"]`
+- `scopes: ["read_products", "fake_scope"]` also returns only
+  `UNKNOWN_SCOPES`; the unknown-handle guard takes precedence over required
+  scope rejection
+- `scopes: ["read_products"]` returns `revoked: null` and
+  `CANNOT_REVOKE_REQUIRED_SCOPES` on `["scopes"]`
+
+Practical rule:
+
+- failed `appRevokeAccessScopes` validation should project `revoked: null`, not
+  an empty list
+- do not accumulate required-scope errors when the same request contains an
+  unknown scope handle
+- keep optional-grant success as runtime-test-backed until a disposable app
+  grant can be revoked and restored safely; do not forge captured parity for
+  that branch
+
+## 89. Standard metafield-definition immutable fields return field-specific public errors
 
 Admin GraphQL 2026-04 live capture against `harry-test-heelo.myshopify.com`
 records `metafieldDefinitionUpdate` on the standard product subtitle definition
@@ -3844,6 +3887,14 @@ The same capture records app-reserved namespace definition deletes without
 `RESERVED_NAMESPACE_ORPHANED_METAFIELDS` and message
 `Deleting a definition in a reserved namespace must have deleteAllAssociatedMetafields set to true.`
 
+A 2025-01 live input-validation capture with the current conformance app accepts
+PRODUCT `metafieldDefinitionCreate` in the literal `shopify_standard` and
+`protected` namespaces, returns empty `userErrors`, and allows immediate cleanup
+with `metafieldDefinitionDelete(deleteAllAssociatedMetafields: true)`. The proxy
+still keeps a conservative local `RESERVED` guard for those business namespaces,
+with focused Rust integration coverage instead of claiming those branches as
+strict Shopify parity.
+
 Practical rule:
 
 - model the public field-specific metafieldDefinitionUpdate errors for standard
@@ -3851,3 +3902,25 @@ Practical rule:
   `["definition"]` error
 - keep the app-reserved namespace delete message aligned with the public
   2026-04 capture, not older/internal wording
+
+## 89. `locationActivate` limit is public-capturable, ongoing relocation was not
+
+Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` can produce a real
+`locationActivate` `LOCATION_LIMIT` branch by creating a disposable active
+location, deactivating it, filling the active merchant-managed location cap, and
+then activating the inactive target. The captured userError is
+`field: ["locationId"]`, `code: LOCATION_LIMIT`, and message
+`Shop has reached its location limit.`
+
+A focused attempt to create `HAS_ONGOING_RELOCATION` through public Admin
+GraphQL did not expose that state: a stocked source location deactivated with a
+destination relocation returned synchronously with `hasActiveInventory: false`,
+and immediate `locationActivate` on the source succeeded with no userErrors.
+
+Practical rule:
+
+- derive location cap state from a live/cassette-backed
+  `StorePropertiesLocationLimitStatus` read rather than synthetic fixture IDs
+- keep `HAS_ONGOING_RELOCATION` as runtime-test-only behavior until a
+  deterministic public or approved disposable-store setup can leave a real
+  incomplete relocation job observable through `locationActivate`

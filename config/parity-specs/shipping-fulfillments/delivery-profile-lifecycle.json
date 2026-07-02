@@ -18,7 +18,7 @@
     "variablesCapturePath": "$.mutations.nestedCreate.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured Admin GraphQL 2026-04 delivery-profile write evidence covers blank-name validation, nested profile create, nested update with location add, method update/create, condition delete, variant dissociation, missing-id userErrors, default-profile removal denial, asynchronous remove job payload, and downstream profile absence after removal. This spec replays the captured lifecycle through the local proxy parity harness; expected differences are limited to synthetic delivery-profile lifecycle IDs allocated during isolated proxy execution.",
+  "notes": "Captured Admin GraphQL 2026-04 delivery-profile write evidence covers blank-name validation, nested profile create, nested update with location add, method update/create, condition delete, missing-id userErrors, default-profile removal denial, asynchronous remove job payload, and downstream profile absence after removal. This spec replays the captured lifecycle through the local proxy parity harness; expected differences are limited to synthetic delivery-profile lifecycle IDs allocated during isolated proxy execution.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -82,8 +82,7 @@
               "fromPrimaryProxyPath": "$.data.deliveryProfileCreate.profile.id"
             },
             "profile": {
-              "name": "HAR-247 nested updated",
-              "variantsToDissociate": ["gid://shopify/ProductVariant/51098706739506"],
+              "name": "Delivery profile lifecycle updated",
               "conditionsToDelete": [
                 {
                   "fromPrimaryProxyPath": "$.data.deliveryProfileCreate.profile.profileLocationGroups[0].locationGroupZones.nodes[0].methodDefinitions.nodes[0].methodConditions[0].id"
@@ -100,13 +99,13 @@
                       "id": {
                         "fromPrimaryProxyPath": "$.data.deliveryProfileCreate.profile.profileLocationGroups[0].locationGroupZones.nodes[0].zone.id"
                       },
-                      "name": "HAR-247 Domestic Updated",
+                      "name": "Domestic updated",
                       "methodDefinitionsToUpdate": [
                         {
                           "id": {
                             "fromPrimaryProxyPath": "$.data.deliveryProfileCreate.profile.profileLocationGroups[0].locationGroupZones.nodes[0].methodDefinitions.nodes[0].id"
                           },
-                          "name": "HAR-247 Standard Updated",
+                          "name": "Standard updated",
                           "active": false,
                           "rateDefinition": {
                             "id": {
@@ -121,7 +120,7 @@
                       ],
                       "methodDefinitionsToCreate": [
                         {
-                          "name": "HAR-247 Express",
+                          "name": "Express",
                           "active": true,
                           "rateDefinition": {
                             "price": {

@@ -1,9 +1,0 @@
-mutation ShippingPackageUpdateFlatRate($id: ID!, $shippingPackage: CustomShippingPackageInput!) {
-  shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) {
-    userErrors {
-      field
-      message
-      code
-    }
-  }
-}

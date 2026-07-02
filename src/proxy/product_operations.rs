@@ -275,7 +275,11 @@ impl DraftProxy {
                     operation
                         .as_ref()
                         .map(|operation| {
-                            self.product_operation_initial_json(operation, &operation_selection)
+                            self.product_operation_json_with_status(
+                                operation,
+                                &operation_selection,
+                                "CREATED",
+                            )
                         })
                         .unwrap_or(Value::Null),
                 ),
@@ -807,7 +811,11 @@ impl DraftProxy {
                 "productDuplicateOperation" => Some(
                     operation
                         .map(|operation| {
-                            self.product_operation_initial_json(operation, operation_selection)
+                            self.product_operation_json_with_status(
+                                operation,
+                                operation_selection,
+                                "CREATED",
+                            )
                         })
                         .unwrap_or(Value::Null),
                 ),
@@ -928,53 +936,22 @@ impl DraftProxy {
     ) -> Value {
         selected_payload_json(payload_selection, |selection| {
             match selection.name.as_str() {
-                "productBundleOperation" => {
-                    Some(self.product_operation_initial_json(operation, operation_selection))
-                }
+                "productBundleOperation" => Some(self.product_operation_json_with_status(
+                    operation,
+                    operation_selection,
+                    "CREATED",
+                )),
                 "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                 _ => None,
             }
         })
     }
 
-    fn product_operation_initial_json(
+    fn product_operation_json_with_status(
         &self,
         operation: &ProductOperationRecord,
         selections: &[SelectedField],
-    ) -> Value {
-        let typename = product_operation_typename(operation.kind);
-        selected_payload_json(selections, |selection| {
-            product_operation_selection_matches(selection, typename).then(|| {
-                match selection.name.as_str() {
-                    "__typename" => json!(typename),
-                    "id" => json!(operation.id),
-                    "status" => json!("CREATED"),
-                    "product" if operation.kind == ProductOperationKind::Duplicate => operation
-                        .product_id
-                        .as_deref()
-                        .and_then(|id| self.store.product_by_id(id))
-                        .map(|product| {
-                            product_json_with_variants_and_currency(
-                                product,
-                                &self.store.product_variants_for_product(&product.id),
-                                &selection.selection,
-                                &self.store.shop_currency_code(),
-                            )
-                        })
-                        .unwrap_or(Value::Null),
-                    "product" => Value::Null,
-                    "newProduct" => Value::Null,
-                    "userErrors" => Value::Array(Vec::new()),
-                    _ => Value::Null,
-                }
-            })
-        })
-    }
-
-    pub(in crate::proxy) fn product_operation_json(
-        &self,
-        operation: &ProductOperationRecord,
-        selections: &[SelectedField],
+        status: &str,
     ) -> Value {
         let typename = product_operation_typename(operation.kind);
         selected_payload_json(selections, |selection| {
@@ -984,43 +961,59 @@ impl DraftProxy {
             match selection.name.as_str() {
                 "__typename" => Some(json!(typename)),
                 "id" => Some(json!(operation.id)),
-                "status" => Some(json!("COMPLETE")),
-                "product" => Some(
-                    operation
-                        .product_id
-                        .as_deref()
-                        .and_then(|id| self.store.product_by_id(id))
-                        .map(|product| {
-                            product_json_with_variants_and_currency(
-                                product,
-                                &self.store.product_variants_for_product(&product.id),
-                                &selection.selection,
-                                &self.store.shop_currency_code(),
-                            )
-                        })
-                        .unwrap_or(Value::Null),
-                ),
-                "newProduct" if operation.kind == ProductOperationKind::Duplicate => Some(
-                    operation
-                        .new_product_id
-                        .as_deref()
-                        .and_then(|id| self.store.product_by_id(id))
-                        .map(|product| {
-                            product_json_with_variants_and_currency(
-                                product,
-                                &self.store.product_variants_for_product(&product.id),
-                                &selection.selection,
-                                &self.store.shop_currency_code(),
-                            )
-                        })
-                        .unwrap_or(Value::Null),
-                ),
+                "status" => Some(json!(status)),
+                "product"
+                    if status == "CREATED" && operation.kind != ProductOperationKind::Duplicate =>
+                {
+                    Some(Value::Null)
+                }
+                "product" => Some(self.product_operation_product_json(
+                    operation.product_id.as_deref(),
+                    &selection.selection,
+                )),
+                "newProduct"
+                    if status == "COMPLETE"
+                        && operation.kind == ProductOperationKind::Duplicate =>
+                {
+                    Some(self.product_operation_product_json(
+                        operation.new_product_id.as_deref(),
+                        &selection.selection,
+                    ))
+                }
+                "newProduct" => Some(Value::Null),
+                "userErrors" if status == "CREATED" => Some(Value::Array(Vec::new())),
                 "userErrors" => {
                     selected_user_errors_field(operation.user_errors.as_slice(), selection)
                 }
                 _ => None,
             }
         })
+    }
+
+    pub(in crate::proxy) fn product_operation_json(
+        &self,
+        operation: &ProductOperationRecord,
+        selections: &[SelectedField],
+    ) -> Value {
+        self.product_operation_json_with_status(operation, selections, "COMPLETE")
+    }
+
+    fn product_operation_product_json(
+        &self,
+        product_id: Option<&str>,
+        selections: &[SelectedField],
+    ) -> Value {
+        product_id
+            .and_then(|id| self.store.product_by_id(id))
+            .map(|product| {
+                product_json_with_variants_and_currency(
+                    product,
+                    &self.store.product_variants_for_product(&product.id),
+                    selections,
+                    &self.store.shop_currency_code(),
+                )
+            })
+            .unwrap_or(Value::Null)
     }
 }
 

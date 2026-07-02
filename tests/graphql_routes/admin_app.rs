@@ -287,7 +287,7 @@ fn app_revoke_access_scopes_validates_atomically_and_updates_current_installatio
     assert_eq!(
         unknown.body["data"]["appRevokeAccessScopes"],
         json!({
-            "revoked": [],
+            "revoked": null,
             "userErrors": [{
                 "field": ["scopes"],
                 "message": "The requested list of scopes to revoke includes invalid handles.",
@@ -308,23 +308,15 @@ fn app_revoke_access_scopes_validates_atomically_and_updates_current_installatio
         json!({}),
     ));
     assert_eq!(
-        mixed.body["data"]["appRevokeAccessScopes"]["revoked"],
-        json!([])
-    );
-    assert_eq!(
-        mixed.body["data"]["appRevokeAccessScopes"]["userErrors"],
-        json!([
-            {
-                "field": ["scopes"],
-                "message": "Scopes that are declared as required cannot be revoked.",
-                "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
-            },
-            {
+        mixed.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "revoked": null,
+            "userErrors": [{
                 "field": ["scopes"],
                 "message": "The requested list of scopes to revoke includes invalid handles.",
                 "code": "UNKNOWN_SCOPES"
-            }
-        ])
+            }]
+        })
     );
 
     let required = proxy.process_request(json_graphql_request(
@@ -341,7 +333,7 @@ fn app_revoke_access_scopes_validates_atomically_and_updates_current_installatio
     assert_eq!(
         required.body["data"]["appRevokeAccessScopes"],
         json!({
-            "revoked": [],
+            "revoked": null,
             "userErrors": [{
                 "field": ["scopes"],
                 "message": "Scopes that are declared as required cannot be revoked.",
@@ -1988,4 +1980,1102 @@ fn app_subscription_create_activates_test_charge_and_reads_back_current_installa
             }
         })
     );
+}
+
+#[test]
+fn removed_app_revoke_access_scopes_codes_scenario_has_rust_coverage() {
+    let mut proxy = snapshot_proxy();
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appRevokeAccessScopes(scopes: ["fake_scope"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        unknown.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "revoked": null,
+            "userErrors": [{
+                "field": ["scopes"],
+                "message": "The requested list of scopes to revoke includes invalid handles.",
+                "code": "UNKNOWN_SCOPES"
+            }]
+        })
+    );
+
+    let mixed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appRevokeAccessScopes(scopes: ["read_products", "fake_scope"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        mixed.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "revoked": null,
+            "userErrors": [{
+                "field": ["scopes"],
+                "message": "The requested list of scopes to revoke includes invalid handles.",
+                "code": "UNKNOWN_SCOPES"
+            }]
+        })
+    );
+
+    let required = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appRevokeAccessScopes(scopes: ["read_products"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        required.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "revoked": null,
+            "userErrors": [{
+                "field": ["scopes"],
+                "message": "Scopes that are declared as required cannot be revoked.",
+                "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
+            }]
+        })
+    );
+
+    let optional = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appRevokeAccessScopes(scopes: ["write_products"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        optional.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "revoked": [{ "handle": "write_products", "description": null }],
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query {
+          currentAppInstallation { accessScopes { handle } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["currentAppInstallation"]["accessScopes"],
+        json!([{ "handle": "read_products" }])
+    );
+}
+
+#[test]
+fn removed_app_revoke_access_scopes_error_codes_scenario_has_rust_coverage() {
+    let mut proxy = snapshot_proxy();
+
+    for query in [
+        r#"
+        mutation AppRevokeAccessScopesErrorCodes {
+          appRevokeAccessScopes(scopes: ["write_products"]) {
+            revoked { handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        r#"
+        mutation OrdinaryName {
+          appRevokeAccessScopes(scopes: ["write_products"]) {
+            revoked { handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        r#"
+        mutation {
+          appRevokeAccessScopes(scopes: ["write_products"]) {
+            revoked { handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+    ] {
+        let mut request = json_graphql_request(query, json!({}));
+        request.headers.insert(
+            "x-shopify-draft-proxy-source-app-missing".to_string(),
+            "true".to_string(),
+        );
+        let response = proxy.process_request(request);
+        assert_eq!(
+            response.body["data"]["appRevokeAccessScopes"],
+            json!({
+                "revoked": [],
+                "userErrors": [{
+                    "field": ["id"],
+                    "message": "No app found on the access token.",
+                    "code": "MISSING_SOURCE_APP"
+                }]
+            })
+        );
+    }
+}
+
+#[test]
+fn removed_delegate_access_token_current_input_local_staging_scenario_has_rust_coverage() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) {
+            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
+            shop { id currencyCode }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["delegateAccessTokenCreate"]["delegateAccessToken"]["accessScopes"],
+        json!(["read_products"])
+    );
+    assert!(
+        create.body["data"]["delegateAccessTokenCreate"]["delegateAccessToken"]["accessToken"]
+            .as_str()
+            .is_some_and(|token| token.starts_with("shpat_delegate_proxy_"))
+    );
+    assert_eq!(
+        create.body["data"]["delegateAccessTokenCreate"]["delegateAccessToken"]["createdAt"],
+        json!("2024-01-01T00:00:01.000Z")
+    );
+    assert_eq!(
+        create.body["data"]["delegateAccessTokenCreate"]["delegateAccessToken"]["expiresIn"],
+        json!(300)
+    );
+    assert_eq!(
+        create.body["data"]["delegateAccessTokenCreate"]["shop"],
+        json!({ "id": "gid://shopify/Shop/0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        create.body["data"]["delegateAccessTokenCreate"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn removed_app_subscription_line_item_update_validation_scenario_has_rust_coverage() {
+    let mut proxy = snapshot_proxy();
+    let (_subscription_id, usage_line_item_id, recurring_line_item_id) =
+        create_usage_and_recurring_subscription_for_removed_app_tests(&mut proxy);
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation($usageLineItemId: ID!, $recurringLineItemId: ID!) {
+          recurring: appSubscriptionLineItemUpdate(id: $recurringLineItemId, cappedAmount: { amount: 10, currencyCode: USD }) {
+            appSubscription { id }
+            userErrors { field message }
+          }
+          currencyMismatch: appSubscriptionLineItemUpdate(id: $usageLineItemId, cappedAmount: { amount: 10, currencyCode: EUR }) {
+            appSubscription { id }
+            userErrors { field message }
+          }
+          nonIncreasing: appSubscriptionLineItemUpdate(id: $usageLineItemId, cappedAmount: { amount: 3, currencyCode: USD }) {
+            appSubscription { id }
+            userErrors { field message }
+          }
+          success: appSubscriptionLineItemUpdate(id: $usageLineItemId, cappedAmount: { amount: 10, currencyCode: USD }) {
+            confirmationUrl
+            appSubscription { id lineItems { id plan { pricingDetails { __typename ... on AppUsagePricing { cappedAmount { amount currencyCode } } } } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "usageLineItemId": usage_line_item_id,
+            "recurringLineItemId": recurring_line_item_id
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["recurring"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": null, "message": "Only variable subscriptions can be updated." }]
+        })
+    );
+    assert_eq!(
+        update.body["data"]["currencyMismatch"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": null, "message": "Currency code must be USD" }]
+        })
+    );
+    assert_eq!(
+        update.body["data"]["nonIncreasing"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": ["cappedAmount"], "message": "Spending limit can only be increased. Please contact the app developer to decrease spending limit." }]
+        })
+    );
+    assert_eq!(
+        update.body["data"]["success"]["confirmationUrl"],
+        json!(DERIVED_DEFAULT_CONFIRMATION_URL)
+    );
+    assert_eq!(update.body["data"]["success"]["userErrors"], json!([]));
+}
+
+#[test]
+fn removed_app_subscription_cancel_status_transitions_scenario_has_rust_coverage() {
+    let mut proxy = snapshot_proxy();
+    let (subscription_id, _line_item_id) =
+        create_usage_subscription_for_removed_app_tests(&mut proxy, true, 100);
+
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation($id: ID!) {
+          appSubscriptionCancel(id: $id, prorate: true) {
+            appSubscription { id status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": subscription_id }),
+    ));
+    assert_eq!(
+        cancel.body["data"]["appSubscriptionCancel"]["appSubscription"]["status"],
+        json!("CANCELLED")
+    );
+    assert_eq!(
+        cancel.body["data"]["appSubscriptionCancel"]["userErrors"],
+        json!([])
+    );
+
+    let repeat = proxy.process_request(json_graphql_request(
+        r#"
+        mutation($id: ID!) {
+          appSubscriptionCancel(id: $id, prorate: true) {
+            appSubscription { id status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": cancel.body["data"]["appSubscriptionCancel"]["appSubscription"]["id"].clone() }),
+    ));
+    assert_eq!(
+        repeat.body["data"]["appSubscriptionCancel"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": ["id"], "message": "Cannot transition status via :cancel from :cancelled" }]
+        })
+    );
+}
+
+#[test]
+fn removed_app_subscription_trial_extend_validation_scenario_has_rust_coverage() {
+    let mut proxy = snapshot_proxy();
+    let (subscription_id, _line_item_id) =
+        create_usage_subscription_for_removed_app_tests(&mut proxy, false, 100);
+
+    let trial_extend_query = r#"
+        mutation($id: ID!, $days: Int!) {
+          appSubscriptionTrialExtend(id: $id, days: $days) {
+            appSubscription { id trialDays }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let days_zero = proxy.process_request(json_graphql_request(
+        trial_extend_query,
+        json!({ "id": subscription_id, "days": 0 }),
+    ));
+    assert_eq!(
+        days_zero.body["data"]["appSubscriptionTrialExtend"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": ["days"], "message": "Days must be greater than 0", "code": null }]
+        })
+    );
+
+    let days_too_large = proxy.process_request(json_graphql_request(
+        trial_extend_query,
+        json!({ "id": subscription_id, "days": 1001 }),
+    ));
+    assert_eq!(
+        days_too_large.body["data"]["appSubscriptionTrialExtend"]["userErrors"][0]["message"],
+        json!("Days must be less than or equal to 1000")
+    );
+
+    let unknown = proxy.process_request(json_graphql_request(
+        trial_extend_query,
+        json!({ "id": "gid://shopify/AppSubscription/unknown", "days": 5 }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["appSubscriptionTrialExtend"]["userErrors"][0]["code"],
+        json!("SUBSCRIPTION_NOT_FOUND")
+    );
+
+    let pending = proxy.process_request(json_graphql_request(
+        trial_extend_query,
+        json!({ "id": subscription_id, "days": 5 }),
+    ));
+    assert_eq!(
+        pending.body["data"]["appSubscriptionTrialExtend"],
+        json!({
+            "appSubscription": null,
+            "userErrors": [{ "field": ["id"], "message": "The trial can't be extended on inactive app subscriptions.", "code": "SUBSCRIPTION_NOT_ACTIVE" }]
+        })
+    );
+}
+
+#[test]
+fn removed_app_usage_record_create_cap_and_idempotency_scenario_has_rust_coverage() {
+    let mut proxy = snapshot_proxy();
+    let (_subscription_id, line_item_id) =
+        create_usage_subscription_for_removed_app_tests(&mut proxy, true, 5);
+
+    let success_query = r#"
+        mutation($id: ID!) {
+          appUsageRecordCreate(
+            subscriptionLineItemId: $id
+            price: { amount: "3.00", currencyCode: USD }
+            description: "first"
+            idempotencyKey: "removed-app-usage-key"
+          ) {
+            appUsageRecord {
+              id
+              description
+              price { amount currencyCode }
+              subscriptionLineItem { id plan { pricingDetails { __typename ... on AppUsagePricing { balanceUsed { amount currencyCode } } } } }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let success = proxy.process_request(json_graphql_request(
+        success_query,
+        json!({ "id": line_item_id }),
+    ));
+    assert_eq!(
+        success.body["data"]["appUsageRecordCreate"]["appUsageRecord"]["subscriptionLineItem"]
+            ["plan"]["pricingDetails"]["balanceUsed"],
+        json!({ "amount": "3.0", "currencyCode": "USD" })
+    );
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        success_query,
+        json!({ "id": line_item_id }),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["appUsageRecordCreate"],
+        success.body["data"]["appUsageRecordCreate"]
+    );
+
+    let over_cap = proxy.process_request(json_graphql_request(
+        r#"
+        mutation($id: ID!) {
+          appUsageRecordCreate(
+            subscriptionLineItemId: $id
+            price: { amount: "3.00", currencyCode: USD }
+            description: "second"
+            idempotencyKey: "removed-app-usage-key-2"
+          ) {
+            appUsageRecord { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": line_item_id }),
+    ));
+    assert_eq!(
+        over_cap.body["data"]["appUsageRecordCreate"],
+        json!({
+            "appUsageRecord": null,
+            "userErrors": [{ "field": null, "message": "Total price exceeds balance remaining" }]
+        })
+    );
+
+    let long_key = proxy.process_request(json_graphql_request(
+        r#"
+        mutation($id: ID!, $key: String) {
+          appUsageRecordCreate(
+            subscriptionLineItemId: $id
+            price: { amount: "1.00", currencyCode: USD }
+            description: "too long"
+            idempotencyKey: $key
+          ) {
+            appUsageRecord { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": line_item_id, "key": "x".repeat(256) }),
+    ));
+    assert_eq!(
+        long_key.body["data"]["appUsageRecordCreate"]["userErrors"][0]["message"],
+        json!("Idempotency key exceeds the maximum length.")
+    );
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query {
+          currentAppInstallation {
+            allSubscriptions(first: 5) {
+              nodes {
+                lineItems {
+                  plan { pricingDetails { __typename ... on AppUsagePricing { balanceUsed { amount currencyCode } } } }
+                  usageRecords(first: 5) { nodes { id description } }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"]["allSubscriptions"]["nodes"][0]
+            ["lineItems"][0]["usageRecords"]["nodes"][0]["description"],
+        json!("first")
+    );
+}
+
+#[test]
+fn removed_app_subscription_activation_readback_scenario_has_rust_coverage() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appSubscriptionCreate(
+            name: "Activation readback plan"
+            returnUrl: "https://app.example.test/return"
+            trialDays: 7
+            test: true
+            lineItems: [
+              { plan: { appRecurringPricingDetails: { price: { amount: "10.00", currencyCode: USD }, interval: EVERY_30_DAYS } } }
+            ]
+          ) {
+            confirmationUrl
+            appSubscription { id status test currentPeriodEnd }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let subscription_id =
+        create.body["data"]["appSubscriptionCreate"]["appSubscription"]["id"].clone();
+    assert_eq!(
+        create.body["data"]["appSubscriptionCreate"]["appSubscription"]["status"],
+        json!("ACTIVE")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query {
+          currentAppInstallation {
+            activeSubscriptions { id status currentPeriodEnd }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["currentAppInstallation"]["activeSubscriptions"],
+        json!([{
+            "id": subscription_id,
+            "status": "ACTIVE",
+            "currentPeriodEnd": "2026-05-05T02:10:00.000Z"
+        }])
+    );
+}
+
+#[test]
+fn removed_app_purchase_one_time_create_validation_scenario_has_rust_coverage() {
+    let mut proxy = snapshot_proxy();
+
+    let blank = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appPurchaseOneTimeCreate(name: "   ", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: USD }, test: true) {
+            appPurchaseOneTime { id }
+            confirmationUrl
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        blank.body["data"]["appPurchaseOneTimeCreate"]["userErrors"][0]["message"],
+        json!("Name can't be blank")
+    );
+
+    let zero_price = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appPurchaseOneTimeCreate(name: "Pro", returnUrl: "https://app.example.test/return", price: { amount: "0", currencyCode: USD }, test: true) {
+            appPurchaseOneTime { id }
+            confirmationUrl
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        zero_price.body["data"]["appPurchaseOneTimeCreate"]["userErrors"][0]["message"],
+        json!("Validation failed: Price must be greater than or equal to 0.5")
+    );
+
+    let currency_mismatch = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appPurchaseOneTimeCreate(name: "Pro", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: EUR }, test: true) {
+            appPurchaseOneTime { id }
+            confirmationUrl
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        currency_mismatch.body["data"]["appPurchaseOneTimeCreate"]["userErrors"],
+        json!([])
+    );
+    synthetic_gid(
+        &currency_mismatch.body["data"]["appPurchaseOneTimeCreate"]["appPurchaseOneTime"]["id"],
+        "AppPurchaseOneTime",
+    );
+
+    let missing_return_url = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appPurchaseOneTimeCreate(name: "Pro", price: { amount: "5.00", currencyCode: USD }, test: true) {
+            appPurchaseOneTime { id }
+            confirmationUrl
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        missing_return_url.body["errors"][0]["extensions"]["name"],
+        json!("appPurchaseOneTimeCreate")
+    );
+
+    let success = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appPurchaseOneTimeCreate(name: "Valid test", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: USD }, test: true) {
+            appPurchaseOneTime { id name status test createdAt price { amount currencyCode } }
+            confirmationUrl
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let success_purchase = &success.body["data"]["appPurchaseOneTimeCreate"]["appPurchaseOneTime"];
+    synthetic_gid(&success_purchase["id"], "AppPurchaseOneTime");
+    assert_eq!(
+        success.body["data"]["appPurchaseOneTimeCreate"],
+        json!({
+            "appPurchaseOneTime": {
+                "id": success_purchase["id"],
+                "name": "Valid test",
+                "status": "ACTIVE",
+                "test": true,
+                "createdAt": success_purchase["createdAt"],
+                "price": { "amount": "5.0", "currencyCode": "USD" }
+            },
+            "confirmationUrl": DERIVED_RETURN_CONFIRMATION_URL,
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn removed_app_billing_access_local_staging_scenario_has_rust_coverage() {
+    let mut proxy = snapshot_proxy();
+    let (subscription_id, line_item_id) =
+        create_usage_subscription_for_removed_app_tests(&mut proxy, true, 100);
+
+    let one_time_id = create_one_time_purchase_for_removed_app_tests(&mut proxy);
+
+    let line_item_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation($id: ID!) {
+          appSubscriptionLineItemUpdate(id: $id, cappedAmount: { amount: 125, currencyCode: USD }) {
+            confirmationUrl
+            appSubscription { id lineItems { id plan { pricingDetails { __typename ... on AppUsagePricing { cappedAmount { amount currencyCode } } } } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": line_item_id }),
+    ));
+    assert_eq!(
+        line_item_update.body["data"]["appSubscriptionLineItemUpdate"]["confirmationUrl"],
+        json!(DERIVED_DEFAULT_CONFIRMATION_URL)
+    );
+
+    let usage = proxy.process_request(json_graphql_request(
+        r#"
+        mutation($id: ID!) {
+          appUsageRecordCreate(subscriptionLineItemId: $id, price: { amount: "12.5", currencyCode: USD }, description: "metered import", idempotencyKey: "billing-access-usage") {
+            appUsageRecord { id description subscriptionLineItem { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": line_item_id }),
+    ));
+    let usage_record_id = usage.body["data"]["appUsageRecordCreate"]["appUsageRecord"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        usage.body["data"]["appUsageRecordCreate"]["userErrors"],
+        json!([])
+    );
+
+    let trial_extend = proxy.process_request(json_graphql_request(
+        r#"
+        mutation($id: ID!) {
+          appSubscriptionTrialExtend(id: $id, days: 3) {
+            appSubscription { id trialDays }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": subscription_id }),
+    ));
+    assert_eq!(
+        trial_extend.body["data"]["appSubscriptionTrialExtend"],
+        json!({
+            "appSubscription": { "id": subscription_id, "trialDays": 10 },
+            "userErrors": []
+        })
+    );
+
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation($id: ID!) {
+          appSubscriptionCancel(id: $id, prorate: true) {
+            appSubscription { id status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": subscription_id }),
+    ));
+    assert_eq!(
+        cancel.body["data"]["appSubscriptionCancel"]["appSubscription"]["status"],
+        json!("CANCELLED")
+    );
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query {
+          currentAppInstallation {
+            id
+            activeSubscriptions { id }
+            allSubscriptions(first: 5) { nodes { id status lineItems { id usageRecords(first: 5) { nodes { id description } } } } }
+            oneTimePurchases(first: 5) { nodes { id name status } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let installation_id = readback.body["data"]["currentAppInstallation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"]["allSubscriptions"]["nodes"][0]["status"],
+        json!("CANCELLED")
+    );
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"]["oneTimePurchases"]["nodes"][0]["id"],
+        json!(one_time_id)
+    );
+
+    let installation_node = proxy.process_request(json_graphql_request(
+        r#"
+        query($id: ID!) {
+          node(id: $id) {
+            ... on AppInstallation { id allSubscriptions(first: 5) { nodes { id } } }
+          }
+        }
+        "#,
+        json!({ "id": installation_id }),
+    ));
+    assert_eq!(
+        installation_node.body["data"]["node"]["id"],
+        json!("gid://shopify/AppInstallation/expected")
+    );
+
+    for id in [
+        subscription_id.as_str(),
+        one_time_id.as_str(),
+        usage_record_id.as_str(),
+    ] {
+        let node = proxy.process_request(json_graphql_request(
+            r#"
+            query($id: ID!) {
+              node(id: $id) {
+                ... on AppSubscription { id }
+                ... on AppPurchaseOneTime { id }
+                ... on AppUsageRecord { id }
+              }
+            }
+            "#,
+            json!({ "id": id }),
+        ));
+        assert_eq!(node.body["data"]["node"]["id"], json!(id));
+    }
+
+    let revoke = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appRevokeAccessScopes(scopes: ["write_products"]) {
+            revoked { handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        revoke.body["data"]["appRevokeAccessScopes"],
+        json!({ "revoked": [{ "handle": "write_products" }], "userErrors": [] })
+    );
+
+    let delegate_token = create_delegate_access_token_for_removed_app_tests(&mut proxy);
+    let destroy = proxy.process_request(json_graphql_request(
+        r#"
+        mutation($token: String!) {
+          delegateAccessTokenDestroy(accessToken: $token) {
+            status
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "token": delegate_token }),
+    ));
+    assert_eq!(
+        destroy.body["data"]["delegateAccessTokenDestroy"],
+        json!({ "status": true, "userErrors": [] })
+    );
+
+    let app_uninstall = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appUninstall {
+            app { id handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let app_id = app_uninstall.body["data"]["appUninstall"]["app"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        app_uninstall.body["data"]["appUninstall"]["userErrors"],
+        json!([])
+    );
+
+    let app_node = proxy.process_request(json_graphql_request(
+        r#"
+        query($id: ID!) {
+          node(id: $id) {
+            ... on App { id handle }
+          }
+        }
+        "#,
+        json!({ "id": app_id.clone() }),
+    ));
+    assert_eq!(
+        app_node.body["data"]["node"],
+        json!({ "id": app_id, "handle": "shopify-draft-proxy" })
+    );
+
+    let after_uninstall = proxy.process_request(json_graphql_request(
+        r#"query { currentAppInstallation { id } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        after_uninstall.body["data"]["currentAppInstallation"],
+        Value::Null
+    );
+}
+
+#[test]
+fn removed_app_uninstall_error_codes_and_cascade_scenario_has_rust_coverage() {
+    let mut proxy = snapshot_proxy();
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation($input: AppUninstallInput) {
+          appUninstall(input: $input) {
+            app { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/App/9999999999" } }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["appUninstall"],
+        json!({
+            "app": null,
+            "userErrors": [{ "field": ["id"], "message": "App not found", "code": "APP_NOT_FOUND" }]
+        })
+    );
+
+    let (subscription_id, _line_item_id) =
+        create_usage_subscription_for_removed_app_tests(&mut proxy, true, 100);
+    let delegate_token = create_delegate_access_token_for_removed_app_tests(&mut proxy);
+
+    let uninstall = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appUninstall {
+            app { id handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let app_id = uninstall.body["data"]["appUninstall"]["app"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        uninstall.body["data"]["appUninstall"]["userErrors"],
+        json!([])
+    );
+
+    let subscription_node = proxy.process_request(json_graphql_request(
+        r#"
+        query($id: ID!) {
+          node(id: $id) {
+            __typename
+            ... on AppSubscription { status }
+          }
+        }
+        "#,
+        json!({ "id": subscription_id }),
+    ));
+    assert_eq!(
+        subscription_node.body["data"]["node"],
+        json!({ "__typename": "AppSubscription", "status": "CANCELLED" })
+    );
+
+    let destroy_after_uninstall = proxy.process_request(json_graphql_request(
+        r#"
+        mutation($token: String!) {
+          delegateAccessTokenDestroy(accessToken: $token) {
+            status
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "token": delegate_token }),
+    ));
+    assert_eq!(
+        destroy_after_uninstall.body["data"]["delegateAccessTokenDestroy"],
+        json!({
+            "status": false,
+            "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
+        })
+    );
+
+    let known_uninstalled = proxy.process_request(json_graphql_request(
+        r#"
+        mutation($input: AppUninstallInput) {
+          appUninstall(input: $input) {
+            app { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": app_id } }),
+    ));
+    assert_eq!(
+        known_uninstalled.body["data"]["appUninstall"],
+        json!({
+            "app": null,
+            "userErrors": [{ "field": ["id"], "message": "App is not installed on shop", "code": "APP_NOT_INSTALLED" }]
+        })
+    );
+}
+
+fn create_usage_subscription_for_removed_app_tests(
+    proxy: &mut DraftProxy,
+    test_charge: bool,
+    capped_amount: i64,
+) -> (String, String) {
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation($test: Boolean!, $lineItems: [AppSubscriptionLineItemInput!]!) {
+          appSubscriptionCreate(
+            name: "Removed scenario usage plan"
+            returnUrl: "https://app.example.test/return"
+            trialDays: 7
+            test: $test
+            lineItems: $lineItems
+          ) {
+            confirmationUrl
+            appSubscription {
+              id
+              status
+              trialDays
+              lineItems { id }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "test": test_charge,
+            "lineItems": [{
+                "plan": {
+                    "appUsagePricingDetails": {
+                        "cappedAmount": { "amount": capped_amount, "currencyCode": "USD" },
+                        "terms": "usage terms"
+                    }
+                }
+            }]
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["appSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    let subscription_id = create.body["data"]["appSubscriptionCreate"]["appSubscription"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let line_item_id = create.body["data"]["appSubscriptionCreate"]["appSubscription"]["lineItems"]
+        [0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    (subscription_id, line_item_id)
+}
+
+fn create_usage_and_recurring_subscription_for_removed_app_tests(
+    proxy: &mut DraftProxy,
+) -> (String, String, String) {
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appSubscriptionCreate(
+            name: "Removed scenario mixed plan"
+            returnUrl: "https://app.example.test/return"
+            trialDays: 7
+            test: true
+            lineItems: [
+              { plan: { appUsagePricingDetails: { cappedAmount: { amount: 5, currencyCode: USD }, terms: "usage terms" } } }
+              { plan: { appRecurringPricingDetails: { price: { amount: 1, currencyCode: USD }, interval: EVERY_30_DAYS } } }
+            ]
+          ) {
+            appSubscription { id lineItems { id } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["appSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    let subscription_id = create.body["data"]["appSubscriptionCreate"]["appSubscription"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let usage_line_item_id = create.body["data"]["appSubscriptionCreate"]["appSubscription"]
+        ["lineItems"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let recurring_line_item_id = create.body["data"]["appSubscriptionCreate"]["appSubscription"]
+        ["lineItems"][1]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    (subscription_id, usage_line_item_id, recurring_line_item_id)
+}
+
+fn create_one_time_purchase_for_removed_app_tests(proxy: &mut DraftProxy) -> String {
+    let one_time = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appPurchaseOneTimeCreate(name: "Import package", returnUrl: "https://app.example.test/return", price: { amount: 10, currencyCode: USD }, test: true) {
+            appPurchaseOneTime { id name status test }
+            confirmationUrl
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        one_time.body["data"]["appPurchaseOneTimeCreate"]["userErrors"],
+        json!([])
+    );
+    one_time.body["data"]["appPurchaseOneTimeCreate"]["appPurchaseOneTime"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+fn create_delegate_access_token_for_removed_app_tests(proxy: &mut DraftProxy) -> String {
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) {
+            delegateAccessToken { accessToken accessScopes expiresIn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["delegateAccessTokenCreate"]["userErrors"],
+        json!([])
+    );
+    create.body["data"]["delegateAccessTokenCreate"]["delegateAccessToken"]["accessToken"]
+        .as_str()
+        .unwrap()
+        .to_string()
 }

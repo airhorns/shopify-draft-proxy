@@ -1,7 +1,7 @@
 {
   "fixtureKind": "local-runtime-metafield-delete-not-found",
   "apiVersion": "2026-04",
-  "capturedAt": "2026-05-09T00:00:00.000Z",
+  "capturedAt": "2026-06-29T21:28:44.199Z",
   "storeDomain": "local-runtime.myshopify.com",
   "summary": "Executable local-runtime fixture for singular metafieldDelete compatibility behavior when the public Admin schema exposes only metafieldsDelete.",
   "expected": {
@@ -11,9 +11,9 @@
           "metafieldsSet": {
             "metafields": [
               {
-                "id": "gid://shopify/Metafield/local-runtime",
-                "namespace": "custom",
+                "id": "gid://shopify/Metafield/1",
                 "key": "delete_me",
+                "namespace": "custom",
                 "type": "single_line_text_field",
                 "value": "staged"
               }
@@ -27,7 +27,7 @@
       "response": {
         "data": {
           "metafieldDelete": {
-            "deletedId": "gid://shopify/Metafield/local-runtime",
+            "deletedId": "gid://shopify/Metafield/1",
             "userErrors": []
           }
         }
@@ -41,7 +41,7 @@
             "userErrors": [
               {
                 "field": ["id"],
-                "message": "Metafield does not exist."
+                "message": "Metafield does not exist"
               }
             ]
           }
@@ -56,7 +56,7 @@
             "userErrors": [
               {
                 "field": ["id"],
-                "message": "Metafield does not exist."
+                "message": "Metafield does not exist"
               }
             ]
           }
