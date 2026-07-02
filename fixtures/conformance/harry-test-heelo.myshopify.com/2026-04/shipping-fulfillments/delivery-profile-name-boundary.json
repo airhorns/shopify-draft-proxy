@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-06-24T16:10:47.328Z",
+  "capturedAt": "2026-06-30T14:12:39.876Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "evidence": {
@@ -70,7 +70,7 @@
           "data": {
             "deliveryProfileCreate": {
               "profile": {
-                "id": "gid://shopify/DeliveryProfile/132528898354",
+                "id": "gid://shopify/DeliveryProfile/132621074738",
                 "name": "Boundary create xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
               },
               "userErrors": []
@@ -93,7 +93,7 @@
     "updateAccepted": {
       "query": "mutation DeliveryProfileNameBoundaryUpdate($id: ID!, $profile: DeliveryProfileInput!) {\n    deliveryProfileUpdate(id: $id, profile: $profile) {\n      profile {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/132528898354",
+        "id": "gid://shopify/DeliveryProfile/132621074738",
         "profile": {
           "name": "Boundary update xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
         }
@@ -104,7 +104,7 @@
           "data": {
             "deliveryProfileUpdate": {
               "profile": {
-                "id": "gid://shopify/DeliveryProfile/132528898354",
+                "id": "gid://shopify/DeliveryProfile/132621074738",
                 "name": "Boundary update xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
               },
               "userErrors": []
@@ -127,7 +127,7 @@
     "updateRejected": {
       "query": "mutation DeliveryProfileNameBoundaryUpdate($id: ID!, $profile: DeliveryProfileInput!) {\n    deliveryProfileUpdate(id: $id, profile: $profile) {\n      profile {\n        id\n        name\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/132528898354",
+        "id": "gid://shopify/DeliveryProfile/132621074738",
         "profile": {
           "name": "Boundary reject xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
         }
@@ -203,7 +203,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1988,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }
@@ -216,7 +216,7 @@
     "removeCreatedProfile": {
       "query": "mutation DeliveryProfileNameBoundaryCleanup($id: ID!) {\n    deliveryProfileRemove(id: $id) {\n      job {\n        id\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
       "variables": {
-        "id": "gid://shopify/DeliveryProfile/132528898354"
+        "id": "gid://shopify/DeliveryProfile/132621074738"
       },
       "result": {
         "status": 200,
@@ -224,7 +224,7 @@
           "data": {
             "deliveryProfileRemove": {
               "job": {
-                "id": "gid://shopify/Job/345de87b-e73c-4c74-acae-1202729e77b2",
+                "id": "gid://shopify/Job/cf30ec84-a0d8-4ffa-9ffa-19b03af40101",
                 "done": false
               },
               "userErrors": []
@@ -236,7 +236,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -254,7 +254,7 @@
     {
       "operationName": "ShippingDeliveryProfileLocationsHydrate",
       "variables": {},
-      "query": "sha:hand-synthesized",
+      "query": "query ShippingDeliveryProfileLocationsHydrate {\n    locationsAvailableForDeliveryProfilesConnection(first: 2) {\n      nodes {\n        id\n        name\n        isActive\n        isFulfillmentService\n      }\n    }\n  }",
       "response": {
         "status": 200,
         "body": {
