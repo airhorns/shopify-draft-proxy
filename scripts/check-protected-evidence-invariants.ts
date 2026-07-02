@@ -201,6 +201,37 @@ function giftCardParityEvidenceErrors(): string[] {
   return errors;
 }
 
+function adminPlatformParityEvidenceErrors(): string[] {
+  const errors: string[] = [];
+
+  for (const specPath of capturedParitySpecs(path.join('config', 'parity-specs', 'admin-platform'))) {
+    const spec = readJson(specPath);
+    if (!isRecord(spec)) {
+      continue;
+    }
+
+    const scenarioId = typeof spec['scenarioId'] === 'string' ? spec['scenarioId'] : specPath;
+
+    for (const liveCaptureFile of stringArray(spec['liveCaptureFiles'])) {
+      if (liveCaptureFile.startsWith('fixtures/conformance/local-runtime/')) {
+        errors.push(`${specPath}: captured admin-platform scenario ${scenarioId} uses local-runtime fixture evidence`);
+        continue;
+      }
+
+      if (!existsSync(path.join(repoRoot, liveCaptureFile))) {
+        errors.push(
+          `${specPath}: captured admin-platform scenario ${scenarioId} references missing fixture ${liveCaptureFile}`,
+        );
+        continue;
+      }
+
+      errors.push(...fixtureUpstreamErrors(liveCaptureFile));
+    }
+  }
+
+  return errors;
+}
+
 function shippingFulfillmentParityEvidenceErrors(): string[] {
   const errors: string[] = [];
 
@@ -283,6 +314,7 @@ function marketsParityEvidenceErrors(): string[] {
 const metafieldDefinitionsErrors = metafieldDefinitionsParityEvidenceErrors();
 const customerErrors = customerParityEvidenceErrors();
 const giftCardErrors = giftCardParityEvidenceErrors();
+const adminPlatformErrors = adminPlatformParityEvidenceErrors();
 const shippingFulfillmentErrors = shippingFulfillmentParityEvidenceErrors();
 const marketsErrors = marketsParityEvidenceErrors();
 
@@ -310,6 +342,13 @@ if (giftCardErrors.length > 0) {
   for (const error of giftCardErrors) process.stderr.write(`- ${error}\n`);
 }
 
+if (adminPlatformErrors.length > 0) {
+  process.stderr.write(
+    'Admin-platform captured parity evidence contains synthetic/local-runtime provenance signals.\n',
+  );
+  for (const error of adminPlatformErrors) process.stderr.write(`- ${error}\n`);
+}
+
 if (shippingFulfillmentErrors.length > 0) {
   process.stderr.write(
     'shipping-fulfillments parity evidence contains local-runtime fixtures or descriptor upstream calls.\n',
@@ -327,6 +366,7 @@ if (
   metafieldDefinitionsErrors.length > 0 ||
   customerErrors.length > 0 ||
   giftCardErrors.length > 0 ||
+  adminPlatformErrors.length > 0 ||
   shippingFulfillmentErrors.length > 0 ||
   marketsErrors.length > 0
 ) {
@@ -337,6 +377,7 @@ process.stdout.write('Protected parity evidence changes are registered in the ca
 process.stdout.write('metafield-definitions parity evidence uses live fixture paths and GraphQL upstream queries.\n');
 process.stdout.write('Customers parity evidence uses live fixture paths and GraphQL upstream cassette queries.\n');
 process.stdout.write('Gift-card parity evidence contains no local-runtime captures or descriptor cassette queries.\n');
+process.stdout.write('Admin-platform captured parity evidence has no synthetic/local-runtime provenance signals.\n');
 process.stdout.write(
   'shipping-fulfillments protected evidence has no local-runtime parity fixtures or descriptor upstream calls.\n',
 );

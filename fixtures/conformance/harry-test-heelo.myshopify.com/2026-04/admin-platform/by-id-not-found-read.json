@@ -1,9 +1,10 @@
 {
-  "capturedAt": "2026-05-13T23:12:54.809Z",
+  "capturedAt": "2026-06-30T13:35:15.123Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "cases": {
     "discounts": {
+      "query": "query DiscountByIdNotFound(\n  $automaticDiscountNodeId: ID!\n  $codeDiscountNodeId: ID!\n  $discountNodeId: ID!\n  $discountRedeemCodeBulkCreationId: ID!\n) {\n  missingAutomaticDiscountNode: automaticDiscountNode(id: $automaticDiscountNodeId) {\n    __typename\n  }\n  missingCodeDiscountNode: codeDiscountNode(id: $codeDiscountNodeId) {\n    __typename\n  }\n  missingDiscountNode: discountNode(id: $discountNodeId) {\n    __typename\n  }\n  missingDiscountRedeemCodeBulkCreation: discountRedeemCodeBulkCreation(id: $discountRedeemCodeBulkCreationId) {\n    __typename\n  }\n}\n",
       "variables": {
         "automaticDiscountNodeId": "gid://shopify/DiscountAutomaticNode/0",
         "codeDiscountNodeId": "gid://shopify/DiscountCodeNode/0",
@@ -11,95 +12,179 @@
         "discountRedeemCodeBulkCreationId": "gid://shopify/DiscountRedeemCodeBulkCreation/999999999999"
       },
       "response": {
+        "status": 200,
         "body": {
           "data": {
             "missingAutomaticDiscountNode": null,
             "missingCodeDiscountNode": null,
             "missingDiscountNode": null,
             "missingDiscountRedeemCodeBulkCreation": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     "markets": {
+      "query": "query MarketByIdNotFound($catalogId: ID!, $marketId: ID!, $priceListId: ID!) {\n  missingCatalog: catalog(id: $catalogId) {\n    __typename\n  }\n  missingMarket: market(id: $marketId) {\n    __typename\n  }\n  missingPriceList: priceList(id: $priceListId) {\n    __typename\n  }\n}\n",
       "variables": {
         "catalogId": "gid://shopify/MarketCatalog/999999999999",
         "marketId": "gid://shopify/Market/999999999999",
         "priceListId": "gid://shopify/PriceList/999999999999"
       },
       "response": {
+        "status": 200,
         "body": {
           "data": {
             "missingCatalog": null,
             "missingMarket": null,
             "missingPriceList": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     "products": {
+      "query": "query ProductInventoryShipmentByIdNotFound($inventoryShipmentId: ID!) {\n  missingInventoryShipment: inventoryShipment(id: $inventoryShipmentId) {\n    __typename\n  }\n}\n",
       "variables": {
         "inventoryShipmentId": "gid://shopify/InventoryShipment/999999999999"
       },
       "response": {
+        "status": 200,
         "body": {
           "data": {
             "missingInventoryShipment": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     "shippingFulfillments": {
+      "query": "query ShippingByIdNotFound($fulfillmentServiceId: ID!) {\n  missingFulfillmentService: fulfillmentService(id: $fulfillmentServiceId) {\n    __typename\n  }\n}\n",
       "variables": {
         "fulfillmentServiceId": "gid://shopify/FulfillmentService/999999999999"
       },
       "response": {
+        "status": 200,
         "body": {
           "data": {
             "missingFulfillmentService": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     "storeProperties": {
+      "query": "query StorePropertiesByIdNotFound($locationId: ID!) {\n  missingLocation: location(id: $locationId) {\n    __typename\n  }\n}\n",
       "variables": {
         "locationId": "gid://shopify/Location/999999999999"
       },
       "response": {
+        "status": 200,
         "body": {
           "data": {
             "missingLocation": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     "orders": {
+      "query": "query OrderReverseByIdNotFound($returnId: ID!, $reverseDeliveryId: ID!, $reverseFulfillmentOrderId: ID!) {\n  missingReturn: return(id: $returnId) {\n    __typename\n  }\n  missingReverseDelivery: reverseDelivery(id: $reverseDeliveryId) {\n    __typename\n  }\n  missingReverseFulfillmentOrder: reverseFulfillmentOrder(id: $reverseFulfillmentOrderId) {\n    __typename\n  }\n}\n",
       "variables": {
         "returnId": "gid://shopify/Return/999999999999",
         "reverseDeliveryId": "gid://shopify/ReverseDelivery/999999999999",
         "reverseFulfillmentOrderId": "gid://shopify/ReverseFulfillmentOrder/999999999999"
       },
       "response": {
+        "status": 200,
         "body": {
           "data": {
             "missingReturn": null,
             "missingReverseDelivery": null,
             "missingReverseFulfillmentOrder": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     "customers": {
+      "query": "query CustomerPaymentByIdNotFound($customerPaymentMethodId: ID!, $storeCreditAccountId: ID!) {\n  missingCustomerPaymentMethod: customerPaymentMethod(id: $customerPaymentMethodId) {\n    __typename\n  }\n  missingStoreCreditAccount: storeCreditAccount(id: $storeCreditAccountId) {\n    __typename\n  }\n}\n",
       "variables": {
         "customerPaymentMethodId": "gid://shopify/CustomerPaymentMethod/999999999999",
         "storeCreditAccountId": "gid://shopify/StoreCreditAccount/999999999999"
       },
       "response": {
+        "status": 200,
         "body": {
           "errors": [
             {
               "message": "Access denied for customerPaymentMethod field. Required access: `read_customers` access scope. Also: Requires `read_customer_payment_methods` scope.",
-              "locations": [{ "line": 2, "column": 3 }],
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
               "extensions": {
                 "code": "ACCESS_DENIED",
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
@@ -111,34 +196,65 @@
           "data": {
             "missingCustomerPaymentMethod": null,
             "missingStoreCreditAccount": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     "giftCards": {
+      "query": "query GiftCardByIdNotFound($giftCardId: ID!) {\n  missingGiftCard: giftCard(id: $giftCardId) {\n    __typename\n  }\n}\n",
       "variables": {
         "giftCardId": "gid://shopify/GiftCard/999999999999"
       },
       "response": {
+        "status": 200,
         "body": {
           "data": {
             "missingGiftCard": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     "onlineStore": {
+      "query": "query OnlineStoreByIdNotFound($scriptTagId: ID!, $themeId: ID!, $urlRedirectId: ID!) {\n  missingScriptTag: scriptTag(id: $scriptTagId) {\n    __typename\n  }\n  missingTheme: theme(id: $themeId) {\n    __typename\n  }\n  missingUrlRedirect: urlRedirect(id: $urlRedirectId) {\n    __typename\n  }\n}\n",
       "variables": {
         "scriptTagId": "gid://shopify/ScriptTag/999999999999",
         "themeId": "gid://shopify/OnlineStoreTheme/999999999999",
         "urlRedirectId": "gid://shopify/UrlRedirect/999999999999"
       },
       "response": {
+        "status": 200,
         "body": {
           "errors": [
             {
               "message": "Access denied for scriptTag field. Required access: `read_script_tags` access scope. Also: Requires access to script tags.",
-              "locations": [{ "line": 2, "column": 3 }],
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
               "extensions": {
                 "code": "ACCESS_DENIED",
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
@@ -148,8 +264,15 @@
             },
             {
               "message": "Theme does not exist",
-              "locations": [{ "line": 3, "column": 3 }],
-              "extensions": { "code": "NOT_FOUND" },
+              "locations": [
+                {
+                  "line": 5,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "NOT_FOUND"
+              },
               "path": ["missingTheme"]
             }
           ],
@@ -157,40 +280,84 @@
             "missingScriptTag": null,
             "missingTheme": null,
             "missingUrlRedirect": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     "functions": {
+      "query": "query FunctionByIdNotFound($shopifyFunctionId: String!, $validationId: ID!) {\n  missingShopifyFunction: shopifyFunction(id: $shopifyFunctionId) {\n    __typename\n  }\n  missingValidation: validation(id: $validationId) {\n    __typename\n  }\n}\n",
       "variables": {
         "shopifyFunctionId": "gid://shopify/ShopifyFunction/999999999999",
         "validationId": "gid://shopify/Validation/999999999999"
       },
       "response": {
+        "status": 200,
         "body": {
           "data": {
             "missingShopifyFunction": null,
             "missingValidation": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     "segments": {
+      "query": "query SegmentByIdNotFound($customerSegmentMembersQueryId: ID!) {\n  missingCustomerSegmentMembersQuery: customerSegmentMembersQuery(id: $customerSegmentMembersQueryId) {\n    __typename\n  }\n}\n",
       "variables": {
         "customerSegmentMembersQueryId": "gid://shopify/CustomerSegmentMembersQuery/999999999999"
       },
       "response": {
+        "status": 200,
         "body": {
           "errors": [
             {
               "message": "Something went wrong",
-              "locations": [{ "line": 2, "column": 3 }],
-              "extensions": { "code": "INTERNAL_SERVER_ERROR" },
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INTERNAL_SERVER_ERROR"
+              },
               "path": ["missingCustomerSegmentMembersQuery"]
             }
           ],
           "data": {
             "missingCustomerSegmentMembersQuery": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -205,7 +372,7 @@
         "discountNodeId": "gid://shopify/DiscountCodeNode/0",
         "discountRedeemCodeBulkCreationId": "gid://shopify/DiscountRedeemCodeBulkCreation/999999999999"
       },
-      "query": "query DiscountByIdNotFound",
+      "query": "query DiscountByIdNotFound(\n  $automaticDiscountNodeId: ID!\n  $codeDiscountNodeId: ID!\n  $discountNodeId: ID!\n  $discountRedeemCodeBulkCreationId: ID!\n) {\n  missingAutomaticDiscountNode: automaticDiscountNode(id: $automaticDiscountNodeId) {\n    __typename\n  }\n  missingCodeDiscountNode: codeDiscountNode(id: $codeDiscountNodeId) {\n    __typename\n  }\n  missingDiscountNode: discountNode(id: $discountNodeId) {\n    __typename\n  }\n  missingDiscountRedeemCodeBulkCreation: discountRedeemCodeBulkCreation(id: $discountRedeemCodeBulkCreationId) {\n    __typename\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -214,6 +381,17 @@
             "missingCodeDiscountNode": null,
             "missingDiscountNode": null,
             "missingDiscountRedeemCodeBulkCreation": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -225,7 +403,7 @@
         "marketId": "gid://shopify/Market/999999999999",
         "priceListId": "gid://shopify/PriceList/999999999999"
       },
-      "query": "query MarketByIdNotFound",
+      "query": "query MarketByIdNotFound($catalogId: ID!, $marketId: ID!, $priceListId: ID!) {\n  missingCatalog: catalog(id: $catalogId) {\n    __typename\n  }\n  missingMarket: market(id: $marketId) {\n    __typename\n  }\n  missingPriceList: priceList(id: $priceListId) {\n    __typename\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -233,6 +411,17 @@
             "missingCatalog": null,
             "missingMarket": null,
             "missingPriceList": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -242,12 +431,23 @@
       "variables": {
         "inventoryShipmentId": "gid://shopify/InventoryShipment/999999999999"
       },
-      "query": "query ProductInventoryShipmentByIdNotFound",
+      "query": "query ProductInventoryShipmentByIdNotFound($inventoryShipmentId: ID!) {\n  missingInventoryShipment: inventoryShipment(id: $inventoryShipmentId) {\n    __typename\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "missingInventoryShipment": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -257,12 +457,23 @@
       "variables": {
         "fulfillmentServiceId": "gid://shopify/FulfillmentService/999999999999"
       },
-      "query": "query ShippingByIdNotFound",
+      "query": "query ShippingByIdNotFound($fulfillmentServiceId: ID!) {\n  missingFulfillmentService: fulfillmentService(id: $fulfillmentServiceId) {\n    __typename\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "missingFulfillmentService": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -272,12 +483,23 @@
       "variables": {
         "locationId": "gid://shopify/Location/999999999999"
       },
-      "query": "query StorePropertiesByIdNotFound",
+      "query": "query StorePropertiesByIdNotFound($locationId: ID!) {\n  missingLocation: location(id: $locationId) {\n    __typename\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "missingLocation": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -289,7 +511,7 @@
         "reverseDeliveryId": "gid://shopify/ReverseDelivery/999999999999",
         "reverseFulfillmentOrderId": "gid://shopify/ReverseFulfillmentOrder/999999999999"
       },
-      "query": "query OrderReverseByIdNotFound",
+      "query": "query OrderReverseByIdNotFound($returnId: ID!, $reverseDeliveryId: ID!, $reverseFulfillmentOrderId: ID!) {\n  missingReturn: return(id: $returnId) {\n    __typename\n  }\n  missingReverseDelivery: reverseDelivery(id: $reverseDeliveryId) {\n    __typename\n  }\n  missingReverseFulfillmentOrder: reverseFulfillmentOrder(id: $reverseFulfillmentOrderId) {\n    __typename\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -297,6 +519,17 @@
             "missingReturn": null,
             "missingReverseDelivery": null,
             "missingReverseFulfillmentOrder": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -307,14 +540,19 @@
         "customerPaymentMethodId": "gid://shopify/CustomerPaymentMethod/999999999999",
         "storeCreditAccountId": "gid://shopify/StoreCreditAccount/999999999999"
       },
-      "query": "query CustomerPaymentByIdNotFound",
+      "query": "query CustomerPaymentByIdNotFound($customerPaymentMethodId: ID!, $storeCreditAccountId: ID!) {\n  missingCustomerPaymentMethod: customerPaymentMethod(id: $customerPaymentMethodId) {\n    __typename\n  }\n  missingStoreCreditAccount: storeCreditAccount(id: $storeCreditAccountId) {\n    __typename\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "errors": [
             {
               "message": "Access denied for customerPaymentMethod field. Required access: `read_customers` access scope. Also: Requires `read_customer_payment_methods` scope.",
-              "locations": [{ "line": 2, "column": 3 }],
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
               "extensions": {
                 "code": "ACCESS_DENIED",
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
@@ -326,6 +564,17 @@
           "data": {
             "missingCustomerPaymentMethod": null,
             "missingStoreCreditAccount": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -335,12 +584,23 @@
       "variables": {
         "giftCardId": "gid://shopify/GiftCard/999999999999"
       },
-      "query": "query GiftCardByIdNotFound",
+      "query": "query GiftCardByIdNotFound($giftCardId: ID!) {\n  missingGiftCard: giftCard(id: $giftCardId) {\n    __typename\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "missingGiftCard": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -352,14 +612,19 @@
         "themeId": "gid://shopify/OnlineStoreTheme/999999999999",
         "urlRedirectId": "gid://shopify/UrlRedirect/999999999999"
       },
-      "query": "query OnlineStoreByIdNotFound",
+      "query": "query OnlineStoreByIdNotFound($scriptTagId: ID!, $themeId: ID!, $urlRedirectId: ID!) {\n  missingScriptTag: scriptTag(id: $scriptTagId) {\n    __typename\n  }\n  missingTheme: theme(id: $themeId) {\n    __typename\n  }\n  missingUrlRedirect: urlRedirect(id: $urlRedirectId) {\n    __typename\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "errors": [
             {
               "message": "Access denied for scriptTag field. Required access: `read_script_tags` access scope. Also: Requires access to script tags.",
-              "locations": [{ "line": 2, "column": 3 }],
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
               "extensions": {
                 "code": "ACCESS_DENIED",
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
@@ -369,8 +634,15 @@
             },
             {
               "message": "Theme does not exist",
-              "locations": [{ "line": 3, "column": 3 }],
-              "extensions": { "code": "NOT_FOUND" },
+              "locations": [
+                {
+                  "line": 5,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "NOT_FOUND"
+              },
               "path": ["missingTheme"]
             }
           ],
@@ -378,6 +650,17 @@
             "missingScriptTag": null,
             "missingTheme": null,
             "missingUrlRedirect": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -388,13 +671,24 @@
         "shopifyFunctionId": "gid://shopify/ShopifyFunction/999999999999",
         "validationId": "gid://shopify/Validation/999999999999"
       },
-      "query": "query FunctionByIdNotFound",
+      "query": "query FunctionByIdNotFound($shopifyFunctionId: String!, $validationId: ID!) {\n  missingShopifyFunction: shopifyFunction(id: $shopifyFunctionId) {\n    __typename\n  }\n  missingValidation: validation(id: $validationId) {\n    __typename\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "missingShopifyFunction": null,
             "missingValidation": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -404,20 +698,38 @@
       "variables": {
         "customerSegmentMembersQueryId": "gid://shopify/CustomerSegmentMembersQuery/999999999999"
       },
-      "query": "query SegmentByIdNotFound",
+      "query": "query SegmentByIdNotFound($customerSegmentMembersQueryId: ID!) {\n  missingCustomerSegmentMembersQuery: customerSegmentMembersQuery(id: $customerSegmentMembersQueryId) {\n    __typename\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "errors": [
             {
               "message": "Something went wrong",
-              "locations": [{ "line": 2, "column": 3 }],
-              "extensions": { "code": "INTERNAL_SERVER_ERROR" },
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "INTERNAL_SERVER_ERROR"
+              },
               "path": ["missingCustomerSegmentMembersQuery"]
             }
           ],
           "data": {
             "missingCustomerSegmentMembersQuery": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
