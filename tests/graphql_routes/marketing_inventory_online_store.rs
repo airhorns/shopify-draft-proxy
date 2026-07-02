@@ -372,6 +372,27 @@ fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
         json!({"marketingActivity": null, "userErrors": [{"field": null, "message": "Marketing activity does not exist.", "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"}]})
     );
 
+    let mut app_b_delete = json_graphql_request(
+        r#"
+        mutation MarketingActivityPerAppDelete {
+          deleteExternal: marketingActivityDeleteExternal(remoteId: "campaign-1") {
+            deletedMarketingActivityId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    app_b_delete.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-b".to_string(),
+    );
+    let app_b_delete = proxy.process_request(app_b_delete);
+    assert_eq!(
+        app_b_delete.body["data"]["deleteExternal"],
+        json!({"deletedMarketingActivityId": null, "userErrors": [{"field": null, "message": "Marketing activity does not exist.", "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"}]})
+    );
+
     let mut app_b_engagement = json_graphql_request(
         r#"
         mutation MarketingActivityPerAppEngagement {
@@ -415,7 +436,7 @@ fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
         r#"
         query MarketingActivityPerAppRead($activityId: ID!) { marketingActivity(id: $activityId) { title remoteId } }
         "#,
-        json!({"activityId": activity_id}),
+        json!({"activityId": activity_id.clone()}),
     );
     app_a_read.headers.insert(
         "x-shopify-draft-proxy-api-client-id".to_string(),
@@ -425,6 +446,43 @@ fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
     assert_eq!(
         app_a_read.body["data"]["marketingActivity"],
         json!({"title": "Per App Campaign", "remoteId": "campaign-1"})
+    );
+
+    let mut app_a_delete = json_graphql_request(
+        r#"
+        mutation MarketingActivityPerAppOwnerDelete {
+          deleteExternal: marketingActivityDeleteExternal(remoteId: "campaign-1") {
+            deletedMarketingActivityId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    app_a_delete.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    let app_a_delete = proxy.process_request(app_a_delete);
+    assert_eq!(
+        app_a_delete.body["data"]["deleteExternal"],
+        json!({"deletedMarketingActivityId": activity_id.clone(), "userErrors": []})
+    );
+
+    let mut app_a_read_after_delete = json_graphql_request(
+        r#"
+        query MarketingActivityPerAppReadAfterDelete($activityId: ID!) { marketingActivity(id: $activityId) { title remoteId } }
+        "#,
+        json!({"activityId": activity_id}),
+    );
+    app_a_read_after_delete.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "app-a".to_string(),
+    );
+    let app_a_read_after_delete = proxy.process_request(app_a_read_after_delete);
+    assert_eq!(
+        app_a_read_after_delete.body["data"]["marketingActivity"],
+        Value::Null
     );
 }
 
