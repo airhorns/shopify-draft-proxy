@@ -450,6 +450,13 @@ fn discount_app_function_upstream_response(
     let function = discount_app_test_function();
     let response_body = if query.contains("ShopifyFunctionByHandle") {
         json!({ "data": { "shopifyFunctions": { "nodes": [function] } } })
+    } else if query.contains("ShopifyFunctionById") {
+        let mut function = function;
+        function
+            .as_object_mut()
+            .expect("test Function metadata should be an object")
+            .remove("handle");
+        json!({ "data": { "shopifyFunction": function } })
     } else if query.contains("ShopifyFunctionAvailabilityForDiscountActivation") {
         let nodes = if activation_available {
             vec![function]
@@ -1308,6 +1315,70 @@ fn discount_app_lifecycle_stages_updates_reads_and_deletes_without_local_runtime
     assert_eq!(
         read_after_delete.body["data"]["discountNodesCount"],
         json!({ "count": 1, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn discount_app_function_id_hydrate_matches_live_schema_without_function_handle() {
+    let hits = Arc::new(Mutex::new(Vec::new()));
+    let hits_for_transport = hits.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body)
+                .expect("discount app upstream body should parse");
+            hits_for_transport.lock().unwrap().push(body.clone());
+            discount_app_function_upstream_response(request, true)
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountAppFunctionId($input: DiscountCodeAppInput!) {
+          discountCodeAppCreate(codeAppDiscount: $input) {
+            codeAppDiscount {
+              discountId
+              appDiscountType { functionId title description }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Function id app discount",
+                "code": "APP-FUNCTION-ID",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionId": "gid://shopify/ShopifyFunction/discount-function",
+                "discountClasses": ["ORDER"]
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["discountCodeAppCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["discountCodeAppCreate"]["codeAppDiscount"]["appDiscountType"]
+            ["functionId"],
+        json!("gid://shopify/ShopifyFunction/discount-function")
+    );
+
+    let hits = hits.lock().unwrap();
+    let hydrate = hits
+        .iter()
+        .find(|body| {
+            body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("ShopifyFunctionById"))
+        })
+        .expect("functionId app discount create should hydrate the Function by id");
+    let query = hydrate["query"]
+        .as_str()
+        .expect("Function hydrate query should be a string");
+    assert!(
+        !query.contains("\n    handle\n"),
+        "live 2026-04 ShopifyFunction does not expose handle: {query}"
     );
 }
 

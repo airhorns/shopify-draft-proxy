@@ -8266,6 +8266,31 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-app-bulk-live-parity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-app-bulk-live-conformance.ts',
+    purpose:
+      'Live app-managed discount create/update/lifecycle and native discount bulk job parity using the released conformance discount Function.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-app-bulk-live-parity.json`,
+      'config/parity-specs/discounts/discount-app-bulk-live-parity.json',
+      'config/parity-requests/discounts/discount-app-bulk-live-create.graphql',
+      'config/parity-requests/discounts/discount-app-bulk-live-update.graphql',
+      'config/parity-requests/discounts/discount-app-bulk-live-preconditions.graphql',
+      'config/parity-requests/discounts/discount-app-bulk-live-jobs.graphql',
+      'config/parity-requests/discounts/discount-app-bulk-live-read.graphql',
+      'config/parity-requests/discounts/discount-app-automatic-live-deactivate.graphql',
+      'config/parity-requests/discounts/discount-app-automatic-live-activate.graphql',
+      'config/parity-requests/discounts/discount-app-automatic-live-delete.graphql',
+      'config/parity-requests/discounts/discount-app-automatic-live-read-after-delete.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable app-managed, code-basic, and automatic-basic discounts, captures app lifecycle and bulk job payloads, then deletes remaining created discounts.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-amount-applies-on-each-item',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-amount-applies-on-each-item-conformance.ts',
