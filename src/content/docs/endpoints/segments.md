@@ -65,6 +65,7 @@ Customer segment member query behavior:
 
 - Search, sort, and uncaptured request arguments for segment catalog roots are not inferred beyond checked-in captures.
 - Segment filter and value suggestion roots are static captured metadata payloads until separate executable evidence supports dynamic behavior.
+- Public Admin GraphQL Segment parity is limited to `id`, `name`, `query`, `creationDate`, and `lastEditDate`, which are the fields exposed by 2025-01 and 2026-04 conformance-shop introspection. Private Core Segment fields such as `tagMigrated`, `valid`, `percentageSnapshot`, `percentageSnapshotUpdatedAt`, `translation`, and `author` are covered by Rust integration tests rather than Shopify parity fixtures.
 - Accepted segment filters such as `email_subscription_status = 'SUBSCRIBED'`, `companies IS NULL`, and `customer_countries CONTAINS 'CA'` do not have local member evaluation.
 - CDP validation failures outside the captured malformed direct-query branch are not guessed; accepted-but-unmodeled filters produce readable async jobs with zero local members rather than fabricated parser messages.
 - No segment root in this document is registry-only. The main validation-only distinction is save-time grammar acceptance for filters that are not evaluated by local member reads.
@@ -75,6 +76,8 @@ Customer segment member query behavior:
 - `config/parity-specs/segments/segment-create-invalid-query-validation.json`
 - `config/parity-specs/segments/segment-update-unknown-id-validation.json`
 - `config/parity-specs/segments/segment-delete-unknown-id-validation.json`
+- `config/parity-specs/segments/segment-local-runtime-dispatch-validation.json`
+- `config/parity-specs/segments/segment-payload-non-null-fields.json`
 - `config/parity-specs/segments/segments-create-update-validation-limits.json`
 - `config/parity-specs/segments/segment-create-update-length-edge-cases.json`
 - `config/parity-specs/segments/segment-mutations-required-argument-validation.json`
@@ -86,7 +89,10 @@ Customer segment member query behavior:
 - `config/parity-specs/segments/customer-segment-members-query-create-direct-query-grammar.json`
 - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/segments/segments-baseline.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-lifecycle-validation.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-local-runtime-dispatch-validation.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-payload-non-null-fields.json`
 - `tests/graphql_routes/products_saved_searches.rs`
+- `scripts/capture-segment-payload-shape-conformance.ts`
 - `scripts/capture-segment-query-grammar-conformance.ts`
 - `scripts/capture-segment-query-whitespace-preservation-conformance.ts`
 - `scripts/capture-customer-segment-members-query-create-segment-id-paths-conformance.ts`
@@ -95,6 +101,8 @@ Customer segment member query behavior:
 ### Validation
 
 - `corepack pnpm parity -- segments-baseline-read`
+- `corepack pnpm parity -- segment-local-runtime-dispatch-validation`
+- `corepack pnpm parity -- segment-payload-non-null-fields`
 - `corepack pnpm parity -- segment-create-update-query-grammar`
 - `corepack pnpm parity -- customer-segment-members-query-lifecycle`
 - `corepack pnpm conformance:check`
