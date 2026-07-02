@@ -186,7 +186,6 @@ if (shippingFulfillmentEvidenceFailures.length > 0) {
   process.exit(1);
 }
 
-const descriptorQueryPattern = /^(?:hand-synthesized|sha:|cassette-backed|recorded by scripts\/|local-runtime)/u;
 const customerSpecDir = path.join(process.cwd(), 'config/parity-specs/customers');
 const customerEvidenceViolations: string[] = [];
 
