@@ -73,45 +73,8 @@ const { runGraphqlRequest } = createAdminGraphqlClient({
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
 
-const webPresenceFields = `#graphql
-fragment BundledPriceListWebPresenceFields on MarketWebPresence {
-  id
-  subfolderSuffix
-  domain {
-    id
-    host
-    url
-    sslEnabled
-  }
-  rootUrls {
-    locale
-    url
-  }
-  defaultLocale {
-    locale
-    name
-    primary
-    published
-  }
-  alternateLocales {
-    locale
-    name
-    primary
-    published
-  }
-}
-`;
-
-const webPresencesReadQuery = `#graphql
-${webPresenceFields}
-query BundledPriceListWebPresenceBaselineRead($first: Int!) {
-  webPresences(first: $first) {
-    nodes {
-      ...BundledPriceListWebPresenceFields
-    }
-  }
-}
-`;
+const webPresencePreflightQuery =
+  'query MarketsMutationPreflightHydrate($first: Int!) { webPresences(first: $first) { nodes { id subfolderSuffix domain { id host url sslEnabled } rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } } }';
 
 const webPresenceDeleteMutation = `#graphql
 mutation BundledPriceListWebPresenceCleanupDelete($id: ID!) {
@@ -223,7 +186,7 @@ let createdPriceListId: string | null = null;
 
 const baselineRead = await captureCase<WebPresencesReadData>(
   'webPresences baseline for bundled preflight',
-  webPresencesReadQuery,
+  webPresencePreflightQuery,
   baselineReadVariables,
 );
 if (baselineRead.response.status !== 200 || baselineRead.response.payload.errors) {
@@ -273,15 +236,11 @@ await writeFile(
       upstreamCalls: [
         {
           operationName: 'MarketsMutationPreflightHydrate',
-          variables: bundledVariables,
-          query: 'hand-synthesized from checked-in capture',
+          variables: baselineReadVariables,
+          query: webPresencePreflightQuery,
           response: {
             status: baselineRead.response.status,
-            body: {
-              data: {
-                webPresences: baselineRead.response.payload.data?.webPresences ?? null,
-              },
-            },
+            body: baselineRead.response.payload,
           },
         },
       ],

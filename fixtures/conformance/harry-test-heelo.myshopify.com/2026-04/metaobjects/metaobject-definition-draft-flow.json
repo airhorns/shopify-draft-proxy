@@ -1,0 +1,519 @@
+{
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-06-30T15:18:15.907Z",
+  "scenarioId": "metaobject-definition-lifecycle-local-staging",
+  "notes": "Live Shopify capture for metaobject definition create/update/delete/read-after-write and bounded standard template enablement.",
+  "create": {
+    "name": "create-definition",
+    "request": {
+      "query": "mutation MetaobjectDefinitionLifecycleCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      description\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        description\n        required\n        type {\n          name\n          category\n        }\n        validations {\n          name\n          value\n        }\n      }\n      metaobjectsCount\n      standardTemplate {\n        type\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "codex_definition_lifecycle_1782832694065",
+          "name": "Definition Lifecycle 1782832694065",
+          "description": "A live captured metaobject definition.",
+          "capabilities": {
+            "publishable": {
+              "enabled": true
+            },
+            "translatable": {
+              "enabled": false
+            }
+          },
+          "displayNameKey": "title",
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "description": "Title field.",
+              "type": "single_line_text_field",
+              "required": true
+            },
+            {
+              "key": "body",
+              "name": "Body",
+              "description": "Body field.",
+              "type": "multi_line_text_field",
+              "required": false,
+              "validations": [
+                {
+                  "name": "max",
+                  "value": "500"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/19482509618",
+            "type": "codex_definition_lifecycle_1782832694065",
+            "name": "Definition Lifecycle 1782832694065",
+            "description": "A live captured metaobject definition.",
+            "displayNameKey": "title",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": true
+              },
+              "translatable": {
+                "enabled": false
+              },
+              "renderable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "description": "Title field.",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              },
+              {
+                "key": "body",
+                "name": "Body",
+                "description": "Body field.",
+                "required": false,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": [
+                  {
+                    "name": "max",
+                    "value": "500"
+                  }
+                ]
+              }
+            ],
+            "metaobjectsCount": 0,
+            "standardTemplate": null
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "update": {
+    "name": "update-definition",
+    "request": {
+      "query": "mutation MetaobjectDefinitionLifecycleUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      description\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        description\n        required\n        type {\n          name\n          category\n        }\n        validations {\n          name\n          value\n        }\n      }\n      metaobjectsCount\n      standardTemplate {\n        type\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/MetaobjectDefinition/19482509618",
+        "definition": {
+          "name": "Updated Definition 1782832694065",
+          "description": "Updated live capture.",
+          "displayNameKey": "body",
+          "resetFieldOrder": true,
+          "access": {
+            "storefront": "PUBLIC_READ"
+          },
+          "capabilities": {
+            "translatable": {
+              "enabled": true
+            },
+            "renderable": {
+              "enabled": true
+            }
+          },
+          "fieldDefinitions": [
+            {
+              "update": {
+                "key": "body",
+                "name": "Body Copy",
+                "description": "Updated body.",
+                "required": true,
+                "validations": [
+                  {
+                    "name": "max",
+                    "value": "250"
+                  }
+                ]
+              }
+            },
+            {
+              "create": {
+                "key": "summary",
+                "name": "Summary",
+                "description": "Summary field.",
+                "type": "single_line_text_field",
+                "required": false
+              }
+            },
+            {
+              "delete": {
+                "key": "title"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionUpdate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/19482509618",
+            "type": "codex_definition_lifecycle_1782832694065",
+            "name": "Updated Definition 1782832694065",
+            "description": "Updated live capture.",
+            "displayNameKey": "body",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "PUBLIC_READ"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": true
+              },
+              "translatable": {
+                "enabled": true
+              },
+              "renderable": {
+                "enabled": true
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "body",
+                "name": "Body Copy",
+                "description": "Updated body.",
+                "required": true,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": [
+                  {
+                    "name": "max",
+                    "value": "250"
+                  }
+                ]
+              },
+              {
+                "key": "summary",
+                "name": "Summary",
+                "description": "Summary field.",
+                "required": false,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              }
+            ],
+            "metaobjectsCount": 0,
+            "standardTemplate": null
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterUpdate": {
+    "name": "read-after-update",
+    "request": {
+      "query": "query MetaobjectDefinitionLifecycleRead($id: ID!, $type: String!) {\n  byId: metaobjectDefinition(id: $id) {\n    id\n    type\n    name\n    displayNameKey\n    fieldDefinitions {\n      key\n    }\n  }\n  byType: metaobjectDefinitionByType(type: $type) {\n    id\n    type\n    name\n    displayNameKey\n    fieldDefinitions {\n      key\n    }\n  }\n  catalog: metaobjectDefinitions(first: 5) {\n    nodes {\n      id\n      type\n      name\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/MetaobjectDefinition/19482509618",
+        "type": "codex_definition_lifecycle_1782832694065"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "byId": {
+          "id": "gid://shopify/MetaobjectDefinition/19482509618",
+          "type": "codex_definition_lifecycle_1782832694065",
+          "name": "Updated Definition 1782832694065",
+          "displayNameKey": "body",
+          "fieldDefinitions": [
+            {
+              "key": "body"
+            },
+            {
+              "key": "summary"
+            }
+          ]
+        },
+        "byType": {
+          "id": "gid://shopify/MetaobjectDefinition/19482509618",
+          "type": "codex_definition_lifecycle_1782832694065",
+          "name": "Updated Definition 1782832694065",
+          "displayNameKey": "body",
+          "fieldDefinitions": [
+            {
+              "key": "body"
+            },
+            {
+              "key": "summary"
+            }
+          ]
+        },
+        "catalog": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MetaobjectDefinition/17880285490",
+              "type": "shopify--color-pattern",
+              "name": "Color"
+            },
+            {
+              "id": "gid://shopify/MetaobjectDefinition/17883300146",
+              "type": "har_810_short_key_1778039087501",
+              "name": "short_key"
+            },
+            {
+              "id": "gid://shopify/MetaobjectDefinition/18048024882",
+              "type": "lab_test",
+              "name": "Lab Test"
+            },
+            {
+              "id": "gid://shopify/MetaobjectDefinition/18048057650",
+              "type": "batch",
+              "name": "Production Batch"
+            },
+            {
+              "id": "gid://shopify/MetaobjectDefinition/18088296754",
+              "type": "todo",
+              "name": "Todo"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 9,
+          "actualQueryCost": 9,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1991,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "delete": {
+    "name": "delete-definition",
+    "request": {
+      "query": "mutation MetaobjectDefinitionLifecycleDelete($id: ID!) {\n  metaobjectDefinitionDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/MetaobjectDefinition/19482509618"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionDelete": {
+          "deletedId": "gid://shopify/MetaobjectDefinition/19482509618",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterDelete": {
+    "name": "read-after-delete",
+    "request": {
+      "query": "query MetaobjectDefinitionLifecycleReadDeleted($id: ID!, $type: String!) {\n  byId: metaobjectDefinition(id: $id) {\n    id\n  }\n  byType: metaobjectDefinitionByType(type: $type) {\n    id\n  }\n  catalog: metaobjectDefinitions(first: 5) {\n    nodes {\n      id\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/MetaobjectDefinition/19482509618",
+        "type": "codex_definition_lifecycle_1782832694065"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "byId": null,
+        "byType": null,
+        "catalog": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MetaobjectDefinition/17880285490"
+            },
+            {
+              "id": "gid://shopify/MetaobjectDefinition/17883300146"
+            },
+            {
+              "id": "gid://shopify/MetaobjectDefinition/18048024882"
+            },
+            {
+              "id": "gid://shopify/MetaobjectDefinition/18048057650"
+            },
+            {
+              "id": "gid://shopify/MetaobjectDefinition/18088296754"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 7,
+          "actualQueryCost": 7,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1993,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "standardEnable": {
+    "name": "standard-enable",
+    "request": {
+      "query": "mutation MetaobjectDefinitionStandardEnable($type: String!) {\n  standardMetaobjectDefinitionEnable(type: $type) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      displayNameKey\n      standardTemplate {\n        type\n        name\n      }\n      fieldDefinitions {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "type": "shopify--qa-pair"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "standardMetaobjectDefinitionEnable": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/19482542386",
+            "type": "shopify--qa-pair",
+            "name": "Question and Answer Pairs",
+            "displayNameKey": "question",
+            "standardTemplate": {
+              "type": "shopify--qa-pair",
+              "name": "Question and Answer Pairs"
+            },
+            "fieldDefinitions": [
+              {
+                "key": "question",
+                "name": "Question",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                }
+              },
+              {
+                "key": "answer",
+                "name": "Answer",
+                "required": true,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                }
+              },
+              {
+                "key": "sources",
+                "name": "Sources",
+                "required": false,
+                "type": {
+                  "name": "list.link",
+                  "category": "LINK"
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "standardEnableUnknown": {
+    "name": "standard-enable-unknown",
+    "request": {
+      "query": "mutation MetaobjectDefinitionStandardEnableUnknown($type: String!) {\n  standardMetaobjectDefinitionEnable(type: $type) {\n    metaobjectDefinition {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "type": "shopify--unknown-template"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "standardMetaobjectDefinitionEnable": {
+          "metaobjectDefinition": null,
+          "userErrors": [
+            {
+              "field": ["type"],
+              "message": "Record not found",
+              "code": "RECORD_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

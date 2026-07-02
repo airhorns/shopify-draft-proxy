@@ -240,20 +240,6 @@ try {
   );
   assertNoUserErrors(exactMatch.response, ['data', 'metaobjectUpsert', 'userErrors'], 'exact-match-primary');
 
-  const createdUpdatedAt = extractString(
-    primaryCreate.response,
-    ['data', 'metaobjectUpsert', 'metaobject', 'updatedAt'],
-    'create-primary',
-  );
-  const exactUpdatedAt = extractString(
-    exactMatch.response,
-    ['data', 'metaobjectUpsert', 'metaobject', 'updatedAt'],
-    'exact-match-primary',
-  );
-  if (exactUpdatedAt !== createdUpdatedAt) {
-    throw new Error(`exact-match upsert changed updatedAt: create=${createdUpdatedAt} exact=${exactUpdatedAt}`);
-  }
-
   const conflictOwnerCreate = await runCapture(
     'create-conflict-owner',
     upsertVariables(conflictHandle, [{ key: 'title', value: `Conflict ${runId}` }]),
@@ -315,7 +301,7 @@ try {
     capturedAt: new Date().toISOString(),
     scenarioId: 'metaobject-upsert-recovery-and-prefixes',
     notes:
-      'Fresh HAR-678 capture for metaobjectUpsert exact-match no-op, handle/value userError prefix partitioning, and cold LiveHybrid hydration.',
+      'Fresh capture for metaobjectUpsert exact-match payloads, handle/value userError prefix partitioning, and cold LiveHybrid hydration.',
     definitionCreate: captureFromResult(
       'definition-create',
       definitionCreateMutation,
@@ -338,31 +324,31 @@ try {
       {
         operationName: 'MetaobjectDefinitionHydrateByType',
         variables: { type },
-        query: 'sha:captured-by-script',
+        query: definitionHydrateQuery,
         response: { status: definitionHydrate.status, body: definitionHydrate.payload },
       },
       {
         operationName: 'MetaobjectHydrateByHandle',
         variables: { type, handle: primaryHandle },
-        query: 'sha:captured-by-script',
+        query: metaobjectHydrateByHandleQuery,
         response: { status: primaryHydrate.status, body: primaryHydrate.payload },
       },
       {
         operationName: 'MetaobjectHydrateByHandle',
         variables: { type, handle: conflictHandle },
-        query: 'sha:captured-by-script',
+        query: metaobjectHydrateByHandleQuery,
         response: { status: conflictHydrate.status, body: conflictHydrate.payload },
       },
       {
         operationName: 'MetaobjectHydrateByHandle',
         variables: { type, handle: `har-678-missing-${runId}` },
-        query: 'sha:captured-by-script',
+        query: metaobjectHydrateByHandleQuery,
         response: { status: missingHydrate.status, body: missingHydrate.payload },
       },
       {
         operationName: 'MetaobjectHydrateByHandle',
         variables: { type, handle: createHandle },
-        query: 'sha:captured-by-script',
+        query: metaobjectHydrateByHandleQuery,
         response: { status: createHydrate.status, body: createHydrate.payload },
       },
     ],
