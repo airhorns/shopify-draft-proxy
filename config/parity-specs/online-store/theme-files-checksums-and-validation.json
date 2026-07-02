@@ -1,0 +1,19 @@
+{
+  "scenarioId": "online-store/theme-files-checksums-and-validation",
+  "operationNames": ["themeCreate", "themeFilesUpsert"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "user-errors-parity",
+    "side-effect-boundary",
+    "live-shopify-recording",
+    "runtime-test-backed"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/online-store/online-store-salvaged-parity-recordings.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "comparisonMode": "captured-fixture",
+  "notes": "The previous synthetic fixture for this scenario was replaced with a live Shopify Admin GraphQL salvage fixture that records the original checked-in request documents, exact variables, HTTP statuses, and response payloads from the disposable conformance shop. The fixture records successful disposable content branches where current credentials allow them, and records Shopify schema/access/app-context blockers for branches that cannot be exercised as successful writes with this app grant. Proxy-local lifecycle behavior for this scenario is enforced by tests/graphql_routes/marketing_inventory_online_store.rs."
+}

@@ -9961,6 +9961,10 @@ fn online_store_page_create_defaults_to_published_and_reads_back() {
         .as_str()
         .unwrap()
         .to_string();
+    let published_at = assert_online_store_operation_timestamp(
+        &create.body["data"]["pageCreate"]["page"]["publishedAt"],
+        "pageCreate.publishedAt",
+    );
     assert_eq!(
         create.body["data"]["pageCreate"]["page"],
         json!({
@@ -9969,7 +9973,7 @@ fn online_store_page_create_defaults_to_published_and_reads_back() {
             "handle": "default-published-page",
             "bodySummary": "Visible body",
             "isPublished": true,
-            "publishedAt": "2024-01-01T00:00:00.000Z"
+            "publishedAt": published_at.clone()
         })
     );
 
@@ -9990,7 +9994,7 @@ fn online_store_page_create_defaults_to_published_and_reads_back() {
             "title": "Default Published Page",
             "handle": "default-published-page",
             "isPublished": true,
-            "publishedAt": "2024-01-01T00:00:00.000Z"
+            "publishedAt": published_at.clone()
         })
     );
     assert_eq!(
@@ -10000,7 +10004,7 @@ fn online_store_page_create_defaults_to_published_and_reads_back() {
             "title": "Default Published Page",
             "handle": "default-published-page",
             "isPublished": true,
-            "publishedAt": "2024-01-01T00:00:00.000Z"
+            "publishedAt": published_at
         }])
     );
     assert_eq!(

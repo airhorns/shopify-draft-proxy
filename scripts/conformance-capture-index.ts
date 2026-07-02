@@ -6026,12 +6026,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
-    captureId: 'online-store-local-runtime-parity-retirement',
+    captureId: 'online-store-salvaged-parity-recordings',
     scriptPath: 'scripts/capture-online-store-local-runtime-parity-retirement.ts',
     purpose:
-      'Registers retirement of synthetic/local-runtime online-store parity specs and fixtures. Live probes on the current conformance app either reach real captured content/theme-safe branches or return scope/access blockers for script tags, pixels, server pixels, mobile platform applications, storefront token writes, and write-themes resolver branches; local-only behavior remains covered by Rust integration tests.',
-    requiredAuthScopes: ['authenticated_admin_graphql'],
+      'Live Shopify Admin GraphQL salvage recorder for the old synthetic online-store parity group. It sends the checked-in request documents to the disposable conformance shop, records exact variables/status/payloads, cleans up created content when possible, and keeps access-denied/schema/app-context blockers as real Shopify evidence while proxy-local behavior remains Rust-test-backed.',
+    requiredAuthScopes: ['authenticated_admin_graphql', 'read_content', 'write_content', 'read_themes'],
     fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-salvaged-parity-recordings.json`,
       'config/parity-specs/online-store/script-tag-update-validation.json',
       'config/parity-specs/online-store/online-store-blog-commentable-local-staging.json',
       'config/parity-specs/online-store/pub_sub_server_pixel_update_blank_required.json',
@@ -6077,10 +6078,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${LOCAL_RUNTIME_ROOT}theme-files-checksums-and-validation.json`,
     ],
     cleanupBehavior:
-      'No Shopify cleanup is required. This registration documents protected-evidence deletions and does not capture or mutate store data.',
-    expectedStatusChecks: ['targeted-runtime-test', 'conformance:check', 'rust:test'],
+      'Creates disposable pages/blogs when content writes are available and deletes them before exit. Other attempted writes currently return Shopify schema/access/app-context blockers; if future credentials allow a create response with an ID, the script issues best-effort cleanup for page/blog/theme/script tag/web pixel/storefront access token IDs it can read from the response.',
+    expectedStatusChecks: ['manual-capture-review', 'targeted-runtime-test', 'conformance:check', 'rust:test'],
     notes:
-      'The listed files are intentionally removed from parity evidence rather than promoted from local-runtime recordings. Reintroducing online-store local-runtime liveCaptureFiles is blocked by the parity spec schema guard.',
+      'The local-runtime fixture outputs remain listed only so protected-evidence deletion checks can audit their removal. Restored parity specs point at the live salvage fixture, not at the deleted synthetic files.',
   },
   {
     domain: 'collections',
