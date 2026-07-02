@@ -10,17 +10,18 @@
     "runtime-staging",
     "inventory-quantity-side-effect",
     "downstream-read-parity",
-    "no-upstream-passthrough"
+    "no-upstream-passthrough",
+    "local-runtime-backed"
   ],
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/products/inventory-transfer-ready-item-adjustments-local-staging.json"
   ],
-  "runtimeTestFiles": ["tests/integration/inventory-transfer-flow.test.ts"],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/inventory-transfer-create-ready.graphql",
     "variablesCapturePath": "$.workflow.createReady.variables"
   },
-  "comparisonMode": "captured-vs-proxy-request",
+  "comparisonMode": "captured-fixture",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -122,5 +123,5 @@
       }
     ]
   },
-  "notes": "HAR-434 adds executable local-runtime parity for ready-transfer line item quantity effects. The scenario covers create-as-ready, set-items reservation increase, remove-items reservation release, and downstream InventoryItem reserved/available reads without runtime Shopify writes."
+  "notes": "HAR-434 adds executable local-runtime parity for ready-transfer line item quantity effects. The scenario covers create-as-ready, set-items reservation increase, remove-items reservation release, and downstream InventoryItem reserved/available reads without runtime Shopify writes. This scenario is local-runtime-backed runtime fixture evidence only, not Shopify parity evidence; it remains checked in to guard the supported no-upstream local staging contract with Rust integration coverage."
 }

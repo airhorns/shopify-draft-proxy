@@ -9,7 +9,7 @@
             "legacyResourceId": "494967390514",
             "title": "Home page",
             "handle": "frontpage",
-            "updatedAt": "2026-06-13T22:01:02Z",
+            "updatedAt": "2026-06-30T11:18:48Z",
             "description": "",
             "descriptionHtml": "",
             "image": null,
@@ -27,7 +27,7 @@
             "products": {
               "edges": [
                 {
-                  "cursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMTcifQ==",
+                  "cursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ==",
                   "node": {
                     "id": "gid://shopify/Product/9801098789170",
                     "title": "The Inventory Not Tracked Snowboard",
@@ -39,8 +39,8 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMTcifQ==",
-                "endCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMTcifQ=="
+                "startCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ=="
               }
             }
           }
@@ -346,7 +346,7 @@
       "actualQueryCost": 26,
       "throttleStatus": {
         "maximumAvailable": 2000,
-        "currentlyAvailable": 1974,
+        "currentlyAvailable": 1965,
         "restoreRate": 100
       }
     }
@@ -378,7 +378,7 @@
                     "legacyResourceId": "494967390514",
                     "title": "Home page",
                     "handle": "frontpage",
-                    "updatedAt": "2026-06-13T22:01:02Z",
+                    "updatedAt": "2026-06-30T11:18:48Z",
                     "description": "",
                     "descriptionHtml": "",
                     "image": null,
@@ -396,7 +396,7 @@
                     "products": {
                       "edges": [
                         {
-                          "cursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMTcifQ==",
+                          "cursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ==",
                           "node": {
                             "id": "gid://shopify/Product/9801098789170",
                             "title": "The Inventory Not Tracked Snowboard",
@@ -408,8 +408,8 @@
                       "pageInfo": {
                         "hasNextPage": false,
                         "hasPreviousPage": false,
-                        "startCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMTcifQ==",
-                        "endCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMTcifQ=="
+                        "startCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ==",
+                        "endCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ=="
                       }
                     }
                   }
@@ -715,7 +715,7 @@
               "actualQueryCost": 26,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1974,
+                "currentlyAvailable": 1965,
                 "restoreRate": 100
               }
             }

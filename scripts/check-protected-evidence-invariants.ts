@@ -2,68 +2,23 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
-import { conformanceCaptureIndex } from './conformance-capture-index.js';
 import { validateRecordedUpstreamCalls, type RecordedUpstreamCall } from './parity-cassette.js';
+import {
+  changedProtectedEvidencePaths,
+  findProductsProvenanceFailures,
+  findUnregisteredProtectedEvidenceChanges,
+} from './protected-evidence-invariants.js';
 
-const protectedPaths = ['config/parity-specs', 'config/parity-requests', 'fixtures/conformance'];
+const changed = changedProtectedEvidencePaths();
+const failures = [...findUnregisteredProtectedEvidenceChanges(changed), ...findProductsProvenanceFailures()];
 
-const result = spawnSync('git', ['diff', '--name-status', 'origin/main', '--', ...protectedPaths], {
-  encoding: 'utf8',
-});
-
-if (result.error) {
-  throw result.error;
-}
-
-if (result.status !== 0) {
-  process.stderr.write(result.stderr);
-  process.exit(result.status ?? 1);
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-}
-
-function fixtureOutputMatchesPath(output: string, path: string): boolean {
-  const pattern = escapeRegExp(output)
-    .replaceAll('<store>', '[^/]+')
-    .replaceAll('<api-version>', '[^/]+')
-    .replaceAll('<domain-folder>', '[^/]+');
-  return new RegExp(`^${pattern}$`, 'u').test(path);
-}
-
-const registeredFixtureOutputs = conformanceCaptureIndex.flatMap((entry) => entry.fixtureOutputs);
-
-type ChangedPath = {
-  status: string;
-  path: string;
-};
-
-const changed = result.stdout
-  .split('\n')
-  .map((line) => line.trim())
-  .filter(Boolean)
-  .map((line): ChangedPath => {
-    const [status = '', firstPath = '', secondPath] = line.split('\t');
-    return {
-      status,
-      path: secondPath ?? firstPath,
-    };
-  });
-
-const unregistered = changed.filter(
-  ({ path: changedPath }) =>
-    existsSync(changedPath) &&
-    !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath)),
-);
-
-if (unregistered.length > 0) {
-  process.stderr.write(
-    'Protected parity specs, parity requests, or conformance fixtures changed without capture-index registration.\n',
-  );
-  for (const { status, path } of unregistered) process.stderr.write(`- ${status}\t${path}\n`);
+if (failures.length > 0) {
+  process.stderr.write('Protected parity evidence invariant failures:\n');
+  for (const failure of failures) process.stderr.write(`- ${failure.path}: ${failure.message}\n`);
   process.exit(1);
 }
+
+process.stdout.write('Protected parity evidence changes are registered and products provenance checks passed.\n');
 
 function walkJsonFiles(directory: string): string[] {
   if (!existsSync(directory)) {
@@ -132,8 +87,6 @@ if (shippingFulfillmentEvidenceFailures.length > 0) {
   process.exit(1);
 }
 
-process.stdout.write('Protected parity evidence changes are registered in the capture index.\n');
-
 function trackedFiles(pathspec: string): string[] {
   const trackedResult = spawnSync('git', ['ls-files', '--', pathspec], { encoding: 'utf8' });
   if (trackedResult.error) throw trackedResult.error;
@@ -164,7 +117,7 @@ const checkedMarketsFixtureSuffixes = [
   '/markets/market-localization-metafield-lifecycle-parity.json',
 ];
 
-for (const specPath of trackedFiles('config/parity-specs/markets').filter((path) => path.endsWith('.json'))) {
+for (const specPath of trackedFiles('config/parity-specs/markets').filter((filePath) => filePath.endsWith('.json'))) {
   const spec = readJsonFile(specPath) as Record<string, unknown>;
   const scenarioId = spec['scenarioId'];
   const isCheckedScenario = typeof scenarioId === 'string' && checkedMarketsScenarioIds.has(scenarioId);

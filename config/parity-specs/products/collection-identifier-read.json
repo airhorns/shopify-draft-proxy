@@ -9,9 +9,7 @@
     "null-empty-behavior",
     "deprecated-root"
   ],
-  "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-detail.json"
-  ],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/collection-detail.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/collection-detail-read.graphql",
     "variablesPath": "config/parity-requests/products/collection-detail-read.variables.json"
@@ -55,7 +53,7 @@
         "upstreamCapturePath": null,
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/collection-handle-read.graphql",
-          "variablesPath": "config/parity-requests/products/collection-identifier-read.variables.json"
+          "variablesPath": "config/parity-requests/products/collection-handle-read.variables.json"
         }
       }
     ]

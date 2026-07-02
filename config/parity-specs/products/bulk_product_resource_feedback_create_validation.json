@@ -6,7 +6,7 @@
     "graphql-validation-parity",
     "user-errors-parity",
     "no-upstream-passthrough",
-    "captured-vs-proxy-request"
+    "local-runtime-backed"
   ],
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/products/product-feedback-validation-local-runtime.json"
@@ -16,7 +16,7 @@
     "documentPath": "config/parity-requests/products/product-feedback-invalid-state.graphql",
     "apiVersion": "2026-04"
   },
-  "comparisonMode": "captured-vs-proxy-request",
+  "comparisonMode": "captured-fixture",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -99,5 +99,5 @@
       }
     ]
   },
-  "notes": "Executable local-runtime validation parity for product and shop resource feedback guardrails, including mixed product feedback batches where valid entries are accepted while later invalid entries emit indexed userErrors. Live success and resolver-level validation capture remains blocked by the conformance app's resource-feedback access and sales-channel configuration, so these cases pin the local supported-mutation contract while enum coercion remains schema-driven and no request proxies upstream."
+  "notes": "Executable local-runtime validation parity for product and shop resource feedback guardrails, including mixed product feedback batches where valid entries are accepted while later invalid entries emit indexed userErrors. Live success and resolver-level validation capture remains blocked by the conformance app's resource-feedback access and sales-channel configuration, so these cases pin the local supported-mutation contract while enum coercion remains schema-driven and no request proxies upstream. This scenario is local-runtime-backed runtime fixture evidence only, not Shopify parity evidence; it remains checked in to guard the supported no-upstream local staging contract with Rust integration coverage."
 }
