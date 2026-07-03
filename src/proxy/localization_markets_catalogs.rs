@@ -705,12 +705,14 @@ impl DraftProxy {
                         .staged
                         .price_lists
                         .get(&id)
-                        .map(|price_list| selected_json(price_list, &field.selection))
+                        .map(|price_list| selected_price_list_json(price_list, &field.selection))
                         .unwrap_or(Value::Null)
                 }
-                "priceLists" => {
-                    staged_nodes_connection(&self.store.staged.price_lists, &field.selection, false)
-                }
+                "priceLists" => selected_price_lists_connection_with_args(
+                    &self.store.staged.price_lists,
+                    &field.arguments,
+                    &field.selection,
+                ),
                 "webPresences" => staged_nodes_connection(
                     &self.store.staged.web_presences,
                     &field.selection,

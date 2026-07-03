@@ -116,9 +116,14 @@ null or falling back to cold-only upstream data.
 Price-list and quantity-pricing slices stage selected price list records,
 fixed-price rows, quantity rules, and quantity price breaks for captured
 product and variant IDs. Downstream `priceList` / `priceLists` reads expose the
-staged rows in the checked-in scenarios. Validation covers name, currency,
-parent adjustment, `catalogId` existence/taken checks, unknown resource,
-duplicate fixed-price, missing fixed-price, fixed-price `price` /
+staged rows in the checked-in scenarios. Local `priceLists` reads apply standard
+connection windows and computed `pageInfo` over staged price lists.
+`PriceList.prices` applies read-time connection windows, `originType`, and the
+captured fixed-price ID search filters `variant_id:` and `product_id:`. Other
+`PriceList.prices(query:)` terms intentionally return an empty local connection
+instead of guessing Shopify's broader search grammar. Validation covers name,
+currency, parent adjustment, `catalogId` existence/taken checks, unknown
+resource, duplicate fixed-price, missing fixed-price, fixed-price `price` /
 `compareAtPrice` currency mismatches, fixed-price missing-variant short-circuit
 behavior, product-level fixed-price, no-op, quantity-rule, and price-limit
 branches represented by parity specs. Captured Admin API 2026-04 behavior
