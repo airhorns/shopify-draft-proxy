@@ -4979,6 +4979,99 @@ fn data_sale_opt_out_rejects_strict_core_invalid_formats_without_staging() {
 }
 
 #[test]
+fn data_sale_opt_out_matches_core_strict_format_residual_boundaries() {
+    let mutation = r#"
+        mutation DataSaleOptOut($email: String!) {
+          dataSaleOptOut(email: $email) {
+            customerId
+            userErrors { field message code }
+          }
+        }
+        "#;
+    let failed_payload = json!({
+        "customerId": null,
+        "userErrors": [{
+            "field": null,
+            "message": "Data sale opt out failed.",
+            "code": "FAILED"
+        }]
+    });
+    let local_200_email = format!("{}@e.co", "a".repeat(200));
+    let invalid_emails = [
+        ("digit-tld", "foo@bar.co2".to_string()),
+        ("digit-in-tld", "user@example.c0m".to_string()),
+        ("hyphen-in-tld", "user@example.c-o".to_string()),
+        ("local-over-128", local_200_email),
+    ];
+    let valid_emails = [
+        ("single-character-tld", "user@example.x".to_string()),
+        ("quoted-local-atom", "ab\"cd@example.com".to_string()),
+        ("local-128", format!("{}@e.co", "a".repeat(128))),
+    ];
+    let mut failures = Vec::new();
+
+    for (name, email) in invalid_emails {
+        let mut proxy = snapshot_proxy();
+        let response = proxy.process_request(json_graphql_request(
+            mutation,
+            json!({ "email": email.clone() }),
+        ));
+        if response.status != 200 {
+            failures.push(format!("{name}: expected 200, got {}", response.status));
+        }
+        if response.body["data"]["dataSaleOptOut"] != failed_payload {
+            failures.push(format!(
+                "{name}: expected FAILED payload, got {}",
+                response.body["data"]["dataSaleOptOut"]
+            ));
+        }
+        if log_snapshot(&proxy)["entries"] != json!([]) {
+            failures.push(format!("{name}: invalid email staged a mutation log entry"));
+        }
+        if state_snapshot(&proxy)["stagedState"]["customers"] != json!({}) {
+            failures.push(format!("{name}: invalid email staged a customer"));
+        }
+    }
+
+    for (name, email) in valid_emails {
+        let mut proxy = snapshot_proxy();
+        let response = proxy.process_request(json_graphql_request(
+            mutation,
+            json!({ "email": email.clone() }),
+        ));
+        if response.status != 200 {
+            failures.push(format!("{name}: expected 200, got {}", response.status));
+            continue;
+        }
+        let payload = &response.body["data"]["dataSaleOptOut"];
+        let customer_id = payload["customerId"].as_str();
+        if customer_id.is_none() || !payload["userErrors"].as_array().is_some_and(Vec::is_empty) {
+            failures.push(format!("{name}: expected SUCCESS payload, got {payload}"));
+            continue;
+        }
+        let state = state_snapshot(&proxy);
+        let customers = state["stagedState"]["customers"].as_object().unwrap();
+        if customers.len() != 1 {
+            failures.push(format!(
+                "{name}: expected one staged customer, got {}",
+                customers.len()
+            ));
+            continue;
+        }
+        let customer = customers.get(customer_id.unwrap()).unwrap();
+        if customer["email"] != json!(email) || customer["dataSaleOptOut"] != json!(true) {
+            failures.push(format!("{name}: staged customer mismatch: {customer}"));
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "strict format residual mismatches:\n{}",
+        failures.join("\n")
+    );
+}
+
+#[test]
 fn data_sale_opt_out_missing_or_null_email_is_schema_coercion_error() {
     let mut proxy = snapshot_proxy();
     let missing = proxy.process_request(json_graphql_request(
