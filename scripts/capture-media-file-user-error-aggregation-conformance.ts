@@ -51,17 +51,30 @@ type FileReadData = {
     fileStatus?: string | null;
   } | null;
 };
+type RecordedUpstreamCall = {
+  operationName: string;
+  variables: GraphqlVariables;
+  query: string;
+  response: {
+    status: number;
+    body: GraphqlPayload<unknown>;
+  };
+};
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'media');
 const outputFile = path.join(outputDir, 'media-file-user-error-aggregation.json');
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 }) as {
   runGraphql: <TData>(query: string, variables?: GraphqlVariables) => Promise<GraphqlPayload<TData>>;
+  runGraphqlRequest: <TData>(
+    query: string,
+    variables?: GraphqlVariables,
+  ) => Promise<{ status: number; payload: GraphqlPayload<TData> }>;
 };
 
 const fileCreateMutation = `#graphql
@@ -139,6 +152,69 @@ const fileReadQuery = `#graphql
   }
 `;
 
+const mediaFileReferencesHydrateQuery = `query MediaFileReferencesHydrate($fileIds: [ID!]!) {
+  nodes(ids: $fileIds) {
+    id
+    __typename
+    ... on MediaImage {
+      alt
+      fileStatus
+      mediaContentType
+      status
+      preview { image { url width height } }
+      image { url width height }
+      references(first: 50) {
+        nodes {
+          ... on Product {
+            id
+            title
+            handle
+            status
+            media(first: 50) {
+              nodes {
+                id
+                __typename
+                alt
+                fileStatus
+                mediaContentType
+                status
+                preview { image { url width height } }
+                ... on MediaImage { image { url width height } }
+              }
+            }
+            variants(first: 50) {
+              nodes {
+                id
+                title
+                media(first: 10) { nodes { id alt mediaContentType } }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`;
+
+const mediaFileUpdateHydrateQuery = `query MediaFileUpdateHydrate($fileIds: [ID!]!) {
+  nodes(ids: $fileIds) {
+    id
+    __typename
+    ... on File {
+      alt
+      createdAt
+      fileStatus
+    }
+    ... on MediaImage {
+      image { url width height }
+      preview { image { url width height } }
+    }
+    ... on GenericFile {
+      url
+    }
+  }
+}`;
+
 function expectNoTopLevelErrors(label: string, payload: GraphqlPayload<unknown>): void {
   if (payload.errors === undefined) {
     return;
@@ -180,6 +256,27 @@ async function waitForFileStatus(fileId: string, status: string): Promise<Graphq
   throw new Error(`Timed out waiting for file ${fileId} to reach ${status}: ${JSON.stringify(lastPayload, null, 2)}`);
 }
 
+async function recordUpstreamCall(
+  operationName: string,
+  query: string,
+  variables: GraphqlVariables,
+): Promise<RecordedUpstreamCall> {
+  const response = await runGraphqlRequest<unknown>(query, variables);
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`${operationName} returned HTTP ${response.status}: ${JSON.stringify(response.payload, null, 2)}`);
+  }
+
+  return {
+    operationName,
+    variables,
+    query,
+    response: {
+      status: response.status,
+      body: response.payload,
+    },
+  };
+}
+
 function expectSingleUserError(label: string, errors: UserError[] | null | undefined, code: string): void {
   if (Array.isArray(errors) && errors.length === 1 && errors[0]?.code === code) {
     return;
@@ -218,6 +315,14 @@ const fileUpdateMissingVariables = {
 let createdFileIds: string[] = [];
 
 try {
+  const mediaFileReferencesHydrate = await recordUpstreamCall(
+    'MediaFileReferencesHydrate',
+    mediaFileReferencesHydrateQuery,
+    { fileIds: missingDeleteFileIds },
+  );
+  const mediaFileUpdateHydrate = await recordUpstreamCall('MediaFileUpdateHydrate', mediaFileUpdateHydrateQuery, {
+    fileIds: missingUpdateFileIds,
+  });
   const nonReadyCreate = await runGraphql<FileCreateData>(fileCreateMutation, nonReadyCreateVariables);
   expectNoTopLevelErrors('fileCreate non-ready seed', nonReadyCreate);
   expectNoUserErrors('fileCreate non-ready seed', nonReadyCreate.data?.fileCreate?.userErrors);
@@ -299,26 +404,7 @@ try {
         response: fileAcknowledgeNonReady,
       },
     },
-    upstreamCalls: [
-      {
-        operationName: 'MediaFileReferencesHydrate',
-        variables: { fileIds: missingDeleteFileIds },
-        query: 'sha:media-file-references-hydrate',
-        response: {
-          status: 200,
-          body: { data: { nodes: [null, null] } },
-        },
-      },
-      {
-        operationName: 'MediaFileUpdateHydrate',
-        variables: { fileIds: missingUpdateFileIds },
-        query: 'sha:media-file-update-hydrate',
-        response: {
-          status: 200,
-          body: { data: { nodes: [null, null] } },
-        },
-      },
-    ],
+    upstreamCalls: [mediaFileReferencesHydrate, mediaFileUpdateHydrate],
   };
 
   await mkdir(outputDir, { recursive: true });

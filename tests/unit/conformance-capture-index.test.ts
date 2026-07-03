@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -8,6 +8,7 @@ import {
   loadConformanceCaptureScriptPaths,
   profileConformanceFixtureProvenance,
   renderCaptureIndexMarkdown,
+  retiredConformanceEvidencePaths,
   validateCaptureIndexAgainstScriptFiles,
 } from '../../scripts/conformance-capture-index.js';
 import { isGraphqlDocumentText } from '../../scripts/parity-cassette.js';
@@ -73,6 +74,14 @@ describe('conformance capture index', () => {
       profile.orphanedFixturePaths,
       'every checked-in live Shopify fixture under fixtures/conformance/**/*.json must be declared by a capture index fixtureOutputs entry',
     ).toEqual([]);
+  });
+
+  it('keeps retired protected evidence absent from disk', () => {
+    const presentRetiredPaths = retiredConformanceEvidencePaths.filter((retiredPath) =>
+      existsSync(path.join(repoRoot, retiredPath)),
+    );
+
+    expect(presentRetiredPaths).toEqual([]);
   });
 
   it('rejects synthetic store-properties parity evidence', () => {

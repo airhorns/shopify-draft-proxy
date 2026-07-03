@@ -1,0 +1,35 @@
+query FilesUploadLocalRuntimeReadPageTwo($after: String!) {
+  files(first: 1, after: $after, reverse: true, sortKey: ID) {
+    nodes {
+      id
+      alt
+      createdAt
+      fileStatus
+      ... on MediaImage {
+        image {
+          url
+          width
+          height
+        }
+        preview {
+          image {
+            url
+          }
+        }
+      }
+    }
+    edges {
+      cursor
+      node {
+        id
+        alt
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

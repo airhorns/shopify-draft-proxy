@@ -2,36 +2,42 @@
   "scenarioId": "segment-local-runtime-dispatch-validation",
   "operationNames": ["segmentCreate"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["runtime-staging", "mutation-log-parity", "no-upstream-passthrough", "captured-vs-proxy-request"],
+  "assertionKinds": ["payload-shape", "runtime-staging", "captured-vs-proxy-request"],
   "liveCaptureFiles": [
-    "fixtures/conformance/local-runtime/2026-04/segments/segment-local-runtime-dispatch-validation.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-local-runtime-dispatch-validation.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/segments/segment-local-runtime-dispatch-validation.graphql",
-    "apiVersion": "2026-04",
-    "variablesCapturePath": "$.create.variables"
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.cases[0].request.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Local-runtime rework parity for the Rust segmentCreate dispatch regression. The neutral `LocalSegmentCreate` operation name avoids historical segment-specific marker names, while the mutation-log target proves the supported mutation was staged locally instead of being satisfied by live-hybrid passthrough fallback.",
+  "notes": "Live Shopify recording for the neutral `LocalSegmentCreate` document that previously used local-runtime fixture evidence. The proxy-only no-upstream/mutation-log regression remains covered by `segment_create_stages_neutral_operation_without_upstream_passthrough`; this parity spec compares the Shopify-visible mutation payload only.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
         "name": "segment-create-neutral-operation-payload",
-        "capturePath": "$.create.response.data.segmentCreate",
-        "proxyPath": "$.data.segmentCreate"
-      },
-      {
-        "name": "segment-create-neutral-operation-mutation-log",
-        "capturePath": "$.create.log",
-        "proxyLogPath": "$",
-        "selectedPaths": [
-          "$.entries[0].operationName",
-          "$.entries[0].status",
-          "$.entries[0].stagedResourceIds[0]",
-          "$.entries[0].interpreted"
+        "capturePath": "$.cases[0].response.payload.data.segmentCreate",
+        "proxyPath": "$.data.segmentCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "Proxy uses synthetic segment IDs while Shopify returns live store IDs."
+          },
+          {
+            "path": "$.segment.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy uses deterministic synthetic timestamps while Shopify returns live timestamps."
+          },
+          {
+            "path": "$.segment.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy uses deterministic synthetic timestamps while Shopify returns live timestamps."
+          }
         ]
       }
     ]

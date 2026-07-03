@@ -30,10 +30,23 @@ await mkdir(outputDir, { recursive: true });
 const scopeProbe = await probeDiscountConformanceScopes(adminOptions);
 assertDiscountConformanceScopes(scopeProbe);
 
-const runId = Date.now();
-const seedCode = `HAR438BASE${runId}`;
-const addedCode = `HAR438ADD${runId}`;
-const secondAddedCode = `HAR438PLUS${runId}`;
+function readRunId(): number {
+  const raw = process.env['SHOPIFY_CONFORMANCE_RUN_ID'];
+  if (!raw) {
+    return Date.now();
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`SHOPIFY_CONFORMANCE_RUN_ID must be a positive integer, got ${JSON.stringify(raw)}`);
+  }
+  return parsed;
+}
+
+const runId = readRunId();
+const seedCode = `SDPBULKBASE${runId}`;
+const addedCode = `SDPBULKADD${runId}`;
+const secondAddedCode = `SDPBULKPLUS${runId}`;
 const lowerAddedCode = addedCode.toLowerCase();
 const startsAt = new Date(Date.now() - 60_000).toISOString();
 
@@ -187,7 +200,7 @@ const readDocument = `#graphql
 
 const createVariables = {
   input: {
-    title: `HAR-438 redeem code bulk ${runId}`,
+    title: `Discount redeem code bulk ${runId}`,
     code: seedCode,
     startsAt,
     combinesWith: {

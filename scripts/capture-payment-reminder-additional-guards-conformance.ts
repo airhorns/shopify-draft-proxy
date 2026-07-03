@@ -327,7 +327,7 @@ async function captureReminderHydrate(
   return {
     operationName: 'PaymentScheduleReminderHydrate',
     variables: { id: paymentScheduleId },
-    query: `captured live hydrate for ${label}`,
+    query: reminderHydrateDocument,
     response: {
       status: response.status,
       body: response.payload,
