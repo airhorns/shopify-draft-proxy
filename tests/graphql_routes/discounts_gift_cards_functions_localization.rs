@@ -5622,8 +5622,9 @@ fn localization_translations_register_multi_row_round_trip_and_indexed_errors() 
 #[test]
 fn localization_translations_remove_empty_keys_is_noop_and_preserves_read_after() {
     let mut proxy = snapshot_proxy();
-    let resource_id = "gid://shopify/Product/9801098789170";
+    let resource_id = create_fallback_localization_product(&mut proxy);
     let title_digest = fallback_product_title_digest();
+    let body_digest = fallback_product_body_digest();
 
     let enable = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationShopLocaleEnable($locale: String!) {
@@ -5644,10 +5645,10 @@ fn localization_translations_remove_empty_keys_is_noop_and_preserves_read_after(
           }
         }"#,
         json!({
-            "resourceId": resource_id,
+            "resourceId": resource_id.as_str(),
             "translations": [
                 { "locale": "fr", "key": "title", "value": "Titre local", "translatableContentDigest": title_digest },
-                { "locale": "fr", "key": "body_html", "value": "Description locale", "translatableContentDigest": "digest-body" }
+                { "locale": "fr", "key": "body_html", "value": "Description locale", "translatableContentDigest": body_digest }
             ]
         }),
     ));
@@ -5667,7 +5668,7 @@ fn localization_translations_remove_empty_keys_is_noop_and_preserves_read_after(
             userErrors { field message code }
           }
         }"#,
-        json!({ "resourceId": resource_id, "keys": [], "locales": ["fr"] }),
+        json!({ "resourceId": resource_id.as_str(), "keys": [], "locales": ["fr"] }),
     ));
     assert_eq!(
         remove.body["data"]["translationsRemove"],
@@ -5680,7 +5681,7 @@ fn localization_translations_remove_empty_keys_is_noop_and_preserves_read_after(
             translations(locale: "fr") { key value locale outdated updatedAt market { id } }
           }
         }"#,
-        json!({ "resourceId": resource_id }),
+        json!({ "resourceId": resource_id.as_str() }),
     ));
     assert_eq!(
         read_after_remove.body["data"]["translatableResource"]["translations"],
