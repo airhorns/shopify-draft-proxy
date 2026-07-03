@@ -9831,6 +9831,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'admin-platform',
+    captureId: 'admin-platform-tags-not-found',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-admin-platform-tags-not-found-conformance.ts',
+    purpose:
+      'tagsAdd/tagsRemove payload userError behavior for well-formed Product and Customer GIDs that do not resolve.',
+    requiredAuthScopes: ['write_products', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}admin-platform-tags-not-found.json`,
+      'config/parity-specs/admin-platform/admin-platform-tags-not-found.json',
+      'config/parity-requests/admin-platform/admin-platform-tags-add-not-found.graphql',
+      'config/parity-requests/admin-platform/admin-platform-tags-remove-not-found.graphql',
+    ],
+    cleanupBehavior: 'Missing-id tag probes do not mutate Shopify resources; no cleanup is expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'admin-platform',
     captureId: 'admin-platform-backup-region-update-extended',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-admin-platform-backup-region-update-extended.mts',
