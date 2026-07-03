@@ -87,6 +87,14 @@ impl DraftProxy {
                     ),
                 ),
                 "job" => ProductTailMutationFieldResult::value(self.product_tail_job_read(field)),
+                "bulkProductResourceFeedbackCreate"
+                    if resource_feedback_scope_is_explicitly_missing(request) =>
+                {
+                    ProductTailMutationFieldResult {
+                        value: Value::Null,
+                        errors: vec![product_tail_resource_feedback_access_denied_error(field)],
+                    }
+                }
                 "bulkProductResourceFeedbackCreate" => {
                     self.record_mutation_log_with_status(
                         request,
@@ -101,6 +109,14 @@ impl DraftProxy {
                         field,
                         &missing_product_ids,
                     ))
+                }
+                "shopResourceFeedbackCreate"
+                    if resource_feedback_scope_is_explicitly_missing(request) =>
+                {
+                    ProductTailMutationFieldResult {
+                        value: Value::Null,
+                        errors: vec![product_tail_resource_feedback_access_denied_error(field)],
+                    }
                 }
                 "shopResourceFeedbackCreate" => {
                     self.record_mutation_log_with_status(
@@ -1447,6 +1463,30 @@ impl DraftProxy {
             &field.selection,
         )
     }
+}
+
+fn resource_feedback_scope_is_explicitly_missing(request: &Request) -> bool {
+    request_header(request, "x-shopify-draft-proxy-access-scopes").is_some()
+        && !app_granted_access_scopes(request)
+            .iter()
+            .any(|scope| scope == "write_resource_feedbacks")
+}
+
+fn product_tail_resource_feedback_access_denied_error(field: &RootFieldSelection) -> Value {
+    const REQUIRED_ACCESS: &str = "`write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.";
+    json!({
+        "message": format!(
+            "Access denied for {} field. Required access: {REQUIRED_ACCESS}",
+            field.name
+        ),
+        "locations": [{"line": field.location.line, "column": field.location.column}],
+        "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": REQUIRED_ACCESS
+        },
+        "path": [field.response_key.clone()]
+    })
 }
 
 fn product_combined_listing_role(product: &ProductRecord) -> Option<String> {

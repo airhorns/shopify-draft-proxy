@@ -4082,6 +4082,71 @@ fn product_resource_feedback_validates_mixed_batches_with_per_entry_errors() {
 }
 
 #[test]
+fn product_resource_feedback_missing_write_scope_returns_top_level_access_denied() {
+    let mut proxy = snapshot_proxy();
+    let mut request = json_graphql_request(
+        r#"
+        mutation ProductFeedbackMissingScope {
+          productFeedback: bulkProductResourceFeedbackCreate(feedbackInput: [{
+            productId: "gid://shopify/Product/optioned",
+            state: REQUIRES_ACTION,
+            feedbackGeneratedAt: "2024-01-01T00:00:00Z",
+            productUpdatedAt: "2024-01-01T00:00:00Z",
+            messages: ["missing scope"]
+          }]) {
+            feedback { productId }
+            userErrors { field message code }
+          }
+          shopFeedback: shopResourceFeedbackCreate(input: {
+            state: ACCEPTED,
+            feedbackGeneratedAt: "2024-01-01T00:00:00Z",
+            messages: ["missing scope"]
+          }) {
+            feedback { state }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    request.headers.insert(
+        "x-shopify-draft-proxy-access-scopes".to_string(),
+        "read_products,write_products".to_string(),
+    );
+
+    let response = proxy.process_request(request);
+    assert_eq!(response.status, 200, "response body: {}", response.body);
+    assert_eq!(response.body["data"]["productFeedback"], Value::Null);
+    assert_eq!(response.body["data"]["shopFeedback"], Value::Null);
+    let errors = response.body["errors"]
+        .as_array()
+        .expect("missing scope response should return top-level errors");
+    assert_eq!(errors.len(), 2, "errors: {errors:?}");
+    assert_eq!(errors[0]["path"], json!(["productFeedback"]));
+    assert_eq!(
+        errors[0]["message"],
+        json!("Access denied for bulkProductResourceFeedbackCreate field. Required access: `write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.")
+    );
+    assert_eq!(errors[1]["path"], json!(["shopFeedback"]));
+    assert_eq!(
+        errors[1]["message"],
+        json!("Access denied for shopResourceFeedbackCreate field. Required access: `write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.")
+    );
+    for error in errors {
+        assert_eq!(error["extensions"]["code"], json!("ACCESS_DENIED"));
+        assert_eq!(
+            error["extensions"]["documentation"],
+            json!("https://shopify.dev/api/usage/access-scopes")
+        );
+        assert_eq!(
+            error["extensions"]["requiredAccess"],
+            json!("`write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.")
+        );
+    }
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
 fn product_resource_feedback_reports_unavailable_products_as_product_not_found() {
     let deleted_product_id = "gid://shopify/Product/deleted-feedback-product";
     let archived_product_id = "gid://shopify/Product/archived-feedback-product";
