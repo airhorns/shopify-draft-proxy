@@ -42,6 +42,20 @@ impl DraftProxy {
             return MutationOutcome::response(response);
         }
 
+        let length_errors = product_scalar_length_user_errors(
+            &input,
+            ProductScalarLengthValidationShape::ProductSetInput,
+        );
+        if !length_errors.is_empty() {
+            return MutationOutcome::response(self.product_set_user_error_response(
+                &response_key,
+                &payload_selection,
+                &product_selection,
+                None,
+                length_errors,
+            ));
+        }
+
         // Reject input variants whose option-value combination duplicates an earlier
         // input variant. Shopify anchors one userError per later collision (the first
         // occurrence is accepted) and titles it with the variant's option values.
