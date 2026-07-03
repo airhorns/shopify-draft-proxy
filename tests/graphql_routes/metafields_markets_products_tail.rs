@@ -1481,6 +1481,42 @@ fn metafields_set_resolves_owner_type_from_non_product_gids() {
 }
 
 #[test]
+fn metafields_set_rejects_malformed_owner_id_without_defaulting_to_product() {
+    let mut proxy = snapshot_proxy();
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MalformedOwnerMetafieldsSet {
+          metafieldsSet(
+            metafields: [{
+              ownerId: "not-a-gid",
+              namespace: "owner_type_gid",
+              key: "malformed",
+              type: "single_line_text_field",
+              value: "Malformed owner"
+            }]
+          ) {
+            metafields { ownerType owner { __typename id } }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(set.body["data"]["metafieldsSet"]["metafields"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["userErrors"],
+        json!([{
+            "field": ["metafields", "0", "ownerId"],
+            "message": "Owner is invalid",
+            "code": "INVALID_OWNER",
+            "elementIndex": null
+        }])
+    );
+}
+
+#[test]
 fn owner_scoped_metafields_do_not_leak_between_products() {
     let mut proxy = snapshot_proxy();
 
