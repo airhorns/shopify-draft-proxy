@@ -100,6 +100,9 @@ The same capture showed that schema-current `priceListFixedPricesUpdate` uses
 the `pricesToAdd` argument name and creates a fixed row when the variant does
 not already have one. `priceListFixedPricesDelete` is the branch that rejects a
 known variant without a fixed row, with `PRICE_NOT_FIXED` at `variantIds[i]`.
+For fixed-price add/update rows that have both a missing `variantId` and a
+price-list currency mismatch, Shopify reports only `VARIANT_NOT_FOUND` for that
+row and skips the currency validation for the same index.
 The checked-in anchor is the
 `price-list-fixed-prices-*-*.json` Markets parity set backed by
 `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-fixed-prices-validation.json`.
