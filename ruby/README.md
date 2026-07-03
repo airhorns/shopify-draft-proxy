@@ -138,7 +138,7 @@ proxy.persist! # one write for the whole batch
 ```
 
 Each adapter is expected to be the single writer of its stored dump. The
-intended concurrency model is *many isolated stores* — one key per test or
+intended concurrency model is _many isolated stores_ — one key per test or
 worker — rather than many writers sharing one key (whole-state saves are
 last-write-wins).
 
@@ -147,7 +147,7 @@ last-write-wins).
 A `DraftProxy` instance is **not** safe to share across threads. Each call
 borrows the underlying Rust store mutably for the whole request — including the
 outbound transport IO performed during a `commit` — so a second thread entering
-the *same instance* concurrently will panic with a Rust `BorrowMutError`. Give
+the _same instance_ concurrently will panic with a Rust `BorrowMutError`. Give
 each thread/worker its own proxy (and its own storage key); that is the same
 "many isolated stores" model described above.
 
@@ -155,7 +155,7 @@ each thread/worker its own proxy (and its own storage key); that is the same
 
 Under `:each_mutation`, persistence is **fail-loud**: if `storage.save` raises
 (e.g. the backend is unreachable), the error propagates out of the request call.
-The in-memory mutation has already applied, but the cached version token is *not*
+The in-memory mutation has already applied, but the cached version token is _not_
 advanced, so the next successful save writes the full current state and the
 skipped write self-heals. A raised save therefore means "this mutation applied
 but was not persisted" — rescue it if your backend can be flaky, or use
