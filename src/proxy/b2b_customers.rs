@@ -177,10 +177,7 @@ impl DraftProxy {
             "customer" => Some(self.customer_read_field(field)),
             "customerByIdentifier" => Some(self.customer_by_identifier_field(field)),
             "customers" => Some(self.customers_list_field(field)),
-            "customersCount" => Some(selected_json(
-                &count_object(self.customers_count_value()),
-                &field.selection,
-            )),
+            "customersCount" => Some(self.customers_count_field(field)),
             "customerMergeJobStatus" => Some(self.customer_merge_job_status_field(field)),
             "job" => Some(self.customer_merge_job_node_field(field)),
             "node" if self.customer_merge_job_reference(field) => {
@@ -216,6 +213,35 @@ impl DraftProxy {
         base_count
             .saturating_add(locally_created)
             .saturating_sub(deleted_base_customers)
+    }
+
+    fn customers_count_field(&self, field: &RootFieldSelection) -> Value {
+        if field.arguments.contains_key("query") {
+            let query = resolved_string_field(&field.arguments, "query");
+            let count = self
+                .store
+                .staged
+                .customers
+                .values()
+                .filter(|customer| {
+                    let id = customer
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default();
+                    !self.store.staged.customers.is_tombstoned(id)
+                })
+                .filter(|customer| {
+                    customer_search_decision(customer, query.as_deref())
+                        == StagedSearchDecision::Match
+                })
+                .count();
+            return selected_json(&count_object(count), &field.selection);
+        }
+
+        selected_json(
+            &count_object(self.customers_count_value()),
+            &field.selection,
+        )
     }
 
     /// `customerMergeJobStatus(jobId:)` read: project the requested selection over
@@ -845,8 +871,9 @@ impl DraftProxy {
 
     /// `customers(first:, query:)` list root. Filters the live staged customers
     /// (excluding merged-away / deleted records) by the optional `query` (currently
-    /// `tag:<value>` plus a generic substring fallback over email/display name) and
-    /// projects each node through the shared customer renderer so nested
+    /// `tag:<value>`, `email:<value>`, plus a generic substring fallback over
+    /// email/display/first/last name) and projects each node through the shared
+    /// customer renderer so nested
     /// `orders`/`addressesV2`/`metafields` connections resolve from store state
     /// exactly as the singular `customer`/`customerByIdentifier` reads do.
     pub(in crate::proxy) fn customers_list_field(&self, field: &RootFieldSelection) -> Value {
@@ -5188,6 +5215,15 @@ fn customer_gid_tail_sort_value(customer: &Value) -> StagedSortValue {
         .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
 }
 
+fn customer_name_sort_key(customer: &Value) -> StagedSortKey {
+    vec![
+        customer_normalized_string(customer, "lastName"),
+        customer_normalized_string(customer, "firstName"),
+        customer_normalized_string(customer, "displayName"),
+        customer_gid_tail_sort_value(customer),
+    ]
+}
+
 fn customer_address_sort_value(customer: &Value, field: &str) -> StagedSortValue {
     customer
         .get("defaultAddress")
@@ -5199,7 +5235,7 @@ fn customer_address_sort_value(customer: &Value, field: &str) -> StagedSortValue
 
 fn customer_staged_sort_key(customer: &Value, sort_key: Option<&str>) -> StagedSortKey {
     let primary = match sort_key.unwrap_or("ID") {
-        "NAME" => customer_normalized_string(customer, "displayName"),
+        "NAME" => return customer_name_sort_key(customer),
         "UPDATED_AT" => {
             StagedSortValue::String(customer_value_string(customer, "updatedAt").to_string())
         }

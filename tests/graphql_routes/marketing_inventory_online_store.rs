@@ -596,6 +596,85 @@ fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
 }
 
 #[test]
+fn marketing_external_activity_uses_request_app_custom_channel_and_tracking_values() {
+    let mut proxy = snapshot_proxy();
+    let mut create = json_graphql_request(
+        r#"
+        mutation MarketingActivityRequestIdentityAndTracking {
+          createExternal: marketingActivityCreateExternal(input: {
+            title: "Social Launch",
+            remoteId: "social-remote-1",
+            status: ACTIVE,
+            tactic: AD,
+            marketingChannelType: SEARCH,
+            channelHandle: "social-feed",
+            remoteUrl: "https://example.com/social-launch",
+            previewUrl: "https://example.com/social-preview",
+            utm: { campaign: "social-campaign", source: "social", medium: "paid" }
+          }) {
+            marketingActivity {
+              id
+              remoteId
+              app { id title }
+              utmParameters { campaign source medium }
+              marketingEvent {
+                id
+                remoteId
+                channelHandle
+                utmCampaign
+                utmSource
+                utmMedium
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    create.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let create = proxy.process_request(create);
+    let created = &create.body["data"]["createExternal"]["marketingActivity"];
+    let activity_id = created["id"].as_str().expect("activity id");
+    let activity_tail = activity_id
+        .rsplit('/')
+        .next()
+        .and_then(|tail| tail.parse::<u64>().ok())
+        .expect("numeric marketing activity id");
+    let assumed_event_id = format!("gid://shopify/MarketingEvent/{}", activity_tail + 1);
+
+    assert_eq!(
+        create.body["data"]["createExternal"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created,
+        &json!({
+            "id": activity_id,
+            "remoteId": "social-remote-1",
+            "app": { "id": "gid://shopify/App/347082227713", "title": "347082227713" },
+            "utmParameters": { "campaign": "social-campaign", "source": "social", "medium": "paid" },
+            "marketingEvent": {
+                "id": created["marketingEvent"]["id"],
+                "remoteId": "social-remote-1",
+                "channelHandle": "social-feed",
+                "utmCampaign": "social-campaign",
+                "utmSource": "social",
+                "utmMedium": "paid"
+            }
+        })
+    );
+    assert_ne!(
+        created["marketingEvent"]["id"],
+        json!(assumed_event_id),
+        "marketing event ids must be allocated independently from activity ids"
+    );
+}
+
+#[test]
 fn marketing_engagement_currency_validation_matches_shopify_error_codes() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
@@ -644,24 +723,24 @@ fn marketing_engagement_currency_validation_matches_shopify_error_codes() {
 }
 
 #[test]
-fn marketing_channel_handle_errors_match_live_capture() {
+fn marketing_channel_handles_accept_non_empty_values() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
         r#"
-        mutation MarketingChannelHandleMessages(
+        mutation MarketingChannelHandleAcceptance(
           $createInput: MarketingActivityCreateExternalInput!
           $upsertInput: MarketingActivityUpsertExternalInput!
           $engagement: MarketingEngagementInput!
         ) {
-          invalidEngagement: marketingEngagementCreate(channelHandle: "not-a-real-channel", marketingEngagement: $engagement) {
+          customEngagement: marketingEngagementCreate(channelHandle: "not-a-real-channel", marketingEngagement: $engagement) {
             marketingEngagement { occurredOn }
             userErrors { field message code }
           }
-          invalidCreate: marketingActivityCreateExternal(input: $createInput) {
+          customCreate: marketingActivityCreateExternal(input: $createInput) {
             marketingActivity { id }
             userErrors { field message code }
           }
-          invalidUpsert: marketingActivityUpsertExternal(input: $upsertInput) {
+          customUpsert: marketingActivityUpsertExternal(input: $upsertInput) {
             marketingActivity { id }
             userErrors { field message code }
           }
@@ -675,28 +754,26 @@ fn marketing_channel_handle_errors_match_live_capture() {
     ));
 
     assert_eq!(
-        response.body["data"]["invalidEngagement"],
-        json!({"marketingEngagement": null, "userErrors": [{
-            "field": ["channelHandle"],
-            "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
-            "code": "INVALID_CHANNEL_HANDLE"
-        }]})
+        response.body["data"]["customEngagement"],
+        json!({"marketingEngagement": {"occurredOn": "2026-04-01"}, "userErrors": []})
     );
     assert_eq!(
-        response.body["data"]["invalidCreate"],
-        json!({"marketingActivity": null, "userErrors": [{
-            "field": ["input"],
-            "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
-            "code": "INVALID_CHANNEL_HANDLE"
-        }]})
+        response.body["data"]["customCreate"]["userErrors"],
+        json!([])
     );
     assert_eq!(
-        response.body["data"]["invalidUpsert"],
-        json!({"marketingActivity": null, "userErrors": [{
-            "field": ["input"],
-            "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
-            "code": "INVALID_CHANNEL_HANDLE"
-        }]})
+        response.body["data"]["customUpsert"]["userErrors"],
+        json!([])
+    );
+    assert!(
+        response.body["data"]["customCreate"]["marketingActivity"]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("gid://shopify/MarketingActivity/"))
+    );
+    assert!(
+        response.body["data"]["customUpsert"]["marketingActivity"]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("gid://shopify/MarketingActivity/"))
     );
 }
 
@@ -1078,7 +1155,7 @@ fn marketing_engagements_delete_validates_selectors_and_channel_handles() {
     );
     assert_eq!(
         response.body["data"]["unknownChannel"],
-        json!({"result": null, "userErrors": [{"field": ["channelHandle"], "message": "The channel handle is not recognized. Please contact your partner manager for more information.", "code": "INVALID_CHANNEL_HANDLE"}]})
+        json!({"result": "Engagement data associated to channel handle 'unknown-channel' marked for deletion", "userErrors": []})
     );
     assert_eq!(
         response.body["data"]["singleChannel"],
@@ -1107,7 +1184,7 @@ fn marketing_engagements_delete_validates_selectors_and_channel_handles() {
     let unowned_delete = proxy.process_request(unowned_delete);
     assert_eq!(
         unowned_delete.body["data"]["unownedChannel"],
-        json!({"result": null, "userErrors": [{"field": ["channelHandle"], "message": "The channel handle is not recognized. Please contact your partner manager for more information.", "code": "INVALID_CHANNEL_HANDLE"}]})
+        json!({"result": "Engagement data associated to channel handle 'email' marked for deletion", "userErrors": []})
     );
 }
 
@@ -1363,7 +1440,9 @@ fn marketing_activity_delete_external_enforces_resolution_external_and_child_gua
 
 #[test]
 fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = inventory_seed_proxy();
+    let shop_location_id = add_inventory_test_location(&mut proxy, "Shop location");
+    let custom_location_id = add_inventory_test_location(&mut proxy, "My Custom Location");
 
     let empty = proxy.process_request(json_graphql_request(
         r#"
@@ -1389,8 +1468,6 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
         json!({"name": "available", "displayName": "Available", "isInUse": true, "belongsTo": ["on_hand"], "comprises": []})
     );
 
-    let location_id = "gid://shopify/Location/106318430514";
-    let second_location_id = "gid://shopify/Location/106318463282";
     let setup = proxy.process_request(json_graphql_request(
         r#"
         mutation InventoryQuantityRootSetup($input: ProductSetInput!, $synchronous: Boolean!) {
@@ -1419,8 +1496,8 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
                     "optionValues": [{ "optionName": "Title", "name": "Default Title" }],
                     "inventoryItem": { "tracked": true, "requiresShipping": true },
                     "inventoryQuantities": [
-                        { "locationId": location_id, "name": "available", "quantity": 0 },
-                        { "locationId": second_location_id, "name": "available", "quantity": 0 }
+                        { "locationId": shop_location_id, "name": "available", "quantity": 0 },
+                        { "locationId": custom_location_id, "name": "available", "quantity": 0 }
                     ]
                 }]
             }
@@ -1447,8 +1524,8 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
         }
         "#,
         json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://har-305/set/1777251367654", "ignoreCompareQuantity": true, "quantities": [
-            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 7},
-            {"inventoryItemId": inventory_item_id, "locationId": second_location_id, "quantity": 2}
+            {"inventoryItemId": inventory_item_id, "locationId": shop_location_id, "quantity": 7},
+            {"inventoryItemId": inventory_item_id, "locationId": custom_location_id, "quantity": 2}
         ]}}),
     ));
     assert_eq!(
@@ -1457,7 +1534,7 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
     );
     assert_eq!(
         set.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["changes"][0],
-        json!({"name": "available", "delta": 7, "quantityAfterChange": null, "ledgerDocumentUri": null, "location": {"id": location_id, "name": "Shop location"}})
+        json!({"name": "available", "delta": 7, "quantityAfterChange": null, "ledgerDocumentUri": null, "location": {"id": shop_location_id, "name": "Shop location"}})
     );
     assert_eq!(
         set.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["changes"][2]
@@ -1516,7 +1593,7 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
           }
         }
         "#,
-        json!({"input": {"reason": "correction", "referenceDocumentUri": "logistics://har-305/move/1777251367654", "changes": [{"inventoryItemId": inventory_item_id, "quantity": 3, "from": {"locationId": location_id, "name": "available"}, "to": {"locationId": location_id, "name": "damaged", "ledgerDocumentUri": "ledger://har-305/move/to/1777251367654"}}]}}),
+        json!({"input": {"reason": "correction", "referenceDocumentUri": "logistics://har-305/move/1777251367654", "changes": [{"inventoryItemId": inventory_item_id, "quantity": 3, "from": {"locationId": shop_location_id, "name": "available"}, "to": {"locationId": shop_location_id, "name": "damaged", "ledgerDocumentUri": "ledger://har-305/move/to/1777251367654"}}]}}),
     ));
     assert_eq!(
         move_response.body["data"]["inventoryMoveQuantities"]["userErrors"],
@@ -1606,7 +1683,7 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
           }
         }
         "#,
-        json!({"idempotencyKey": "inventory-set-missing-change-from", "input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://har-305/set/blocked", "quantities": [{"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 7}]}}),
+        json!({"idempotencyKey": "inventory-set-missing-change-from", "input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://har-305/set/blocked", "quantities": [{"inventoryItemId": inventory_item_id, "locationId": shop_location_id, "quantity": 7}]}}),
     ));
     assert_eq!(
         blocked_set.body["errors"][0]["message"],
@@ -1621,7 +1698,7 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
         r#"
         mutation InventoryQuantityMove($input: InventoryMoveQuantitiesInput!) { inventoryMoveQuantities(input: $input) { userErrors { field message } } }
         "#,
-        json!({"input": {"reason": "correction", "referenceDocumentUri": "logistics://har-305/move/blocked", "changes": [{"inventoryItemId": inventory_item_id, "quantity": 1, "from": {"locationId": location_id, "name": "available"}, "to": {"locationId": second_location_id, "name": "damaged", "ledgerDocumentUri": "ledger://har-305/move/blocked"}}]}}),
+        json!({"input": {"reason": "correction", "referenceDocumentUri": "logistics://har-305/move/blocked", "changes": [{"inventoryItemId": inventory_item_id, "quantity": 1, "from": {"locationId": shop_location_id, "name": "available"}, "to": {"locationId": custom_location_id, "name": "damaged", "ledgerDocumentUri": "ledger://har-305/move/blocked"}}]}}),
     ));
     assert_eq!(
         blocked_move.body["data"]["inventoryMoveQuantities"]["userErrors"],
@@ -1630,16 +1707,202 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
 }
 
 #[test]
-fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![inventory_activation_base_product()]);
-    let variant = create_legacy_variant(
-        &mut proxy,
-        "gid://shopify/Product/1",
-        "ADJUST-STAGED",
-        "10.00",
+fn inventory_quantity_mutations_reject_non_sentinel_unknown_ids() {
+    let mut proxy = inventory_seed_proxy();
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "STRICT-EXISTENCE");
+    let location_id = add_inventory_test_location(&mut proxy, "Strict existence location");
+    let unknown_item_id = "gid://shopify/InventoryItem/not-created-for-strict-check";
+    let unknown_location_id = "gid://shopify/Location/not-created-for-strict-check";
+
+    let unknown_item = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownInventoryItem($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "strict-unknown-item", "input": {"name": "available", "reason": "correction", "quantities": [
+            {"inventoryItemId": unknown_item_id, "locationId": location_id, "quantity": 3, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        unknown_item.body["data"]["inventorySetQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "quantities", "0", "inventoryItemId"],
+                "message": "The specified inventory item could not be found.",
+                "code": "INVALID_INVENTORY_ITEM"
+            }]
+        })
     );
-    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
-    let location_id = add_active_transfer_location(&mut proxy, "Source location");
+
+    let unknown_location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownInventoryLocation($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "strict-unknown-location", "input": {"name": "available", "reason": "correction", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": unknown_location_id, "quantity": 3, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        unknown_location.body["data"]["inventorySetQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "quantities", "0", "locationId"],
+                "message": "The specified location could not be found.",
+                "code": "INVALID_LOCATION"
+            }]
+        })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|entry| entry["interpreted"]["operationName"] == json!("inventorySetQuantities"))
+            .count(),
+        0
+    );
+}
+
+#[test]
+fn inventory_items_connection_lists_staged_inventory_item() {
+    let mut proxy = inventory_seed_proxy();
+    let (_variant_id, inventory_item_id) = create_inventory_test_item(&mut proxy, "LIST-STAGED");
+    let location_id = add_inventory_test_location(&mut proxy, "Connection Stockroom");
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedInventoryConnection($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "inventory-items-connection", "input": {"name": "available", "reason": "correction", "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 6, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryItemsConnection($query: String!) {
+          inventoryItems(first: 10, query: $query) {
+            nodes {
+              id
+              tracked
+              inventoryLevels(first: 5) {
+                nodes {
+                  location { id name }
+                  quantities(names: ["available", "on_hand"]) { name quantity }
+                }
+              }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"query": "tracked:true"}),
+    ));
+    assert_eq!(
+        read.body["data"]["inventoryItems"]["nodes"][0]["id"],
+        json!(inventory_item_id)
+    );
+    assert_eq!(
+        read.body["data"]["inventoryItems"]["nodes"][0]["inventoryLevels"]["nodes"][0]["location"],
+        json!({"id": location_id, "name": "Connection Stockroom"})
+    );
+    assert_eq!(
+        read.body["data"]["inventoryItems"]["nodes"][0]["inventoryLevels"]["nodes"][0]
+            ["quantities"],
+        json!([
+            {"name": "available", "quantity": 6},
+            {"name": "on_hand", "quantity": 6}
+        ])
+    );
+}
+
+#[test]
+fn order_create_inventory_decrement_uses_staged_default_location() {
+    let mut proxy = inventory_seed_proxy();
+    let (variant_id, inventory_item_id) = create_inventory_test_item(&mut proxy, "DEFAULT-LOC");
+    let location_id = add_inventory_test_location(&mut proxy, "Primary Fulfillment");
+
+    let order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrderCreateInventoryDefaultLocation($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+          orderCreate(order: $order, options: $options) {
+            order { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "inventory-default-location@example.com",
+                "currency": "USD",
+                "lineItems": [{
+                    "variantId": variant_id,
+                    "quantity": 2,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            },
+            "options": {
+                "sendReceipt": false,
+                "sendFulfillmentReceipt": false
+            }
+        }),
+    ));
+    assert_eq!(order.body["data"]["orderCreate"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryAfterDefaultLocation($id: ID!) {
+          inventoryItem(id: $id) {
+            inventoryLevels(first: 5) {
+              nodes {
+                location { id name }
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": inventory_item_id}),
+    ));
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["location"],
+        json!({"id": location_id, "name": "Primary Fulfillment"})
+    );
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"],
+        json!([
+            {"name": "available", "quantity": -2},
+            {"name": "on_hand", "quantity": 0}
+        ])
+    );
+}
+
+#[test]
+fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field() {
+    let mut proxy = inventory_seed_proxy();
+    let (_variant_id, inventory_item_id) = create_inventory_test_item(&mut proxy, "ADJUST-ROOT");
+    let location_id = add_inventory_test_location(&mut proxy, "Source location");
 
     let adjust = proxy.process_request(json_graphql_request(
         r#"
@@ -1759,16 +2022,9 @@ fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field()
 
 #[test]
 fn inventory_adjust_quantities_all_zero_delta_is_unlogged_noop() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![inventory_activation_base_product()]);
-    let variant = create_legacy_variant(
-        &mut proxy,
-        "gid://shopify/Product/1",
-        "ADJUST-ZERO",
-        "10.00",
-    );
-    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
-    let location_id = add_active_transfer_location(&mut proxy, "Source location");
-    let setup_log_count = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    let mut proxy = inventory_seed_proxy();
+    let (_variant_id, inventory_item_id) = create_inventory_test_item(&mut proxy, "ZERO-DELTA");
+    let location_id = add_inventory_test_location(&mut proxy, "Zero delta location");
 
     let adjust = proxy.process_request(json_graphql_request(
         r#"
@@ -1795,37 +2051,17 @@ fn inventory_adjust_quantities_all_zero_delta_is_unlogged_noop() {
             "userErrors": []
         })
     );
-    assert_eq!(
-        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
-        setup_log_count
-    );
+    assert_no_inventory_quantity_logs(&proxy);
     assert!(state_snapshot(&proxy)["stagedState"]["inventoryLevels"].is_null());
 }
 
 #[test]
 fn inventory_adjust_quantities_mixed_zero_and_nonzero_delta_stages_nonzero_change() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![inventory_activation_base_product()]);
-    let zero_variant = create_legacy_variant(
-        &mut proxy,
-        "gid://shopify/Product/1",
-        "ADJUST-MIXED-ZERO",
-        "10.00",
-    );
-    let nonzero_variant = create_legacy_variant(
-        &mut proxy,
-        "gid://shopify/Product/1",
-        "ADJUST-MIXED-NONZERO",
-        "10.00",
-    );
-    let zero_item_id = zero_variant["inventoryItem"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    let nonzero_item_id = nonzero_variant["inventoryItem"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    let location_id = add_active_transfer_location(&mut proxy, "Source location");
+    let mut proxy = inventory_seed_proxy();
+    let (_zero_variant_id, zero_item_id) = create_inventory_test_item(&mut proxy, "MIXED-ZERO");
+    let (_nonzero_variant_id, nonzero_item_id) =
+        create_inventory_test_item(&mut proxy, "MIXED-NONZERO");
+    let location_id = add_inventory_test_location(&mut proxy, "Mixed delta location");
 
     let adjust = proxy.process_request(json_graphql_request(
         r#"
@@ -1889,10 +2125,13 @@ fn inventory_adjust_quantities_mixed_zero_and_nonzero_delta_stages_nonzero_chang
     );
 
     let log = log_snapshot(&proxy);
-    assert!(log["entries"].as_array().unwrap().iter().any(|entry| {
-        entry["status"] == json!("staged")
-            && entry["interpreted"]["operationName"] == json!("inventoryAdjustQuantities")
-    }));
+    let adjust_log = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["interpreted"]["operationName"] == json!("inventoryAdjustQuantities"))
+        .expect("inventoryAdjustQuantities should be logged");
+    assert_eq!(adjust_log["status"], json!("staged"));
 }
 
 #[test]
@@ -2208,10 +2447,9 @@ fn inventory_adjust_quantities_mirrors_on_hand_for_captured_non_available_names(
 
 #[test]
 fn inventory_quantity_mutations_reject_unknown_inventory_item_without_staging() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = inventory_seed_proxy();
     let unknown_inventory_item_id = "gid://shopify/InventoryItem/999999999999";
-    let location_id = add_active_transfer_location(&mut proxy, "Known unknown-item test location");
-    let setup_log_count = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    let location_id = add_inventory_test_location(&mut proxy, "Known location");
 
     let set = proxy.process_request(json_graphql_request(
         r#"
@@ -2300,206 +2538,14 @@ fn inventory_quantity_mutations_reject_unknown_inventory_item_without_staging() 
         json!({"id": unknown_inventory_item_id}),
     ));
     assert_eq!(read.body["data"]["inventoryItem"], Value::Null);
-    assert_eq!(
-        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
-        setup_log_count
-    );
-}
-
-#[test]
-fn inventory_quantity_mutations_reject_well_formed_unbacked_ids_without_staging() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![inventory_activation_base_product()]);
-    let known_location_id = add_active_transfer_location(&mut proxy, "Known inventory location");
-    let known_variant = create_legacy_variant(
-        &mut proxy,
-        "gid://shopify/Product/1",
-        "KNOWN-INVENTORY-ITEM",
-        "10.00",
-    );
-    let known_inventory_item_id = known_variant["inventoryItem"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    let setup_log_count = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
-    let unknown_inventory_item_id = "gid://shopify/InventoryItem/unbacked-item";
-    let unknown_location_id = "gid://shopify/Location/unbacked-location";
-
-    let unknown_item = proxy.process_request(json_graphql_request(
-        r#"
-        mutation UnknownWellFormedItem($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
-          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
-            inventoryAdjustmentGroup { id }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({"idempotencyKey": "unknown-well-formed-item", "input": {"name": "available", "reason": "correction", "quantities": [
-            {"inventoryItemId": unknown_inventory_item_id, "locationId": known_location_id, "quantity": 3, "changeFromQuantity": 0}
-        ]}}),
-    ));
-    assert_eq!(
-        unknown_item.body["data"]["inventorySetQuantities"],
-        json!({
-            "inventoryAdjustmentGroup": null,
-            "userErrors": [{
-                "field": ["input", "quantities", "0", "inventoryItemId"],
-                "message": "The specified inventory item could not be found.",
-                "code": "INVALID_INVENTORY_ITEM"
-            }]
-        })
-    );
-
-    let unknown_location = proxy.process_request(json_graphql_request(
-        r#"
-        mutation UnknownWellFormedLocation($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
-          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
-            inventoryAdjustmentGroup { id }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({"idempotencyKey": "unknown-well-formed-location", "input": {"name": "available", "reason": "correction", "quantities": [
-            {"inventoryItemId": known_inventory_item_id, "locationId": unknown_location_id, "quantity": 3, "changeFromQuantity": 0}
-        ]}}),
-    ));
-    assert_eq!(
-        unknown_location.body["data"]["inventorySetQuantities"],
-        json!({
-            "inventoryAdjustmentGroup": null,
-            "userErrors": [{
-                "field": ["input", "quantities", "0", "locationId"],
-                "message": "The specified location could not be found.",
-                "code": "INVALID_LOCATION"
-            }]
-        })
-    );
-
-    assert_eq!(
-        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
-        setup_log_count
-    );
-}
-
-#[test]
-fn inventory_quantity_mutations_accept_state_backed_sentinel_like_ids() {
-    use shopify_draft_proxy::proxy::UnsupportedMutationMode;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    let inventory_item_id = "gid://shopify/InventoryItem/999999999999";
-    let location_id = "gid://shopify/Location/999999999999";
-    let calls = Arc::new(AtomicUsize::new(0));
-    let mut proxy = configured_proxy(
-        ReadMode::LiveHybrid,
-        Some(UnsupportedMutationMode::Passthrough),
-    )
-    .with_upstream_transport({
-        let calls = calls.clone();
-        let inventory_item_id = inventory_item_id.to_string();
-        let location_id = location_id.to_string();
-        move |_request| {
-            calls.fetch_add(1, Ordering::SeqCst);
-            Response {
-                status: 200,
-                headers: Default::default(),
-                body: json!({
-                    "data": {
-                        "nodes": [
-                            {
-                                "__typename": "InventoryItem",
-                                "id": inventory_item_id,
-                                "tracked": true,
-                                "requiresShipping": true,
-                                "variant": {
-                                    "id": "gid://shopify/ProductVariant/state-backed-sentinel",
-                                    "title": "State-backed sentinel",
-                                    "sku": "STATE-BACKED-SENTINEL",
-                                    "price": "10.00",
-                                    "inventoryQuantity": 0,
-                                    "selectedOptions": [],
-                                    "product": {
-                                        "id": "gid://shopify/Product/state-backed-sentinel",
-                                        "title": "State-backed sentinel product",
-                                        "handle": "state-backed-sentinel-product",
-                                        "status": "ACTIVE",
-                                        "totalInventory": 0,
-                                        "tracksInventory": true
-                                    }
-                                },
-                                "inventoryLevels": {
-                                    "nodes": [{
-                                        "id": inventory_level_id_for_test(&inventory_item_id, &location_id),
-                                        "location": {
-                                            "__typename": "Location",
-                                            "id": location_id,
-                                            "name": "State-backed sentinel location",
-                                            "isActive": true
-                                        },
-                                        "quantities": [
-                                            { "name": "available", "quantity": 0, "updatedAt": null },
-                                            { "name": "on_hand", "quantity": 0, "updatedAt": null }
-                                        ]
-                                    }]
-                                }
-                            },
-                            {
-                                "__typename": "Location",
-                                "id": location_id,
-                                "name": "State-backed sentinel location",
-                                "isActive": true
-                            }
-                        ]
-                    }
-                }),
-            }
-        }
-    });
-
-    let set = proxy.process_request(json_graphql_request(
-        r#"
-        mutation StateBackedSentinelSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
-          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
-            inventoryAdjustmentGroup { changes { name delta location { id name } } }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({"idempotencyKey": "state-backed-sentinel-set", "input": {"name": "available", "reason": "correction", "quantities": [
-            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 6, "changeFromQuantity": 0}
-        ]}}),
-    ));
-
-    assert_eq!(
-        set.body["data"]["inventorySetQuantities"]["userErrors"],
-        json!([])
-    );
-    assert_eq!(
-        set.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["changes"][0],
-        json!({
-            "name": "available",
-            "delta": 6,
-            "location": {
-                "id": location_id,
-                "name": "State-backed sentinel location"
-            }
-        })
-    );
-    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert_no_inventory_quantity_logs(&proxy);
 }
 
 #[test]
 fn inventory_quantity_mutations_reject_unknown_location_without_staging() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![inventory_activation_base_product()]);
-    let known_variant = create_legacy_variant(
-        &mut proxy,
-        "gid://shopify/Product/1",
-        "KNOWN-LOCATION-TEST-ITEM",
-        "10.00",
-    );
-    let inventory_item_id = known_variant["inventoryItem"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    let setup_log_count = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    let mut proxy = inventory_seed_proxy();
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "UNKNOWN-LOCATION");
     let unknown_location_id = "gid://shopify/Location/999999999999";
 
     let set = proxy.process_request(json_graphql_request(
@@ -2604,10 +2650,7 @@ fn inventory_quantity_mutations_reject_unknown_location_without_staging() {
     assert!(!levels
         .iter()
         .any(|level| level["location"]["id"] == json!(unknown_location_id)));
-    assert_eq!(
-        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
-        setup_log_count
-    );
+    assert_no_inventory_quantity_logs(&proxy);
 }
 
 #[test]
@@ -2641,7 +2684,7 @@ fn inventory_set_on_hand_quantities_stages_locally_logs_and_reads_back() {
     );
     let variant_id = variant["id"].as_str().unwrap().to_string();
     let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
-    let location_id = add_active_transfer_location(&mut proxy, "Source location");
+    let location_id = add_inventory_test_location(&mut proxy, "Source location");
     calls.store(0, Ordering::SeqCst);
 
     let seed = proxy.process_request(json_graphql_request(
@@ -2827,16 +2870,10 @@ fn inventory_set_on_hand_quantities_stages_locally_logs_and_reads_back() {
 
 #[test]
 fn inventory_set_on_hand_quantities_validation_errors_are_local() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![inventory_activation_base_product()]);
-    let variant = create_legacy_variant(
-        &mut proxy,
-        "gid://shopify/Product/1",
-        "SET-ON-HAND-VALIDATION",
-        "10.00",
-    );
-    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
-    let location_id = add_active_transfer_location(&mut proxy, "Source location");
-    let setup_log_count = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    let mut proxy = inventory_seed_proxy();
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "SET-ON-HAND-VALIDATION");
+    let location_id = add_inventory_test_location(&mut proxy, "Source location");
 
     let missing_idempotent = proxy.process_request(json_graphql_request(
         r#"
@@ -3007,10 +3044,7 @@ fn inventory_set_on_hand_quantities_validation_errors_are_local() {
         invalid_reason.body["data"]["inventorySetOnHandQuantities"]["userErrors"][0]["code"],
         json!("INVALID_REASON")
     );
-    assert_eq!(
-        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
-        setup_log_count
-    );
+    assert_no_inventory_quantity_logs(&proxy);
 }
 
 #[test]
@@ -3024,7 +3058,7 @@ fn inventory_adjust_quantities_leaves_product_total_inventory_lazy() {
     );
     let variant_id = variant["id"].as_str().unwrap().to_string();
     let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
-    let location_id = add_active_transfer_location(&mut proxy, "Source location");
+    let location_id = add_inventory_test_location(&mut proxy, "Adjust lazy location");
 
     let seed = proxy.process_request(json_graphql_request(
         r#"
@@ -3108,6 +3142,40 @@ fn inventory_activation_base_product() -> ProductRecord {
     }
 }
 
+fn inventory_seed_proxy() -> DraftProxy {
+    snapshot_proxy().with_base_products(vec![inventory_activation_base_product()])
+}
+
+fn create_inventory_test_item(proxy: &mut DraftProxy, sku: &str) -> (String, String) {
+    let variant = create_legacy_variant(proxy, "gid://shopify/Product/1", sku, "10.00");
+    (
+        variant["id"].as_str().unwrap().to_string(),
+        variant["inventoryItem"]["id"].as_str().unwrap().to_string(),
+    )
+}
+
+fn add_inventory_test_location(proxy: &mut DraftProxy, name: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddInventoryLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id name isActive }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "name": name, "address": { "countryCode": "US" } } }),
+    ));
+    assert_eq!(
+        response.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
 fn inventory_level_id_for_test(inventory_item_id: &str, location_id: &str) -> String {
     let item_tail = inventory_item_id
         .rsplit('/')
@@ -3126,6 +3194,26 @@ fn inventory_level_id_for_test(inventory_item_id: &str, location_id: &str) -> St
     format!(
         "gid://shopify/InventoryLevel/{item_tail}-{location_tail}?inventory_item_id={inventory_item_id}"
     )
+}
+
+fn assert_no_inventory_quantity_logs(proxy: &DraftProxy) {
+    let blocked_roots = [
+        "inventorySetQuantities",
+        "inventoryAdjustQuantities",
+        "inventoryMoveQuantities",
+        "inventorySetOnHandQuantities",
+    ];
+    let entries = log_snapshot(proxy);
+    let logged = entries["entries"].as_array().unwrap();
+    assert!(
+        logged.iter().all(|entry| {
+            entry["interpreted"]["operationName"]
+                .as_str()
+                .map(|name| !blocked_roots.contains(&name))
+                .unwrap_or(true)
+        }),
+        "rejected inventory quantity mutation should not be logged: {logged:?}"
+    );
 }
 
 #[test]
@@ -3159,8 +3247,8 @@ fn inventory_activation_roots_stage_locally_and_read_inactive_levels() {
     );
     let variant_id = variant["id"].as_str().unwrap().to_string();
     let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
-    let source_location_id = add_active_transfer_location(&mut proxy, "Source location");
-    let second_location_id = add_active_transfer_location(&mut proxy, "Destination location");
+    let source_location_id = add_inventory_test_location(&mut proxy, "Source location");
+    let second_location_id = add_inventory_test_location(&mut proxy, "Destination location");
     let source_level_id = inventory_level_id_for_test(&inventory_item_id, &source_location_id);
     calls.store(0, Ordering::SeqCst);
 
@@ -3422,10 +3510,9 @@ fn inventory_activate_on_hand_seeds_and_validates_locally() {
         "10.00",
     );
     let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
-    let on_hand_location_id = add_active_transfer_location(&mut proxy, "On hand location");
-    let conflict_location_id = add_active_transfer_location(&mut proxy, "Shop location");
-    let out_of_range_location_id =
-        add_active_transfer_location(&mut proxy, "Out of range location");
+    let on_hand_location_id = add_inventory_test_location(&mut proxy, "On hand location");
+    let conflict_location_id = add_inventory_test_location(&mut proxy, "Shop location");
+    let out_of_range_location_id = add_inventory_test_location(&mut proxy, "Overflow location");
     let on_hand_level_id = inventory_level_id_for_test(&inventory_item_id, &on_hand_location_id);
     let conflict_level_id = inventory_level_id_for_test(&inventory_item_id, &conflict_location_id);
     calls.store(0, Ordering::SeqCst);
@@ -3566,7 +3653,7 @@ fn inventory_activate_on_hand_seeds_and_validates_locally() {
             "inventoryLevel": null,
             "userErrors": [{
                 "field": ["onHand"],
-                "message": "The product couldn't be stocked at Out of range location because the quantity needs to be between -1 billion and 1 billion."
+                "message": "The product couldn't be stocked at Overflow location because the quantity needs to be between -1 billion and 1 billion."
             }]
         })
     );
@@ -3583,7 +3670,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         "10.00",
     );
     let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
-    let location_id = add_active_transfer_location(&mut proxy, "Source location");
+    let location_id = add_inventory_test_location(&mut proxy, "Source location");
     let level_id = inventory_level_id_for_test(&inventory_item_id, &location_id);
 
     let seed = proxy.process_request(json_graphql_request(
@@ -4067,7 +4154,7 @@ fn inventory_quantity_name_validation_rejects_invalid_names_without_staging() {
 
 #[test]
 fn inventory_adjust_quantities_ledger_document_validation_rejects_without_staging() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![inventory_activation_base_product()]);
+    let mut proxy = inventory_seed_proxy();
     let mutation = r#"
         mutation LedgerDocumentAdjust($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
           inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
@@ -4161,16 +4248,9 @@ fn inventory_adjust_quantities_ledger_document_validation_rejects_without_stagin
     assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
     assert!(state_snapshot(&proxy)["stagedState"]["inventoryLevels"].is_null());
 
-    let variant = create_legacy_variant(
-        &mut proxy,
-        "gid://shopify/Product/1",
-        "LEDGER-VALID",
-        "10.00",
-    );
-    let valid_inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
-    let valid_location_id = add_active_transfer_location(&mut proxy, "Ledger location");
-    let setup_log_count = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
-
+    let (_variant_id, valid_inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "LEDGER-VALID");
+    let valid_location_id = add_inventory_test_location(&mut proxy, "Ledger valid location");
     let valid_non_available = proxy.process_request(json_graphql_request(
         mutation,
         json!({"idempotencyKey": "ledger-valid-non-available", "input": {"name": "incoming", "reason": "received", "changes": [
@@ -4189,9 +4269,12 @@ fn inventory_adjust_quantities_ledger_document_validation_rejects_without_stagin
         json!(5)
     );
     let log = log_snapshot(&proxy);
-    let log_entries = log["entries"].as_array().unwrap();
-    assert_eq!(log_entries.len(), setup_log_count + 1);
-    let adjust_log = log_entries.last().unwrap();
+    let adjust_log = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["interpreted"]["operationName"] == json!("inventoryAdjustQuantities"))
+        .expect("inventoryAdjustQuantities should be logged");
     assert_eq!(adjust_log["status"], json!("staged"));
     assert!(adjust_log["rawBody"]
         .as_str()
@@ -4201,9 +4284,9 @@ fn inventory_adjust_quantities_ledger_document_validation_rejects_without_stagin
 
 #[test]
 fn inventory_set_quantities_rejects_bounds_before_staging_and_allows_available_negative() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![inventory_activation_base_product()]);
-    let invalid_inventory_item_id = "gid://shopify/InventoryItem/53204673823026";
-    let invalid_location_id = "gid://shopify/Location/106318430514";
+    let mut proxy = inventory_seed_proxy();
+    let (_variant_id, inventory_item_id) = create_inventory_test_item(&mut proxy, "BOUNDS");
+    let location_id = add_inventory_test_location(&mut proxy, "Bounds location");
     let mutation = r#"
         mutation InventorySetQuantitiesBounds($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
           inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
@@ -4216,7 +4299,7 @@ fn inventory_set_quantities_rejects_bounds_before_staging_and_allows_available_n
     let on_hand_negative = proxy.process_request(json_graphql_request(
         mutation,
         json!({"idempotencyKey": "set-on-hand-negative-bound", "input": {"name": "on_hand", "reason": "correction", "referenceDocumentUri": "logistics://inventory/bounds/on-hand-negative", "quantities": [
-            {"inventoryItemId": invalid_inventory_item_id, "locationId": invalid_location_id, "quantity": -5, "changeFromQuantity": 0}
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": -5, "changeFromQuantity": 0}
         ]}}),
     ));
     assert_eq!(
@@ -4234,7 +4317,7 @@ fn inventory_set_quantities_rejects_bounds_before_staging_and_allows_available_n
     let on_hand_too_low = proxy.process_request(json_graphql_request(
         mutation,
         json!({"idempotencyKey": "set-on-hand-too-low-bound", "input": {"name": "on_hand", "reason": "correction", "referenceDocumentUri": "logistics://inventory/bounds/on-hand-too-low", "quantities": [
-            {"inventoryItemId": invalid_inventory_item_id, "locationId": invalid_location_id, "quantity": -2000000000, "changeFromQuantity": 0}
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": -2000000000, "changeFromQuantity": 0}
         ]}}),
     ));
     assert_eq!(
@@ -4252,7 +4335,7 @@ fn inventory_set_quantities_rejects_bounds_before_staging_and_allows_available_n
     let available_too_low = proxy.process_request(json_graphql_request(
         mutation,
         json!({"idempotencyKey": "set-available-too-low-bound", "input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/bounds/available-too-low", "quantities": [
-            {"inventoryItemId": invalid_inventory_item_id, "locationId": invalid_location_id, "quantity": -2000000000, "changeFromQuantity": 0}
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": -2000000000, "changeFromQuantity": 0}
         ]}}),
     ));
     assert_eq!(
@@ -4270,13 +4353,7 @@ fn inventory_set_quantities_rejects_bounds_before_staging_and_allows_available_n
         state_snapshot(&proxy)["stagedState"]["inventoryLevels"],
         Value::Null
     );
-    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
-
-    let variant =
-        create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "SET-BOUNDS", "10.00");
-    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
-    let location_id = add_active_transfer_location(&mut proxy, "Bounds location");
-    let setup_log_count = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    assert_no_inventory_quantity_logs(&proxy);
 
     let available_negative = proxy.process_request(json_graphql_request(
         mutation,
@@ -4302,11 +4379,15 @@ fn inventory_set_quantities_rejects_bounds_before_staging_and_allows_available_n
         json!(-5)
     );
     let log = log_snapshot(&proxy);
-    let log_entries = log["entries"].as_array().unwrap();
-    assert_eq!(log_entries.len(), setup_log_count + 1);
-    let set_log = log_entries.last().unwrap();
-    assert_eq!(set_log["status"], json!("staged"));
-    assert!(set_log["rawBody"]
+    let quantity_logs: Vec<_> = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|entry| entry["interpreted"]["operationName"] == json!("inventorySetQuantities"))
+        .collect();
+    assert_eq!(quantity_logs.len(), 1);
+    assert_eq!(quantity_logs[0]["status"], json!("staged"));
+    assert!(quantity_logs[0]["rawBody"]
         .as_str()
         .unwrap()
         .contains("\"quantity\":-5"));
@@ -4343,16 +4424,12 @@ fn inventory_quantity_2026_missing_change_from_returns_graphql_error_without_sta
 
 #[test]
 fn order_create_decrements_inventory_when_inventory_behaviour_is_not_bypass() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![inventory_activation_base_product()]);
-    let variant = create_legacy_variant(
-        &mut proxy,
-        "gid://shopify/Product/1",
-        "ORDER-DECREMENT",
-        "10.00",
-    );
-    let variant_id = variant["id"].as_str().unwrap().to_string();
-    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
-    let location_id = add_active_transfer_location(&mut proxy, "Source location");
+    let mut proxy = inventory_seed_proxy();
+    let (decrement_variant_id, decrement_inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "ORDER-DECREMENT");
+    let (bypass_variant_id, bypass_inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "ORDER-BYPASS");
+    let location_id = add_inventory_test_location(&mut proxy, "Order location");
 
     let seed = proxy.process_request(json_graphql_request(
         r#"
@@ -4363,7 +4440,7 @@ fn order_create_decrements_inventory_when_inventory_behaviour_is_not_bypass() {
         }
         "#,
         json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/order-create-seed", "ignoreCompareQuantity": true, "quantities": [
-            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 5}
+            {"inventoryItemId": decrement_inventory_item_id, "locationId": location_id, "quantity": 5}
         ]}}),
     ));
     assert_eq!(
@@ -4394,7 +4471,7 @@ fn order_create_decrements_inventory_when_inventory_behaviour_is_not_bypass() {
                 "email": "inventory-decrement@example.com",
                 "currency": "USD",
                 "lineItems": [{
-                    "variantId": variant_id,
+                    "variantId": decrement_variant_id,
                     "quantity": 2,
                     "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
                 }]
@@ -4420,7 +4497,7 @@ fn order_create_decrements_inventory_when_inventory_behaviour_is_not_bypass() {
           }
         }
         "#,
-        json!({"id": inventory_item_id}),
+        json!({"id": decrement_inventory_item_id}),
     ));
     assert_eq!(
         read.body["data"]["inventoryItem"]["variant"]["inventoryQuantity"],
@@ -4430,7 +4507,7 @@ fn order_create_decrements_inventory_when_inventory_behaviour_is_not_bypass() {
         read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"],
         json!([
             {"name": "available", "quantity": 3},
-            {"name": "on_hand", "quantity": 3}
+            {"name": "on_hand", "quantity": 5}
         ])
     );
     let log = log_snapshot(&proxy);
@@ -4457,18 +4534,6 @@ fn order_create_decrements_inventory_when_inventory_behaviour_is_not_bypass() {
         order_log["stagedResourceIds"],
         json!(["gid://shopify/Order/1"])
     );
-
-    let bypass_variant = create_legacy_variant(
-        &mut proxy,
-        "gid://shopify/Product/1",
-        "ORDER-BYPASS",
-        "10.00",
-    );
-    let bypass_variant_id = bypass_variant["id"].as_str().unwrap().to_string();
-    let bypass_inventory_item_id = bypass_variant["inventoryItem"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
 
     let bypass_seed = proxy.process_request(json_graphql_request(
         r#"
@@ -4665,7 +4730,7 @@ fn transfer_log_roots(proxy: &DraftProxy) -> Vec<Value> {
 
 #[test]
 fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![inventory_activation_base_product()]);
+    let mut proxy = inventory_seed_proxy();
 
     // The transfer engine validates that both endpoints are real, active locations
     // and that the moved item is stocked at the origin, then computes the reservation
@@ -4674,13 +4739,8 @@ fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store()
     // capture-specific ids being treated as implicitly valid/stocked.
     let origin_id = add_active_transfer_location(&mut proxy, "Transfer Origin");
     let destination_id = add_active_transfer_location(&mut proxy, "Transfer Destination");
-    let variant = create_legacy_variant(
-        &mut proxy,
-        "gid://shopify/Product/1",
-        "TRANSFER-LIFECYCLE",
-        "10.00",
-    );
-    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "TRANSFER-LIFECYCLE");
     stock_transfer_item_at_origin(&mut proxy, &inventory_item_id, &origin_id, 5);
 
     let create_response = proxy.process_request(json_graphql_request(
@@ -4770,20 +4830,15 @@ fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store()
 
 #[test]
 fn inventory_transfer_create_and_set_items_validate_before_staging() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![inventory_activation_base_product()]);
+    let mut proxy = inventory_seed_proxy();
 
     // Seed two active locations and stock the moved item at the origin so the only
     // validation error in the same-location case below is the origin/destination
     // clash itself (not a "location not found" or "item not stocked" rejection).
     let origin_id = add_active_transfer_location(&mut proxy, "Validation Origin");
     let destination_id = add_active_transfer_location(&mut proxy, "Validation Destination");
-    let variant = create_legacy_variant(
-        &mut proxy,
-        "gid://shopify/Product/1",
-        "TRANSFER-VALIDATION",
-        "10.00",
-    );
-    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
+    let (_variant_id, inventory_item_id) =
+        create_inventory_test_item(&mut proxy, "TRANSFER-VALIDATION");
     stock_transfer_item_at_origin(&mut proxy, &inventory_item_id, &origin_id, 5);
 
     let create_validation = proxy.process_request(json_graphql_request(
@@ -6023,7 +6078,7 @@ fn online_store_storefront_access_token_edges_ported_from_gleam() {
                     {"handle": "unauthenticated_read_product_inventory"}
                 ]
             },
-            "shop": {"id": "gid://shopify/Shop/0"},
+            "shop": {},
             "userErrors": []
         })
     );
@@ -6076,7 +6131,7 @@ fn online_store_storefront_access_token_edges_ported_from_gleam() {
         blank.body["data"]["storefrontAccessTokenCreate"],
         json!({
             "storefrontAccessToken": null,
-            "shop": {"id": "gid://shopify/Shop/0"},
+            "shop": {},
             "userErrors": [{"code": "BLANK", "field": ["input", "title"], "message": "Title can't be blank"}]
         })
     );
@@ -7643,6 +7698,82 @@ fn metaobject_definition_field_key_validation_matches_shopify_length_and_case_ru
         uppercase_update.body["data"]["metaobjectDefinitionUpdate"]["metaobjectDefinition"]
             ["fieldDefinitions"][1]["key"],
         json!("Spec_2")
+    );
+}
+
+#[test]
+fn metaobject_definition_app_type_uses_request_api_client_id() {
+    let mut proxy = snapshot_proxy();
+    let create_definition = r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id type }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let definition_input = json!({
+        "definition": {
+            "type": "$app:settings_box",
+            "name": "App Settings Box",
+            "fieldDefinitions": [{
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field",
+                "required": false
+            }]
+        }
+    });
+
+    let mut create_request = json_graphql_request(create_definition, definition_input.clone());
+    create_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "999999999999".to_string(),
+    );
+    let create = proxy.process_request(create_request);
+    assert_eq!(
+        create.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    let created_definition =
+        &create.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"];
+    assert_eq!(
+        created_definition["type"],
+        json!("app--999999999999--settings_box")
+    );
+
+    let mut read_request = json_graphql_request(
+        r#"
+        query ReadDefinitionByType($type: String!) {
+          metaobjectDefinitionByType(type: $type) { id type }
+        }
+        "#,
+        json!({"type": "$app:settings_box"}),
+    );
+    read_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "999999999999".to_string(),
+    );
+    let read = proxy.process_request(read_request);
+    assert_eq!(
+        read.body["data"]["metaobjectDefinitionByType"]["type"],
+        json!("app--999999999999--settings_box")
+    );
+
+    let missing_identity =
+        proxy.process_request(json_graphql_request(create_definition, definition_input));
+    assert_eq!(
+        missing_identity.body["data"]["metaobjectDefinitionCreate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition", "type"],
+                "message": "API client identity is required to resolve or authorize app-reserved namespaces and types.",
+                "code": "NOT_AUTHORIZED",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
     );
 }
 

@@ -484,6 +484,13 @@ try {
   if (!productId) {
     throw new Error('Product media capture did not return a product id.');
   }
+  const initialProductHydrateResponse = await runGraphqlRequest(productsHydrateNodesObservationQuery, {
+    ids: [productId],
+  });
+  if (initialProductHydrateResponse.status < 200 || initialProductHydrateResponse.status >= 300) {
+    throw new Error(`Product media initial hydrate failed: ${JSON.stringify(initialProductHydrateResponse, null, 2)}`);
+  }
+  const initialHydratedProduct = initialProductHydrateResponse.payload?.data?.nodes?.[0] ?? null;
 
   const createMediaVariables = buildCreateMediaVariables(productId);
   const dualUserErrorsVariables = buildInvalidCreateMediaVariables(productId);
@@ -762,11 +769,35 @@ try {
       readyRead,
     },
     'product-update-media-parity.json': {
+      setup: {
+        createMedia: {
+          variables: createMediaVariables,
+          response: createMediaResponse,
+        },
+        readyRead,
+      },
       mutation: {
         variables: updateMediaVariables,
         response: updateMediaResponse,
       },
       downstreamRead: postUpdateRead,
+      upstreamCalls: [
+        {
+          operationName: 'ProductsHydrateNodes',
+          variables: {
+            ids: [productId],
+          },
+          query: productsHydrateNodesObservationQuery,
+          response: {
+            status: initialProductHydrateResponse.status,
+            body: {
+              data: {
+                nodes: [initialHydratedProduct],
+              },
+            },
+          },
+        },
+      ],
     },
     'product-delete-media-parity.json': {
       mutation: {

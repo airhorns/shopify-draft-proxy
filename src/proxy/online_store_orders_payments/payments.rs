@@ -1779,12 +1779,18 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn payment_customization_mutation_data(
         &mut self,
+        request: &Request,
         fields: &[RootFieldSelection],
     ) -> Value {
+        let api_client_id = request_app_namespace_api_client_id(request);
         root_payload_json(fields, |field| {
             Some(match field.name.as_str() {
-                "paymentCustomizationCreate" => self.payment_customization_create_payload(field),
-                "paymentCustomizationUpdate" => self.payment_customization_update_payload(field),
+                "paymentCustomizationCreate" => {
+                    self.payment_customization_create_payload(field, api_client_id.as_deref())
+                }
+                "paymentCustomizationUpdate" => {
+                    self.payment_customization_update_payload(field, api_client_id.as_deref())
+                }
                 "paymentCustomizationActivation" => {
                     self.payment_customization_activation_payload(field)
                 }
@@ -1797,6 +1803,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn payment_customization_create_payload(
         &mut self,
         field: &RootFieldSelection,
+        api_client_id: Option<&str>,
     ) -> Value {
         let input =
             resolved_object_field(&field.arguments, "paymentCustomization").unwrap_or_default();
@@ -1875,7 +1882,7 @@ impl DraftProxy {
 
         let id = shopify_gid("PaymentCustomization", self.next_synthetic_id);
         self.next_synthetic_id += 1;
-        let record = payment_customization_record(&id, &input);
+        let record = payment_customization_record(&id, &input, api_client_id);
         self.store
             .staged
             .payment_customizations
@@ -1886,6 +1893,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn payment_customization_update_payload(
         &mut self,
         field: &RootFieldSelection,
+        api_client_id: Option<&str>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input =
@@ -1965,7 +1973,7 @@ impl DraftProxy {
             updated["enabled"] = json!(enabled);
         }
         if input.contains_key("metafields") {
-            let metafields = payment_customization_metafields(&input);
+            let metafields = payment_customization_metafields(&input, api_client_id);
             payment_customization_set_metafields(&mut updated, metafields);
         }
         self.store
