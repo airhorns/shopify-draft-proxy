@@ -1,0 +1,27 @@
+{
+  "scenarioId": "draft-orders-status-query-read",
+  "operationNames": ["draftOrders", "draftOrdersCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "query-filter-parity", "count-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-orders-status-query-read.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrders-status-query-read.graphql",
+    "variablesPath": "config/parity-requests/orders/draftOrders-status-query-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify evidence for a valid draft-order search query. The proxy has no local staged draft orders for this cold read, so it forwards and replays the recorded upstream response; local runtime tests cover the staged-state query matcher for draftOrdersCount.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "status-query-draftOrders-and-count",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.response"
+      }
+    ]
+  }
+}

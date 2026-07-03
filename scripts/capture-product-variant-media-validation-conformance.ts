@@ -319,6 +319,18 @@ try {
   });
   assertUserErrors(detachTooManyMediaPerPair, 'productVariantDetachMedia', 'detach too many media ids per pair');
 
+  const appendEmptyMediaIds = await runStep('append empty media ids', appendDocument, {
+    productId: baseProductId,
+    variantMedia: [{ variantId: baseVariantId, mediaIds: [] }],
+  });
+  assertUserErrors(appendEmptyMediaIds, 'productVariantAppendMedia', 'append empty media ids');
+
+  const detachEmptyMediaIds = await runStep('detach empty media ids', detachDocument, {
+    productId: baseProductId,
+    variantMedia: [{ variantId: baseVariantId, mediaIds: [] }],
+  });
+  assertUserErrors(detachEmptyMediaIds, 'productVariantDetachMedia', 'detach empty media ids');
+
   const appendDuplicateVariant = await runStep('append duplicate variant input', appendDocument, {
     productId: baseProductId,
     variantMedia: [
@@ -399,6 +411,8 @@ try {
       detachTooManyPairs,
       appendTooManyMediaPerPair,
       detachTooManyMediaPerPair,
+      appendEmptyMediaIds,
+      detachEmptyMediaIds,
       appendDuplicateVariant,
       detachDuplicateVariant,
       appendInvalidMediaType,

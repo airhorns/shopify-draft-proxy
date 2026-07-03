@@ -1,0 +1,20 @@
+mutation MetafieldsSetDefinitionValidationMetaobjectCreate($metaobject: MetaobjectCreateInput!) {
+  metaobjectCreate(metaobject: $metaobject) {
+    metaobject {
+      id
+      type
+      handle
+      fields {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

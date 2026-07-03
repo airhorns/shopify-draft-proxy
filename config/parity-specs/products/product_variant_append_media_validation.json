@@ -284,6 +284,42 @@
         }
       },
       {
+        "name": "append-empty-media-ids",
+        "capturePath": "$.operations.appendEmptyMediaIds.response.data.productVariantAppendMedia",
+        "proxyPath": "$.data.productVariantAppendMedia",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-media-validation-append.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variantMedia": {
+              "fromCapturePath": "$.operations.appendEmptyMediaIds.variables.variantMedia"
+            }
+          }
+        }
+      },
+      {
+        "name": "detach-empty-media-ids",
+        "capturePath": "$.operations.detachEmptyMediaIds.response.data.productVariantDetachMedia",
+        "proxyPath": "$.data.productVariantDetachMedia",
+        "selectedPaths": ["$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variant-media-validation-detach.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variantMedia": {
+              "fromCapturePath": "$.operations.detachEmptyMediaIds.variables.variantMedia"
+            }
+          }
+        }
+      },
+      {
         "name": "append-duplicate-variant",
         "capturePath": "$.operations.appendDuplicateVariant.response.data.productVariantAppendMedia",
         "proxyPath": "$.data.productVariantAppendMedia",
@@ -518,5 +554,5 @@
       }
     ]
   },
-  "notes": "Captured validation branches for productVariantAppendMedia and productVariantDetachMedia. The replay earns product, variant, and media state through local productCreate/productCreateMedia/productUpdateMedia requests, including a declared EXTERNAL_VIDEO productCreateMedia branch that strictly compares captured mediaContentType and typed node __typename, then compares the captured userErrors for pair count, media count per pair, duplicate variants, invalid media type, cross-product variants, cross-product media, non-ready media, unattached detach targets, and appending to a variant that already has media. Live 2026-04 capture records field paths such as [\"variantMedia\"] and [\"variantMedia\",\"0\",\"mediaIds\"] for the new guards."
+  "notes": "Captured validation branches for productVariantAppendMedia and productVariantDetachMedia. The replay earns product, variant, and media state through local productCreate/productCreateMedia/productUpdateMedia requests, including a declared EXTERNAL_VIDEO productCreateMedia branch that strictly compares captured mediaContentType and typed node __typename, then compares the captured userErrors for pair count, media count per pair, empty mediaIds lists, duplicate variants, invalid media type, cross-product variants, cross-product media, non-ready media, unattached detach targets, and appending to a variant that already has media. Live 2026-04 capture records field paths such as [\"variantMedia\"] and [\"variantMedia\",\"0\",\"mediaIds\"] for the guards."
 }

@@ -1,0 +1,21 @@
+query ProductVariantsBulkUpdateAllowPartialDownstreamRead($productId: ID!, $redVariantId: ID!, $blueVariantId: ID!) {
+  red: productVariant(id: $redVariantId) {
+    id
+    sku
+    price
+  }
+  blue: productVariant(id: $blueVariantId) {
+    id
+    sku
+    price
+  }
+  product(id: $productId) {
+    variants(first: 10) {
+      nodes {
+        id
+        sku
+        price
+      }
+    }
+  }
+}

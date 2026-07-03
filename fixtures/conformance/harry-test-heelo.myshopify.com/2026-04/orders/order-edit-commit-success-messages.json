@@ -1,0 +1,1073 @@
+{
+  "scenarioId": "orderEditCommit-success-messages",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "recordedAt": "2026-06-29T07:57:40.884Z",
+  "source": "live-shopify-admin-graphql",
+  "notes": "Live Shopify orderEditCommit successMessages capture covering notifyCustomer false, notifyCustomer true on a paid order, notifyCustomer true on a balance-due order, and commit after closing an order. The proxy parity replay creates and edits local orders through public GraphQL requests only; no private state setup is used.",
+  "cases": {
+    "notifyFalse": {
+      "create": {
+        "query": "mutation OrderEditCommitSuccessMessagesCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      closed\n      closedAt\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalReceivedSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalOutstandingSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "order": {
+            "email": "order-edit-commit-success-notify-false-20260629075731@example.com",
+            "note": "order edit commit success messages notify-false",
+            "tags": ["order-edit-commit-success-messages", "notify-false"],
+            "test": true,
+            "currency": "CAD",
+            "presentmentCurrency": "CAD",
+            "financialStatus": "PAID",
+            "lineItems": [
+              {
+                "title": "Order edit commit success notify-false",
+                "quantity": 2,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "10.00",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "10.00",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "requiresShipping": false,
+                "taxable": false,
+                "sku": "order-edit-commit-success-notify-false-20260629075731"
+              }
+            ],
+            "transactions": [
+              {
+                "kind": "SALE",
+                "status": "SUCCESS",
+                "gateway": "manual",
+                "test": true,
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "20.00",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "20.00",
+                    "currencyCode": "CAD"
+                  }
+                }
+              }
+            ]
+          },
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendReceipt": false,
+            "sendFulfillmentReceipt": false
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8880222568754",
+                  "name": "#1596",
+                  "closed": false,
+                  "closedAt": null,
+                  "currentTotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "20.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "20.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalReceivedSet": {
+                    "shopMoney": {
+                      "amount": "20.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "20.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalOutstandingSet": {
+                    "shopMoney": {
+                      "amount": "0.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "0.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "begin": {
+        "query": "mutation OrderEditCommitSuccessMessagesBegin($id: ID!) {\n  orderEditBegin(id: $id) {\n    calculatedOrder {\n      id\n      originalOrder {\n        id\n        name\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          quantity\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Order/8880222568754"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderEditBegin": {
+                "calculatedOrder": {
+                  "id": "gid://shopify/CalculatedOrder/113237950770",
+                  "originalOrder": {
+                    "id": "gid://shopify/Order/8880222568754",
+                    "name": "#1596"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CalculatedLineItem/19689029828914",
+                        "quantity": 2
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 16,
+                "actualQueryCost": 14,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1986,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "setQuantity": {
+        "query": "mutation OrderEditCommitSuccessMessagesSetQuantity($id: ID!, $lineItemId: ID!, $quantity: Int!) {\n  orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity) {\n    calculatedOrder {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/CalculatedOrder/113237950770",
+          "lineItemId": "gid://shopify/CalculatedLineItem/19689029828914",
+          "quantity": 1
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderEditSetQuantity": {
+                "calculatedOrder": {
+                  "id": "gid://shopify/CalculatedOrder/113237950770"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "commit": {
+        "query": "mutation OrderEditCommitSuccessMessagesCommit($id: ID!, $notifyCustomer: Boolean, $staffNote: String) {\n  orderEditCommit(id: $id, notifyCustomer: $notifyCustomer, staffNote: $staffNote) {\n    order {\n      id\n      closed\n      closedAt\n      totalOutstandingSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    successMessages\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/CalculatedOrder/113237950770",
+          "notifyCustomer": false,
+          "staffNote": "order edit commit success messages notify-false"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderEditCommit": {
+                "order": {
+                  "id": "gid://shopify/Order/8880222568754",
+                  "closed": false,
+                  "closedAt": null,
+                  "totalOutstandingSet": {
+                    "shopMoney": {
+                      "amount": "-10.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "-10.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "successMessages": ["Order updated"],
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "paidNotify": {
+      "create": {
+        "query": "mutation OrderEditCommitSuccessMessagesCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      closed\n      closedAt\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalReceivedSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalOutstandingSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "order": {
+            "email": "order-edit-commit-success-paid-notify-20260629075731@example.com",
+            "note": "order edit commit success messages paid-notify",
+            "tags": ["order-edit-commit-success-messages", "paid-notify"],
+            "test": true,
+            "currency": "CAD",
+            "presentmentCurrency": "CAD",
+            "financialStatus": "PAID",
+            "lineItems": [
+              {
+                "title": "Order edit commit success paid-notify",
+                "quantity": 2,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "12.00",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "12.00",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "requiresShipping": false,
+                "taxable": false,
+                "sku": "order-edit-commit-success-paid-notify-20260629075731"
+              }
+            ],
+            "transactions": [
+              {
+                "kind": "SALE",
+                "status": "SUCCESS",
+                "gateway": "manual",
+                "test": true,
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "24.00",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "24.00",
+                    "currencyCode": "CAD"
+                  }
+                }
+              }
+            ]
+          },
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendReceipt": false,
+            "sendFulfillmentReceipt": false
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8880222601522",
+                  "name": "#1597",
+                  "closed": false,
+                  "closedAt": null,
+                  "currentTotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "24.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "24.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalReceivedSet": {
+                    "shopMoney": {
+                      "amount": "24.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "24.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalOutstandingSet": {
+                    "shopMoney": {
+                      "amount": "0.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "0.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "begin": {
+        "query": "mutation OrderEditCommitSuccessMessagesBegin($id: ID!) {\n  orderEditBegin(id: $id) {\n    calculatedOrder {\n      id\n      originalOrder {\n        id\n        name\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          quantity\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Order/8880222601522"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderEditBegin": {
+                "calculatedOrder": {
+                  "id": "gid://shopify/CalculatedOrder/113237983538",
+                  "originalOrder": {
+                    "id": "gid://shopify/Order/8880222601522",
+                    "name": "#1597"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CalculatedLineItem/19689029861682",
+                        "quantity": 2
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 16,
+                "actualQueryCost": 14,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1986,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "setQuantity": {
+        "query": "mutation OrderEditCommitSuccessMessagesSetQuantity($id: ID!, $lineItemId: ID!, $quantity: Int!) {\n  orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity) {\n    calculatedOrder {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/CalculatedOrder/113237983538",
+          "lineItemId": "gid://shopify/CalculatedLineItem/19689029861682",
+          "quantity": 1
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderEditSetQuantity": {
+                "calculatedOrder": {
+                  "id": "gid://shopify/CalculatedOrder/113237983538"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "commit": {
+        "query": "mutation OrderEditCommitSuccessMessagesCommit($id: ID!, $notifyCustomer: Boolean, $staffNote: String) {\n  orderEditCommit(id: $id, notifyCustomer: $notifyCustomer, staffNote: $staffNote) {\n    order {\n      id\n      closed\n      closedAt\n      totalOutstandingSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    successMessages\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/CalculatedOrder/113237983538",
+          "notifyCustomer": true,
+          "staffNote": "order edit commit success messages paid-notify"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderEditCommit": {
+                "order": {
+                  "id": "gid://shopify/Order/8880222601522",
+                  "closed": false,
+                  "closedAt": null,
+                  "totalOutstandingSet": {
+                    "shopMoney": {
+                      "amount": "-12.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "-12.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "successMessages": ["Order updated", "Notification sent"],
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "balanceNotify": {
+      "create": {
+        "query": "mutation OrderEditCommitSuccessMessagesCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      closed\n      closedAt\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalReceivedSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalOutstandingSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "order": {
+            "email": "order-edit-commit-success-balance-notify-20260629075731@example.com",
+            "note": "order edit commit success messages balance-notify",
+            "tags": ["order-edit-commit-success-messages", "balance-notify"],
+            "test": true,
+            "currency": "CAD",
+            "presentmentCurrency": "CAD",
+            "financialStatus": "PENDING",
+            "lineItems": [
+              {
+                "title": "Order edit commit success balance-notify",
+                "quantity": 2,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "14.00",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "14.00",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "requiresShipping": false,
+                "taxable": false,
+                "sku": "order-edit-commit-success-balance-notify-20260629075731"
+              }
+            ]
+          },
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendReceipt": false,
+            "sendFulfillmentReceipt": false
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8880222634290",
+                  "name": "#1598",
+                  "closed": false,
+                  "closedAt": null,
+                  "currentTotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "28.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "28.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalReceivedSet": {
+                    "shopMoney": {
+                      "amount": "0.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "0.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalOutstandingSet": {
+                    "shopMoney": {
+                      "amount": "28.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "28.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "begin": {
+        "query": "mutation OrderEditCommitSuccessMessagesBegin($id: ID!) {\n  orderEditBegin(id: $id) {\n    calculatedOrder {\n      id\n      originalOrder {\n        id\n        name\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          quantity\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Order/8880222634290"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderEditBegin": {
+                "calculatedOrder": {
+                  "id": "gid://shopify/CalculatedOrder/113238016306",
+                  "originalOrder": {
+                    "id": "gid://shopify/Order/8880222634290",
+                    "name": "#1598"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CalculatedLineItem/19689029894450",
+                        "quantity": 2
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 16,
+                "actualQueryCost": 14,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1986,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "setQuantity": {
+        "query": "mutation OrderEditCommitSuccessMessagesSetQuantity($id: ID!, $lineItemId: ID!, $quantity: Int!) {\n  orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity) {\n    calculatedOrder {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/CalculatedOrder/113238016306",
+          "lineItemId": "gid://shopify/CalculatedLineItem/19689029894450",
+          "quantity": 1
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderEditSetQuantity": {
+                "calculatedOrder": {
+                  "id": "gid://shopify/CalculatedOrder/113238016306"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "commit": {
+        "query": "mutation OrderEditCommitSuccessMessagesCommit($id: ID!, $notifyCustomer: Boolean, $staffNote: String) {\n  orderEditCommit(id: $id, notifyCustomer: $notifyCustomer, staffNote: $staffNote) {\n    order {\n      id\n      closed\n      closedAt\n      totalOutstandingSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    successMessages\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/CalculatedOrder/113238016306",
+          "notifyCustomer": true,
+          "staffNote": "order edit commit success messages balance-notify"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderEditCommit": {
+                "order": {
+                  "id": "gid://shopify/Order/8880222634290",
+                  "closed": false,
+                  "closedAt": null,
+                  "totalOutstandingSet": {
+                    "shopMoney": {
+                      "amount": "14.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "14.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "successMessages": ["Order updated", "Invoice sent"],
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "unarchiveNotify": {
+      "create": {
+        "query": "mutation OrderEditCommitSuccessMessagesCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      closed\n      closedAt\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalReceivedSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalOutstandingSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "order": {
+            "email": "order-edit-commit-success-unarchive-notify-20260629075731@example.com",
+            "note": "order edit commit success messages unarchive-notify",
+            "tags": ["order-edit-commit-success-messages", "unarchive-notify"],
+            "test": true,
+            "currency": "CAD",
+            "presentmentCurrency": "CAD",
+            "financialStatus": "PAID",
+            "lineItems": [
+              {
+                "title": "Order edit commit success unarchive-notify",
+                "quantity": 2,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "16.00",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "16.00",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "requiresShipping": false,
+                "taxable": false,
+                "sku": "order-edit-commit-success-unarchive-notify-20260629075731"
+              }
+            ],
+            "transactions": [
+              {
+                "kind": "SALE",
+                "status": "SUCCESS",
+                "gateway": "manual",
+                "test": true,
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "32.00",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "32.00",
+                    "currencyCode": "CAD"
+                  }
+                }
+              }
+            ]
+          },
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendReceipt": false,
+            "sendFulfillmentReceipt": false
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8880222667058",
+                  "name": "#1599",
+                  "closed": false,
+                  "closedAt": null,
+                  "currentTotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "32.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "32.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalReceivedSet": {
+                    "shopMoney": {
+                      "amount": "32.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "32.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "totalOutstandingSet": {
+                    "shopMoney": {
+                      "amount": "0.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "0.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "close": {
+        "query": "mutation OrderEditCommitSuccessMessagesClose($input: OrderCloseInput!) {\n  orderClose(input: $input) {\n    order {\n      id\n      closed\n      closedAt\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Order/8880222667058"
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderClose": {
+                "order": {
+                  "id": "gid://shopify/Order/8880222667058",
+                  "closed": true,
+                  "closedAt": "2026-06-29T07:57:38Z"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "begin": {
+        "query": "mutation OrderEditCommitSuccessMessagesBegin($id: ID!) {\n  orderEditBegin(id: $id) {\n    calculatedOrder {\n      id\n      originalOrder {\n        id\n        name\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          quantity\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Order/8880222667058"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderEditBegin": {
+                "calculatedOrder": {
+                  "id": "gid://shopify/CalculatedOrder/113238049074",
+                  "originalOrder": {
+                    "id": "gid://shopify/Order/8880222667058",
+                    "name": "#1599"
+                  },
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CalculatedLineItem/19689029927218",
+                        "quantity": 2
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 16,
+                "actualQueryCost": 14,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1986,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "setQuantity": {
+        "query": "mutation OrderEditCommitSuccessMessagesSetQuantity($id: ID!, $lineItemId: ID!, $quantity: Int!) {\n  orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity) {\n    calculatedOrder {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/CalculatedOrder/113238049074",
+          "lineItemId": "gid://shopify/CalculatedLineItem/19689029927218",
+          "quantity": 1
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderEditSetQuantity": {
+                "calculatedOrder": {
+                  "id": "gid://shopify/CalculatedOrder/113238049074"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "commit": {
+        "query": "mutation OrderEditCommitSuccessMessagesCommit($id: ID!, $notifyCustomer: Boolean, $staffNote: String) {\n  orderEditCommit(id: $id, notifyCustomer: $notifyCustomer, staffNote: $staffNote) {\n    order {\n      id\n      closed\n      closedAt\n      totalOutstandingSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    successMessages\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/CalculatedOrder/113238049074",
+          "notifyCustomer": true,
+          "staffNote": "order edit commit success messages unarchive-notify"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderEditCommit": {
+                "order": {
+                  "id": "gid://shopify/Order/8880222667058",
+                  "closed": false,
+                  "closedAt": null,
+                  "totalOutstandingSet": {
+                    "shopMoney": {
+                      "amount": "-16.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "-16.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "successMessages": ["Order updated", "Order unarchived", "Notification sent"],
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "orderId": "gid://shopify/Order/8880222667058",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/baeb044c-80ef-43e7-b8fb-ae034bfd2626"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "orderId": "gid://shopify/Order/8880222634290",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/baeb044c-80ef-43e7-b8fb-ae034bfd2626"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "orderId": "gid://shopify/Order/8880222601522",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/baeb044c-80ef-43e7-b8fb-ae034bfd2626"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "orderId": "gid://shopify/Order/8880222568754",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/baeb044c-80ef-43e7-b8fb-ae034bfd2626"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

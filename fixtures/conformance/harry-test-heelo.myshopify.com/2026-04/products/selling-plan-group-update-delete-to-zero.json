@@ -1,0 +1,244 @@
+{
+  "capturedAt": "2026-06-26T23:01:22.769Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "notes": [
+    "Captures Admin 2026-04 sellingPlanGroupUpdate delete-to-zero rejection, unchanged readback, and delete-with-replacement success.",
+    "The script creates one disposable selling-plan group and deletes it during cleanup."
+  ],
+  "groupId": "gid://shopify/SellingPlanGroup/3110011186",
+  "originalPlanId": "gid://shopify/SellingPlan/7268073778",
+  "replacementPlanId": "gid://shopify/SellingPlan/7268106546",
+  "scenarios": {
+    "create": {
+      "label": "create",
+      "request": {
+        "query": "#graphql\n  mutation CreateSellingPlanGroupForPlanCount($input: SellingPlanGroupInput!) {\n    sellingPlanGroupCreate(input: $input) {\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "name": "Delete-to-zero seed mqvjc5gp",
+            "options": ["Delivery frequency"],
+            "sellingPlansToCreate": [
+              {
+                "name": "Monthly delivery",
+                "options": ["Monthly delivery"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupCreate": {
+            "sellingPlanGroup": {
+              "id": "gid://shopify/SellingPlanGroup/3110011186",
+              "sellingPlans": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/SellingPlan/7268073778",
+                    "name": "Monthly delivery"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "deleteFinalRejected": {
+      "label": "deleteFinalRejected",
+      "request": {
+        "query": "#graphql\n  mutation UpdateSellingPlanGroupForPlanCount($id: ID!, $input: SellingPlanGroupInput!) {\n    sellingPlanGroupUpdate(id: $id, input: $input) {\n      deletedSellingPlanIds\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/SellingPlanGroup/3110011186",
+          "input": {
+            "sellingPlansToDelete": ["gid://shopify/SellingPlan/7268073778"]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupUpdate": {
+            "deletedSellingPlanIds": null,
+            "sellingPlanGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "sellingPlansToDelete"],
+                "message": "Selling plans to delete can't result in a selling plan group with no selling plan.",
+                "code": "SELLING_PLAN_COUNT_LOWER_BOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readAfterRejectedDelete": {
+      "label": "readAfterRejectedDelete",
+      "request": {
+        "query": "#graphql\n  query ReadSellingPlanGroupForPlanCount($id: ID!) {\n    sellingPlanGroup(id: $id) {\n      id\n      sellingPlans(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/SellingPlanGroup/3110011186"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroup": {
+            "id": "gid://shopify/SellingPlanGroup/3110011186",
+            "sellingPlans": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/SellingPlan/7268073778",
+                  "name": "Monthly delivery"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "deleteFinalWithReplacement": {
+      "label": "deleteFinalWithReplacement",
+      "request": {
+        "query": "#graphql\n  mutation UpdateSellingPlanGroupForPlanCount($id: ID!, $input: SellingPlanGroupInput!) {\n    sellingPlanGroupUpdate(id: $id, input: $input) {\n      deletedSellingPlanIds\n      sellingPlanGroup {\n        id\n        sellingPlans(first: 5) {\n          nodes {\n            id\n            name\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/SellingPlanGroup/3110011186",
+          "input": {
+            "sellingPlansToDelete": ["gid://shopify/SellingPlan/7268073778"],
+            "sellingPlansToCreate": [
+              {
+                "name": "Replacement delivery",
+                "options": ["Replacement delivery"],
+                "category": "SUBSCRIPTION",
+                "billingPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                },
+                "deliveryPolicy": {
+                  "recurring": {
+                    "interval": "MONTH",
+                    "intervalCount": 1
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupUpdate": {
+            "deletedSellingPlanIds": ["gid://shopify/SellingPlan/7268073778"],
+            "sellingPlanGroup": {
+              "id": "gid://shopify/SellingPlanGroup/3110011186",
+              "sellingPlans": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/SellingPlan/7268106546",
+                    "name": "Replacement delivery"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "cleanup sellingPlanGroupDelete",
+      "request": {
+        "query": "#graphql\n  mutation DeleteSellingPlanGroup($id: ID!) {\n    sellingPlanGroupDelete(id: $id) {\n      deletedSellingPlanGroupId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/SellingPlanGroup/3110011186"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "sellingPlanGroupDelete": {
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3110011186",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

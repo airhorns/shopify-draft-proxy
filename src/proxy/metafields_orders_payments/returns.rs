@@ -1,14 +1,11 @@
 use super::*;
 
 pub(super) fn return_connection(nodes: Vec<Value>) -> Value {
-    json!({
-        "nodes": nodes,
-        "pageInfo": empty_page_info()
-    })
+    connection_json(nodes)
 }
 
 fn return_money_set(amount: &str, currency_code: &str) -> Value {
-    let amount = money_bag_normalized_amount(amount);
+    let amount = normalize_money_amount(amount);
     money_set_pair(&amount, currency_code, &amount, currency_code)
 }
 
@@ -38,6 +35,14 @@ fn return_already_declined_error() -> Value {
         "The return is already declined.",
         Some("INVALID_STATE"),
     )
+}
+
+fn return_user_error_null_field(message: &str, code: Option<&str>) -> Value {
+    json!({
+        "field": Value::Null,
+        "message": message,
+        "code": code
+    })
 }
 
 fn blank_return_line_string(value: Option<String>) -> bool {
@@ -149,9 +154,10 @@ fn build_return_line_item(
     fulfillment_line_item: &Value,
     item: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
-    let quantity = resolved_i64_field(item, "quantity").unwrap_or(0);
+    let quantity = resolved_int_field(item, "quantity").unwrap_or(0);
     let reason = resolved_string_field(item, "returnReason").unwrap_or_else(|| "OTHER".to_string());
     let reason_note = resolved_string_field(item, "returnReasonNote").unwrap_or_default();
+    let customer_note = resolved_nullable_string_field(item, "customerNote");
     let line_item = if fulfillment_line_item["lineItem"].is_object() {
         fulfillment_line_item["lineItem"].clone()
     } else {
@@ -167,7 +173,7 @@ fn build_return_line_item(
         "unprocessedQuantity": quantity,
         "returnReason": reason,
         "returnReasonNote": reason_note,
-        "customerNote": Value::Null,
+        "customerNote": customer_note,
         "fulfillmentLineItem": {
             "id": fulfillment_line_item["id"].clone(),
             "lineItem": line_item
@@ -175,49 +181,10 @@ fn build_return_line_item(
     })
 }
 
-/// Validate a `returnDeclineRequest` input before any state change. Returns the
-/// decline reason on success, or the failing user error: an invalid/missing
-/// reason takes precedence (Shopify rejects it at the enum boundary with
-/// `Expected "<value>" to be one of: …`), then an invalid notify email carried
-/// under the `tmp_notify_customer.email_address` shim.
-fn validate_return_decline_input(
-    input: &BTreeMap<String, ResolvedValue>,
-) -> Result<String, Vec<Value>> {
-    const VALID_REASONS: &[&str] = &["RETURN_PERIOD_ENDED", "FINAL_SALE", "OTHER"];
-    let reason = resolved_string_field(input, "declineReason").unwrap_or_default();
-    if !VALID_REASONS.contains(&reason.as_str()) {
-        return Err(vec![user_error(
-            ["declineReason"],
-            &format!("Expected \"{reason}\" to be one of: RETURN_PERIOD_ENDED, FINAL_SALE, OTHER"),
-            Some("INVALID"),
-        )]);
-    }
-    if let Some(notify) = resolved_object_field(input, "tmp_notify_customer") {
-        if let Some(email) = resolved_string_field(&notify, "email_address") {
-            if !valid_email_address(&email) {
-                return Err(vec![user_error(
-                    ["input", "tmp_notify_customer", "email_address"],
-                    "Email address is invalid",
-                    Some("INVALID"),
-                )]);
-            }
-        }
-    }
-    Ok(reason)
-}
-
-/// Minimal RFC-shaped email check: a single `@`, non-empty local part, and a
-/// dotted domain with no whitespace.
-fn valid_email_address(email: &str) -> bool {
-    let mut parts = email.split('@');
-    let (Some(local), Some(domain), None) = (parts.next(), parts.next(), parts.next()) else {
-        return false;
-    };
-    !local.is_empty()
-        && domain.contains('.')
-        && !domain.starts_with('.')
-        && !domain.ends_with('.')
-        && !email.chars().any(char::is_whitespace)
+/// `returnDeclineRequest` reaches the handler only after public Admin schema
+/// input validation has accepted the required `declineReason` enum.
+fn return_decline_reason(input: &BTreeMap<String, ResolvedValue>) -> String {
+    resolved_string_field(input, "declineReason").unwrap_or_default()
 }
 
 /// The reference transition rules for `returnClose`/`returnReopen`/
@@ -314,17 +281,17 @@ impl DraftProxy {
                 Some(data_response(&field.response_key, value))
             }
             "returnClose" => {
-                let id = resolved_string_arg(&field.arguments, "id")?;
+                let id = resolved_string_field(&field.arguments, "id")?;
                 let value = self.apply_return_lifecycle_transition(&id, "CLOSED", field);
                 Some(data_response(&field.response_key, value))
             }
             "returnReopen" => {
-                let id = resolved_string_arg(&field.arguments, "id")?;
+                let id = resolved_string_field(&field.arguments, "id")?;
                 let value = self.apply_return_lifecycle_transition(&id, "OPEN", field);
                 Some(data_response(&field.response_key, value))
             }
             "returnCancel" => {
-                let id = resolved_string_arg(&field.arguments, "id")?;
+                let id = resolved_string_field(&field.arguments, "id")?;
                 let value = self.apply_return_lifecycle_transition(&id, "CANCELED", field);
                 Some(data_response(&field.response_key, value))
             }
@@ -337,7 +304,7 @@ impl DraftProxy {
                 Some(data_response(&field.response_key, value))
             }
             "reverseDeliveryShippingUpdate" => {
-                let id = resolved_string_arg(&field.arguments, "reverseDeliveryId")?;
+                let id = resolved_string_field(&field.arguments, "reverseDeliveryId")?;
                 let value = self.update_reverse_delivery(&id, field);
                 Some(data_response(&field.response_key, value))
             }
@@ -356,11 +323,17 @@ impl DraftProxy {
     }
 
     fn order_return_read_data(&self, fields: &[RootFieldSelection]) -> Option<Value> {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let mut missing_required = false;
+        let data = root_payload_json(fields, |field| {
+            if missing_required {
+                return None;
+            }
             let value = match field.name.as_str() {
                 "return" => {
-                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    let Some(id) = resolved_string_field(&field.arguments, "id") else {
+                        missing_required = true;
+                        return None;
+                    };
                     self.store
                         .staged
                         .returns
@@ -369,11 +342,17 @@ impl DraftProxy {
                         .unwrap_or(Value::Null)
                 }
                 "order" => {
-                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    let Some(id) = resolved_string_field(&field.arguments, "id") else {
+                        missing_required = true;
+                        return None;
+                    };
                     self.selected_return_order(&id, &field.selection)
                 }
                 "reverseDelivery" => {
-                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    let Some(id) = resolved_string_field(&field.arguments, "id") else {
+                        missing_required = true;
+                        return None;
+                    };
                     self.store
                         .staged
                         .reverse_deliveries
@@ -382,7 +361,10 @@ impl DraftProxy {
                         .unwrap_or(Value::Null)
                 }
                 "reverseFulfillmentOrder" => {
-                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    let Some(id) = resolved_string_field(&field.arguments, "id") else {
+                        missing_required = true;
+                        return None;
+                    };
                     self.store
                         .staged
                         .reverse_fulfillment_orders
@@ -390,23 +372,26 @@ impl DraftProxy {
                         .map(|record| selected_json(record, &field.selection))
                         .unwrap_or(Value::Null)
                 }
-                _ => continue,
+                _ => return None,
             };
-            data.insert(field.response_key.clone(), value);
+            Some(value)
+        });
+        if missing_required {
+            return None;
         }
-        Some(json!({ "data": Value::Object(data) }))
+        Some(json!({ "data": data }))
     }
 
     fn should_handle_order_return_read(&self, fields: &[RootFieldSelection]) -> bool {
         fields.iter().any(|field| match field.name.as_str() {
-            "return" => resolved_string_arg(&field.arguments, "id")
+            "return" => resolved_string_field(&field.arguments, "id")
                 .is_some_and(|id| self.store.staged.returns.contains_key(&id)),
-            "order" => resolved_string_arg(&field.arguments, "id")
+            "order" => resolved_string_field(&field.arguments, "id")
                 .is_some_and(|id| self.store.staged.returns_by_order.contains_key(&id)),
-            "reverseDelivery" => resolved_string_arg(&field.arguments, "id")
+            "reverseDelivery" => resolved_string_field(&field.arguments, "id")
                 .is_some_and(|id| self.store.staged.reverse_deliveries.contains_key(&id)),
             "reverseFulfillmentOrder" => {
-                resolved_string_arg(&field.arguments, "id").is_some_and(|id| {
+                resolved_string_field(&field.arguments, "id").is_some_and(|id| {
                     self.store
                         .staged
                         .reverse_fulfillment_orders
@@ -473,7 +458,7 @@ impl DraftProxy {
         let mut user_errors: Vec<Value> = Vec::new();
         for (index, item) in items.iter().enumerate() {
             let fli_id = resolved_string_field(item, "fulfillmentLineItemId");
-            let quantity = resolved_i64_field(item, "quantity").unwrap_or(0);
+            let quantity = resolved_int_field(item, "quantity").unwrap_or(0);
             let fulfillment_line_item = fli_id
                 .as_deref()
                 .and_then(|id| find_order_fulfillment_line_item(&order, id));
@@ -497,8 +482,13 @@ impl DraftProxy {
                     let remaining = (available - already).max(0);
                     if quantity <= 0 || quantity > remaining {
                         user_errors.push(user_error(
-                            ["returnLineItems", &index.to_string(), "quantity"],
-                            "Quantity is not available for return.",
+                            [
+                                input_name,
+                                "returnLineItems",
+                                &index.to_string(),
+                                "quantity",
+                            ],
+                            "Return line item has an invalid quantity.",
                             Some("INVALID"),
                         ));
                     } else {
@@ -675,19 +665,14 @@ impl DraftProxy {
         self.return_payload(record, Vec::new(), &field.selection)
     }
 
-    /// `returnDeclineRequest`: validate the decline input (reason enum, note
-    /// length, notify email) before touching state; a REQUESTED return then
-    /// transitions to DECLINED carrying `decline { reason, note }`. A non-
-    /// REQUESTED return returns Shopify's INVALID_STATE decline guard shape,
-    /// with a distinct message for already DECLINED returns.
+    /// `returnDeclineRequest`: public schema input validation accepts the
+    /// decline reason before dispatch; a REQUESTED return then transitions to
+    /// DECLINED carrying `decline { reason, note }`. A non-REQUESTED return
+    /// returns Shopify's INVALID_STATE decline guard shape, with a distinct
+    /// message for already DECLINED returns.
     fn decline_return_request(&mut self, id: &str, field: &RootFieldSelection) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let reason = match validate_return_decline_input(&input) {
-            Ok(reason) => reason,
-            Err(errors) => {
-                return self.return_payload(Value::Null, errors, &field.selection);
-            }
-        };
+        let reason = return_decline_reason(&input);
         let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
             return self.return_payload(
                 Value::Null,
@@ -773,8 +758,8 @@ impl DraftProxy {
     /// order's line items from the surviving return lines. On any validation
     /// error the return is left null with the error payload.
     fn remove_from_return(&mut self, field: &RootFieldSelection) -> Value {
-        let return_id = resolved_string_arg(&field.arguments, "returnId").unwrap_or_default();
-        let removals = list_object_field(&field.arguments, "returnLineItems");
+        let return_id = resolved_string_field(&field.arguments, "returnId").unwrap_or_default();
+        let removals = resolved_object_list_field(&field.arguments, "returnLineItems");
         let Some(mut record) = self.store.staged.returns.get(&return_id).cloned() else {
             return self.return_payload(
                 Value::Null,
@@ -800,7 +785,7 @@ impl DraftProxy {
         let mut user_errors: Vec<Value> = Vec::new();
         for (index, removal) in removals.iter().enumerate() {
             let line_item_id = resolved_string_field(removal, "returnLineItemId");
-            let quantity = resolved_i64_field(removal, "quantity").unwrap_or(0);
+            let quantity = resolved_int_field(removal, "quantity").unwrap_or(0);
             let position = line_item_id.as_deref().and_then(|id| {
                 nodes
                     .iter()
@@ -816,10 +801,15 @@ impl DraftProxy {
                     let current = nodes[position]["quantity"].as_i64().unwrap_or(0);
                     let processed = nodes[position]["processedQuantity"].as_i64().unwrap_or(0);
                     let removable = current - processed;
-                    if quantity <= 0 || quantity > removable {
+                    if quantity <= 0 {
+                        user_errors.push(return_user_error_null_field(
+                            "Quantity must be greater than 0",
+                            Some("GREATER_THAN"),
+                        ));
+                    } else if quantity > removable {
                         user_errors.push(user_error(
                             ["returnLineItems", &index.to_string(), "quantity"],
-                            "Quantity is not removable from return.",
+                            "Return line item has an invalid quantity.",
                             Some("INVALID"),
                         ));
                     } else {
@@ -948,8 +938,8 @@ impl DraftProxy {
     }
 
     fn stage_reverse_delivery(&mut self, field: &RootFieldSelection) -> Value {
-        let reverse_order_id =
-            resolved_string_arg(&field.arguments, "reverseFulfillmentOrderId").unwrap_or_default();
+        let reverse_order_id = resolved_string_field(&field.arguments, "reverseFulfillmentOrderId")
+            .unwrap_or_default();
         let id = self.next_synthetic_gid("ReverseDelivery");
         let tracking = resolved_object_field(&field.arguments, "trackingInput").unwrap_or_default();
         let label = resolved_object_field(&field.arguments, "labelInput").unwrap_or_default();
@@ -961,7 +951,7 @@ impl DraftProxy {
             .and_then(|order| order["lineItems"]["nodes"].as_array())
             .cloned()
             .unwrap_or_default();
-        let input_lines = list_object_field(&field.arguments, "reverseDeliveryLineItems");
+        let input_lines = resolved_object_list_field(&field.arguments, "reverseDeliveryLineItems");
         let delivery_line_sources = if input_lines.is_empty() {
             rfo_lines
                 .iter()
@@ -973,7 +963,7 @@ impl DraftProxy {
                 .map(|input| {
                     let line_id = resolved_string_field(input, "reverseFulfillmentOrderLineItemId")
                         .unwrap_or_default();
-                    let quantity = resolved_i64_field(input, "quantity").unwrap_or(0);
+                    let quantity = resolved_int_field(input, "quantity").unwrap_or(0);
                     let line = rfo_lines
                         .iter()
                         .find(|line| line["id"].as_str() == Some(line_id.as_str()))
@@ -1076,7 +1066,7 @@ impl DraftProxy {
     }
 
     fn dispose_reverse_fulfillment_order(&mut self, field: &RootFieldSelection) -> Value {
-        let inputs = list_object_field(&field.arguments, "dispositionInputs");
+        let inputs = resolved_object_list_field(&field.arguments, "dispositionInputs");
         if inputs.is_empty() {
             return selected_json(
                 &json!({
@@ -1132,7 +1122,7 @@ impl DraftProxy {
             };
 
             reverse_fulfillment_order_ids.insert(order_id.clone());
-            let quantity = resolved_i64_field(input, "quantity").unwrap_or(0);
+            let quantity = resolved_int_field(input, "quantity").unwrap_or(0);
             let disposable_quantity = line_item["remainingQuantity"]
                 .as_i64()
                 .or_else(|| line_item["totalQuantity"].as_i64())

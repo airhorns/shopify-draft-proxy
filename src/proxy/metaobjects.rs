@@ -25,13 +25,13 @@ fn source_location_for_token_after(
 }
 
 fn metaobject_bulk_delete_selector_error(field: &RootFieldSelection, query: &str) -> Option<Value> {
-    let where_input = field.arguments.get("where").and_then(|value| match value {
-        ResolvedValue::Object(input) => Some(input),
-        _ => None,
-    });
-    let ids_present = where_input.is_some_and(|input| input.contains_key("ids"))
+    let where_input = resolved_object_field(&field.arguments, "where");
+    let ids_present = where_input
+        .as_ref()
+        .is_some_and(|input| input.contains_key("ids"))
         || field.arguments.contains_key("ids");
     let type_present = where_input
+        .as_ref()
         .and_then(|input| resolved_string_field(input, "type"))
         .is_some_and(|value| !value.is_empty());
 
@@ -63,40 +63,38 @@ fn metaobject_bulk_delete_selector_error(field: &RootFieldSelection, query: &str
 fn metaobject_create_duplicate_field_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
     let mut seen = BTreeSet::new();
     let mut errors = Vec::new();
-    if let Some(ResolvedValue::List(fields)) = input.get("fields") {
-        for (index, field) in fields.iter().enumerate() {
-            let ResolvedValue::Object(field) = field else {
-                continue;
-            };
-            let Some(key) = resolved_string_field(field, "key") else {
-                continue;
-            };
-            if seen.insert(key.clone()) {
-                continue;
-            }
+    for (index, field) in resolved_object_list_field(input, "fields")
+        .iter()
+        .enumerate()
+    {
+        let Some(key) = resolved_string_field(field, "key") else {
+            continue;
+        };
+        if seen.insert(key.clone()) {
+            continue;
+        }
 
-            let field_index = index.to_string();
-            let is_required_title = key == "title";
+        let field_index = index.to_string();
+        let is_required_title = key == "title";
+        errors.push(metaobject_indexed_user_error(
+            vec![
+                "metaobject".to_string(),
+                "fields".to_string(),
+                field_index.clone(),
+            ],
+            &format!("Field \"{key}\" duplicates other inputs"),
+            Some("DUPLICATE_FIELD_INPUT"),
+            json!(key.clone()),
+            Value::Null,
+        ));
+        if is_required_title {
             errors.push(metaobject_indexed_user_error(
-                vec![
-                    "metaobject".to_string(),
-                    "fields".to_string(),
-                    field_index.clone(),
-                ],
-                &format!("Field \"{key}\" duplicates other inputs"),
-                Some("DUPLICATE_FIELD_INPUT"),
-                json!(key.clone()),
+                vec!["metaobject".to_string(), "fields".to_string(), field_index],
+                "Title can't be blank",
+                Some("OBJECT_FIELD_REQUIRED"),
+                json!(key),
                 Value::Null,
             ));
-            if is_required_title {
-                errors.push(metaobject_indexed_user_error(
-                    vec!["metaobject".to_string(), "fields".to_string(), field_index],
-                    "Title can't be blank",
-                    Some("OBJECT_FIELD_REQUIRED"),
-                    json!(key),
-                    Value::Null,
-                ));
-            }
         }
     }
     errors
@@ -349,21 +347,24 @@ fn metaobject_field_definition_capabilities(input: &BTreeMap<String, ResolvedVal
 }
 
 fn metaobject_field_definition_type(input: &BTreeMap<String, ResolvedValue>) -> String {
-    match input.get("type") {
-        Some(ResolvedValue::String(value)) => value.clone(),
-        Some(ResolvedValue::Object(value)) => resolved_string_field(value, "name")
-            .unwrap_or_else(|| "single_line_text_field".to_string()),
-        _ => "single_line_text_field".to_string(),
-    }
+    resolved_string_field(input, "type")
+        .or_else(|| {
+            resolved_object_field(input, "type")
+                .and_then(|value| resolved_string_field(&value, "name"))
+        })
+        .unwrap_or_else(|| "single_line_text_field".to_string())
 }
 
 fn metaobject_field_type_category(field_type: &str) -> &'static str {
+    if let Some(inner_type) = field_type.strip_prefix("list.") {
+        return metaobject_field_type_category(inner_type);
+    }
     match field_type {
         "number_integer" | "number_decimal" => "NUMBER",
         "boolean" => "TRUE_FALSE",
         "date" | "date_time" => "DATE_TIME",
         "json" | "rich_text_field" => "JSON",
-        value if value.ends_with("_reference") || value.starts_with("list.") => "REFERENCE",
+        value if value.ends_with("_reference") => "REFERENCE",
         _ => "TEXT",
     }
 }
@@ -399,21 +400,9 @@ fn canonical_metaobject_definition_type(raw: &str, request: &Request) -> String 
     resolved.to_lowercase()
 }
 
-fn metaobject_definition_type_token_chars_valid(value: &str) -> bool {
-    value
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
-}
-
 const MIN_FIELD_KEY_LENGTH: usize = 2;
 const MAX_FIELD_KEY_LENGTH: usize = 64;
 const FIELD_KEY_INVALID_MESSAGE: &str = "Key contains one or more invalid characters.";
-
-fn metaobject_definition_field_key_chars_valid(value: &str) -> bool {
-    value
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
-}
 
 fn metaobject_definition_is_reserved_type(meta_type: &str) -> bool {
     meta_type.starts_with("shopify--")
@@ -432,12 +421,10 @@ fn metaobject_definition_field_limit(meta_type: &str) -> usize {
 }
 
 fn metaobject_definition_max_fields_error(max_fields: usize) -> Value {
-    metaobject_user_error(
+    metaobject_field_error(
         vec!["definition", "fieldDefinitions"],
         &format!("Maximum {max_fields} fields per metaobject definition"),
         "INVALID",
-        Value::Null,
-        Value::Null,
     )
 }
 
@@ -452,77 +439,61 @@ fn metaobject_definition_create_validation_errors(
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     if metaobject_definition_is_reserved_type(meta_type) {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             vec!["definition"],
             "Not authorized. This type is reserved for use by another application.",
             "NOT_AUTHORIZED",
-            Value::Null,
-            Value::Null,
         ));
         return errors;
     }
 
     let name = resolved_string_field(input, "name").unwrap_or_default();
     if name.trim().is_empty() {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             vec!["definition", "name"],
             "Name can't be blank",
             "BLANK",
-            Value::Null,
-            Value::Null,
         ));
     } else if name.chars().count() > 255 {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             vec!["definition", "name"],
             "Name is too long (maximum is 255 characters)",
             "TOO_LONG",
-            Value::Null,
-            Value::Null,
         ));
     }
 
     if meta_type.is_empty() {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             vec!["definition", "type"],
             "Type can't be blank",
             "BLANK",
-            Value::Null,
-            Value::Null,
         ));
     } else if meta_type.chars().count() < 3 {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             vec!["definition", "type"],
             "Type is too short (minimum is 3 characters)",
             "TOO_SHORT",
-            Value::Null,
-            Value::Null,
         ));
     } else if meta_type.chars().count() > 255 {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             vec!["definition", "type"],
             "Type is too long (maximum is 255 characters)",
             "TOO_LONG",
-            Value::Null,
-            Value::Null,
         ));
-    } else if !metaobject_definition_type_token_chars_valid(meta_type) {
-        errors.push(metaobject_user_error(
+    } else if !token_chars_valid(meta_type) {
+        errors.push(metaobject_field_error(
             vec!["definition", "type"],
             "Type contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.",
             "INVALID",
-            Value::Null,
-            Value::Null,
         ));
     }
 
     if let Some(description) = resolved_string_field(input, "description") {
         if description.chars().count() > 255 {
-            errors.push(metaobject_user_error(
+            errors.push(metaobject_field_error(
                 vec!["definition", "description"],
                 "Description is too long (maximum is 255 characters)",
                 "TOO_LONG",
-                Value::Null,
-                Value::Null,
             ));
         }
     }
@@ -531,12 +502,10 @@ fn metaobject_definition_create_validation_errors(
         if resolved_string_field(&access, "admin").is_some()
             && !metaobject_definition_is_app_reserved_type(meta_type)
         {
-            errors.push(metaobject_user_error(
+            errors.push(metaobject_field_error(
                 vec!["definition", "access", "admin"],
                 "Admin access can only be specified on metaobject definitions that have an app-reserved type.",
                 "ADMIN_ACCESS_INPUT_NOT_ALLOWED",
-                Value::Null,
-                Value::Null,
             ));
         }
     }
@@ -557,12 +526,10 @@ fn metaobject_definition_create_validation_errors(
         })
         .count();
     if admin_filterable_count > 40 {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             vec!["definition", "fieldDefinitions"],
             "Maximum 40 admin filterable fields per metaobject definition",
             "INVALID",
-            Value::Null,
-            Value::Null,
         ));
     }
 
@@ -603,23 +570,19 @@ fn metaobject_definition_create_validation_errors(
         if !field_definitions.iter().any(|definition| {
             resolved_string_field(definition, "key") == Some(display_name_key.clone())
         }) {
-            errors.push(metaobject_user_error(
+            errors.push(metaobject_field_error(
                 vec!["definition", "displayNameKey"],
                 &format!("Field definition \"{display_name_key}\" does not exist"),
                 "UNDEFINED_OBJECT_FIELD",
-                Value::Null,
-                Value::Null,
             ));
         }
     }
 
     if existing_definitions >= 128 {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             vec!["definition"],
             "Maximum number of metaobject definitions exceeded",
             "MAX_DEFINITIONS_EXCEEDED",
-            Value::Null,
-            Value::Null,
         ));
     }
 
@@ -688,7 +651,7 @@ fn push_metaobject_field_key_errors(
         ));
         return true;
     }
-    if !metaobject_definition_field_key_chars_valid(key) {
+    if !token_chars_valid(key) {
         errors.push(metaobject_user_error(
             validation_path.to_vec(),
             FIELD_KEY_INVALID_MESSAGE,
@@ -732,12 +695,10 @@ fn metaobject_renderable_capability_errors(
             .iter()
             .find(|definition| definition["key"].as_str() == Some(field_key.as_str()))
         {
-            None => errors.push(metaobject_user_error(
+            None => errors.push(metaobject_field_error(
                 vec!["definition", "capabilities", "renderable"],
                 &format!("Field definition \"{field_key}\" does not exist"),
                 "INVALID",
-                Value::Null,
-                Value::Null,
             )),
             Some(field_definition) => {
                 let field_type = field_definition["type"]["name"]
@@ -747,14 +708,12 @@ fn metaobject_renderable_capability_errors(
                     field_type,
                     "single_line_text_field" | "multi_line_text_field" | "rich_text_field"
                 ) {
-                    errors.push(metaobject_user_error(
+                    errors.push(metaobject_field_error(
                         vec!["definition", "capabilities", "renderable"],
                         &format!(
                             "Renderable Capability \"{capability_key}\" cannot reference the field definition \"{field_key}\" of type \"{field_type}\". Only single_line_text_field, multi_line_text_field, rich_text_field definitions are allowed."
                         ),
                         "FIELD_TYPE_INVALID",
-                        Value::Null,
-                        Value::Null,
                     ));
                 }
             }
@@ -771,31 +730,25 @@ fn metaobject_definition_update_validation_errors(
     let mut errors = Vec::new();
     if let Some(name) = resolved_string_field(input, "name") {
         if name.trim().is_empty() {
-            errors.push(metaobject_user_error(
+            errors.push(metaobject_field_error(
                 vec!["definition", "name"],
                 "Name can't be blank",
                 "BLANK",
-                Value::Null,
-                Value::Null,
             ));
         } else if name.chars().count() > 255 {
-            errors.push(metaobject_user_error(
+            errors.push(metaobject_field_error(
                 vec!["definition", "name"],
                 "Name is too long (maximum is 255 characters)",
                 "TOO_LONG",
-                Value::Null,
-                Value::Null,
             ));
         }
     }
     if let Some(description) = resolved_string_field(input, "description") {
         if description.chars().count() > 255 {
-            errors.push(metaobject_user_error(
+            errors.push(metaobject_field_error(
                 vec!["definition", "description"],
                 "Description is too long (maximum is 255 characters)",
                 "TOO_LONG",
-                Value::Null,
-                Value::Null,
             ));
         }
     }
@@ -803,12 +756,10 @@ fn metaobject_definition_update_validation_errors(
         if resolved_string_field(&access, "admin").is_some()
             && !metaobject_definition_is_app_reserved_type(meta_type)
         {
-            errors.push(metaobject_user_error(
+            errors.push(metaobject_field_error(
                 vec!["definition", "access", "admin"],
                 "Admin access can only be specified on metaobject definitions that have an app-reserved type.",
                 "ADMIN_ACCESS_INPUT_NOT_ALLOWED",
-                Value::Null,
-                Value::Null,
             ));
         }
     }
@@ -823,12 +774,10 @@ fn metaobject_definition_update_validation_errors(
     errors.extend(field_operation_errors);
     if let Some(display_name_key) = resolved_string_field(input, "displayNameKey") {
         if !resulting_keys.contains(&display_name_key) {
-            errors.push(metaobject_user_error(
+            errors.push(metaobject_field_error(
                 vec!["definition", "displayNameKey"],
                 &format!("Field definition \"{display_name_key}\" does not exist"),
                 "UNDEFINED_OBJECT_FIELD",
-                Value::Null,
-                Value::Null,
             ));
         }
     }
@@ -1592,7 +1541,7 @@ fn metaobject_structured_measurement_value_error(field_type: &str, value: &str) 
 }
 
 fn metaobject_language_value_error(value: &str) -> Option<String> {
-    if default_available_locales().contains_key(value) {
+    if default_available_locale_is_supported(value) {
         None
     } else {
         Some("Value must be in ISO 639-1 format.".to_string())
@@ -1656,11 +1605,7 @@ fn metaobject_mixed_reference_value_error(
         return None;
     }
     let context = context?;
-    let Some(record) = context.proxy.metaobject_by_id(value) else {
-        return Some(
-            "Value must belong to one of the specified metaobject definitions.".to_string(),
-        );
-    };
+    let record = context.proxy.metaobject_by_id(value)?;
     let Some(meta_type) = record.get("type").and_then(Value::as_str) else {
         return Some(
             "Value must belong to one of the specified metaobject definitions.".to_string(),
@@ -1949,20 +1894,16 @@ fn metaobject_create_input_values(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> BTreeMap<String, String> {
     let mut values = BTreeMap::new();
-    if let Some(ResolvedValue::List(fields)) = input.get("fields") {
-        for field in fields {
-            if let ResolvedValue::Object(field) = field {
-                if let (Some(key), Some(value)) = (
-                    resolved_string_field(field, "key"),
-                    resolved_string_field(field, "value"),
-                ) {
-                    values.insert(key, value);
-                }
-            }
+    for field in resolved_object_list_field(input, "fields") {
+        if let (Some(key), Some(value)) = (
+            resolved_string_field(&field, "key"),
+            resolved_string_field(&field, "value"),
+        ) {
+            values.insert(key, value);
         }
     }
-    if let Some(ResolvedValue::Object(object)) = input.get("values") {
-        for (key, value) in object {
+    if let Some(object) = resolved_object_field(input, "values") {
+        for (key, value) in &object {
             match value {
                 ResolvedValue::String(value) => {
                     values.insert(key.clone(), value.clone());
@@ -1983,16 +1924,13 @@ fn metaobject_input_field_by_key(
     input: &BTreeMap<String, ResolvedValue>,
     target_key: &str,
 ) -> Option<(usize, BTreeMap<String, ResolvedValue>)> {
-    let Some(ResolvedValue::List(fields)) = input.get("fields") else {
-        return None;
-    };
-    fields.iter().enumerate().find_map(|(index, field)| {
-        let ResolvedValue::Object(field) = field else {
-            return None;
-        };
-        (resolved_string_field(field, "key").as_deref() == Some(target_key))
-            .then(|| (index, field.clone()))
-    })
+    resolved_object_list_field(input, "fields")
+        .into_iter()
+        .enumerate()
+        .find_map(|(index, field)| {
+            (resolved_string_field(&field, "key").as_deref() == Some(target_key))
+                .then_some((index, field))
+        })
 }
 
 fn metaobject_existing_field_values(record: &Value) -> BTreeMap<String, String> {
@@ -2025,21 +1963,17 @@ fn metaobject_merged_input_values(
 fn metaobject_handle_validation_errors(handle: &str, field: Vec<&str>) -> Vec<Value> {
     let mut errors = Vec::new();
     if handle.is_empty() {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             field.clone(),
             "Handle can't be blank",
             "BLANK",
-            Value::Null,
-            Value::Null,
         ));
     }
     if handle.len() > 255 {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             field.clone(),
             "Handle is too long (maximum is 255 characters)",
             "TOO_LONG",
-            Value::Null,
-            Value::Null,
         ));
     }
     if handle.is_empty()
@@ -2049,12 +1983,10 @@ fn metaobject_handle_validation_errors(handle: &str, field: Vec<&str>) -> Vec<Va
             .chars()
             .all(|character| character.is_ascii_alphanumeric() || character == '-')
     {
-        errors.push(metaobject_user_error(
+        errors.push(metaobject_field_error(
             field,
             "Handle is invalid",
             "INVALID",
-            Value::Null,
-            Value::Null,
         ));
     }
     errors
@@ -2076,65 +2008,61 @@ fn metaobject_create_validation_errors(
         .collect::<BTreeSet<_>>();
     let mut provided_keys = BTreeSet::new();
 
-    if let Some(ResolvedValue::List(fields)) = input.get("fields") {
-        for (index, field) in fields.iter().enumerate() {
-            let ResolvedValue::Object(field) = field else {
-                continue;
-            };
-            let key = resolved_string_field(field, "key").unwrap_or_default();
-            provided_keys.insert(key.clone());
-            if !definition_keys.contains(key.as_str()) {
+    for (index, field) in resolved_object_list_field(input, "fields")
+        .iter()
+        .enumerate()
+    {
+        let key = resolved_string_field(field, "key").unwrap_or_default();
+        provided_keys.insert(key.clone());
+        if !definition_keys.contains(key.as_str()) {
+            errors.push(metaobject_user_error(
+                vec!["metaobject", "fields", &index.to_string()],
+                &format!("Field definition \"{key}\" does not exist"),
+                "UNDEFINED_OBJECT_FIELD",
+                json!(key),
+                Value::Null,
+            ));
+        } else if let Some(field_definition) = definition["fieldDefinitions"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|definition| definition.get("key").and_then(Value::as_str) == Some(key.as_str()))
+        {
+            let value = resolved_string_field(field, "value").unwrap_or_default();
+            let field_type = field_definition["type"]["name"]
+                .as_str()
+                .unwrap_or_default();
+            let validations = field_definition["validations"]
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
+            if let Some(error) = metaobject_field_value_error(
+                context,
+                &key,
+                field_type,
+                &value,
+                validations,
+                is_update,
+            ) {
                 errors.push(metaobject_user_error(
                     vec!["metaobject", "fields", &index.to_string()],
-                    &format!("Field definition \"{key}\" does not exist"),
-                    "UNDEFINED_OBJECT_FIELD",
+                    &error.message,
+                    error.code,
                     json!(key),
-                    Value::Null,
+                    error.element_index,
                 ));
-            } else if let Some(field_definition) = definition["fieldDefinitions"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .find(|definition| {
-                    definition.get("key").and_then(Value::as_str) == Some(key.as_str())
-                })
+            } else if metaobject_value_uses_generic_fallback(field_type)
+                && !metaobject_value_matches_type(field_type, &value)
             {
-                let value = resolved_string_field(field, "value").unwrap_or_default();
-                let field_type = field_definition["type"]["name"]
-                    .as_str()
-                    .unwrap_or_default();
-                let validations = field_definition["validations"]
-                    .as_array()
-                    .map(Vec::as_slice)
-                    .unwrap_or(&[]);
-                if let Some(error) = metaobject_field_value_error(
-                    context,
-                    &key,
-                    field_type,
-                    &value,
-                    validations,
-                    is_update,
-                ) {
-                    errors.push(metaobject_user_error(
-                        vec!["metaobject", "fields", &index.to_string()],
-                        &error.message,
-                        error.code,
-                        json!(key),
-                        error.element_index,
-                    ));
-                } else if metaobject_value_uses_generic_fallback(field_type)
-                    && !metaobject_value_matches_type(field_type, &value)
-                {
-                    // json/rich-text/list-shape validation that the typed
-                    // validator intentionally defers to the structural check.
-                    errors.push(metaobject_user_error(
-                        vec!["metaobject", "fields", &index.to_string()],
-                        &format!("Value is invalid for field \"{key}\"."),
-                        "INVALID_VALUE",
-                        json!(key),
-                        json!(index),
-                    ));
-                }
+                // json/rich-text/list-shape validation that the typed
+                // validator intentionally defers to the structural check.
+                errors.push(metaobject_user_error(
+                    vec!["metaobject", "fields", &index.to_string()],
+                    &format!("Value is invalid for field \"{key}\"."),
+                    "INVALID_VALUE",
+                    json!(key),
+                    json!(index),
+                ));
             }
         }
     }
@@ -2156,41 +2084,40 @@ fn metaobject_create_validation_errors(
         if context.is_some_and(|context| context.validate_existing_values)
             && !provided_keys.contains(key)
         {
-            let Some(value) = input_values.get(key).filter(|value| !value.is_empty()) else {
-                continue;
-            };
-            let field_type = field_definition["type"]["name"]
-                .as_str()
-                .unwrap_or_default();
-            let validations = field_definition["validations"]
-                .as_array()
-                .map(Vec::as_slice)
-                .unwrap_or(&[]);
-            if let Some(error) = metaobject_field_value_error(
-                context,
-                key,
-                field_type,
-                value,
-                validations,
-                is_update,
-            ) {
-                errors.push(metaobject_user_error(
-                    vec!["metaobject"],
-                    &error.message,
-                    error.code,
-                    json!(key),
-                    error.element_index,
-                ));
-            } else if metaobject_value_uses_generic_fallback(field_type)
-                && !metaobject_value_matches_type(field_type, value)
-            {
-                errors.push(metaobject_user_error(
-                    vec!["metaobject"],
-                    &format!("Value is invalid for field \"{key}\"."),
-                    "INVALID_VALUE",
-                    json!(key),
-                    Value::Null,
-                ));
+            if let Some(value) = input_values.get(key).filter(|value| !value.is_empty()) {
+                let field_type = field_definition["type"]["name"]
+                    .as_str()
+                    .unwrap_or_default();
+                let validations = field_definition["validations"]
+                    .as_array()
+                    .map(Vec::as_slice)
+                    .unwrap_or(&[]);
+                if let Some(error) = metaobject_field_value_error(
+                    context,
+                    key,
+                    field_type,
+                    value,
+                    validations,
+                    is_update,
+                ) {
+                    errors.push(metaobject_user_error(
+                        vec!["metaobject"],
+                        &error.message,
+                        error.code,
+                        json!(key),
+                        error.element_index,
+                    ));
+                } else if metaobject_value_uses_generic_fallback(field_type)
+                    && !metaobject_value_matches_type(field_type, value)
+                {
+                    errors.push(metaobject_user_error(
+                        vec!["metaobject"],
+                        &format!("Value is invalid for field \"{key}\"."),
+                        "INVALID_VALUE",
+                        json!(key),
+                        Value::Null,
+                    ));
+                }
             }
         }
         if field_definition
@@ -2205,20 +2132,9 @@ fn metaobject_create_validation_errors(
             // empty (anchor at that input field's index) or omitted it entirely
             // (anchor at the metaobject root). The message uses the field's display
             // name: "Summary can't be blank".
-            let provided_index = input
-                .get("fields")
-                .and_then(|fields| match fields {
-                    ResolvedValue::List(fields) => Some(fields),
-                    _ => None,
-                })
-                .and_then(|fields| {
-                    fields.iter().rposition(|field| match field {
-                        ResolvedValue::Object(field) => {
-                            resolved_string_field(field, "key").as_deref() == Some(key)
-                        }
-                        _ => false,
-                    })
-                });
+            let provided_index = resolved_object_list_field(input, "fields")
+                .iter()
+                .rposition(|field| resolved_string_field(field, "key").as_deref() == Some(key));
             let field_path = match provided_index {
                 Some(index) => json!(["metaobject", "fields", index.to_string()]),
                 None => json!(["metaobject"]),
@@ -2241,8 +2157,8 @@ fn metaobject_create_validation_errors(
     if let Some(capabilities) = resolved_object_field(input, "capabilities") {
         // Shopify reports capability guard errors in a fixed capability order
         // (publishable, onlineStore, renderable, translatable) regardless of the
-        // order the caller supplied them, anchored at ["capabilities", <name>]
-        // with a null elementKey.
+        // order the caller supplied them, anchored at
+        // ["metaobject", "capabilities", <name>] with a null elementKey.
         for key in ["publishable", "onlineStore", "renderable", "translatable"] {
             if !capabilities.contains_key(key) {
                 continue;
@@ -2251,9 +2167,14 @@ fn metaobject_create_validation_errors(
                 .as_bool()
                 .unwrap_or(false);
             if !enabled {
+                let message_key = if key == "onlineStore" {
+                    "online_store"
+                } else {
+                    key
+                };
                 errors.push(metaobject_user_error(
-                    vec!["capabilities", key],
-                    "Capability is not enabled on this definition",
+                    vec!["metaobject", "capabilities", key],
+                    &format!("Capability is not enabled: {message_key}"),
                     "CAPABILITY_NOT_ENABLED",
                     Value::Null,
                     Value::Null,
@@ -2275,13 +2196,15 @@ fn metaobject_user_error(
     metaobject_indexed_user_error(field, message, Some(code), element_key, element_index)
 }
 
+fn metaobject_field_error(field: impl Into<UserErrorField>, message: &str, code: &str) -> Value {
+    metaobject_indexed_user_error(field, message, Some(code), Value::Null, Value::Null)
+}
+
 fn metaobject_no_definition_error(path_root: &str, meta_type: &str, code: &str) -> Value {
-    metaobject_user_error(
+    metaobject_field_error(
         vec![path_root, "type"],
         &format!("No metaobject definition exists for type \"{meta_type}\""),
         code,
-        Value::Null,
-        Value::Null,
     )
 }
 
@@ -2413,6 +2336,31 @@ fn metaobject_updated_publishable_status(
         .unwrap_or_else(|| metaobject_publishable_status(input, definition))
 }
 
+fn metaobject_online_store_template_suffix_input(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let capabilities = resolved_object_field(input, "capabilities")?;
+    let online_store = resolved_object_field(&capabilities, "onlineStore")?;
+    match online_store.get("templateSuffix") {
+        Some(ResolvedValue::String(template_suffix)) => Some(json!(template_suffix)),
+        Some(ResolvedValue::Null) => Some(Value::Null),
+        _ => None,
+    }
+}
+
+fn metaobject_existing_online_store_template_suffix(existing: &Value) -> Option<Value> {
+    let online_store = existing
+        .get("capabilities")?
+        .get("onlineStore")?
+        .as_object()?;
+    Some(
+        online_store
+            .get("templateSuffix")
+            .cloned()
+            .unwrap_or(Value::Null),
+    )
+}
+
 fn metaobject_required_field_errors_for_upsert(
     errors: Vec<Value>,
     definition: &Value,
@@ -2435,14 +2383,19 @@ fn metaobject_required_field_errors_for_upsert(
         .collect()
 }
 
+struct MetaobjectRecordOptions<'a> {
+    display_name: &'a str,
+    publishable_status: &'a str,
+    online_store_template_suffix: Value,
+    updated_at: &'a str,
+}
+
 fn metaobject_record_from_definition_with_options(
     id: &str,
     handle: &str,
     definition: &Value,
     input_values: &BTreeMap<String, String>,
-    display_name: &str,
-    publishable_status: &str,
-    updated_at: &str,
+    options: MetaobjectRecordOptions<'_>,
 ) -> Value {
     let meta_type = definition["type"].as_str().unwrap_or_default();
     let fields = definition["fieldDefinitions"]
@@ -2470,16 +2423,16 @@ fn metaobject_record_from_definition_with_options(
         "id": id,
         "handle": handle,
         "type": meta_type,
-        "displayName": display_name,
-        "updatedAt": updated_at,
+        "displayName": options.display_name,
+        "updatedAt": options.updated_at,
         "capabilities": {
             "publishable": if definition["capabilities"]["publishable"]["enabled"].as_bool().unwrap_or(false) {
-                json!({"status": publishable_status})
+                json!({"status": options.publishable_status})
             } else {
                 Value::Null
             },
             "onlineStore": if definition["capabilities"]["onlineStore"]["enabled"].as_bool().unwrap_or(false) {
-                json!({"templateSuffix": Value::Null})
+                json!({"templateSuffix": options.online_store_template_suffix})
             } else {
                 Value::Null
             }
@@ -2553,16 +2506,16 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
     ) -> bool {
         fields.iter().all(|field| match field.name.as_str() {
-            "metaobjectUpdate" => resolved_string_arg(&field.arguments, "id")
+            "metaobjectUpdate" => resolved_string_field(&field.arguments, "id")
                 .map(|id| self.metaobject_by_id(&id).is_some())
                 .unwrap_or(false),
-            "metaobjectUpsert" => match field.arguments.get("handle") {
-                Some(ResolvedValue::Object(handle)) => resolved_string_field(handle, "type")
+            "metaobjectUpsert" => match resolved_object_field(&field.arguments, "handle") {
+                Some(handle) => resolved_string_field(&handle, "type")
                     .map(|meta_type| self.metaobject_definition_by_type(&meta_type).is_some())
                     .unwrap_or(false),
                 _ => false,
             },
-            "metaobjectDefinitionUpdate" => resolved_string_arg(&field.arguments, "id")
+            "metaobjectDefinitionUpdate" => resolved_string_field(&field.arguments, "id")
                 .map(|id| self.metaobject_definition_by_id(&id).is_some())
                 .unwrap_or(false),
             // Creates and deletes are always emulated locally.
@@ -2575,12 +2528,11 @@ impl DraftProxy {
         fields: &[RootFieldSelection],
         request: &Request,
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "metaobjects" => self.metaobject_connection(field),
                 "metaobject" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.metaobject_by_id(&id)
                         .map(|record| self.project_metaobject_against_definition(&record))
                         .map(|record| self.selected_metaobject(&record, &field.selection))
@@ -2588,7 +2540,7 @@ impl DraftProxy {
                 }
                 "metaobjectByHandle" => self.metaobject_by_handle_arg(field).unwrap_or(Value::Null),
                 "metaobjectDefinition" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.metaobject_definition_by_id(&id)
                         .map(|definition| selected_json(&definition, &field.selection))
                         .unwrap_or(Value::Null)
@@ -2604,10 +2556,8 @@ impl DraftProxy {
                 }
                 "metaobjectDefinitions" => self.metaobject_definition_connection(field),
                 _ => Value::Null,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            })
+        })
     }
 
     pub(in crate::proxy) fn metaobject_live_hybrid_read(
@@ -2619,22 +2569,25 @@ impl DraftProxy {
         let Some(data) = response.body.get_mut("data").and_then(Value::as_object_mut) else {
             return response;
         };
-        for field in fields {
+        let aliased_data = root_payload_json(fields, |field| {
             if data.contains_key(&field.response_key) {
-                continue;
+                return None;
             }
-            if let Some(value) = data.get(&field.name).cloned() {
-                data.insert(field.response_key.clone(), value);
+            data.get(&field.name).cloned()
+        });
+        if let Some(aliased_data) = aliased_data.as_object() {
+            for (response_key, value) in aliased_data {
+                data.insert(response_key.clone(), value.clone());
             }
         }
         let upstream_nodes = metaobject_nodes_from_upstream_data(data);
-        for field in fields {
+        let fallback_data = root_payload_json(fields, |field| {
             if data.contains_key(&field.response_key) {
-                continue;
+                return None;
             }
             let value = match field.name.as_str() {
                 "metaobject" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     upstream_nodes
                         .iter()
                         .find(|node| node.get("id").and_then(Value::as_str) == Some(&id))
@@ -2643,7 +2596,7 @@ impl DraftProxy {
                 }
                 "metaobjectByHandle" => {
                     let Some(ResolvedValue::Object(handle)) = field.arguments.get("handle") else {
-                        continue;
+                        return None;
                     };
                     let meta_type = resolved_string_field(handle, "type").unwrap_or_default();
                     let meta_handle = resolved_string_field(handle, "handle").unwrap_or_default();
@@ -2657,9 +2610,14 @@ impl DraftProxy {
                         .cloned()
                         .unwrap_or(Value::Null)
                 }
-                _ => continue,
+                _ => return None,
             };
-            data.insert(field.response_key.clone(), value);
+            Some(value)
+        });
+        if let Some(fallback_data) = fallback_data.as_object() {
+            for (response_key, value) in fallback_data {
+                data.insert(response_key.clone(), value.clone());
+            }
         }
         response
     }
@@ -2671,15 +2629,13 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
         let mut errors = Vec::new();
-        for field in fields {
+        let data = root_payload_json(fields, |field| {
             if field.name == "metaobjectBulkDelete" {
                 if let Some(error) = metaobject_bulk_delete_selector_error(field, query) {
                     errors.push(error);
-                    data.insert(field.response_key.clone(), Value::Null);
-                    continue;
+                    return Some(Value::Null);
                 }
             }
             let value = match field.name.as_str() {
@@ -2701,8 +2657,8 @@ impl DraftProxy {
                 }
                 _ => Value::Null,
             };
-            data.insert(field.response_key.clone(), value);
-        }
+            Some(value)
+        });
         if !staged_ids.is_empty() {
             // Each successful metaobject mutation reserves one synthetic id for its
             // mutation-log entry after allocating the resources it creates, matching
@@ -2720,7 +2676,7 @@ impl DraftProxy {
                 staged_ids,
             );
         }
-        let mut body = json!({"data": Value::Object(data)});
+        let mut body = json!({"data": data});
         if !errors.is_empty() {
             body["errors"] = Value::Array(errors);
         }
@@ -2728,13 +2684,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn metaobject_by_id(&self, id: &str) -> Option<Value> {
-        if self.store.staged.metaobjects.is_tombstoned(id) {
-            return None;
-        }
-        if let Some(record) = self.store.staged.metaobjects.get(id) {
-            return Some(record.clone());
-        }
-        None
+        self.store.staged.metaobjects.get(id).cloned()
     }
 
     /// Resolve a linked metaobject reference (the gid stored in a product option's
@@ -2960,11 +2910,9 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> Option<Value> {
-        let Some(ResolvedValue::Object(handle)) = field.arguments.get("handle") else {
-            return None;
-        };
-        let meta_type = resolved_string_field(handle, "type").unwrap_or_default();
-        let meta_handle = resolved_string_field(handle, "handle").unwrap_or_default();
+        let handle = resolved_object_field(&field.arguments, "handle")?;
+        let meta_type = resolved_string_field(&handle, "type").unwrap_or_default();
+        let meta_handle = resolved_string_field(&handle, "handle").unwrap_or_default();
         self.metaobject_by_type_and_handle(&meta_type, &meta_handle)
             .map(|record| self.project_metaobject_against_definition(&record))
             .map(|record| self.selected_metaobject(&record, &field.selection))
@@ -2992,7 +2940,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn metaobject_connection(&self, field: &RootFieldSelection) -> Value {
-        let meta_type = resolved_string_arg(&field.arguments, "type").unwrap_or_default();
+        let meta_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
         let mut records: Vec<Value> =
             self.store
                 .staged
@@ -3036,11 +2984,10 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn url_redirect_query_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "urlRedirect" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.store
                         .staged
                         .url_redirects
@@ -3050,14 +2997,12 @@ impl DraftProxy {
                 }
                 "urlRedirects" => self.url_redirect_connection(field),
                 _ => Value::Null,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            })
+        })
     }
 
     fn url_redirect_connection(&self, field: &RootFieldSelection) -> Value {
-        let query = resolved_string_arg(&field.arguments, "query");
+        let query = resolved_string_field(&field.arguments, "query");
         let mut records = self
             .store
             .staged
@@ -3105,16 +3050,19 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let input = match field.arguments.get("metaobject") {
-            Some(ResolvedValue::Object(input)) => input,
-            _ => {
-                return self.selected_metaobject_payload(
-                    &json!({"metaobject": null, "userErrors": []}),
-                    &field.selection,
-                )
-            }
+        let Some(input) = resolved_object_field(&field.arguments, "metaobject") else {
+            return self.selected_metaobject_payload(
+                &json!({"metaobject": null, "userErrors": []}),
+                &field.selection,
+            );
         };
-        self.stage_metaobject_create_from_input(input, request, staged_ids, &field.selection, false)
+        self.stage_metaobject_create_from_input(
+            &input,
+            request,
+            staged_ids,
+            &field.selection,
+            false,
+        )
     }
 
     fn stage_metaobject_create_from_input(
@@ -3202,9 +3150,13 @@ impl DraftProxy {
             &handle_choice.handle,
             &definition,
             &input_values,
-            &display_name,
-            &publishable_status,
-            "2026-01-01T00:00:00Z",
+            MetaobjectRecordOptions {
+                display_name: &display_name,
+                publishable_status: &publishable_status,
+                online_store_template_suffix: metaobject_online_store_template_suffix_input(input)
+                    .unwrap_or(Value::Null),
+                updated_at: "2026-01-01T00:00:00Z",
+            },
         );
         self.store
             .staged
@@ -3279,7 +3231,7 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(existing) = self
             .metaobject_by_id(&id)
             .or_else(|| self.hydrate_metaobject_by_id(request, &id))
@@ -3287,19 +3239,16 @@ impl DraftProxy {
             return self.selected_metaobject_payload(
                 &json!({
                     "metaobject": null,
-                    "userErrors": [metaobject_user_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND", Value::Null, Value::Null)]
+                    "userErrors": [metaobject_field_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND")]
                 }),
                 &field.selection,
             );
         };
-        let input = match field.arguments.get("metaobject") {
-            Some(ResolvedValue::Object(input)) => input,
-            _ => {
-                return self.selected_metaobject_payload(
-                    &json!({"metaobject": existing, "userErrors": []}),
-                    &field.selection,
-                )
-            }
+        let Some(input) = resolved_object_field(&field.arguments, "metaobject") else {
+            return self.selected_metaobject_payload(
+                &json!({"metaobject": existing, "userErrors": []}),
+                &field.selection,
+            );
         };
         let meta_type = existing
             .get("type")
@@ -3324,7 +3273,7 @@ impl DraftProxy {
             );
         };
 
-        let input_values = metaobject_merged_input_values(&existing, input);
+        let input_values = metaobject_merged_input_values(&existing, &input);
         let validation_context = MetaobjectFieldValueValidationContext {
             proxy: self,
             existing_id: Some(&id),
@@ -3332,12 +3281,12 @@ impl DraftProxy {
         };
         let mut validation_errors = metaobject_create_validation_errors(
             Some(&validation_context),
-            input,
+            &input,
             &definition,
             &input_values,
             true,
         );
-        let requested_handle = resolved_string_field(input, "handle");
+        let requested_handle = resolved_string_field(&input, "handle");
         let (next_handle, handle_display_source) = if let Some(handle) = requested_handle.as_deref()
         {
             validation_errors.extend(metaobject_handle_validation_errors(
@@ -3370,7 +3319,7 @@ impl DraftProxy {
         validation_errors.extend(self.metaobject_display_name_conflict_errors(
             &id,
             &definition,
-            input,
+            &input,
             &input_values,
             &handle_display_source,
         ));
@@ -3384,7 +3333,7 @@ impl DraftProxy {
         let display_name =
             metaobject_display_name(&definition, &input_values, &handle_display_source);
         let publishable_status =
-            metaobject_updated_publishable_status(input, &definition, &existing);
+            metaobject_updated_publishable_status(&input, &definition, &existing);
         // `_with_options` nulls the publishable capability when the definition has it
         // disabled (e.g. after a schema change turned it off), matching how Shopify
         // reads back entries whose definition no longer exposes the capability.
@@ -3397,9 +3346,14 @@ impl DraftProxy {
             &next_handle,
             &definition,
             &input_values,
-            &display_name,
-            &publishable_status,
-            updated_at,
+            MetaobjectRecordOptions {
+                display_name: &display_name,
+                publishable_status: &publishable_status,
+                online_store_template_suffix: metaobject_online_store_template_suffix_input(&input)
+                    .or_else(|| metaobject_existing_online_store_template_suffix(&existing))
+                    .unwrap_or(Value::Null),
+                updated_at,
+            },
         );
         self.store
             .staged
@@ -3418,23 +3372,16 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let Some(ResolvedValue::Object(handle)) = field.arguments.get("handle") else {
+        let Some(handle) = resolved_object_field(&field.arguments, "handle") else {
             return self.selected_metaobject_payload(
                 &json!({"metaobject": null, "userErrors": []}),
                 &field.selection,
             );
         };
-        let meta_type = resolved_string_field(handle, "type").unwrap_or_default();
-        let meta_handle_input = resolved_string_field(handle, "handle").unwrap_or_default();
+        let meta_type = resolved_string_field(&handle, "type").unwrap_or_default();
+        let meta_handle_input = resolved_string_field(&handle, "handle").unwrap_or_default();
         let meta_handle = slugify_handle(&meta_handle_input);
-        let Some(input) = field
-            .arguments
-            .get("metaobject")
-            .and_then(|value| match value {
-                ResolvedValue::Object(input) => Some(input),
-                _ => None,
-            })
-        else {
+        let Some(input) = resolved_object_field(&field.arguments, "metaobject") else {
             return self.selected_metaobject_payload(
                 &json!({"metaobject": null, "userErrors": []}),
                 &field.selection,
@@ -3462,7 +3409,7 @@ impl DraftProxy {
                 );
             };
             let mut update_input = input.clone();
-            if let Some(handle) = resolved_string_field(input, "handle") {
+            if let Some(handle) = resolved_string_field(&input, "handle") {
                 update_input.insert("handle".to_string(), ResolvedValue::String(handle));
             }
             let input_values = metaobject_merged_input_values(&existing, &update_input);
@@ -3545,9 +3492,16 @@ impl DraftProxy {
                 &next_handle,
                 &definition,
                 &input_values,
-                &display_name,
-                &publishable_status,
-                updated_at,
+                MetaobjectRecordOptions {
+                    display_name: &display_name,
+                    publishable_status: &publishable_status,
+                    online_store_template_suffix: metaobject_online_store_template_suffix_input(
+                        &update_input,
+                    )
+                    .or_else(|| metaobject_existing_online_store_template_suffix(&existing))
+                    .unwrap_or(Value::Null),
+                    updated_at,
+                },
             );
             self.store
                 .staged
@@ -3597,7 +3551,7 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         if self.metaobject_by_id(&id).is_none()
             && self.hydrate_metaobject_by_id(request, &id).is_none()
         {
@@ -3634,24 +3588,22 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let where_input = field.arguments.get("where").and_then(|value| match value {
-            ResolvedValue::Object(input) => Some(input),
-            _ => None,
-        });
+        let where_input = resolved_object_field(&field.arguments, "where");
         let ids = where_input
+            .as_ref()
             .and_then(|input| input.get("ids"))
             .or_else(|| field.arguments.get("ids"))
-            .and_then(|value| match value {
-                ResolvedValue::List(values) => Some(
+            .and_then(|value| {
+                resolved_value_list(value).map(|values| {
                     values
                         .iter()
                         .filter_map(resolved_value_string)
                         .take(250)
-                        .collect::<Vec<_>>(),
-                ),
-                _ => None,
+                        .collect::<Vec<_>>()
+                })
             });
         let meta_type = where_input
+            .as_ref()
             .and_then(|input| resolved_string_field(input, "type"))
             .filter(|value| !value.is_empty());
         if ids.is_some() == meta_type.is_some() {
@@ -3733,7 +3685,7 @@ impl DraftProxy {
     fn selected_metaobject(&self, record: &Value, selection: &[SelectedField]) -> Value {
         selected_payload_json(selection, |field| match field.name.as_str() {
             "field" => {
-                let key = resolved_string_arg(&field.arguments, "key").unwrap_or_default();
+                let key = resolved_string_field(&field.arguments, "key").unwrap_or_default();
                 let value = record["fields"]
                     .as_array()
                     .into_iter()
@@ -3917,16 +3869,13 @@ impl DraftProxy {
         request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let definition_input = match field.arguments.get("definition") {
-            Some(ResolvedValue::Object(input)) => input,
-            _ => {
-                return selected_json(
-                    &json!({"metaobjectDefinition": null, "userErrors": []}),
-                    &field.selection,
-                )
-            }
+        let Some(definition_input) = resolved_object_field(&field.arguments, "definition") else {
+            return selected_json(
+                &json!({"metaobjectDefinition": null, "userErrors": []}),
+                &field.selection,
+            );
         };
-        let meta_type = metaobject_definition_type_from_input(definition_input, request);
+        let meta_type = metaobject_definition_type_from_input(&definition_input, request);
         let existing_definitions = self
             .store
             .staged
@@ -3935,7 +3884,7 @@ impl DraftProxy {
             .filter(|(id, _)| !self.store.staged.metaobject_definitions.is_tombstoned(id))
             .count();
         let validation_errors = metaobject_definition_create_validation_errors(
-            definition_input,
+            &definition_input,
             &meta_type,
             existing_definitions,
         );
@@ -3949,13 +3898,13 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "metaobjectDefinition": null,
-                    "userErrors": [metaobject_user_error(vec!["definition", "type"], "Type has already been taken", "TAKEN", Value::Null, Value::Null)]
+                    "userErrors": [metaobject_field_error(vec!["definition", "type"], "Type has already been taken", "TAKEN")]
                 }),
                 &field.selection,
             );
         }
         let id = self.next_proxy_synthetic_gid("MetaobjectDefinition");
-        let definition = metaobject_definition_record(&id, definition_input, &meta_type);
+        let definition = metaobject_definition_record(&id, &definition_input, &meta_type);
         self.store
             .staged
             .metaobject_definitions
@@ -3977,24 +3926,21 @@ impl DraftProxy {
         field: &RootFieldSelection,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(definition) = self.metaobject_definition_by_id(&id) else {
             return selected_json(
                 &json!({
                     "metaobjectDefinition": null,
-                    "userErrors": [metaobject_user_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND", Value::Null, Value::Null)]
+                    "userErrors": [metaobject_field_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND")]
                 }),
                 &field.selection,
             );
         };
-        let definition_input = match field.arguments.get("definition") {
-            Some(ResolvedValue::Object(input)) => input,
-            _ => {
-                return selected_json(
-                    &json!({"metaobjectDefinition": definition, "userErrors": []}),
-                    &field.selection,
-                )
-            }
+        let Some(definition_input) = resolved_object_field(&field.arguments, "definition") else {
+            return selected_json(
+                &json!({"metaobjectDefinition": definition, "userErrors": []}),
+                &field.selection,
+            );
         };
         let meta_type = definition
             .get("type")
@@ -4014,18 +3960,16 @@ impl DraftProxy {
         {
             let current_display_name_key = definition.get("displayNameKey").and_then(Value::as_str);
             let changes_display_name_key =
-                resolved_string_field(definition_input, "displayNameKey")
+                resolved_string_field(&definition_input, "displayNameKey")
                     .is_some_and(|next| Some(next.as_str()) != current_display_name_key);
             if changes_display_name_key {
                 return selected_json(
                     &json!({
                         "metaobjectDefinition": null,
-                        "userErrors": [metaobject_user_error(
+                        "userErrors": [metaobject_field_error(
                             vec!["definition", "displayNameKey"],
                             "Cannot change display name field when metaobject is used in product options",
                             "IMMUTABLE",
-                            Value::Null,
-                            Value::Null,
                         )]
                     }),
                     &field.selection,
@@ -4037,7 +3981,7 @@ impl DraftProxy {
             .cloned()
             .unwrap_or_default();
         let validation_errors = metaobject_definition_update_validation_errors(
-            definition_input,
+            &definition_input,
             meta_type,
             &existing_field_definitions,
         );
@@ -4047,7 +3991,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        let updated = update_metaobject_definition_record(definition, definition_input);
+        let updated = update_metaobject_definition_record(definition, &definition_input);
         self.store
             .staged
             .metaobject_definitions
@@ -4064,12 +4008,12 @@ impl DraftProxy {
         field: &RootFieldSelection,
         staged_ids: &mut Vec<String>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(definition) = self.metaobject_definition_by_id(&id) else {
             return selected_json(
                 &json!({
                     "deletedId": null,
-                    "userErrors": [metaobject_user_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND", Value::Null, Value::Null)]
+                    "userErrors": [metaobject_field_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND")]
                 }),
                 &field.selection,
             );
@@ -4100,9 +4044,6 @@ impl DraftProxy {
     }
 
     fn metaobject_definition_by_id(&self, id: &str) -> Option<Value> {
-        if self.store.staged.metaobject_definitions.is_tombstoned(id) {
-            return None;
-        }
         self.store.staged.metaobject_definitions.get(id).cloned()
     }
 
@@ -4111,15 +4052,7 @@ impl DraftProxy {
             .staged
             .metaobject_definitions
             .values()
-            .find(|definition| {
-                definition.get("type").and_then(Value::as_str) == Some(meta_type)
-                    && !self.store.staged.metaobject_definitions.is_tombstoned(
-                        definition
-                            .get("id")
-                            .and_then(Value::as_str)
-                            .unwrap_or_default(),
-                    )
-            })
+            .find(|definition| definition.get("type").and_then(Value::as_str) == Some(meta_type))
             .cloned()
     }
 
@@ -4286,18 +4219,7 @@ impl DraftProxy {
     }
 
     fn metaobject_handle_exists_case_insensitive(&self, meta_type: &str, handle: &str) -> bool {
-        self.store.staged.metaobjects.values().any(|record| {
-            record.get("type").and_then(Value::as_str) == Some(meta_type)
-                && record
-                    .get("handle")
-                    .and_then(Value::as_str)
-                    .is_some_and(|candidate| candidate.eq_ignore_ascii_case(handle))
-                && !self
-                    .store
-                    .staged
-                    .metaobjects
-                    .is_tombstoned(record.get("id").and_then(Value::as_str).unwrap_or_default())
-        })
+        self.metaobject_handle_belongs_to_other_case_insensitive(meta_type, handle, "")
     }
 
     fn metaobject_handle_belongs_to_other_case_insensitive(

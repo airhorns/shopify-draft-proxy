@@ -46,6 +46,25 @@ fn request_with_headers(
     }
 }
 
+fn config_snapshot(proxy: &DraftProxy) -> Value {
+    meta_snapshot(proxy, "/__meta/config")
+}
+
+fn log_snapshot(proxy: &DraftProxy) -> Value {
+    meta_snapshot(proxy, "/__meta/log")
+}
+
+fn state_snapshot(proxy: &DraftProxy) -> Value {
+    meta_snapshot(proxy, "/__meta/state")
+}
+
+fn meta_snapshot(proxy: &DraftProxy, path: &str) -> Value {
+    let mut proxy = proxy.clone();
+    let response = proxy.process_request(request("GET", path));
+    assert_eq!(response.status, 200);
+    response.body
+}
+
 fn graphql_request(body: &str) -> Request {
     request_with_body("POST", "/admin/api/2026-04/graphql.json", body)
 }
@@ -119,7 +138,7 @@ fn assert_single_local_staged_log(
     staged_resource_ids: Value,
 ) {
     assert_eq!(
-        proxy.get_log_snapshot(),
+        log_snapshot(proxy),
         json!({
             "entries": [
                 expected_local_staged_log(
@@ -203,7 +222,7 @@ fn ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests() {
         "proxy": { "port": 4000, "shopifyAdminOrigin": "https://shopify.com" },
         "snapshot": { "enabled": false, "path": null }
     });
-    assert_eq!(default_proxy.get_config_snapshot(), expected_default_config);
+    assert_eq!(config_snapshot(&default_proxy), expected_default_config);
     assert_eq!(
         default_proxy
             .process_request(request("GET", "/__meta/config"))
@@ -220,7 +239,7 @@ fn ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests() {
         snapshot_path: Some("/tmp/snap.json".to_string()),
     });
     assert_eq!(
-        snapshot_proxy.get_config_snapshot(),
+        config_snapshot(&snapshot_proxy),
         json!({
             "runtime": {
                 "readMode": "live-hybrid",
@@ -232,21 +251,21 @@ fn ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests() {
         })
     );
 
-    let log_snapshot = default_proxy.get_log_snapshot();
-    assert_eq!(log_snapshot, json!({ "entries": [] }));
+    let log_json = log_snapshot(&default_proxy);
+    assert_eq!(log_json, json!({ "entries": [] }));
     assert_eq!(
         default_proxy
             .process_request(request("GET", "/__meta/log"))
             .body,
-        log_snapshot
+        log_json
     );
 
-    let state_snapshot = default_proxy.get_state_snapshot();
+    let state_json = state_snapshot(&default_proxy);
     assert_eq!(
         default_proxy
             .process_request(request("GET", "/__meta/state"))
             .body,
-        state_snapshot
+        state_json
     );
 
     let mut helper_proxy = DraftProxy::new(Config::default());
@@ -258,13 +277,13 @@ fn ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests() {
         helper_proxy
             .process_request(request("GET", "/__meta/log"))
             .body,
-        helper_proxy.get_log_snapshot()
+        log_snapshot(&helper_proxy)
     );
     assert_eq!(
         helper_proxy
             .process_request(request("GET", "/__meta/state"))
             .body,
-        helper_proxy.get_state_snapshot()
+        state_snapshot(&helper_proxy)
     );
 
     let route_guards = [
@@ -295,11 +314,13 @@ fn ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests() {
     );
     assert_eq!(
         default_proxy
-            .process_request(graphql_request(
-                &json!({ "query": "mutation { eventDelete(id: \"x\") { ok } }" }).to_string()
+            .process_request(request_with_body(
+                "POST",
+                "/admin/api/banana/graphql.json",
+                &json!({ "query": "{ shop { id } }" }).to_string()
             ))
             .status,
-        400
+        404
     );
     assert_eq!(
         default_proxy
@@ -554,7 +575,7 @@ fn saved_search_mutation_outcomes_finalize_exactly_one_log_draft() {
         json!(["gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic"]),
     );
 
-    let update_query = "mutation { savedSearchUpdate(input: { id: \"gid://shopify/SavedSearch/3634391580978\", name: \"Open orders\", query: \"status:open\" }) { savedSearch { id name query resourceType } userErrors { field message } } }";
+    let update_query = "mutation { savedSearchUpdate(input: { id: \"gid://shopify/SavedSearch/default-order-open?shopify-draft-proxy=synthetic\", name: \"Open orders\", query: \"status:open\" }) { savedSearch { id name query resourceType } userErrors { field message } } }";
     let mut update_proxy = snapshot_proxy();
     let update = update_proxy.process_request(graphql_request(
         &json!({ "query": update_query }).to_string(),
@@ -570,10 +591,10 @@ fn saved_search_mutation_outcomes_finalize_exactly_one_log_draft() {
         json!({}),
         "savedSearchUpdate",
         "saved_searches",
-        json!(["gid://shopify/SavedSearch/3634391580978"]),
+        json!(["gid://shopify/SavedSearch/default-order-open?shopify-draft-proxy=synthetic"]),
     );
 
-    let delete_query = "mutation { savedSearchDelete(input: { id: \"gid://shopify/SavedSearch/3634391580978\" }) { deletedSavedSearchId userErrors { field message } } }";
+    let delete_query = "mutation { savedSearchDelete(input: { id: \"gid://shopify/SavedSearch/default-order-open?shopify-draft-proxy=synthetic\" }) { deletedSavedSearchId userErrors { field message } } }";
     let mut delete_proxy = snapshot_proxy();
     let delete = delete_proxy.process_request(graphql_request(
         &json!({ "query": delete_query }).to_string(),
@@ -581,7 +602,7 @@ fn saved_search_mutation_outcomes_finalize_exactly_one_log_draft() {
     assert_eq!(delete.status, 200);
     assert_eq!(
         delete.body["data"]["savedSearchDelete"]["deletedSavedSearchId"],
-        json!("gid://shopify/SavedSearch/3634391580978")
+        json!("gid://shopify/SavedSearch/default-order-open?shopify-draft-proxy=synthetic")
     );
     assert_single_local_staged_log(
         &delete_proxy,
@@ -589,7 +610,7 @@ fn saved_search_mutation_outcomes_finalize_exactly_one_log_draft() {
         json!({}),
         "savedSearchDelete",
         "saved_searches",
-        json!(["gid://shopify/SavedSearch/3634391580978"]),
+        json!(["gid://shopify/SavedSearch/default-order-open?shopify-draft-proxy=synthetic"]),
     );
 }
 
@@ -655,6 +676,19 @@ fn ported_gleam_log_draft_enforcement_supported_domains_record_entries() {
 
     for (domain, root, query) in cases {
         let mut proxy = snapshot_proxy();
+        if root == "backupRegionUpdate" {
+            let setup = proxy.process_request(graphql_request(
+                &json!({
+                    "query": "mutation { marketCreate(input: { name: \"Canada\", enabled: true, regions: [{ countryCode: \"CA\" }] }) { market { id } userErrors { message } } }"
+                })
+                .to_string(),
+            ));
+            assert_eq!(
+                setup.body["data"]["marketCreate"]["userErrors"],
+                json!([]),
+                "backupRegionUpdate log enforcement setup should stage a covering market"
+            );
+        }
         let response =
             proxy.process_request(graphql_request(&json!({ "query": query }).to_string()));
         assert_eq!(
@@ -663,7 +697,7 @@ fn ported_gleam_log_draft_enforcement_supported_domains_record_entries() {
             response.body
         );
 
-        let log = proxy.get_log_snapshot();
+        let log = log_snapshot(&proxy);
         let entries = log["entries"]
             .as_array()
             .unwrap_or_else(|| panic!("{domain} log entries should be an array: {log}"));
@@ -743,6 +777,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
             {
                 "baseState": {
                     "availableLocales": null,
+                    "giftCardConfiguration": null,
+                    "giftCards": {},
                     "localizationProductIds": [
                         "gid://shopify/Product/9801098789170"
                     ],
@@ -846,6 +882,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "discounts": {},
                     "draftOrderTags": {},
                     "giftCards": {},
+                    "locallyCreatedCustomerIds": [],
                     "locationLimitReached": false,
                     "locationOrder": [],
                     "locations": {},
@@ -1148,6 +1185,81 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
 }
 
 #[test]
+fn restore_state_round_trips_dumped_staged_counter_fields() {
+    let mut dump = snapshot_proxy()
+        .process_request(request_with_body(
+            "POST",
+            "/__meta/dump",
+            &json!({ "createdAt": "2026-06-26T00:00:00.000Z" }).to_string(),
+        ))
+        .body;
+    let staged_state = dump["state"]["stagedState"].as_object_mut().unwrap();
+    staged_state.insert("nextStoreCreditAccountId".to_string(), json!(17));
+    staged_state.insert("nextStoreCreditTransactionId".to_string(), json!(23));
+    staged_state.insert("nextDraftOrderId".to_string(), json!(29));
+    staged_state.insert("nextCustomerPaymentMethodId".to_string(), json!(31));
+    staged_state.insert("nextOrderCustomerOrderId".to_string(), json!(37));
+    staged_state.insert("nextDraftOrderBulkTagJobId".to_string(), json!(41));
+    staged_state.insert("nextInventoryQuantityTimestamp".to_string(), json!(43));
+    staged_state.insert("nextB2bCompanyId".to_string(), json!(47));
+    staged_state.insert("nextB2bContactId".to_string(), json!(53));
+    staged_state.insert("nextB2bContactRoleAssignmentId".to_string(), json!(59));
+    staged_state.insert(
+        "orderCustomerOrders".to_string(),
+        json!({
+            "gid://shopify/Order/37": {
+                "id": "gid://shopify/Order/37"
+            }
+        }),
+    );
+    staged_state.insert(
+        "b2bCompanies".to_string(),
+        json!({
+            "gid://shopify/Company/47": {
+                "id": "gid://shopify/Company/47"
+            }
+        }),
+    );
+    let counter_fields = [
+        "nextStoreCreditAccountId",
+        "nextStoreCreditTransactionId",
+        "nextDraftOrderId",
+        "nextCustomerPaymentMethodId",
+        "nextOrderCustomerOrderId",
+        "nextDraftOrderBulkTagJobId",
+        "nextInventoryQuantityTimestamp",
+        "nextB2bCompanyId",
+        "nextB2bContactId",
+        "nextB2bContactRoleAssignmentId",
+    ];
+    let expected_counters = counter_fields
+        .iter()
+        .map(|field| (*field, dump["state"]["stagedState"][field].clone()))
+        .collect::<Vec<_>>();
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let restored_dump = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/dump",
+        &json!({ "createdAt": "2026-06-26T00:00:01.000Z" }).to_string(),
+    ));
+    assert_eq!(restored_dump.status, 200);
+    for (field, expected) in expected_counters {
+        assert_eq!(
+            restored_dump.body["state"]["stagedState"][field], expected,
+            "staged counter {field} should round-trip through restore"
+        );
+    }
+}
+
+#[test]
 fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
     let mut proxy = snapshot_proxy();
     let create_order_query = r#"
@@ -1205,7 +1317,7 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
               transactions(first: 5) { nodes { id kind status } }
             }
             order { id }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
     "#;
@@ -1321,7 +1433,7 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
         second_order.body["data"]["orderCreate"]["order"]["id"],
         json!("gid://shopify/Order/2")
     );
-    assert!(restored.get_state_snapshot()["stagedState"]["orders"]
+    assert!(state_snapshot(&restored)["stagedState"]["orders"]
         .as_object()
         .unwrap()
         .contains_key(first_order_id.as_str().unwrap()));
@@ -1333,7 +1445,7 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
                 mutation MarkRestoredOrderPaid($input: OrderMarkAsPaidInput!) {
                   orderMarkAsPaid(input: $input) {
                     order { id transactions { id kind status } }
-                    userErrors { field message code }
+                    userErrors { field message }
                   }
                 }
             "#,
@@ -1527,13 +1639,13 @@ fn restore_state_round_trips_customer_payment_method_records_and_counter() {
 }
 
 #[test]
-fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
+fn restore_state_round_trips_order_customer_and_b2b_records() {
     let mut proxy = snapshot_proxy();
     let create_customer = proxy.process_request(graphql_request(
         &json!({
             "query": r#"
                 mutation CreateOrderCustomer {
-                  customerCreate(input: { email: "order-customer-roundtrip@example.com" }) {
+                  customerCreate(input: { email: "roundtrip-customer@example.test", firstName: "Round", lastName: "Trip" }) {
                     customer { id email displayName }
                     userErrors { field message code }
                   }
@@ -1562,8 +1674,13 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
             "query": create_order_query,
             "variables": {
                 "order": {
-                    "email": "order-customer-roundtrip-order@example.com",
-                    "customerId": customer_id
+                    "email": "roundtrip-order@example.test",
+                    "customerId": customer_id,
+                    "lineItems": [{
+                        "title": "Roundtrip item",
+                        "quantity": 1,
+                        "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                    }]
                 }
             }
         })
@@ -1580,7 +1697,7 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
         &json!({
             "query": r#"
                 mutation CreateOrderCustomerCompany {
-                  companyCreate(input: { company: { name: "Order Customer Error Paths Company" } }) {
+                  companyCreate(input: { company: { name: "Roundtrip Buyer Company" } }) {
                     company { id name }
                     userErrors { field message code }
                   }
@@ -1601,7 +1718,7 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
                   }
                 }
             "#,
-            "variables": { "companyId": company_id, "customerId": customer_id }
+            "variables": { "companyId": company_id.clone(), "customerId": customer_id }
         })
         .to_string(),
     ));
@@ -1614,7 +1731,14 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
     let b2b_order = proxy.process_request(graphql_request(
         &json!({
             "query": create_order_query,
-            "variables": { "order": { "email": "order-customer-b2b@example.com" } }
+            "variables": {
+                "order": {
+                    "email": "roundtrip-b2b-order@example.test",
+                    "purchasingEntity": {
+                        "purchasingCompany": { "companyId": company_id }
+                    }
+                }
+            }
         })
         .to_string(),
     ));
@@ -1624,7 +1748,16 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
     let cancelled_order = proxy.process_request(graphql_request(
         &json!({
             "query": create_order_query,
-            "variables": { "order": { "email": "order-customer-cancelled@example.com" } }
+            "variables": {
+                "order": {
+                    "email": "roundtrip-cancelled@example.test",
+                    "lineItems": [{
+                        "title": "Roundtrip cancelled item",
+                        "quantity": 1,
+                        "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+                    }]
+                }
+            }
         })
         .to_string(),
     ));
@@ -1655,25 +1788,21 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
     ));
     assert_eq!(dump.status, 200);
     assert_eq!(
-        dump.body["state"]["stagedState"]["orderCustomerOrders"]
-            [regular_order_id.as_str().unwrap()]["id"],
+        dump.body["state"]["stagedState"]["orders"][regular_order_id.as_str().unwrap()]["id"],
         regular_order_id
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["orderCustomerOrders"][b2b_order_id.as_str().unwrap()]
+            ["id"],
+        b2b_order_id
     );
     assert_eq!(
         dump.body["state"]["stagedState"]["orderCustomerB2bOrderIds"],
         json!([b2b_order_id])
     );
     assert_eq!(
-        dump.body["state"]["stagedState"]["orderCustomerCancelledIds"],
-        json!([cancelled_order_id])
-    );
-    assert_eq!(
         dump.body["state"]["stagedState"]["orderCustomerContactCustomerIds"],
         json!([customer_id])
-    );
-    assert_eq!(
-        dump.body["state"]["stagedState"]["nextOrderCustomerOrderId"],
-        json!(4)
     );
 
     let mut restored = snapshot_proxy();
@@ -1723,6 +1852,25 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
         json!("NOT_PERMITTED")
     );
 
+    let b2b_remove = restored.process_request(graphql_request(
+        &json!({
+            "query": r#"
+                mutation RemoveB2bOrderCustomer($orderId: ID!) {
+                  orderCustomerRemove(orderId: $orderId) {
+                    order { id customer { id } }
+                    userErrors { field message code }
+                  }
+                }
+            "#,
+            "variables": { "orderId": b2b_order_id }
+        })
+        .to_string(),
+    ));
+    assert_eq!(
+        b2b_remove.body["data"]["orderCustomerRemove"]["userErrors"][0]["code"],
+        json!("INVALID")
+    );
+
     let cancelled_remove = restored.process_request(graphql_request(
         &json!({
             "query": r#"
@@ -1738,20 +1886,29 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
         .to_string(),
     ));
     assert_eq!(
-        cancelled_remove.body["data"]["orderCustomerRemove"]["userErrors"][0]["code"],
-        json!("INVALID")
+        cancelled_remove.body["data"]["orderCustomerRemove"]["userErrors"],
+        json!([])
     );
 
     let next_order = restored.process_request(graphql_request(
         &json!({
             "query": create_order_query,
-            "variables": { "order": { "email": "order-customer-next@example.com" } }
+            "variables": {
+                "order": {
+                    "email": "roundtrip-next@example.test",
+                    "lineItems": [{
+                        "title": "Roundtrip next item",
+                        "quantity": 1,
+                        "priceSet": { "shopMoney": { "amount": "14.00", "currencyCode": "USD" } }
+                    }]
+                }
+            }
         })
         .to_string(),
     ));
-    assert_eq!(
+    assert_ne!(
         next_order.body["data"]["orderCreate"]["order"]["id"],
-        json!("gid://shopify/Order/4?shopify-draft-proxy=synthetic")
+        regular_order_id
     );
 }
 

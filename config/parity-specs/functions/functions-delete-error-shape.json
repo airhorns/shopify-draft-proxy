@@ -52,7 +52,7 @@
           "documentPath": "config/parity-requests/functions/functions-delete-error-shape-cart-transform-create.graphql",
           "apiVersion": "2026-04",
           "variables": {
-            "functionHandle": "cart-transform-delete-shape"
+            "functionHandle": "conformance-cart-transform"
           }
         }
       },
@@ -90,5 +90,5 @@
       }
     ]
   },
-  "notes": "HAR-701 delete error-shape parity. The missing-delete legs are live Shopify captures from harry-test-heelo on Admin GraphQL 2026-04. The create/delete leg is cassette-backed local runtime evidence because the current unattended conformance shop no longer exposes released validation/cart-transform Function handles, but the fixture still hydrates a CART_TRANSFORM ShopifyFunction through the same upstream cassette path used by live-hybrid parity. Owner-scoped delete authorization is covered by HAR-1190 runtime tests; the replayed create/delete lifecycle earns same-app ownership through the modeled current installation rather than a request bypass."
+  "notes": "Delete error-shape parity. The missing-delete legs and create/delete/read lifecycle are live Shopify captures from harry-test-heelo on Admin GraphQL 2026-04. Replay hydrates the released conformance cart-transform Function through the same exact upstream Function lookup used by live-hybrid proxy handling. Owner-scoped delete authorization is covered by runtime tests; the replayed create/delete lifecycle earns same-app ownership through the modeled current installation rather than a request bypass."
 }

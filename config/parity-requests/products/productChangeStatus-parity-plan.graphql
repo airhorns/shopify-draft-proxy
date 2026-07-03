@@ -8,6 +8,7 @@ mutation ProductChangeStatusParityPlan($productId: ID!, $status: ProductStatus!)
     userErrors {
       field
       message
+      code
     }
   }
 }

@@ -57,39 +57,38 @@ impl DraftProxy {
             return None;
         }
 
-        let mut data = serde_json::Map::new();
         let mut errors = Vec::new();
-        for field in fields {
+        let data = root_payload_json(&fields, |field| {
             let result = match field.name.as_str() {
                 "publicationCreate" => ProductTailMutationFieldResult::value(
-                    self.product_tail_publication_create(&field, request, query, variables),
+                    self.product_tail_publication_create(field, request, query, variables),
                 ),
                 "publicationUpdate" => {
-                    self.product_tail_publication_update(&field, request, query, variables)
+                    self.product_tail_publication_update(field, request, query, variables)
                 }
                 "publicationDelete" => ProductTailMutationFieldResult::value(
-                    self.product_tail_publication_delete(&field, request, query, variables),
+                    self.product_tail_publication_delete(field, request, query, variables),
                 ),
                 "productFeedCreate" => ProductTailMutationFieldResult::value(
-                    self.product_tail_feed_create(&field, request, query, variables),
+                    self.product_tail_feed_create(field, request, query, variables),
                 ),
                 "productFeedDelete" => ProductTailMutationFieldResult::value(
-                    self.product_tail_feed_delete(&field, request, query, variables),
+                    self.product_tail_feed_delete(field, request, query, variables),
                 ),
                 "productFullSync" => ProductTailMutationFieldResult::value(
-                    self.product_tail_full_sync(&field, request, query, variables),
+                    self.product_tail_full_sync(field, request, query, variables),
                 ),
                 "combinedListingUpdate" => ProductTailMutationFieldResult::value(
-                    self.product_tail_combined_listing_update(&field, request, query, variables),
+                    self.product_tail_combined_listing_update(field, request, query, variables),
                 ),
                 "productVariantRelationshipBulkUpdate" => ProductTailMutationFieldResult::value(
                     self.product_tail_variant_relationship_bulk_update(
-                        &field, request, query, variables,
+                        field, request, query, variables,
                     ),
                 ),
-                "job" => ProductTailMutationFieldResult::value(self.product_tail_job_read(&field)),
+                "job" => ProductTailMutationFieldResult::value(self.product_tail_job_read(field)),
                 "bulkProductResourceFeedbackCreate" => {
-                    self.record_products_tail_log(
+                    self.record_mutation_log_with_status(
                         request,
                         query,
                         variables,
@@ -97,14 +96,14 @@ impl DraftProxy {
                         Vec::new(),
                         "failed",
                     );
-                    let missing_product_ids = self.feedback_missing_product_ids(&field, request);
+                    let missing_product_ids = self.feedback_missing_product_ids(field, request);
                     ProductTailMutationFieldResult::value(product_tail_resource_feedback_payload(
-                        &field,
+                        field,
                         &missing_product_ids,
                     ))
                 }
                 "shopResourceFeedbackCreate" => {
-                    self.record_products_tail_log(
+                    self.record_mutation_log_with_status(
                         request,
                         query,
                         variables,
@@ -112,19 +111,17 @@ impl DraftProxy {
                         Vec::new(),
                         "failed",
                     );
-                    ProductTailMutationFieldResult::value(product_tail_shop_feedback_payload(
-                        &field,
-                    ))
+                    ProductTailMutationFieldResult::value(product_tail_shop_feedback_payload(field))
                 }
-                _ => continue,
+                _ => return None,
             };
-            data.insert(field.response_key.clone(), result.value);
             errors.extend(result.errors);
-        }
-        if data.is_empty() {
+            Some(result.value)
+        });
+        if data.as_object().is_none_or(serde_json::Map::is_empty) {
             return None;
         }
-        let mut response = serde_json::Map::from_iter([("data".to_string(), Value::Object(data))]);
+        let mut response = serde_json::Map::from_iter([("data".to_string(), data)]);
         if !errors.is_empty() {
             response.insert("errors".to_string(), Value::Array(errors));
         }
@@ -182,7 +179,7 @@ impl DraftProxy {
                     "staged",
                 )
             };
-        self.record_products_tail_log(
+        self.record_mutation_log_with_status(
             request,
             query,
             variables,
@@ -226,7 +223,7 @@ impl DraftProxy {
             .as_deref()
             .and_then(|id| self.store.staged.publications.get(id).cloned());
         let (Some(id), Some(mut record)) = (id, record) else {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -239,16 +236,15 @@ impl DraftProxy {
                 &field.selection,
             ));
         };
-        let publishables_to_add = resolved_string_list_field_unsorted(&input, "publishablesToAdd");
-        let publishables_to_remove =
-            resolved_string_list_field_unsorted(&input, "publishablesToRemove");
+        let publishables_to_add = list_string_field(&input, "publishablesToAdd");
+        let publishables_to_remove = list_string_field(&input, "publishablesToRemove");
         let publishable_count = publishables_to_add.len() + publishables_to_remove.len();
         if publishable_count <= PUBLICATION_UPDATE_LIMIT {
             if let Some(variant_id) = Self::first_publication_update_variant_id(
                 &publishables_to_add,
                 &publishables_to_remove,
             ) {
-                self.record_products_tail_log(
+                self.record_mutation_log_with_status(
                     request,
                     query,
                     variables,
@@ -291,7 +287,7 @@ impl DraftProxy {
         let user_errors = self
             .publication_update_publishable_errors(&publishables_to_add, &publishables_to_remove);
         if !user_errors.is_empty() {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -337,7 +333,7 @@ impl DraftProxy {
             .staged
             .publications
             .insert(id.clone(), record.clone());
-        self.record_products_tail_log(
+        self.record_mutation_log_with_status(
             request,
             query,
             variables,
@@ -359,7 +355,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let Some(id) = resolved_string_field(&field.arguments, "id") else {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -375,7 +371,7 @@ impl DraftProxy {
         // Only publications staged this scenario can be deleted; the base/default
         // publication (and any unknown id) cannot be removed.
         if !self.store.staged.created_publication_ids.contains(&id) {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -394,11 +390,11 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "deletedId": null,
-                    "userErrors": [{
-                        "field": ["id"],
-                        "message": "Cannot delete the default publication",
-                        "code": "CANNOT_DELETE_DEFAULT_PUBLICATION"
-                    }]
+                    "userErrors": [user_error(
+                        ["id"],
+                        "Cannot delete the default publication",
+                        Some("CANNOT_DELETE_DEFAULT_PUBLICATION"),
+                    )]
                 }),
                 &field.selection,
             );
@@ -411,7 +407,7 @@ impl DraftProxy {
         for pubs in self.store.staged.resource_publications.values_mut() {
             pubs.remove(&id);
         }
-        self.record_products_tail_log(
+        self.record_mutation_log_with_status(
             request,
             query,
             variables,
@@ -460,10 +456,10 @@ impl DraftProxy {
         publishables_to_remove: &[String],
     ) -> Vec<Value> {
         if publishables_to_add.len() + publishables_to_remove.len() > PUBLICATION_UPDATE_LIMIT {
-            return vec![publication_error(
+            return vec![user_error(
                 publication_update_limit_field(publishables_to_add, publishables_to_remove),
                 "The limit for simultaneous publication updates has been exceeded.",
-                "PUBLICATION_UPDATE_LIMIT_EXCEEDED",
+                Some("PUBLICATION_UPDATE_LIMIT_EXCEEDED"),
             )];
         }
 
@@ -474,11 +470,14 @@ impl DraftProxy {
         ] {
             for (index, id) in ids.iter().enumerate() {
                 if !self.publication_update_publishable_exists(id) {
-                    user_errors.push(publication_indexed_error(
-                        field_name,
-                        index,
+                    user_errors.push(user_error(
+                        vec![
+                            "input".to_string(),
+                            field_name.to_string(),
+                            index.to_string(),
+                        ],
                         "Publishable ID not found.",
-                        "INVALID_PUBLISHABLE_ID",
+                        Some("INVALID_PUBLISHABLE_ID"),
                     ));
                 }
             }
@@ -552,7 +551,7 @@ impl DraftProxy {
         // ProductFeed.country is a CountryCode and .language a LanguageCode; Shopify rejects
         // values outside those enums at the resolver with a field-scoped INVALID userError.
         if !is_valid_product_feed_country(&country) {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -569,7 +568,7 @@ impl DraftProxy {
             );
         }
         if !is_valid_product_feed_language(&language) {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -588,7 +587,7 @@ impl DraftProxy {
         let id = shopify_gid("ProductFeed", format_args!("{country}-{language}"));
         // A feed is unique per country/language pair; re-creating an existing one is rejected.
         if self.store.product_feed_by_id(&id).is_some() {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -599,11 +598,11 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "productFeed": null,
-                    "userErrors": [{
-                        "field": ["country"],
-                        "message": "Product feed already exists for this country/language pair",
-                        "code": "TAKEN"
-                    }]
+                    "userErrors": [user_error(
+                        ["country"],
+                        "Product feed already exists for this country/language pair",
+                        Some("TAKEN"),
+                    )]
                 }),
                 &field.selection,
             );
@@ -621,7 +620,7 @@ impl DraftProxy {
         if let Some(feed) = payload.get("productFeed").cloned() {
             self.store.stage_product_feed(feed);
         }
-        self.record_products_tail_log(
+        self.record_mutation_log_with_status(
             request,
             query,
             variables,
@@ -639,7 +638,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let deleted = shopify_gid_resource_type(&id) == Some("ProductFeed")
             && self.store.delete_product_feed(&id);
         let (payload, staged_ids, status) = if deleted {
@@ -661,7 +660,7 @@ impl DraftProxy {
                 "failed",
             )
         };
-        self.record_products_tail_log(
+        self.record_mutation_log_with_status(
             request,
             query,
             variables,
@@ -679,22 +678,18 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let feed_exists = shopify_gid_resource_type(&id) == Some("ProductFeed")
             && self.store.product_feed_by_id(&id).is_some();
-        let before_updated_at = resolved_string_arg(&field.arguments, "beforeUpdatedAt");
-        let updated_at_since = resolved_string_arg(&field.arguments, "updatedAtSince");
+        let before_updated_at = resolved_string_field(&field.arguments, "beforeUpdatedAt");
+        let updated_at_since = resolved_string_field(&field.arguments, "updatedAtSince");
         let (payload, staged_ids, status) = if !feed_exists {
             (
                 json!({
                     "__typename": "ProductFullSyncPayload",
                     "id": null,
                     "job": null,
-                    "userErrors": [{
-                        "field": ["id"],
-                        "message": "ProductFeed does not exist",
-                        "code": "NOT_FOUND"
-                    }]
+                    "userErrors": [user_error(["id"], "ProductFeed does not exist", None)]
                 }),
                 Vec::new(),
                 "failed",
@@ -708,11 +703,11 @@ impl DraftProxy {
                     "__typename": "ProductFullSyncPayload",
                     "id": null,
                     "job": null,
-                    "userErrors": [{
-                        "field": ["updatedAtSince"],
-                        "message": "updatedAtSince must be before beforeUpdatedAt",
-                        "code": Value::Null
-                    }]
+                    "userErrors": [user_error(
+                        ["updatedAtSince"],
+                        "updatedAtSince must be before beforeUpdatedAt",
+                        None,
+                    )]
                 }),
                 Vec::new(),
                 "failed",
@@ -743,7 +738,7 @@ impl DraftProxy {
                 "staged",
             )
         };
-        self.record_products_tail_log(
+        self.record_mutation_log_with_status(
             request,
             query,
             variables,
@@ -758,7 +753,7 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         self.product_tail_feed_node_value(&id, &field.selection)
             .unwrap_or(Value::Null)
     }
@@ -804,7 +799,7 @@ impl DraftProxy {
             variables,
         };
         let parent_id =
-            resolved_string_arg(&field.arguments, "parentProductId").unwrap_or_default();
+            resolved_string_field(&field.arguments, "parentProductId").unwrap_or_default();
         let products_added = resolved_object_list_field(&field.arguments, "productsAdded");
         let products_edited = resolved_object_list_field(&field.arguments, "productsEdited");
         let products_removed_ids = resolved_string_list_arg(&field.arguments, "productsRemovedIds");
@@ -826,7 +821,7 @@ impl DraftProxy {
             );
         };
 
-        if resolved_string_arg(&field.arguments, "title")
+        if resolved_string_field(&field.arguments, "title")
             .is_some_and(|title| title.chars().count() > 255)
         {
             errors.push(user_error(
@@ -1004,7 +999,7 @@ impl DraftProxy {
         }
 
         let mut updated_parent = parent;
-        if let Some(title) = resolved_string_arg(&field.arguments, "title") {
+        if let Some(title) = resolved_string_field(&field.arguments, "title") {
             updated_parent.title = title;
         }
         updated_parent
@@ -1226,7 +1221,7 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> (Value, Option<Value>) {
-        let Some(id) = resolved_string_arg(&field.arguments, "id") else {
+        let Some(id) = resolved_string_field(&field.arguments, "id") else {
             return (Value::Null, None);
         };
         if let Some(job) = self.store.staged.collection_jobs.get(&id) {
@@ -1272,22 +1267,23 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
         let mut errors = Vec::new();
-        for field in fields {
+        let data = root_payload_json(fields, |field| {
             if field.name == "job" {
                 let (value, error) = self.product_tail_job_read_with_error(field);
-                data.insert(field.response_key.clone(), value);
                 if let Some(error) = error {
                     errors.push(error);
                 }
+                Some(value)
+            } else {
+                None
             }
-        }
+        });
         let mut body = serde_json::Map::new();
         if !errors.is_empty() {
             body.insert("errors".to_string(), Value::Array(errors));
         }
-        body.insert("data".to_string(), Value::Object(data));
+        body.insert("data".to_string(), data);
         Value::Object(body)
     }
 
@@ -1304,7 +1300,7 @@ impl DraftProxy {
         } else {
             "failed"
         };
-        self.record_products_tail_log(
+        self.record_mutation_log_with_status(
             log_context.request,
             log_context.query,
             log_context.variables,
@@ -1417,7 +1413,7 @@ impl DraftProxy {
         } else {
             "failed"
         };
-        self.record_products_tail_log(
+        self.record_mutation_log_with_status(
             log_context.request,
             log_context.query,
             log_context.variables,
@@ -1450,23 +1446,6 @@ impl DraftProxy {
             }),
             &field.selection,
         )
-    }
-
-    pub(in crate::proxy) fn record_products_tail_log(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        root_field: &str,
-        staged_ids: Vec<String>,
-        status: &str,
-    ) {
-        self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
-        if status != "staged" {
-            if let Some(entry) = self.log_entries.last_mut() {
-                set_log_status(entry, status);
-            }
-        }
     }
 }
 
@@ -1566,7 +1545,7 @@ fn product_tail_invalid_enum_response(
         "bulkProductResourceFeedbackCreate" if product_feedback_state_invalid_literal(field) => {
             Some(ok_json(json!({
                 "errors": [{
-                    "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
+                    "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState!'.",
                     "extensions": {
                         "code": "argumentLiteralsIncompatible",
                         "typeName": "InputObject",
@@ -1578,7 +1557,7 @@ fn product_tail_invalid_enum_response(
         "shopResourceFeedbackCreate" if shop_feedback_state_invalid_literal(field) => {
             Some(ok_json(json!({
                 "errors": [{
-                    "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
+                    "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState!'.",
                     "extensions": {
                         "code": "argumentLiteralsIncompatible",
                         "typeName": "InputObject",
@@ -1611,10 +1590,10 @@ fn publication_create_name(id: &str, catalog: Option<&Value>) -> String {
 fn publication_catalog_not_found_payload(catalog_id: &str) -> Value {
     json!({
         "publication": null,
-        "userErrors": [publication_error(
-            vec!["input", "catalogId"],
+        "userErrors": [user_error(
+            ["input", "catalogId"],
             &format!("A catalog was not found for id= {catalog_id}."),
-            "CATALOG_NOT_FOUND",
+            Some("CATALOG_NOT_FOUND"),
         )]
     })
 }
@@ -1624,10 +1603,10 @@ fn publication_not_found_payload(root_field: &str) -> Value {
     payload.insert(root_field.to_string(), Value::Null);
     payload.insert(
         "userErrors".to_string(),
-        json!([publication_error(
-            vec!["id"],
+        json!([user_error(
+            ["id"],
             "Publication was not found",
-            "PUBLICATION_NOT_FOUND",
+            Some("PUBLICATION_NOT_FOUND"),
         )]),
     );
     Value::Object(payload)
@@ -1647,22 +1626,6 @@ fn publication_update_limit_field(
         "publishablesToAdd"
     };
     vec!["input", field_name, "51"]
-}
-
-fn publication_error(field: Vec<&str>, message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
-}
-
-fn publication_indexed_error(field_name: &str, index: usize, message: &str, code: &str) -> Value {
-    json!({
-        "field": ["input", field_name, index.to_string()],
-        "message": message,
-        "code": code
-    })
 }
 
 /// When `publicationCreate`'s `$input.defaultState` is not a valid
@@ -1702,26 +1665,19 @@ fn publication_default_state_invalid_response(
     let message = format!(
         "Variable ${variable_name} of type PublicationCreateInput! was provided invalid value for defaultState (Expected \"{state}\" to be one of: {one_of})"
     );
-    let mut error = serde_json::Map::new();
-    error.insert("message".to_string(), json!(message));
-    if let Some((line, column)) = graphql_variable_definition_location(query, variable_name) {
-        error.insert(
-            "locations".to_string(),
-            json!([{ "line": line, "column": column }]),
-        );
-    }
-    error.insert(
-        "extensions".to_string(),
-        json!({
-            "code": "INVALID_VARIABLE",
-            "value": provided,
-            "problems": [{
+    let (line, column) =
+        graphql_variable_definition_location(query, variable_name).unwrap_or((1, 1));
+    ok_json(json!({
+        "errors": [invalid_variable_error_envelope(
+            message,
+            SourceLocation { line, column },
+            provided.clone(),
+            json!([{
                 "path": ["defaultState"],
                 "explanation": format!("Expected \"{state}\" to be one of: {one_of}"),
-            }],
-        }),
-    );
-    ok_json(json!({ "errors": [Value::Object(error)] }))
+            }]),
+        )]
+    }))
 }
 
 fn product_full_sync_updated_at_range_invalid(

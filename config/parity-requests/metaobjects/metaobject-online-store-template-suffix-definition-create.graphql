@@ -1,0 +1,30 @@
+mutation MetaobjectOnlineStoreTemplateSuffixDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {
+  metaobjectDefinitionCreate(definition: $definition) {
+    metaobjectDefinition {
+      id
+      type
+      capabilities {
+        publishable {
+          enabled
+        }
+        renderable {
+          enabled
+        }
+        onlineStore {
+          enabled
+          data {
+            urlHandle
+            canCreateRedirects
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

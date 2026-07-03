@@ -1,0 +1,36 @@
+{
+  "scenarioId": "product-media-missing-media-aggregation",
+  "operationNames": ["productUpdateMedia", "productDeleteMedia"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "mutation-no-write-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-media-missing-media-aggregation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productUpdateMedia-missing-media-aggregation.graphql",
+    "variablesCapturePath": "$.cases.updateMultiMissing.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "update-multi-missing-media-aggregated-error",
+        "capturePath": "$.cases.updateMultiMissing.response.payload.data.productUpdateMedia",
+        "proxyPath": "$.data.productUpdateMedia"
+      },
+      {
+        "name": "delete-multi-missing-media-aggregated-error",
+        "capturePath": "$.cases.deleteMultiMissing.response.payload.data.productDeleteMedia",
+        "proxyPath": "$.data.productDeleteMedia",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDeleteMedia-missing-media-aggregation.graphql",
+          "variablesCapturePath": "$.cases.deleteMultiMissing.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Captured against Admin API 2026-04 with a disposable product that has one real product media node. The update and delete requests reference two nonexistent MediaImage GIDs and assert Shopify's single MEDIA_DOES_NOT_EXIST MediaUserError listing both IDs with pluralized wording."
+}

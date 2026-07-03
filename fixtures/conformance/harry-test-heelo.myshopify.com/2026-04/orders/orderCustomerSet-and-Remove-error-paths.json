@@ -1,0 +1,678 @@
+{
+  "scenarioId": "orderCustomerSet-and-Remove-error-paths",
+  "recordedAt": "2026-07-03T05:57:12.746Z",
+  "source": "shopify",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "setup": {
+    "noRoleCustomerCreate": {
+      "query": "mutation OrderCustomerErrorPathsCustomerCreate($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      displayName\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "email": "buyer-alpha-20260703055707@example.com",
+          "firstName": "Avery",
+          "lastName": "Atlas"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10885440897330",
+                "email": "buyer-alpha-20260703055707@example.com",
+                "displayName": "Avery Atlas"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "removableCustomerCreate": {
+      "query": "mutation OrderCustomerErrorPathsCustomerCreate($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      email\n      displayName\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "email": "buyer-beta-20260703055707@example.com",
+          "firstName": "Blair",
+          "lastName": "Benton"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10885440930098",
+                "email": "buyer-beta-20260703055707@example.com",
+                "displayName": "Blair Benton"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "companyCreate": {
+      "query": "mutation B2BContactBusinessRulesCompanyCreate($input: CompanyCreateInput!) {\n  companyCreate(input: $input) {\n    company {\n      id\n      name\n      contactsCount {\n        count\n      }\n      mainContact {\n        id\n        title\n        isMainContact\n        roleAssignments(first: 5) {\n          nodes {\n            id\n            role {\n              id\n              name\n            }\n            companyLocation {\n              id\n              name\n            }\n          }\n        }\n      }\n      locations(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n      contactRoles(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "Atlas Procurement 20260703055707",
+            "note": "Varied order-customer error-path conformance setup",
+            "externalId": "order-customer-error-paths-20260703055707"
+          },
+          "companyContact": {
+            "firstName": "Casey",
+            "lastName": "Contact",
+            "email": "atlas-procurement-20260703055707-main@example.com",
+            "title": "Buyer"
+          },
+          "companyLocation": {
+            "name": "Atlas Procurement HQ 20260703055707",
+            "billingAddress": {
+              "address1": "1 Error Path Way",
+              "city": "Ottawa",
+              "countryCode": "CA"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "companyCreate": {
+              "company": {
+                "id": "gid://shopify/Company/5726208306",
+                "name": "Atlas Procurement 20260703055707",
+                "contactsCount": {
+                  "count": 1
+                },
+                "mainContact": {
+                  "id": "gid://shopify/CompanyContact/10411704626",
+                  "title": "Buyer",
+                  "isMainContact": true,
+                  "roleAssignments": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CompanyContactRoleAssignment/44918374706",
+                        "role": {
+                          "id": "gid://shopify/CompanyContactRole/11240341810",
+                          "name": "Ordering only"
+                        },
+                        "companyLocation": {
+                          "id": "gid://shopify/CompanyLocation/8595964210",
+                          "name": "Atlas Procurement HQ 20260703055707"
+                        }
+                      }
+                    ]
+                  }
+                },
+                "locations": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/CompanyLocation/8595964210",
+                      "name": "Atlas Procurement HQ 20260703055707"
+                    }
+                  ]
+                },
+                "contactRoles": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/CompanyContactRole/11240309042",
+                      "name": "Location admin"
+                    },
+                    {
+                      "id": "gid://shopify/CompanyContactRole/11240341810",
+                      "name": "Ordering only"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 33,
+              "actualQueryCost": 24,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1976,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "assignNoRoleContact": {
+      "query": "mutation B2BCompanyLifecycleAssignCustomer($companyId: ID!, $customerId: ID!) {\n  companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {\n    companyContact {\n      id\n      isMainContact\n      customer {\n        id\n      }\n      company {\n        id\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "companyId": "gid://shopify/Company/5726208306",
+        "customerId": "gid://shopify/Customer/10885440897330"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "companyAssignCustomerAsContact": {
+              "companyContact": {
+                "id": "gid://shopify/CompanyContact/10411737394",
+                "isMainContact": false,
+                "customer": {
+                  "id": "gid://shopify/Customer/10885440897330"
+                },
+                "company": {
+                  "id": "gid://shopify/Company/5726208306",
+                  "name": "Atlas Procurement 20260703055707"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "happyOrderCreate": {
+      "query": "mutation OrderCancelStateTransitionsOrderCreate($order: OrderCreateOrderInput!) {\n  orderCreate(order: $order) {\n    order {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "order": {
+          "email": "customer-set-happy-20260703055707@example.com",
+          "test": true,
+          "currency": "USD",
+          "financialStatus": "PENDING",
+          "lineItems": [
+            {
+              "title": "Order customer happy item",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8888076861746"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "b2bDraftOrderCreate": {
+      "query": "mutation B2BContactBusinessRulesDraftOrderCreate($input: DraftOrderInput!) {\n  draftOrderCreate(input: $input) {\n    draftOrder {\n      id\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "input": {
+          "email": "b2b-purchase-20260703055707@example.com",
+          "purchasingEntity": {
+            "purchasingCompany": {
+              "companyId": "gid://shopify/Company/5726208306",
+              "companyContactId": "gid://shopify/CompanyContact/10411704626",
+              "companyLocationId": "gid://shopify/CompanyLocation/8595964210"
+            }
+          },
+          "lineItems": [
+            {
+              "title": "Order customer B2B item",
+              "quantity": 1,
+              "originalUnitPrice": "10.00",
+              "requiresShipping": false,
+              "taxable": false
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrderCreate": {
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1274786119986",
+                "status": "OPEN"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "b2bDraftOrderComplete": {
+      "query": "mutation B2BContactBusinessRulesDraftOrderComplete($id: ID!, $paymentPending: Boolean!) {\n  draftOrderComplete(id: $id, paymentPending: $paymentPending) {\n    draftOrder {\n      id\n      status\n      order {\n        id\n        name\n        purchasingEntity {\n          ... on PurchasingCompany {\n            company {\n              id\n            }\n            contact {\n              id\n            }\n            location {\n              id\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1274786119986",
+        "paymentPending": true
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrderComplete": {
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1274786119986",
+                "status": "COMPLETED",
+                "order": {
+                  "id": "gid://shopify/Order/8888076960050",
+                  "name": "#1682",
+                  "purchasingEntity": {
+                    "company": {
+                      "id": "gid://shopify/Company/5726208306"
+                    },
+                    "contact": {
+                      "id": "gid://shopify/CompanyContact/10411704626"
+                    },
+                    "location": {
+                      "id": "gid://shopify/CompanyLocation/8595964210"
+                    }
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cancelledOrderCreate": {
+      "query": "mutation OrderCancelStateTransitionsOrderCreate($order: OrderCreateOrderInput!) {\n  orderCreate(order: $order) {\n    order {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "order": {
+          "email": "customer-set-cancelled-20260703055707@example.com",
+          "test": true,
+          "currency": "USD",
+          "financialStatus": "PENDING",
+          "customerId": "gid://shopify/Customer/10885440930098",
+          "lineItems": [
+            {
+              "title": "Order customer cancelled item",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8888076992818"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cancelOrder": {
+      "query": "mutation OrderCancelParity(\n  $orderId: ID!\n  $restock: Boolean!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean\n  $staffNote: String\n) {\n  orderCancel(\n    orderId: $orderId\n    restock: $restock\n    reason: $reason\n    notifyCustomer: $notifyCustomer\n    staffNote: $staffNote\n  ) {\n    orderCancelUserErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "orderId": "gid://shopify/Order/8888076992818",
+        "restock": false,
+        "reason": "OTHER"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "orderCancel": {
+              "orderCancelUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "happySet": {
+      "query": "mutation OrderCustomerSetErrorPaths($orderId: ID!, $customerId: ID!) {\n  orderCustomerSet(orderId: $orderId, customerId: $customerId) {\n    order {\n      id\n      customer {\n        id\n        email\n        displayName\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "orderId": "gid://shopify/Order/8888076861746",
+        "customerId": "gid://shopify/Customer/10885440930098"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "orderCustomerSet": {
+              "order": {
+                "id": "gid://shopify/Order/8888076861746",
+                "customer": {
+                  "id": "gid://shopify/Customer/10885440930098",
+                  "email": "buyer-beta-20260703055707@example.com",
+                  "displayName": "Blair Benton"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "happyRemove": {
+      "query": "mutation OrderCustomerRemoveErrorPaths($orderId: ID!) {\n  orderCustomerRemove(orderId: $orderId) {\n    order {\n      id\n      customer {\n        id\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "orderId": "gid://shopify/Order/8888076861746"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "orderCustomerRemove": {
+              "order": {
+                "id": "gid://shopify/Order/8888076861746",
+                "customer": null
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownOrder": {
+      "query": "mutation OrderCustomerSetErrorPaths($orderId: ID!, $customerId: ID!) {\n  orderCustomerSet(orderId: $orderId, customerId: $customerId) {\n    order {\n      id\n      customer {\n        id\n        email\n        displayName\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "orderId": "gid://shopify/Order/999999999999999",
+        "customerId": "gid://shopify/Customer/10885440930098"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "orderCustomerSet": {
+              "order": null,
+              "userErrors": [
+                {
+                  "field": ["orderId"],
+                  "message": "Order does not exist",
+                  "code": "NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownCustomer": {
+      "query": "mutation OrderCustomerSetErrorPaths($orderId: ID!, $customerId: ID!) {\n  orderCustomerSet(orderId: $orderId, customerId: $customerId) {\n    order {\n      id\n      customer {\n        id\n        email\n        displayName\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "orderId": "gid://shopify/Order/8888076861746",
+        "customerId": "gid://shopify/Customer/999999999999999"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "orderCustomerSet": {
+              "order": null,
+              "userErrors": [
+                {
+                  "field": ["customerId"],
+                  "message": "Customer does not exist",
+                  "code": "NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "setB2bNoRole": {
+      "query": "mutation OrderCustomerSetErrorPaths($orderId: ID!, $customerId: ID!) {\n  orderCustomerSet(orderId: $orderId, customerId: $customerId) {\n    order {\n      id\n      customer {\n        id\n        email\n        displayName\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "orderId": "gid://shopify/Order/8888076960050",
+        "customerId": "gid://shopify/Customer/10885440897330"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "orderCustomerSet": {
+              "order": null,
+              "userErrors": [
+                {
+                  "field": ["customerId"],
+                  "message": "Customer does not have the permissions to place this order",
+                  "code": "NOT_PERMITTED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "removeB2bOrder": {
+      "query": "mutation OrderCustomerRemoveErrorPaths($orderId: ID!) {\n  orderCustomerRemove(orderId: $orderId) {\n    order {\n      id\n      customer {\n        id\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "orderId": "gid://shopify/Order/8888076960050"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "orderCustomerRemove": {
+              "order": null,
+              "userErrors": [
+                {
+                  "field": ["orderId"],
+                  "message": "Action not permitted on B2B Orders",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "removeCancelledOrder": {
+      "query": "mutation OrderCustomerRemoveErrorPaths($orderId: ID!) {\n  orderCustomerRemove(orderId: $orderId) {\n    order {\n      id\n      customer {\n        id\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "orderId": "gid://shopify/Order/8888076992818"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "orderCustomerRemove": {
+              "order": {
+                "id": "gid://shopify/Order/8888076992818",
+                "customer": null
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

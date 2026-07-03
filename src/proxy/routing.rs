@@ -1,5 +1,7 @@
 use super::*;
 
+const SUPPORTED_ADMIN_GRAPHQL_VERSIONS: &[&str] = &["2025-01", "2025-10", "2026-01", "2026-04"];
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::proxy) enum Route {
     Health,
@@ -58,6 +60,11 @@ pub(in crate::proxy) fn only_method(expected: &str, actual: &str, route: Route) 
 }
 
 pub(in crate::proxy) fn admin_graphql_version(path: &str) -> Option<&str> {
+    let version = admin_graphql_path_version(path)?;
+    supported_admin_graphql_version(version).then_some(version)
+}
+
+fn admin_graphql_path_version(path: &str) -> Option<&str> {
     let mut parts = path.split('/');
     match (
         parts.next(),
@@ -72,6 +79,28 @@ pub(in crate::proxy) fn admin_graphql_version(path: &str) -> Option<&str> {
         }
         _ => None,
     }
+}
+
+pub(in crate::proxy) fn supported_admin_graphql_version(version: &str) -> bool {
+    SUPPORTED_ADMIN_GRAPHQL_VERSIONS.contains(&version)
+}
+
+pub(in crate::proxy) fn version_at_least(
+    version: &str,
+    minimum_year: u16,
+    minimum_month: u8,
+) -> bool {
+    let Some((year, month)) = parse_year_month_version(version) else {
+        return false;
+    };
+    (year, month) >= (minimum_year, minimum_month)
+}
+
+fn parse_year_month_version(version: &str) -> Option<(u16, u8)> {
+    let (year, month) = version.split_once('-')?;
+    let year = year.parse().ok()?;
+    let month = month.parse().ok()?;
+    matches!(month, 1 | 4 | 7 | 10).then_some((year, month))
 }
 
 pub(in crate::proxy) fn request_header(request: &Request, header_name: &str) -> Option<String> {

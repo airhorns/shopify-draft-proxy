@@ -1,0 +1,7 @@
+query DraftOrderInvoiceSendStatusTransitionRead($id: ID!) {
+  draftOrder(id: $id) {
+    id
+    status
+    invoiceSentAt
+  }
+}

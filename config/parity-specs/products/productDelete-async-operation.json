@@ -4,15 +4,15 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "async-operation-parity", "downstream-read-parity", "user-errors-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-delete-async-operation.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-delete-async-operation.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_mutation_test.gleam", "test/parity_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/productDelete-async-source-create.graphql",
     "variablesCapturePath": "$.setup.sourceCreate.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured async productDelete on a disposable product. Shopify returns a ProductDeleteOperation in CREATED status with null deletedProductId, leaves the product visible immediately after the mutation, resolves the operation through productOperation(id:) and node(id:), and rejects a second pending async delete with the public field/message UserError shape.",
+  "notes": "Captured async productDelete on a disposable product. Shopify returns a ProductDeleteOperation in CREATED status with null deletedProductId, resolves the operation through productOperation(id:) and node(id:), and rejects a second pending async delete with the public field/message UserError shape. Immediate product visibility is timing-sensitive because the live operation can complete before the follow-up read.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -79,14 +79,7 @@
             }
           }
         },
-        "proxyPath": "$.data",
-        "expectedDifferences": [
-          {
-            "path": "$.product.id",
-            "matcher": "shopify-gid:Product",
-            "reason": "The downstream proxy read uses the local product GID from the replayed setup request."
-          }
-        ]
+        "proxyPath": "$.data"
       },
       {
         "name": "operation-read-data",

@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-06T15:45:28.459Z",
+  "capturedAt": "2026-06-25T14:05:27.741Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "scope": "catalog relation validation",
@@ -17,11 +17,11 @@
             "markets": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Market/92276785458",
-                  "name": "International",
-                  "handle": "international",
-                  "status": "ACTIVE",
-                  "enabled": true
+                  "id": "gid://shopify/Market/97997685042",
+                  "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164352-manual-rate",
+                  "status": "DRAFT",
+                  "enabled": false
                 }
               ]
             }
@@ -48,7 +48,7 @@
           "title": "Catalog price-list missing",
           "status": "ACTIVE",
           "context": {
-            "marketIds": ["gid://shopify/Market/92276785458"]
+            "marketIds": ["gid://shopify/Market/97997685042"]
           },
           "priceListId": "gid://shopify/PriceList/9999999999"
         }
@@ -87,7 +87,7 @@
       "query": "#graphql\nmutation PriceListCreateCatalogValidation($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      currency\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "name": "Catalog relation DKK mou8b3jg",
+          "name": "Catalog relation DKK mqtkr2lm",
           "currency": "DKK",
           "parent": {
             "adjustment": {
@@ -103,7 +103,7 @@
           "data": {
             "priceListCreate": {
               "priceList": {
-                "id": "gid://shopify/PriceList/32263209266",
+                "id": "gid://shopify/PriceList/32297845042",
                 "currency": "DKK",
                 "parent": {
                   "adjustment": {
@@ -137,9 +137,9 @@
           "title": "Catalog price-list first attachment",
           "status": "ACTIVE",
           "context": {
-            "marketIds": ["gid://shopify/Market/92276785458"]
+            "marketIds": ["gid://shopify/Market/97997685042"]
           },
-          "priceListId": "gid://shopify/PriceList/32263209266"
+          "priceListId": "gid://shopify/PriceList/32297845042"
         }
       },
       "response": {
@@ -148,7 +148,7 @@
           "data": {
             "catalogCreate": {
               "catalog": {
-                "id": "gid://shopify/MarketCatalog/145712152882"
+                "id": "gid://shopify/MarketCatalog/152928715058"
               },
               "userErrors": []
             }
@@ -175,9 +175,9 @@
           "title": "Catalog price-list second attachment",
           "status": "ACTIVE",
           "context": {
-            "marketIds": ["gid://shopify/Market/92276785458"]
+            "marketIds": ["gid://shopify/Market/97997685042"]
           },
-          "priceListId": "gid://shopify/PriceList/32263209266"
+          "priceListId": "gid://shopify/PriceList/32297845042"
         }
       },
       "response": {
@@ -217,7 +217,7 @@
           "title": "Catalog publication update target",
           "status": "ACTIVE",
           "context": {
-            "marketIds": ["gid://shopify/Market/92276785458"]
+            "marketIds": ["gid://shopify/Market/97997685042"]
           }
         }
       },
@@ -227,7 +227,7 @@
           "data": {
             "catalogCreate": {
               "catalog": {
-                "id": "gid://shopify/MarketCatalog/145712185650"
+                "id": "gid://shopify/MarketCatalog/152928747826"
               },
               "userErrors": []
             }
@@ -250,7 +250,7 @@
       "name": "catalogUpdate publicationId not found",
       "query": "#graphql\nmutation CatalogUpdateRelationValidation($id: ID!, $input: CatalogUpdateInput!) {\n  catalogUpdate(id: $id, input: $input) {\n    catalog {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/MarketCatalog/145712185650",
+        "id": "gid://shopify/MarketCatalog/152928747826",
         "input": {
           "publicationId": "gid://shopify/Publication/9999999999"
         }
@@ -283,18 +283,92 @@
           }
         }
       }
+    },
+    {
+      "name": "publicationCreate for catalogCreate publicationId relation",
+      "query": "#graphql\nmutation CatalogRelationPublicationCreate($input: PublicationCreateInput!) {\n  publicationCreate(input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publicationCreate": {
+              "publication": {
+                "id": "gid://shopify/Publication/301119308082",
+                "autoPublish": false,
+                "supportsFuturePublishing": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogCreate with freshly-created publicationId",
+      "query": "#graphql\nmutation CatalogCreatePublicationRelation($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n      publication {\n        id\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Catalog publication fresh attachment",
+          "status": "ACTIVE",
+          "context": {
+            "marketIds": ["gid://shopify/Market/97997685042"]
+          },
+          "publicationId": "gid://shopify/Publication/301119308082"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/152928780594",
+                "publication": {
+                  "id": "gid://shopify/Publication/301119308082"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "cleanup": [
     {
       "type": "catalog",
-      "id": "gid://shopify/MarketCatalog/145712185650",
+      "id": "gid://shopify/MarketCatalog/152928780594",
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "catalogDelete": {
-              "deletedId": "gid://shopify/MarketCatalog/145712185650",
+              "deletedId": "gid://shopify/MarketCatalog/152928780594",
               "userErrors": []
             }
           },
@@ -314,13 +388,39 @@
     },
     {
       "type": "catalog",
-      "id": "gid://shopify/MarketCatalog/145712152882",
+      "id": "gid://shopify/MarketCatalog/152928747826",
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "catalogDelete": {
-              "deletedId": "gid://shopify/MarketCatalog/145712152882",
+              "deletedId": "gid://shopify/MarketCatalog/152928747826",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "catalog",
+      "id": "gid://shopify/MarketCatalog/152928715058",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/MarketCatalog/152928715058",
               "userErrors": []
             }
           },
@@ -340,7 +440,7 @@
     },
     {
       "type": "priceList",
-      "id": "gid://shopify/PriceList/32263209266",
+      "id": "gid://shopify/PriceList/32297845042",
       "response": {
         "status": 200,
         "payload": {
@@ -352,6 +452,38 @@
                   "field": ["id"],
                   "message": "Price list does not exist.",
                   "code": "PRICE_LIST_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "publication",
+      "id": "gid://shopify/Publication/301119308082",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publicationDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Publication was not found",
+                  "code": "PUBLICATION_NOT_FOUND"
                 }
               ]
             }
@@ -385,11 +517,11 @@
             "markets": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Market/92276785458",
-                  "name": "International",
-                  "handle": "international",
-                  "status": "ACTIVE",
-                  "enabled": true
+                  "id": "gid://shopify/Market/97997685042",
+                  "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164352-manual-rate",
+                  "status": "DRAFT",
+                  "enabled": false
                 }
               ]
             }

@@ -11,15 +11,15 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-merge-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-merge-parity.json"
   ],
-  "runtimeTestFiles": ["tests/integration/customer-draft-flow.test.ts"],
+  "runtimeTestFiles": ["tests/integration/customer-draft-flow.test.ts", "tests/graphql_routes/customers.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/customerMerge-parity.graphql",
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Strict comparison covers the base staged customerMerge payload, resulting customer downstream visibility, source customer deletion, customerByIdentifier email lookup behavior, merge job status shape, and captured missing/blank-literal/self/unknown validation branches for two customers without non-empty attached resources. Attached-resource merge behavior is covered separately by customer-merge-attached-resources-parity.",
+  "notes": "Strict comparison covers the base staged customerMerge payload, resulting customer downstream visibility, source customer deletion, customerByIdentifier email lookup behavior, merge job status shape, and captured missing/blank-literal/self/unknown/duplicated-unknown validation branches for two customers without non-empty attached resources. Attached-resource merge behavior is covered separately by customer-merge-attached-resources-parity.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -75,6 +75,15 @@
             },
             "two": "gid://shopify/Customer/999999999999999"
           }
+        }
+      },
+      {
+        "name": "duplicate-unknown-customer-validation-data",
+        "capturePath": "$.validation.duplicatedUnknownCustomer.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerMerge-parity.graphql",
+          "variablesCapturePath": "$.validation.duplicatedUnknownCustomer.variables"
         }
       },
       {

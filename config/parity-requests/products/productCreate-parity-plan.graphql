@@ -15,6 +15,11 @@ mutation ProductCreateParityPlan($product: ProductCreateInput!) {
         description
       }
     }
+    shop {
+      id
+      name
+      myshopifyDomain
+    }
     userErrors {
       field
       message

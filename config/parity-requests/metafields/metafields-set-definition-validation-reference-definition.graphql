@@ -1,0 +1,23 @@
+mutation MetafieldsSetDefinitionValidationReferenceDefinition($definition: MetafieldDefinitionInput!) {
+  metafieldDefinitionCreate(definition: $definition) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      validations {
+        name
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

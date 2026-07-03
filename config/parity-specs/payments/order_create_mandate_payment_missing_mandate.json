@@ -4,15 +4,13 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["schema-validation", "payload-shape", "no-upstream-passthrough"],
   "liveCaptureFiles": [
-    "fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/order-create-mandate-payment-validation.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/payments/order_create_mandate_payment_missing_mandate.graphql",
-    "variables": {
-      "id": "gid://shopify/Order/1",
-      "idempotencyKey": "missing-mandate"
-    }
+    "variablesCapturePath": "$.missingMandate.variables",
+    "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -21,10 +19,18 @@
     "targets": [
       {
         "name": "missing-mandate-id-schema-error",
-        "capturePath": "$.mandateFlow.expected.missingMandate",
-        "proxyPath": "$"
+        "capturePath": "$.missingMandate.response",
+        "proxyPath": "$",
+        "selectedPaths": [
+          "$.errors[0].message",
+          "$.errors[0].path",
+          "$.errors[0].extensions.code",
+          "$.errors[0].extensions.className",
+          "$.errors[0].extensions.name",
+          "$.errors[0].extensions.arguments"
+        ]
       }
     ]
   },
-  "notes": "Executable local-runtime schema validation parity for omitted mandateId. The request fails before resolver execution and does not stage a mandate payment."
+  "notes": "Live 2026-04 public Admin API schema-validation capture for omitted orderCreateMandatePayment mandateId. This restores the validation-only missing-mandate scenario with real Shopify evidence; successful mandate payment branches still require a real PaymentMandate and remain runtime-test-backed until the conformance app can provision customer payment methods."
 }

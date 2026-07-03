@@ -1,0 +1,104 @@
+{
+  "metadata": {
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2026-04",
+    "capturedAt": "2026-06-29T08:44:00.533Z",
+    "description": "Draft-order bulk tag case preservation and case-insensitive dedupe read-after-write behavior."
+  },
+  "setup": {
+    "draftOrderCreate": {
+      "document": "mutation DraftOrderBulkTagValidationCreate($input: DraftOrderInput!) {\n  draftOrderCreate(input: $input) {\n    draftOrder {\n      id\n      tags\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "email": "draft-bulk-tag-case-1782722639384@example.com",
+          "tags": ["VIP"],
+          "lineItems": [
+            {
+              "title": "Bulk tag case preservation item",
+              "quantity": 1,
+              "originalUnitPrice": "2.00"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "draftOrderCreate": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1272850743602",
+              "tags": ["VIP"]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "draftOrderBulkAddTags": {
+    "document": "mutation DraftOrderBulkAddTags($ids: [ID!], $tags: [String!]!) {\n  draftOrderBulkAddTags(ids: $ids, tags: $tags) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "ids": ["gid://shopify/DraftOrder/1272850743602"],
+      "tags": [" vip ", " Wholesale ", "wholesale"]
+    },
+    "response": {
+      "data": {
+        "draftOrderBulkAddTags": {
+          "job": {
+            "id": "gid://shopify/Job/cd8de57f-d260-4810-8cbd-134e638a0f10",
+            "done": false
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "downstreamRead": {
+      "document": "query DraftOrderBulkTagValidationRead($id: ID!) {\n  draftOrder(id: $id) {\n    id\n    tags\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1272850743602"
+      },
+      "response": {
+        "data": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1272850743602",
+            "tags": ["VIP", "Wholesale"]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "downstreamReadAttempts": 2
+  },
+  "upstreamCalls": []
+}

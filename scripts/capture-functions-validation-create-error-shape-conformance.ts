@@ -145,6 +145,23 @@ const functionReadDocument = `query ReadValidationCreateErrorShapeFunctions {
 }
 `;
 
+const functionHydrateByIdDocument = `query FunctionHydrateById($id: String!) {
+  shopifyFunction(id: $id) {
+    id
+    title
+    apiType
+    description
+    appKey
+    app {
+      __typename
+      id
+      title
+      apiKey
+    }
+  }
+}
+`;
+
 const validationCreateErrorShapeDocument = `mutation FunctionsValidationCreateErrorShape(
   $unknownFunctionId: String!
   $cartFunctionId: String!
@@ -213,6 +230,10 @@ const cartFunctionHandle = readString(cartFunction.handle);
 if (!cartFunctionHandle) {
   throw new Error('Expected conformance-cart-transform to include a handle.');
 }
+const unknownFunctionHydrate = await capture(functionHydrateByIdDocument, { id: unknownFunctionId });
+const cartFunctionHydrate = await capture(functionHydrateByIdDocument, { id: cartFunctionId });
+assertNoTopLevelErrors(unknownFunctionHydrate, 'unknown Function hydrate');
+assertNoTopLevelErrors(cartFunctionHydrate, 'cart Function hydrate');
 
 const validationCreateErrorShape = await capture(validationCreateErrorShapeDocument, {
   unknownFunctionId,
@@ -242,17 +263,17 @@ assertUserError(validationCreateErrorShape, 'multipleIdentifiers', {
   message: 'Only one of function_id or function_handle can be provided, not both.',
 });
 
-const functionHydrateSelection =
-  ' id title handle apiType description appKey app { __typename id title handle apiKey } ';
 const fixture = {
   scenarioId: 'functions-validation-create-error-shape',
   capturedAt: new Date().toISOString(),
-  source: 'live-shopify-and-cassette-backed-local-runtime',
+  source: 'live-shopify',
   storeDomain,
   apiVersion,
   summary:
     'validationCreate userError shape evidence for unknown Function id, wrong Function API type, missing Function identifier, and multiple Function identifiers.',
   functionRead,
+  unknownFunctionHydrate,
+  cartFunctionHydrate,
   validationCreateErrorShape,
   upstreamCalls: [
     {
@@ -260,14 +281,10 @@ const fixture = {
       variables: {
         id: unknownFunctionId,
       },
-      query: `query FunctionHydrateById($id: String!) { shopifyFunction(id: $id) {${functionHydrateSelection} } }`,
+      query: unknownFunctionHydrate.query,
       response: {
-        status: 200,
-        body: {
-          data: {
-            shopifyFunction: null,
-          },
-        },
+        status: unknownFunctionHydrate.response.status,
+        body: unknownFunctionHydrate.response.payload,
       },
     },
     {
@@ -275,22 +292,18 @@ const fixture = {
       variables: {
         id: cartFunctionId,
       },
-      query: `query FunctionHydrateById($id: String!) { shopifyFunction(id: $id) {${functionHydrateSelection} } }`,
+      query: cartFunctionHydrate.query,
       response: {
-        status: 200,
-        body: {
-          data: {
-            shopifyFunction: cartFunction,
-          },
-        },
+        status: cartFunctionHydrate.response.status,
+        body: cartFunctionHydrate.response.payload,
       },
     },
   ],
   notes: {
     liveUserErrorEvidence:
       'All four validationCreate userError branches are captured live from Shopify on the conformance shop.',
-    localRuntimeEvidence:
-      'The upstream cassette contains only ShopifyFunction hydration reads required for the proxy to evaluate the same Function references in LiveHybrid mode.',
+    upstreamHydration:
+      'The upstream calls are the exact ShopifyFunction hydration reads required for the proxy to evaluate the same Function references in LiveHybrid mode.',
   },
 };
 

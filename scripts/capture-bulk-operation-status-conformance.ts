@@ -72,6 +72,9 @@ const bulkOperationByIdQuery = `#graphql
   }
 `;
 
+const bulkOperationHydrateCassetteQuery =
+  'query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }';
+
 const bulkOperationsCatalogQuery = `#graphql
   query BulkOperationsCatalogCapture(
     $first: Int
@@ -236,7 +239,9 @@ const fixture: Record<string, unknown> = {
   reads: {},
   validations: {},
   lifecycle: {},
+  upstreamCalls: [],
 };
+const upstreamCalls: CapturedInteraction[] = [];
 
 function readPositiveIntegerEnv(name: string, fallback: number): number {
   const rawValue = process.env[name];
@@ -396,6 +401,9 @@ async function captureRunQueryLifecycle(
   }
 
   if (options.cancelImmediately === true) {
+    const preCancelHydrate = await capture('BulkOperationHydrate', bulkOperationHydrateCassetteQuery, { id });
+    upstreamCalls.push(preCancelHydrate);
+    lifecycle['preCancelHydrate'] = preCancelHydrate;
     lifecycle['cancelAttempt'] = await capture('BulkOperationCancelCapture', bulkOperationCancelMutation, { id });
   }
 
@@ -419,6 +427,9 @@ async function captureRunQueryLifecycle(
   });
 
   if (options.cancelImmediately !== true) {
+    const terminalHydrate = await capture('BulkOperationHydrate', bulkOperationHydrateCassetteQuery, { id });
+    upstreamCalls.push(terminalHydrate);
+    lifecycle['terminalHydrate'] = terminalHydrate;
     lifecycle['terminalCancelAttempt'] = await capture('BulkOperationCancelCapture', bulkOperationCancelMutation, {
       id,
     });
@@ -494,6 +505,7 @@ fixture['lifecycle'] = {
     },
   ),
 };
+fixture['upstreamCalls'] = upstreamCalls;
 
 await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
 console.log(`Wrote ${outputPath}`);

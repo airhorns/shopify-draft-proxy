@@ -74,6 +74,10 @@ const customerSetUnknownIdErrorsMutation = await readFile(
   'config/parity-requests/customers/customer-set-unknown-id-errors.graphql',
   'utf8',
 );
+const customerSetEmailUpsertWhenIdAbsentMutation = await readFile(
+  'config/parity-requests/customers/customer-set-email-upsert-when-id-absent.graphql',
+  'utf8',
+);
 
 const downstreamReadQuery = `#graphql
   query CustomerSetDownstream($createdId: ID!, $upsertedId: ID!, $upsertedEmail: String!, $query: String!, $first: Int!) {
@@ -129,6 +133,10 @@ async function runCustomerSetIdNotAllowed(variables) {
 
 async function runCustomerSetUnknownIdErrors(variables) {
   return runGraphql(customerSetUnknownIdErrorsMutation, variables);
+}
+
+async function runCustomerSetEmailUpsertWhenIdAbsent(variables) {
+  return runGraphql(customerSetEmailUpsertWhenIdAbsentMutation, variables);
 }
 
 function assertIdNotAllowed(result, context) {
@@ -383,6 +391,21 @@ async function main() {
   const unknownIdWithCode = await runCustomerSetUnknownIdErrors(unknownIdVariables);
   assertNoTopLevelErrors(unknownIdWithCode, 'customerSet unknown id code validation');
 
+  const emailCreateEmail = `hermes-customerset-email-create-${stamp}@example.com`;
+  const emailCreateVariables = {
+    identifier: { email: emailCreateEmail },
+    input: {
+      email: emailCreateEmail,
+      firstName: 'Email',
+    },
+  };
+  const emailCreate = await runCustomerSetEmailUpsertWhenIdAbsent(emailCreateVariables);
+  assertNoTopLevelErrors(emailCreate, 'customerSet email upsert when id absent');
+  const emailCreatedCustomerId = emailCreate.payload?.data?.customerSet?.customer?.id;
+  if (typeof emailCreatedCustomerId === 'string' && emailCreatedCustomerId) {
+    cleanupIds.add(emailCreatedCustomerId);
+  }
+
   const customIdVariables = {
     identifier: { customId: { namespace: 'custom', key: 'external_id', value: `customer-set-${stamp}` } },
     input: { firstName: 'Custom' },
@@ -558,8 +581,58 @@ async function main() {
     cleanup: cleanup.map((result) => result.payload),
   };
 
+  const unknownIdFixture = {
+    scenarioId: 'customer-set-unknown-id-errors',
+    storeDomain,
+    apiVersion,
+    capturedAt: new Date().toISOString(),
+    notes:
+      'Live Shopify Admin GraphQL customerSet(identifier.id) not-found evidence captured with the parity request document.',
+    expectedEmptyMutationLog: [],
+    cases: {
+      unknownId: {
+        request: {
+          query: customerSetUnknownIdErrorsMutation,
+          variables: unknownIdVariables,
+        },
+        response: unknownIdWithCode.payload,
+      },
+    },
+    upstreamCalls: [],
+  };
+
+  const emailCreateFixture = {
+    scenarioId: 'customer-set-email-upsert-when-id-absent',
+    storeDomain,
+    apiVersion,
+    capturedAt: new Date().toISOString(),
+    notes:
+      'Live Shopify Admin GraphQL customerSet(identifier.email) create evidence captured with the parity request document.',
+    cases: {
+      emailCreate: {
+        request: {
+          query: customerSetEmailUpsertWhenIdAbsentMutation,
+          variables: emailCreateVariables,
+        },
+        response: emailCreate.payload,
+      },
+    },
+    cleanup: cleanup.map((result) => result.payload),
+    upstreamCalls: [],
+  };
+
   const outputPath = path.join(outputDir, 'customer-set-parity.json');
-  await writeFile(outputPath, `${JSON.stringify(capture, null, 2)}\n`);
+  await Promise.all([
+    writeFile(outputPath, `${JSON.stringify(capture, null, 2)}\n`),
+    writeFile(
+      path.join(outputDir, 'customer-set-unknown-id-errors.json'),
+      `${JSON.stringify(unknownIdFixture, null, 2)}\n`,
+    ),
+    writeFile(
+      path.join(outputDir, 'customer-set-email-upsert-when-id-absent.json'),
+      `${JSON.stringify(emailCreateFixture, null, 2)}\n`,
+    ),
+  ]);
   console.log(`Wrote ${outputPath}`);
 }
 

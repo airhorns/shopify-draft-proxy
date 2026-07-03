@@ -19,6 +19,7 @@ type Scenario = {
 const expectedSummary = '4 delivery frequencies, 10-20%·$5-$8 discount';
 
 const capture = await createConformanceCapture();
+const shopCurrencyQuery = await capture.readRequest('selling-plans', 'sellingPlanGroupShopCurrency.graphql');
 const createMutation = await capture.readRequest('selling-plans', 'sellingPlanGroupCreate-summary.graphql');
 const readQuery = await capture.readRequest('selling-plans', 'sellingPlanGroupSummary-read.graphql');
 
@@ -102,10 +103,51 @@ function assertSummary(value: unknown, label: string): void {
   }
 }
 
+function shopCurrencyCode(scenario: Scenario): string {
+  const shop = readRecord(readRecord(readRecord(scenario.response)?.['data'])?.['shop']);
+  const currencyCode = shop?.['currencyCode'];
+  if (typeof currencyCode !== 'string' || currencyCode.length === 0) {
+    throw new Error(`shopCurrency did not return a currencyCode: ${JSON.stringify(scenario.response, null, 2)}`);
+  }
+  if (currencyCode === 'USD') {
+    throw new Error('sellingPlanGroup summary currency parity must be recorded against a non-USD shop.');
+  }
+  return currencyCode;
+}
+
+function fixedPricingCurrencyCodes(group: JsonRecord): string[] {
+  const sellingPlans = readArray(readRecord(group['sellingPlans'])?.['nodes']);
+  return sellingPlans.flatMap((plan) => {
+    const policies = readArray(readRecord(plan)?.['pricingPolicies']);
+    return policies.flatMap((policy) => {
+      const adjustmentValue = readRecord(readRecord(policy)?.['adjustmentValue']);
+      const currencyCode = adjustmentValue?.['currencyCode'];
+      return typeof currencyCode === 'string' ? [currencyCode] : [];
+    });
+  });
+}
+
+function assertFixedPricingCurrency(group: JsonRecord, expectedCurrency: string, label: string): void {
+  const currencyCodes = fixedPricingCurrencyCodes(group);
+  if (currencyCodes.length === 0) {
+    throw new Error(`${label} did not return any fixed-pricing MoneyV2 currencyCode values.`);
+  }
+  const mismatched = currencyCodes.filter((currencyCode) => currencyCode !== expectedCurrency);
+  if (mismatched.length > 0) {
+    throw new Error(
+      `${label} fixed-pricing currencies mismatch: expected ${expectedCurrency}, got ${JSON.stringify(currencyCodes)}`,
+    );
+  }
+}
+
 const scenarios: Record<string, Scenario> = {};
 let groupId: string | null = null;
+let expectedFixedPricingCurrency: string | null = null;
 
 try {
+  scenarios['shopCurrency'] = await runScenario('shopCurrency', shopCurrencyQuery, {});
+  expectedFixedPricingCurrency = shopCurrencyCode(scenarios['shopCurrency']);
+
   scenarios['createSummary'] = await runScenario('createSummary', createMutation, {
     input: {
       name: `Summary parity ${capture.stamp}`,
@@ -127,6 +169,7 @@ try {
   }
   groupId = requireString(createdGroup['id'], 'createSummary.sellingPlanGroup.id');
   assertSummary(createdGroup['summary'], 'createSummary');
+  assertFixedPricingCurrency(createdGroup, expectedFixedPricingCurrency, 'createSummary');
 
   scenarios['readSummary'] = await runScenario('readSummary', readQuery, { id: groupId });
   const readGroup = readRecord(
@@ -138,6 +181,7 @@ try {
     );
   }
   assertSummary(readGroup['summary'], 'readSummary');
+  assertFixedPricingCurrency(readGroup, expectedFixedPricingCurrency, 'readSummary');
 } finally {
   if (groupId) {
     scenarios['cleanupDelete'] = await runScenario('cleanupDelete', deleteMutation, { id: groupId });
@@ -152,8 +196,9 @@ await capture.writeJson(outputPath, {
     apiVersion: capture.apiVersion,
     capturedAt: new Date().toISOString(),
     expectedSummary,
+    expectedFixedPricingCurrency,
   },
   scenarios,
 });
 
-console.log(JSON.stringify({ ok: true, outputPath, expectedSummary }, null, 2));
+console.log(JSON.stringify({ ok: true, outputPath, expectedSummary, expectedFixedPricingCurrency }, null, 2));

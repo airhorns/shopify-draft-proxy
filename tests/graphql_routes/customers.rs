@@ -105,7 +105,7 @@ fn assert_merge_survivor(
     );
     assert_eq!(downstream.body["data"]["source"], Value::Null);
 
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(proxy);
     assert_eq!(
         state["stagedState"]["mergedCustomerIds"][expected_source_id],
         json!(expected_result_id)
@@ -115,6 +115,250 @@ fn assert_merge_survivor(
         .unwrap()
         .iter()
         .any(|id| id.as_str() == Some(expected_source_id)));
+}
+
+#[test]
+fn customer_input_metafields_round_trip_as_owner_metafields() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerMetafieldsRoundTrip($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "metafield-round-trip@example.test",
+                "metafields": [
+                    { "namespace": "custom", "key": "tier", "type": "single_line_text_field", "value": "gold" },
+                    { "namespace": "profile", "key": "birthday", "type": "date", "value": "1990-01-01" }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .expect("customer id")
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerMetafieldsRead($id: ID!) {
+          customer(id: $id) {
+            id
+            tier: metafield(namespace: "custom", key: "tier") { namespace key type value }
+            birthday: metafield(namespace: "profile", key: "birthday") { namespace key type value }
+            metafields(first: 5) {
+              nodes { namespace key type value }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["customer"]["tier"],
+        json!({
+            "namespace": "custom",
+            "key": "tier",
+            "type": "single_line_text_field",
+            "value": "gold"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["customer"]["birthday"],
+        json!({
+            "namespace": "profile",
+            "key": "birthday",
+            "type": "date",
+            "value": "1990-01-01"
+        })
+    );
+    assert_eq!(
+        read.body["data"]["customer"]["metafields"]["nodes"],
+        json!([
+            { "namespace": "custom", "key": "tier", "type": "single_line_text_field", "value": "gold" },
+            { "namespace": "profile", "key": "birthday", "type": "date", "value": "1990-01-01" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["customer"]["metafields"]["pageInfo"]["hasNextPage"],
+        json!(false)
+    );
+}
+
+#[test]
+fn customers_count_uses_staged_customers_when_no_baseline_exists() {
+    let mut proxy = snapshot_proxy();
+    create_customer(
+        &mut proxy,
+        "count-one@example.test",
+        "Count",
+        "One",
+        Vec::new(),
+        None,
+    );
+    create_customer(
+        &mut proxy,
+        "count-two@example.test",
+        "Count",
+        "Two",
+        Vec::new(),
+        None,
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query StagedCustomersCount {
+          customersCount { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["customersCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn customers_connection_applies_name_sort_and_reverse_before_windowing() {
+    let mut proxy = snapshot_proxy();
+    create_customer(
+        &mut proxy,
+        "zulu-customer@example.test",
+        "Zulu",
+        "Customer",
+        vec![],
+        None,
+    );
+    create_customer(
+        &mut proxy,
+        "alpha-customer@example.test",
+        "Alpha",
+        "Customer",
+        vec![],
+        None,
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersNameSort {
+          ascending: customers(first: 10, sortKey: NAME) { nodes { email displayName } }
+          descending: customers(first: 10, sortKey: NAME, reverse: true) { nodes { email displayName } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["ascending"]["nodes"],
+        json!([
+            { "email": "alpha-customer@example.test", "displayName": "Alpha Customer" },
+            { "email": "zulu-customer@example.test", "displayName": "Zulu Customer" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["descending"]["nodes"],
+        json!([
+            { "email": "zulu-customer@example.test", "displayName": "Zulu Customer" },
+            { "email": "alpha-customer@example.test", "displayName": "Alpha Customer" }
+        ])
+    );
+}
+
+#[test]
+fn customers_sorted_connection_paginates_after_interleaved_create() {
+    let mut proxy = snapshot_proxy();
+    create_customer(
+        &mut proxy,
+        "alpha-page@example.test",
+        "Alpha",
+        "Page",
+        vec![],
+        None,
+    );
+    create_customer(
+        &mut proxy,
+        "zulu-page@example.test",
+        "Zulu",
+        "Page",
+        vec![],
+        None,
+    );
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersNameFirstPage {
+          customers(first: 1, sortKey: NAME) {
+            edges { cursor node { email displayName } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["customers"]["edges"][0]["node"],
+        json!({ "email": "alpha-page@example.test", "displayName": "Alpha Page" })
+    );
+
+    create_customer(
+        &mut proxy,
+        "aaron-page@example.test",
+        "Aaron",
+        "Page",
+        vec![],
+        None,
+    );
+
+    let next_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersNameNextPage($after: String!) {
+          customers(first: 1, after: $after, sortKey: NAME) {
+            nodes { email displayName }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"after": first_page.body["data"]["customers"]["pageInfo"]["endCursor"]}),
+    ));
+    assert_eq!(
+        next_page.body["data"]["customers"]["nodes"],
+        json!([{ "email": "zulu-page@example.test", "displayName": "Zulu Page" }])
+    );
+    assert_eq!(
+        next_page.body["data"]["customers"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+
+    let before_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersNameBeforePage($before: String!) {
+          customers(last: 1, before: $before, sortKey: NAME) {
+            nodes { email displayName }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"before": next_page.body["data"]["customers"]["pageInfo"]["startCursor"]}),
+    ));
+    assert_eq!(
+        before_page.body["data"]["customers"]["nodes"],
+        json!([{ "email": "alpha-page@example.test", "displayName": "Alpha Page" }])
+    );
 }
 
 #[test]
@@ -227,7 +471,7 @@ fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
     );
     assert_eq!(
         downstream.body["data"]["customersCount"],
-        json!({ "count": 176, "precision": "EXACT" })
+        json!({ "count": 1, "precision": "EXACT" })
     );
     assert_eq!(
         downstream.body["data"]["mergeStatus"],
@@ -243,7 +487,7 @@ fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
     assert_eq!(downstream.body["data"]["node"]["id"], json!(job_id));
     assert_eq!(downstream.body["data"]["node"]["done"], json!(true));
 
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(&proxy);
     assert_eq!(
         state["stagedState"]["mergedCustomerIds"][source_id.as_str()],
         json!(result_id)
@@ -256,7 +500,7 @@ fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
         state["stagedState"]["deletedCustomerIds"],
         json!([source_id])
     );
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(
         log["entries"][2]["interpreted"]["primaryRootField"],
         json!("customerMerge")
@@ -424,6 +668,30 @@ fn customer_merge_validations_and_blockers_return_shopify_shaped_errors() {
         }])
     );
 
+    let duplicated_unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ArbitraryDuplicatedUnknownMerge($one: ID!, $two: ID!) {
+          customerMerge(customerOneId: $one, customerTwoId: $two) {
+            resultingCustomerId
+            job { id done }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "one": "gid://shopify/Customer/999999999999999",
+            "two": "gid://shopify/Customer/999999999999999"
+        }),
+    ));
+    assert_eq!(
+        duplicated_unknown.body["data"]["customerMerge"]["userErrors"],
+        json!([{
+            "field": ["customerOneId"],
+            "message": "Customer does not exist with ID 999999999999999",
+            "code": "INVALID_CUSTOMER_ID"
+        }])
+    );
+
     let missing = proxy.process_request(json_graphql_request(
         r#"
         mutation MissingArgumentNameDoesNotMatter($one: ID!) {
@@ -558,11 +826,11 @@ fn customer_merge_validations_and_blockers_return_shopify_shaped_errors() {
     );
 
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["mergedCustomerIds"],
+        state_snapshot(&proxy)["stagedState"]["mergedCustomerIds"],
         json!({})
     );
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["customers"][second_id.as_str()]["email"],
+        state_snapshot(&proxy)["stagedState"]["customers"][second_id.as_str()]["email"],
         json!("merge-validation-two@example.test")
     );
 }
@@ -595,8 +863,8 @@ fn customer_data_erasure_request_and_cancel_stage_sensitive_side_effects() {
         json!({ "customerId": customer_id, "userErrors": [] })
     );
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["customerDataErasureRequests"]
-            [customer_id.as_str()]["status"],
+        state_snapshot(&proxy)["stagedState"]["customerDataErasureRequests"][customer_id.as_str()]
+            ["status"],
         json!("REQUESTED")
     );
 
@@ -629,8 +897,8 @@ fn customer_data_erasure_request_and_cancel_stage_sensitive_side_effects() {
         json!({ "customerId": customer_id, "userErrors": [] })
     );
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["customerDataErasureRequests"]
-            [customer_id.as_str()]["status"],
+        state_snapshot(&proxy)["stagedState"]["customerDataErasureRequests"][customer_id.as_str()]
+            ["status"],
         json!("CANCELED")
     );
 
@@ -662,13 +930,13 @@ fn customer_data_erasure_request_and_cancel_stage_sensitive_side_effects() {
         "customerCancelDataErasure",
         "customerCancelDataErasure",
     ] {
-        assert!(proxy.get_log_snapshot()["entries"]
+        assert!(log_snapshot(&proxy)["entries"]
             .as_array()
             .unwrap()
             .iter()
             .any(|entry| entry["interpreted"]["primaryRootField"] == json!(root)));
     }
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert!(log["entries"][1]["rawBody"]
         .as_str()
         .unwrap()
@@ -723,6 +991,157 @@ fn customer_data_erasure_request_and_cancel_stage_sensitive_side_effects() {
             }]
         })
     );
+}
+
+#[test]
+fn customer_data_erasure_hydrates_real_customer_before_does_not_exist() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured = Arc::clone(&upstream_calls);
+    let customer_id = "gid://shopify/Customer/6543210987";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream JSON body");
+            captured.lock().unwrap().push(body.clone());
+            assert_eq!(body["operationName"], json!("CustomerHydrate"));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "customer": {
+                            "id": customer_id,
+                            "firstName": "Hydrated",
+                            "lastName": "Erasure",
+                            "displayName": "Hydrated Erasure",
+                            "email": "hydrated-erasure@example.com",
+                            "phone": null,
+                            "locale": "en",
+                            "note": null,
+                            "canDelete": true,
+                            "verifiedEmail": true,
+                            "dataSaleOptOut": false,
+                            "taxExempt": false,
+                            "taxExemptions": [],
+                            "state": "DISABLED",
+                            "tags": [],
+                            "createdAt": "2026-06-01T00:00:00Z",
+                            "updatedAt": "2026-06-01T00:00:00Z",
+                            "defaultEmailAddress": { "emailAddress": "hydrated-erasure@example.com" },
+                            "defaultPhoneNumber": null,
+                            "defaultAddress": null,
+                            "addressesV2": { "nodes": [] }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let request = proxy.process_request(json_graphql_request(
+        r#"
+        mutation HydratedCustomerDataErasure($customerId: ID!) {
+          customerRequestDataErasure(customerId: $customerId) {
+            customerId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "customerId": customer_id }),
+    ));
+    assert_eq!(
+        request.body["data"]["customerRequestDataErasure"],
+        json!({ "customerId": customer_id, "userErrors": [] })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["customerDataErasureRequests"][customer_id]["status"],
+        json!("REQUESTED")
+    );
+}
+
+#[test]
+fn customer_address_accepts_supported_country_outside_original_subset() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerAddressDenmark($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer {
+              defaultAddress { city country countryCodeV2 province provinceCode formattedArea }
+              addressesV2(first: 3) {
+                nodes { city country countryCodeV2 province provinceCode formattedArea }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "denmark-address@example.test",
+                "addresses": [{
+                    "address1": "Radhuspladsen 1",
+                    "city": "Copenhagen",
+                    "countryCode": "DK",
+                    "zip": "1550"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["customerCreate"]["customer"]["defaultAddress"],
+        json!({
+            "city": "Copenhagen",
+            "country": "Denmark",
+            "countryCodeV2": "DK",
+            "province": null,
+            "provinceCode": null,
+            "formattedArea": "Copenhagen, Denmark"
+        })
+    );
+}
+
+#[test]
+fn customer_order_create_allocates_unique_ids_for_example_test_emails() {
+    let mut proxy = snapshot_proxy();
+    let create_order = |proxy: &mut DraftProxy, email: &str| {
+        let response = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CustomerOrderCreateId($order: OrderCreateOrderInput!) {
+              orderCreate(order: $order) {
+                order { id }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "order": {
+                    "email": email,
+                    "currency": "USD",
+                    "lineItems": [{ "title": "Synthetic ID line", "quantity": 1 }]
+                }
+            }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["orderCreate"]["userErrors"],
+            json!([])
+        );
+        response.body["data"]["orderCreate"]["order"]["id"]
+            .as_str()
+            .expect("order id")
+            .to_string()
+    };
+
+    let first_id = create_order(&mut proxy, "first-order@example.test");
+    let second_id = create_order(&mut proxy, "second-order@example.test");
+    assert_ne!(first_id, second_id);
+    assert!(first_id.starts_with("gid://shopify/Order/"));
+    assert!(second_id.starts_with("gid://shopify/Order/"));
 }
 
 #[test]

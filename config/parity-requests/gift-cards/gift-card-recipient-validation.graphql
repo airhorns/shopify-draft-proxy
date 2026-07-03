@@ -8,7 +8,53 @@ mutation GiftCardRecipientValidation(
   $futureSendAt: DateTime!
   $pastSendAt: DateTime!
   $validSendAt: DateTime!
+  $missingRecipientId: ID!
 ) {
+  createUnknownRecipient: giftCardCreate(
+    input: { initialValue: "10", recipientAttributes: { id: $missingRecipientId } }
+  ) {
+    giftCard {
+      id
+    }
+    giftCardCode
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  createBlankPreferredName: giftCardCreate(
+    input: { initialValue: "10", recipientAttributes: { id: $recipientId, preferredName: "" } }
+  ) {
+    giftCard {
+      id
+      recipientAttributes {
+        preferredName
+      }
+    }
+    giftCardCode
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  createBlankMessage: giftCardCreate(
+    input: { initialValue: "10", recipientAttributes: { id: $recipientId, message: "" } }
+  ) {
+    giftCard {
+      id
+      recipientAttributes {
+        message
+      }
+    }
+    giftCardCode
+    userErrors {
+      field
+      code
+      message
+    }
+  }
   createLongPreferredName: giftCardCreate(
     input: { initialValue: "10", recipientAttributes: { id: $recipientId, preferredName: $tooLongPreferredName } }
   ) {
@@ -129,6 +175,53 @@ mutation GiftCardRecipientValidation(
       id
       recipientAttributes {
         preferredName
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  updateUnknownRecipient: giftCardUpdate(id: $activeId, input: { recipientAttributes: { id: $missingRecipientId } }) {
+    giftCard {
+      id
+      recipientAttributes {
+        recipient {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  updateBlankPreferredName: giftCardUpdate(
+    id: $activeId
+    input: { recipientAttributes: { id: $recipientId, preferredName: "" } }
+  ) {
+    giftCard {
+      id
+      recipientAttributes {
+        preferredName
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  updateBlankMessage: giftCardUpdate(
+    id: $activeId
+    input: { recipientAttributes: { id: $recipientId, message: "" } }
+  ) {
+    giftCard {
+      id
+      recipientAttributes {
+        message
       }
     }
     userErrors {

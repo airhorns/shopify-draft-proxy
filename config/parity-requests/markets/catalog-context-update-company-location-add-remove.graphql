@@ -1,0 +1,25 @@
+#graphql
+mutation CatalogContextUpdateCompanyLocationAddRemove(
+  $catalogId: ID!
+  $contextsToAdd: CatalogContextInput
+  $contextsToRemove: CatalogContextInput
+) {
+  catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $contextsToAdd, contextsToRemove: $contextsToRemove) {
+    catalog {
+      title
+      status
+      ... on CompanyLocationCatalog {
+        companyLocations(first: 5) {
+          nodes {
+            name
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

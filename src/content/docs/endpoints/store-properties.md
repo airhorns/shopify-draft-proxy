@@ -47,7 +47,10 @@ every store-property document.
 
 Shop reads have a local store-backed slice for selected shop metadata,
 including staged shop policies, publication aggregates, primary domain, and safe
-empty or null shapes. `shopPolicyUpdate` is dispatched by root field, stages
+empty or null shapes. LiveHybrid reads hydrate the connected shop when upstream
+or cassette data is available; pure snapshot/cold fallback uses a neutral
+synthetic `Shopify Draft Proxy` shop identity instead of a captured real store.
+`shopPolicyUpdate` is dispatched by root field, stages
 policy body/title/URL/timestamps in the Rust store, preserves the original raw
 mutation for commit replay, and exposes read-after-write behavior through
 `shop.shopPolicies` plus generic `node(id:)` / `nodes(ids:)` policy dispatch.
@@ -66,7 +69,9 @@ documents, not only fixture-named parity documents. It stages a synthetic
 Location ID, deterministic timestamps, address data, Location-owned metafields,
 the captured `fulfillsOnlineOrders` default of `true`, blank/duplicate/too-long
 name userErrors, public schema-style address/country-code validation, and the
-captured 200-location create guard. Rejected adds do not append mutation-log
+captured 200-location create guard. In LiveHybrid replay, the guard derives cap
+state from the recorded `StorePropertiesLocationLimitStatus` upstream read
+instead of a synthetic local seed. Rejected adds do not append mutation-log
 entries.
 
 `locationActivate` now has a generic Rust staging path for public Admin GraphQL
@@ -74,8 +79,11 @@ documents. Successful activations flip the local Location `isActive` state,
 stage the changed record, preserve the raw mutation for commit replay, and are
 visible through downstream location reads. Guard branches for location limit,
 ongoing relocation, fulfillment-service managed scope, and duplicate active
-location names return the captured field paths, codes, and messages without
-staging activation.
+location names return field paths, codes, and messages without staging
+activation. The `LOCATION_LIMIT` branch is backed by live 2026-04 evidence; the
+internal/transient `HAS_ONGOING_RELOCATION` branch remains runtime-test-only
+because public Admin GraphQL relocation completed synchronously in the
+disposable shop.
 
 Location reads and lifecycle mutations have local slices for detail reads,
 unknown-ID null behavior, `locationByIdentifier` selected cases,
@@ -126,38 +134,3 @@ where captured.
 - Shipping package and local pickup behavior are documented under
   `/endpoints/shipping-fulfillments/` because their caller-visible effects live
   in shipping and delivery settings.
-
-### Evidence
-
-- Runtime coverage: `tests/graphql_routes.rs`
-- Registry status: `src/operation_registry.rs` and
-  `src/operation_registry_data.rs`
-- Shop policy parity specs:
-  `config/parity-specs/store-properties/shop-policy-update-privacy-liquid-validation.json`,
-  `config/parity-specs/store-properties/shop-policy-update-subscription-blank-body.json`,
-  `config/parity-specs/store-properties/shop-policy-update-title-url-and-body-rendering.json`,
-  and
-  `config/parity-specs/store-properties/shop-policy-update-user-error-codes.json`
-- Location parity specs:
-  `config/parity-specs/store-properties/location-add-edit-uniqueness-and-required-fields.json`,
-  `config/parity-specs/store-properties/location-edit-fields-and-state-machine.json`,
-  `config/parity-specs/store-properties/location-edit-unknown-id-validation.json`,
-  `config/parity-specs/store-properties/location-activate-non-unique-name.json`,
-  `config/parity-specs/store-properties/location-delete-active-location-validation.json`,
-  `config/parity-specs/store-properties/location-delete-inventory-level-cascade.json`,
-  `config/parity-specs/store-properties/location-delete-primary-location.json`,
-  and
-  `config/parity-specs/store-properties/location-delete-state-and-scope.json`
-- Store-properties fixtures:
-  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/*.json`
-  and
-  `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-properties/*.json`
-
-### Validation
-
-- `corepack pnpm conformance:fixture-invariants`
-- `corepack pnpm rust:fmt`
-- `corepack pnpm rust:clippy`
-- `corepack pnpm rust:test`
-- `corepack pnpm conformance:check`
-- `corepack pnpm lint`

@@ -19,6 +19,33 @@ fn padded_bulk_document_for_bytes(body: &str, target_bytes: usize, pad: &str) ->
     format!("#{}\n{}", pad.repeat(padding_bytes / pad.len()), body)
 }
 
+fn synthetic_product_timestamp_for_log_len(log_len: usize) -> String {
+    format!("2024-01-01T00:00:{:02}.000Z", (log_len + 1) % 60)
+}
+
+fn create_bulk_metadata_product(proxy: &mut DraftProxy, title: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBulkMetadataProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": title } }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
 #[test]
 fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
     let mut proxy = snapshot_proxy();
@@ -87,7 +114,7 @@ fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
     assert_eq!(read.body["data"]["bulkOperation"]["type"], json!("QUERY"));
     assert_eq!(
         read.body["data"]["bulkOperation"]["objectCount"],
-        json!("1432")
+        json!("0")
     );
 
     let cancel_id = "gid://shopify/BulkOperation/7689772990770";
@@ -122,6 +149,119 @@ fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
         cancel.body["data"]["bulkOperationCancel"]["userErrors"],
         json!([])
     );
+}
+
+#[test]
+fn bulk_operation_run_query_reports_metadata_from_served_jsonl_for_multiple_store_sizes() {
+    for product_count in [1_usize, 3] {
+        let mut proxy = snapshot_proxy();
+        let mut expected_ids = Vec::new();
+        for index in 0..product_count {
+            expected_ids.push(create_bulk_metadata_product(
+                &mut proxy,
+                &format!("Bulk Metadata Product {index}"),
+            ));
+        }
+
+        let expected_run_timestamp = synthetic_product_timestamp_for_log_len(product_count);
+        let run = proxy.process_request(json_graphql_request(
+            r#"
+            mutation RunProductBulkMetadata($query: String!) {
+              bulkOperationRunQuery(query: $query) {
+                bulkOperation {
+                  id
+                  status
+                  type
+                  createdAt
+                  completedAt
+                  objectCount
+                  rootObjectCount
+                  fileSize
+                  url
+                }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}" }),
+        ));
+        assert_eq!(run.status, 200);
+        assert_eq!(
+            run.body["data"]["bulkOperationRunQuery"]["userErrors"],
+            json!([])
+        );
+        let created_operation = &run.body["data"]["bulkOperationRunQuery"]["bulkOperation"];
+        assert_eq!(created_operation["status"], json!("CREATED"));
+        assert_eq!(created_operation["type"], json!("QUERY"));
+        assert_eq!(
+            created_operation["createdAt"],
+            json!(expected_run_timestamp)
+        );
+        assert_eq!(created_operation["completedAt"], Value::Null);
+        assert_eq!(created_operation["objectCount"], json!("0"));
+        assert_eq!(created_operation["rootObjectCount"], json!("0"));
+        assert_eq!(created_operation["fileSize"], Value::Null);
+        assert_eq!(created_operation["url"], Value::Null);
+        let operation_id = created_operation["id"].as_str().unwrap().to_string();
+
+        let read = proxy.process_request(json_graphql_request(
+            r#"
+            query ReadProductBulkMetadata($id: ID!) {
+              bulkOperation(id: $id) {
+                id
+                status
+                type
+                createdAt
+                completedAt
+                objectCount
+                rootObjectCount
+                fileSize
+                url
+              }
+            }
+            "#,
+            json!({ "id": operation_id }),
+        ));
+        assert_eq!(read.status, 200);
+        let completed_operation = &read.body["data"]["bulkOperation"];
+        assert_eq!(completed_operation["status"], json!("COMPLETED"));
+        assert_eq!(
+            completed_operation["createdAt"],
+            created_operation["createdAt"]
+        );
+        assert_eq!(
+            completed_operation["completedAt"],
+            created_operation["createdAt"]
+        );
+        let url = completed_operation["url"].as_str().unwrap();
+        let path = url::Url::parse(url).unwrap().path().to_string();
+        let artifact = proxy.process_request(request_with_body("GET", &path, ""));
+        assert_eq!(artifact.status, 200);
+        let jsonl = artifact.body.as_str().unwrap();
+        let rows = jsonl
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).expect("artifact row is JSON"))
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), product_count);
+        for product_id in expected_ids {
+            assert!(
+                rows.iter().any(|row| row["id"] == json!(product_id)),
+                "artifact rows should include staged product {product_id}"
+            );
+        }
+
+        let expected_row_count = rows.len().to_string();
+        let expected_file_size = jsonl.len().to_string();
+        assert_eq!(
+            completed_operation["objectCount"],
+            json!(expected_row_count)
+        );
+        assert_eq!(
+            completed_operation["rootObjectCount"],
+            completed_operation["objectCount"]
+        );
+        assert_eq!(completed_operation["fileSize"], json!(expected_file_size));
+    }
 }
 
 #[test]
@@ -327,6 +467,93 @@ fn bulk_operation_completed_url_is_absolute_and_serves_jsonl_artifact() {
 }
 
 #[test]
+fn products_bulk_operation_applies_common_search_filters_to_jsonl_artifact() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![
+        ProductRecord {
+            id: "gid://shopify/Product/alpha".to_string(),
+            title: "Alpha Jacket".to_string(),
+            handle: "alpha-jacket".to_string(),
+            status: "ACTIVE".to_string(),
+            vendor: "Northwind".to_string(),
+            product_type: "Jackets".to_string(),
+            tags: vec!["featured".to_string()],
+            ..ProductRecord::default()
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/beta".to_string(),
+            title: "Beta Jacket".to_string(),
+            handle: "beta-jacket".to_string(),
+            status: "DRAFT".to_string(),
+            vendor: "Southwind".to_string(),
+            product_type: "Jackets".to_string(),
+            tags: vec!["clearance".to_string()],
+            ..ProductRecord::default()
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/gamma".to_string(),
+            title: "Gamma Shirt".to_string(),
+            handle: "gamma-shirt".to_string(),
+            status: "ACTIVE".to_string(),
+            vendor: "Northwind".to_string(),
+            product_type: "Shirts".to_string(),
+            tags: vec!["featured".to_string()],
+            ..ProductRecord::default()
+        },
+    ]);
+
+    let run = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunFilteredProductBulkArtifact($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "query": "#graphql\n{\n  products(query: \"vendor:Northwind product_type:Jackets\") {\n    edges {\n      node {\n        id\n        title\n        status\n        vendor\n        productType\n      }\n    }\n  }\n}" }),
+    ));
+    assert_eq!(run.status, 200);
+    assert_eq!(
+        run.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([])
+    );
+    let operation_id = run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadFilteredProductBulkArtifact($id: ID!) {
+          bulkOperation(id: $id) { url }
+        }
+        "#,
+        json!({ "id": operation_id }),
+    ));
+    let url = read.body["data"]["bulkOperation"]["url"].as_str().unwrap();
+    let path = url::Url::parse(url).unwrap().path().to_string();
+    let artifact = proxy.process_request(request_with_body("GET", &path, ""));
+    let rows = artifact
+        .body
+        .as_str()
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).expect("artifact line is JSON"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        rows,
+        vec![json!({
+            "id": "gid://shopify/Product/alpha",
+            "title": "Alpha Jacket",
+            "status": "ACTIVE",
+            "vendor": "Northwind",
+            "productType": "Jackets"
+        })]
+    );
+}
+
+#[test]
 fn bulk_operation_run_query_validates_admin_query_branches() {
     let cases = [
         (
@@ -512,7 +739,7 @@ fn bulk_operation_run_query_rejects_storage_query_over_65535_bytes_without_stagi
         "a",
     );
     assert_eq!(oversized_query.len(), BULK_OPERATION_STORAGE_BYTE_LIMIT + 1);
-    let log_before = proxy.get_log_snapshot();
+    let log_before = log_snapshot(&proxy);
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -540,7 +767,7 @@ fn bulk_operation_run_query_rejects_storage_query_over_65535_bytes_without_stagi
         }])
     );
     assert_eq!(
-        proxy.get_log_snapshot(),
+        log_snapshot(&proxy),
         log_before,
         "oversized bulk query must not append a mutation log entry"
     );
@@ -784,7 +1011,7 @@ fn bulk_operation_run_mutation_validates_without_dispatcher_errors() {
         (
             "missingUpload",
             "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }",
-            "tmp/92891250994/bulk/missing/non-recording.jsonl",
+            "valid",
             Value::Null,
             json!([{
                 "field": null,
@@ -972,8 +1199,11 @@ fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
         .as_str()
         .unwrap()
         .starts_with("gid://shopify/BulkOperation/"));
+    let operation_id = operation["id"].as_str().unwrap().to_string();
+    let expected_created_at = synthetic_product_timestamp_for_log_len(1);
     assert_eq!(operation["status"], json!("CREATED"));
     assert_eq!(operation["type"], json!("MUTATION"));
+    assert_eq!(operation["createdAt"], json!(expected_created_at));
     assert_eq!(operation["completedAt"], Value::Null);
     assert_eq!(operation["objectCount"], json!("0"));
     assert_eq!(operation["rootObjectCount"], json!("0"));
@@ -983,13 +1213,57 @@ fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
         response.body["data"]["bulkOperationRunMutation"]["userErrors"],
         json!([])
     );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadBulkImport($id: ID!) {
+          bulkOperation(id: $id) {
+            id
+            status
+            type
+            createdAt
+            completedAt
+            objectCount
+            rootObjectCount
+            fileSize
+          }
+        }
+        "#,
+        json!({ "id": operation_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["status"],
+        json!("COMPLETED")
+    );
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["type"],
+        json!("MUTATION")
+    );
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["createdAt"],
+        operation["createdAt"]
+    );
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["completedAt"],
+        operation["createdAt"]
+    );
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["objectCount"],
+        json!("0")
+    );
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["rootObjectCount"],
+        json!("0")
+    );
+    assert_eq!(read.body["data"]["bulkOperation"]["fileSize"], json!("0"));
 }
 
 #[test]
 fn bulk_operation_run_mutation_rejects_oversized_staged_upload_with_shopify_error_shape() {
     let mut proxy = snapshot_proxy();
     let path = staged_bulk_mutation_upload_path(&mut proxy, "oversized-import.jsonl", "104857601");
-    let log_before = proxy.get_log_snapshot();
+    let log_before = log_snapshot(&proxy);
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -1019,7 +1293,7 @@ fn bulk_operation_run_mutation_rejects_oversized_staged_upload_with_shopify_erro
             "code": "INVALID_STAGED_UPLOAD_FILE"
         }])
     );
-    assert_eq!(proxy.get_log_snapshot(), log_before);
+    assert_eq!(log_snapshot(&proxy), log_before);
 
     let current = proxy.process_request(json_graphql_request(
         r#"
@@ -1048,7 +1322,7 @@ fn bulk_operation_run_mutation_rejects_storage_query_over_65535_bytes_without_st
         oversized_mutation.len(),
         BULK_OPERATION_STORAGE_BYTE_LIMIT + 1
     );
-    let log_before = proxy.get_log_snapshot();
+    let log_before = log_snapshot(&proxy);
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -1076,7 +1350,7 @@ fn bulk_operation_run_mutation_rejects_storage_query_over_65535_bytes_without_st
         }])
     );
     assert_eq!(
-        proxy.get_log_snapshot(),
+        log_snapshot(&proxy),
         log_before,
         "oversized bulk mutation must not append a mutation log entry"
     );
@@ -1105,6 +1379,7 @@ fn bulk_operation_run_mutation_allows_65535_storage_bytes() {
     );
     assert_eq!(mutation.len(), BULK_OPERATION_STORAGE_BYTE_LIMIT);
     let mut proxy = snapshot_proxy();
+    let path = staged_bulk_mutation_upload_path(&mut proxy, "exact-limit-import.jsonl", "0");
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -1115,7 +1390,7 @@ fn bulk_operation_run_mutation_allows_65535_storage_bytes() {
           }
         }
         "#,
-        json!({ "mutation": mutation, "path": "valid" }),
+        json!({ "mutation": mutation, "path": path }),
     ));
 
     assert_eq!(response.status, 200);
@@ -1232,7 +1507,7 @@ fn bulk_operation_run_mutation_file_size_error_precedes_in_progress_throttle() {
         cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
         json!("CANCELING")
     );
-    let log_before = proxy.get_log_snapshot();
+    let log_before = log_snapshot(&proxy);
 
     // Run on a 2025-01 path (concurrent limit 1) so the staged CANCELING mutation would otherwise
     // throttle the run; the oversized-file error must take precedence over that throttle.
@@ -1267,7 +1542,7 @@ fn bulk_operation_run_mutation_file_size_error_precedes_in_progress_throttle() {
         }])
     );
     assert_eq!(
-        proxy.get_log_snapshot(),
+        log_snapshot(&proxy),
         log_before,
         "oversized validation must not append a bulk mutation log entry"
     );
@@ -1307,6 +1582,7 @@ fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
         cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
         json!("CANCELING")
     );
+    let path = staged_bulk_mutation_upload_path(&mut proxy, "throttled-import.jsonl", "0");
 
     // A single non-terminal mutation only throttles at the pre-2026.1 limit of 1.
     let mut run_request = json_graphql_request(
@@ -1320,7 +1596,7 @@ fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
         "#,
         json!({
             "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
-            "path": "valid"
+            "path": path
         }),
     );
     run_request.path = "/admin/api/2025-01/graphql.json".to_string();
@@ -1381,6 +1657,11 @@ fn live_hybrid_proxy_with_bulk_operation_hydration(
 }
 
 fn run_bulk_operation_mutation(proxy: &mut DraftProxy, api_version: &str) -> Value {
+    let path = staged_bulk_mutation_upload_path(
+        proxy,
+        &format!("mutation-import-{api_version}.jsonl"),
+        "0",
+    );
     let mut request = json_graphql_request(
         r#"
         mutation RunBulkImport($mutation: String!, $path: String!) {
@@ -1392,7 +1673,7 @@ fn run_bulk_operation_mutation(proxy: &mut DraftProxy, api_version: &str) -> Val
         "#,
         json!({
             "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
-            "path": "valid"
+            "path": path
         }),
     );
     request.path = format!("/admin/api/{api_version}/graphql.json");
@@ -1493,7 +1774,7 @@ fn bulk_operation_cancel_unknown_gid_returns_not_found_without_staging() {
         json!({ "id": id }),
     ));
     assert_eq!(missing_read.body["data"]["bulkOperation"], Value::Null);
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 1);
     assert_eq!(log["entries"][0]["operationName"], Value::Null);
     assert_eq!(
@@ -1565,7 +1846,7 @@ fn bulk_operation_cancel_completed_staged_operation_echoes_terminal_without_muta
         read.body["data"]["currentBulkOperation"]["status"],
         json!("COMPLETED")
     );
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 1);
     assert_eq!(
         log["entries"][0]["interpreted"]["primaryRootField"],
@@ -1613,13 +1894,7 @@ fn bulk_operation_cancel_terminal_hydrated_operation_echoes_existing_record() {
             }]
         })
     );
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        0
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 0);
 }
 
 #[test]
@@ -1703,7 +1978,7 @@ fn bulk_operation_list_filters_paginates_and_selects_current_by_type() {
             older_id,
             "CREATED",
             "QUERY",
-            "2026-04-27T20:33:59Z",
+            "2023-12-31T23:59:59.000Z",
             "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}",
         );
         move |_request| bulk_operation_hydrate_response(operation.clone())
@@ -2058,7 +2333,7 @@ fn customer_create_stages_record_for_downstream_customer_reads_and_counts() {
     );
     assert_eq!(
         read.body["data"]["customersCount"],
-        json!({ "count": 177, "precision": "EXACT" })
+        json!({ "count": 1, "precision": "EXACT" })
     );
 }
 
@@ -2182,7 +2457,7 @@ fn customer_mutations_are_operation_name_independent_and_store_backed() {
         json!([{ "field": ["email"], "message": "Email has already been taken" }])
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"].as_array().unwrap().len(), 1);
     assert_eq!(
         log["entries"][0]["interpreted"]["primaryRootField"],
@@ -2330,7 +2605,7 @@ fn customer_tax_exemption_roots_stage_and_project_downstream_reads() {
     );
     assert_eq!(
         downstream.body["data"]["customersCount"],
-        json!({ "count": 177, "precision": "EXACT" })
+        json!({ "count": 1, "precision": "EXACT" })
     );
 
     let empty_replace = proxy.process_request(json_graphql_request(
@@ -2349,7 +2624,7 @@ fn customer_tax_exemption_roots_stage_and_project_downstream_reads() {
         json!([])
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().unwrap();
     assert_eq!(entries.len(), 5);
     assert_eq!(
@@ -2399,7 +2674,7 @@ fn customer_tax_exemption_roots_return_unknown_customer_user_errors() {
             json!([{ "field": ["customerId"], "message": "Customer does not exist." }])
         );
     }
-    assert!(proxy.get_log_snapshot()["entries"]
+    assert!(log_snapshot(&proxy)["entries"]
         .as_array()
         .unwrap()
         .is_empty());
@@ -2434,7 +2709,7 @@ fn customer_tax_exemption_roots_reject_invalid_enum_variables_before_staging() {
             && message.contains("CA_STATUS_CARD_EXEMPTION")
             && message.contains("CA_BC_RESELLER_EXEMPTION")
             && message.contains("US_CA_RESELLER_EXEMPTION")));
-    assert!(proxy.get_log_snapshot()["entries"]
+    assert!(log_snapshot(&proxy)["entries"]
         .as_array()
         .unwrap()
         .is_empty());
@@ -2471,7 +2746,7 @@ fn customer_tax_exemption_roots_reject_invalid_enum_literals_before_staging() {
         .as_str()
         .is_some_and(|message| message.contains("NOT_A_REAL_EXEMPTION")
             && message.contains("CA_STATUS_CARD_EXEMPTION")));
-    assert!(proxy.get_log_snapshot()["entries"]
+    assert!(log_snapshot(&proxy)["entries"]
         .as_array()
         .unwrap()
         .is_empty());
@@ -3027,11 +3302,11 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
         })
     );
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["delegatedAccessTokens"],
+        state_snapshot(&proxy)["stagedState"]["delegatedAccessTokens"],
         json!({})
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"][0]["status"],
+        log_snapshot(&proxy)["entries"][0]["status"],
         json!("failed")
     );
 
@@ -3072,10 +3347,10 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
         );
     }
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["delegatedAccessTokens"],
+        state_snapshot(&proxy)["stagedState"]["delegatedAccessTokens"],
         json!({})
     );
-    assert!(proxy.get_log_snapshot()["entries"]
+    assert!(log_snapshot(&proxy)["entries"]
         .as_array()
         .unwrap()
         .iter()
@@ -3097,7 +3372,7 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
         missing.body["data"]["delegateAccessTokenDestroy"],
         json!({
             "status": false,
-            "shop": { "id": "gid://shopify/Shop/92891250994", "name": "harry-test-heelo" },
+            "shop": { "id": "gid://shopify/Shop/0", "name": "Shopify Draft Proxy" },
             "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
         })
     );
@@ -3117,8 +3392,8 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
     assert_eq!(
         create.body["data"]["delegateAccessTokenCreate"]["shop"],
         json!({
-            "id": "gid://shopify/Shop/92891250994",
-            "myshopifyDomain": "harry-test-heelo.myshopify.com",
+            "id": "gid://shopify/Shop/0",
+            "myshopifyDomain": "shopify-draft-proxy.local",
             "currencyCode": "USD"
         })
     );
@@ -3147,7 +3422,7 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
     assert_eq!(
         destroy.body["data"]["delegateAccessTokenDestroy"],
         json!({
-            "shop": { "id": "gid://shopify/Shop/92891250994" },
+            "shop": { "id": "gid://shopify/Shop/0" },
             "status": true,
             "userErrors": []
         })
@@ -3168,7 +3443,7 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
     assert_eq!(
         repeat.body["data"]["delegateAccessTokenDestroy"],
         json!({
-            "shop": { "id": "gid://shopify/Shop/92891250994" },
+            "shop": { "id": "gid://shopify/Shop/0" },
             "status": false,
             "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
         })
@@ -3194,6 +3469,93 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
     assert_eq!(
         self_delete.body["data"]["delegateAccessTokenDestroy"]["userErrors"],
         json!([{ "field": null, "message": "Can only delete delegate tokens.", "code": "CAN_ONLY_DELETE_DELEGATE_TOKENS" }])
+    );
+}
+
+#[test]
+fn delegate_access_token_payload_shop_uses_restored_shop_state() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    let mut restored = dump.body.clone();
+    restored["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/restored-delegate",
+        "name": "Restored delegate shop",
+        "myshopifyDomain": "restored-delegate.myshopify.com",
+        "currencyCode": "GBP",
+        "primaryDomain": {
+            "id": "gid://shopify/Domain/444555666",
+            "host": "restored-delegate.example",
+            "url": "https://restored-delegate.example",
+            "sslEnabled": true
+        }
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenCreateRestoredShop {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) {
+            delegateAccessToken { accessToken }
+            shop { id name myshopifyDomain currencyCode primaryDomain { id host } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["delegateAccessTokenCreate"]["shop"],
+        json!({
+            "id": "gid://shopify/Shop/restored-delegate",
+            "name": "Restored delegate shop",
+            "myshopifyDomain": "restored-delegate.myshopify.com",
+            "currencyCode": "GBP",
+            "primaryDomain": {
+                "id": "gid://shopify/Domain/444555666",
+                "host": "restored-delegate.example"
+            }
+        })
+    );
+    assert_eq!(
+        create.body["data"]["delegateAccessTokenCreate"]["userErrors"],
+        json!([])
+    );
+    let token = create.body["data"]["delegateAccessTokenCreate"]["delegateAccessToken"]
+        ["accessToken"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let destroy = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenDestroyRestoredShop($token: String!) {
+          delegateAccessTokenDestroy(accessToken: $token) {
+            status
+            shop { id myshopifyDomain }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "token": token }),
+    ));
+
+    assert_eq!(
+        destroy.body["data"]["delegateAccessTokenDestroy"],
+        json!({
+            "status": true,
+            "shop": {
+                "id": "gid://shopify/Shop/restored-delegate",
+                "myshopifyDomain": "restored-delegate.myshopify.com"
+            },
+            "userErrors": []
+        })
     );
 }
 
@@ -3414,7 +3776,7 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
         create_query,
         json!({
             "input": {
-                "email": "har-773-blocked@example.test",
+                "email": "customer-delete-blocked@example.test",
                 "firstName": "Blocked",
                 "lastName": "Delete"
             }
@@ -3440,10 +3802,10 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
         "#,
         json!({
             "order": {
-                "email": "har-773-order@example.test",
+                "email": "customer-delete-order@example.test",
                 "customerId": customer_id,
                 "currency": "CAD",
-                "lineItems": [{ "title": "HAR-773 blocking line", "quantity": 1 }]
+                "lineItems": [{ "title": "Customer delete blocking line", "quantity": 1 }]
             }
         }),
     ));
@@ -4303,11 +4665,8 @@ fn customer_set_id_and_unknown_identifier_guards_do_not_stage_or_log() {
         })
     );
 
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
-    assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["products"],
-        json!({})
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(state_snapshot(&proxy)["stagedState"]["products"], json!({}));
 }
 
 #[test]
@@ -4391,7 +4750,7 @@ fn data_sale_opt_out_stages_existing_customer_and_downstream_reads_without_upstr
         })
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"][1]["status"], json!("staged"));
     assert_eq!(
         log["entries"][1]["interpreted"]["capability"],
@@ -4593,12 +4952,12 @@ fn data_sale_opt_out_rejects_strict_core_invalid_formats_without_staging() {
             "mutation payload for {email}"
         );
         assert_eq!(
-            proxy.get_log_snapshot()["entries"],
+            log_snapshot(&proxy)["entries"],
             json!([]),
             "mutation log for {email}"
         );
         assert_eq!(
-            proxy.get_state_snapshot()["stagedState"]["customers"],
+            state_snapshot(&proxy)["stagedState"]["customers"],
             json!({}),
             "staged customers for {email}"
         );
@@ -5125,13 +5484,7 @@ fn fulfillment_service_name_whitespace_validation_rejects_without_staging_or_log
             ]
         })
     );
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        0
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 0);
     let leading_create = proxy.process_request(json_graphql_request(
         create_query,
         json!({ "name": "\tFS Leading Whitespace rejected" }),
@@ -5159,13 +5512,7 @@ fn fulfillment_service_name_whitespace_validation_rejects_without_staging_or_log
             ]
         })
     );
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        0
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 0);
 
     let valid_create = proxy.process_request(json_graphql_request(
         create_query,
@@ -5183,19 +5530,10 @@ fn fulfillment_service_name_whitespace_validation_rejects_without_staging_or_log
         .to_string();
     assert!(service_id.starts_with("gid://shopify/FulfillmentService/1"));
     assert!(location_id.starts_with("gid://shopify/Location/2"));
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
-    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
 
-    let update_log_len_before = proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .len();
-    let update_state_before = proxy.get_state_snapshot();
+    let update_log_len_before = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    let update_state_before = state_snapshot(&proxy);
     let leading_update = proxy.process_request(json_graphql_request(
         update_query,
         json!({ "id": service_id, "name": " FS Whitespace Update Rejected" }),
@@ -5210,13 +5548,10 @@ fn fulfillment_service_name_whitespace_validation_rejects_without_staging_or_log
         })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         update_log_len_before
     );
-    assert_eq!(proxy.get_state_snapshot(), update_state_before);
+    assert_eq!(state_snapshot(&proxy), update_state_before);
 
     let trailing_update = proxy.process_request(json_graphql_request(
         update_query,
@@ -5232,13 +5567,10 @@ fn fulfillment_service_name_whitespace_validation_rejects_without_staging_or_log
         })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         update_log_len_before
     );
-    assert_eq!(proxy.get_state_snapshot(), update_state_before);
+    assert_eq!(state_snapshot(&proxy), update_state_before);
 }
 
 #[test]
@@ -5356,6 +5688,30 @@ fn fulfillment_service_callback_url_validation_matches_captured_shopify_behavior
     );
     assert_eq!(
         primary.body["data"]["shopifyCreate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [{
+                "field": ["callbackUrl"],
+                "message": "Callback url is not allowed"
+            }]
+        })
+    );
+    let mut default_origin_proxy = snapshot_proxy();
+    let default_origin = default_origin_proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentServiceCallbackUrlDefaultOriginRejected($callbackUrl: URL!) {
+          fulfillmentServiceCreate(name: "No Fallback Origin", callbackUrl: $callbackUrl) {
+            fulfillmentService { id callbackUrl }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "callbackUrl": "https://shopify-draft-proxy.local/fulfillment-service-callback"
+        }),
+    ));
+    assert_eq!(
+        default_origin.body["data"]["fulfillmentServiceCreate"],
         json!({
             "fulfillmentService": null,
             "userErrors": [{
@@ -5564,10 +5920,7 @@ fn fulfillment_service_uniqueness_rejects_name_handle_and_reserved_collisions() 
     );
 
     for reserved_name in ["Manual", "Gift_Card", "Shopify", "Amazon"] {
-        let log_len_before = proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len();
+        let log_len_before = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
         let reserved = proxy.process_request(json_graphql_request(
             create_query,
             json!({ "name": reserved_name }),
@@ -5580,10 +5933,7 @@ fn fulfillment_service_uniqueness_rejects_name_handle_and_reserved_collisions() 
             })
         );
         assert_eq!(
-            proxy.get_log_snapshot()["entries"]
-                .as_array()
-                .unwrap()
-                .len(),
+            log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
             log_len_before
         );
     }
@@ -5614,10 +5964,7 @@ fn fulfillment_service_uniqueness_rejects_name_handle_and_reserved_collisions() 
     );
 
     for reserved_name in ["Manual", "Gift_Card", "Shopify", "Amazon"] {
-        let log_len_before = proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len();
+        let log_len_before = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
         let update_reserved = proxy.process_request(json_graphql_request(
             update_query,
             json!({ "id": target_id, "name": reserved_name }),
@@ -5630,10 +5977,7 @@ fn fulfillment_service_uniqueness_rejects_name_handle_and_reserved_collisions() 
             })
         );
         assert_eq!(
-            proxy.get_log_snapshot()["entries"]
-                .as_array()
-                .unwrap()
-                .len(),
+            log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
             log_len_before
         );
     }
@@ -5969,7 +6313,7 @@ fn carrier_service_create_missing_required_booleans_returns_coercion_errors_befo
         json!({}),
     ));
     assert_eq!(services.body["data"]["carrierServices"]["nodes"], json!([]));
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -5996,10 +6340,7 @@ fn carrier_service_update_validates_changed_callback_url_and_codes_unknowns() {
         .unwrap()
         .to_string();
 
-    let log_len_after_create = proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .len();
+    let log_len_after_create = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
 
     let blank_name_update = proxy.process_request(json_graphql_request(
         r#"
@@ -6027,10 +6368,7 @@ fn carrier_service_update_validates_changed_callback_url_and_codes_unknowns() {
         })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         log_len_after_create
     );
     let after_blank_name_update = proxy.process_request(json_graphql_request(
@@ -6619,7 +6957,7 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
         Value::Null
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(
         log["entries"][0]["interpreted"]["primaryRootField"],
         json!("deliveryProfileCreate")
@@ -6719,7 +7057,7 @@ fn delivery_profile_update_hydrates_and_stages_default_profile_name() {
         update.body["data"]["deliveryProfileUpdate"]["profile"]
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(
         log["entries"][0]["interpreted"]["primaryRootField"],
         json!("deliveryProfileUpdate")
@@ -6964,7 +7302,7 @@ fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
         json!({ "userErrors": [] })
     );
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["shippingPackages"]
+        state_snapshot(&proxy)["stagedState"]["shippingPackages"]
             ["gid://shopify/ShippingPackage/1"]["updatedAt"],
         json!("2024-01-01T00:00:01.000Z")
     );
@@ -6977,7 +7315,7 @@ fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
         make_default.body["data"]["shippingPackageMakeDefault"],
         json!({ "userErrors": [] })
     );
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(&proxy);
     assert_eq!(
         state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/1"]["default"],
         json!(false)
@@ -6998,7 +7336,7 @@ fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
         restore.body["data"]["shippingPackageUpdate"],
         json!({ "userErrors": [] })
     );
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(&proxy);
     assert_eq!(
         state["stagedState"]["shippingPackages"]["gid://shopify/ShippingPackage/1"]["default"],
         json!(true)
@@ -7016,7 +7354,7 @@ fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
         delete.body["data"]["shippingPackageDelete"],
         json!({ "deletedId": "gid://shopify/ShippingPackage/1", "userErrors": [] })
     );
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(&proxy);
     assert_eq!(
         state["stagedState"]["deletedShippingPackageIds"]["gid://shopify/ShippingPackage/1"],
         json!(true)
@@ -7025,7 +7363,7 @@ fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
         .get("gid://shopify/ShippingPackage/1")
         .is_none());
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(
         log["entries"][0]["operationName"],
         json!("shippingPackageUpdate")
@@ -7146,12 +7484,12 @@ fn location_local_pickup_enable_disable_stage_settings_and_downstream_reads() {
         Value::Null
     );
 
-    let state = proxy.get_state_snapshot();
+    let state = state_snapshot(&proxy);
     assert_eq!(
         state["stagedState"]["locations"][location_id.as_str()]["localPickupSettingsV2"],
         Value::Null
     );
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(log["entries"][1]["status"], json!("staged"));
     assert_eq!(
         log["entries"][1]["interpreted"]["primaryRootField"],
@@ -7247,13 +7585,63 @@ fn location_local_pickup_enable_validates_pickup_time_and_location_status() {
         inactive.body["data"]["locationLocalPickupEnable"]["userErrors"][0]["code"],
         json!("ACTIVE_LOCATION_NOT_FOUND")
     );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn location_local_pickup_disable_reports_active_location_not_found() {
+    let mut proxy = snapshot_proxy();
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedPickupLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) { location { id } userErrors { field message code } }
+        }
+        "#,
+        json!({ "input": { "name": "Pickup Validation", "address": { "countryCode": "US" } } }),
+    ));
+    assert_eq!(add.body["data"]["locationAdd"]["userErrors"], json!([]));
+    let query = r#"
+        mutation DisableUnknownPickup($locationId: ID!) {
+          locationLocalPickupDisable(locationId: $locationId) {
+            locationId
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let unknown = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "locationId": "gid://shopify/Location/999999999999" }),
+    ));
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        1
+        unknown.body["data"]["locationLocalPickupDisable"],
+        json!({
+            "locationId": null,
+            "userErrors": [{
+                "field": ["locationId"],
+                "message": "Unable to find an active location for location ID 999999999999",
+                "code": "ACTIVE_LOCATION_NOT_FOUND"
+            }]
+        })
     );
+
+    let inactive_id = "gid://shopify/Location/112849158450";
+    let inactive = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "locationId": inactive_id }),
+    ));
+    assert_eq!(
+        inactive.body["data"]["locationLocalPickupDisable"],
+        json!({
+            "locationId": null,
+            "userErrors": [{
+                "field": ["locationId"],
+                "message": "Unable to find an active location for location ID 112849158450",
+                "code": "ACTIVE_LOCATION_NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
 }
 
 #[test]
@@ -7377,7 +7765,7 @@ fn shipping_package_update_rejects_flat_rate_packages_without_staging_state() {
         })
     );
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["shippingPackages"],
+        state_snapshot(&proxy)["stagedState"]["shippingPackages"],
         json!({})
     );
 }
@@ -7517,7 +7905,7 @@ fn store_credit_credit_debit_stage_account_transactions_and_readbacks() {
         2
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let entries = log["entries"].as_array().unwrap();
     assert_eq!(entries.len(), 3);
     assert_eq!(entries[1]["status"], json!("staged"));
@@ -7540,6 +7928,43 @@ fn store_credit_credit_debit_stage_account_transactions_and_readbacks() {
         entries[2]["rawBody"],
         json!({ "query": debit_query, "variables": debit_variables }).to_string()
     );
+}
+
+#[test]
+fn customer_and_store_credit_overlay_read_preserves_aliases_and_projection() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_store_credit_customer(&mut proxy);
+    let account_id = store_credit_account_id_from_credit(&mut proxy, &customer_id, "4.25", "USD");
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerAndStoreCreditOverlay($customerId: ID!, $accountId: ID!) {
+          accountAlias: storeCreditAccount(id: $accountId) {
+            currentBalance: balance { amount }
+          }
+          customerAlias: customer(id: $customerId) {
+            contactEmail: email
+          }
+        }
+        "#,
+        json!({ "customerId": customer_id, "accountId": account_id }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["accountAlias"],
+        json!({
+            "currentBalance": { "amount": "4.25" }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["customerAlias"],
+        json!({
+            "contactEmail": "store-credit@example.test"
+        })
+    );
+    assert_eq!(read.body["data"].get("storeCreditAccount"), None);
+    assert_eq!(read.body["data"].get("customer"), None);
 }
 
 #[test]
@@ -7712,10 +8137,90 @@ fn store_credit_validations_match_shopify_user_error_shapes_without_staging_fail
         "ACCOUNT_NOT_FOUND",
     );
 
-    let entries = proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .len();
+    let entries = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    assert_eq!(
+        entries, 2,
+        "only customerCreate and the successful setup credit should be staged"
+    );
+}
+
+#[test]
+fn store_credit_combined_invalid_credit_resolves_account_before_amount() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_store_credit_customer(&mut proxy);
+    store_credit_account_id_from_credit(&mut proxy, &customer_id, "10.00", "USD");
+
+    let missing_account_credit = store_credit_credit_error(
+        &mut proxy,
+        "gid://shopify/StoreCreditAccount/999",
+        json!({ "amount": "0", "currencyCode": "USD" }),
+        None,
+    );
+    assert_eq!(
+        missing_account_credit,
+        json!([{
+            "field": ["id"],
+            "message": "Store credit account does not exist",
+            "code": "ACCOUNT_NOT_FOUND"
+        }])
+    );
+
+    let entries = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    assert_eq!(
+        entries, 2,
+        "only customerCreate and the successful setup credit should be staged"
+    );
+}
+
+#[test]
+fn store_credit_combined_invalid_debit_resolves_account_before_amount() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_store_credit_customer(&mut proxy);
+    store_credit_account_id_from_credit(&mut proxy, &customer_id, "10.00", "USD");
+
+    let missing_account_debit = store_credit_debit_error(
+        &mut proxy,
+        "gid://shopify/StoreCreditAccount/999",
+        json!({ "amount": "0", "currencyCode": "USD" }),
+    );
+    assert_eq!(
+        missing_account_debit,
+        json!([{
+            "field": ["id"],
+            "message": "Store credit account does not exist",
+            "code": "ACCOUNT_NOT_FOUND"
+        }])
+    );
+
+    let entries = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+    assert_eq!(
+        entries, 2,
+        "only customerCreate and the successful setup credit should be staged"
+    );
+}
+
+#[test]
+fn store_credit_combined_invalid_credit_expiry_precedes_amount() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_store_credit_customer(&mut proxy);
+    let account_id = store_credit_account_id_from_credit(&mut proxy, &customer_id, "10.00", "USD");
+
+    let past_expiry_and_negative_amount = store_credit_credit_error(
+        &mut proxy,
+        &account_id,
+        json!({ "amount": "-5", "currencyCode": "USD" }),
+        Some("2000-01-01T00:00:00Z"),
+    );
+    assert_eq!(
+        past_expiry_and_negative_amount,
+        json!([{
+            "field": ["creditInput", "expiresAt"],
+            "message": "The expiry date must be in the future",
+            "code": "EXPIRES_AT_IN_PAST"
+        }])
+    );
+
+    let entries = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
     assert_eq!(
         entries, 2,
         "only customerCreate and the successful setup credit should be staged"
@@ -7768,10 +8273,7 @@ fn store_credit_credit_accepts_live_accepted_ordinary_currency() {
     );
     assert_eq!(transaction["account"]["owner"]["id"], json!(customer_id));
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         2,
         "customerCreate and successful CHF credit should be staged"
     );
@@ -7812,10 +8314,7 @@ fn store_credit_result_only_currency_codes_return_top_level_error_without_stagin
     }
 
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         1,
         "result-only currency failures should not stage store-credit mutations"
     );
@@ -7917,10 +8416,7 @@ fn store_credit_schema_rejects_non_public_variable_fields() {
     assert!(message.contains("notify"));
     assert!(message.contains("attribution"));
     assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
         1,
         "invalid schema variables should not stage store-credit mutations"
     );

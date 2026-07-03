@@ -169,18 +169,15 @@ impl PyDraftProxy {
     }
 
     fn get_config(&self, py: Python<'_>) -> PyResult<PyObject> {
-        let value = self.with_proxy(|proxy| proxy.get_config_snapshot())?;
-        value_to_py(py, &value)
+        self.meta_get(py, "/__meta/config")
     }
 
     fn get_log(&self, py: Python<'_>) -> PyResult<PyObject> {
-        let value = self.with_proxy(|proxy| proxy.get_log_snapshot())?;
-        value_to_py(py, &value)
+        self.meta_get(py, "/__meta/log")
     }
 
     fn get_state(&self, py: Python<'_>) -> PyResult<PyObject> {
-        let value = self.with_proxy(|proxy| proxy.get_state_snapshot())?;
-        value_to_py(py, &value)
+        self.meta_get(py, "/__meta/state")
     }
 
     #[pyo3(signature = (created_at = None))]
@@ -269,6 +266,23 @@ impl PyDraftProxy {
             .lock()
             .map_err(|_| PyRuntimeError::new_err("DraftProxy lock was poisoned"))?;
         Ok(f(&mut proxy))
+    }
+
+    fn meta_get(&self, py: Python<'_>, path: &str) -> PyResult<PyObject> {
+        let request = Request {
+            method: "GET".to_string(),
+            path: path.to_string(),
+            headers: BTreeMap::new(),
+            body: String::new(),
+        };
+        let response = self.with_proxy(|proxy| proxy.process_request(request))?;
+        if response.status != 200 {
+            return Err(PyRuntimeError::new_err(format!(
+                "DraftProxy meta GET {path} failed with status {}: {}",
+                response.status, response.body
+            )));
+        }
+        value_to_py(py, &response.body)
     }
 }
 

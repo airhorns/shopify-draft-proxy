@@ -110,7 +110,16 @@ async function fetchJson(origin: string, request: DraftProxyRequest): Promise<Dr
   return out;
 }
 
-function fetchJsonSync(origin: string, request: DraftProxyRequest, timeoutMs = 10_000): DraftProxyHttpResponse {
+function syncFetchTimeoutMs(defaultMs = 10_000): number {
+  const configured = Number(process.env['DRAFT_PROXY_FETCH_TIMEOUT_MS']);
+  return Number.isFinite(configured) && configured > 0 ? configured : defaultMs;
+}
+
+function fetchJsonSync(
+  origin: string,
+  request: DraftProxyRequest,
+  timeoutMs = syncFetchTimeoutMs(),
+): DraftProxyHttpResponse {
   // Pass the request via stdin rather than an environment variable to avoid
   // E2BIG failures when the body is large (e.g. dumpState/restoreState with
   // hundreds of staged variants).
@@ -133,6 +142,17 @@ function fetchJsonSync(origin: string, request: DraftProxyRequest, timeoutMs = 1
       console.log(JSON.stringify({ status: response.status, headers: Object.fromEntries(response.headers.entries()), body }));
     }).catch((error) => {
       console.error(error && error.stack ? error.stack : String(error));
+      if (error && error.cause) {
+        console.error(JSON.stringify({
+          cause: {
+            name: error.cause.name,
+            message: error.cause.message,
+            code: error.cause.code,
+            errno: error.cause.errno,
+            syscall: error.cause.syscall,
+          },
+        }));
+      }
       process.exit(1);
     });
   `;
@@ -142,21 +162,29 @@ function fetchJsonSync(origin: string, request: DraftProxyRequest, timeoutMs = 1
     headers: normalizeHeaders(request.headers),
     body: bodyToString(request.body),
   });
-  const result = spawnSync(process.execPath, ['-e', script], {
-    input,
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      DRAFT_PROXY_URL: origin,
-      DRAFT_PROXY_FETCH_TIMEOUT_MS: String(timeoutMs),
-    },
-    maxBuffer: 128 * 1024 * 1024,
-    timeout: 10_000,
-  });
-  if (result.status !== 0) {
-    throw new Error(`Rust DraftProxy sync request failed: ${result.error?.message || result.stderr || result.stdout}`);
+  let lastError = '';
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const result = spawnSync(process.execPath, ['-e', script], {
+      input,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        DRAFT_PROXY_URL: origin,
+        DRAFT_PROXY_FETCH_TIMEOUT_MS: String(timeoutMs),
+      },
+      maxBuffer: 128 * 1024 * 1024,
+      timeout: timeoutMs + 5_000,
+    });
+    if (result.status === 0) {
+      return JSON.parse(result.stdout) as DraftProxyHttpResponse;
+    }
+    lastError = result.error?.message || result.stderr || result.stdout;
+    if (!lastError.includes('fetch failed')) {
+      break;
+    }
+    sleepSync(50 * (attempt + 1));
   }
-  return JSON.parse(result.stdout) as DraftProxyHttpResponse;
+  throw new Error(`Rust DraftProxy sync request failed: ${lastError}`);
 }
 
 function waitForRustServer(child: ChildProcessWithoutNullStreams, origin: string, output: () => string): void {
@@ -210,9 +238,15 @@ export class DraftProxy {
     let output = '';
     this.#child.stdout.on('data', (chunk: Buffer) => {
       output += chunk.toString();
+      if (process.env['DRAFT_PROXY_DEBUG_STDERR'] === '1') {
+        process.stderr.write(chunk);
+      }
     });
     this.#child.stderr.on('data', (chunk: Buffer) => {
       output += chunk.toString();
+      if (process.env['DRAFT_PROXY_DEBUG_STDERR'] === '1') {
+        process.stderr.write(chunk);
+      }
     });
     waitForRustServer(this.#child, this.#origin, () => output);
 

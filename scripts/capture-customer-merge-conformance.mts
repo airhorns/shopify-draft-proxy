@@ -588,14 +588,19 @@ async function main() {
 
   const missingArgument = await runGraphql(missingArgumentMutation, { one: customerOneId });
   const blankLiteralIds = await runGraphql(blankLiteralIdsMutation, {});
-  const selfPreview = await runGraphql(previewQuery, { one: customerOneId, two: customerOneId });
-  const selfMerge = await runGraphql(mergeMutation, { one: customerOneId, two: customerOneId });
+  const selfPreview = await runGraphql(previewQuery, { one: customerTwoId, two: customerTwoId });
+  const selfMerge = await runGraphql(mergeMutation, { one: customerTwoId, two: customerTwoId });
   assertNoTopLevelErrors(selfMerge, 'customerMerge self validation');
   const unknownMerge = await runGraphql(mergeMutation, {
     one: customerOneId,
     two: 'gid://shopify/Customer/999999999999999',
   });
   assertNoTopLevelErrors(unknownMerge, 'customerMerge unknown validation');
+  const duplicatedUnknownMerge = await runGraphql(mergeMutation, {
+    one: 'gid://shopify/Customer/999999999999999',
+    two: 'gid://shopify/Customer/999999999999999',
+  });
+  assertNoTopLevelErrors(duplicatedUnknownMerge, 'customerMerge duplicated unknown validation');
 
   // Capture the upstream hydrates the proxy forwards at parity time, at the pre-merge state:
   // customerMerge stages both referenced customers via CUSTOMER_MERGE_HYDRATE_QUERY, and the
@@ -729,16 +734,23 @@ async function main() {
         response: blankLiteralIds.payload,
       },
       selfPreview: {
-        variables: { one: customerOneId, two: customerOneId },
+        variables: { one: customerTwoId, two: customerTwoId },
         response: selfPreview.payload,
       },
       selfMerge: {
-        variables: { one: customerOneId, two: customerOneId },
+        variables: { one: customerTwoId, two: customerTwoId },
         response: selfMerge.payload,
       },
       unknownCustomer: {
         variables: { one: customerOneId, two: 'gid://shopify/Customer/999999999999999' },
         response: unknownMerge.payload,
+      },
+      duplicatedUnknownCustomer: {
+        variables: {
+          one: 'gid://shopify/Customer/999999999999999',
+          two: 'gid://shopify/Customer/999999999999999',
+        },
+        response: duplicatedUnknownMerge.payload,
       },
     },
     cleanup: {
@@ -754,6 +766,7 @@ async function main() {
     upstreamCalls: [
       hydrateUpstreamCall(customerOneId, hydrateOnePayload),
       hydrateUpstreamCall(customerTwoId, hydrateTwoPayload),
+      hydrateUpstreamCall(UNKNOWN_CUSTOMER_GID, unknownHydratePayload),
       hydrateUpstreamCall(UNKNOWN_CUSTOMER_GID, unknownHydratePayload),
       countUpstreamCall(countBaseFromAsserted(downstreamRead.payload?.data?.customersCount, 1)),
     ],

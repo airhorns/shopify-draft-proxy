@@ -1,20 +1,20 @@
 {
   "variables": {
-    "discountId": "gid://shopify/DiscountCodeNode/1639018103090",
-    "seedCode": "HAR438BASE1777416023154",
-    "seedRedeemCodeId": "gid://shopify/DiscountRedeemCode/21582085751090",
-    "addedCode": "HAR438ADD1777416023154",
-    "secondAddedCode": "HAR438PLUS1777416023154",
-    "lowerAddedCode": "har438add1777416023154"
+    "discountId": "gid://shopify/DiscountCodeNode/1657363792178",
+    "seedCode": "SDPBULKBASE20260630150101",
+    "seedRedeemCodeId": "gid://shopify/DiscountRedeemCode/22157230211378",
+    "addedCode": "SDPBULKADD20260630150101",
+    "secondAddedCode": "SDPBULKPLUS20260630150101",
+    "lowerAddedCode": "sdpbulkadd20260630150101"
   },
   "requests": {
     "create": {
       "query": "#graphql\n  mutation DiscountRedeemCodeBulkSeedCreate($input: DiscountCodeBasicInput!) {\n    discountCodeBasicCreate(basicCodeDiscount: $input) {\n      codeDiscountNode {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
         "input": {
-          "title": "HAR-438 redeem code bulk 1777416023154",
-          "code": "HAR438BASE1777416023154",
-          "startsAt": "2026-04-28T22:39:23.154Z",
+          "title": "Discount redeem code bulk 20260630150101",
+          "code": "SDPBULKBASE20260630150101",
+          "startsAt": "2026-06-30T14:55:42.880Z",
           "combinesWith": {
             "productDiscounts": false,
             "orderDiscounts": true,
@@ -37,13 +37,13 @@
     "add": {
       "query": "#graphql\n  mutation DiscountRedeemCodeBulkLiveAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) {\n    discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {\n      bulkCreation {\n        done\n        codesCount\n        importedCount\n        failedCount\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
-        "discountId": "gid://shopify/DiscountCodeNode/1639018103090",
+        "discountId": "gid://shopify/DiscountCodeNode/1657363792178",
         "codes": [
           {
-            "code": "HAR438ADD1777416023154"
+            "code": "SDPBULKADD20260630150101"
           },
           {
-            "code": "HAR438PLUS1777416023154"
+            "code": "SDPBULKPLUS20260630150101"
           }
         ]
       }
@@ -54,17 +54,75 @@
     "delete": {
       "query": "#graphql\n  mutation DiscountRedeemCodeBulkLiveDelete($discountId: ID!, $ids: [ID!]!) {\n    discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $ids) {\n      job {\n        done\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
-        "discountId": "gid://shopify/DiscountCodeNode/1639018103090",
-        "ids": ["gid://shopify/DiscountRedeemCode/21582085751090"]
+        "discountId": "gid://shopify/DiscountCodeNode/1657363792178",
+        "ids": ["gid://shopify/DiscountRedeemCode/22157230211378"]
       }
     },
     "cleanup": {
       "query": "#graphql\n  mutation DiscountRedeemCodeBulkSeedDelete($id: ID!) {\n    discountCodeDelete(id: $id) {\n      deletedCodeDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1639018103090"
+        "id": "gid://shopify/DiscountCodeNode/1657363792178"
       }
     }
   },
+  "seedDiscounts": [
+    {
+      "id": "gid://shopify/DiscountCodeNode/1657363792178",
+      "codeDiscount": {
+        "__typename": "DiscountCodeBasic",
+        "title": "Discount redeem code bulk 20260630150101",
+        "status": "ACTIVE",
+        "summary": "10% off one-time purchase products",
+        "startsAt": "2026-06-30T14:55:42Z",
+        "endsAt": null,
+        "createdAt": "2026-06-30T14:56:42Z",
+        "updatedAt": "2026-06-30T14:56:43Z",
+        "asyncUsageCount": 0,
+        "discountClasses": ["ORDER"],
+        "combinesWith": {
+          "productDiscounts": false,
+          "orderDiscounts": true,
+          "shippingDiscounts": false
+        },
+        "codes": {
+          "nodes": [
+            {
+              "id": "gid://shopify/DiscountRedeemCode/22157230211378",
+              "code": "SDPBULKBASE20260630150101",
+              "asyncUsageCount": 0
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoyMjE1NzIzMDIxMTM3OCwibGFzdF92YWx1ZSI6IjIyMTU3MjMwMjExMzc4In0=",
+            "endCursor": "eyJsYXN0X2lkIjoyMjE1NzIzMDIxMTM3OCwibGFzdF92YWx1ZSI6IjIyMTU3MjMwMjExMzc4In0="
+          }
+        },
+        "codesCount": {
+          "count": 1,
+          "precision": "EXACT"
+        },
+        "context": {
+          "__typename": "DiscountBuyerSelectionAll",
+          "all": "ALL"
+        },
+        "customerGets": {
+          "value": {
+            "__typename": "DiscountPercentage",
+            "percentage": 0.1
+          },
+          "items": {
+            "__typename": "AllDiscountItems",
+            "allItems": true
+          },
+          "appliesOnOneTimePurchase": true,
+          "appliesOnSubscription": false
+        },
+        "minimumRequirement": null
+      }
+    }
+  ],
   "scopeProbe": {
     "availableScopes": [
       "read_assigned_fulfillment_orders",
@@ -83,6 +141,8 @@
       "read_gift_card_transactions",
       "read_gift_cards",
       "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
       "read_legal_policies",
       "read_locales",
       "read_locations",
@@ -91,10 +151,12 @@
       "read_merchant_managed_fulfillment_orders",
       "read_metaobject_definitions",
       "read_metaobjects",
+      "read_online_store_navigation",
       "read_order_edits",
       "read_orders",
       "read_payment_customizations",
       "read_payment_terms",
+      "read_privacy_settings",
       "read_product_listings",
       "read_products",
       "read_publications",
@@ -125,6 +187,8 @@
       "write_gift_card_transactions",
       "write_gift_cards",
       "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
       "write_legal_policies",
       "write_locales",
       "write_locations",
@@ -133,10 +197,12 @@
       "write_merchant_managed_fulfillment_orders",
       "write_metaobject_definitions",
       "write_metaobjects",
+      "write_online_store_navigation",
       "write_order_edits",
       "write_orders",
       "write_payment_customizations",
       "write_payment_terms",
+      "write_privacy_settings",
       "write_products",
       "write_publications",
       "write_purchase_options",
@@ -166,7 +232,7 @@
       "data": {
         "discountCodeBasicCreate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1639018103090"
+            "id": "gid://shopify/DiscountCodeNode/1657363792178"
           },
           "userErrors": []
         }
@@ -189,16 +255,16 @@
     "payload": {
       "data": {
         "codeDiscountNode": {
-          "id": "gid://shopify/DiscountCodeNode/1639018103090",
+          "id": "gid://shopify/DiscountCodeNode/1657363792178",
           "codeDiscount": {
             "__typename": "DiscountCodeBasic",
-            "title": "HAR-438 redeem code bulk 1777416023154",
+            "title": "Discount redeem code bulk 20260630150101",
             "status": "ACTIVE",
             "summary": "10% off one-time purchase products",
-            "startsAt": "2026-04-28T22:39:23Z",
+            "startsAt": "2026-06-30T14:55:42Z",
             "endsAt": null,
-            "createdAt": "2026-04-28T22:40:23Z",
-            "updatedAt": "2026-04-28T22:40:23Z",
+            "createdAt": "2026-06-30T14:56:42Z",
+            "updatedAt": "2026-06-30T14:56:43Z",
             "asyncUsageCount": 0,
             "discountClasses": ["ORDER"],
             "combinesWith": {
@@ -209,16 +275,16 @@
             "codes": {
               "nodes": [
                 {
-                  "id": "gid://shopify/DiscountRedeemCode/21582085751090",
-                  "code": "HAR438BASE1777416023154",
+                  "id": "gid://shopify/DiscountRedeemCode/22157230211378",
+                  "code": "SDPBULKBASE20260630150101",
                   "asyncUsageCount": 0
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoyMTU4MjA4NTc1MTA5MCwibGFzdF92YWx1ZSI6IjIxNTgyMDg1NzUxMDkwIn0=",
-                "endCursor": "eyJsYXN0X2lkIjoyMTU4MjA4NTc1MTA5MCwibGFzdF92YWx1ZSI6IjIxNTgyMDg1NzUxMDkwIn0="
+                "startCursor": "eyJsYXN0X2lkIjoyMjE1NzIzMDIxMTM3OCwibGFzdF92YWx1ZSI6IjIyMTU3MjMwMjExMzc4In0=",
+                "endCursor": "eyJsYXN0X2lkIjoyMjE1NzIzMDIxMTM3OCwibGFzdF92YWx1ZSI6IjIyMTU3MjMwMjExMzc4In0="
               }
             },
             "codesCount": {
@@ -247,7 +313,7 @@
         "exactAdded": null,
         "lowerAdded": null,
         "removed": {
-          "id": "gid://shopify/DiscountCodeNode/1639018103090"
+          "id": "gid://shopify/DiscountCodeNode/1657363792178"
         }
       },
       "extensions": {
@@ -283,7 +349,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1985,
+            "currentlyAvailable": 1987,
             "restoreRate": 100
           }
         }
@@ -295,16 +361,16 @@
     "payload": {
       "data": {
         "codeDiscountNode": {
-          "id": "gid://shopify/DiscountCodeNode/1639018103090",
+          "id": "gid://shopify/DiscountCodeNode/1657363792178",
           "codeDiscount": {
             "__typename": "DiscountCodeBasic",
-            "title": "HAR-438 redeem code bulk 1777416023154",
+            "title": "Discount redeem code bulk 20260630150101",
             "status": "ACTIVE",
             "summary": "10% off one-time purchase products",
-            "startsAt": "2026-04-28T22:39:23Z",
+            "startsAt": "2026-06-30T14:55:42Z",
             "endsAt": null,
-            "createdAt": "2026-04-28T22:40:23Z",
-            "updatedAt": "2026-04-28T22:40:23Z",
+            "createdAt": "2026-06-30T14:56:42Z",
+            "updatedAt": "2026-06-30T14:56:43Z",
             "asyncUsageCount": 0,
             "discountClasses": ["ORDER"],
             "combinesWith": {
@@ -315,26 +381,26 @@
             "codes": {
               "nodes": [
                 {
-                  "id": "gid://shopify/DiscountRedeemCode/21582085751090",
-                  "code": "HAR438BASE1777416023154",
+                  "id": "gid://shopify/DiscountRedeemCode/22157230211378",
+                  "code": "SDPBULKBASE20260630150101",
                   "asyncUsageCount": 0
                 },
                 {
-                  "id": "gid://shopify/DiscountRedeemCode/21582085783858",
-                  "code": "HAR438ADD1777416023154",
+                  "id": "gid://shopify/DiscountRedeemCode/22157230244146",
+                  "code": "SDPBULKADD20260630150101",
                   "asyncUsageCount": 0
                 },
                 {
-                  "id": "gid://shopify/DiscountRedeemCode/21582085816626",
-                  "code": "HAR438PLUS1777416023154",
+                  "id": "gid://shopify/DiscountRedeemCode/22157230276914",
+                  "code": "SDPBULKPLUS20260630150101",
                   "asyncUsageCount": 0
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoyMTU4MjA4NTc1MTA5MCwibGFzdF92YWx1ZSI6IjIxNTgyMDg1NzUxMDkwIn0=",
-                "endCursor": "eyJsYXN0X2lkIjoyMTU4MjA4NTgxNjYyNiwibGFzdF92YWx1ZSI6IjIxNTgyMDg1ODE2NjI2In0="
+                "startCursor": "eyJsYXN0X2lkIjoyMjE1NzIzMDIxMTM3OCwibGFzdF92YWx1ZSI6IjIyMTU3MjMwMjExMzc4In0=",
+                "endCursor": "eyJsYXN0X2lkIjoyMjE1NzIzMDI3NjkxNCwibGFzdF92YWx1ZSI6IjIyMTU3MjMwMjc2OTE0In0="
               }
             },
             "codesCount": {
@@ -361,13 +427,13 @@
           }
         },
         "exactAdded": {
-          "id": "gid://shopify/DiscountCodeNode/1639018103090"
+          "id": "gid://shopify/DiscountCodeNode/1657363792178"
         },
         "lowerAdded": {
-          "id": "gid://shopify/DiscountCodeNode/1639018103090"
+          "id": "gid://shopify/DiscountCodeNode/1657363792178"
         },
         "removed": {
-          "id": "gid://shopify/DiscountCodeNode/1639018103090"
+          "id": "gid://shopify/DiscountCodeNode/1657363792178"
         }
       },
       "extensions": {
@@ -376,7 +442,7 @@
           "actualQueryCost": 18,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1980,
+            "currentlyAvailable": 1982,
             "restoreRate": 100
           }
         }
@@ -400,7 +466,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1985,
+            "currentlyAvailable": 1987,
             "restoreRate": 100
           }
         }
@@ -412,16 +478,16 @@
     "payload": {
       "data": {
         "codeDiscountNode": {
-          "id": "gid://shopify/DiscountCodeNode/1639018103090",
+          "id": "gid://shopify/DiscountCodeNode/1657363792178",
           "codeDiscount": {
             "__typename": "DiscountCodeBasic",
-            "title": "HAR-438 redeem code bulk 1777416023154",
+            "title": "Discount redeem code bulk 20260630150101",
             "status": "ACTIVE",
             "summary": "10% off one-time purchase products",
-            "startsAt": "2026-04-28T22:39:23Z",
+            "startsAt": "2026-06-30T14:55:42Z",
             "endsAt": null,
-            "createdAt": "2026-04-28T22:40:23Z",
-            "updatedAt": "2026-04-28T22:40:23Z",
+            "createdAt": "2026-06-30T14:56:42Z",
+            "updatedAt": "2026-06-30T14:56:44Z",
             "asyncUsageCount": 0,
             "discountClasses": ["ORDER"],
             "combinesWith": {
@@ -432,21 +498,21 @@
             "codes": {
               "nodes": [
                 {
-                  "id": "gid://shopify/DiscountRedeemCode/21582085783858",
-                  "code": "HAR438ADD1777416023154",
+                  "id": "gid://shopify/DiscountRedeemCode/22157230244146",
+                  "code": "SDPBULKADD20260630150101",
                   "asyncUsageCount": 0
                 },
                 {
-                  "id": "gid://shopify/DiscountRedeemCode/21582085816626",
-                  "code": "HAR438PLUS1777416023154",
+                  "id": "gid://shopify/DiscountRedeemCode/22157230276914",
+                  "code": "SDPBULKPLUS20260630150101",
                   "asyncUsageCount": 0
                 }
               ],
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoyMTU4MjA4NTc4Mzg1OCwibGFzdF92YWx1ZSI6IjIxNTgyMDg1NzgzODU4In0=",
-                "endCursor": "eyJsYXN0X2lkIjoyMTU4MjA4NTgxNjYyNiwibGFzdF92YWx1ZSI6IjIxNTgyMDg1ODE2NjI2In0="
+                "startCursor": "eyJsYXN0X2lkIjoyMjE1NzIzMDI0NDE0NiwibGFzdF92YWx1ZSI6IjIyMTU3MjMwMjQ0MTQ2In0=",
+                "endCursor": "eyJsYXN0X2lkIjoyMjE1NzIzMDI3NjkxNCwibGFzdF92YWx1ZSI6IjIyMTU3MjMwMjc2OTE0In0="
               }
             },
             "codesCount": {
@@ -473,10 +539,10 @@
           }
         },
         "exactAdded": {
-          "id": "gid://shopify/DiscountCodeNode/1639018103090"
+          "id": "gid://shopify/DiscountCodeNode/1657363792178"
         },
         "lowerAdded": {
-          "id": "gid://shopify/DiscountCodeNode/1639018103090"
+          "id": "gid://shopify/DiscountCodeNode/1657363792178"
         },
         "removed": null
       },
@@ -486,7 +552,7 @@
           "actualQueryCost": 18,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1976,
+            "currentlyAvailable": 1978,
             "restoreRate": 100
           }
         }
@@ -498,7 +564,7 @@
     "payload": {
       "data": {
         "discountCodeDelete": {
-          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1639018103090",
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657363792178",
           "userErrors": []
         }
       },
@@ -508,41 +574,11 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1980,
+            "currentlyAvailable": 1984,
             "restoreRate": 100
           }
         }
       }
     }
-  },
-  "upstreamCalls": [
-    {
-      "operationName": "DiscountHydrate",
-      "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1639018103090"
-      },
-      "query": "sha:DiscountHydrate",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "codeDiscountNode": {
-              "id": "gid://shopify/DiscountCodeNode/1639018103090",
-              "codeDiscount": {
-                "__typename": "DiscountCodeBasic",
-                "codes": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/DiscountRedeemCode/21582085751090",
-                      "code": "HAR438BASE1777416023154"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  ]
+  }
 }

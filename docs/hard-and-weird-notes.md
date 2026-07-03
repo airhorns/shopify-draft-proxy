@@ -256,6 +256,19 @@ Two nearby 2026-04 traps from the same capture:
   captured through this input shape; keep local update-path coverage in focused
   runtime tests unless a later public schema exposes address fields.
 
+## Current: B2B location name fallback differs by creation root
+
+Admin GraphQL 2026-04 derives a nested `companyCreate(input.companyLocation)`
+default location name from `companyLocation.name` and then the company name; it
+does not use `shippingAddress.address1` on that nested path. Standalone
+`companyLocationCreate` still derives the location name from
+`shippingAddress.address1` when no `input.name` is supplied, but the accepted
+public fallback capture includes another non-address attribute (`phone`). A
+standalone `companyLocationCreate` probe with only `shippingAddress.address1`
+returned `NO_INPUT`, so do not use an address-only standalone request as
+evidence for the accepted address1 fallback branch without recapturing that
+validation behavior explicitly.
+
 ## Current: B2B bulk-size limit evidence differs between internal guardrails and public 2026-04 Admin
 
 The local runtime has focused tests for the Business Customers package guardrail
@@ -300,17 +313,17 @@ require validation before staging: blank group ID lists, duplicate IDs within on
 request, too many post-join memberships, and leave requests for groups that are
 not direct members should all return payload `userErrors` without changing local
 membership state. The local runtime models that guard contract and covers it with
-`config/parity-specs/products/productJoinLeaveSellingPlanGroups-validation.json`
-plus focused product mutation tests.
+focused product mutation tests, but no checked-in products parity fixture is
+retained for those divergent local-only branches.
 
 A live public Admin probe against `harry-test-heelo.myshopify.com` on 2025-01,
 2026-04, and `unstable` did not expose the same branches: duplicate joins,
 leave-non-member requests, and 32-group joins returned empty `userErrors`, and
 the public `SellingPlanGroupUserErrorCode` enum lacked `DUPLICATE`,
-`NOT_A_MEMBER`, and `SELLING_PLAN_GROUPS_TOO_MANY`. Treat the checked-in
-local-runtime parity fixture as the current internal guardrail contract, and
-re-capture against a target that reproduces the internal package behavior before
-changing those codes/messages or replacing the fixture with live evidence.
+`NOT_A_MEMBER`, and `SELLING_PLAN_GROUPS_TOO_MANY`. Treat the Rust integration
+coverage as the current internal guardrail contract, and re-capture against a
+target that reproduces the internal package behavior before changing those
+codes/messages or adding parity evidence.
 
 ## Current: Selling-plan group lower-bound validation is create-specific, but update deletes can still reject the final plan
 
@@ -553,6 +566,7 @@ Current and historical live findings on this host:
   - an open draft with no recipient email returns the selected draft plus `field: null`, `message: "To can't be blank"`
   - a completed draft with no recipient email returns the selected completed draft plus two userErrors: `"To can't be blank"` and `"Draft order Invoice can't be sent. This draft order is already paid."`
   - this capture does not prove the success path should be emulated locally as delivered mail; local runtime must keep staging the raw mutation only and must not send email until explicit commit replay
+- A separate 2026-04 live capture for a disposable recipient-backed `draftOrderInvoiceSend` shows a successful send is also a draft-order lifecycle transition: the mutation payload returns `status: INVOICE_SENT` with non-null `invoiceSentAt`, and an immediate `draftOrder(id:)` read returns the same status and timestamp. Model this store-state transition locally while still treating actual email delivery as an out-of-scope side effect until explicit commit replay.
 - easy schema/request traps from promoting those scenarios:
   - `DraftOrder.note` is not selectable on the current Admin GraphQL schema for these payloads, even though draft-order inputs can carry note-like data through local state
   - `DraftOrderInput.shippingLine` does not accept a `code` field; live updates accepted title and price fields, and Shopify returned `code: "custom"` on the resulting `shippingLine`
@@ -846,8 +860,8 @@ After the initial orders-domain creation scaffolding landed, the next easy mista
   - `email`, `phone`, `poNumber`, `shippingAddress`, `customAttributes`, and order-scoped `metafields`
   - downstream `order(id:)` reads expose the staged values, including `customer.email` when the input updates `email`
   - `billingAddress` is intentionally not part of that local `orderUpdate` slice because the current `OrderInput` docs do not expose it
-  - executable local-runtime parity: `config/parity-specs/orders/orderUpdate-snapshot-staging.json` replays public `orderCreate -> orderUpdate -> order(id:) / orders / ordersCount` requests without seeding internal proxy state
-  - expanded live parity is captured for `email`, `poNumber`, `note`, `tags`, `customAttributes`, `shippingAddress`, and order-scoped `metafields` in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json`; `phone` remains local-runtime backed because Shopify 2025-01 rejected it as an `OrderInput` field in that capture path
+  - executable parity: `config/parity-specs/orders/orderUpdate-snapshot-staging.json` replays public `orderCreate -> orderUpdate -> order(id:) / orders / ordersCount` requests against the live 2026-04 fixture without seeding internal proxy state
+  - expanded live parity is captured for `email`, `poNumber`, `note`, `tags`, `customAttributes`, `shippingAddress`, and order-scoped `metafields` in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json`; `phone` remains runtime-test-backed because Shopify 2025-01 rejected it as an `OrderInput` field in that capture path
 - a later 2026-04 localization capture exposed several easy-to-miss `orderUpdate` details:
   - `localizedFields` and deprecated `localizationExtensions` both read back from the same localized-order record set; updating either connection makes the key visible through both `Order.localizedFields` and `Order.localizationExtensions`
   - Brazilian credential values are validated for real CPF/CNPJ shape; arbitrary 11-digit strings can fail with `Localization extension: 'value' provided is invalid`
@@ -910,7 +924,7 @@ Once the repo had creation/editing scaffolding for direct orders and draft order
   - `extensions.code: "RESOURCE_NOT_FOUND"`
   - `data.fulfillmentCreate: null`
 - practical consequence: the proxy can safely mirror that invalid-id branch in both `snapshot` mode and `live-hybrid` now, without pretending it already knows how to stage successful fulfillments or downstream fulfillment reads
-- nearby fulfillment roots are split into two layers under the current host credential:
+- nearby fulfillment roots were initially split into two layers under the host credential:
   - safe pre-access GraphQL validation branches
     - `fulfillmentTrackingInfoUpdate` inline missing `fulfillmentId` -> `missingRequiredArguments`
     - `fulfillmentTrackingInfoUpdate` inline `fulfillmentId: null` -> `argumentLiteralsIncompatible`
@@ -918,7 +932,7 @@ Once the repo had creation/editing scaffolding for direct orders and draft order
     - `fulfillmentCancel` inline missing `id` -> `missingRequiredArguments`
     - `fulfillmentCancel` inline `id: null` -> `argumentLiteralsIncompatible`
     - `fulfillmentCancel` missing required `$id` -> `INVALID_VARIABLE`
-  - broader happy-path probes with concrete ids were still blocked differently under the host credential at that point:
+  - broader happy-path probes with concrete ids were blocked differently under the host credential at that point:
     - `fulfillmentTrackingInfoUpdate` returned `ACCESS_DENIED` requiring one of `write_assigned_fulfillment_orders`, `write_merchant_managed_fulfillment_orders`, or `write_third_party_fulfillment_orders`, plus the `fulfill_and_ship_orders` permission
     - `fulfillmentCancel` returned a generic `ACCESS_DENIED` payload on this host
 
@@ -927,8 +941,9 @@ Practical rule:
 - treat `fulfillmentCreate` invalid-id handling as the first evidence-backed fulfillment increment, but do not stop there once later fulfillment roots reveal their own safe pre-access validation slices
 - mirror the captured `RESOURCE_NOT_FOUND` / `invalid id` `fulfillmentCreate` branch and the newer fulfillment-lifecycle validation branches locally in both `snapshot` and `live-hybrid` so obviously invalid fulfillment requests stop leaking upstream
 - do not infer fulfillment success semantics from validation-only slices; current lifecycle coverage and remaining boundaries are documented in `src/content/docs/endpoints/orders.md` and `src/content/docs/endpoints/shipping-fulfillments.md`
+- a later Admin GraphQL 2026-04 capture records concrete fulfillment state behavior: already-cancelled `fulfillmentCancel`, cancelled `fulfillmentTrackingInfoUpdate`, cancelled `fulfillmentEventCreate`, and `fulfillmentCancel` after a delivered event all return payload success with empty `userErrors`
 - once a fulfillment root has evidence-backed behavior, keep the operation registry and executable parity evidence aligned instead of leaving implemented behavior as free-text notes only
-- keep the fulfillment lifecycle blocker machine-readable in parity-spec blocker details and HAR-187, including the split between `fulfillmentTrackingInfoUpdate`'s scope+permission gate and `fulfillmentCancel`'s still-generic `ACCESS_DENIED` payload on this host after the pre-access validation branches are exhausted
+- keep current fulfillment lifecycle behavior machine-readable in parity specs; use access-denied notes only for branches that a fresh capture still cannot reach
 
 ### Current: Fulfillment services couple tightly to locations, but their handles do not follow renames
 
@@ -1479,6 +1494,7 @@ The first staged media-write increment surfaced a few durable modeling constrain
 - staging an empty product media set needs an explicit "media family was staged" marker, otherwise downstream reads can accidentally fall back to hydrated/base media after deleting the last item
 - media validation is not uniformly atomic: empty create/update/delete inputs are accepted as empty successes, mixed `productCreateMedia` inputs create the valid image media while returning indexed errors for invalid image URLs, but mixed `productUpdateMedia` and `productDeleteMedia` batches with an unknown media ID reject the whole batch and leave existing media unchanged
 - unknown product IDs for media mutations use `Product does not exist`; unknown media IDs use root-level media fields (`media` for update, `mediaIds` for delete) rather than the indexed item path
+- `productUpdateMedia` and `productDeleteMedia` aggregate multiple missing media IDs into a single `MEDIA_DOES_NOT_EXIST` error: the message comma-joins all missing GIDs in request order and pluralizes to `Media ids ... do not exist`; one missing ID stays singular as `Media id ... does not exist`
 - `productVariantAppendMedia` and `productVariantDetachMedia` validation field paths in the 2026-04 live capture stay rooted in public camel-case input names: the pair cap uses `["variantMedia"]`, per-pair media count uses `["variantMedia", "0", "mediaIds"]`, duplicate/already-attached variants use `["variantMedia", "0", "variantId"]`, and unattached detach still uses `["variantMedia", "0", "variantId"]`
 
 That means media writes are not just three new mutation cases — they also force the media serializer to understand richer node identity/state, inline-fragment selection semantics, and a small upload lifecycle (`UPLOADED` → `PROCESSING` → `READY`) before update parity is credible.
@@ -1640,7 +1656,7 @@ That keeps downstream `product.metafield(...)` and `product.metafields(...)` rea
 
 ## 18b. Live Admin GraphQL currently exposes `metafieldsDelete`, not `metafieldDelete`
 
-Live conformance on the 2025-01 store surfaced a schema drift / compatibility wrinkle that is now part of the supported delete model:
+Live conformance on the 2025-01 store surfaced a schema drift / compatibility wrinkle that is now part of the supported delete model. Follow-up schema probes on 2026-04 and unstable showed the same public-root boundary:
 
 - `metafieldsSet` is present and capturable live
 - the singular compatibility root `metafieldDelete` is **not** present in the live schema
@@ -2215,13 +2231,14 @@ Observed behavior from live writes:
 
 Practical rule for the proxy:
 
-- `available` remains the only quantity name that should mutate `productVariant.inventoryQuantity` and the mirrored synthetic `on_hand` change rows
+- `available` remains the only quantity name that should mutate `productVariant.inventoryQuantity`; quantity names that belong to `on_hand` (`damaged`, `quality_control`, `reserved`, and `safety_stock`) also return mirrored `on_hand` change rows and update downstream `on_hand` totals without changing the available-backed variant quantity
 - Fresh 2026-04 evidence corrects older notes for `inventoryAdjustQuantities`: Admin GraphQL rejects direct `on_hand` and `committed` public adjust names with the valid-values message `available, damaged, incoming, quality_control, reserved, safety_stock`. Public adjust and move validators share that six-name allowlist; `inventorySetQuantities` remains a separate `available` / `on_hand` set path.
 - for non-available mutation names, each change needs its own `ledgerDocumentUri`; Shopify returned that requirement even when the quantity name itself was invalid
 - omitting required nested change inputs such as `inventoryItemId`, `locationId`, or `delta` did **not** yield mutation-scoped `userErrors`; Shopify failed variable coercion first and returned top-level GraphQL `INVALID_VARIABLE` errors naming the exact `changes.<index>.<field>` path
 - by contrast, an unknown-but-present inventory item id did reach the mutation resolver and returned a fielded `userErrors` entry at `['input', 'changes', '0', 'inventoryItemId']` with message `The specified inventory item could not be found.`
 - an unknown-but-present `locationId` also reached the mutation resolver on this host and returned a fielded `userErrors` entry at `['input', 'changes', '0', 'locationId']` with message `The specified location could not be found.` instead of silently creating a new location-scoped adjustment row
 - non-available quantity writes such as `incoming` update downstream `inventoryLevels.quantities(name: ...)` immediately without changing `productVariant.inventoryQuantity` or product-level aggregates
+- a 2026-04 on-hand-family mirror capture found that valid `damaged`, `quality_control`, `reserved`, and `safety_stock` adjustments return both the submitted quantity row and a companion `on_hand` row, while the `incoming` control remains a single-row adjustment; the companion `on_hand` row has `ledgerDocumentUri: null`, and downstream `on_hand.updatedAt` remains `null` even though its quantity changes
 - `InventoryAdjustmentGroup.id` is worth keeping in the first richer payload slice; Shopify returns a real group gid even when the local proxy still stages the broader inventory model in memory only
 - `InventoryChange.ledgerDocumentUri` is per-change data, not a synonym for the group-level `referenceDocumentUri`; when a non-available write supplies a change-scoped ledger URI, Shopify echoes that URI back on each change entry while leaving `referenceDocumentUri` at the group scope
 - `changes.location` is richer than an id-only echo on this host: live capture returned both `id` and merchant-facing `name` (for example `103 ossington`), so local replay should preserve `name` whenever the effective location graph knows it
@@ -2309,6 +2326,8 @@ Observed live behavior on this host:
 - adding `available:` to that already-active-location call still does **not** silently restock the item; Shopify returned `userErrors[{ field: ['available'], message: 'Not allowed to set available quantity when the item is already active at the location.' }]`
 - `inventoryActivate(inventoryItemId:, locationId:)` against a known second location now succeeds and creates a new `inventoryLevel` row for that location
 - important quirk: even when `inventoryActivate` was called with `available: 9`, the newly created second-location level still came back with `available: 0` / `on_hand: 0` / `incoming: 0`; the activation succeeded, but the provided quantity seed was ignored on this host
+- `inventoryActivate(... onHand: 50)` on a fresh second-location level seeds both `available` and `on_hand` to `50`; the mutation response populated `available.updatedAt` while leaving `on_hand.updatedAt` null, and a downstream `inventoryLevel.quantities(names: ["on_hand"])` read returned `50`
+- Public `inventoryActivate` userError field paths use the GraphQL argument name `onHand`, not the Core/Ruby `on_hand` spelling. The captured `available` + `onHand` conflict and out-of-range `onHand` messages are location-prefixed (`The product couldn't be stocked at <location> because ...`) and return `inventoryLevel: null`.
 - HAR-468 refreshed the lifecycle again against Admin GraphQL 2026-04. `inventoryDeactivate(inventoryLevelId: ...)` still fails with the minimum-one-location rule when called against the only active level, but once two active levels exist it succeeds and marks the targeted level inactive rather than deleting its row.
 - HAR-591 refreshed `inventoryDeactivate` validation on 2026-04 with real committed inventory from `orderCreate`, incoming inventory from an in-transit shipment, and reserved inventory from a ready transfer. Shopify returned `userErrors: []` for each non-zero quantity case as long as another active stocking location existed. A fabricated level for a missing item returned `The product couldn't be unstocked because the product was deleted.`, while a fabricated level for a known item returned `The product couldn't be unstocked because the location was deleted.`
 - The current 2026-04 live schema on this host exposes `includeInactive` on `InventoryItem.inventoryLevel(locationId:, includeInactive:)` and `InventoryItem.inventoryLevels(includeInactive:)`. It does **not** expose `includeInactive` on `InventoryLevel.quantities`; an attempted `quantities(names:, includeInactive:)` selection returned Shopify's `argumentNotAccepted` GraphQL error.
@@ -2449,6 +2468,7 @@ Live evidence refreshed on this host:
 - The same HAR-594 capture showed `collectionAddProducts` and `collectionRemoveProducts` against a smart collection return `collection/job: null` with an `id`-scoped user error using the wording `Can't manually add products to a smart collection` / `Can't manually remove products from a smart collection`. A successful `collectionAddProducts` payload can still show `productsCount.count: 0` while the selected `products.nodes` includes the added product; the immediate downstream `collection(id:)` read returns the recomputed non-zero `productsCount`.
 - A refreshed 2025-01 capture shows re-adding an already-member product with `collectionAddProducts` returns the collection with the existing product connection and empty `userErrors`; duplicate membership is not a payload error.
 - Current 2026-04 public Admin GraphQL behavior for `collectionAddProductsV2` and `collectionRemoveProducts` is async-first: unknown `productIds` return a `Job` plus empty `userErrors`, not indexed `NOT_FOUND` user errors. The 251-item cap is enforced as a top-level `MAX_INPUT_SIZE_EXCEEDED` error on `["collectionAddProductsV2","productIds"]` or `["collectionRemoveProducts","productIds"]` with no `data` envelope. The mutation payload's inline job is still pending (`done: false`, `query: null`), but an immediate `job(id:)` readback for the same collection membership job returns `done: true` with `query.__typename: "QueryRoot"`.
+- Current 2026-04 public Admin GraphQL `collectionCreate(input.products)` rejects unknown product ids before creating a collection with `field: ["products", "<index>"]`, where the index is serialized as a string. For `ruleSet`, `collectionCreate` accepts an explicit empty `rules: []` list as a custom collection and returns `ruleSet: null`, but rejects an omitted `rules` key with `field: ["ruleSet", "rules"]` and `Rules cannot be an empty set`.
 - Current 2026-04 public Admin GraphQL `collectionUpdate` returns `job: null` for a plain custom title/handle update, but returns a pending inline `Job` (`done: false`) for an accepted smart-collection `ruleSet` update. Supplying a non-empty `ruleSet` to a custom collection returns `collection: null`, `job: null`, and `userErrors[{ field: ["id"], message: "Cannot update rule set of a custom collection" }]` without changing the collection's downstream `ruleSet`. Supplying an empty `ruleSet.rules` returns `field: ["ruleSet", "rules"]` with the 2026-04 message `Rules cannot be an empty set`.
 - Current 2026-04 public Admin GraphQL `collectionUpdate(input: { title: ... })` without `input.id` returns a top-level `BAD_REQUEST` with message `id must be specified on collectionUpdate`, path `["collectionUpdate"]`, and `data.collectionUpdate: null`; a supplied but unknown collection id instead returns payload `userErrors[{ field: null, message: "Collection does not exist" }]`.
 
@@ -2805,6 +2825,7 @@ Observed current-version surface:
 - schema inventory confirms current mutation roots for `marketCreate`, `marketUpdate`, `marketDelete`, `webPresenceCreate`, `webPresenceUpdate`, `webPresenceDelete`, `marketLocalizationsRegister`, and `marketLocalizationsRemove`
 - `marketsResolvedValues(buyerSignal: { countryCode: US })` is present in 2026-04 and returned resolved currency/price-inclusivity data on this store, but an empty resolved catalog connection for the captured buyer signal
 - top-level `webPresences` can be captured safely with `id`, `subfolderSuffix`, `domain`, `rootUrls`, linked `markets`, `defaultLocale`, and `alternateLocales`
+- `Market.conditions.regionsCondition.regions.nodes` is a `MarketRegion` interface connection in public Admin GraphQL 2026-04. Selecting `code` directly on the interface returns an `undefinedField` schema error; select `id`, `name`, and `__typename` on the interface and `code` through `... on MarketRegionCountry`. A live `marketCreate` / `market(id:)` capture for a Canada region returned `__typename: "MarketRegionCountry"`, `name: "Canada"`, `code: "CA"`, and an opaque `gid://shopify/MarketRegionCountry/...` id on both payload and read-after-write.
 - A 2026-04 `webPresenceCreate(defaultLocale: "it")` probe on `harry-test-heelo.myshopify.com` returned `UNPUBLISHED_LANGUAGE` until `shopLocaleEnable`/`shopLocaleUpdate(published: true)` published Italian; after setup, Shopify accepted Italian as the default locale and cleanup disabled it again.
 - On 2026-04, `BuyerSignalInput.countryCode` is a Shopify `CountryCode` enum. A live probe against `harry-test-heelo.myshopify.com` returned `INVALID_VARIABLE` for `AQ`, while accepted country codes such as `US`, `CA`, `DE`, `FR`, and `ZZ` all resolved through the shop's configured primary market/web presence. That shop therefore cannot currently provide a true no-market/no-web-presence buyer-signal capture without changing market configuration; use empty resolved catalog connections plus local empty-state tests for the current safe no-data evidence.
 
@@ -3068,7 +3089,8 @@ Capture prerequisites and safety constraints:
 - A 2026-04 disposable-order capture for successful `paymentTermsCreate` template reprojection confirmed FIXED returns `Fixed`/`FIXED`/`dueInDays: null`, Net 7 returns `Net 7`/`NET`/`dueInDays: 7`, and Due on fulfillment returns `Due on fulfillment`/`FULFILLMENT`/`dueInDays: null` with no schedule nodes. The Net 7 success path required `paymentSchedules.issuedAt`; sending only `dueAt` for that NET template returned user errors for missing issue date and inconsistent due date.
 - A 2026-04 live capture for `paymentTermsCreate` unknown owners showed public Admin GraphQL serializes the internal base reference-not-found error as `field: null`, not `["base"]`: unknown `Order` returns `Cannot find the specific Order with id <numeric id>.`, and unknown `DraftOrder` returns `Cannot find the specific Draft order with id <numeric id>.`
 - A 2026-04 live capture for `paymentTermsCreate` and `paymentTermsUpdate` multiple `paymentSchedules` shows the internal base-scoped error also serializes as `field: null`. Both roots use the exact message `Cannot create payment terms with multiple payment schedules.`, with create/update-specific unsuccessful codes.
-- customer payment method live captures remain blocked on `read_customer_payment_methods` / `write_customer_payment_methods` even though `read_customers`, `write_customers`, and `write_orders` are present on the 2026-04-28 probe. Root introspection confirms the HAR-365 mutations exist on the configured 2025-01 API, but live success paths still need isolated test payment methods and no-recipient/customer-safe email coverage before real captures can be checked in.
+- A 2026-07-02 salvage capture restored the old payment-terms create-on-order, update-missing, delete-owner-cascade, and paymentReminderSend payload-shape parity scenarios as live Shopify recordings rather than local-runtime evidence. The standalone missing `paymentTermsUpdate` branch now matches live Shopify's `field: null`, `message: "Could not find payment terms."`, and `PAYMENT_TERMS_UPDATE_UNSUCCESSFUL` payload.
+- customer payment method live captures remain blocked on `read_customer_payment_methods` / `write_customer_payment_methods` even though `read_customers`, `write_customers`, and `write_orders` are present. The checked-in conformance app config now requests the missing customer-payment-method scopes, but an unattended `corepack pnpm exec shopify app deploy --allow-updates` attempt on 2026-07-02 stopped at interactive Shopify device-code login. The refreshed `customer-payment-method-access-probe` fixture records the active token still lacks both scopes: `customerPaymentMethod(id:)` returns `ACCESS_DENIED` requiring `read_customer_payment_methods`, and `customerPaymentMethodRemoteCreate` returns `ACCESS_DENIED` requiring `write_customer_payment_methods`. Root introspection confirms the HAR-365 mutations exist on the configured Admin API, but live success paths still need a reauthorized token, isolated test payment methods, and no-recipient/customer-safe email coverage before real captures can be checked in.
 - HAR-365 local runtime support stages customer payment-method writes without runtime Shopify calls: credit-card and PayPal roots store scrubbed instrument shells, remote create stores an incomplete `instrument: null` method, duplication uses a non-secret proxy token, update-url returns a non-deliverable `shopify-draft-proxy.local` URL, revoke blocks methods with local subscription-contract links, marks contract-free active methods with `CUSTOMER_REVOKED`, treats already-revoked methods idempotently, and payment reminders record a local intent only.
 - Duplication data and update URLs must remain local/synthetic in runtime support; do not fetch real encrypted duplication data or expiring customer payment update links unless recording an intentional scrubbed conformance fixture with suitable scopes and cleanup.
 - Revoked payment methods must stay hidden from root and customer-owned lookups unless `showRevoked: true` is supplied. `customerPaymentMethodSendUpdateEmail` and `paymentReminderSend` are locally buffered/staged customer-visible side effects; the runtime must not deliver customer email upstream outside explicit commit replay.
@@ -3194,6 +3216,18 @@ re-enabling it, and re-enabling it with `pin: true` all returned the same
 pinned definitions, the `pin: true` re-enable returned empty `userErrors` and
 `pinnedPosition: 21`; it did not return `PINNED_LIMIT_REACHED`, and downstream
 `metafieldDefinition(id:)` by the original id still resolved the definition.
+
+Admin GraphQL 2026-04 introspection on `harry-test-heelo.myshopify.com` omits
+older arguments such as `visibleToStorefrontApi` and `useAsCollectionCondition`,
+but live execution still accepts them. `visibleToStorefrontApi: false` on the
+PRODUCT `facts` / `isbn` template returns a successful payload with
+`access.storefront: NONE`, and `useAsCollectionCondition: true` on an ineligible
+template returns `INVALID_CAPABILITY` for `smart_collection_condition`.
+`forceEnable` and `useAsAdminFilter` are rejected by public schema validation
+before resolver execution, so checked-in parity evidence should not claim
+payload parity for those retired arguments. If the proxy keeps them as local
+compatibility inputs, cover that behavior with runtime tests rather than
+Shopify parity targets.
 
 Practical rule:
 
@@ -3349,6 +3383,7 @@ Captured facts:
 - the captured merchant-managed setup returns guardrails for close/reschedule failure branches: reschedule requires a scheduled fulfillment order, close requires an API fulfillment service, and the attempted included-location reroute returned a Shopify internal error instead of a success payload
 - HAR-552 live capture showed the multiple-holds API currently allows 10 active holds by the same requesting app on one fulfillment order; the 11th active hold attempt returns `FULFILLMENT_ORDER_HOLD_LIMIT_REACHED`. Older notes or tickets that describe a cap of 2 should be treated as stale unless a newer capture proves a version-specific change.
 - `fulfillmentOrderHold` validation failures for duplicate handle, not-splittable partial hold, hold limit, zero quantity, and duplicate line-item IDs returned `fulfillmentHold: null`, `fulfillmentOrder: null`, and `remainingFulfillmentOrder: null` in the captured 2026-04 payload.
+- A 2026-04 selective hold capture with `reason: AWAITING_RETURN_ITEMS` returned `displayReason: "Exchange items awaiting return delivery"` on both `fulfillmentHold` and nested `fulfillmentHolds`; do not fall back to the raw enum for known hold reasons.
 - After a partial hold, Shopify reports the held fulfillment-order line-item `totalQuantity` / `remainingQuantity` as the held quantity while the nested order line item's `fulfillableQuantity` reflects the remaining fulfillable order-line quantity. The split-off remaining fulfillment order reports the same nested `fulfillableQuantity`.
 - `fulfillmentOrderClose` API-service success is captured after submit/accept: Shopify returns `userErrors: []`, changes the fulfillment order to `status: INCOMPLETE` with `requestStatus: CLOSED`, and preserves supported actions in the selected payload instead of returning `status: CLOSED` with an empty action list. The proxy mirrors that captured state for local close staging.
 - Closing an `OPEN` fulfillment order assigned to an API fulfillment-service location is still rejected by Shopify with `The fulfillment order is not in an in progress state.`; do not treat API-service assignment alone as sufficient for close success.
@@ -3400,6 +3435,14 @@ Practical rule:
 - keep local gift-card search filtering limited to confirmed Shopify search fields such as `id`; invalid fields should not narrow local results
 - credit/debit transaction success and validation behavior is now backed by live 2025-01 captures with transaction scopes, including typed `GiftCardCreditTransaction` payloads and failure branches for expired, deactivated, mismatched currency, and invalid/future `processedAt`
 - credit over-limit validation needs real configuration evidence: hydrate the gift-card configuration when it is unknown, compare the post-credit balance to the effective issue limit, and use the credit-specific public message rather than the create-time formatted limit message
+
+## Current: Gift-card recipient validation uses public preferredName wording
+
+Admin GraphQL 2026-04 exposes `recipientAttributes.preferredName` for gift-card recipient display text. Internal-source wording may refer to `recipient_name` or `recipientName`, but the public input and field paths use `preferredName`.
+
+The same 2026-04 capture showed recipient-existence validation returns `RECIPIENT_NOT_FOUND` on `["input", "recipientAttributes", "id"]` with message `Recipient could not be found`, without the leading `The` or trailing period present in some internal references. Blank `preferredName` and `message` values return `INVALID` with the standard ActiveModel blank messages. The checked-in anchor is `config/parity-specs/gift-cards/gift-card-recipient-validation.json`.
+
+Practical rule: model the public field paths and messages from the captured Admin API, and keep local recipient existence checks tied to the customer store rather than accepting arbitrary customer GIDs.
 
 ## 72. Finance/risk/POS roots need strong data minimization
 
@@ -3478,21 +3521,23 @@ Practical rule:
 - model async duplicate as a local `ProductDuplicateOperation` whose mutation response is created/pending-shaped and whose helper read exposes completion; do not route supported async duplicate writes upstream
 - keep `productDuplicateJob(id:)` as the older unknown-job compatibility helper unless new evidence links it to current async duplicate operations
 
-## 75a. Async `productDelete` starts pending but duplicate errors use nullable fields
+## 75a. Async `productDelete` starts pending but immediate product visibility is timing-sensitive
 
 HAR-932 captured `productDelete(input:, synchronous: false)` on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`.
+A refreshed 2026-04 capture against the same store showed the operation can complete before the immediate downstream product read.
 
 Captured facts:
 
 - the mutation payload returns `deletedProductId: null`, `productDeleteOperation.status: CREATED`, and empty `userErrors`
-- the product remains visible to an immediate downstream `product(id:)` read after the async delete mutation
+- the 2025-01 capture kept the product visible to an immediate downstream `product(id:)` read after the async delete mutation
+- the refreshed 2026-04 capture returned `product: null` for that immediate downstream read, so local timing should prefer the completed-before-read branch instead of requiring a visible pending product
 - a second async delete for the same product while the operation is pending returns `productDeleteOperation: null` and a public `UserError` with `field: null` and message `Another operation already in progress. Please wait until current one is finished.`
 - the public 2025-01 `UserError` selected under `productDelete` / `ProductDeleteOperation.userErrors` does not expose a `code` field
 - helper reads can advance quickly: the capture saw `productOperation(id:)` with status `ACTIVE` and `node(id:)` with status `COMPLETE`; the final cleanup poll saw `productOperation(id:)` as `COMPLETE` with `deletedProductId`
 
 Practical rule:
 
-- model async delete with an initial `ProductDeleteOperation` response, keep the product visible immediately, reject duplicate pending operations with the nullable-field public userError shape, and expose completed readback through `productOperation(id:)` / `node(id:)` without runtime Shopify writes
+- model async delete with an initial `ProductDeleteOperation` response, tombstone the product for immediate local `product(id:)` reads, reject duplicate pending operations with the nullable-field public userError shape while the local operation is recorded, and expose completed readback through `productOperation(id:)` / `node(id:)` without runtime Shopify writes
 
 ## 76. `locationAdd` required input errors are parser-level, but country validation is schema-sensitive
 
@@ -3598,17 +3643,18 @@ Practical rule:
 ## 80. `marketLocalizationsRemove` treats unmatched filters as no-op removals
 
 Admin GraphQL 2026-04 live probes against `harry-test-heelo.myshopify.com`
-found a disposable success path by creating a product-owned `money` metafield
-definition, setting a CAD money metafield, registering a market localization,
-then removing it.
+created a product-owned `money` metafield definition and set a CAD money
+metafield to probe market localization registration/removal behavior.
 
 Observed behavior:
 
 - `single_line_text_field` product metafields and translatable metaobjects can
   still return empty `marketLocalizableContent`; a definition-backed `money`
   metafield exposed `marketLocalizableContent: [{ key: "value", ... }]`
-- successful remove returned a non-null `marketLocalizations` array containing
-  the removed `key`, `value`, `outdated`, and `market` payload
+- registering a JSON money value for that exposed `value` key returned field
+  `["marketLocalizations", "0", "value"]`, message
+  `Market Localizable content is invalid`, and code
+  `FAILS_RESOURCE_VALIDATION`
 - remove with `marketLocalizationKeys: []` returned `marketLocalizations: null`
   and `userErrors: []`
 - remove with an unknown key or an unknown `marketIds` filter also returned
@@ -3617,6 +3663,8 @@ Observed behavior:
 
 Practical rule:
 
+- reject money-metafield market localization register attempts from observed
+  `marketLocalizableContent` instead of staging an invented translation
 - model `marketLocalizationsRemove` as a filter/removal operation after
   resource existence is established; do not invent resolver-level key or market
   validation errors for unmatched filters without newer live evidence
@@ -3800,7 +3848,31 @@ Practical rule:
   so repeated-create parity must wait for a scope-capable dev-store credential
   rather than being replaced with local-runtime evidence
 
-## 88. Standard metafield-definition immutable fields return field-specific public errors
+## 88. appRevokeAccessScopes validation nulls revoked and prioritizes unknown scopes
+
+Admin GraphQL 2026-04 live capture against `harry-test-heelo.myshopify.com`
+records safe `appRevokeAccessScopes` validation probes that do not revoke real
+app grants:
+
+- `scopes: ["fake_scope"]` returns `revoked: null` and `UNKNOWN_SCOPES` on
+  `["scopes"]`
+- `scopes: ["read_products", "fake_scope"]` also returns only
+  `UNKNOWN_SCOPES`; the unknown-handle guard takes precedence over required
+  scope rejection
+- `scopes: ["read_products"]` returns `revoked: null` and
+  `CANNOT_REVOKE_REQUIRED_SCOPES` on `["scopes"]`
+
+Practical rule:
+
+- failed `appRevokeAccessScopes` validation should project `revoked: null`, not
+  an empty list
+- do not accumulate required-scope errors when the same request contains an
+  unknown scope handle
+- keep optional-grant success as runtime-test-backed until a disposable app
+  grant can be revoked and restored safely; do not forge captured parity for
+  that branch
+
+## 89. Standard metafield-definition immutable fields return field-specific public errors
 
 Admin GraphQL 2026-04 live capture against `harry-test-heelo.myshopify.com`
 records `metafieldDefinitionUpdate` on the standard product subtitle definition
@@ -3816,6 +3888,14 @@ The same capture records app-reserved namespace definition deletes without
 `RESERVED_NAMESPACE_ORPHANED_METAFIELDS` and message
 `Deleting a definition in a reserved namespace must have deleteAllAssociatedMetafields set to true.`
 
+A 2025-01 live input-validation capture with the current conformance app accepts
+PRODUCT `metafieldDefinitionCreate` in the literal `shopify_standard` and
+`protected` namespaces, returns empty `userErrors`, and allows immediate cleanup
+with `metafieldDefinitionDelete(deleteAllAssociatedMetafields: true)`. The proxy
+still keeps a conservative local `RESERVED` guard for those business namespaces,
+with focused Rust integration coverage instead of claiming those branches as
+strict Shopify parity.
+
 Practical rule:
 
 - model the public field-specific metafieldDefinitionUpdate errors for standard
@@ -3823,3 +3903,65 @@ Practical rule:
   `["definition"]` error
 - keep the app-reserved namespace delete message aligned with the public
   2026-04 capture, not older/internal wording
+
+## 90. `locationActivate` limit is public-capturable, ongoing relocation was not
+
+Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` can produce a real
+`locationActivate` `LOCATION_LIMIT` branch by creating a disposable active
+location, deactivating it, filling the active merchant-managed location cap, and
+then activating the inactive target. The captured userError is
+`field: ["locationId"]`, `code: LOCATION_LIMIT`, and message
+`Shop has reached its location limit.`
+
+A focused attempt to create `HAS_ONGOING_RELOCATION` through public Admin
+GraphQL did not expose that state: a stocked source location deactivated with a
+destination relocation returned synchronously with `hasActiveInventory: false`,
+and immediate `locationActivate` on the source succeeded with no userErrors.
+
+Practical rule:
+
+- derive location cap state from a live/cassette-backed
+  `StorePropertiesLocationLimitStatus` read rather than synthetic fixture IDs
+- keep `HAS_ONGOING_RELOCATION` as runtime-test-only behavior until a
+  deterministic public or approved disposable-store setup can leave a real
+  incomplete relocation job observable through `locationActivate`
+
+## 91. Public 2026-04 Files API does not expose `MediaImage.references`
+
+Admin GraphQL 2026-04 live capture against
+`harry-test-heelo.myshopify.com` recorded the runtime
+`MediaFileReferencesHydrate` query returning a top-level schema error:
+`Field 'references' doesn't exist on type 'MediaImage'`.
+
+Older checked-in 2025-01 cascade evidence has a successful
+`MediaImage.references(first:)` response for product/media/variant relationship
+hydration, so do not assume this field is stable across public API versions.
+
+Practical rule:
+
+- media parity cassettes must store the exact hydrate query and exact Shopify
+  response, including public schema errors when that is what the runtime query
+  receives
+- future file-delete cascade improvements should prefer a public,
+  version-stable product/media hydration path over relying on
+  `MediaImage.references` in API versions where the field is not exposed
+
+## 92. Public 2026-04 Files API selection boundaries for local replacement parity
+
+The live replacement captures for the older media parity scenarios exposed two
+public-schema boundaries that the former local fixtures had papered over:
+
+- `filename` is accepted in `FileCreateInput`, but public Admin GraphQL 2026-04
+  rejects selecting `filename` on the `File` interface.
+- `mediaErrors` and `mediaWarnings` are not `File` interface fields; select
+  them under concrete media fragments such as `... on MediaImage`.
+- An immediate `files(query: "filename:'name.jpg'")` read did not return the
+  freshly created files in this capture. The stable live read shape for these
+  scenarios is `files(first: 1, reverse: true)`, matching the existing
+  immediate media read captures.
+
+Practical rule:
+
+- keep restored media parity request documents on public fields only, and use
+  reverse-order immediate reads when the scenario needs the newly created file
+  without relying on full file-search semantics.

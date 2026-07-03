@@ -1,0 +1,285 @@
+{
+  "capturedAt": "2026-07-02T21:18:44.956Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": "Live Shopify capture replacing the former local-runtime payment-terms-create-on-order parity fixture. The disposable Order is cancelled in cleanup after recording create, multiple-schedule validation, missing update, and missing delete branches.",
+  "paymentTermsCreateOnOrder": {
+    "orderCreate": {
+      "variables": {
+        "order": {
+          "email": "payments-salvage-create-on-order-1783027123703@example.com",
+          "currency": "USD",
+          "presentmentCurrency": "CAD",
+          "test": true,
+          "lineItems": [
+            {
+              "title": "Payments salvage create-on-order",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "42.50",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "57.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "payments-salvage-create-on-order-1783027123703"
+            }
+          ]
+        }
+      }
+    },
+    "paymentTermsCreate": {
+      "variables": {
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-05-05T00:00:00Z"
+            }
+          ]
+        }
+      }
+    },
+    "multipleSchedules": {
+      "variables": {
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-05-05T00:00:00Z"
+            },
+            {
+              "issuedAt": "2026-05-06T00:00:00Z"
+            }
+          ]
+        }
+      }
+    },
+    "missingUpdate": {
+      "variables": {
+        "input": {
+          "paymentTermsId": "gid://shopify/PaymentTerms/999999999999999",
+          "paymentTermsAttributes": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+            "paymentSchedules": [
+              {
+                "issuedAt": "2026-05-05T00:00:00Z"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "missingDelete": {
+      "variables": {
+        "input": {
+          "paymentTermsId": "gid://shopify/PaymentTerms/999999999999999"
+        }
+      }
+    },
+    "expected": {
+      "orderCreate": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8887330308402",
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "42.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "57.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "create": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/160379240754",
+              "due": true,
+              "overdue": true,
+              "dueInDays": 30,
+              "paymentTermsName": "Net 30",
+              "paymentTermsType": "NET",
+              "translatedName": "Net 30",
+              "paymentSchedules": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/PaymentSchedule/200893956402",
+                    "issuedAt": "2026-05-05T00:00:00Z",
+                    "dueAt": "2026-06-04T00:00:00Z",
+                    "completedAt": null,
+                    "due": true,
+                    "amount": {
+                      "amount": "57.0",
+                      "currencyCode": "CAD"
+                    },
+                    "balanceDue": {
+                      "amount": "57.0",
+                      "currencyCode": "CAD"
+                    },
+                    "totalBalance": {
+                      "amount": "57.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoyMDA4OTM5NTY0MDIsImxhc3RfdmFsdWUiOjIwMDg5Mzk1NjQwMn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMDA4OTM5NTY0MDIsImxhc3RfdmFsdWUiOjIwMDg5Mzk1NjQwMn0="
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "multiple": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Cannot create payment terms with multiple payment schedules.",
+                "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "update": {
+        "data": {
+          "paymentTermsUpdate": {
+            "paymentTerms": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Could not find payment terms.",
+                "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "delete": {
+        "data": {
+          "paymentTermsDelete": {
+            "deletedId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Could not find payment terms.",
+                "code": "PAYMENT_TERMS_DELETE_UNSUCCESSFUL"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "orderCancel": {
+      "query": "mutation PaymentsSalvageOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      orderCancelUserErrors {\n        field\n        message\n        code\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8887330308402",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/40016c90-8c8d-47f2-aa55-f469ee94e6c6",
+              "done": false
+            },
+            "orderCancelUserErrors": [],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

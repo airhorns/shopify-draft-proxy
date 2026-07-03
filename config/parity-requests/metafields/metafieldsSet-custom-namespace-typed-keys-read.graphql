@@ -1,0 +1,55 @@
+query CustomNamespaceTypedKeysRead($id: ID!) {
+  product(id: $id) {
+    id
+    jsonField: metafield(namespace: "custom", key: "json") {
+      id
+      namespace
+      key
+      type
+      value
+      jsonValue
+      compareDigest
+      createdAt
+      updatedAt
+      ownerType
+    }
+    ratingField: metafield(namespace: "custom", key: "rating") {
+      id
+      namespace
+      key
+      type
+      value
+      jsonValue
+      compareDigest
+      createdAt
+      updatedAt
+      ownerType
+    }
+    moneyField: metafield(namespace: "custom", key: "money") {
+      id
+      namespace
+      key
+      type
+      value
+      jsonValue
+      compareDigest
+      createdAt
+      updatedAt
+      ownerType
+    }
+    metafields(first: 10, namespace: "custom") {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+        jsonValue
+        compareDigest
+        createdAt
+        updatedAt
+        ownerType
+      }
+    }
+  }
+}

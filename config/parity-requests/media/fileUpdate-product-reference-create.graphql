@@ -5,7 +5,6 @@ mutation FileReferenceCreate($files: [FileCreateInput!]!) {
       alt
       createdAt
       fileStatus
-      filename
       ... on MediaImage {
         image {
           url

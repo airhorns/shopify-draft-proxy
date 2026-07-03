@@ -1,0 +1,23 @@
+mutation InventoryActivateOnHand(
+  $inventoryItemId: ID!
+  $locationId: ID!
+  $onHand: Int
+  $idempotencyKey: String!
+) {
+  inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, onHand: $onHand)
+    @idempotent(key: $idempotencyKey) {
+    inventoryLevel {
+      id
+      isActive
+      quantities(names: ["available", "on_hand"]) {
+        name
+        quantity
+        updatedAt
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

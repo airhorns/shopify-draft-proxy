@@ -89,7 +89,7 @@ pub(in crate::proxy) fn collection_json(collection: &Value, selections: &[Select
                         .and_then(Value::as_array)
                         .map(Vec::len)
                         .unwrap_or(0);
-                    product_count_json(count, &selection.selection)
+                    selected_count_json(count, &selection.selection)
                 }),
         ),
         "ruleSet" => Some(collection.get("ruleSet").cloned().unwrap_or(Value::Null)),
@@ -199,17 +199,14 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "collection" => self.collection_membership_value(field),
                 "product" => self.product_by_id_field(field),
                 "job" => self.collection_job_read(field),
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+                _ => return None,
+            })
+        })
     }
 
     // Serve a top-level `collections(query:, sortKey:)` read entirely from the
@@ -225,10 +222,9 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        root_payload_json(fields, |field| {
             if field.name != "collections" {
-                continue;
+                return None;
             }
             let value = match self
                 .store
@@ -241,9 +237,8 @@ impl DraftProxy {
                 }
                 None => selected_empty_connection_json(&field.selection),
             };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+            Some(value)
+        })
     }
 
     /// True once a scenario has seeded (or staged) publications, switching the
@@ -350,25 +345,22 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
+        root_payload_json(fields, |field| {
+            Some(match field.name.as_str() {
                 "publication" => self.publication_root_value(field),
                 "channel" => self.channel_root_value(field),
                 "channels" => self.channels_root_value(field),
-                "publicationsCount" => publication_count_json(self.store.staged.publications.len()),
+                "publicationsCount" => count_object(self.store.staged.publications.len()),
                 "publishedProductsCount" => {
                     let publication_id = resolved_string_field(&field.arguments, "publicationId");
-                    publication_count_json(
+                    count_object(
                         self.publication_resource_count(publication_id.as_deref(), "Product"),
                     )
                 }
                 "product" | "collection" => self.publishable_resource_root_value(field),
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+                _ => return None,
+            })
+        })
     }
 
     /// The set of publication gids a resource (product/collection) is published on.
@@ -452,10 +444,10 @@ impl DraftProxy {
             })
             .collect();
         record["products"] = json!({ "nodes": product_nodes });
-        record["publishedProductsCount"] = publication_count_json(product_count);
-        record["collectionsCount"] = publication_count_json(collection_count);
+        record["publishedProductsCount"] = count_object(product_count);
+        record["collectionsCount"] = count_object(collection_count);
         if let Some(channel) = record.get_mut("channel") {
-            channel["productsCount"] = publication_count_json(product_count);
+            channel["productsCount"] = count_object(product_count);
         }
         selected_json(&record, &field.selection)
     }
@@ -470,7 +462,7 @@ impl DraftProxy {
         let mut channel = record.get("channel").cloned().unwrap_or(Value::Null);
         if channel.is_object() {
             let product_count = self.publication_resource_count(Some(&publication_id), "Product");
-            channel["productsCount"] = publication_count_json(product_count);
+            channel["productsCount"] = count_object(product_count);
         }
         selected_json(&channel, &field.selection)
     }
@@ -557,9 +549,7 @@ impl DraftProxy {
                 }
                 "publishedOnCurrentPublication" => json!(false),
                 "resourcePublicationsCount" | "publicationCount" | "availablePublicationsCount" => {
-                    publication_count_json(
-                        self.publishable_live_publication_count(resource_id, &pubs),
-                    )
+                    count_object(self.publishable_live_publication_count(resource_id, &pubs))
                 }
                 _ => continue,
             };
@@ -614,17 +604,19 @@ impl DraftProxy {
             root_field,
             "publishablePublishToCurrentChannel" | "publishableUnpublishToCurrentChannel"
         );
-        let mut data = serde_json::Map::new();
-        for field in fields {
+        let mut early_response = None;
+        let data = root_payload_json(&fields, |field| {
+            if early_response.is_some() {
+                return None;
+            }
             if field.name != root_field {
-                continue;
+                return None;
             }
-            if let Some(response) = publishable_empty_string_publication_error(root_field, &field) {
-                return response;
+            if let Some(response) = publishable_empty_string_publication_error(root_field, field) {
+                early_response = Some(response);
+                return None;
             }
-            let Some(resource_id) = resolved_string_field(&field.arguments, "id") else {
-                continue;
-            };
+            let resource_id = resolved_string_field(&field.arguments, "id")?;
             let user_errors =
                 publishable_publication_input_errors(field.arguments.get("input"), to_current);
             if user_errors.is_empty() {
@@ -666,16 +658,16 @@ impl DraftProxy {
                 match selection.name.as_str() {
                     "publishable" => Some(publishable.clone()),
                     "shop" => Some(selected_json(&shop, &selection.selection)),
-                    "userErrors" => Some(selected_user_errors(
-                        user_errors.as_slice(),
-                        &selection.selection,
-                    )),
+                    "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                     _ => None,
                 }
             });
-            data.insert(field.response_key, payload);
+            Some(payload)
+        });
+        if let Some(response) = early_response {
+            return response;
         }
-        ok_json(json!({ "data": Value::Object(data) }))
+        ok_json(json!({ "data": data }))
     }
 
     pub(in crate::proxy) fn observe_collection_passthrough_response(
@@ -925,6 +917,35 @@ impl DraftProxy {
             return MutationOutcome::response(response);
         }
 
+        if input.contains_key("ruleSet") && collection_rule_set_rules_missing(&input) {
+            return MutationOutcome::response(self.collection_payload_response(
+                query,
+                variables,
+                "collectionCreate",
+                None,
+                None,
+                vec![collection_user_error(
+                    ["ruleSet", "rules"],
+                    "Rules cannot be an empty set",
+                )],
+            ));
+        }
+
+        let initial_product_ids = list_string_field(&input, "products");
+        self.hydrate_missing_collection_baseline("", &initial_product_ids);
+        let product_errors =
+            collection_initial_product_user_errors(&self.store, &initial_product_ids);
+        if !product_errors.is_empty() {
+            return MutationOutcome::response(self.collection_payload_response(
+                query,
+                variables,
+                "collectionCreate",
+                None,
+                None,
+                product_errors,
+            ));
+        }
+
         let title = resolved_string_field(&input, "title").unwrap_or_default();
         let id = self.next_proxy_synthetic_gid("Collection");
         let handle = self.collection_unique_handle(
@@ -932,8 +953,6 @@ impl DraftProxy {
             &title,
             None,
         );
-        let initial_product_ids = resolved_string_list_field_unsorted(&input, "products");
-        self.hydrate_missing_collection_baseline("", &initial_product_ids);
         let mut collection = collection_from_input(&input, &id, &title, &handle, None);
         let products = initial_product_ids
             .into_iter()
@@ -1124,7 +1143,7 @@ impl DraftProxy {
     ) -> MutationOutcome {
         let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let collection_id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let requested_product_ids = resolved_string_list_field_unsorted(&arguments, "productIds");
+        let requested_product_ids = list_string_field(&arguments, "productIds");
         self.hydrate_missing_collection_baseline(&collection_id, &requested_product_ids);
         if let Some(response) = self.collection_membership_guard_response(
             query,
@@ -1172,7 +1191,7 @@ impl DraftProxy {
     ) -> MutationOutcome {
         let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let collection_id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let product_ids = resolved_string_list_field_unsorted(&arguments, "productIds");
+        let product_ids = list_string_field(&arguments, "productIds");
         if product_ids.len() > COLLECTION_PRODUCT_IDS_LIMIT {
             return MutationOutcome::response(collection_product_ids_too_long_response(
                 root_field,
@@ -1249,13 +1268,14 @@ impl DraftProxy {
             return MutationOutcome::response(response);
         }
         self.hydrate_collection_reorder_sort_order(&collection_id);
-        if self
-            .store
-            .collection_by_id(&collection_id)
-            .and_then(|collection| collection.get("sortOrder"))
-            .and_then(Value::as_str)
-            != Some("MANUAL")
-        {
+        let manually_sorted =
+            self.store
+                .collection_by_id(&collection_id)
+                .is_some_and(|collection| {
+                    !collection_is_smart(collection)
+                        && collection.get("sortOrder").and_then(Value::as_str) == Some("MANUAL")
+                });
+        if !manually_sorted {
             return MutationOutcome::response(self.collection_payload_response(
                 query,
                 variables,
@@ -1276,7 +1296,7 @@ impl DraftProxy {
             let new_position = resolved_string_field(&move_input, "newPosition")
                 .and_then(|value| value.parse::<usize>().ok())
                 .or_else(|| {
-                    resolved_i64_field(&move_input, "newPosition")
+                    resolved_int_field(&move_input, "newPosition")
                         .map(|value| value.max(0) as usize)
                 })
                 .unwrap_or(0);
@@ -1386,7 +1406,7 @@ impl DraftProxy {
                 vec![collection_user_error(["id"], "Collection does not exist")],
             ));
         };
-        if collection_is_smart(collection) {
+        if root_field != "collectionReorderProducts" && collection_is_smart(collection) {
             let message = if root_field == "collectionRemoveProducts" {
                 "Can't manually remove products from a smart collection"
             } else {
@@ -1417,8 +1437,6 @@ impl DraftProxy {
             .collection_payload_root_field(query, variables)
             .map(|field| (field.response_key, field.selection))
             .unwrap_or_else(|| (root_field.to_string(), Vec::new()));
-        let error_selection =
-            selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
         let collection_selection =
             selected_child_selection(&payload_selection, "collection").unwrap_or_default();
         let job_selection = selected_child_selection(&payload_selection, "job").unwrap_or_default();
@@ -1427,7 +1445,7 @@ impl DraftProxy {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
                     "collection" => Some(collection.map(|collection| collection_json(collection, &collection_selection)).unwrap_or(Value::Null)),
                     "job" => Some(job.map(|job| selected_json(job, &job_selection)).unwrap_or(Value::Null)),
-                    "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
+                    "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                     _ => None,
                 })
             }
@@ -1445,15 +1463,13 @@ impl DraftProxy {
             .collection_payload_root_field(query, variables)
             .map(|field| (field.response_key, field.selection))
             .unwrap_or_else(|| ("collectionDelete".to_string(), Vec::new()));
-        let error_selection =
-            selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
         let shop = self.store.effective_shop();
         ok_json(json!({
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
                     "deletedCollectionId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
                     "shop" => Some(selected_json(&shop, &selection.selection)),
-                    "userErrors" => Some(selected_user_errors(user_errors.as_slice(), &error_selection)),
+                    "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                     _ => None,
                 })
             }
@@ -1661,7 +1677,7 @@ fn collection_from_input(
             "products": connection_json(Vec::<Value>::new()),
             "defaultProducts": connection_json(Vec::<Value>::new()),
             "manualProducts": connection_json(Vec::<Value>::new()),
-            "productsCount": {"count": 0, "precision": "EXACT"}
+            "productsCount": count_object(0)
         })
     });
     if let Some(object) = collection.as_object_mut() {
@@ -1675,9 +1691,7 @@ fn collection_from_input(
         );
         object.insert(
             "ruleSet".to_string(),
-            resolved_object_field(input, "ruleSet")
-                .map(collection_rule_set_json)
-                .unwrap_or(Value::Null),
+            collection_create_rule_set_json(input).unwrap_or(Value::Null),
         );
         if let Some(description) = resolved_string_field(input, "descriptionHtml") {
             object.insert("descriptionHtml".to_string(), json!(description));
@@ -1687,6 +1701,27 @@ fn collection_from_input(
         }
     }
     collection
+}
+
+fn collection_initial_product_user_errors(store: &Store, product_ids: &[String]) -> Vec<Value> {
+    product_ids
+        .iter()
+        .enumerate()
+        .filter(|(_, id)| store.product_by_id(id).is_none())
+        .map(|(index, _)| {
+            user_error_omit_code(
+                vec!["products".to_string(), index.to_string()],
+                "Product does not exist",
+                None,
+            )
+        })
+        .collect()
+}
+
+fn collection_create_rule_set_json(input: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
+    let rule_set = resolved_object_field(input, "ruleSet")?;
+    (!resolved_object_list_field(&rule_set, "rules").is_empty())
+        .then(|| collection_rule_set_json(rule_set))
 }
 
 /// Collection sort orders whose default product ordering is by recency (newest
@@ -1737,19 +1772,13 @@ fn apply_collection_products(collection: &mut Value, products: &[ProductRecord])
             connection_json(product_nodes.clone()),
         );
         object.insert("manualProducts".to_string(), connection_json(product_nodes));
-        object.insert(
-            "productsCount".to_string(),
-            json!({"count": products.len(), "precision": "EXACT"}),
-        );
+        object.insert("productsCount".to_string(), count_object(products.len()));
     }
 }
 
 fn apply_collection_create_payload_products_count(collection: &mut Value) {
     if let Some(object) = collection.as_object_mut() {
-        object.insert(
-            "productsCount".to_string(),
-            json!({"count": 0, "precision": "EXACT"}),
-        );
+        object.insert("productsCount".to_string(), count_object(0));
     }
 }
 
@@ -1779,6 +1808,15 @@ fn collection_rule_set_json(input: BTreeMap<String, ResolvedValue>) -> Value {
 fn collection_rule_set_rules_empty(input: &BTreeMap<String, ResolvedValue>) -> bool {
     resolved_object_field(input, "ruleSet")
         .map(|rule_set| resolved_object_list_field(&rule_set, "rules").is_empty())
+        .unwrap_or(false)
+}
+
+fn collection_rule_set_rules_missing(input: &BTreeMap<String, ResolvedValue>) -> bool {
+    resolved_object_field(input, "ruleSet")
+        .map(|rule_set| {
+            !rule_set.contains_key("rules")
+                || matches!(rule_set.get("rules"), Some(ResolvedValue::Null))
+        })
         .unwrap_or(false)
 }
 
@@ -1841,18 +1879,15 @@ fn collection_invalid_sort_order_response(
         .or_else(|| parsed_document(query, &BTreeMap::new()).map(|document| document.location))
         .unwrap_or(SourceLocation { line: 1, column: 1 });
     ok_json(json!({
-        "errors": [{
-            "message": format!("Variable $input of type CollectionInput! was provided invalid value for sortOrder (Expected \"{sort_order}\" to be one of: {expected_sort_orders})"),
-            "locations": [{"line": location.line, "column": location.column}],
-            "extensions": {
-                "code": "INVALID_VARIABLE",
-                "value": resolved_value_json(&ResolvedValue::Object(input.clone())),
-                "problems": [{
-                    "path": ["sortOrder"],
-                    "explanation": format!("Expected \"{sort_order}\" to be one of: {expected_sort_orders}")
-                }]
-            }
-        }]
+        "errors": [invalid_variable_error_envelope(
+            format!("Variable $input of type CollectionInput! was provided invalid value for sortOrder (Expected \"{sort_order}\" to be one of: {expected_sort_orders})"),
+            location,
+            resolved_value_json(&ResolvedValue::Object(input.clone())),
+            json!([{
+                "path": ["sortOrder"],
+                "explanation": format!("Expected \"{sort_order}\" to be one of: {expected_sort_orders}")
+            }]),
+        )]
     }))
 }
 

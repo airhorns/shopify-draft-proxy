@@ -64,6 +64,7 @@ The registry-only read roots are:
 The registry-only mutation roots are:
 
 - `fulfillmentCreate`
+- `fulfillmentCreateV2`
 - `fulfillmentTrackingInfoUpdate`
 - `fulfillmentCancel`
 - `fulfillmentOrderCancel`
@@ -93,7 +94,7 @@ The registry-only mutation roots are:
 
 ### Local behavior
 
-The Rust runtime has scenario-backed shipping and fulfillment slices for ported
+The Rust runtime has store-backed shipping and fulfillment slices for checked-in
 parity requests and runtime tests. These slices stage or serialize local state
 only for the request families recognized by the Rust dispatcher.
 
@@ -108,6 +109,9 @@ for commit replay. For `requiresShippingMethod`, the local model follows the
 captured public GraphQL default: an omitted argument stages `true` on both
 create and update, while an explicit `false` value remains observable through
 the mutation payload and downstream `fulfillmentService(id:)` reads.
+Callback URL validation allows `mock.shop` hosts and the configured
+`.myshopify.com` Admin origin host when one is present; cold/default proxy
+configuration does not synthesize a `shopify-draft-proxy.local` allowed host.
 The captured 2026-04 public schema does not expose `permitsSkuSharing`,
 `inventorySyncEnabled`, or `fulfillmentOrdersOptIn` on
 `fulfillmentServiceCreate`; those arguments return top-level
@@ -143,9 +147,15 @@ validation branches. Captured public 2026-04 behavior allows
 second open attempt on an already-`OPEN` fulfillment order returns a base
 `userErrors` entry (`field: null`) and leaves the local fulfillment-order
 status, supported actions, and timestamp unchanged; this public `UserError`
-shape exposes `field` / `message` only. Store-backed local staging now covers
-`fulfillmentCreate` payload `Fulfillment.name` reference numbers as
-`<orderName>-F<n>` for order-backed fulfillment sequences, plus
+shape exposes `field` / `message` only. Fulfillment holds expose Shopify-like
+localized `displayReason` strings for the public hold reason set, including
+`AWAITING_RETURN_ITEMS` as `Exchange items awaiting return delivery`, and
+unknown or non-visible reasons fall back to `Other`. Store-backed local staging
+now covers `fulfillmentOrderMove`, `fulfillmentOrderOpen`,
+`fulfillmentOrderReportProgress`, `fulfillmentOrdersSetFulfillmentDeadline`,
+and `fulfillmentCreate` plus deprecated `fulfillmentCreateV2` payload
+`Fulfillment.name` reference numbers as `<orderName>-F<n>` for order-backed
+fulfillment sequences, plus
 `fulfillmentOrderSubmitFulfillmentRequest`,
 `fulfillmentOrderAcceptFulfillmentRequest`,
 `fulfillmentOrderRejectFulfillmentRequest`,
@@ -159,6 +169,11 @@ written into the local order graph and are visible through `fulfillmentOrder`,
 `fulfillmentOrders`, `assignedFulfillmentOrders`, and nested
 `Order.fulfillmentOrders` reads. These slices operate on local order-backed
 fulfillment records and are not a general fulfillment-service execution engine.
+`fulfillmentOrderMove` resolves the destination from staged or hydrated
+location records; missing or inactive destinations return the local
+`Location not found.` user error, and successful move payloads serialize the
+assigned-location id/name from that stored location rather than from fixture
+constants.
 
 Delivery settings and delivery promise settings are read-only in the captured
 empty/no-feature branch. Delivery profiles have fixture-backed read and bounded
@@ -180,9 +195,12 @@ original raw GraphQL request for commit replay. `locationLocalPickupEnable`
 accepts captured standard pickup times, rejects non-standard values with
 `CUSTOM_PICKUP_TIME_NOT_ALLOWED`, and rejects unknown or inactive locations with
 `ACTIVE_LOCATION_NOT_FOUND`. `locationLocalPickupDisable` clears the staged
-settings. Pickup changes are visible through `Location.localPickupSettingsV2`
-and `locationsAvailableForDeliveryProfilesConnection` in snapshot mode and
-after LiveHybrid reads hydrate the existing shipping locations.
+settings on active locations and rejects unknown or inactive locations with
+`ACTIVE_LOCATION_NOT_FOUND` on `locationId`; failed disable payloads return
+`locationId: null`. Pickup changes are visible through
+`Location.localPickupSettingsV2` and
+`locationsAvailableForDeliveryProfilesConnection` in snapshot mode and after
+LiveHybrid reads hydrate the existing shipping locations.
 
 Shipping package slices stage changes on known package records and retain the
 original raw GraphQL request for commit replay. Shipping packages have no direct
@@ -213,16 +231,3 @@ with `/endpoints/orders/` and `/endpoints/returns/`.
   supported local slices.
 - Unsupported mutation documents outside the ported local slices follow the
   configured unsupported path and must remain visible in logs/observability.
-
-### Evidence
-
-- Registry status: `src/operation_registry.rs`
-- Runtime coverage: `tests/graphql_routes.rs`
-- Shipping/fulfillment parity specs: `config/parity-specs/shipping-fulfillments/*.json`
-- Shipping/fulfillment fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-fulfillments/*.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/*.json`
-- Related order/return shipping specs: `config/parity-specs/orders/return-reverse-logistics-local-staging.json`, `config/parity-specs/orders/return-reverse-logistics-recorded.json`, `config/parity-specs/orders/return-reverse-logistics-dispose-validation.json`, and the order-edit shipping-line specs under `config/parity-specs/orders/`
-
-### Validation
-
-- `corepack pnpm lint`
-- `corepack pnpm rust:test`
