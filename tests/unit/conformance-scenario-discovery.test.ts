@@ -212,7 +212,7 @@ describe('conformance scenario discovery', () => {
           return [];
         }
 
-        const fixture = readJson<{ upstreamCalls?: Array<{ query?: unknown }> }>(captureFile);
+        const fixture = readJson<{ upstreamCalls?: RecordedUpstreamCall[] }>(captureFile);
         return (fixture.upstreamCalls ?? []).flatMap((call, index) =>
           typeof call.query === 'string' && descriptorLikeUpstreamQuery.test(call.query)
             ? [`${paritySpec.scenarioId}: ${captureFile} upstreamCalls[${index}].query is descriptor-like`]
@@ -312,6 +312,40 @@ describe('conformance scenario discovery', () => {
         true,
       );
     }
+  });
+
+  it('keeps online-store captured parity evidence backed by live Shopify fixture paths', () => {
+    const errors: string[] = [];
+    const onlineStoreScenarios = scenarios.filter((scenario) =>
+      scenario.paritySpecPath.startsWith('config/parity-specs/online-store/'),
+    );
+
+    for (const scenario of onlineStoreScenarios) {
+      const paritySpec = readJson<ParitySpec>(scenario.paritySpecPath);
+      if (paritySpec.scenarioStatus !== 'captured') {
+        continue;
+      }
+
+      for (const captureFile of paritySpec.liveCaptureFiles ?? []) {
+        if (captureFile.startsWith('fixtures/conformance/local-runtime/')) {
+          errors.push(`${scenario.id}: liveCaptureFiles must not point at local-runtime evidence: ${captureFile}`);
+          continue;
+        }
+
+        const fixture = readJson<{ upstreamCalls?: RecordedUpstreamCall[] }>(captureFile);
+        const upstreamCalls = Array.isArray(fixture.upstreamCalls) ? fixture.upstreamCalls : [];
+        for (const error of validateRecordedUpstreamCalls(upstreamCalls)) {
+          errors.push(`${scenario.id} ${captureFile}: ${error}`);
+        }
+        for (const [index, call] of upstreamCalls.entries()) {
+          if (typeof call.query === 'string' && descriptorLikeUpstreamQuery.test(call.query)) {
+            errors.push(`${scenario.id}: ${captureFile} upstreamCalls[${index}].query is descriptor-like`);
+          }
+        }
+      }
+    }
+
+    expect(errors).toEqual([]);
   });
 
   it('keeps functions parity evidence free of synthetic provenance markers', () => {
