@@ -17,6 +17,7 @@ pub(in crate::proxy) fn payment_customization_connection(
 pub(in crate::proxy) fn payment_customization_record(
     id: &str,
     input: &BTreeMap<String, ResolvedValue>,
+    api_client_id: Option<&str>,
 ) -> Value {
     let function_id = resolved_string_field(input, "functionId");
     let function_handle = resolved_string_field(input, "functionHandle");
@@ -28,19 +29,23 @@ pub(in crate::proxy) fn payment_customization_record(
         "functionId": function_id,
         "functionHandle": if function_id.is_some() { Value::Null } else { json!(function_handle) }
     });
-    payment_customization_set_metafields(&mut record, payment_customization_metafields(input));
+    payment_customization_set_metafields(
+        &mut record,
+        payment_customization_metafields(input, api_client_id),
+    );
     record
 }
 
 pub(in crate::proxy) fn payment_customization_metafields(
     input: &BTreeMap<String, ResolvedValue>,
+    api_client_id: Option<&str>,
 ) -> Vec<Value> {
     resolved_object_list_field(input, "metafields")
         .into_iter()
         .enumerate()
         .map(|(index, metafield)| {
             let namespace = resolved_string_field(&metafield, "namespace")
-                .map(|namespace| canonical_app_metafield_namespace(Some(&namespace)))
+                .map(|namespace| canonical_app_metafield_namespace(Some(&namespace), api_client_id))
                 .unwrap_or_default();
             json!({
                 "id": shopify_gid("Metafield", format_args!("payment-customization-{}", index + 1)),
