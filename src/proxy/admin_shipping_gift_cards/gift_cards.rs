@@ -941,6 +941,15 @@ impl DraftProxy {
                         Some("INVALID"),
                         "The gift card has no customer.",
                     ));
+                } else if field.name == "giftCardSendNotificationToCustomer"
+                    && gift_card_customer_has_no_contact(card)
+                {
+                    user_errors.push(gift_card_user_error(
+                        &field.name,
+                        Value::Null,
+                        Some("INVALID"),
+                        "The customer has no contact information (e.g. email address or phone number).",
+                    ));
                 } else if field.name == "giftCardSendNotificationToRecipient"
                     && gift_card_has_no_recipient(card)
                 {
@@ -1724,6 +1733,19 @@ fn gift_card_recipient_has_no_contact(card: &Value) -> bool {
         && recipient["phone"].is_null()
         && recipient["defaultEmailAddress"]["emailAddress"].is_null()
         && recipient["defaultPhoneNumber"]["phoneNumber"].is_null()
+}
+
+fn gift_card_customer_has_no_contact(card: &Value) -> bool {
+    let customer = &card["customer"];
+    let has_contact_projection = customer.get("email").is_some()
+        || customer.get("phone").is_some()
+        || customer.get("defaultEmailAddress").is_some()
+        || customer.get("defaultPhoneNumber").is_some();
+    has_contact_projection
+        && customer["email"].is_null()
+        && customer["phone"].is_null()
+        && customer["defaultEmailAddress"]["emailAddress"].is_null()
+        && customer["defaultPhoneNumber"]["phoneNumber"].is_null()
 }
 
 fn gift_card_read_value_has_model_fields(card: &Value) -> bool {
