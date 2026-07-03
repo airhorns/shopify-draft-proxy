@@ -11536,6 +11536,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}gift-card-user-error-typename.json`,
       'config/parity-specs/gift-cards/gift-card-legacy-seed-hydration.json',
       'config/parity-specs/gift-cards/gift-card-user-error-typename.json',
+      'config/parity-requests/gift-cards/gift-card-legacy-seed-hydration-read.graphql',
       'config/parity-requests/gift-cards/gift-card-legacy-seed-hydration.graphql',
       'config/parity-requests/gift-cards/gift-card-user-error-typename.graphql',
     ],

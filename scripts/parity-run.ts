@@ -174,20 +174,8 @@ async function resolveSpecPaths(args: CliArgs): Promise<string[]> {
 function tokenizeJsonPath(jsonPath: string): string[] {
   if (!jsonPath.startsWith('$')) throw new Error(`Unsupported JSONPath (must start with $): ${jsonPath}`);
   const parts: string[] = [];
-  const pattern = /\.([^.[\]]+)|\[(\d+)\]|\["((?:[^"\\]|\\.)*)"\]/gu;
-  let consumed = 1;
-  for (const match of jsonPath.matchAll(pattern)) {
-    if (match.index !== consumed) {
-      throw new Error(`Unsupported JSONPath segment near "${jsonPath.slice(consumed)}": ${jsonPath}`);
-    }
-    if (match[1] !== undefined) parts.push(match[1]);
-    else if (match[2] !== undefined) parts.push(match[2]);
-    else if (match[3] !== undefined) parts.push(JSON.parse(`"${match[3]}"`) as string);
-    consumed = match.index + match[0].length;
-  }
-  if (consumed !== jsonPath.length) {
-    throw new Error(`Unsupported JSONPath segment near "${jsonPath.slice(consumed)}": ${jsonPath}`);
-  }
+  const pattern = /\.([^.[\]]+)|\[(\d+)\]/gu;
+  for (const match of jsonPath.matchAll(pattern)) parts.push(match[1] ?? match[2] ?? '');
   return parts;
 }
 
@@ -323,20 +311,11 @@ function requestNeedsCapturedProductDomainHydration(request: LoadedProxyRequest)
 function tokenizeJsonPathWithWildcards(jsonPath: string): string[] {
   if (!jsonPath.startsWith('$')) throw new Error(`Unsupported JSONPath (must start with $): ${jsonPath}`);
   const parts: string[] = [];
-  const pattern = /\.([^.[\]]+)|\[(\d+)\]|\[\*\]|\["((?:[^"\\]|\\.)*)"\]/gu;
-  let consumed = 1;
+  const pattern = /\.([^.[\]]+)|\[(\d+)\]|\[\*\]/gu;
   for (const match of jsonPath.matchAll(pattern)) {
-    if (match.index !== consumed) {
-      throw new Error(`Unsupported JSONPath segment near "${jsonPath.slice(consumed)}": ${jsonPath}`);
-    }
     if (match[1] !== undefined) parts.push(match[1]);
     else if (match[2] !== undefined) parts.push(match[2]);
-    else if (match[3] !== undefined) parts.push(JSON.parse(`"${match[3]}"`) as string);
     else parts.push('*');
-    consumed = match.index + match[0].length;
-  }
-  if (consumed !== jsonPath.length) {
-    throw new Error(`Unsupported JSONPath segment near "${jsonPath.slice(consumed)}": ${jsonPath}`);
   }
   return parts;
 }
