@@ -87,7 +87,8 @@ disposable shop.
 
 Location reads and lifecycle mutations have local slices for detail reads,
 unknown-ID null behavior, `locationByIdentifier` selected cases,
-address/country/province derivation, create/edit validation, metafields on
+address/country/province derivation including the captured GB, AU, AE, and CA
+branches, create/edit validation, metafields on
 location add/edit, activate/deactivate state transitions, delete tombstones,
 idempotency directives, resource-limit validation, and selected lifecycle guard
 errors. Successful location mutation slices stage local state, preserve the raw
