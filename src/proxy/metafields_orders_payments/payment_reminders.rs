@@ -55,9 +55,6 @@ impl DraftProxy {
         request: &Request,
         schedule_id: &str,
     ) -> Option<Value> {
-        if let Some(payload) = self.payment_reminder_local_sentinel_payload(schedule_id) {
-            return Some(payload);
-        }
         if self
             .store
             .staged
@@ -66,9 +63,48 @@ impl DraftProxy {
         {
             return Some(payment_reminder_rate_limit_payload());
         }
-        let schedule = self.hydrate_payment_reminder_schedule(request, schedule_id)?;
+        if let Some(schedule) = self.staged_payment_reminder_schedule(schedule_id) {
+            let rate_limit_key = payment_reminder_rate_limit_key(schedule_id, &schedule);
+            if self
+                .store
+                .staged
+                .payment_reminder_schedule_ids
+                .contains(&rate_limit_key)
+            {
+                return Some(payment_reminder_rate_limit_payload());
+            }
+            let payload =
+                self.payment_reminder_payload_from_hydrated_schedule(schedule_id, &schedule);
+            if payment_reminder_payload_is_success(&payload) {
+                self.store
+                    .staged
+                    .payment_reminder_schedule_ids
+                    .insert(rate_limit_key);
+                self.store
+                    .staged
+                    .payment_reminder_schedule_ids
+                    .insert(schedule_id.to_string());
+            }
+            return Some(payload);
+        }
+        let schedule = self
+            .hydrate_payment_reminder_schedule(request, schedule_id)
+            .unwrap_or(Value::Null);
+        let rate_limit_key = payment_reminder_rate_limit_key(schedule_id, &schedule);
+        if self
+            .store
+            .staged
+            .payment_reminder_schedule_ids
+            .contains(&rate_limit_key)
+        {
+            return Some(payment_reminder_rate_limit_payload());
+        }
         let payload = self.payment_reminder_payload_from_hydrated_schedule(schedule_id, &schedule);
         if payment_reminder_payload_is_success(&payload) {
+            self.store
+                .staged
+                .payment_reminder_schedule_ids
+                .insert(rate_limit_key);
             self.store
                 .staged
                 .payment_reminder_schedule_ids
@@ -77,54 +113,50 @@ impl DraftProxy {
         Some(payload)
     }
 
-    fn payment_reminder_local_sentinel_payload(&mut self, schedule_id: &str) -> Option<Value> {
-        match schedule_id {
-            "gid://shopify/PaymentSchedule/rate-limit" => {
-                if self
-                    .store
-                    .staged
-                    .payment_reminder_schedule_ids
-                    .contains(schedule_id)
-                {
-                    Some(payment_reminder_rate_limit_payload())
-                } else {
-                    self.store
-                        .staged
-                        .payment_reminder_schedule_ids
-                        .insert(schedule_id.to_string());
-                    Some(payment_reminder_success_payload())
-                }
+    fn staged_payment_reminder_schedule(&self, schedule_id: &str) -> Option<Value> {
+        for (terms_id, terms) in &self.store.staged.payment_terms {
+            let schedule = terms
+                .get("paymentSchedules")
+                .and_then(|connection| connection.get("nodes"))
+                .and_then(Value::as_array)
+                .and_then(|nodes| {
+                    nodes
+                        .iter()
+                        .find(|node| node.get("id").and_then(Value::as_str) == Some(schedule_id))
+                });
+            let Some(schedule) = schedule else {
+                continue;
+            };
+            let Some(owner_id) = self.payment_reminder_owner_id_for_terms(terms_id) else {
+                continue;
+            };
+            let owner = if owner_id.starts_with("gid://shopify/DraftOrder/") {
+                self.store.staged.draft_orders.get(&owner_id)
+            } else {
+                self.store.staged.orders.get(&owner_id)
+            };
+            let Some(owner) = owner else {
+                continue;
+            };
+            let mut payment_terms = terms.clone();
+            if owner_id.starts_with("gid://shopify/DraftOrder/") {
+                payment_terms["draftOrder"] = owner.clone();
+                payment_terms["order"] = Value::Null;
+            } else {
+                payment_terms["order"] = owner.clone();
+                payment_terms["draftOrder"] = Value::Null;
             }
-            "gid://shopify/PaymentSchedule/123" => Some(payment_reminder_error_payload(
-                "Payment schedule does not exist",
-            )),
-            "gid://shopify/PaymentSchedule/paid" | "gid://shopify/PaymentSchedule/paid-owner" => {
-                Some(payment_reminder_error_payload(
-                    "Payment schedule is already completed",
-                ))
-            }
-            "gid://shopify/PaymentSchedule/missing-email" => Some(payment_reminder_error_payload(
-                "Order does not have a contact email",
-            )),
-            "gid://shopify/PaymentSchedule/selling-plan" => {
-                Some(payment_reminder_error_payload("Order has a selling plan"))
-            }
-            "gid://shopify/PaymentSchedule/capture" => Some(payment_reminder_error_payload(
-                "Order has capture at fulfillment terms",
-            )),
-            "gid://shopify/PaymentSchedule/collection" => Some(payment_reminder_error_payload(
-                "Payment collection request has not been sent",
-            )),
-            "gid://shopify/PaymentSchedule/current" | "gid://shopify/PaymentSchedule/cancelled" => {
-                Some(payment_reminder_error_payload(
-                    "Payment reminder could not be sent",
-                ))
-            }
-            "gid://shopify/PaymentSchedule/completed-draft" => Some(
-                payment_reminder_error_payload("Payment schedule is not for an Order"),
-            ),
-            _ => None,
+            let mut schedule = schedule.clone();
+            schedule["paymentTerms"] = payment_terms;
+            return Some(schedule);
         }
+        None
+    }
+
+    fn payment_reminder_owner_id_for_terms(&self, terms_id: &str) -> Option<String> {
+        self.store.staged.payment_terms_owner_index.iter().find_map(
+            |(owner_id, staged_terms_id)| (staged_terms_id == terms_id).then(|| owner_id.clone()),
+        )
     }
 
     fn hydrate_payment_reminder_schedule(
@@ -332,6 +364,17 @@ fn payment_reminder_rate_limit_payload() -> Value {
 
 fn payment_reminder_payload_is_success(payload: &Value) -> bool {
     payload.get("success").and_then(Value::as_bool) == Some(true)
+}
+
+fn payment_reminder_rate_limit_key(schedule_id: &str, schedule: &Value) -> String {
+    schedule
+        .get("paymentTerms")
+        .and_then(|terms| terms.get("order"))
+        .filter(|order| !order.is_null())
+        .and_then(|order| order.get("id"))
+        .and_then(Value::as_str)
+        .map(|order_id| format!("order:{order_id}"))
+        .unwrap_or_else(|| schedule_id.to_string())
 }
 
 fn payment_reminder_email_is_blank(value: &Value) -> bool {

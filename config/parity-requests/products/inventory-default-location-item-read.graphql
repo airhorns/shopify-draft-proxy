@@ -1,0 +1,21 @@
+query InventoryDefaultLocationItemRead($item: ID!) {
+  inventoryItem(id: $item) {
+    id
+    variant {
+      id
+      inventoryQuantity
+    }
+    inventoryLevels(first: 10) {
+      nodes {
+        location {
+          id
+          name
+        }
+        quantities(names: ["available", "on_hand"]) {
+          name
+          quantity
+        }
+      }
+    }
+  }
+}
