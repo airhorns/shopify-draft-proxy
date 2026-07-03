@@ -92,7 +92,7 @@ fn create_product_for_relationship_test(
                 nodes { id }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
