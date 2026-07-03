@@ -3751,7 +3751,12 @@ fn customer_address_input_node(
     let city = field_value("city");
     let company = field_value("company");
     let zip = field_value("zip");
-    let phone = field_value("phone");
+    let phone = if input.contains_key("phone") {
+        customer_address_string(input, "phone")
+            .map(|phone| normalize_customer_address_phone(&phone).unwrap_or(phone))
+    } else {
+        field_value("phone")
+    };
     (
         Some(customer_address_node_json(CustomerAddressNodeFields {
             id: id.to_string(),
@@ -3768,6 +3773,57 @@ fn customer_address_input_node(
         })),
         Vec::new(),
     )
+}
+
+fn normalize_customer_address_phone(raw: &str) -> Option<String> {
+    const CALLING_CODE: &str = "1";
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let starts_with_plus = trimmed.starts_with('+') || trimmed.starts_with('\u{FF0B}');
+    if !starts_with_plus && trimmed.chars().any(|c| c == '+' || c == '\u{FF0B}') {
+        return None;
+    }
+    let supported = |c: char| {
+        c.is_ascii_digit()
+            || matches!(
+                c,
+                '+' | '\u{FF0B}'
+                    | ' '
+                    | '\t'
+                    | '\n'
+                    | '\r'
+                    | '('
+                    | ')'
+                    | '-'
+                    | '.'
+                    | '\u{2010}'
+                    | '\u{2011}'
+                    | '\u{2012}'
+                    | '\u{2013}'
+                    | '\u{2014}'
+                    | '\u{00A0}'
+            )
+    };
+    if !trimmed.chars().all(supported) {
+        return None;
+    }
+    let digits = trimmed
+        .chars()
+        .filter(char::is_ascii_digit)
+        .collect::<String>();
+    let e164_digits = if starts_with_plus || (digits.starts_with(CALLING_CODE) && digits.len() > 10)
+    {
+        digits
+    } else {
+        format!("{CALLING_CODE}{digits}")
+    };
+    if (8..=15).contains(&e164_digits.len()) {
+        Some(format!("+{e164_digits}"))
+    } else {
+        None
+    }
 }
 
 #[derive(Clone)]
