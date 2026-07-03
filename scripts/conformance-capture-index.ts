@@ -1338,6 +1338,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}productPublish-input-validation.json`,
       'config/parity-specs/products/productPublish-input-validation.json',
+      'config/parity-specs/products/productPublish-non-sentinel-input-validation.json',
       'config/parity-requests/products/productPublish-input-validation.graphql',
     ],
     cleanupBehavior:
