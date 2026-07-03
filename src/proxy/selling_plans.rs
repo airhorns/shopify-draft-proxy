@@ -767,6 +767,7 @@ impl DraftProxy {
                 Some(json!(applies))
             }
             "products" => {
+                let shop_currency_code = self.store.shop_currency_code();
                 let products = group
                     .product_ids
                     .iter()
@@ -776,7 +777,9 @@ impl DraftProxy {
                     &products,
                     &selection.arguments,
                     &selection.selection,
-                    |product, selections| product_json_with_currency(product, selections, "USD"),
+                    |product, selections| {
+                        product_json_with_currency(product, selections, &shop_currency_code)
+                    },
                     |product| product.id.clone(),
                 ))
             }

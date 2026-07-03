@@ -143,9 +143,9 @@ async function cleanupCompany(id: string): Promise<unknown> {
 try {
   const noRoleCustomerCreate = await runOperation(customerCreateDocument, {
     input: {
-      email: `${runKey}-no-role@example.com`,
-      firstName: 'Order Customer',
-      lastName: 'No Role',
+      email: `buyer-alpha-${capture.stamp}@example.com`,
+      firstName: 'Avery',
+      lastName: 'Atlas',
     },
   });
   assertNoUserErrors(noRoleCustomerCreate, 'customerCreate', 'no-role customerCreate');
@@ -157,9 +157,9 @@ try {
 
   const removableCustomerCreate = await runOperation(customerCreateDocument, {
     input: {
-      email: `sdp-${runKey}-cancelled-remove@example.com`,
-      firstName: 'Order Customer',
-      lastName: 'Cancelled Remove',
+      email: `buyer-beta-${capture.stamp}@example.com`,
+      firstName: 'Blair',
+      lastName: 'Benton',
     },
   });
   assertNoUserErrors(removableCustomerCreate, 'customerCreate', 'removable customerCreate');
@@ -172,18 +172,18 @@ try {
   const companyCreate = await runOperation(companyCreateDocument, {
     input: {
       company: {
-        name: `Order customer error paths ${capture.stamp}`,
-        note: 'Order customer error-path conformance setup',
+        name: `Atlas Procurement ${capture.stamp}`,
+        note: 'Varied order-customer error-path conformance setup',
         externalId: runKey,
       },
       companyContact: {
-        firstName: 'Order',
-        lastName: 'Buyer',
-        email: `${runKey}-main@example.com`,
+        firstName: 'Casey',
+        lastName: 'Contact',
+        email: `atlas-procurement-${capture.stamp}-main@example.com`,
         title: 'Buyer',
       },
       companyLocation: {
-        name: `Order customer error paths HQ ${capture.stamp}`,
+        name: `Atlas Procurement HQ ${capture.stamp}`,
         billingAddress: {
           address1: '1 Error Path Way',
           city: 'Ottawa',
@@ -214,7 +214,7 @@ try {
 
   const happyOrderCreate = await runOperation(orderCreateDocument, {
     order: {
-      email: `${runKey}-happy@example.com`,
+      email: `customer-set-happy-${capture.stamp}@example.com`,
       test: true,
       currency: 'USD',
       financialStatus: 'PENDING',
@@ -288,7 +288,7 @@ try {
 
   const b2bDraftOrderCreate = await runOperation(b2bDraftOrderCreateDocument, {
     input: {
-      email: `${runKey}-b2b-order@example.com`,
+      email: `b2b-purchase-${capture.stamp}@example.com`,
       purchasingEntity: {
         purchasingCompany: {
           companyId,
@@ -359,7 +359,7 @@ try {
 
   const cancelledOrderCreate = await runOperation(orderCreateDocument, {
     order: {
-      email: `${runKey}-cancelled@example.com`,
+      email: `customer-set-cancelled-${capture.stamp}@example.com`,
       test: true,
       currency: 'USD',
       financialStatus: 'PENDING',

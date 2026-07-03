@@ -1,0 +1,12 @@
+mutation MediaFileUpdateInlineMissingIdCoercion {
+  fileUpdate(files: [{ alt: "new alt" }]) {
+    files {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -6,14 +6,6 @@ mutation SegmentPayloadNonNullFieldsUpdate($id: ID!, $name: String, $query: Stri
       query
       creationDate
       lastEditDate
-      tagMigrated
-      valid
-      percentageSnapshot
-      percentageSnapshotUpdatedAt
-      translation
-      author {
-        name
-      }
     }
     userErrors {
       field

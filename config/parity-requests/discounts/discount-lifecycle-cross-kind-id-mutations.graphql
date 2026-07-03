@@ -1,0 +1,82 @@
+mutation DiscountLifecycleCrossKindMutations(
+  $codeRootAutomaticId: ID!
+  $automaticRootCodeId: ID!
+  $rejectedCode: String!
+) {
+  codeDeleteAutomatic: discountCodeDelete(id: $codeRootAutomaticId) {
+    deletedCodeDiscountId
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticDeleteCode: discountAutomaticDelete(id: $automaticRootCodeId) {
+    deletedAutomaticDiscountId
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeActivateAutomatic: discountCodeActivate(id: $codeRootAutomaticId) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticActivateCode: discountAutomaticActivate(id: $automaticRootCodeId) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeDeactivateAutomatic: discountCodeDeactivate(id: $codeRootAutomaticId) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticDeactivateCode: discountAutomaticDeactivate(id: $automaticRootCodeId) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  bulkAddAutomatic: discountRedeemCodeBulkAdd(discountId: $codeRootAutomaticId, codes: [{ code: $rejectedCode }]) {
+    bulkCreation {
+      done
+      codesCount
+      importedCount
+      failedCount
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

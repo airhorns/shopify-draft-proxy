@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/definition-create-field-validations.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metaobjects/definition-create-field-validations.graphql",
     "variablesCapturePath": "$.reservedHandle.request.variables",
@@ -59,6 +59,77 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/metaobjects/definition-create-field-validations.graphql",
           "variablesCapturePath": "$.unsupportedListFieldType.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "valid-jurisdiction-field-type",
+        "capturePath": "$.validJurisdiction.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-create-field-validations.graphql",
+          "variablesCapturePath": "$.validJurisdiction.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returns the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "valid-list-jurisdiction-field-type",
+        "capturePath": "$.validListJurisdiction.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-create-field-validations.graphql",
+          "variablesCapturePath": "$.validListJurisdiction.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returns the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "valid-product-taxonomy-disclosure-reference-field-type",
+        "capturePath": "$.validProductTaxonomyDisclosureReference.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-create-field-validations.graphql",
+          "variablesCapturePath": "$.validProductTaxonomyDisclosureReference.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returns the live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "standard-only-disclosure-reference-field-type",
+        "capturePath": "$.standardOnlyDisclosureReference.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-create-field-validations.graphql",
+          "variablesCapturePath": "$.standardOnlyDisclosureReference.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "standard-only-list-disclosure-reference-field-type",
+        "capturePath": "$.standardOnlyListDisclosureReference.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/definition-create-field-validations.graphql",
+          "variablesCapturePath": "$.standardOnlyListDisclosureReference.request.variables",
           "apiVersion": "2026-04"
         }
       },

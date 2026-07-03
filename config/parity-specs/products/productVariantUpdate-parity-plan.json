@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-update-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-variants-bulk-update-parity.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/productVariantCompatibility-setup-product.graphql",
@@ -43,6 +43,15 @@
               "price": "12.00",
               "compareAtPrice": "15.00",
               "taxable": false,
+              "taxCode": "P0000000",
+              "requiresComponents": true,
+              "showUnitPrice": true,
+              "unitPriceMeasurement": {
+                "quantityValue": 1.5,
+                "quantityUnit": "L",
+                "referenceValue": 1,
+                "referenceUnit": "L"
+              },
               "inventoryPolicy": "CONTINUE",
               "inventoryQuantity": 0,
               "selectedOptions": [
@@ -53,13 +62,22 @@
               ],
               "inventoryItem": {
                 "tracked": false,
-                "requiresShipping": false
+                "requiresShipping": false,
+                "countryCodeOfOrigin": "US",
+                "provinceCodeOfOrigin": "CA",
+                "harmonizedSystemCode": "1234.56",
+                "measurement": {
+                  "weight": {
+                    "value": 0.5,
+                    "unit": "KILOGRAMS"
+                  }
+                }
               }
             }
           }
         },
         "proxyPath": "$.data.productVariantCreate.productVariant",
-        "excludedPaths": ["$.taxable", "$.inventoryItem.tracked", "$.inventoryItem.requiresShipping"],
+        "excludedPaths": ["$.inventoryItem.tracked", "$.metafield", "$.position"],
         "expectedDifferences": [
           {
             "path": "$.id",
@@ -115,11 +133,22 @@
                 "path": "$.data.productVariantCreate.productVariant.id"
               },
               "title": "Red",
-              "sku": "HERMES-BULK-810153-RED",
+              "sku": {
+                "fromCapturePath": "$.mutation.variables.variants[0].inventoryItem.sku"
+              },
               "barcode": "1111111111111",
               "price": "24.00",
               "compareAtPrice": "30.00",
-              "taxable": true,
+              "taxable": false,
+              "taxCode": "P0000000",
+              "requiresComponents": true,
+              "showUnitPrice": true,
+              "unitPriceMeasurement": {
+                "quantityValue": 1.5,
+                "quantityUnit": "L",
+                "referenceValue": 1,
+                "referenceUnit": "L"
+              },
               "inventoryPolicy": "DENY",
               "inventoryQuantity": 0,
               "selectedOptions": [
@@ -130,12 +159,22 @@
               ],
               "inventoryItem": {
                 "tracked": true,
-                "requiresShipping": true
+                "requiresShipping": false,
+                "countryCodeOfOrigin": "US",
+                "provinceCodeOfOrigin": "CA",
+                "harmonizedSystemCode": "1234.56",
+                "measurement": {
+                  "weight": {
+                    "value": 0.5,
+                    "unit": "KILOGRAMS"
+                  }
+                }
               }
             }
           }
         },
         "proxyPath": "$.data.productVariantUpdate.productVariant",
+        "excludedPaths": ["$.metafield", "$.position"],
         "expectedDifferences": [
           {
             "path": "$.id",
@@ -161,11 +200,22 @@
                 "path": "$.data.productVariantCreate.productVariant.id"
               },
               "title": "Red",
-              "sku": "HERMES-BULK-810153-RED",
+              "sku": {
+                "fromCapturePath": "$.mutation.variables.variants[0].inventoryItem.sku"
+              },
               "barcode": "1111111111111",
               "price": "24.00",
               "compareAtPrice": "30.00",
-              "taxable": true,
+              "taxable": false,
+              "taxCode": "P0000000",
+              "requiresComponents": true,
+              "showUnitPrice": true,
+              "unitPriceMeasurement": {
+                "quantityValue": 1.5,
+                "quantityUnit": "L",
+                "referenceValue": 1,
+                "referenceUnit": "L"
+              },
               "inventoryPolicy": "DENY",
               "inventoryQuantity": 0,
               "selectedOptions": [
@@ -176,12 +226,22 @@
               ],
               "inventoryItem": {
                 "tracked": true,
-                "requiresShipping": true
+                "requiresShipping": false,
+                "countryCodeOfOrigin": "US",
+                "provinceCodeOfOrigin": "CA",
+                "harmonizedSystemCode": "1234.56",
+                "measurement": {
+                  "weight": {
+                    "value": 0.5,
+                    "unit": "KILOGRAMS"
+                  }
+                }
               }
             }
           }
         },
         "proxyPath": "$.data.productVariantUpdate.product",
+        "excludedPaths": ["$.variants.nodes[*].position"],
         "expectedDifferences": [
           {
             "path": "$.id",
@@ -212,11 +272,22 @@
                 "path": "$.data.productVariantCreate.productVariant.id"
               },
               "title": "Red",
-              "sku": "HERMES-BULK-810153-RED",
+              "sku": {
+                "fromCapturePath": "$.mutation.variables.variants[0].inventoryItem.sku"
+              },
               "barcode": "1111111111111",
               "price": "24.00",
               "compareAtPrice": "30.00",
-              "taxable": true,
+              "taxable": false,
+              "taxCode": "P0000000",
+              "requiresComponents": true,
+              "showUnitPrice": true,
+              "unitPriceMeasurement": {
+                "quantityValue": 1.5,
+                "quantityUnit": "L",
+                "referenceValue": 1,
+                "referenceUnit": "L"
+              },
               "inventoryPolicy": "DENY",
               "inventoryQuantity": 0,
               "selectedOptions": [
@@ -227,7 +298,16 @@
               ],
               "inventoryItem": {
                 "tracked": true,
-                "requiresShipping": true
+                "requiresShipping": false,
+                "countryCodeOfOrigin": "US",
+                "provinceCodeOfOrigin": "CA",
+                "harmonizedSystemCode": "1234.56",
+                "measurement": {
+                  "weight": {
+                    "value": 0.5,
+                    "unit": "KILOGRAMS"
+                  }
+                }
               }
             }
           }
@@ -244,11 +324,14 @@
               "fromProxyResponse": "updated-variant",
               "path": "$.data.productVariantUpdate.product.id"
             },
-            "query": "sku:HERMES-BULK-810153-RED"
+            "query": {
+              "fromCapturePath": "$.downstreamRead.requestVariables.query"
+            }
           }
         },
         "upstreamCapturePath": null,
         "proxyPath": "$.data",
+        "excludedPaths": ["$.product.variants.nodes[*].metafield", "$.product.variants.nodes[*].position"],
         "expectedDifferences": [
           {
             "path": "$.product.id",

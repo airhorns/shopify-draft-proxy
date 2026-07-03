@@ -7,6 +7,10 @@ mutation ProductSetParityPlan($identifier: ProductSetIdentifiers, $input: Produc
       status
       vendor
       productType
+      category {
+        id
+        fullName
+      }
       tags
       totalInventory
       options {

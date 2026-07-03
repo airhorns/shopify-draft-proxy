@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject_handle_validation.json"
   ],
-  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metaobjects/metaobject_handle_validation_definition_create.graphql",
     "variablesCapturePath": "$.definitionCreate.request.variables",
@@ -37,11 +37,6 @@
         "name": "create-invalid",
         "capturePath": "$.invalidCreateCases.invalid.response.data",
         "proxyPath": "$.data",
-        "selectedPaths": [
-          "$.metaobjectCreate.metaobject",
-          "$.metaobjectCreate.userErrors[*].field",
-          "$.metaobjectCreate.userErrors[*].code"
-        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/metaobjects/metaobject_handle_validation_create.graphql",
           "variablesCapturePath": "$.invalidCreateCases.invalid.request.variables",
@@ -75,11 +70,6 @@
         "name": "upsert-invalid",
         "capturePath": "$.invalidUpsertCases.invalid.response.data",
         "proxyPath": "$.data",
-        "selectedPaths": [
-          "$.metaobjectUpsert.metaobject",
-          "$.metaobjectUpsert.userErrors[*].field",
-          "$.metaobjectUpsert.userErrors[*].code"
-        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/metaobjects/metaobject_handle_validation_upsert.graphql",
           "variablesCapturePath": "$.invalidUpsertCases.invalid.request.variables",
@@ -90,11 +80,6 @@
         "name": "create-too-long",
         "capturePath": "$.invalidCreateCases.too-long.response.data",
         "proxyPath": "$.data",
-        "selectedPaths": [
-          "$.metaobjectCreate.metaobject",
-          "$.metaobjectCreate.userErrors[*].field",
-          "$.metaobjectCreate.userErrors[*].code"
-        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/metaobjects/metaobject_handle_validation_create.graphql",
           "variablesCapturePath": "$.invalidCreateCases.too-long.request.variables",
@@ -128,11 +113,6 @@
         "name": "upsert-too-long",
         "capturePath": "$.invalidUpsertCases.too-long.response.data",
         "proxyPath": "$.data",
-        "selectedPaths": [
-          "$.metaobjectUpsert.metaobject",
-          "$.metaobjectUpsert.userErrors[*].field",
-          "$.metaobjectUpsert.userErrors[*].code"
-        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/metaobjects/metaobject_handle_validation_upsert.graphql",
           "variablesCapturePath": "$.invalidUpsertCases.too-long.request.variables",

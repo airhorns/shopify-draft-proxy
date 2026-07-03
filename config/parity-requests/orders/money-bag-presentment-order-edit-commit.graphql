@@ -12,7 +12,6 @@ mutation MoneyBagPresentmentOrderEditCommit($id: ID!) {
         }
       }
     }
-    successMessages
     userErrors {
       field
       message

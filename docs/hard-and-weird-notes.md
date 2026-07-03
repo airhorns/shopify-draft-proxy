@@ -100,6 +100,9 @@ The same capture showed that schema-current `priceListFixedPricesUpdate` uses
 the `pricesToAdd` argument name and creates a fixed row when the variant does
 not already have one. `priceListFixedPricesDelete` is the branch that rejects a
 known variant without a fixed row, with `PRICE_NOT_FIXED` at `variantIds[i]`.
+For fixed-price add/update rows that have both a missing `variantId` and a
+price-list currency mismatch, Shopify reports only `VARIANT_NOT_FOUND` for that
+row and skips the currency validation for the same index.
 The checked-in anchor is the
 `price-list-fixed-prices-*-*.json` Markets parity set backed by
 `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-fixed-prices-validation.json`.
@@ -313,17 +316,17 @@ require validation before staging: blank group ID lists, duplicate IDs within on
 request, too many post-join memberships, and leave requests for groups that are
 not direct members should all return payload `userErrors` without changing local
 membership state. The local runtime models that guard contract and covers it with
-`config/parity-specs/products/productJoinLeaveSellingPlanGroups-validation.json`
-plus focused product mutation tests.
+focused product mutation tests, but no checked-in products parity fixture is
+retained for those divergent local-only branches.
 
 A live public Admin probe against `harry-test-heelo.myshopify.com` on 2025-01,
 2026-04, and `unstable` did not expose the same branches: duplicate joins,
 leave-non-member requests, and 32-group joins returned empty `userErrors`, and
 the public `SellingPlanGroupUserErrorCode` enum lacked `DUPLICATE`,
-`NOT_A_MEMBER`, and `SELLING_PLAN_GROUPS_TOO_MANY`. Treat the checked-in
-local-runtime parity fixture as the current internal guardrail contract, and
-re-capture against a target that reproduces the internal package behavior before
-changing those codes/messages or replacing the fixture with live evidence.
+`NOT_A_MEMBER`, and `SELLING_PLAN_GROUPS_TOO_MANY`. Treat the Rust integration
+coverage as the current internal guardrail contract, and re-capture against a
+target that reproduces the internal package behavior before changing those
+codes/messages or adding parity evidence.
 
 ## Current: Selling-plan group lower-bound validation is create-specific, but update deletes can still reject the final plan
 
@@ -860,8 +863,8 @@ After the initial orders-domain creation scaffolding landed, the next easy mista
   - `email`, `phone`, `poNumber`, `shippingAddress`, `customAttributes`, and order-scoped `metafields`
   - downstream `order(id:)` reads expose the staged values, including `customer.email` when the input updates `email`
   - `billingAddress` is intentionally not part of that local `orderUpdate` slice because the current `OrderInput` docs do not expose it
-  - executable local-runtime parity: `config/parity-specs/orders/orderUpdate-snapshot-staging.json` replays public `orderCreate -> orderUpdate -> order(id:) / orders / ordersCount` requests without seeding internal proxy state
-  - expanded live parity is captured for `email`, `poNumber`, `note`, `tags`, `customAttributes`, `shippingAddress`, and order-scoped `metafields` in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json`; `phone` remains local-runtime backed because Shopify 2025-01 rejected it as an `OrderInput` field in that capture path
+  - executable parity: `config/parity-specs/orders/orderUpdate-snapshot-staging.json` replays public `orderCreate -> orderUpdate -> order(id:) / orders / ordersCount` requests against the live 2026-04 fixture without seeding internal proxy state
+  - expanded live parity is captured for `email`, `poNumber`, `note`, `tags`, `customAttributes`, `shippingAddress`, and order-scoped `metafields` in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json`; `phone` remains runtime-test-backed because Shopify 2025-01 rejected it as an `OrderInput` field in that capture path
 - a later 2026-04 localization capture exposed several easy-to-miss `orderUpdate` details:
   - `localizedFields` and deprecated `localizationExtensions` both read back from the same localized-order record set; updating either connection makes the key visible through both `Order.localizedFields` and `Order.localizationExtensions`
   - Brazilian credential values are validated for real CPF/CNPJ shape; arbitrary 11-digit strings can fail with `Localization extension: 'value' provided is invalid`
@@ -1205,8 +1208,8 @@ Practical rule:
 - Shopify's live `CustomerSortKeys` enum on this host is `CREATED_AT`, `ID`, `LOCATION`, `NAME`, `RELEVANCE`, and `UPDATED_AT` — not the earlier guessed `DISPLAY_NAME` key. For deterministic local replay, treat `NAME` as a last-name/first-name sort and `LOCATION` as a tuple over `country`, `province`, then `city`; live cursors encoded those sort tuples directly in their opaque payloads
 - `RELEVANCE` is still different from the deterministic customer sort keys because live cursors embed query-scored numeric last-values rather than simple field tuples. The useful local move was not to invent a fake deterministic scorer, but to preserve exact hydrated Shopify search order/cursors/pageInfo for captured relevance queries and replay that baseline when the same `query` + `sortKey: RELEVANCE` slice is requested again.
 - on the current host's broad-text relevance slice (`customers(query: "egnition", sortKey: RELEVANCE)`), the captured cursor `last_value` stayed `1.0` across the first page even while order/cursors remained opaque Shopify search artifacts, which is another reason not to overfit local replay to guessed numeric scoring semantics
-- `customersCount(query:)` is **not** safely assumed to share the richer `customers(query:)` grammar: in the live `customers-count.json` fixture on this host, both `email:grace@example.com` and `state:DISABLED` returned exact total counts plus Shopify `invalid_field` warnings instead of filtered customer counts
-- practical rule: keep `customersCount` conservative and evidence-driven. Until broader count-query conformance is captured, prefer a no-op count-query model over reusing the list-search parser and inventing unsupported count filtering semantics
+- `customersCount(query:)` is **not** safely assumed to share the richer live `customers(query:)` grammar: in the live `customers-count.json` fixture on this host, both `email:grace@example.com` and `state:DISABLED` returned exact total counts plus Shopify `invalid_field` warnings instead of filtered customer counts
+- practical rule: keep live/captured `customersCount` conservative and evidence-driven. For locally staged overlay reads, use the same narrow staged predicate as `customers(query:)` so read-after-write count and list semantics do not diverge; do not expand that into broader Shopify count-query grammar without new conformance evidence
 - the same `customers-count.json` fixture also carries Shopify `extensions.search[]` warning metadata for those invalid `email:` / `state:` count queries; when replaying the captured count slice locally, preserve that warning metadata instead of returning only the count payload
 - richer customer read capture on this host exposed two additional field-shape quirks worth preserving in the normalized model: `legacyResourceId` arrived string-shaped in the live fixtures, and `defaultPhoneNumber.phoneNumber` already came back masked (for example `+291****0123`) rather than as a raw full phone value
 - `defaultAddress` proved worth carrying as its own nested slice (`address1`, `city`, `province`, `country`, `zip`, `formattedArea`) instead of flattening those fields into top-level customer state, because the catalog/detail/search fixtures all requested the same nested address payload
@@ -3091,10 +3094,11 @@ Capture prerequisites and safety constraints:
 - A 2026-04 live capture for `paymentTermsCreate` and `paymentTermsUpdate` multiple `paymentSchedules` shows the internal base-scoped error also serializes as `field: null`. Both roots use the exact message `Cannot create payment terms with multiple payment schedules.`, with create/update-specific unsuccessful codes.
 - A 2026-07-02 salvage capture restored the old payment-terms create-on-order, update-missing, delete-owner-cascade, and paymentReminderSend payload-shape parity scenarios as live Shopify recordings rather than local-runtime evidence. The standalone missing `paymentTermsUpdate` branch now matches live Shopify's `field: null`, `message: "Could not find payment terms."`, and `PAYMENT_TERMS_UPDATE_UNSUCCESSFUL` payload.
 - customer payment method live captures remain blocked on `read_customer_payment_methods` / `write_customer_payment_methods` even though `read_customers`, `write_customers`, and `write_orders` are present. The checked-in conformance app config now requests the missing customer-payment-method scopes, but an unattended `corepack pnpm exec shopify app deploy --allow-updates` attempt on 2026-07-02 stopped at interactive Shopify device-code login. The refreshed `customer-payment-method-access-probe` fixture records the active token still lacks both scopes: `customerPaymentMethod(id:)` returns `ACCESS_DENIED` requiring `read_customer_payment_methods`, and `customerPaymentMethodRemoteCreate` returns `ACCESS_DENIED` requiring `write_customer_payment_methods`. Root introspection confirms the HAR-365 mutations exist on the configured Admin API, but live success paths still need a reauthorized token, isolated test payment methods, and no-recipient/customer-safe email coverage before real captures can be checked in.
-- HAR-365 local runtime support stages customer payment-method writes without runtime Shopify calls: credit-card and PayPal roots store scrubbed instrument shells, remote create stores an incomplete `instrument: null` method, duplication uses a non-secret proxy token, update-url returns a non-deliverable `shopify-draft-proxy.local` URL, revoke blocks methods with local subscription-contract links, marks contract-free active methods with `CUSTOMER_REVOKED`, treats already-revoked methods idempotently, and payment reminders record a local intent only.
+- HAR-365 local runtime support stages customer payment-method writes without runtime Shopify calls: credit-card and PayPal roots store scrubbed instrument shells, remote create stores an incomplete `instrument: null` method, duplication uses a non-secret proxy token, update-url returns a non-deliverable `shopify-draft-proxy.local` URL, revoke blocks methods with local subscription-contract links, marks contract-free active methods with `CUSTOMER_REVOKED`, treats already-revoked methods idempotently, and payment reminders record local intent only after resolving a staged or hydrated payment schedule from the payment-terms graph.
 - Duplication data and update URLs must remain local/synthetic in runtime support; do not fetch real encrypted duplication data or expiring customer payment update links unless recording an intentional scrubbed conformance fixture with suitable scopes and cleanup.
 - Revoked payment methods must stay hidden from root and customer-owned lookups unless `showRevoked: true` is supplied. `customerPaymentMethodSendUpdateEmail` and `paymentReminderSend` are locally buffered/staged customer-visible side effects; the runtime must not deliver customer email upstream outside explicit commit replay.
 - HAR-915 live schema probes for `orderCapture` on `2025-01`, `2025-04`, supported public versions `2025-07`, `2025-10`, `2026-01`, `2026-04`, and `unstable` all exposed `OrderCapturePayload.userErrors` as plain `UserError` with only `field` and `message`; `OrderCaptureUserError` was absent and selecting `code` failed schema validation. Keep public order-capture parity on the public shape, and keep the draft proxy's local/internal code-bearing validation contract in runtime tests unless a future captured schema proves a public/private code field.
+- Captured public `orderCapture` evidence for a manual-gateway authorization rejects any boolean `finalCapture` argument before staging a capture. The public shape is `transaction: null` plus `userErrors: [{ field: null, message: "Setting final capture is not supported for this transaction's payment gateway. Please remove the parameter or set it to null, then try again." }]`. Omitted `finalCapture` and explicit `null` are ordinary capture inputs; the separate Shopify Payments/non-multi-capturable `finalCapture: false` message should not be modeled until a Shopify Payments authorization lifecycle is captured.
 - order payment captures and voids require order write scopes plus merchant permissions (`capture_payments_for_orders` for capture and cancel-order permission for void) and an isolated authorized transaction because successful paths capture or void real payment authorization
 - mandate payment requires `write_payment_mandate`, `pay_orders_by_vaulted_card` permission, mandate-backed schedule data, idempotency-key coverage, and Shopify Plus coverage for amount-specific branches
 - payment terms template reads are captured and locally modeled as a catalog; payment terms lifecycle writes are locally staged for existing order/draft-order graph records and backed by executable parity against a disposable draft-order lifecycle fixture because the real mutations change due dates and payment status
@@ -3164,6 +3168,7 @@ Captured facts:
 - duplicate `customerAddressCreate` returns payload `userErrors[{ field: ["address"], message: "Address already exists" }]`
 - deleting the default address promotes the remaining address to `Customer.defaultAddress`; omitted/null `setAsDefault` does not replace an existing default
 - the bounded maximum-address probe successfully created 105 addresses without a Shopify failure, so local staging should not enforce a lower artificial limit
+- address phone normalization is best-effort and deliberately ignores the address country: a formatted international value with a leading `+` is compacted to E.164, digit-shaped no-`+` values such as `(613) 450-4538` and `450-4538` normalize through the captured shop calling-code path, and unparseable values such as `613` or `not a phone` stay raw
 
 Practical rule:
 
@@ -3965,3 +3970,17 @@ Practical rule:
 - keep restored media parity request documents on public fields only, and use
   reverse-order immediate reads when the scenario needs the newly created file
   without relying on full file-search semantics.
+
+## 93. `bulkOperationRunMutation` rejects empty staged uploads before throttling
+
+Admin GraphQL 2026-04 rejects a zero-byte `BULK_MUTATION_VARIABLES` staged
+upload before creating a mutation bulk operation. The payload is
+`bulkOperation: null` with one userError at `field: null`, message
+`The input file is empty.`, and code `INVALID_STAGED_UPLOAD_FILE`.
+
+Practical rule:
+
+- treat resolved staged-upload size `0` as a file validation error before
+  same-type `OPERATION_IN_PROGRESS` throttling
+- keep the oversized and empty-file messages distinct even though both use
+  `INVALID_STAGED_UPLOAD_FILE`

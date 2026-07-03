@@ -7,23 +7,84 @@ const APP_UNINSTALL_APP_NOT_FOUND_MESSAGE: &str = "App not found";
 const APP_UNINSTALL_APP_NOT_INSTALLED_MESSAGE: &str = "App is not installed on shop";
 
 impl DraftProxy {
+    pub(in crate::proxy) fn observe_current_app_installation_response(
+        &mut self,
+        request: &Request,
+        response: &Response,
+    ) {
+        let Some(observed) = response.body.pointer("/data/currentAppInstallation") else {
+            return;
+        };
+        if !observed.is_object() {
+            return;
+        }
+        let request_record = current_app_installation_from_request(request);
+        let request_app_id =
+            app_id_from_installation(&request_record).unwrap_or_else(|| request_app_gid(request));
+        let observed_app_id =
+            app_id_from_installation(observed).unwrap_or_else(|| request_app_id.clone());
+        let base = self
+            .store
+            .staged
+            .installed_apps
+            .get(&observed_app_id)
+            .cloned()
+            .unwrap_or(request_record);
+        let merged = merge_app_installation_json(&base, observed);
+        let app_id = app_id_from_installation(&merged).unwrap_or(observed_app_id);
+        self.store.staged.installed_apps.insert(app_id, merged);
+    }
+
+    fn ensure_current_app_installation(&mut self, request: &Request) -> String {
+        let app_id = request_app_gid(request);
+        self.store
+            .staged
+            .installed_apps
+            .entry(app_id.clone())
+            .or_insert_with(|| current_app_installation_from_request(request));
+        app_id
+    }
+
+    fn app_installation_for_app(&self, app_id: &str) -> Option<&Value> {
+        self.store.staged.installed_apps.get(app_id)
+    }
+
+    fn revoked_access_scopes_for_app(&self, app_id: &str) -> BTreeSet<String> {
+        self.store
+            .staged
+            .revoked_app_access_scopes
+            .get(app_id)
+            .cloned()
+            .unwrap_or_default()
+    }
+
     pub(in crate::proxy) fn current_app_installation_read_data(
-        &self,
+        &mut self,
+        request: &Request,
         fields: &[RootFieldSelection],
     ) -> Value {
+        let app_id = self.ensure_current_app_installation(request);
+        let installation = self.app_installation_for_app(&app_id).cloned();
+        let revoked_access_scopes = self.revoked_access_scopes_for_app(&app_id);
         root_payload_json(fields, |field| {
             if field.name != "currentAppInstallation" {
                 return None;
             }
-            let value = if self.store.staged.app_uninstalled {
+            let value = if self.store.staged.uninstalled_app_ids.contains(&app_id) {
                 Value::Null
             } else {
-                current_app_installation_json(
-                    &self.store.staged.app_subscriptions,
-                    &self.store.staged.app_one_time_purchases,
-                    &self.store.staged.revoked_app_access_scopes,
-                    &field.selection,
-                )
+                installation
+                    .as_ref()
+                    .map(|installation| {
+                        current_app_installation_json(
+                            installation,
+                            &self.store.staged.app_subscriptions,
+                            &self.store.staged.app_one_time_purchases,
+                            &revoked_access_scopes,
+                            &field.selection,
+                        )
+                    })
+                    .unwrap_or(Value::Null)
             };
             Some(value)
         })
@@ -59,16 +120,30 @@ impl DraftProxy {
         let requested_id = resolved_object_field(&arguments, "input")
             .and_then(|input| resolved_string_field(&input, "id"));
 
-        let (app, user_errors) = match requested_id.as_deref() {
-            Some("gid://shopify/App/expected") if self.store.staged.app_uninstalled => (
-                Value::Null,
-                vec![user_error(
-                    ["id"],
-                    APP_UNINSTALL_APP_NOT_INSTALLED_MESSAGE,
-                    Some("APP_NOT_INSTALLED"),
-                )],
-            ),
-            Some(id) if id != "gid://shopify/App/expected" && id != "gid://shopify/App/2" => (
+        let current_app_id = self.ensure_current_app_installation(request);
+        let target_app_id = requested_id
+            .as_deref()
+            .map(normalize_app_gid)
+            .unwrap_or_else(|| current_app_id.clone());
+
+        let (app, user_errors) = match self.app_installation_for_app(&target_app_id).cloned() {
+            Some(_)
+                if self
+                    .store
+                    .staged
+                    .uninstalled_app_ids
+                    .contains(&target_app_id) =>
+            {
+                (
+                    Value::Null,
+                    vec![user_error(
+                        ["id"],
+                        APP_UNINSTALL_APP_NOT_INSTALLED_MESSAGE,
+                        Some("APP_NOT_INSTALLED"),
+                    )],
+                )
+            }
+            None => (
                 Value::Null,
                 vec![user_error(
                     ["id"],
@@ -76,22 +151,37 @@ impl DraftProxy {
                     Some("APP_NOT_FOUND"),
                 )],
             ),
-            _ => {
-                self.store.staged.app_uninstalled = true;
+            Some(installation) => {
+                self.store
+                    .staged
+                    .uninstalled_app_ids
+                    .insert(target_app_id.clone());
                 for subscription in self.store.staged.app_subscriptions.values_mut() {
                     if let Value::Object(fields) = subscription {
                         fields.insert("status".to_string(), json!("CANCELLED"));
                     }
                 }
-                self.store.staged.delegate_access_tokens.clear();
+                self.store
+                    .staged
+                    .delegate_access_tokens
+                    .retain(|_, record| {
+                        record
+                            .get("apiClientId")
+                            .and_then(Value::as_str)
+                            .map(normalize_app_gid)
+                            .is_none_or(|api_client_id| api_client_id != target_app_id)
+                    });
                 self.record_mutation_log_entry(
                     request,
                     query,
                     variables,
                     "appUninstall",
-                    vec!["gid://shopify/App/expected".to_string()],
+                    vec![target_app_id.clone()],
                 );
-                (local_app_json(), vec![])
+                (
+                    installation.get("app").cloned().unwrap_or(Value::Null),
+                    vec![],
+                )
             }
         };
         ok_json(json!({
@@ -116,7 +206,7 @@ impl DraftProxy {
             primary_root_response_parts(query, variables, || "appSubscriptionCreate".to_string());
         let subscription_selection =
             selected_child_selection(&payload_selection, "appSubscription").unwrap_or_default();
-        let id = LOCAL_APP_SUBSCRIPTION_ACTIVATION_ID.to_string();
+        let id = self.next_proxy_synthetic_gid("AppSubscription");
         let name =
             resolved_string_field(&arguments, "name").unwrap_or_else(|| "Local plan".to_string());
         let mut user_errors = Vec::new();
@@ -149,7 +239,7 @@ impl DraftProxy {
                 _ => None,
             })
             .unwrap_or(false);
-        let line_items = app_subscription_line_items_from_arguments(&arguments);
+        let line_items = app_subscription_line_items_from_arguments(&arguments, Vec::new());
         if app_subscription_line_item_currency_codes(&line_items).len() > 1 {
             user_errors.push(user_error(
                 ["lineItems"],
@@ -169,6 +259,12 @@ impl DraftProxy {
                 }
             }));
         }
+        let line_item_ids = line_items
+            .iter()
+            .map(|_| self.next_proxy_synthetic_gid("AppSubscriptionLineItem"))
+            .collect::<Vec<_>>();
+        let line_items = app_subscription_line_items_from_arguments(&arguments, line_item_ids);
+        let confirmation_url = app_domain_confirmation_url_from_arguments(&arguments);
         let subscription = json!({
             "__typename": "AppSubscription",
             "id": id,
@@ -176,7 +272,7 @@ impl DraftProxy {
             "status": if test { "ACTIVE" } else { "PENDING" },
             "test": test,
             "trialDays": trial_days,
-            "currentPeriodEnd": app_subscription_current_period_end(),
+            "currentPeriodEnd": app_subscription_current_period_end(trial_days),
             "lineItems": line_items
         });
         self.store
@@ -197,6 +293,7 @@ impl DraftProxy {
                     &subscription,
                     &payload_selection,
                     &subscription_selection,
+                    json!(confirmation_url),
                 )
             }
         }))
@@ -316,8 +413,13 @@ impl DraftProxy {
                 ),
                 Some(record) => {
                     let current = record["trialDays"].as_i64().unwrap_or(0);
+                    let updated_trial_days = current + days;
                     if let Value::Object(fields) = record {
-                        fields.insert("trialDays".to_string(), json!(current + days));
+                        fields.insert("trialDays".to_string(), json!(updated_trial_days));
+                        fields.insert(
+                            "currentPeriodEnd".to_string(),
+                            json!(app_subscription_current_period_end(updated_trial_days)),
+                        );
                     }
                     let updated = record.clone();
                     self.record_mutation_log_entry(
@@ -496,7 +598,12 @@ impl DraftProxy {
                     &root.selection,
                     &subscription_selection,
                     user_errors,
-                    require_approval.then(|| json!("https://app.example.test/local-confirmation")),
+                    require_approval.then(|| {
+                        json!(app_domain_confirmation_url_for_request(
+                            request,
+                            &self.config.shopify_admin_origin,
+                        ))
+                    }),
                 ),
             );
         }
@@ -561,6 +668,7 @@ impl DraftProxy {
         let mut usage_record = Value::Null;
         let mut user_errors = Vec::new();
         let mut should_record_success = false;
+        let mut created_usage_record_id = None;
         if idempotency_key.len() > 255 {
             user_errors.push(user_error(
                 ["idempotencyKey"],
@@ -578,6 +686,7 @@ impl DraftProxy {
         } else if let Some((subscription_id, line_item_index)) =
             self.find_staged_app_subscription_line_item(&line_item_id)
         {
+            let candidate_usage_record_id = self.next_proxy_synthetic_gid("AppUsageRecord");
             let subscription = self
                 .store
                 .staged
@@ -635,7 +744,7 @@ impl DraftProxy {
                 });
                 let subscription_line_item = line_item.clone();
                 usage_record = json!({
-                    "id": "gid://shopify/AppUsageRecord/expected",
+                    "id": candidate_usage_record_id,
                     "description": description,
                     "price": money_value(&amount, &currency),
                     "idempotencyKey": idempotency_key,
@@ -648,6 +757,7 @@ impl DraftProxy {
                 if let Some(records) = line_item["usageRecords"]["nodes"].as_array_mut() {
                     records.push(usage_record.clone());
                 }
+                created_usage_record_id = usage_record["id"].as_str().map(str::to_string);
                 should_record_success = true;
             }
         } else {
@@ -660,7 +770,7 @@ impl DraftProxy {
                 query,
                 variables,
                 "appUsageRecordCreate",
-                vec![line_item_id],
+                vec![created_usage_record_id.unwrap_or(line_item_id)],
             );
         }
 
@@ -698,7 +808,6 @@ impl DraftProxy {
             Some(ResolvedValue::Int(value)) => *value,
             _ => 3600,
         };
-
         let mut user_errors = Vec::new();
         if scopes.is_empty() {
             user_errors.push(user_error(
@@ -719,17 +828,33 @@ impl DraftProxy {
                 "The delegate token can't expire after the parent token.",
                 Some("EXPIRES_AFTER_PARENT"),
             ));
-        } else if let Some(scope) = scopes.iter().find(|scope| {
-            !matches!(
-                scope.as_str(),
-                "read_products" | "write_products" | "read_markets" | "write_markets"
-            )
-        }) {
-            user_errors.push(user_error(
-                Value::Null,
-                &format!("The access scope is invalid: {scope}"),
-                Some("UNKNOWN_SCOPES"),
-            ));
+        }
+        let app_id = self.ensure_current_app_installation(request);
+        let granted_scopes = self
+            .app_installation_for_app(&app_id)
+            .map(app_access_scope_handles)
+            .unwrap_or_default();
+        let legacy_default_scope = |scope: &str| {
+            self.app_installation_for_app(&app_id)
+                .and_then(|installation| installation.get("__draftProxySource"))
+                .and_then(Value::as_str)
+                == Some("default")
+                && matches!(
+                    scope,
+                    "read_products" | "write_products" | "read_markets" | "write_markets"
+                )
+        };
+        if user_errors.is_empty() {
+            if let Some(scope) = scopes
+                .iter()
+                .find(|scope| !granted_scopes.contains(*scope) && !legacy_default_scope(scope))
+            {
+                user_errors.push(user_error(
+                    Value::Null,
+                    &format!("The access scope is invalid: {scope}"),
+                    Some("UNKNOWN_SCOPES"),
+                ));
+            }
         }
 
         if !user_errors.is_empty() {
@@ -767,7 +892,6 @@ impl DraftProxy {
         );
         let parent_access_token =
             request_access_token(request).unwrap_or_else(|| "shpat_parent_default".to_string());
-        let api_client_id = request_api_client_id(request);
         let created_at = self.next_product_timestamp();
         let record = json!({
             "accessToken": token,
@@ -775,7 +899,7 @@ impl DraftProxy {
             "createdAt": created_at,
             "expiresIn": expires_in,
             "parentAccessToken": parent_access_token,
-            "apiClientId": api_client_id
+            "apiClientId": app_id
         });
         self.store
             .staged
@@ -832,7 +956,12 @@ impl DraftProxy {
                 "Access denied.",
                 "ACCESS_DENIED",
             ));
-        } else if self.store.staged.app_uninstalled {
+        } else if self
+            .store
+            .staged
+            .uninstalled_app_ids
+            .contains(&normalize_app_gid(&caller_api_client_id))
+        {
             user_errors.push(delegate_access_token_destroy_user_error(
                 "Access token does not exist.",
                 "ACCESS_TOKEN_NOT_FOUND",
@@ -842,7 +971,7 @@ impl DraftProxy {
                 .get("apiClientId")
                 .and_then(Value::as_str)
                 .unwrap_or("gid://shopify/App/local");
-            if token_api_client_id != caller_api_client_id {
+            if normalize_app_gid(token_api_client_id) != normalize_app_gid(&caller_api_client_id) {
                 user_errors.push(delegate_access_token_destroy_user_error(
                     "Access denied.",
                     "ACCESS_DENIED",
@@ -892,6 +1021,25 @@ impl DraftProxy {
             .unwrap_or_default();
 
         let mut user_errors = Vec::new();
+        let app_id = self.ensure_current_app_installation(request);
+        let installation = self.app_installation_for_app(&app_id).cloned();
+        let granted_scopes = installation
+            .as_ref()
+            .map(app_access_scope_handles)
+            .unwrap_or_default();
+        let required_scopes = installation
+            .as_ref()
+            .map(app_required_access_scope_handles)
+            .unwrap_or_default();
+        let legacy_default_scope = |scope: &str| {
+            installation
+                .as_ref()
+                .and_then(|installation| installation.get("__draftProxySource"))
+                .and_then(Value::as_str)
+                == Some("default")
+                && matches!(scope, "read_products" | "write_products")
+        };
+
         if app_revoke_access_scopes_missing_source_app(request) {
             user_errors.push(user_error(
                 ["id"],
@@ -901,14 +1049,14 @@ impl DraftProxy {
         } else {
             let has_unknown_scope = scopes
                 .iter()
-                .any(|scope| !matches!(scope.as_str(), "read_products" | "write_products"));
+                .any(|scope| !granted_scopes.contains(scope) && !legacy_default_scope(scope));
             if has_unknown_scope {
                 user_errors.push(user_error(
                     ["scopes"],
                     "The requested list of scopes to revoke includes invalid handles.",
                     Some("UNKNOWN_SCOPES"),
                 ));
-            } else if scopes.iter().any(|scope| scope == "read_products") {
+            } else if scopes.iter().any(|scope| required_scopes.contains(scope)) {
                 user_errors.push(user_error(
                     ["scopes"],
                     "Scopes that are declared as required cannot be revoked.",
@@ -922,11 +1070,18 @@ impl DraftProxy {
                 self.store
                     .staged
                     .revoked_app_access_scopes
+                    .entry(app_id.clone())
+                    .or_default()
                     .insert(scope.clone());
             }
             scopes
                 .iter()
-                .map(|scope| json!({ "handle": scope, "description": null }))
+                .map(|scope| {
+                    installation
+                        .as_ref()
+                        .map(|installation| app_access_scope_value(installation, scope))
+                        .unwrap_or_else(|| access_scope_json(scope, None))
+                })
                 .collect::<Vec<_>>()
         } else {
             Vec::new()
@@ -973,18 +1128,9 @@ impl DraftProxy {
             selected_child_selection(&payload_selection, "appPurchaseOneTime").unwrap_or_default();
 
         if !arguments.contains_key("returnUrl") {
+            let error = app_purchase_one_time_missing_return_url_error(query, variables);
             return ok_json(json!({
-                "errors": [{
-                    "message": "Field 'appPurchaseOneTimeCreate' is missing required arguments: returnUrl",
-                    "locations": [{ "line": 2, "column": 3 }],
-                    "path": ["mutation AppPurchaseOneTimeCreateValidationMissingReturnUrl", "appPurchaseOneTimeCreate"],
-                    "extensions": {
-                        "code": "missingRequiredArguments",
-                        "className": "Field",
-                        "name": "appPurchaseOneTimeCreate",
-                        "arguments": "returnUrl"
-                    }
-                }]
+                "errors": [error]
             }));
         }
 
@@ -1007,8 +1153,6 @@ impl DraftProxy {
                 "Validation failed: Price must be greater than or equal to 0.5",
                 None,
             ));
-        } else if currency_code != "USD" {
-            user_errors.push(user_error(["price"], "Currency code must be USD", None));
         }
 
         if !user_errors.is_empty() {
@@ -1019,13 +1163,16 @@ impl DraftProxy {
                         &payload_selection,
                         &purchase_selection,
                         user_errors,
+                        None,
                     )
                 }
             }));
         }
 
+        let purchase_id = self.next_proxy_synthetic_gid("AppPurchaseOneTime");
+        let confirmation_url = app_domain_confirmation_url_from_arguments(&arguments);
         let purchase = json!({
-            "id": LOCAL_APP_PURCHASE_ONE_TIME_ID,
+            "id": purchase_id,
             "name": name,
             "status": "ACTIVE",
             "test": resolved_bool_field(&arguments, "test").unwrap_or(false),
@@ -1035,13 +1182,13 @@ impl DraftProxy {
         self.store
             .staged
             .app_one_time_purchases
-            .insert(LOCAL_APP_PURCHASE_ONE_TIME_ID.to_string(), purchase.clone());
+            .insert(purchase_id.clone(), purchase.clone());
         self.record_mutation_log_entry(
             request,
             query,
             variables,
             "appPurchaseOneTimeCreate",
-            vec![LOCAL_APP_PURCHASE_ONE_TIME_ID.to_string()],
+            vec![purchase_id],
         );
 
         ok_json(json!({
@@ -1051,6 +1198,7 @@ impl DraftProxy {
                     &payload_selection,
                     &purchase_selection,
                     vec![],
+                    Some(json!(confirmation_url)),
                 )
             }
         }))
@@ -1074,6 +1222,102 @@ fn app_subscription_trial_is_active(subscription: &Value) -> bool {
         })
 }
 
+fn app_subscription_current_period_end(trial_days: i64) -> String {
+    let now = parse_rfc3339_epoch_seconds(&app_billing_validation_now_timestamp()).unwrap_or(0);
+    format_epoch_seconds_utc_millis(now + trial_days.max(0) * 86_400)
+}
+
+fn format_epoch_seconds_utc_millis(seconds: i64) -> String {
+    let days = epoch_seconds_to_utc_epoch_days(seconds);
+    let seconds_of_day = seconds.rem_euclid(86_400);
+    let (year, month, day) = civil_from_days(days);
+    let hour = seconds_of_day / 3_600;
+    let minute = seconds_of_day % 3_600 / 60;
+    let second = seconds_of_day % 60;
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.000Z")
+}
+
+fn app_domain_confirmation_url_from_arguments(
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> String {
+    resolved_string_field(arguments, "returnUrl")
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| app_confirmation_url_with_marker(&value))
+        .unwrap_or_else(|| {
+            app_confirmation_url_with_marker("shopify-draft-proxy://local-confirmation")
+        })
+}
+
+fn app_domain_confirmation_url_for_request(
+    request: &Request,
+    shopify_admin_origin: &str,
+) -> String {
+    let base = request_header(request, "x-shopify-draft-proxy-app-url")
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| shopify_admin_origin.to_string());
+    let base = app_local_confirmation_base_url(&base);
+    app_confirmation_url_with_marker(&base)
+}
+
+fn app_local_confirmation_base_url(base: &str) -> String {
+    match url::Url::parse(base) {
+        Ok(mut url) if matches!(url.path(), "" | "/") => {
+            url.set_path("/local-confirmation");
+            url.to_string()
+        }
+        _ => base.to_string(),
+    }
+}
+
+fn app_confirmation_url_with_marker(base: &str) -> String {
+    match url::Url::parse(base) {
+        Ok(mut url) => {
+            url.query_pairs_mut()
+                .append_pair("shopify_draft_proxy_confirmation", "1");
+            url.to_string()
+        }
+        Err(_) => {
+            let separator = if base.contains('?') { '&' } else { '?' };
+            format!("{base}{separator}shopify_draft_proxy_confirmation=1")
+        }
+    }
+}
+
+fn app_purchase_one_time_missing_return_url_error(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let document = parsed_document(query, variables);
+    let field = document.as_ref().and_then(|document| {
+        document
+            .root_fields
+            .iter()
+            .find(|field| field.name == "appPurchaseOneTimeCreate")
+    });
+    let location = field
+        .map(|field| field.location)
+        .unwrap_or(SourceLocation { line: 1, column: 1 });
+    let operation_path = document
+        .as_ref()
+        .map(|document| document.operation_path.clone())
+        .unwrap_or_else(|| "mutation".to_string());
+    let response_key = field
+        .map(|field| field.response_key.clone())
+        .unwrap_or_else(|| "appPurchaseOneTimeCreate".to_string());
+
+    json!({
+        "message": "Field 'appPurchaseOneTimeCreate' is missing required arguments: returnUrl",
+        "locations": [{ "line": location.line, "column": location.column }],
+        "path": [operation_path, response_key],
+        "extensions": {
+            "code": "missingRequiredArguments",
+            "className": "Field",
+            "name": "appPurchaseOneTimeCreate",
+            "arguments": "returnUrl"
+        }
+    })
+}
+
 fn delegate_expires_after_parent(request: &Request, expires_in: i64, created_at: &str) -> bool {
     let Some(parent_expires_at) =
         request_header(request, "x-shopify-draft-proxy-access-token-expires-at")
@@ -1085,25 +1329,6 @@ fn delegate_expires_after_parent(request: &Request, expires_in: i64, created_at:
         return false;
     };
     created_at + expires_in > parent_expires_at
-}
-
-fn app_subscription_current_period_end() -> String {
-    let created_at = default_product_timestamp();
-    let year = created_at
-        .get(0..4)
-        .and_then(|value| value.parse::<i32>().ok())
-        .unwrap_or(2024);
-    let month = created_at
-        .get(5..7)
-        .and_then(|value| value.parse::<u32>().ok())
-        .unwrap_or(1)
-        + 1;
-    let day = created_at
-        .get(8..10)
-        .and_then(|value| value.parse::<u32>().ok())
-        .unwrap_or(1)
-        + 6;
-    format!("{year:04}-{month:02}-{day:02}T00:00:00.000Z")
 }
 
 fn app_billing_validation_now_timestamp() -> String {

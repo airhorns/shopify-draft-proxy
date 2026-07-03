@@ -12,7 +12,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "HAR-761 executable parity coverage for companyLocationAssignStaffMembers unknown staff-member validation. The live fixture creates a disposable company location, records Shopify's per-index RESOURCE_NOT_FOUND response for an absent StaffMember ID, confirms no downstream staff assignment was created, and deletes the company. The same fixture records that staffMembers(first:) is still ACCESS_DENIED for this credential, so valid-staff partial-success assignment remains covered by focused runtime tests rather than a live staff-catalog parity target.",
   "comparison": {
     "mode": "strict-json",

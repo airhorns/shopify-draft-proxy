@@ -1,15 +1,16 @@
 {
-  "capturedAt": "2026-04-28",
+  "capturedAt": "2026-07-03T02:15:01.159Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "notes": [
-    "HAR-362 live blocker evidence for product and shop feedback mutation success capture.",
+    "Live blocker evidence for product and shop feedback mutation success capture.",
     "The configured app token can probe Shopify but lacks write_resource_feedbacks and Storefront API / Sales Channel configuration required by both feedback mutations."
   ],
   "probes": [
     {
       "name": "bulkProductResourceFeedbackCreate-access-denied",
       "operationNames": ["bulkProductResourceFeedbackCreate"],
+      "query": "#graphql\n  mutation BulkProductResourceFeedbackAccessBlocker($feedbackInput: [ProductResourceFeedbackInput!]!) {\n    bulkProductResourceFeedbackCreate(feedbackInput: $feedbackInput) {\n      feedback {\n        productId\n        state\n        messages\n        feedbackGeneratedAt\n        productUpdatedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
         "feedbackInput": [
           {
@@ -21,14 +22,15 @@
           }
         ]
       },
+      "status": 200,
       "response": {
         "errors": [
           {
             "message": "Access denied for bulkProductResourceFeedbackCreate field. Required access: `write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.",
             "locations": [
               {
-                "line": 1,
-                "column": 71
+                "line": 3,
+                "column": 5
               }
             ],
             "extensions": {
@@ -41,12 +43,24 @@
         ],
         "data": {
           "bulkProductResourceFeedbackCreate": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
         }
       }
     },
     {
       "name": "shopResourceFeedbackCreate-access-denied",
       "operationNames": ["shopResourceFeedbackCreate"],
+      "query": "#graphql\n  mutation ShopResourceFeedbackAccessBlocker($input: ResourceFeedbackCreateInput!) {\n    shopResourceFeedbackCreate(input: $input) {\n      feedback {\n        state\n        messages {\n          message\n        }\n        feedbackGeneratedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
         "input": {
           "state": "ACCEPTED",
@@ -54,14 +68,15 @@
           "messages": ["ready"]
         }
       },
+      "status": 200,
       "response": {
         "errors": [
           {
             "message": "Access denied for shopResourceFeedbackCreate field. Required access: `write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.",
             "locations": [
               {
-                "line": 1,
-                "column": 63
+                "line": 3,
+                "column": 5
               }
             ],
             "extensions": {
@@ -74,6 +89,17 @@
         ],
         "data": {
           "shopResourceFeedbackCreate": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
         }
       }
     }

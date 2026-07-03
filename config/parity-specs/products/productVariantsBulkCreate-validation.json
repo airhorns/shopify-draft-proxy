@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.captures.productCreate.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Scalar, option, and inventory validation parity for productVariantsBulkCreate. The primary request creates the local product, the first target adds matching Color/Size options, and each subsequent target replays one captured validation branch, including public-schema rejection for the legacy/internal options key, structured optionValues mutual exclusions, duplicate option tuples, the 50,000 cumulative inventoryQuantities cap, and the shop.resourceLimits.locationLimit per-variant inventory location cap. Runtime tests assert rejected branches do not stage additional variants.",
+  "notes": "Scalar, option, and inventory validation parity for productVariantsBulkCreate. The primary request creates the local product, the first target adds matching Color/Size options, and each subsequent target replays one captured validation branch, including inventoryItem.cost bounds, public-schema rejection for the legacy/internal options key, structured optionValues mutual exclusions, duplicate option tuples, the 50,000 cumulative inventoryQuantities cap, and the shop.resourceLimits.locationLimit per-variant inventory location cap. Runtime tests assert rejected branches do not stage additional variants.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -78,6 +78,30 @@
           "variables": {
             "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
             "variants": { "fromCapturePath": "$.captures.compareAtPriceTooLarge.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "inventory-item-cost-negative-user-errors",
+        "capturePath": "$.captures.inventoryItemCostNegative.result.payload.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.inventoryItemCostNegative.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "inventory-item-cost-too-large-user-errors",
+        "capturePath": "$.captures.inventoryItemCostTooLarge.result.payload.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variants": { "fromCapturePath": "$.captures.inventoryItemCostTooLarge.variables.variants" }
           }
         }
       },
