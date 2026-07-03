@@ -379,9 +379,7 @@ pub(in crate::proxy) fn public_admin_graphql_validation_response(
     variables: &BTreeMap<String, ResolvedValue>,
     api_version: Option<&str>,
 ) -> Option<Response> {
-    if api_version != Some("2025-01") {
-        return None;
-    }
+    let api_version = api_version.filter(|version| supported_admin_graphql_version(version))?;
 
     if parse_query::<&str>(query).is_err() {
         return Some(ok_json(json!({
@@ -398,7 +396,52 @@ pub(in crate::proxy) fn public_admin_graphql_validation_response(
         return Some(ok_json(json!({ "errors": errors })));
     }
 
-    product_create_argument_arity_response(&document)
+    product_create_argument_arity_response(&document, api_version)
+}
+
+fn product_create_argument_arity_response(
+    document: &ParsedDocument,
+    api_version: &str,
+) -> Option<Response> {
+    if !version_at_least(api_version, 2025, 1) {
+        return None;
+    }
+
+    if document.operation_type != OperationType::Mutation {
+        return None;
+    }
+
+    let field = document
+        .root_fields
+        .iter()
+        .find(|candidate| candidate.name == "productCreate")?;
+    let accepted_argument_count = usize::from(field.raw_arguments.contains_key("input"))
+        + usize::from(field.raw_arguments.contains_key("product"));
+    if accepted_argument_count == 1 {
+        return None;
+    }
+    let mut data = serde_json::Map::new();
+    data.insert(field.response_key.clone(), Value::Null);
+    Some(ok_json(json!({
+        "data": Value::Object(data),
+        "errors": [{
+            "message": "productCreate must include exactly one of the following arguments: input, product.",
+            "locations": [{ "line": field.location.line, "column": field.location.column }],
+            "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
+            "path": [field.response_key.clone()]
+        }],
+        "extensions": {
+            "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                }
+            }
+        }
+    })))
 }
 
 fn parse_error(query: &str) -> Value {
@@ -602,6 +645,11 @@ fn common_scalar_field_name(field_name: &str) -> bool {
             | "totalInventory"
             | "tracksInventory"
             | "inventoryQuantity"
+            | "cursor"
+            | "hasNextPage"
+            | "hasPreviousPage"
+            | "startCursor"
+            | "endCursor"
     )
 }
 
@@ -622,43 +670,6 @@ fn undefined_field_error(
             "fieldName": field_name
         }
     })
-}
-
-fn product_create_argument_arity_response(document: &ParsedDocument) -> Option<Response> {
-    if document.operation_type != OperationType::Mutation {
-        return None;
-    }
-    let field = document
-        .root_fields
-        .iter()
-        .find(|candidate| candidate.name == "productCreate")?;
-    let accepted_argument_count = usize::from(field.raw_arguments.contains_key("input"))
-        + usize::from(field.raw_arguments.contains_key("product"));
-    if accepted_argument_count == 1 {
-        return None;
-    }
-    let mut data = serde_json::Map::new();
-    data.insert(field.response_key.clone(), Value::Null);
-    Some(ok_json(json!({
-        "data": Value::Object(data),
-        "errors": [{
-            "message": "productCreate must include exactly one of the following arguments: input, product.",
-            "locations": [{ "line": field.location.line, "column": field.location.column }],
-            "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
-            "path": [field.response_key.clone()]
-        }],
-        "extensions": {
-            "cost": {
-                "requestedQueryCost": 10,
-                "actualQueryCost": 10,
-                "throttleStatus": {
-                    "maximumAvailable": 2000,
-                    "currentlyAvailable": 1990,
-                    "restoreRate": 100
-                }
-            }
-        }
-    })))
 }
 
 fn public_admin_mutation_root_names() -> &'static BTreeSet<String> {

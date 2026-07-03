@@ -8058,10 +8058,23 @@ fn product_mutation_error_payloads_preserve_root_alias_response_keys() {
         missing_create_input.body,
         json!({
             "data": {
-                "missingCreateInput": {
-                    "userErrors": [{
-                        "msg": "Product input is required"
-                    }]
+                "missingCreateInput": null
+            },
+            "errors": [{
+                "message": "productCreate must include exactly one of the following arguments: input, product.",
+                "locations": [{ "line": 1, "column": 12 }],
+                "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
+                "path": ["missingCreateInput"]
+            }],
+            "extensions": {
+                "cost": {
+                    "requestedQueryCost": 10,
+                    "actualQueryCost": 10,
+                    "throttleStatus": {
+                        "maximumAvailable": 2000,
+                        "currentlyAvailable": 1990,
+                        "restoreRate": 100
+                    }
                 }
             }
         })
@@ -8671,39 +8684,39 @@ fn admin_graphql_capability_classification_uses_implemented_registry_entries() {
     // keep the passthrough fallback; in snapshot mode that surfaces as a 400 no-dispatcher error
     // because there is no upstream transport.
     let mut proxy = snapshot_proxy().with_registry(vec![
-        registry_entry("knownProducts", OperationType::Query, true),
-        registry_entry("knownProductCreate", OperationType::Mutation, true),
-        registry_entry("knownButUnimplemented", OperationType::Query, false),
+        registry_entry("productVariants", OperationType::Query, true),
+        registry_entry("urlRedirectCreate", OperationType::Mutation, true),
+        registry_entry("urlRedirect", OperationType::Query, false),
     ]);
 
     let known_query = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"query { knownProducts(first: 1) { nodes { id } } }"}"#,
+        r#"{"query":"query { productVariants(first: 1) { nodes { id } } }"}"#,
     ));
     assert_eq!(known_query.status, 501);
     assert_eq!(
         known_query.body,
-        json!({ "errors": [{ "message": "No Rust overlay-read dispatcher implemented for root field: knownProducts" }] })
+        json!({ "errors": [{ "message": "No Rust overlay-read dispatcher implemented for root field: productVariants" }] })
     );
 
     let known_mutation = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { knownProductCreate(input: {}) { product { id } } }"}"#,
+        r#"{"query":"mutation { urlRedirectCreate(urlRedirect: { path: \"/old\", target: \"/new\" }) { urlRedirect { id } userErrors { message } } }"}"#,
     ));
     assert_eq!(known_mutation.status, 501);
     assert_eq!(
         known_mutation.body,
-        json!({ "errors": [{ "message": "No Rust stage-locally dispatcher implemented for root field: knownProductCreate" }] })
+        json!({ "errors": [{ "message": "No Rust stage-locally dispatcher implemented for root field: urlRedirectCreate" }] })
     );
 
     let unimplemented = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"query { knownButUnimplemented { id } }"}"#,
+        r#"{"query":"query { urlRedirect(id: \"gid://shopify/UrlRedirect/1\") { id } }"}"#,
     ));
     assert_eq!(unimplemented.status, 400);
     assert_eq!(
         unimplemented.body,
-        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: knownButUnimplemented" }] })
+        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: urlRedirect" }] })
     );
 }
 
@@ -8731,21 +8744,24 @@ fn registry_classification_without_matching_root_field_fails_closed() {
 #[test]
 fn implemented_registry_entry_without_dispatch_match_arm_fails_closed() {
     let mut proxy = snapshot_proxy().with_registry(vec![OperationRegistryEntry {
-        name: "unknownSavedSearches".to_string(),
+        name: "productVariants".to_string(),
         operation_type: OperationType::Query,
-        domain: CapabilityDomain::SavedSearches,
+        domain: CapabilityDomain::Products,
         implemented: true,
-        match_names: vec!["unknownSavedSearches".to_string()],
+        match_names: vec!["productVariants".to_string()],
         runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
     }]);
 
     let response = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"query { unknownSavedSearches(first: 1) { nodes { id } } }"}"#,
+        r#"{"query":"query { productVariants(first: 1) { nodes { id } } }"}"#,
     ));
 
-    assert_eq!(response.status, 200);
-    assert_eq!(response.body, json!({ "data": {} }));
+    assert_eq!(response.status, 501);
+    assert_eq!(
+        response.body,
+        json!({ "errors": [{ "message": "No Rust overlay-read dispatcher implemented for root field: productVariants" }] })
+    );
 }
 
 #[test]
