@@ -16,7 +16,7 @@ fn ported_gleam_event_empty_read_shapes_match_draft_proxy_tests() {
           }
           nodeOnlyEvents: events(first: 5) { nodes { id } }
           eventsCount(query: $query) { count precision }
-          looseCount: eventsCount { count whatever }
+          looseCount: eventsCount { count }
         }
         "#,
         json!({
@@ -51,8 +51,7 @@ fn ported_gleam_event_empty_read_shapes_match_draft_proxy_tests() {
                     "precision": "EXACT"
                 },
                 "looseCount": {
-                    "count": 0,
-                    "whatever": null
+                    "count": 0
                 }
             }
         })
@@ -364,6 +363,57 @@ fn admin_graphql_rejects_unknown_selection_fields_from_schema_on_non_product_con
                     "fieldName": "definitelyNotAnOrderField"
                 }
             }]
+        })
+    );
+}
+
+#[test]
+fn admin_graphql_validates_inline_fragment_fields_against_type_condition() {
+    let custom_app_id = "gid://shopify/App/347082227713";
+    let mut proxy = snapshot_proxy();
+
+    let mut valid_request = json_graphql_request(
+        r#"
+        query Repro($id: ID!) {
+          node(id: $id) { ... on App { id handle } }
+        }
+        "#,
+        json!({ "id": custom_app_id }),
+    );
+    valid_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let valid = proxy.process_request(valid_request);
+
+    assert_eq!(valid.status, 200);
+    assert_eq!(
+        valid.body["data"]["node"],
+        json!({ "id": custom_app_id, "handle": "shopify-draft-proxy" })
+    );
+    assert!(valid.body.get("errors").is_none());
+
+    let mut invalid_request = json_graphql_request(
+        r#"
+        query Repro($id: ID!) {
+          node(id: $id) { ... on App { definitelyNotAnAppField } }
+        }
+        "#,
+        json!({ "id": custom_app_id }),
+    );
+    invalid_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let invalid = proxy.process_request(invalid_request);
+
+    assert_eq!(invalid.status, 200);
+    assert_eq!(
+        invalid.body["errors"][0]["extensions"],
+        json!({
+            "code": "undefinedField",
+            "typeName": "App",
+            "fieldName": "definitelyNotAnAppField"
         })
     );
 }

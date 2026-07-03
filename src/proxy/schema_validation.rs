@@ -60,6 +60,90 @@ struct AdminOutputSchema {
     fields_by_parent: BTreeMap<String, BTreeMap<String, OutputFieldType>>,
 }
 
+impl AdminOutputSchema {
+    fn insert_local_projection_field(
+        &mut self,
+        parent_type: &str,
+        name: &str,
+        named_type: &str,
+        composite: bool,
+    ) {
+        self.fields_by_parent
+            .entry(parent_type.to_string())
+            .or_default()
+            .insert(
+                name.to_string(),
+                OutputFieldType {
+                    named_type: named_type.to_string(),
+                    composite,
+                },
+            );
+    }
+
+    fn insert_local_scalar_field(&mut self, parent_type: &str, name: &str, named_type: &str) {
+        self.insert_local_projection_field(parent_type, name, named_type, false);
+    }
+
+    fn insert_local_object_field(&mut self, parent_type: &str, name: &str, named_type: &str) {
+        self.insert_local_projection_field(parent_type, name, named_type, true);
+    }
+
+    fn insert_local_connection_field(&mut self, parent_type: &str, name: &str, node_type: &str) {
+        self.insert_local_projection_field(
+            parent_type,
+            name,
+            &format!("{node_type}Connection"),
+            true,
+        );
+    }
+
+    fn apply_local_projection_extensions(&mut self) {
+        // These fields are projected by existing local overlay-read handlers but
+        // are absent from the captured bulk-query schema JSON. Keep them
+        // explicit so generic validation still rejects arbitrary unknown fields.
+        self.insert_local_connection_field("Catalog", "markets", "Market");
+        self.insert_local_scalar_field("CompanyLocation", "billingSameAsShipping", "Boolean");
+        self.insert_local_scalar_field("File", "filename", "String");
+        self.insert_local_projection_field("File", "mediaErrors", "MediaError", true);
+        self.insert_local_projection_field("File", "mediaWarnings", "MediaWarning", true);
+        self.insert_local_scalar_field("GenericFile", "filename", "String");
+        self.insert_local_scalar_field("HasMetafields", "id", "ID");
+        self.insert_local_scalar_field(
+            "CustomerCreditCardBillingAddress",
+            "countryCodeV2",
+            "String",
+        );
+        self.insert_local_scalar_field("MarketingActivity", "remoteId", "String");
+        self.insert_local_scalar_field("MarketRegion", "code", "String");
+        self.insert_local_scalar_field("Model3d", "filename", "String");
+        self.insert_local_projection_field("Model3d", "mediaErrors", "MediaError", true);
+        self.insert_local_projection_field("Model3d", "mediaWarnings", "MediaWarning", true);
+        self.insert_local_scalar_field("Model3d", "mimeType", "String");
+        self.insert_local_scalar_field("OrderTransaction", "paymentReferenceId", "ID");
+        self.insert_local_scalar_field("PaymentCustomization", "functionHandle", "String");
+        self.insert_local_connection_field("RegionsCondition", "regions", "MarketRegion");
+        self.insert_local_scalar_field(
+            "ReverseFulfillmentOrderLineItem",
+            "remainingQuantity",
+            "Int",
+        );
+        self.insert_local_object_field(
+            "ReverseFulfillmentOrderLineItem",
+            "returnLineItem",
+            "ReturnLineItemType",
+        );
+        self.insert_local_scalar_field("ScriptTag", "event", "String");
+        self.insert_local_object_field("Segment", "author", "StaffMember");
+        self.insert_local_scalar_field("Segment", "percentageSnapshot", "Float");
+        self.insert_local_scalar_field("Segment", "percentageSnapshotUpdatedAt", "DateTime");
+        self.insert_local_scalar_field("Segment", "tagMigrated", "Boolean");
+        self.insert_local_scalar_field("Segment", "translation", "String");
+        self.insert_local_scalar_field("Segment", "valid", "Boolean");
+        self.insert_local_scalar_field("WebPixel", "status", "String");
+        self.insert_local_scalar_field("WebPixel", "webhookEndpointAddress", "String");
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 enum AdminSchemaKind {
     Mutation,
@@ -597,16 +681,28 @@ fn undefined_selection_field_errors(document: &ParsedDocument, api_version: &str
         }) else {
             continue;
         };
+        let mode = match document.operation_type {
+            OperationType::Query => UndefinedSelectionMode::AllFields,
+            OperationType::Mutation => UndefinedSelectionMode::PlainUserErrorCodeOnly,
+            OperationType::Subscription => continue,
+        };
         collect_undefined_selection_field_errors(
             document,
             schema,
             &output_type.named_type,
             &field.selection,
             vec![json!(document.operation_path), json!(field.response_key)],
+            mode,
             &mut errors,
         );
     }
     errors
+}
+
+#[derive(Clone, Copy)]
+enum UndefinedSelectionMode {
+    AllFields,
+    PlainUserErrorCodeOnly,
 }
 
 fn collect_undefined_selection_field_errors(
@@ -615,6 +711,7 @@ fn collect_undefined_selection_field_errors(
     parent_type: &str,
     selections: &[SelectedField],
     path: Vec<Value>,
+    mode: UndefinedSelectionMode,
     errors: &mut Vec<Value>,
 ) {
     let schema_fields = output_schema.fields_by_parent.get(parent_type);
@@ -624,6 +721,10 @@ fn collect_undefined_selection_field_errors(
         if selection.name == "__typename" {
             continue;
         }
+        let selected_parent_type = selection.type_condition.as_deref().unwrap_or(parent_type);
+        let selected_schema_fields = output_schema.fields_by_parent.get(selected_parent_type);
+        let schema_fields = selected_schema_fields.or(schema_fields);
+
         if let Some(output_type) = schema_fields.and_then(|fields| fields.get(&selection.name)) {
             if !output_type.composite {
                 continue;
@@ -634,13 +735,19 @@ fn collect_undefined_selection_field_errors(
                 &output_type.named_type,
                 &selection.selection,
                 child_path,
+                mode,
                 errors,
             );
         } else if schema_fields.is_some() {
+            if matches!(mode, UndefinedSelectionMode::PlainUserErrorCodeOnly)
+                && !(selected_parent_type == "UserError" && selection.name == "code")
+            {
+                continue;
+            }
             errors.push(undefined_field_error(
                 document,
                 selection.location,
-                parent_type,
+                selected_parent_type,
                 &selection.name,
                 child_path,
             ));
@@ -771,6 +878,7 @@ fn public_admin_output_schema(api_version: &str) -> Option<&'static AdminOutputS
                 .or_default()
                 .insert(name.to_string(), output_type);
         }
+        schema.apply_local_projection_extensions();
         schema
     }))
 }
@@ -2465,6 +2573,7 @@ fn public_admin_input_schema(api_version: &str) -> Option<&'static AdminInputSch
         extend_functions_input_schema(&mut schema);
         extend_online_store_input_schema(&mut schema);
         extend_markets_input_schema(&mut schema, api_version);
+        extend_webhook_input_schema(&mut schema, api_version);
         extend_metafield_definition_input_schema(&mut schema);
         extend_product_input_schema(&mut schema, api_version);
         extend_product_variant_input_schema(&mut schema);
@@ -3234,6 +3343,19 @@ fn extend_media_input_schema(schema: &mut AdminInputSchema, api_version: &str) {
     let parsed = public_admin_schema_json(api_version, AdminSchemaKind::Mutation);
 
     if let Some((name, fields)) = captured_input_object_fields(&parsed, "StagedUploadInput") {
+        schema.insert_strict_input_object(name, fields);
+    }
+    if let Some((name, fields)) = captured_input_object_fields(&parsed, "FileUpdateInput") {
+        schema.insert_strict_input_object(name, fields);
+    }
+}
+
+fn extend_webhook_input_schema(schema: &mut AdminInputSchema, api_version: &str) {
+    let parsed = public_admin_schema_json(api_version, AdminSchemaKind::Mutation);
+
+    if let Some((name, fields)) =
+        captured_input_object_fields(&parsed, "PubSubWebhookSubscriptionInput")
+    {
         schema.insert_strict_input_object(name, fields);
     }
 }

@@ -7961,7 +7961,7 @@ fn shipping_package_update_rejects_flat_rate_packages_without_staging_state() {
     let mut proxy = snapshot_proxy();
     let update_query = r#"
         mutation ShippingPackageUpdateFlatRate($id: ID!, $shippingPackage: CustomShippingPackageInput!) {
-          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message code } }
+          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message  } }
         }
     "#;
 

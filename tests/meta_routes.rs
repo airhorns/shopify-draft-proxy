@@ -402,7 +402,7 @@ fn records_supported_product_mutations_in_meta_log_with_raw_replay_inputs() {
 
 #[test]
 fn product_mutation_outcomes_finalize_exactly_one_log_draft() {
-    let create_query = "mutation { productCreate(product: { title: \"Created product\" }) { product { id title } userErrors { field message code } } }";
+    let create_query = "mutation { productCreate(product: { title: \"Created product\" }) { product { id title } userErrors { field message } } }";
     let mut create_proxy = snapshot_proxy();
     let create = create_proxy.process_request(graphql_request(
         &json!({ "query": create_query }).to_string(),
@@ -424,7 +424,7 @@ fn product_mutation_outcomes_finalize_exactly_one_log_draft() {
         ]),
     );
 
-    let update_query = "mutation { productUpdate(product: { id: \"gid://shopify/Product/base\", title: \"Updated product\" }) { product { id title } userErrors { field message code } } }";
+    let update_query = "mutation { productUpdate(product: { id: \"gid://shopify/Product/base\", title: \"Updated product\" }) { product { id title } userErrors { field message } } }";
     let mut update_proxy = snapshot_proxy().with_base_products(vec![base_product()]);
     let update = update_proxy.process_request(graphql_request(
         &json!({ "query": update_query }).to_string(),
@@ -443,7 +443,7 @@ fn product_mutation_outcomes_finalize_exactly_one_log_draft() {
         json!(["gid://shopify/Product/base"]),
     );
 
-    let delete_query = "mutation { productDelete(input: { id: \"gid://shopify/Product/base\" }) { deletedProductId userErrors { field message code } } }";
+    let delete_query = "mutation { productDelete(input: { id: \"gid://shopify/Product/base\" }) { deletedProductId userErrors { field message } } }";
     let mut delete_proxy = snapshot_proxy().with_base_products(vec![base_product()]);
     let delete = delete_proxy.process_request(graphql_request(
         &json!({ "query": delete_query }).to_string(),
@@ -556,7 +556,7 @@ fn product_mutation_outcomes_finalize_exactly_one_log_draft() {
 
 #[test]
 fn saved_search_mutation_outcomes_finalize_exactly_one_log_draft() {
-    let create_query = "mutation { savedSearchCreate(input: { name: \"Promo orders\", query: \"tag:promo\", resourceType: ORDER }) { savedSearch { id name query resourceType } userErrors { field message code } } }";
+    let create_query = "mutation { savedSearchCreate(input: { name: \"Promo orders\", query: \"tag:promo\", resourceType: ORDER }) { savedSearch { id name query resourceType } userErrors { field message } } }";
     let mut create_proxy = snapshot_proxy();
     let create = create_proxy.process_request(graphql_request(
         &json!({ "query": create_query }).to_string(),
@@ -1265,7 +1265,7 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
               lineItems(first: 5) { nodes { id title quantity } }
               transactions { id kind status gateway }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
     "#;
@@ -1499,7 +1499,7 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
                 mutation RemoveDraftTags($ids: [ID!]!, $tags: [String!]!) {
                   draftOrderBulkRemoveTags(ids: $ids, tags: $tags) {
                     job { id done }
-                    userErrors { field message code }
+                    userErrors { field message }
                   }
                 }
             "#,
@@ -1546,7 +1546,7 @@ fn restore_state_round_trips_customer_payment_method_records_and_counter() {
               }
             }
             processing
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
     "#;
@@ -1646,7 +1646,7 @@ fn restore_state_round_trips_order_customer_and_b2b_records() {
                 mutation CreateOrderCustomer {
                   customerCreate(input: { email: "roundtrip-customer@example.test", firstName: "Round", lastName: "Trip" }) {
                     customer { id email displayName }
-                    userErrors { field message code }
+                    userErrors { field message }
                   }
                 }
             "#
@@ -1664,7 +1664,7 @@ fn restore_state_round_trips_order_customer_and_b2b_records() {
         mutation CreateOrder($order: OrderCreateOrderInput!) {
           orderCreate(order: $order) {
             order { id customer { id } }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
     "#;
@@ -1698,7 +1698,7 @@ fn restore_state_round_trips_order_customer_and_b2b_records() {
                 mutation CreateOrderCustomerCompany {
                   companyCreate(input: { company: { name: "Roundtrip Buyer Company" } }) {
                     company { id name }
-                    userErrors { field message code }
+                    userErrors { field message }
                   }
                 }
             "#
@@ -1713,7 +1713,7 @@ fn restore_state_round_trips_order_customer_and_b2b_records() {
                 mutation AssignOrderCustomerContact($companyId: ID!, $customerId: ID!) {
                   companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {
                     companyContact { id customer { id } company { id name } }
-                    userErrors { field message code }
+                    userErrors { field message }
                   }
                 }
             "#,
@@ -1769,7 +1769,7 @@ fn restore_state_round_trips_order_customer_and_b2b_records() {
                   orderCancel(orderId: $orderId, restock: false, reason: OTHER) {
                     order { id cancelledAt cancelReason }
                     orderCancelUserErrors { field message code }
-                    userErrors { field message code }
+                    userErrors { field message }
                   }
                 }
             "#,

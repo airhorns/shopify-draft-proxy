@@ -1014,7 +1014,7 @@ fn metafields_set_accepts_extended_valid_values_and_reference_readbacks() {
         mutation CreateMetafieldReferenceTarget($product: ProductCreateInput!) {
           productCreate(product: $product) {
             product { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -7612,7 +7612,7 @@ fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_varia
                   deletionAlias: productDelete(input: {
                   }) {
                     deletedProductId
-                    userErrors { field message code }
+                    userErrors { field message  }
                   }
                 }
             "#
@@ -7634,7 +7634,7 @@ fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_varia
                     id: null
                   }) {
                     deletedProductId
-                    userErrors { field message code }
+                    userErrors { field message  }
                   }
                 }
             "#
@@ -7652,7 +7652,7 @@ fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_varia
             mutation AnyDeleteName($input: ProductDeleteInput!) {
               deletionAlias: productDelete(input: $input) {
                 deletedProductId
-                userErrors { field message code }
+                userErrors { field message  }
               }
             }
         "#,
@@ -8047,11 +8047,11 @@ fn product_duplicate_respects_new_status_override_and_validates_invalid_status()
     assert_eq!(
         variable.body["errors"][0]["extensions"],
         json!({
-            "code": "INVALID_VARIABLE",
+        "code": "INVALID_VARIABLE",
             "value": "ENABLED",
             "problems": [{
                 "path": [],
-                "explanation": "Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT, UNLISTED"
+                "explanation": "Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT"
             }]
         })
     );

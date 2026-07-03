@@ -216,7 +216,7 @@ fn apps_mutations_dispatch_by_root_field_for_ordinary_operation_names() {
         ),
         (
             "OneTime",
-            r#"mutation OneTime { appPurchaseOneTimeCreate(name: "Import", returnUrl: "https://app.example.test/return", price: { amount: 5, currencyCode: USD }, test: false) { appPurchaseOneTime { id test } confirmationUrl userErrors { field message code } } }"#,
+            r#"mutation OneTime { appPurchaseOneTimeCreate(name: "Import", returnUrl: "https://app.example.test/return", price: { amount: 5, currencyCode: USD }, test: false) { appPurchaseOneTime { id test } confirmationUrl userErrors { field message  } } }"#,
             json!({}),
             "appPurchaseOneTimeCreate",
         ),
@@ -685,7 +685,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
           create: appPurchaseOneTimeCreate(name: "   ", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: USD }, test: true) {
             appPurchaseOneTime { id }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -696,7 +696,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
         json!({
             "appPurchaseOneTime": null,
             "confirmationUrl": null,
-            "userErrors": [{ "field": ["name"], "message": "Name can't be blank", "code": null }]
+            "userErrors": [{ "field": ["name"], "message": "Name can't be blank" }]
         })
     );
 
@@ -706,7 +706,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
           appPurchaseOneTimeCreate(name: "Pro", returnUrl: "https://app.example.test/return", price: { amount: "0", currencyCode: USD }, test: true) {
             appPurchaseOneTime { id }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -717,7 +717,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
         json!({
             "appPurchaseOneTime": null,
             "confirmationUrl": null,
-            "userErrors": [{ "field": null, "message": "Validation failed: Price must be greater than or equal to 0.5", "code": null }]
+            "userErrors": [{ "field": null, "message": "Validation failed: Price must be greater than or equal to 0.5" }]
         })
     );
 
@@ -727,7 +727,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
           appPurchaseOneTimeCreate(name: "Pro", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: EUR }, test: true) {
             appPurchaseOneTime { id price { amount currencyCode } }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -755,7 +755,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
           appPurchaseOneTimeCreate(name: "Pro", price: { amount: "5.00", currencyCode: USD }, test: true) {
             appPurchaseOneTime { id }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -788,7 +788,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
           appPurchaseOneTimeCreate(name: "HAR-646 valid test", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: USD }, test: true) {
             appPurchaseOneTime { id name status test createdAt price { amount currencyCode } }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -1166,7 +1166,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
             idempotencyKey: $key
           ) {
             appUsageRecord { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -1179,7 +1179,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
         long_key.body["data"]["appUsageRecordCreate"],
         json!({
             "appUsageRecord": null,
-            "userErrors": [{ "field": ["idempotencyKey"], "message": "Idempotency key exceeds the maximum length.", "code": null }]
+            "userErrors": [{ "field": ["idempotencyKey"], "message": "Idempotency key exceeds the maximum length." }]
         })
     );
 
@@ -1192,7 +1192,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
             idempotencyKey: "usage-key-missing-description"
           ) {
             appUsageRecord { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -1202,7 +1202,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
         missing_description.body["data"]["appUsageRecordCreate"],
         json!({
             "appUsageRecord": null,
-            "userErrors": [{ "field": ["description"], "message": "Description can't be blank", "code": null }]
+            "userErrors": [{ "field": ["description"], "message": "Description can't be blank" }]
         })
     );
 
@@ -1216,7 +1216,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
             idempotencyKey: "usage-key-invalid-line-item"
           ) {
             appUsageRecord { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -1226,7 +1226,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
         invalid_line_item_id.body["data"]["appUsageRecordCreate"],
         json!({
             "appUsageRecord": null,
-            "userErrors": [{ "field": ["subscriptionLineItemId"], "message": "Invalid id", "code": null }]
+            "userErrors": [{ "field": ["subscriptionLineItemId"], "message": "Invalid id" }]
         })
     );
 
@@ -2366,7 +2366,7 @@ fn removed_app_usage_record_create_cap_and_idempotency_scenario_has_rust_coverag
               price { amount currencyCode }
               subscriptionLineItem { id plan { pricingDetails { __typename ... on AppUsagePricing { balanceUsed { amount currencyCode } } } } }
             }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
     "#;
@@ -2423,7 +2423,7 @@ fn removed_app_usage_record_create_cap_and_idempotency_scenario_has_rust_coverag
             idempotencyKey: $key
           ) {
             appUsageRecord { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -2519,7 +2519,7 @@ fn removed_app_purchase_one_time_create_validation_scenario_has_rust_coverage() 
           appPurchaseOneTimeCreate(name: "   ", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: USD }, test: true) {
             appPurchaseOneTime { id }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -2536,7 +2536,7 @@ fn removed_app_purchase_one_time_create_validation_scenario_has_rust_coverage() 
           appPurchaseOneTimeCreate(name: "Pro", returnUrl: "https://app.example.test/return", price: { amount: "0", currencyCode: USD }, test: true) {
             appPurchaseOneTime { id }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -2553,7 +2553,7 @@ fn removed_app_purchase_one_time_create_validation_scenario_has_rust_coverage() 
           appPurchaseOneTimeCreate(name: "Pro", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: EUR }, test: true) {
             appPurchaseOneTime { id }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -2574,7 +2574,7 @@ fn removed_app_purchase_one_time_create_validation_scenario_has_rust_coverage() 
           appPurchaseOneTimeCreate(name: "Pro", price: { amount: "5.00", currencyCode: USD }, test: true) {
             appPurchaseOneTime { id }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -2591,7 +2591,7 @@ fn removed_app_purchase_one_time_create_validation_scenario_has_rust_coverage() 
           appPurchaseOneTimeCreate(name: "Valid test", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: USD }, test: true) {
             appPurchaseOneTime { id name status test createdAt price { amount currencyCode } }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -2959,7 +2959,7 @@ fn create_usage_subscription_for_removed_app_tests(
               trialDays
               lineItems { id }
             }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -3008,7 +3008,7 @@ fn create_usage_and_recurring_subscription_for_removed_app_tests(
             ]
           ) {
             appSubscription { id lineItems { id } }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -3042,7 +3042,7 @@ fn create_one_time_purchase_for_removed_app_tests(proxy: &mut DraftProxy) -> Str
           appPurchaseOneTimeCreate(name: "Import package", returnUrl: "https://app.example.test/return", price: { amount: 10, currencyCode: USD }, test: true) {
             appPurchaseOneTime { id name status test }
             confirmationUrl
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,

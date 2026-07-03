@@ -2470,7 +2470,7 @@ fn metafields_set_uses_matching_definition_type_when_input_type_is_omitted() {
         mutation MetafieldsSetDefinitionTypeProduct($product: ProductCreateInput!) {
           productCreate(product: $product) {
             product { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -2748,7 +2748,7 @@ fn metafield_definition_delete_rejects_reserved_namespace_without_delete_all_fla
         mutation ReservedNamespaceGuardProductCreate {
           productCreate(product: { title: "Reserved namespace guard product" }) {
             product { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
