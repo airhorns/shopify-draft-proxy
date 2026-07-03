@@ -265,3 +265,121 @@ where
     let (records, page_info) = connection_window(records, arguments, |record| cursor(record));
     selected_typed_connection_with_page_info(&records, root_selection, node_json, cursor, page_info)
 }
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(in crate::proxy) enum StagedSortValue {
+    Null,
+    I64(i64),
+    String(String),
+}
+
+pub(in crate::proxy) type StagedSortKey = Vec<StagedSortValue>;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::proxy) enum StagedSearchDecision {
+    Match,
+    NoMatch,
+    Unsupported,
+}
+
+impl StagedSearchDecision {
+    pub(in crate::proxy) fn from_bool(matches: bool) -> Self {
+        if matches {
+            Self::Match
+        } else {
+            Self::NoMatch
+        }
+    }
+}
+
+pub(in crate::proxy) struct StagedConnectionResult<T> {
+    pub(in crate::proxy) records: Vec<T>,
+    pub(in crate::proxy) total_count: usize,
+    pub(in crate::proxy) page_info: Value,
+}
+
+pub(in crate::proxy) fn staged_connection_query<T, Predicate, SortKey, Cursor>(
+    records: Vec<T>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    predicate: Predicate,
+    sort_key: SortKey,
+    cursor: Cursor,
+) -> StagedConnectionResult<T>
+where
+    T: Clone,
+    Predicate: Fn(&T, Option<&str>) -> StagedSearchDecision,
+    SortKey: Fn(&T, Option<&str>) -> StagedSortKey,
+    Cursor: Fn(&T) -> String,
+{
+    let query = resolved_string_field(arguments, "query");
+    let sort_key_name = resolved_string_field(arguments, "sortKey");
+    let mut matched = records
+        .into_iter()
+        .filter(|record| match predicate(record, query.as_deref()) {
+            StagedSearchDecision::Match => true,
+            StagedSearchDecision::NoMatch | StagedSearchDecision::Unsupported => false,
+        })
+        .collect::<Vec<_>>();
+
+    matched.sort_by(|left, right| {
+        sort_key(left, sort_key_name.as_deref())
+            .cmp(&sort_key(right, sort_key_name.as_deref()))
+            .then_with(|| cursor(left).cmp(&cursor(right)))
+    });
+
+    if resolved_bool_field(arguments, "reverse").unwrap_or(false) {
+        matched.reverse();
+    }
+
+    let total_count = matched.len();
+    let (records, page_info) = connection_window(&matched, arguments, cursor);
+    StagedConnectionResult {
+        records,
+        total_count,
+        page_info,
+    }
+}
+
+pub(in crate::proxy) fn selected_staged_connection_with_args<
+    T,
+    Predicate,
+    SortKey,
+    NodeJson,
+    Cursor,
+>(
+    records: Vec<T>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    root_selection: &[SelectedField],
+    predicate: Predicate,
+    sort_key: SortKey,
+    node_json: NodeJson,
+    cursor: Cursor,
+) -> Value
+where
+    T: Clone,
+    Predicate: Fn(&T, Option<&str>) -> StagedSearchDecision,
+    SortKey: Fn(&T, Option<&str>) -> StagedSortKey,
+    NodeJson: Fn(&T, &[SelectedField]) -> Value,
+    Cursor: Fn(&T) -> String + Copy,
+{
+    let result = staged_connection_query(records, arguments, predicate, sort_key, cursor);
+    selected_typed_connection_with_page_info(
+        &result.records,
+        root_selection,
+        node_json,
+        cursor,
+        result.page_info,
+    )
+}
+
+pub(in crate::proxy) fn staged_count_with_limit_precision(
+    count: usize,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    match resolved_int_field(arguments, "limit") {
+        Some(limit) if limit >= 0 && count as i64 > limit => {
+            count_object_with_precision(limit as usize, "AT_LEAST")
+        }
+        _ => count_object_with_precision(count, "EXACT"),
+    }
+}

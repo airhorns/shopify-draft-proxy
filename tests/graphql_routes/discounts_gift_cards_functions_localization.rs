@@ -3811,6 +3811,18 @@ fn functions_cart_transform_create_validates_identifier_api_conflict_and_metafie
             "userErrors": [{ "field": ["functionId"], "message": "Could not enable cart transform because it is already registered", "code": "FUNCTION_ALREADY_REGISTERED" }]
         })
     );
+
+    let cap_conflict = proxy.process_request(json_graphql_request(
+        r#"mutation CartTransformCreateCapConflict { cartTransformCreate(functionId: "gid://shopify/ShopifyFunction/cart-transform-local", blockOnFailure: true) { cartTransform { id functionId } userErrors { field message code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        cap_conflict.body["data"]["cartTransformCreate"],
+        json!({
+            "cartTransform": null,
+            "userErrors": [{ "field": ["base"], "message": "The maximum number of cart transforms per shop has been reached.", "code": "MAXIMUM_CART_TRANSFORMS" }]
+        })
+    );
 }
 
 #[test]

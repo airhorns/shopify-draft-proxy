@@ -1,4 +1,4 @@
-mutation RustProductFeedbackInvalidEnum {
+mutation ProductFeedbackInvalidState {
   bulkProductResourceFeedbackCreate(
     feedbackInput: [
       {

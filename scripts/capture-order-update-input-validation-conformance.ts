@@ -364,8 +364,7 @@ await writeJson(fixturePath, {
     {
       operationName: 'OrdersOrderHydrate',
       variables: { id: createdOrderId },
-      query:
-        'hand-synthesized from checked-in setup.beforeRead order response for orderUpdate input validation hydration',
+      query: stripGraphqlTag(orderReadQuery),
       response: {
         status: 200,
         body: {
