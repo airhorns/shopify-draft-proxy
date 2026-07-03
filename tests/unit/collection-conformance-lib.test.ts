@@ -39,7 +39,7 @@ describe('pickCollectionCaptureSeed', () => {
       readFileSync(
         resolve(
           repoRoot,
-          'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-detail.json',
+          'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/collection-detail.json',
         ),
         'utf8',
       ),

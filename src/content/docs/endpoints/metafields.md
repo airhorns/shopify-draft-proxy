@@ -135,44 +135,6 @@ The 2026-04 create-with-pin guard capture records the corresponding create-time 
 
 The local implementation intentionally covers pin/unpin for definitions already present in normalized snapshot, hydrated state, or staged lifecycle state. In LiveHybrid, a cold pin/unpin first hydrates the product-owner definition catalog through `upstream_query.fetch_sync`, then stages only the pin or unpin effect locally; parity cassettes provide that read deterministically. It does not create missing definitions through pin/unpin when no upstream definition can be hydrated. Definitions marked `appConfigManaged` reject pin and unpin with `APP_CONFIG_MANAGED`; full app-config lifecycle discovery remains out of scope until public or fixture-backed metadata can populate that flag automatically.
 
-### Evidence
-
-- `config/parity-specs/metafields/metafield-definition-create-input-validation.json`
-- `config/parity-specs/metafields/standard-metafield-definition-enable-error-branches.json`
-- `config/parity-specs/metafields/metafield-definition-create-with-pin-guards.json`
-- `config/parity-specs/metafields/metafield-definition-capability-eligibility.json`
-- `config/parity-specs/metafields/metafield-definition-update-constraints.json`
-- `config/parity-specs/metafields/metafield-definition-pinning-parity.json`
-- `config/parity-specs/metafields/metafield-definition-pin-limit-and-constraint-guard.json`
-- `config/parity-specs/metafields/metafield-definition-lifecycle-mutations.json`
-- `config/parity-specs/metafields/metafield-definition-owner-scoped-duplicates.json`
-- `config/parity-specs/metafields/metafield-definition-non-product-owner-types.json`
-- `config/parity-specs/metafields/metafield-definition-non-product-metafields.json`
-- `config/parity-specs/metafields/metafields-set-validation-gaps.json`
-- `config/parity-specs/metafields/metafieldsSet-custom-namespace-typed-keys.json`
-- `config/parity-specs/metafields/metafields-set-input-validation.json`
-- `config/parity-specs/metafield-definitions/access-validation.json`
-- `config/parity-specs/metafield-definitions/validation-affects-values.json`
-- `config/parity-specs/metafield-definitions/metafield-delete-not-found.json`
-- `config/parity-specs/metafield-definitions/metafields-set-delete-app-namespace-resolution.json`
-- `config/parity-specs/products/metafieldsSet-*.json`
-- `config/parity-specs/products/metafieldsDelete-parity-plan.json`
-- `corepack pnpm conformance:capture -- --run metafield-definition-pinning`
-- `corepack pnpm conformance:capture -- --run metafield-definition-create-with-pin-guards`
-- `corepack pnpm conformance:capture -- --run metafield-definition-lifecycle`
-- `corepack pnpm conformance:capture -- --run metafield-definition-non-product-owner-types`
-- `corepack pnpm conformance:capture -- --run metafield-definition-non-product-metafields`
-- `corepack pnpm conformance:capture -- --run metafield-definition-validation-affects-values`
-- `corepack pnpm conformance:capture -- --run metafields-delete-not-found`
-- `corepack pnpm conformance:capture -- --run metafields-parity-provenance-replacements`
-- `corepack pnpm conformance:capture -- --run metafields-custom-namespace-typed-keys`
-- `corepack pnpm conformance:capture -- --run metafields-set-delete-app-namespace-resolution`
-
-### Validation
-
-- `corepack pnpm conformance:check`
-- `corepack pnpm conformance:parity`
-
 ### Unsupported and registry-only boundaries
 
 - `standardMetafieldDefinitionTemplates` remains registry-only declaration coverage; `standardMetafieldDefinitionEnable` consumes the checked-in captured catalog and models a bounded template slice, but the catalog query root itself should not be treated as locally supported until it has executable read behavior and fixture-backed shape evidence.

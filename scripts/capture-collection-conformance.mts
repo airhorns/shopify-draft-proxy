@@ -14,11 +14,41 @@ import { pickCollectionCaptureSeed } from './collection-conformance-lib.mjs';
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
-const { runGraphql } = createAdminGraphqlClient({
+const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+const collectionDetailVariablesPath = path.join(
+  'config',
+  'parity-requests',
+  'products',
+  'collection-detail-read.variables.json',
+);
+const collectionIdentifierVariablesPath = path.join(
+  'config',
+  'parity-requests',
+  'products',
+  'collection-identifier-read.variables.json',
+);
+const collectionHandleVariablesPath = path.join(
+  'config',
+  'parity-requests',
+  'products',
+  'collection-handle-read.variables.json',
+);
+const collectionDetailDocument = readFileSync(
+  path.join('config', 'parity-requests', 'products', 'collection-detail-read.graphql'),
+  'utf8',
+);
+const collectionIdentifierDocument = readFileSync(
+  path.join('config', 'parity-requests', 'products', 'collection-identifier-read.graphql'),
+  'utf8',
+);
+const collectionHandleDocument = readFileSync(
+  path.join('config', 'parity-requests', 'products', 'collection-handle-read.graphql'),
+  'utf8',
+);
 
 const collectionSeedQuery = `#graphql
   query CollectionSeedCatalog {
@@ -60,123 +90,6 @@ const collectionSeedQuery = `#graphql
               }
             }
           }
-        }
-      }
-    }
-  }
-`;
-
-const collectionDetailQuery = `#graphql
-  query CollectionDetailRead($customCollectionId: ID!, $smartCollectionId: ID!, $productId: ID!) {
-    customCollection: collection(id: $customCollectionId) {
-      id
-      legacyResourceId
-      title
-      handle
-      updatedAt
-      description
-      descriptionHtml
-      image {
-        id
-        url
-        altText
-        width
-        height
-      }
-      productsCount {
-        count
-        precision
-      }
-      hasProduct(id: $productId)
-      sortOrder
-      templateSuffix
-      seo {
-        title
-        description
-      }
-      ruleSet {
-        appliedDisjunctively
-        rules {
-          column
-          relation
-          condition
-        }
-      }
-      products(first: 3) {
-        edges {
-          cursor
-          node {
-            id
-            title
-            handle
-            vendor
-            productType
-            tags
-            totalInventory
-            tracksInventory
-          }
-        }
-        pageInfo {
-          hasNextPage
-          hasPreviousPage
-          startCursor
-          endCursor
-        }
-      }
-    }
-    smartCollection: collection(id: $smartCollectionId) {
-      id
-      legacyResourceId
-      title
-      handle
-      updatedAt
-      description
-      descriptionHtml
-      image {
-        id
-        url
-        altText
-        width
-        height
-      }
-      productsCount {
-        count
-        precision
-      }
-      hasProduct(id: $productId)
-      sortOrder
-      templateSuffix
-      seo {
-        title
-        description
-      }
-      ruleSet {
-        appliedDisjunctively
-        rules {
-          column
-          relation
-          condition
-        }
-      }
-      products(first: 3) {
-        edges {
-          cursor
-          node {
-            id
-            title
-            handle
-            vendor
-            productType
-            tags
-            totalInventory
-            tracksInventory
-          }
-        }
-        pageInfo {
-          hasNextPage
-          hasPreviousPage
-          startCursor
-          endCursor
         }
       }
     }
@@ -397,11 +310,23 @@ const productId =
   customCollection.products.edges[0]?.node?.id ??
   smartCollection.products.edges[0]?.node?.id ??
   'gid://shopify/Product/0';
-const collectionDetail = await runGraphql(collectionDetailQuery, {
+const collectionDetailVariables = {
   customCollectionId: customCollection.id,
   smartCollectionId: smartCollection.id,
   productId,
-});
+};
+const collectionIdentifierVariables = {
+  customCollectionId: customCollection.id,
+  customCollectionHandle: customCollection.handle,
+  productId,
+};
+const collectionHandleVariables = {
+  customCollectionHandle: customCollection.handle,
+  productId,
+};
+const collectionDetail = await runGraphqlRequest(collectionDetailDocument, collectionDetailVariables);
+const collectionIdentifier = await runGraphqlRequest(collectionIdentifierDocument, collectionIdentifierVariables);
+const collectionHandle = await runGraphqlRequest(collectionHandleDocument, collectionHandleVariables);
 const smartCollectionProductId = smartCollection.products.edges[0]?.node?.id ?? productId;
 const smartCollectionProductLegacyId = smartCollectionProductId.split('/').at(-1) ?? smartCollectionProductId;
 // Catalog reads are de-seeded: the proxy cannot reconstruct Shopify's opaque
@@ -437,7 +362,35 @@ const collectionsCatalogDocument = readFileSync(
 );
 
 const captures = {
-  'collection-detail.json': collectionDetail,
+  'collection-detail.json': {
+    ...collectionDetail.payload,
+    upstreamCalls: [
+      {
+        operationName: 'CollectionDetailRead',
+        variables: collectionDetailVariables,
+        query: collectionDetailDocument,
+        response: { status: collectionDetail.status, body: collectionDetail.payload },
+      },
+      {
+        operationName: 'CollectionIdentifierRead',
+        variables: collectionIdentifierVariables,
+        query: collectionIdentifierDocument,
+        response: { status: collectionIdentifier.status, body: collectionIdentifier.payload },
+      },
+      {
+        operationName: 'CollectionHandleRead',
+        variables: collectionHandleVariables,
+        query: collectionHandleDocument,
+        response: { status: collectionHandle.status, body: collectionHandle.payload },
+      },
+      {
+        operationName: 'CollectionIdentifierRead',
+        variables: collectionIdentifierVariables,
+        query: collectionIdentifierDocument,
+        response: { status: collectionIdentifier.status, body: collectionIdentifier.payload },
+      },
+    ],
+  },
   'collections-catalog.json': {
     data: collectionsCatalog.data,
     ...(collectionsCatalog.extensions ? { extensions: collectionsCatalog.extensions } : {}),
@@ -459,6 +412,13 @@ for (const [filename, payload] of Object.entries(captures)) {
 // Keep the parity spec's variables in lockstep with the freshly recorded
 // catalog read, so the runner's outgoing request matches the recorded cassette.
 await writeFile(collectionsCatalogVariablesPath, `${JSON.stringify(collectionsCatalogVariables, null, 2)}\n`, 'utf8');
+await writeFile(collectionDetailVariablesPath, `${JSON.stringify(collectionDetailVariables, null, 2)}\n`, 'utf8');
+await writeFile(
+  collectionIdentifierVariablesPath,
+  `${JSON.stringify(collectionIdentifierVariables, null, 2)}\n`,
+  'utf8',
+);
+await writeFile(collectionHandleVariablesPath, `${JSON.stringify(collectionHandleVariables, null, 2)}\n`, 'utf8');
 
 // oxlint-disable-next-line no-console -- CLI capture result is intentionally written to stdout.
 console.log(

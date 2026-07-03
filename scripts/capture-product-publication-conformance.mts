@@ -460,7 +460,10 @@ query ProductsHydrateNodes($ids: [ID!]!) {
       onlineStorePreviewUrl
       templateSuffix
       seo { title description }
+      availablePublicationsCount { count precision }
+      resourcePublicationsCount { count precision }
       resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }
+      publications(first: 10) { nodes { isPublished publishDate product { id } } }
     }
   }
 }`;

@@ -1,8 +1,10 @@
-mutation ProductUnpublishAggregateParity($input: ProductUnpublishInput!) {
+mutation ProductUnpublishAggregateParity($input: ProductUnpublishInput!, $publicationId: ID!) {
   productUnpublish(input: $input) {
     product {
       id
+      publishedAt
       publishedOnCurrentPublication
+      publishedOnPublication(publicationId: $publicationId)
       availablePublicationsCount {
         count
         precision
@@ -10,6 +12,27 @@ mutation ProductUnpublishAggregateParity($input: ProductUnpublishInput!) {
       resourcePublicationsCount {
         count
         precision
+      }
+      resourcePublicationsV2(first: 10) {
+        nodes {
+          publication {
+            id
+          }
+          publishable {
+            ... on Product {
+              id
+            }
+          }
+        }
+      }
+      publications(first: 10) {
+        nodes {
+          isPublished
+          publishDate
+          product {
+            id
+          }
+        }
       }
     }
     userErrors {
