@@ -165,10 +165,10 @@ impl DraftProxy {
                 .unwrap_or_default(),
         };
 
-        if let Some(category) = input.get("category") {
+        if let Some(category_id) = product_category_input_id(&input) {
             product
                 .extra_fields
-                .insert("category".to_string(), resolved_value_json(category));
+                .insert("category".to_string(), product_category_value(&category_id));
         }
         if let Some(requires_selling_plan) = input.get("requiresSellingPlan") {
             product.extra_fields.insert(
