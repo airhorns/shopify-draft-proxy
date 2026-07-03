@@ -335,6 +335,57 @@ fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_ba
 }
 
 #[test]
+fn marketing_money_defaults_use_shop_currency_when_currency_code_is_omitted() {
+    let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "CAD");
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingMoneyDefaults($activityInput: MarketingActivityCreateExternalInput!) {
+          activity: marketingActivityCreateExternal(input: $activityInput) {
+            marketingActivity {
+              budget { total { amount currencyCode } }
+              adSpend { amount currencyCode }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "activityInput": {
+                "title": "Currency defaults",
+                "remoteId": "currency-defaults",
+                "status": "ACTIVE",
+                "remoteUrl": "https://example.com/currency-defaults",
+                "tactic": "NEWSLETTER",
+                "marketingChannelType": "EMAIL",
+                "utm": {
+                    "campaign": "currency-defaults",
+                    "source": "email",
+                    "medium": "newsletter"
+                },
+                "budget": {
+                    "budgetType": "DAILY",
+                    "total": { "amount": "12.34" }
+                },
+                "adSpend": { "amount": "5.67" }
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"]["activity"]["userErrors"], json!([]));
+    assert_eq!(
+        response.body["data"]["activity"]["marketingActivity"]["budget"]["total"],
+        json!({ "amount": "12.34", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        response.body["data"]["activity"]["marketingActivity"]["adSpend"],
+        json!({ "amount": "5.67", "currencyCode": "CAD" })
+    );
+}
+
+#[test]
 fn marketing_external_activity_update_and_upsert_reject_tactic_change_from_storefront_app() {
     let mut proxy = snapshot_proxy();
     let setup = proxy.process_request(json_graphql_request(
@@ -6037,7 +6088,7 @@ fn online_store_script_tag_update_unknown_id_returns_not_found() {
 }
 
 #[test]
-fn online_store_storefront_access_token_edges_ported_from_gleam() {
+fn online_store_storefront_access_token_edges_covers_current_behavior() {
     let mut proxy = snapshot_proxy();
 
     let first = proxy.process_request(json_graphql_request(
@@ -6274,7 +6325,7 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
 }
 
 #[test]
-fn online_store_pixel_endpoint_edges_ported_from_gleam() {
+fn online_store_pixel_endpoint_edges_covers_current_behavior() {
     let mut proxy = snapshot_proxy();
 
     let web_pixel = proxy.process_request(json_graphql_request(
@@ -6597,7 +6648,7 @@ fn webhook_cloud_destination_validation_preserves_unified_and_pubsub_fields() {
 }
 
 #[test]
-fn online_store_theme_lifecycle_tail_helpers_ported_from_gleam() {
+fn online_store_theme_lifecycle_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
 
     let created = proxy.process_request(json_graphql_request(
@@ -6871,7 +6922,7 @@ fn online_store_theme_connection_paginates_edges_nodes_and_page_info_consistentl
 }
 
 #[test]
-fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
+fn online_store_theme_file_lifecycle_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
 
     proxy.process_request(json_graphql_request(

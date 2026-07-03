@@ -211,7 +211,7 @@ fn serves_meta_route_response_shapes() {
 }
 
 #[test]
-fn ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests() {
+fn draft_proxy_route_and_snapshot_helpers_match_current_behavior() {
     let mut default_proxy = DraftProxy::new(Config::default());
     let expected_default_config = json!({
         "runtime": {
@@ -615,7 +615,7 @@ fn saved_search_mutation_outcomes_finalize_exactly_one_log_draft() {
 }
 
 #[test]
-fn ported_gleam_log_draft_enforcement_supported_domains_record_entries() {
+fn log_draft_enforcement_supported_domains_record_entries() {
     let cases = [
         (
             "admin_platform",
@@ -693,7 +693,7 @@ fn ported_gleam_log_draft_enforcement_supported_domains_record_entries() {
             proxy.process_request(graphql_request(&json!({ "query": query }).to_string()));
         assert_eq!(
             response.status, 200,
-            "ported Gleam log-draft enforcement case {domain} should return HTTP 200; body={}",
+            "log-draft enforcement case {domain} should return HTTP 200; body={}",
             response.body
         );
 
@@ -703,7 +703,7 @@ fn ported_gleam_log_draft_enforcement_supported_domains_record_entries() {
             .unwrap_or_else(|| panic!("{domain} log entries should be an array: {log}"));
         assert!(
             !entries.is_empty(),
-            "ported Gleam log-draft enforcement case {domain}/{root} should record at least one log entry; response body={}",
+            "log-draft enforcement case {domain}/{root} should record at least one log entry; response body={}",
             response.body
         );
         let last = entries.last().unwrap();
@@ -879,6 +879,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "discounts": {},
                     "draftOrderTags": {},
                     "giftCards": {},
+                    "installedApps": {},
                     "locallyCreatedCustomerIds": [],
                     "locationLimitReached": false,
                     "locationOrder": [],
@@ -1037,6 +1038,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "returnsByOrder": {},
                     "reverseDeliveries": {},
                     "reverseFulfillmentOrders": {},
+                    "revokedAppAccessScopes": {},
                     "savedSearchOrder": [
                         "gid://shopify/SavedSearch/4?shopify-draft-proxy=synthetic"
                     ],
@@ -1055,7 +1057,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "storeCreditAccounts": {},
                     "storeCreditTransactionOrder": [],
                     "storeCreditTransactions": {},
-                    "taggableResources": {}
+                    "taggableResources": {},
+                    "uninstalledAppIds": []
                 }
             }
         "##,
@@ -1912,7 +1915,7 @@ fn restore_state_round_trips_order_customer_and_b2b_records() {
 }
 
 #[test]
-fn ported_gleam_restore_state_rejects_malformed_rust_dumps() {
+fn restore_state_rejects_malformed_rust_dumps() {
     let mut proxy = snapshot_proxy();
     let dump = proxy.process_request(request_with_body(
         "POST",

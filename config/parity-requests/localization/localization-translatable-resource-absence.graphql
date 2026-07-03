@@ -1,0 +1,51 @@
+query LocalizationTranslatableResourceAbsence(
+  $first: Int!
+  $resourceType: TranslatableResourceType!
+  $resourceIds: [ID!]!
+  $missingResourceId: ID!
+) {
+  resources: translatableResources(first: $first, resourceType: $resourceType) {
+    nodes {
+      resourceId
+    }
+    edges {
+      cursor
+      node {
+        resourceId
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  byIds: translatableResourcesByIds(first: $first, resourceIds: $resourceIds) {
+    nodes {
+      resourceId
+    }
+    edges {
+      cursor
+      node {
+        resourceId
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  missing: translatableResource(resourceId: $missingResourceId) {
+    resourceId
+    translatableContent {
+      key
+      value
+      digest
+      locale
+      type
+    }
+  }
+}

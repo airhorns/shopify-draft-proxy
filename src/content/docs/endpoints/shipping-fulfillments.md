@@ -229,5 +229,5 @@ with `/endpoints/orders/` and `/endpoints/returns/`.
   calculation, carrier callback execution, carrier service-discovery side
   effects, and full shipping-package discovery/validation remain outside the
   supported local slices.
-- Unsupported mutation documents outside the ported local slices follow the
+- Unsupported mutation documents outside the modeled local slices follow the
   configured unsupported path and must remain visible in logs/observability.

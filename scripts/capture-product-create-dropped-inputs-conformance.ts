@@ -241,7 +241,7 @@ function spec(): Record<string, unknown> {
     scenarioStatus: 'captured',
     assertionKinds: ['payload-shape', 'user-errors-parity', 'downstream-read-parity'],
     liveCaptureFiles: [fixturePath],
-    runtimeTestFiles: ['test/parity_test.gleam', 'test/shopify_draft_proxy/proxy/products_mutation_test.gleam'],
+    runtimeTestFiles: ['tests/graphql_routes/products_saved_searches.rs'],
     proxyRequest: {
       documentPath: createDocumentPath,
       apiVersion,

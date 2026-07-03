@@ -1481,6 +1481,42 @@ fn metafields_set_resolves_owner_type_from_non_product_gids() {
 }
 
 #[test]
+fn metafields_set_rejects_malformed_owner_id_without_defaulting_to_product() {
+    let mut proxy = snapshot_proxy();
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MalformedOwnerMetafieldsSet {
+          metafieldsSet(
+            metafields: [{
+              ownerId: "not-a-gid",
+              namespace: "owner_type_gid",
+              key: "malformed",
+              type: "single_line_text_field",
+              value: "Malformed owner"
+            }]
+          ) {
+            metafields { ownerType owner { __typename id } }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(set.body["data"]["metafieldsSet"]["metafields"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["userErrors"],
+        json!([{
+            "field": ["metafields", "0", "ownerId"],
+            "message": "Owner is invalid",
+            "code": "INVALID_OWNER",
+            "elementIndex": null
+        }])
+    );
+}
+
+#[test]
 fn owner_scoped_metafields_do_not_leak_between_products() {
     let mut proxy = snapshot_proxy();
 
@@ -1959,8 +1995,8 @@ fn market_web_presence_create_uses_observed_shop_host_from_live_preflight() {
 }
 
 #[test]
-fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
-    // Ports old Gleam web-presence helper behavior from markets_mutation_test.gleam:
+fn market_web_presence_current_runtime_helpers_stage_and_validate() {
+    // Covers web-presence helper behavior:
     // root URL construction for subfolder/domain routing, Shopify locale normalization,
     // aggregate locale errors, subfolder validation ordering, create/update readback,
     // unknown-domain create guards, and taken-suffix/no-op update behavior.
@@ -2501,8 +2537,8 @@ fn market_create_region_nodes_include_country_identity_fields_in_payload_and_rea
 }
 
 #[test]
-fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests() {
-    // Ports old Gleam proxy tests around marketCreate validation/staging:
+fn market_create_validation_and_staging_helpers_match_current_behavior() {
+    // Covers marketCreate validation/staging:
     // - status/enabled mismatch and partial-input defaults
     // - price-inclusion projection and location-condition rejection
     // - currency settings flags/read-after-write, invalid base currency, manual FX rate
@@ -3270,7 +3306,17 @@ fn bundled_price_list_web_presence_mutations_stage_through_helper_path() {
 
 #[test]
 fn bundled_quantity_rules_delete_checks_staged_price_list_existence() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/quantity-rule-observed".to_string(),
+        title: "Quantity rule observed product".to_string(),
+        handle: "quantity-rule-observed-product".to_string(),
+        variants: vec![json!({
+            "id": "gid://shopify/ProductVariant/49875425296690",
+            "title": "Observed variant",
+            "sku": "OBSERVED"
+        })],
+        ..ProductRecord::default()
+    }]);
 
     let create_price_list = proxy.process_request(json_graphql_request(
         r#"
@@ -3327,6 +3373,47 @@ fn bundled_quantity_rules_delete_checks_staged_price_list_existence() {
         })
     );
 
+    let bundled_unknown_variant = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesDeleteBundledUnknownVariant(
+          $updateId: ID!
+          $updateInput: PriceListUpdateInput!
+          $priceListId: ID!
+          $variantIds: [ID!]!
+        ) {
+          priceListUpdate(id: $updateId, input: $updateInput) {
+            priceList { id name }
+            userErrors { __typename field message code }
+          }
+          quantityRulesDelete(priceListId: $priceListId, variantIds: $variantIds) {
+            deletedQuantityRulesVariantIds
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "updateId": price_list_id,
+            "updateInput": { "name": "Quantity Rule Prices Missing Variant" },
+            "priceListId": price_list_id,
+            "variantIds": [
+                "gid://shopify/ProductVariant/49875425296690",
+                "gid://shopify/ProductVariant/49875425296691"
+            ]
+        }),
+    ));
+    assert_eq!(
+        bundled_unknown_variant.body["data"]["quantityRulesDelete"],
+        json!({
+            "deletedQuantityRulesVariantIds": [],
+            "userErrors": [{
+                "__typename": "QuantityRuleUserError",
+                "field": ["variantIds", "1"],
+                "message": "Product variant ID does not exist.",
+                "code": "PRODUCT_VARIANT_DOES_NOT_EXIST"
+            }]
+        })
+    );
+
     let bundled_unknown_price_list = proxy.process_request(json_graphql_request(
         r#"
         mutation QuantityRulesDeleteBundledUnknownPriceList(
@@ -3361,6 +3448,52 @@ fn bundled_quantity_rules_delete_checks_staged_price_list_existence() {
                 "field": ["priceListId"],
                 "message": "Price list does not exist.",
                 "code": "PRICE_LIST_DOES_NOT_EXIST"
+            }]
+        })
+    );
+}
+
+#[test]
+fn quantity_rules_delete_uses_observed_variant_state_for_standalone_root() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/quantity-rule-standalone".to_string(),
+        title: "Quantity rule standalone product".to_string(),
+        handle: "quantity-rule-standalone-product".to_string(),
+        variants: vec![json!({
+            "id": "gid://shopify/ProductVariant/50000000000001",
+            "title": "Standalone observed variant",
+            "sku": "STANDALONE"
+        })],
+        ..ProductRecord::default()
+    }]);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesDeleteObservedVariants($priceListId: ID!, $variantIds: [ID!]!) {
+          quantityRulesDelete(priceListId: $priceListId, variantIds: $variantIds) {
+            deletedQuantityRulesVariantIds
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": "gid://shopify/PriceList/32128106802",
+            "variantIds": [
+                "gid://shopify/ProductVariant/50000000000001",
+                "gid://shopify/ProductVariant/50000000000002"
+            ]
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["quantityRulesDelete"],
+        json!({
+            "deletedQuantityRulesVariantIds": [],
+            "userErrors": [{
+                "__typename": "QuantityRuleUserError",
+                "field": ["variantIds", "1"],
+                "message": "Product variant ID does not exist.",
+                "code": "PRODUCT_VARIANT_DOES_NOT_EXIST"
             }]
         })
     );
@@ -3505,8 +3638,8 @@ fn catalog_relations_require_staged_price_list_and_publication_records() {
 }
 
 #[test]
-fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
-    // Ports old Gleam catalog/context helper behavior from markets_mutation_test.gleam:
+fn catalog_create_and_context_update_current_runtime_helpers_stage_and_validate() {
+    // Covers catalog/context helper behavior:
     // required/invalid status, required context/market IDs, country-code contexts,
     // typed CatalogUserError shapes, market-context staging/readback, unknown catalog delete,
     // and catalogContextUpdate add/remove validation/readback.
@@ -4240,8 +4373,8 @@ fn catalog_context_update_company_location_errors_match_shopify() {
 }
 
 #[test]
-fn market_catalog_relation_tail_helpers_ported_from_gleam() {
-    // Ports the remaining old Gleam markets_mutation tail helpers around:
+fn market_catalog_relation_tail_helpers_cover_current_behavior() {
+    // Covers remaining markets mutation helper behavior around:
     // - marketCreate plan-limit skip cases in the Rust local-runtime shape
     // - marketUpdate unknown catalog/web-presence link additions
     // - catalogDelete detaching a surviving price list
@@ -4812,8 +4945,8 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
 }
 
 #[test]
-fn price_list_create_update_delete_ported_gleam_helpers_stage_and_validate() {
-    // Ports old Gleam price-list helper behavior from markets_mutation_test.gleam:
+fn price_list_create_update_delete_current_runtime_helpers_stage_and_validate() {
+    // Covers price-list helper behavior:
     // create validation, adjustment bounds, typed mutation user errors, name uniqueness,
     // staged reads, catalog attachment, and null-catalog detachment.
     let create_query = r#"
@@ -5378,8 +5511,8 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
 }
 
 #[test]
-fn market_localizations_register_remove_ported_gleam_helpers_stage_and_validate() {
-    // Ports old Gleam proxy tests:
+fn market_localizations_register_remove_current_runtime_helpers_stage_and_validate() {
+    // Covers proxy tests:
     // - market_localizations_register_rejects_more_than_100_keys_test
     // - market_localizations_register_returns_translation_error_for_missing_resource_test
     // - market_localizations_remove_returns_translation_error_for_missing_resource_test
