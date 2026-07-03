@@ -1,142 +1,149 @@
 {
   "scenarioId": "money-bag-presentment-parity",
-  "operationNames": ["orderCreate"],
+  "operationNames": ["orderCreate", "orderMarkAsPaid", "refundCreate", "orderEditBegin", "orderEditCommit"],
   "scenarioStatus": "captured",
   "assertionKinds": ["money-math-parity", "payload-shape", "state-validation"],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-create-math-matrix.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/money-bag-presentment-parity.json"
   ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/orders/orderCreate-math-matrix.graphql",
-    "variablesCapturePath": "$.cases.pendingNoTax.variables",
+    "documentPath": "config/parity-requests/orders/money-bag-presentment-single-create.graphql",
+    "variablesCapturePath": "$.orderCreate.variables",
     "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live 2025-01 orderCreate math matrix covering pending custom-line subtotal, paid tax+shipping totals, fixed-discount totals, authorization capturable/outstanding amounts, and presentment MoneyBag propagation. Volatile order, line item, and transaction IDs are not selected; all selected money/status slices compare strictly. Replacement for retired synthetic/local-runtime orders evidence. This scenario ID is preserved for continuity but now reuses the real Shopify capture and proxy request contract from config/parity-specs/orders/orderCreate-math-matrix.json (order-create-math-matrix); the old local-runtime cassette is no longer parity evidence.",
+  "notes": "Live 2025-01 Shopify Admin GraphQL capture for MoneyBag presentment propagation through orderCreate, orderEditBegin/orderEditCommit, orderMarkAsPaid, and refundCreate on one disposable multi-currency order. The edit branch is captured before payment/refund because Shopify rejects edit begin on the paid/refunded order. Shopify applies a store FX rate when settling mark-as-paid and refund shopMoney amounts; the proxy preserves the captured presentment currency/amount strictly and treats only those opaque shopMoney amount conversions as expected differences. This replaces the retired proxy/local-runtime fixture; replay uses public GraphQL requests only and does not seed private proxy state.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "pending-no-tax",
-        "capturePath": "$.cases.pendingNoTax.response.payload.data.orderCreate",
+        "name": "order-create",
+        "capturePath": "$.orderCreate.response.payload.data.orderCreate",
         "proxyPath": "$.data.orderCreate",
-        "selectedPaths": [
-          "$.userErrors",
-          "$.order.displayFinancialStatus",
-          "$.order.displayFulfillmentStatus",
-          "$.order.paymentGatewayNames",
-          "$.order.subtotalPriceSet",
-          "$.order.currentSubtotalPriceSet",
-          "$.order.totalShippingPriceSet",
-          "$.order.currentTotalTaxSet",
-          "$.order.totalTaxSet",
-          "$.order.currentTotalDiscountsSet",
-          "$.order.totalDiscountsSet",
-          "$.order.currentTotalPriceSet",
-          "$.order.totalPriceSet",
-          "$.order.totalOutstandingSet",
-          "$.order.totalReceivedSet",
-          "$.order.totalCapturableSet",
-          "$.order.capturable",
-          "$.order.discountCodes",
-          "$.order.lineItems.nodes[0].title",
-          "$.order.lineItems.nodes[0].quantity",
-          "$.order.lineItems.nodes[0].sku",
-          "$.order.lineItems.nodes[0].originalUnitPriceSet",
-          "$.order.lineItems.nodes[0].taxLines"
+        "expectedDifferences": [
+          {
+            "path": "$.order.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "The proxy generates a synthetic local order ID."
+          }
         ]
       },
       {
-        "name": "paid-tax-and-shipping",
-        "capturePath": "$.cases.paidTaxShipping.response.payload.data.orderCreate",
-        "proxyPath": "$.data.orderCreate",
+        "name": "order-edit-begin",
+        "capturePath": "$.orderEditBegin.response.payload.data.orderEditBegin",
+        "proxyPath": "$.data.orderEditBegin",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/orderCreate-math-matrix.graphql",
-          "variablesCapturePath": "$.cases.paidTaxShipping.variables",
+          "documentPath": "config/parity-requests/orders/money-bag-presentment-order-edit-begin.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          },
           "apiVersion": "2025-01"
         },
-        "selectedPaths": [
-          "$.userErrors",
-          "$.order.displayFinancialStatus",
-          "$.order.paymentGatewayNames",
-          "$.order.currentTotalPriceSet",
-          "$.order.totalOutstandingSet",
-          "$.order.totalReceivedSet",
-          "$.order.totalShippingPriceSet",
-          "$.order.totalTaxSet",
-          "$.order.shippingLines.nodes[0].originalPriceSet",
-          "$.order.shippingLines.nodes[0].taxLines",
-          "$.order.lineItems.nodes[0].originalUnitPriceSet",
-          "$.order.lineItems.nodes[0].taxLines",
-          "$.order.transactions[0].kind",
-          "$.order.transactions[0].status",
-          "$.order.transactions[0].gateway",
-          "$.order.transactions[0].amountSet"
+        "expectedDifferences": [
+          {
+            "path": "$.calculatedOrder.id",
+            "matcher": "shopify-gid:CalculatedOrder",
+            "reason": "The proxy generates a synthetic local calculated order ID."
+          },
+          {
+            "path": "$.calculatedOrder.originalOrder.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "The proxy returns the synthetic order ID from the primary local orderCreate request."
+          }
         ]
       },
       {
-        "name": "fixed-discount-response",
-        "capturePath": "$.cases.fixedDiscount.response.payload.data.orderCreate",
-        "proxyPath": "$.data.orderCreate",
+        "name": "order-edit-commit",
+        "capturePath": "$.orderEditCommit.response.payload.data.orderEditCommit",
+        "proxyPath": "$.data.orderEditCommit",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/orderCreate-math-matrix.graphql",
-          "variablesCapturePath": "$.cases.fixedDiscount.variables",
+          "documentPath": "config/parity-requests/orders/money-bag-presentment-order-edit-commit.graphql",
+          "variables": {
+            "id": {
+              "fromPreviousProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "mark-as-paid",
+        "capturePath": "$.markAsPaid.response.payload.data.orderMarkAsPaid",
+        "proxyPath": "$.data.orderMarkAsPaid",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/money-bag-presentment-mark-as-paid.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              }
+            }
+          },
           "apiVersion": "2025-01"
         },
-        "selectedPaths": [
-          "$.userErrors",
-          "$.order.displayFinancialStatus",
-          "$.order.currentTotalPriceSet",
-          "$.order.totalDiscountsSet",
-          "$.order.currentTotalDiscountsSet",
-          "$.order.discountCodes",
-          "$.order.totalTaxSet",
-          "$.order.totalShippingPriceSet"
+        "expectedDifferences": [
+          {
+            "path": "$.order.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "The proxy returns the synthetic order ID from the primary local orderCreate request."
+          },
+          {
+            "path": "$.order.transactions[0].id",
+            "matcher": "shopify-gid:OrderTransaction",
+            "reason": "The proxy generates a synthetic local payment transaction ID."
+          },
+          {
+            "path": "$.order.transactions[0].amountSet.shopMoney.amount",
+            "matcher": "regex:^\\d+(?:\\.\\d+)?$",
+            "reason": "Shopify applies a live store FX settlement rate for mark-as-paid shopMoney that is not present in the orderCreate input; the proxy derives a deterministic shop amount from staged money-bag state while comparing presentment money strictly."
+          }
         ]
       },
       {
-        "name": "authorization-capturable",
-        "capturePath": "$.cases.authorization.response.payload.data.orderCreate",
-        "proxyPath": "$.data.orderCreate",
+        "name": "refund",
+        "capturePath": "$.refund.response.payload.data.refundCreate",
+        "proxyPath": "$.data.refundCreate",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/orderCreate-math-matrix.graphql",
-          "variablesCapturePath": "$.cases.authorization.variables",
+          "documentPath": "config/parity-requests/orders/money-bag-presentment-refund.graphql",
+          "variables": {
+            "input": {
+              "orderId": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              },
+              "currency": "USD",
+              "allowOverRefunding": true,
+              "transactions": [
+                {
+                  "amount": "5.00",
+                  "gateway": "manual",
+                  "kind": "REFUND",
+                  "orderId": {
+                    "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+                  },
+                  "parentId": {
+                    "fromProxyResponse": "mark-as-paid",
+                    "path": "$.data.orderMarkAsPaid.order.transactions[0].id"
+                  }
+                }
+              ]
+            }
+          },
           "apiVersion": "2025-01"
         },
-        "selectedPaths": [
-          "$.userErrors",
-          "$.order.displayFinancialStatus",
-          "$.order.paymentGatewayNames",
-          "$.order.currentTotalPriceSet",
-          "$.order.totalOutstandingSet",
-          "$.order.totalReceivedSet",
-          "$.order.totalCapturableSet",
-          "$.order.capturable",
-          "$.order.transactions[0].kind",
-          "$.order.transactions[0].status",
-          "$.order.transactions[0].gateway",
-          "$.order.transactions[0].amountSet"
-        ]
-      },
-      {
-        "name": "presentment-money",
-        "capturePath": "$.cases.presentmentMoney.response.payload.data.orderCreate",
-        "proxyPath": "$.data.orderCreate",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/orderCreate-math-matrix.graphql",
-          "variablesCapturePath": "$.cases.presentmentMoney.variables",
-          "apiVersion": "2025-01"
-        },
-        "selectedPaths": [
-          "$.userErrors",
-          "$.order.subtotalPriceSet",
-          "$.order.currentTotalPriceSet",
-          "$.order.totalPriceSet",
-          "$.order.totalOutstandingSet",
-          "$.order.totalReceivedSet",
-          "$.order.lineItems.nodes[0].originalUnitPriceSet",
-          "$.order.transactions[0].amountSet"
+        "expectedDifferences": [
+          {
+            "path": "$.order.totalRefundedSet.shopMoney.amount",
+            "matcher": "regex:^\\d+(?:\\.\\d+)?$",
+            "reason": "Shopify applies a live store FX settlement rate for refund shopMoney that is not present in the orderCreate input; the proxy derives a deterministic shop amount from the staged parent transaction while comparing presentment money strictly."
+          },
+          {
+            "path": "$.refund.totalRefundedSet.shopMoney.amount",
+            "matcher": "regex:^\\d+(?:\\.\\d+)?$",
+            "reason": "Shopify applies a live store FX settlement rate for refund shopMoney that is not present in the orderCreate input; the proxy derives a deterministic shop amount from the staged parent transaction while comparing presentment money strictly."
+          }
         ]
       }
     ]
