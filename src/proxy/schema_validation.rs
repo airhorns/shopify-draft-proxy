@@ -910,6 +910,18 @@ fn output_field_type(field: &Value) -> Option<OutputFieldType> {
     })
 }
 
+pub(in crate::proxy) fn public_admin_output_field_named_type(
+    api_version: &str,
+    parent_type: &str,
+    field_name: &str,
+) -> Option<&'static str> {
+    public_admin_output_schema(api_version)?
+        .fields_by_parent
+        .get(parent_type)?
+        .get(field_name)
+        .map(|field_type| field_type.named_type.as_str())
+}
+
 fn enum_values_label(values: &[String]) -> String {
     values.join(", ")
 }

@@ -224,6 +224,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-running-mutation-not-found-messages',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-running-mutation-not-found-messages-conformance.mts',
+    purpose:
+      'B2B companyDelete, companyContactCreate, companyAddressDelete, companyLocationAssignRoles, and companyLocationRevokeRoles RESOURCE_NOT_FOUND payloads for never-created IDs.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-running-mutation-not-found-messages.json`,
+      'config/parity-specs/b2b/b2b-running-mutation-not-found-messages.json',
+      'config/parity-requests/b2b/b2b-running-mutation-not-found-messages.graphql',
+    ],
+    cleanupBehavior:
+      'Uses fixed never-created Company, CompanyAddress, and CompanyLocation GIDs only; Shopify rejects before mutation so no cleanup is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-contact-location-assignments-tax',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-contact-location-assignment-conformance.mts',
@@ -11142,6 +11159,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-validators.json',
       'config/parity-specs/bulk-operations/bulk-operation-run-mutation-validators.json',
+      'config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no Shopify data is created or mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
+    captureId: 'bulk-operation-run-mutation-connection-validators',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-run-mutation-connection-validators-conformance.ts',
+    purpose:
+      'Records bulkOperationRunMutation inner mutation connection-count and connection-nesting validation errors.',
+    requiredAuthScopes: ['bulk operation access through active Admin token'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-connection-validators.json',
+      'config/parity-specs/bulk-operations/bulk-operation-run-mutation-connection-validators.json',
       'config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql',
     ],
     cleanupBehavior: 'Validation-only capture; no Shopify data is created or mutated.',
