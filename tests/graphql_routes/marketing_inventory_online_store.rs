@@ -7022,6 +7022,82 @@ fn metaobject_definition_field_key_validation_matches_shopify_length_and_case_ru
 }
 
 #[test]
+fn metaobject_definition_app_type_uses_request_api_client_id() {
+    let mut proxy = snapshot_proxy();
+    let create_definition = r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id type }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let definition_input = json!({
+        "definition": {
+            "type": "$app:settings_box",
+            "name": "App Settings Box",
+            "fieldDefinitions": [{
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field",
+                "required": false
+            }]
+        }
+    });
+
+    let mut create_request = json_graphql_request(create_definition, definition_input.clone());
+    create_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "999999999999".to_string(),
+    );
+    let create = proxy.process_request(create_request);
+    assert_eq!(
+        create.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    let created_definition =
+        &create.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"];
+    assert_eq!(
+        created_definition["type"],
+        json!("app--999999999999--settings_box")
+    );
+
+    let mut read_request = json_graphql_request(
+        r#"
+        query ReadDefinitionByType($type: String!) {
+          metaobjectDefinitionByType(type: $type) { id type }
+        }
+        "#,
+        json!({"type": "$app:settings_box"}),
+    );
+    read_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "999999999999".to_string(),
+    );
+    let read = proxy.process_request(read_request);
+    assert_eq!(
+        read.body["data"]["metaobjectDefinitionByType"]["type"],
+        json!("app--999999999999--settings_box")
+    );
+
+    let missing_identity =
+        proxy.process_request(json_graphql_request(create_definition, definition_input));
+    assert_eq!(
+        missing_identity.body["data"]["metaobjectDefinitionCreate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition", "type"],
+                "message": "API client identity is required to resolve or authorize app-reserved namespaces and types.",
+                "code": "NOT_AUTHORIZED",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+}
+
+#[test]
 fn metaobject_definition_update_validates_field_create_keys_and_display_name_key() {
     let mut proxy = snapshot_proxy();
 

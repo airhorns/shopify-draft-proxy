@@ -1535,7 +1535,7 @@ impl DraftProxy {
                             | "paymentCustomizationUpdate"
                     )
                 }) {
-                    let data = self.payment_customization_mutation_data(&fields);
+                    let data = self.payment_customization_mutation_data(request, &fields);
                     let staged_ids = fields
                         .iter()
                         .filter_map(|field| {
@@ -1817,7 +1817,7 @@ impl DraftProxy {
                 {
                     (self.upstream_transport)(request.clone())
                 } else {
-                    self.metafield_definition_pinning_read(&query, &variables)
+                    self.metafield_definition_pinning_read(request, &query, &variables)
                 }
             }
             (CapabilityDomain::Metafields, CapabilityExecution::StageLocally)

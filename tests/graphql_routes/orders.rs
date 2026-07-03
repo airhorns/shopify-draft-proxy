@@ -4849,6 +4849,14 @@ fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_
         }
       }
     "#;
+    let app_request = |query: &str, variables: serde_json::Value| {
+        let mut request = json_graphql_request(query, variables);
+        request.headers.insert(
+            "x-shopify-draft-proxy-api-client-id".to_string(),
+            "347082227713".to_string(),
+        );
+        request
+    };
 
     let missing_title = proxy.process_request(json_graphql_request(
         create_query,
@@ -4952,7 +4960,7 @@ fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_
         json!("MISSING_FUNCTION_IDENTIFIER")
     );
 
-    let invalid_metafield = proxy.process_request(json_graphql_request(
+    let invalid_metafield = proxy.process_request(app_request(
         create_query,
         json!({ "input": { "title": "Invalid metafield", "enabled": true, "functionId": "gid://shopify/ShopifyFunction/payment-a", "metafields": [{ "namespace": "$app:foo", "key": "bar", "value": "baz" }] } }),
     ));
@@ -5021,7 +5029,7 @@ fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_
         ])
     );
 
-    let before = proxy.process_request(json_graphql_request(
+    let before = proxy.process_request(app_request(
         create_query,
         json!({
             "input": {
@@ -5094,10 +5102,8 @@ fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_
         }
       }
     "#;
-    let read_after_rejected_update = proxy.process_request(json_graphql_request(
-        read_query,
-        json!({ "id": customization_id }),
-    ));
+    let read_after_rejected_update =
+        proxy.process_request(app_request(read_query, json!({ "id": customization_id })));
     assert_eq!(read_after_rejected_update.status, 200);
     assert_eq!(
         read_after_rejected_update.body["data"]["paymentCustomization"]["title"],
@@ -5126,10 +5132,8 @@ fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_
             "message": "is too short (minimum is 3 characters)"
         })
     );
-    let read_after_rejected_metafield_update = proxy.process_request(json_graphql_request(
-        read_query,
-        json!({ "id": customization_id }),
-    ));
+    let read_after_rejected_metafield_update =
+        proxy.process_request(app_request(read_query, json!({ "id": customization_id })));
     assert_eq!(read_after_rejected_metafield_update.status, 200);
     assert_eq!(
         read_after_rejected_metafield_update.body["data"]["paymentCustomization"]["metafield"]
@@ -5137,7 +5141,7 @@ fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_
         json!("baz")
     );
 
-    let accepted_equivalent_handle = proxy.process_request(json_graphql_request(
+    let accepted_equivalent_handle = proxy.process_request(app_request(
         update_query,
         json!({
             "id": customization_id,
@@ -5193,10 +5197,8 @@ fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_
             "message": "Required input field must be present."
         }])
     );
-    let read_after_rejected_blank_title = proxy.process_request(json_graphql_request(
-        read_query,
-        json!({ "id": customization_id }),
-    ));
+    let read_after_rejected_blank_title =
+        proxy.process_request(app_request(read_query, json!({ "id": customization_id })));
     assert_eq!(read_after_rejected_blank_title.status, 200);
     assert_eq!(
         read_after_rejected_blank_title.body["data"]["paymentCustomization"]["title"],
