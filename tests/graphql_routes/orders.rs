@@ -2999,18 +2999,18 @@ fn order_cancel_staged_order_create_chain_updates_downstream_state() {
 }
 
 #[test]
-fn order_customer_set_and_remove_error_paths_replay_captured_shapes() {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/orders/orderCustomerSet-and-Remove-error-paths.json"
-    ))
-    .unwrap();
+fn order_customer_set_and_remove_error_paths_use_staged_records() {
     let mut proxy = snapshot_proxy();
 
     let customer = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/orders/orderCustomer-error-paths-customer-create.graphql"
         ),
-        fixture["setup"]["customerCreate"]["variables"].clone(),
+        json!({ "input": {
+            "email": "customer-set-varied@example.test",
+            "firstName": "Customer",
+            "lastName": "Varied"
+        }}),
     ));
     assert_eq!(
         customer.body["data"]["customerCreate"]["userErrors"],
@@ -3022,7 +3022,16 @@ fn order_customer_set_and_remove_error_paths_replay_captured_shapes() {
         include_str!(
             "../../config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql"
         ),
-        fixture["setup"]["orderCreate"]["variables"].clone(),
+        json!({ "order": {
+            "currency": "USD",
+            "financialStatus": "PENDING",
+            "email": "customer-set-order@example.test",
+            "lineItems": [{
+                "title": "Order customer item",
+                "quantity": 1,
+                "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+            }]
+        }}),
     ));
     assert_eq!(order.body["data"]["orderCreate"]["userErrors"], json!([]));
     let order_id = order.body["data"]["orderCreate"]["order"]["id"].clone();
@@ -3031,19 +3040,63 @@ fn order_customer_set_and_remove_error_paths_replay_captured_shapes() {
         include_str!("../../config/parity-requests/orders/orderCustomerSet-error-paths.graphql"),
         json!({ "orderId": order_id.clone(), "customerId": customer_id.clone() }),
     ));
-    assert_eq!(happy_set.body, fixture["expected"]["happySet"]);
+    assert_eq!(
+        happy_set.body,
+        json!({
+            "data": {
+                "orderCustomerSet": {
+                    "order": {
+                        "id": order_id,
+                        "customer": {
+                            "id": customer_id,
+                            "email": "customer-set-varied@example.test",
+                            "displayName": "Customer Varied"
+                        }
+                    },
+                    "userErrors": []
+                }
+            }
+        })
+    );
 
     let happy_remove = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/orderCustomerRemove-error-paths.graphql"),
         json!({ "orderId": order_id.clone() }),
     ));
-    assert_eq!(happy_remove.body, fixture["expected"]["happyRemove"]);
+    assert_eq!(
+        happy_remove.body,
+        json!({
+            "data": {
+                "orderCustomerRemove": {
+                    "order": {
+                        "id": order_id,
+                        "customer": Value::Null
+                    },
+                    "userErrors": []
+                }
+            }
+        })
+    );
 
     let unknown_order = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/orderCustomerSet-error-paths.graphql"),
         json!({ "orderId": "gid://shopify/Order/order-customer-missing", "customerId": customer_id.clone() }),
     ));
-    assert_eq!(unknown_order.body, fixture["expected"]["unknownOrder"]);
+    assert_eq!(
+        unknown_order.body,
+        json!({
+            "data": {
+                "orderCustomerSet": {
+                    "order": Value::Null,
+                    "userErrors": [{
+                        "field": ["orderId"],
+                        "message": "Order does not exist",
+                        "code": "NOT_FOUND"
+                    }]
+                }
+            }
+        })
+    );
 
     let unknown_customer = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/orderCustomerSet-error-paths.graphql"),
@@ -3051,14 +3104,25 @@ fn order_customer_set_and_remove_error_paths_replay_captured_shapes() {
     ));
     assert_eq!(
         unknown_customer.body,
-        fixture["expected"]["unknownCustomer"]
+        json!({
+            "data": {
+                "orderCustomerSet": {
+                    "order": Value::Null,
+                    "userErrors": [{
+                        "field": ["customerId"],
+                        "message": "Customer does not exist",
+                        "code": "NOT_FOUND"
+                    }]
+                }
+            }
+        })
     );
 
     let company = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/orders/orderCustomer-error-paths-company-create.graphql"
         ),
-        fixture["setup"]["companyCreate"]["variables"].clone(),
+        json!({ "input": { "company": { "name": "Customer Paths Company" } } }),
     ));
     assert_eq!(
         company.body["data"]["companyCreate"]["userErrors"],
@@ -3081,7 +3145,19 @@ fn order_customer_set_and_remove_error_paths_replay_captured_shapes() {
         include_str!(
             "../../config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql"
         ),
-        fixture["setup"]["b2bOrderCreate"]["variables"].clone(),
+        json!({ "order": {
+            "currency": "USD",
+            "financialStatus": "PENDING",
+            "email": "customer-paths-b2b@example.test",
+            "purchasingEntity": {
+                "purchasingCompany": { "companyId": company_id }
+            },
+            "lineItems": [{
+                "title": "B2B order customer item",
+                "quantity": 1,
+                "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+            }]
+        }}),
     ));
     let b2b_order_id = b2b_order.body["data"]["orderCreate"]["order"]["id"].clone();
     let b2b_not_permitted = proxy.process_request(json_graphql_request(
@@ -3132,7 +3208,7 @@ fn order_customer_set_and_remove_error_paths_replay_captured_shapes() {
             "order": {
                 "currency": "USD",
                 "financialStatus": "PENDING",
-                "email": "order-customer-cancelled@example.com",
+                "email": "customer-paths-cancelled@example.test",
                 "customerId": customer_id,
                 "lineItems": [{
                     "title": "Cancelled order customer item",
@@ -3166,6 +3242,227 @@ fn order_customer_set_and_remove_error_paths_replay_captured_shapes() {
                 }
             }
         })
+    );
+}
+
+#[test]
+fn order_customer_b2b_paths_use_input_state_not_fixture_strings() {
+    let mut proxy = snapshot_proxy();
+
+    let customer_query = r#"
+        mutation CreateVariedCustomer($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email displayName }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let first_customer = proxy.process_request(json_graphql_request(
+        customer_query,
+        json!({ "input": {
+            "email": "buyer.alpha@example.test",
+            "firstName": "Avery",
+            "lastName": "Atlas"
+        }}),
+    ));
+    let second_customer = proxy.process_request(json_graphql_request(
+        customer_query,
+        json!({ "input": {
+            "email": "buyer.beta@example.test",
+            "firstName": "Blair",
+            "lastName": "Benton"
+        }}),
+    ));
+    assert_eq!(
+        first_customer.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        second_customer.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        first_customer.body["data"]["customerCreate"]["customer"]["displayName"],
+        json!("Avery Atlas")
+    );
+    let first_customer_id = first_customer.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_customer_id = second_customer.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(first_customer_id, second_customer_id);
+
+    let company_query = r#"
+        mutation CreateVariedCompany($input: CompanyCreateInput!) {
+          companyCreate(input: $input) {
+            company { id name }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let first_company = proxy.process_request(json_graphql_request(
+        company_query,
+        json!({ "input": { "company": { "name": "Atlas Procurement LLC" } } }),
+    ));
+    let second_company = proxy.process_request(json_graphql_request(
+        company_query,
+        json!({ "input": { "company": { "name": "Blue River Wholesale" } } }),
+    ));
+    assert_eq!(
+        first_company.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        first_company.body["data"]["companyCreate"]["company"]["name"],
+        json!("Atlas Procurement LLC")
+    );
+    let first_company_id = first_company.body["data"]["companyCreate"]["company"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_company_id = second_company.body["data"]["companyCreate"]["company"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(first_company_id, second_company_id);
+
+    let assign_query = r#"
+        mutation AssignVariedCustomer($companyId: ID!, $customerId: ID!) {
+          companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {
+            companyContact {
+              id
+              isMainContact
+              customer { id }
+              company { id name }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let first_contact = proxy.process_request(json_graphql_request(
+        assign_query,
+        json!({ "companyId": first_company_id, "customerId": first_customer_id }),
+    ));
+    let second_contact = proxy.process_request(json_graphql_request(
+        assign_query,
+        json!({ "companyId": second_company_id, "customerId": second_customer_id }),
+    ));
+    assert_eq!(
+        first_contact.body["data"]["companyAssignCustomerAsContact"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        first_contact.body["data"]["companyAssignCustomerAsContact"]["companyContact"]["company"]
+            ["name"],
+        json!("Atlas Procurement LLC")
+    );
+    assert_ne!(
+        first_contact.body["data"]["companyAssignCustomerAsContact"]["companyContact"]["id"],
+        second_contact.body["data"]["companyAssignCustomerAsContact"]["companyContact"]["id"]
+    );
+
+    let order_query = r#"
+        mutation CreateVariedB2bOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let first_order = proxy.process_request(json_graphql_request(
+        order_query,
+        json!({ "order": {
+            "email": "purchase.alpha@example.test",
+            "currency": "USD",
+            "financialStatus": "PENDING",
+            "purchasingEntity": {
+                "purchasingCompany": { "companyId": first_company_id }
+            },
+            "lineItems": [{
+                "title": "B2B varied item",
+                "quantity": 1,
+                "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+            }]
+        }}),
+    ));
+    let second_order = proxy.process_request(json_graphql_request(
+        order_query,
+        json!({ "order": {
+            "email": "purchase.beta@example.test",
+            "currency": "USD",
+            "financialStatus": "PENDING",
+            "purchasingEntity": {
+                "purchasingCompany": { "companyId": second_company_id }
+            },
+            "lineItems": [{
+                "title": "B2B varied item two",
+                "quantity": 1,
+                "priceSet": { "shopMoney": { "amount": "11.00", "currencyCode": "USD" } }
+            }]
+        }}),
+    ));
+    assert_eq!(
+        first_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        second_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let first_order_id = first_order.body["data"]["orderCreate"]["order"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_order_id = second_order.body["data"]["orderCreate"]["order"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(first_order_id, second_order_id);
+
+    let set = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderCustomerSet-error-paths.graphql"),
+        json!({ "orderId": first_order_id, "customerId": first_customer_id }),
+    ));
+    assert_eq!(
+        set.body["data"]["orderCustomerSet"]["userErrors"],
+        json!([{
+            "field": ["customerId"],
+            "message": "Customer does not have the permissions to place this order",
+            "code": "NOT_PERMITTED"
+        }])
+    );
+
+    let cancel_query = r#"
+        mutation CancelVariedOrder($orderId: ID!) {
+          orderCancel(orderId: $orderId, restock: false, reason: OTHER) {
+            job { id done }
+            orderCancelUserErrors { field message code }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let first_cancel = proxy.process_request(json_graphql_request(
+        cancel_query,
+        json!({ "orderId": first_order_id }),
+    ));
+    let second_cancel = proxy.process_request(json_graphql_request(
+        cancel_query,
+        json!({ "orderId": second_order_id }),
+    ));
+    assert_eq!(
+        first_cancel.body["data"]["orderCancel"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        second_cancel.body["data"]["orderCancel"]["userErrors"],
+        json!([])
+    );
+    assert_ne!(
+        first_cancel.body["data"]["orderCancel"]["job"]["id"],
+        second_cancel.body["data"]["orderCancel"]["job"]["id"]
     );
 }
 
