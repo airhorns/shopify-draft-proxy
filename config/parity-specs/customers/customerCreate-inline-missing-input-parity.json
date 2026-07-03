@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Hand-synthesized capture mirroring Shopify's `missingRequiredArguments` envelope when `customerCreate` is invoked without its required `input` argument. The schema-driven validator in `proxy/mutation_helpers.gleam` is the single source for this error envelope; the fixture format follows the existing `orderCreate-inline-missing-order` capture verbatim.",
+  "notes": "Hand-synthesized capture mirroring Shopify's `missingRequiredArguments` envelope when `customerCreate` is invoked without its required `input` argument. The local schema validator is the single source for this error envelope; the fixture format follows the existing `orderCreate-inline-missing-order` capture verbatim.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

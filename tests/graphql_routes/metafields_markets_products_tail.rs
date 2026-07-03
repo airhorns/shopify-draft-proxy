@@ -1995,8 +1995,8 @@ fn market_web_presence_create_uses_observed_shop_host_from_live_preflight() {
 }
 
 #[test]
-fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
-    // Ports old Gleam web-presence helper behavior from markets_mutation_test.gleam:
+fn market_web_presence_current_runtime_helpers_stage_and_validate() {
+    // Covers web-presence helper behavior:
     // root URL construction for subfolder/domain routing, Shopify locale normalization,
     // aggregate locale errors, subfolder validation ordering, create/update readback,
     // unknown-domain create guards, and taken-suffix/no-op update behavior.
@@ -2537,8 +2537,8 @@ fn market_create_region_nodes_include_country_identity_fields_in_payload_and_rea
 }
 
 #[test]
-fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests() {
-    // Ports old Gleam proxy tests around marketCreate validation/staging:
+fn market_create_validation_and_staging_helpers_match_current_behavior() {
+    // Covers marketCreate validation/staging:
     // - status/enabled mismatch and partial-input defaults
     // - price-inclusion projection and location-condition rejection
     // - currency settings flags/read-after-write, invalid base currency, manual FX rate
@@ -3541,8 +3541,8 @@ fn catalog_relations_require_staged_price_list_and_publication_records() {
 }
 
 #[test]
-fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
-    // Ports old Gleam catalog/context helper behavior from markets_mutation_test.gleam:
+fn catalog_create_and_context_update_current_runtime_helpers_stage_and_validate() {
+    // Covers catalog/context helper behavior:
     // required/invalid status, required context/market IDs, country-code contexts,
     // typed CatalogUserError shapes, market-context staging/readback, unknown catalog delete,
     // and catalogContextUpdate add/remove validation/readback.
@@ -4276,8 +4276,8 @@ fn catalog_context_update_company_location_errors_match_shopify() {
 }
 
 #[test]
-fn market_catalog_relation_tail_helpers_ported_from_gleam() {
-    // Ports the remaining old Gleam markets_mutation tail helpers around:
+fn market_catalog_relation_tail_helpers_cover_current_behavior() {
+    // Covers remaining markets mutation helper behavior around:
     // - marketCreate plan-limit skip cases in the Rust local-runtime shape
     // - marketUpdate unknown catalog/web-presence link additions
     // - catalogDelete detaching a surviving price list
@@ -4848,8 +4848,8 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
 }
 
 #[test]
-fn price_list_create_update_delete_ported_gleam_helpers_stage_and_validate() {
-    // Ports old Gleam price-list helper behavior from markets_mutation_test.gleam:
+fn price_list_create_update_delete_current_runtime_helpers_stage_and_validate() {
+    // Covers price-list helper behavior:
     // create validation, adjustment bounds, typed mutation user errors, name uniqueness,
     // staged reads, catalog attachment, and null-catalog detachment.
     let create_query = r#"
@@ -5414,8 +5414,8 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
 }
 
 #[test]
-fn market_localizations_register_remove_ported_gleam_helpers_stage_and_validate() {
-    // Ports old Gleam proxy tests:
+fn market_localizations_register_remove_current_runtime_helpers_stage_and_validate() {
+    // Covers proxy tests:
     // - market_localizations_register_rejects_more_than_100_keys_test
     // - market_localizations_register_returns_translation_error_for_missing_resource_test
     // - market_localizations_remove_returns_translation_error_for_missing_resource_test

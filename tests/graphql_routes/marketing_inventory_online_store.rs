@@ -6045,7 +6045,7 @@ fn online_store_script_tag_update_unknown_id_returns_not_found() {
 }
 
 #[test]
-fn online_store_storefront_access_token_edges_ported_from_gleam() {
+fn online_store_storefront_access_token_edges_covers_current_behavior() {
     let mut proxy = snapshot_proxy();
 
     let first = proxy.process_request(json_graphql_request(
@@ -6282,7 +6282,7 @@ fn web_pixel_create_success_returns_connected_with_non_null_settings() {
 }
 
 #[test]
-fn online_store_pixel_endpoint_edges_ported_from_gleam() {
+fn online_store_pixel_endpoint_edges_covers_current_behavior() {
     let mut proxy = snapshot_proxy();
 
     let web_pixel = proxy.process_request(json_graphql_request(
@@ -6605,7 +6605,7 @@ fn webhook_cloud_destination_validation_preserves_unified_and_pubsub_fields() {
 }
 
 #[test]
-fn online_store_theme_lifecycle_tail_helpers_ported_from_gleam() {
+fn online_store_theme_lifecycle_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
 
     let created = proxy.process_request(json_graphql_request(
@@ -6879,7 +6879,7 @@ fn online_store_theme_connection_paginates_edges_nodes_and_page_info_consistentl
 }
 
 #[test]
-fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
+fn online_store_theme_file_lifecycle_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
 
     proxy.process_request(json_graphql_request(

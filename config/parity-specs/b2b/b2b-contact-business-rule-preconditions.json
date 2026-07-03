@@ -20,7 +20,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "HAR-620 live Shopify 2026-04 evidence covers duplicate one-role-per-contact/location assignment, foreign and missing role/location resource resolution, successful `companyContactDelete` clearing mainContact, and `companyContactDelete` rejection after a B2B draft order is completed into an order for that contact. The replay drives the B2B draft-order create/complete request flow through the proxy before the order-precondition delete target; it does not pre-seed proxy state.",
   "comparison": {
     "mode": "strict-json",

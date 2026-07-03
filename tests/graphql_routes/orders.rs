@@ -69,7 +69,7 @@ fn order_create_uses_shop_currency_but_preserves_presentment_currency() {
                 }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -127,7 +127,7 @@ fn stage_fulfillment_for_event(proxy: &mut DraftProxy) -> (Value, Value) {
                 }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -200,7 +200,7 @@ fn create_fulfillment_validation_order(proxy: &mut DraftProxy) -> (Value, Vec<Va
                 }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -412,7 +412,7 @@ fn stage_fulfilled_order_for_return(proxy: &mut DraftProxy) -> (Value, Value) {
                 }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -5643,7 +5643,7 @@ fn draft_order_applied_discount_value_type_coercion_matches_capture() {
 }
 
 #[test]
-fn payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_guards() {
+fn payment_reminder_send_malformed_gid_and_invalid_selection_covers_current_guardrails() {
     let malformed_fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-malformed-gid.json"
     ))
@@ -5718,7 +5718,7 @@ fn payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_gua
 }
 
 #[test]
-fn payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards() {
+fn payment_reminder_send_eligibility_and_rate_limit_covers_current_guardrails() {
     let eligibility_fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-eligibility.json"
     ))
@@ -6058,7 +6058,7 @@ fn payment_reminder_hydrated_proxy(fixtures: &[&Value]) -> (DraftProxy, Arc<Mute
 }
 
 #[test]
-fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers() {
+fn payment_customization_local_runtime_covers_create_activation_update_readback_helpers() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"
       mutation RustPaymentCustomizationLocalRuntime($input: PaymentCustomizationInput!) {
@@ -7039,7 +7039,7 @@ fn assert_payment_terms_due_state(terms: &Value, expected_due: bool, expected_du
 }
 
 #[test]
-fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
+fn payment_terms_create_update_guardrails_cover_current_helper_edges() {
     let create_query = r#"
         mutation RustPaymentTermsLocalRuntimeCreate($referenceId: ID!, $attrs: PaymentTermsAttributesInput!) {
           paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {
@@ -11541,7 +11541,7 @@ fn order_edit_shipping_line_and_remove_discount_unstaged_calculated_order_return
 }
 
 #[test]
-fn customer_payment_methods_remote_create_validation_ports_old_gleam_guards() {
+fn customer_payment_methods_remote_create_validation_covers_current_guardrails() {
     let mut proxy = snapshot_proxy();
 
     let seed = proxy.process_request(json_graphql_request(
@@ -12049,7 +12049,7 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
 }
 
 #[test]
-fn customer_payment_method_update_and_revoke_tail_helpers_ported_from_gleam() {
+fn customer_payment_method_update_and_revoke_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
 
     let update = proxy.process_request(json_graphql_request(
