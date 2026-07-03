@@ -1,0 +1,27 @@
+mutation InventoryExistenceAdjustUnknownItem(
+  $input: InventoryAdjustQuantitiesInput!
+  $idempotencyKey: String!
+) {
+  inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+    inventoryAdjustmentGroup {
+      id
+      reason
+      changes {
+        name
+        delta
+        item {
+          id
+        }
+        location {
+          id
+          name
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

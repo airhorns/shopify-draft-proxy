@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-create-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-variants-bulk-create-parity.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/productVariantCompatibility-setup-product.graphql",
@@ -38,9 +38,22 @@
                 "fromPrimaryProxyPath": "$.data.productCreate.product.id"
               },
               "title": "Blue",
-              "sku": "HERMES-BULK-810153-BLUE",
+              "sku": {
+                "fromCapturePath": "$.mutation.variables.variants[0].inventoryItem.sku"
+              },
               "barcode": "2222222222222",
               "price": "26.00",
+              "compareAtPrice": "30.00",
+              "taxable": false,
+              "taxCode": "P0000000",
+              "requiresComponents": true,
+              "showUnitPrice": true,
+              "unitPriceMeasurement": {
+                "quantityValue": 2.5,
+                "quantityUnit": "L",
+                "referenceValue": 1,
+                "referenceUnit": "L"
+              },
               "inventoryQuantity": 0,
               "selectedOptions": [
                 {
@@ -50,12 +63,22 @@
               ],
               "inventoryItem": {
                 "tracked": true,
-                "requiresShipping": false
+                "requiresShipping": false,
+                "countryCodeOfOrigin": "US",
+                "provinceCodeOfOrigin": "CA",
+                "harmonizedSystemCode": "1234.56",
+                "measurement": {
+                  "weight": {
+                    "value": 0.25,
+                    "unit": "KILOGRAMS"
+                  }
+                }
               }
             }
           }
         },
         "proxyPath": "$.data.productVariantCreate.productVariant",
+        "excludedPaths": ["$.position"],
         "expectedDifferences": [
           {
             "path": "$.id",
@@ -80,9 +103,22 @@
                 "fromPrimaryProxyPath": "$.data.productCreate.product.id"
               },
               "title": "Blue",
-              "sku": "HERMES-BULK-810153-BLUE",
+              "sku": {
+                "fromCapturePath": "$.mutation.variables.variants[0].inventoryItem.sku"
+              },
               "barcode": "2222222222222",
               "price": "26.00",
+              "compareAtPrice": "30.00",
+              "taxable": false,
+              "taxCode": "P0000000",
+              "requiresComponents": true,
+              "showUnitPrice": true,
+              "unitPriceMeasurement": {
+                "quantityValue": 2.5,
+                "quantityUnit": "L",
+                "referenceValue": 1,
+                "referenceUnit": "L"
+              },
               "inventoryQuantity": 0,
               "selectedOptions": [
                 {
@@ -92,7 +128,16 @@
               ],
               "inventoryItem": {
                 "tracked": true,
-                "requiresShipping": false
+                "requiresShipping": false,
+                "countryCodeOfOrigin": "US",
+                "provinceCodeOfOrigin": "CA",
+                "harmonizedSystemCode": "1234.56",
+                "measurement": {
+                  "weight": {
+                    "value": 0.25,
+                    "unit": "KILOGRAMS"
+                  }
+                }
               }
             }
           }
@@ -118,9 +163,22 @@
                 "fromPrimaryProxyPath": "$.data.productCreate.product.id"
               },
               "title": "Blue",
-              "sku": "HERMES-BULK-810153-BLUE",
+              "sku": {
+                "fromCapturePath": "$.mutation.variables.variants[0].inventoryItem.sku"
+              },
               "barcode": "2222222222222",
               "price": "26.00",
+              "compareAtPrice": "30.00",
+              "taxable": false,
+              "taxCode": "P0000000",
+              "requiresComponents": true,
+              "showUnitPrice": true,
+              "unitPriceMeasurement": {
+                "quantityValue": 2.5,
+                "quantityUnit": "L",
+                "referenceValue": 1,
+                "referenceUnit": "L"
+              },
               "inventoryQuantity": 0,
               "selectedOptions": [
                 {
@@ -130,7 +188,16 @@
               ],
               "inventoryItem": {
                 "tracked": true,
-                "requiresShipping": false
+                "requiresShipping": false,
+                "countryCodeOfOrigin": "US",
+                "provinceCodeOfOrigin": "CA",
+                "harmonizedSystemCode": "1234.56",
+                "measurement": {
+                  "weight": {
+                    "value": 0.25,
+                    "unit": "KILOGRAMS"
+                  }
+                }
               }
             }
           }

@@ -850,8 +850,7 @@ impl DraftProxy {
     /// `orders`/`addressesV2`/`metafields` connections resolve from store state
     /// exactly as the singular `customer`/`customerByIdentifier` reads do.
     pub(in crate::proxy) fn customers_list_field(&self, field: &RootFieldSelection) -> Value {
-        let query = resolved_string_field(&field.arguments, "query");
-        let mut records: Vec<Value> = self
+        let records: Vec<Value> = self
             .store
             .staged
             .customers
@@ -863,19 +862,14 @@ impl DraftProxy {
                     .unwrap_or_default();
                 !self.store.staged.customers.is_tombstoned(id)
             })
-            .filter(|customer| customer_matches_query(customer, query.as_deref()))
             .cloned()
             .collect();
-        records.sort_by(|a, b| {
-            a["id"]
-                .as_str()
-                .unwrap_or_default()
-                .cmp(b["id"].as_str().unwrap_or_default())
-        });
-        selected_typed_connection_with_args(
-            &records,
+        selected_staged_connection_with_args(
+            records,
             &field.arguments,
             &field.selection,
+            customer_search_decision,
+            customer_staged_sort_key,
             |customer, selection| {
                 let id = customer["id"].as_str().unwrap_or_default().to_string();
                 self.customer_with_order_connection(&id, customer, selection)
@@ -3751,7 +3745,12 @@ fn customer_address_input_node(
     let city = field_value("city");
     let company = field_value("company");
     let zip = field_value("zip");
-    let phone = field_value("phone");
+    let phone = if input.contains_key("phone") {
+        customer_address_string(input, "phone")
+            .map(|phone| normalize_customer_address_phone(&phone).unwrap_or(phone))
+    } else {
+        field_value("phone")
+    };
     (
         Some(customer_address_node_json(CustomerAddressNodeFields {
             id: id.to_string(),
@@ -3768,6 +3767,57 @@ fn customer_address_input_node(
         })),
         Vec::new(),
     )
+}
+
+fn normalize_customer_address_phone(raw: &str) -> Option<String> {
+    const CALLING_CODE: &str = "1";
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let starts_with_plus = trimmed.starts_with('+') || trimmed.starts_with('\u{FF0B}');
+    if !starts_with_plus && trimmed.chars().any(|c| c == '+' || c == '\u{FF0B}') {
+        return None;
+    }
+    let supported = |c: char| {
+        c.is_ascii_digit()
+            || matches!(
+                c,
+                '+' | '\u{FF0B}'
+                    | ' '
+                    | '\t'
+                    | '\n'
+                    | '\r'
+                    | '('
+                    | ')'
+                    | '-'
+                    | '.'
+                    | '\u{2010}'
+                    | '\u{2011}'
+                    | '\u{2012}'
+                    | '\u{2013}'
+                    | '\u{2014}'
+                    | '\u{00A0}'
+            )
+    };
+    if !trimmed.chars().all(supported) {
+        return None;
+    }
+    let digits = trimmed
+        .chars()
+        .filter(char::is_ascii_digit)
+        .collect::<String>();
+    let e164_digits = if starts_with_plus || (digits.starts_with(CALLING_CODE) && digits.len() > 10)
+    {
+        digits
+    } else {
+        format!("{CALLING_CODE}{digits}")
+    };
+    if (8..=15).contains(&e164_digits.len()) {
+        Some(format!("+{e164_digits}"))
+    } else {
+        None
+    }
 }
 
 #[derive(Clone)]
@@ -5119,34 +5169,110 @@ fn order_connection_cursor(record: &Value) -> String {
         .unwrap_or_else(|| value_id_cursor(record))
 }
 
+fn customer_value_string<'a>(customer: &'a Value, field: &str) -> &'a str {
+    customer
+        .get(field)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+}
+
+fn customer_normalized_string(customer: &Value, field: &str) -> StagedSortValue {
+    StagedSortValue::String(customer_value_string(customer, field).to_ascii_lowercase())
+}
+
+fn customer_gid_tail_sort_value(customer: &Value) -> StagedSortValue {
+    let id = customer_value_string(customer, "id");
+    let tail = resource_id_tail(id);
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn customer_address_sort_value(customer: &Value, field: &str) -> StagedSortValue {
+    customer
+        .get("defaultAddress")
+        .and_then(|address| address.get(field))
+        .and_then(Value::as_str)
+        .map(|value| StagedSortValue::String(value.to_ascii_lowercase()))
+        .unwrap_or(StagedSortValue::Null)
+}
+
+fn customer_staged_sort_key(customer: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let primary = match sort_key.unwrap_or("ID") {
+        "NAME" => customer_normalized_string(customer, "displayName"),
+        "UPDATED_AT" => {
+            StagedSortValue::String(customer_value_string(customer, "updatedAt").to_string())
+        }
+        "CREATED_AT" => {
+            StagedSortValue::String(customer_value_string(customer, "createdAt").to_string())
+        }
+        "LOCATION" => {
+            return vec![
+                customer_address_sort_value(customer, "country"),
+                customer_address_sort_value(customer, "province"),
+                customer_address_sort_value(customer, "city"),
+                customer_gid_tail_sort_value(customer),
+            ];
+        }
+        "ID" | "RELEVANCE" => customer_gid_tail_sort_value(customer),
+        _ => customer_gid_tail_sort_value(customer),
+    };
+    vec![primary, customer_gid_tail_sort_value(customer)]
+}
+
 /// Evaluate a (small subset of a) customer search `query` against a staged customer.
-/// Supports `tag:<value>` exact tag membership and a generic case-insensitive
-/// substring fallback over email / display name / first name. An absent or blank
-/// query matches every customer.
-fn customer_matches_query(customer: &Value, query: Option<&str>) -> bool {
+/// Supports `tag:<value>` and `email:<value>` predicates plus a generic
+/// case-insensitive free-text match over email / display name / first name.
+/// Unknown keyed predicates are explicit unsupported terms instead of broad
+/// positive matches.
+fn customer_search_decision(customer: &Value, query: Option<&str>) -> StagedSearchDecision {
     let Some(query) = query else {
-        return true;
+        return StagedSearchDecision::Match;
     };
     let query = query.trim();
     if query.is_empty() {
-        return true;
+        return StagedSearchDecision::Match;
     }
-    if let Some(tag) = query.strip_prefix("tag:") {
-        let tag = tag.trim().trim_matches('\'').trim_matches('"');
-        return customer["tags"]
-            .as_array()
-            .map(|tags| tags.iter().any(|value| value.as_str() == Some(tag)))
-            .unwrap_or(false);
+    for term in query.split_whitespace() {
+        match customer_search_term_decision(customer, term) {
+            StagedSearchDecision::Match => {}
+            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
+            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
+        }
     }
-    let needle = query.to_lowercase();
+    StagedSearchDecision::Match
+}
+
+fn customer_search_term_decision(customer: &Value, term: &str) -> StagedSearchDecision {
+    let term = term.trim().trim_matches('\'').trim_matches('"');
+    if term.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+    if let Some((key, value)) = term.split_once(':') {
+        let value = value.trim().trim_matches('\'').trim_matches('"');
+        return match key {
+            "tag" => StagedSearchDecision::from_bool(
+                customer["tags"]
+                    .as_array()
+                    .map(|tags| tags.iter().any(|tag| tag.as_str() == Some(value)))
+                    .unwrap_or(false),
+            ),
+            "email" => StagedSearchDecision::from_bool(
+                customer_value_string(customer, "email").eq_ignore_ascii_case(value),
+            ),
+            _ => StagedSearchDecision::Unsupported,
+        };
+    }
+
+    let needle = term.trim_end_matches('*').to_ascii_lowercase();
     let haystack = format!(
         "{} {} {}",
-        customer["email"].as_str().unwrap_or_default(),
-        customer["displayName"].as_str().unwrap_or_default(),
-        customer["firstName"].as_str().unwrap_or_default()
+        customer_value_string(customer, "email"),
+        customer_value_string(customer, "displayName"),
+        customer_value_string(customer, "firstName")
     )
-    .to_lowercase();
-    haystack.contains(&needle)
+    .to_ascii_lowercase();
+    StagedSearchDecision::from_bool(haystack.contains(&needle))
 }
 
 /// Surface Shopify's order-summary defaults on a freshly staged customer record:

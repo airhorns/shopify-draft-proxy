@@ -1,65 +1,58 @@
 {
   "scenarioId": "draft-order-complete-payment-gateway-paths",
-  "operationNames": ["draftOrderCreate", "draftOrderComplete"],
+  "operationNames": ["draftOrderComplete", "order"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["runtime-staging", "validation", "no-upstream-passthrough"],
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/local-runtime/2026-04/orders/draft-order-complete-payment-gateway-paths.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/draft-order-complete-payment-terms-pending.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-create.graphql"
+    "documentPath": "config/parity-requests/orders/draftOrderComplete-payment-terms-pending.graphql",
+    "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
+  "notes": "A live 2026-04 capture creates a disposable draft order, attaches NET payment terms through paymentTermsCreate, records the cold OrdersDraftOrderHydrate response used by the proxy, then completes the draft without passing paymentPending. Shopify returns PENDING financial status with a manual SALE/PENDING transaction and no successful payment capture, and an immediate order(id:) read returns the same status. Replacement for retired synthetic/local-runtime orders evidence. This scenario ID is preserved for continuity but now reuses the real Shopify capture and proxy request contract from config/parity-specs/orders/draftOrderComplete-payment-terms-pending.json (draftOrderComplete-payment-terms-pending); the old local-runtime cassette is no longer parity evidence.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "no-gateway-create",
-        "capturePath": "$.draftOrderCompletePaymentGatewayPaths.expected.noGatewayCreate",
-        "proxyPath": "$"
+        "name": "mutation-user-errors",
+        "capturePath": "$.mutation.response.data.draftOrderComplete.userErrors",
+        "proxyPath": "$.data.draftOrderComplete.userErrors"
       },
       {
-        "name": "no-gateway-pending-baseline",
-        "capturePath": "$.draftOrderCompletePaymentGatewayPaths.expected.noGatewayPending",
-        "proxyPath": "$",
+        "name": "mutation-payment-terms-implicit-pending",
+        "capturePath": "$.mutation.response.data.draftOrderComplete.draftOrder",
+        "proxyPath": "$.data.draftOrderComplete.draftOrder",
+        "expectedDifferences": [
+          {
+            "path": "$.order.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "Live Shopify and the local draft proxy allocate different order ids when completing the draft."
+          }
+        ]
+      },
+      {
+        "name": "read-after-write-order-pending",
+        "capturePath": "$.orderRead.response.data.order",
+        "proxyPath": "$.data.order",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-complete.graphql",
+          "documentPath": "config/parity-requests/orders/draftOrderComplete-payment-terms-pending-order-read.graphql",
           "variables": {
             "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            },
-            "paymentGatewayId": null,
-            "paymentPending": true
+              "fromPrimaryProxyPath": "$.data.draftOrderComplete.draftOrder.order.id"
+            }
           }
-        }
-      },
-      {
-        "name": "unknown-gateway-create",
-        "capturePath": "$.draftOrderCompletePaymentGatewayPaths.expected.unknownGatewayCreate",
-        "proxyPath": "$",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-create.graphql"
-        }
-      },
-      {
-        "name": "unknown-gateway-validation",
-        "capturePath": "$.draftOrderCompletePaymentGatewayPaths.expected.unknownGateway",
-        "proxyPath": "$",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-complete.graphql",
-          "variables": {
-            "id": {
-              "fromProxyResponse": "unknown-gateway-create",
-              "path": "$.data.draftOrderCreate.draftOrder.id"
-            },
-            "paymentGatewayId": "gid://shopify/PaymentGateway/not-installed",
-            "paymentPending": false
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "Live Shopify and the local draft proxy allocate different order ids when completing the draft."
           }
-        }
+        ]
       }
     ]
-  },
-  "notes": "Executable local-runtime parity for draftOrderComplete paymentGatewayId guardrails that can be earned through the generic runner without pre-seeding state: the existing paymentPending:true no-gateway baseline remains PENDING with no gateway transaction, and an unknown paymentGatewayId returns INVALID on [paymentGatewayId] with payment_gateway_not_found. Active and disabled synthetic gateway fixture branches are covered by the referenced Gleam runtime test because the generic parity runner intentionally has no setup hook for opt-in shop payment gateway fixtures."
+  }
 }

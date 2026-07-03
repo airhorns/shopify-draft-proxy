@@ -1,0 +1,59 @@
+{
+  "scenarioId": "order-refund-fulfillment-usererror-no-code",
+  "operationNames": [
+    "refundCreate",
+    "fulfillmentCreate",
+    "fulfillmentCreateV2",
+    "fulfillmentCancel",
+    "fulfillmentTrackingInfoUpdate",
+    "fulfillmentTrackingInfoUpdateV2",
+    "fulfillmentEventCreate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "mutation-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-refund-fulfillment-usererror-no-code.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/order-refund-fulfillment-usererror-no-code.graphql",
+    "variablesCapturePath": "$.codeSelection.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "order-refund-fulfillment-user-errors-reject-code-selection",
+        "capturePath": "$.codeSelection.response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": [
+          "$[0].message",
+          "$[0].path",
+          "$[0].extensions",
+          "$[1].message",
+          "$[1].path",
+          "$[1].extensions",
+          "$[2].message",
+          "$[2].path",
+          "$[2].extensions",
+          "$[3].message",
+          "$[3].path",
+          "$[3].extensions",
+          "$[4].message",
+          "$[4].path",
+          "$[4].extensions",
+          "$[5].message",
+          "$[5].path",
+          "$[5].extensions",
+          "$[6].message",
+          "$[6].path",
+          "$[6].extensions"
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL capture proves refundCreate, fulfillmentCreate, fulfillmentCreateV2, fulfillmentCancel, fulfillmentTrackingInfoUpdate, fulfillmentTrackingInfoUpdateV2, and fulfillmentEventCreate expose plain UserError payloads for userErrors. Selecting userErrors.code is rejected by GraphQL validation with undefinedField before any order, refund, or fulfillment resolver can mutate state."
+}

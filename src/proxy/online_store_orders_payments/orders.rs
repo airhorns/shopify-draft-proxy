@@ -75,15 +75,6 @@ pub(in crate::proxy) fn normalize_order_lifecycle_defaults(order: &mut Value) {
     }
 }
 
-pub(in crate::proxy) fn order_line_inventory_item_id(
-    line_item: &BTreeMap<String, ResolvedValue>,
-) -> Option<String> {
-    resolved_string_field(line_item, "inventoryItemId").or_else(|| {
-        resolved_string_field(line_item, "variantId")
-            .map(|variant_id| shopify_gid("InventoryItem", resource_id_tail(&variant_id)))
-    })
-}
-
 pub(in crate::proxy) fn order_read_selects_payment_transaction_fields(
     field: &RootFieldSelection,
 ) -> bool {
@@ -190,15 +181,11 @@ pub(in crate::proxy) fn order_customer_id(order: &Value) -> Option<String> {
 }
 
 pub(in crate::proxy) fn order_mark_as_paid_cannot_mark_error() -> Value {
-    payment_user_error(
-        json!(["id"]),
-        "Order cannot be marked as paid.",
-        Some("INVALID"),
-    )
+    payment_user_error(json!(["id"]), "Order cannot be marked as paid.", None)
 }
 
 pub(in crate::proxy) fn order_mark_as_paid_not_found_error() -> Value {
-    payment_user_error(json!(["id"]), "Order does not exist", Some("NOT_FOUND"))
+    payment_user_error(json!(["id"]), "Order does not exist", None)
 }
 
 pub(in crate::proxy) fn order_read_selects_order_edit_existing_fields(
@@ -219,11 +206,12 @@ pub(in crate::proxy) fn normalize_order_name(name: &str) -> String {
 }
 
 /// Evaluate one `key:value` search term against an order projection. Returns
-/// `None` for terms we do not model so an unknown term never silently drops a
-/// row (callers treat `None` as "not a filter we enforce" → keep the order).
+/// `None` for terms we do not model so the staged connection engine can make
+/// unsupported predicate handling explicit instead of silently keeping rows.
 pub(in crate::proxy) fn order_matches_term(order: &Value, key: &str, value: &str) -> Option<bool> {
     let value = value.trim();
     match key {
+        "id" => Some(order_matches_id(order, value)),
         "tag" => {
             let want = value.to_ascii_lowercase();
             Some(
@@ -267,27 +255,171 @@ pub(in crate::proxy) fn order_matches_term(order: &Value, key: &str, value: &str
                 .and_then(Value::as_str)
                 .is_some_and(|status| status.eq_ignore_ascii_case(value)),
         ),
+        "status" => Some(order_matches_status(order, value)),
+        "created_at" => Some(order_matches_datetime_comparator(
+            order.get("createdAt").and_then(Value::as_str),
+            value,
+        )),
+        "updated_at" => Some(order_matches_datetime_comparator(
+            order.get("updatedAt").and_then(Value::as_str),
+            value,
+        )),
+        "processed_at" => Some(order_matches_datetime_comparator(
+            order.get("processedAt").and_then(Value::as_str),
+            value,
+        )),
         _ => None,
     }
 }
 
-/// Match an order against a Shopify `query:` search string. Terms are
-/// whitespace-separated and ANDed together (Shopify's default). Quoted values
-/// are not modelled here; the catalog scenarios use bare values. An empty query
-/// matches everything.
-pub(in crate::proxy) fn order_matches_query(order: &Value, query: &str) -> bool {
-    let query = query.trim();
-    if query.is_empty() {
+fn order_matches_id(order: &Value, value: &str) -> bool {
+    let value = value.trim_matches('"').trim_matches('\'');
+    order
+        .get("id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| resource_id_tail(id) == value || resource_id_path_tail(id) == value)
+}
+
+fn order_matches_status(order: &Value, value: &str) -> bool {
+    let cancelled = order
+        .get("cancelledAt")
+        .is_some_and(|cancelled_at| !cancelled_at.is_null())
+        || order
+            .get("cancelReason")
+            .is_some_and(|cancel_reason| !cancel_reason.is_null());
+    let closed = order
+        .get("closed")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        || order
+            .get("closedAt")
+            .is_some_and(|closed_at| !closed_at.is_null());
+    match value.to_ascii_lowercase().as_str() {
+        "any" => true,
+        "cancelled" | "canceled" => cancelled,
+        "closed" => closed && !cancelled,
+        "open" => !closed && !cancelled,
+        _ => false,
+    }
+}
+
+fn order_matches_datetime_comparator(actual: Option<&str>, query_value: &str) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    let query_value = query_value.trim_matches('"').trim_matches('\'');
+    if query_value.is_empty() {
+        return false;
+    }
+    let (operator, expected) = order_search_comparator(query_value);
+    if expected.is_empty() {
+        return false;
+    }
+    let actual = order_search_datetime_value(actual, expected);
+    match operator {
+        "<" => actual < expected,
+        "<=" => actual <= expected,
+        ">" => actual > expected,
+        ">=" => actual >= expected,
+        _ => actual.starts_with(expected),
+    }
+}
+
+fn order_search_comparator(value: &str) -> (&str, &str) {
+    for operator in [">=", "<=", ">", "<", "="] {
+        if let Some(rest) = value.strip_prefix(operator) {
+            return (operator, rest);
+        }
+    }
+    ("=", value)
+}
+
+fn order_search_datetime_value<'a>(actual: &'a str, expected: &str) -> &'a str {
+    if expected.contains('T') {
+        actual
+    } else {
+        actual
+            .split_once('T')
+            .map(|(date, _)| date)
+            .unwrap_or(actual)
+    }
+}
+
+fn order_matches_free_text(order: &Value, value: &str) -> bool {
+    let value = value.trim().trim_matches('"').trim_matches('\'');
+    if value.is_empty() {
         return true;
     }
-    query.split_whitespace().all(|term| {
-        match term.split_once(':') {
-            // Terms we model must match; terms we do not model are ignored so an
-            // unrecognized term never spuriously empties the result set.
-            Some((key, value)) => order_matches_term(order, key, value).unwrap_or(true),
-            None => true,
+    order_matches_id(order, value)
+        || order_search_string_matches(order.get("name").and_then(Value::as_str), value)
+        || order_search_string_matches(order.get("email").and_then(Value::as_str), value)
+        || order
+            .get("tags")
+            .and_then(Value::as_array)
+            .is_some_and(|tags| {
+                tags.iter()
+                    .filter_map(Value::as_str)
+                    .any(|tag| order_search_string_matches(Some(tag), value))
+            })
+}
+
+fn order_search_string_matches(actual: Option<&str>, query_value: &str) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    let actual = actual.to_ascii_lowercase();
+    let query_value = query_value
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_ascii_lowercase();
+    if query_value.is_empty() {
+        return true;
+    }
+    if let Some(prefix) = query_value.strip_suffix('*') {
+        return actual
+            .split(|ch: char| !ch.is_ascii_alphanumeric())
+            .any(|part| part.starts_with(prefix));
+    }
+    actual.contains(&query_value)
+}
+
+pub(in crate::proxy) fn order_search_decision(
+    order: &Value,
+    query: Option<&str>,
+) -> StagedSearchDecision {
+    let Some(query) = query else {
+        return StagedSearchDecision::Match;
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+    for term in query.split_whitespace() {
+        if term.eq_ignore_ascii_case("AND") {
+            continue;
         }
-    })
+        if let Some((key, value)) = term.split_once(':') {
+            match order_matches_term(order, key, value) {
+                Some(true) => {}
+                Some(false) => return StagedSearchDecision::NoMatch,
+                None => return StagedSearchDecision::Unsupported,
+            }
+        } else if !order_matches_free_text(order, term) {
+            return StagedSearchDecision::NoMatch;
+        }
+    }
+    StagedSearchDecision::Match
+}
+
+fn order_gid_tail_sort_value(order: &Value) -> StagedSortValue {
+    let tail = order
+        .get("id")
+        .and_then(Value::as_str)
+        .map(resource_id_tail)
+        .unwrap_or_default();
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
 }
 
 /// Sort key for the orders connection: `(timestamp, numeric id)`, both ascending.
@@ -295,8 +427,11 @@ pub(in crate::proxy) fn order_matches_query(order: &Value, query: &str) -> bool 
 /// chronological order; the numeric id is a stable tiebreak (and the sole key
 /// when a projection omits the timestamp, e.g. a status-only node). Callers
 /// reverse the sorted vector for `reverse: true`.
-pub(in crate::proxy) fn order_sort_value(order: &Value, sort_key: &str) -> (String, i64) {
-    let date_field = match sort_key {
+pub(in crate::proxy) fn order_staged_sort_key(
+    order: &Value,
+    sort_key: Option<&str>,
+) -> StagedSortKey {
+    let date_field = match sort_key.unwrap_or("CREATED_AT") {
         "UPDATED_AT" => "updatedAt",
         "PROCESSED_AT" => "processedAt",
         // CREATED_AT (and any sort key we do not specialize) falls back to
@@ -308,17 +443,18 @@ pub(in crate::proxy) fn order_sort_value(order: &Value, sort_key: &str) -> (Stri
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string();
-    let numeric_id = order
-        .get("id")
-        .and_then(Value::as_str)
-        .map(resource_id_tail)
-        .and_then(|tail| tail.parse::<i64>().ok())
-        .unwrap_or(0);
-    (date, numeric_id)
+    vec![
+        StagedSortValue::String(date),
+        order_gid_tail_sort_value(order),
+    ]
 }
 
 pub(in crate::proxy) fn orders_error(field: &[&str], message: &str, code: &str) -> Value {
     user_error(field, message, Some(code))
+}
+
+pub(in crate::proxy) fn orders_plain_error(field: &[&str], message: &str) -> Value {
+    user_error_omit_code(field, message, None)
 }
 
 pub(in crate::proxy) fn order_create_error(field: Vec<Value>, message: &str, code: &str) -> Value {
@@ -1171,40 +1307,37 @@ impl DraftProxy {
     /// `query:` filter, ordered by `sortKey`/`reverse`. The returned values are
     /// whole orders (not yet selection-projected) so the caller can window them
     /// and then project both `nodes` and `pageInfo` through the field selection.
-    pub(super) fn matching_orders_sorted(
+    pub(super) fn matching_orders_query(
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
-    ) -> Vec<Value> {
-        let query_arg = resolved_string_field(arguments, "query").unwrap_or_default();
-        // Enum arguments resolve to their variant name as a string.
-        let sort_key = resolved_string_field(arguments, "sortKey").unwrap_or_default();
-        let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
-        let mut matched = self
-            .store
-            .staged
-            .orders
-            .values()
-            .filter(|order| order_matches_query(order, &query_arg))
-            .cloned()
-            .collect::<Vec<_>>();
-        matched.sort_by_key(|a| order_sort_value(a, &sort_key));
-        if reverse {
-            matched.reverse();
-        }
-        matched
+    ) -> StagedConnectionResult<Value> {
+        staged_connection_query(
+            self.store
+                .staged
+                .orders
+                .values()
+                .cloned()
+                .collect::<Vec<_>>(),
+            arguments,
+            order_search_decision,
+            order_staged_sort_key,
+            value_id_cursor,
+        )
     }
 
     pub(super) fn staged_orders_connection(&self, field: &RootFieldSelection) -> Value {
-        let matched = self.matching_orders_sorted(&field.arguments);
+        let result = self.matching_orders_query(&field.arguments);
         // Window with the order id as the opaque cursor. The next-page request in
         // the catalog scenario feeds this connection's own `endCursor` back as
         // `after`, so the cursor only needs to round-trip with itself — it is not
         // compared against Shopify's recorded opaque cursors.
-        selected_connection_json_with_args(
-            matched,
-            &field.arguments,
+        selected_json(
+            &connection_json_with_cursor(
+                result.records,
+                |_, order| value_id_cursor(order),
+                result.page_info,
+            ),
             &field.selection,
-            value_id_cursor,
         )
     }
 
@@ -1212,20 +1345,11 @@ impl DraftProxy {
     /// `limit` precision semantics — capped at `limit` and reported `AT_LEAST`
     /// when more matches exist than the limit, otherwise the exact total.
     pub(super) fn staged_orders_count(&self, field: &RootFieldSelection) -> Value {
-        let query_arg = resolved_string_field(&field.arguments, "query").unwrap_or_default();
-        let matched = self
-            .store
-            .staged
-            .orders
-            .values()
-            .filter(|order| order_matches_query(order, &query_arg))
-            .count();
-        let (count, precision) = match resolved_int_field(&field.arguments, "limit") {
-            Some(limit) if limit >= 0 && matched as i64 > limit => (limit as usize, "AT_LEAST"),
-            _ => (matched, "EXACT"),
-        };
         selected_json(
-            &count_object_with_precision(count, precision),
+            &staged_count_with_limit_precision(
+                self.matching_orders_query(&field.arguments).total_count,
+                &field.arguments,
+            ),
             &field.selection,
         )
     }
@@ -1242,7 +1366,7 @@ impl DraftProxy {
             return Some(selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [orders_error(&["input", "staffMemberId"], "Staff member does not exist", "NOT_FOUND")]
+                    "userErrors": [orders_plain_error(&["input", "staffMemberId"], "Staff member does not exist")]
                 }),
                 &field.selection,
             ));
@@ -1270,7 +1394,7 @@ impl DraftProxy {
             return Some(selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [orders_error(&["id"], "Order does not exist", "NOT_FOUND")]
+                    "userErrors": [orders_plain_error(&["id"], "Order does not exist")]
                 }),
                 &field.selection,
             ));
@@ -1401,7 +1525,7 @@ impl DraftProxy {
         }
         if order_create_inventory_behaviour(field) != "BYPASS" {
             for line_item in resolved_object_list_field(&order_input, "lineItems") {
-                if let Some(inventory_item_id) = order_line_inventory_item_id(&line_item) {
+                if let Some(inventory_item_id) = self.order_line_inventory_item_id(&line_item) {
                     let quantity = resolved_int_field(&line_item, "quantity").unwrap_or(1);
                     self.decrement_inventory_item_available(&inventory_item_id, quantity);
                 }
@@ -1434,6 +1558,20 @@ impl DraftProxy {
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,
         )
+    }
+
+    fn order_line_inventory_item_id(
+        &self,
+        line_item: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<String> {
+        resolved_string_field(line_item, "inventoryItemId").or_else(|| {
+            resolved_string_field(line_item, "variantId").map(|variant_id| {
+                self.store
+                    .product_variant_by_id(&variant_id)
+                    .map(|variant| variant.inventory_item.id.clone())
+                    .unwrap_or_else(|| shopify_gid("InventoryItem", resource_id_tail(&variant_id)))
+            })
+        })
     }
 
     pub(super) fn stage_order_lifecycle(
@@ -1955,6 +2093,8 @@ impl DraftProxy {
             "cancelReason": Value::Null,
             "createdAt": "2024-01-01T00:00:00.000Z",
             "updatedAt": "2024-01-01T00:00:00.000Z",
+            "processedAt": resolved_string_field(order_input, "processedAt")
+                .unwrap_or_else(|| "2024-01-01T00:00:00.000Z".to_string()),
             "customer": resolved_string_field(order_input, "customerId")
                 .map(|id| {
                     // A locally-staged customer carries the authoritative identity
@@ -2072,7 +2212,7 @@ impl DraftProxy {
             let payload = self.staged_fulfillment_read_payload(field)?;
             return Some(data_response(&field.response_key, payload));
         }
-        if root_field == "fulfillmentCreate" {
+        if root_field == "fulfillmentCreate" || root_field == "fulfillmentCreateV2" {
             let field = field?;
             if let Some(error) = fulfillment_create_invalid_id_error(field) {
                 return Some(error);
@@ -2111,8 +2251,8 @@ impl DraftProxy {
         if root_field == "orderCreate" {
             let field = field?;
             let order_input = resolved_object_field(&field.arguments, "order")?;
-            let email = resolved_string_field(&order_input, "email").unwrap_or_default();
-            if !email.starts_with("order-customer-") {
+            let purchasing_entity = draft_order_purchasing_entity(&order_input);
+            if !order_customer_purchasing_entity_is_b2b(&purchasing_entity) {
                 return None;
             }
             let order = self.order_customer_paths_order_create(field)?;
@@ -2134,7 +2274,7 @@ impl DraftProxy {
                 selected_json(
                     &json!({
                         "order": Value::Null,
-                        "userErrors": [orders_error(&["input", "staffMemberId"], "Staff member does not exist", "NOT_FOUND")]
+                        "userErrors": [orders_plain_error(&["input", "staffMemberId"], "Staff member does not exist")]
                     }),
                     &field.selection,
                 ),
@@ -3179,13 +3319,17 @@ impl DraftProxy {
     ) -> Option<Value> {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let email = resolved_string_field(&input, "email").unwrap_or_default();
-        if !email.starts_with("order-customer-") {
-            return None;
-        }
+        let first_name = resolved_string_field(&input, "firstName");
+        let last_name = resolved_string_field(&input, "lastName");
+        let display_name =
+            order_customer_display_name(first_name.as_deref(), last_name.as_deref(), &email);
+        let id = self.next_synthetic_gid("Customer");
         let customer = json!({
-            "id": "gid://shopify/Customer/1?shopify-draft-proxy=synthetic",
+            "id": id,
             "email": email,
-            "displayName": "Order Customer Error Paths"
+            "firstName": first_name.map(Value::String).unwrap_or(Value::Null),
+            "lastName": last_name.map(Value::String).unwrap_or(Value::Null),
+            "displayName": display_name
         });
         self.store.staged.customers.insert(
             customer["id"].as_str().unwrap_or_default().to_string(),
@@ -3198,25 +3342,33 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn order_customer_paths_company_create(
-        &self,
+        &mut self,
         field: &RootFieldSelection,
     ) -> Option<Value> {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let company_input = resolved_object_field(&input, "company").unwrap_or_default();
         let name = resolved_string_field(&company_input, "name")
             .or_else(|| resolved_string_field(&input, "name"))
-            .unwrap_or_default();
-        if !name.contains("Order Customer Error Paths") {
-            return None;
-        }
+            .unwrap_or_else(|| "B2B Draft".to_string());
+        let id = synthetic_shopify_gid("Company", self.store.staged.next_b2b_company_id);
+        self.store.staged.next_b2b_company_id += 5;
+        let company = json!({
+            "id": id,
+            "name": name,
+            "externalId": Value::Null,
+            "customerSince": Value::Null,
+            "note": Value::Null,
+            "locationIds": [],
+            "contactIds": [],
+            "contactRoleIds": [],
+            "mainContactId": Value::Null
+        });
+        self.store.staged.b2b_companies.insert(
+            company["id"].as_str().unwrap_or_default().to_string(),
+            company.clone(),
+        );
         Some(selected_json(
-            &json!({
-                "company": {
-                    "id": "gid://shopify/Company/1?shopify-draft-proxy=synthetic",
-                    "name": name
-                },
-                "userErrors": []
-            }),
+            &json!({ "company": company, "userErrors": [] }),
             &field.selection,
         ))
     }
@@ -3226,33 +3378,48 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Option<Value> {
         let company_id = resolved_string_field(&field.arguments, "companyId")?;
-        // Only the orderCustomerSet/Remove error-path flow's sentinel customer
-        // (email "order-customer-...") is owned here; all other company-contact
-        // assignments belong to the general b2b handler.
-        let is_order_customer_flow = resolved_string_field(&field.arguments, "customerId")
-            .and_then(|customer_id| self.store.staged.customers.get(&customer_id).cloned())
-            .and_then(|customer| customer["email"].as_str().map(str::to_string))
-            .is_some_and(|email| email.starts_with("order-customer-"));
-        if !is_order_customer_flow {
-            return None;
-        }
-        if let Some(customer_id) = resolved_string_field(&field.arguments, "customerId") {
+        let customer_id = resolved_string_field(&field.arguments, "customerId")?;
+        let customer = self.store.staged.customers.get(&customer_id)?.clone();
+        let company = self.store.staged.b2b_companies.get(&company_id)?.clone();
+        self.store
+            .staged
+            .order_customer_contact_customer_ids
+            .insert(customer_id.clone());
+        let contact_id = self.next_proxy_synthetic_gid("CompanyContact");
+        let contact = json!({
+            "id": contact_id,
+            "companyId": company_id,
+            "customerId": customer_id,
+            "firstName": customer["firstName"].clone(),
+            "lastName": customer["lastName"].clone(),
+            "title": Value::Null,
+            "locale": "en",
+            "isMainContact": false
+        });
+        self.store
+            .staged
+            .b2b_contacts
+            .insert(contact_id.clone(), contact.clone());
+        if let Some(mut company_record) = self.store.staged.b2b_companies.get(&company_id).cloned()
+        {
+            if let Some(contact_ids) = company_record
+                .get_mut("contactIds")
+                .and_then(Value::as_array_mut)
+            {
+                contact_ids.push(json!(contact_id.clone()));
+            }
             self.store
                 .staged
-                .order_customer_contact_customer_ids
-                .insert(customer_id.clone());
+                .b2b_companies
+                .insert(company_id.clone(), company_record);
         }
-        let customer_id =
-            resolved_string_field(&field.arguments, "customerId").unwrap_or_else(|| {
-                "gid://shopify/Customer/1?shopify-draft-proxy=synthetic".to_string()
-            });
         Some(selected_json(
             &json!({
                 "companyContact": {
-                    "id": "gid://shopify/CompanyContact/1?shopify-draft-proxy=synthetic",
+                    "id": contact_id,
                     "isMainContact": false,
                     "customer": { "id": customer_id },
-                    "company": { "id": company_id, "name": "Order Customer Error Paths Company" }
+                    "company": { "id": company_id, "name": company["name"].clone() }
                 },
                 "userErrors": []
             }),
@@ -3265,19 +3432,12 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Option<Value> {
         let order_input = resolved_object_field(&field.arguments, "order")?;
-        let email = resolved_string_field(&order_input, "email").unwrap_or_default();
-        if !email.is_empty() && !email.starts_with("order-customer-") {
-            return None;
-        }
-        let id = synthetic_shopify_gid("Order", self.store.staged.next_order_customer_order_id);
-        self.store.staged.next_order_customer_order_id += 1;
+        let id = self.next_proxy_synthetic_gid("Order");
         let customer_id = resolved_string_field(&order_input, "customerId");
         // Retain the purchasing entity so a later company delete can detect that an
         // order still references the company (mirrors a real B2B Order).
         let purchasing_entity = draft_order_purchasing_entity(&order_input);
-        if email == "order-customer-b2b@example.com"
-            || order_customer_purchasing_entity_is_b2b(&purchasing_entity)
-        {
+        if order_customer_purchasing_entity_is_b2b(&purchasing_entity) {
             self.store
                 .staged
                 .order_customer_b2b_order_ids
@@ -3514,10 +3674,11 @@ impl DraftProxy {
             "orderCancel",
             vec![order_id.clone()],
         );
+        let job_id = self.next_proxy_synthetic_gid("Job");
         Some(selected_json(
             &json!({
                 "order": order,
-                "job": { "id": "gid://shopify/Job/order-customer-cancel", "done": false },
+                "job": { "id": job_id, "done": false },
                 "orderCancelUserErrors": [],
                 "userErrors": []
             }),
@@ -3587,11 +3748,7 @@ impl DraftProxy {
             );
         };
         if self.order_customer_order_is_b2b(&order_id, &order)
-            && self
-                .store
-                .staged
-                .order_customer_contact_customer_ids
-                .contains(&customer_id)
+            && self.order_customer_customer_is_b2b_contact_for_order(&customer_id, &order)
         {
             return selected_json(
                 &json!({
@@ -3722,6 +3879,81 @@ impl DraftProxy {
             .order_customer_b2b_order_ids
             .contains(order_id)
             || order_customer_purchasing_entity_is_b2b(&order["purchasingEntity"])
+    }
+
+    fn order_customer_customer_is_b2b_contact_for_order(
+        &self,
+        customer_id: &str,
+        order: &Value,
+    ) -> bool {
+        if self
+            .store
+            .staged
+            .order_customer_contact_customer_ids
+            .contains(customer_id)
+        {
+            return true;
+        }
+        let company_ids = order_customer_purchasing_entity_company_ids(&order["purchasingEntity"]);
+        self.store.staged.b2b_contacts.values().any(|contact| {
+            contact["customerId"].as_str() == Some(customer_id)
+                && contact["companyId"].as_str().is_some_and(|company_id| {
+                    company_ids.is_empty() || company_ids.iter().any(|id| id == company_id)
+                })
+        })
+    }
+}
+
+fn order_customer_display_name(
+    first_name: Option<&str>,
+    last_name: Option<&str>,
+    email: &str,
+) -> String {
+    let name = [first_name, last_name]
+        .into_iter()
+        .flatten()
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if name.is_empty() {
+        email.to_string()
+    } else {
+        name
+    }
+}
+
+fn order_customer_purchasing_entity_company_ids(entity: &Value) -> Vec<String> {
+    let mut ids = Vec::new();
+    order_customer_collect_purchasing_entity_company_ids(entity, &mut ids);
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
+fn order_customer_collect_purchasing_entity_company_ids(entity: &Value, ids: &mut Vec<String>) {
+    match entity {
+        Value::Object(map) => {
+            if let Some(company_id) = map.get("companyId").and_then(Value::as_str) {
+                ids.push(company_id.to_string());
+            }
+            if let Some(company_id) = map
+                .get("company")
+                .and_then(|company| company.get("id"))
+                .and_then(Value::as_str)
+            {
+                ids.push(company_id.to_string());
+            }
+            for value in map.values() {
+                order_customer_collect_purchasing_entity_company_ids(value, ids);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                order_customer_collect_purchasing_entity_company_ids(item, ids);
+            }
+        }
+        _ => {}
     }
 }
 

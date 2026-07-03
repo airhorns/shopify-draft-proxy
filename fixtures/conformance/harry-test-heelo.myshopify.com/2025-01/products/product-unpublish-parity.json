@@ -1,14 +1,14 @@
 {
   "seedProduct": {
-    "id": "gid://shopify/Product/10213936759090",
-    "title": "Hermes Product Publication Conformance 1781587861405",
+    "id": "gid://shopify/Product/10230033613106",
+    "title": "Hermes Product Publication Conformance 1783032533945",
     "status": "ACTIVE"
   },
   "mutation": {
     "queryShape": "minimal-user-errors-only",
     "variables": {
       "input": {
-        "id": "gid://shopify/Product/10213936759090",
+        "id": "gid://shopify/Product/10230033613106",
         "productPublications": [
           {
             "publicationId": "gid://shopify/Publication/268039389490"
@@ -42,7 +42,7 @@
         "data": {
           "productUnpublish": {
             "product": {
-              "id": "gid://shopify/Product/10213936759090",
+              "id": "gid://shopify/Product/10230033613106",
               "publishedAt": null,
               "publishedOnCurrentPublication": false,
               "publishedOnPublication": false,
@@ -61,9 +61,9 @@
                 "nodes": [
                   {
                     "isPublished": true,
-                    "publishDate": "2026-06-16T05:31:18Z",
+                    "publishDate": "2026-07-02T22:49:10Z",
                     "product": {
-                      "id": "gid://shopify/Product/10213936759090"
+                      "id": "gid://shopify/Product/10230033613106"
                     }
                   }
                 ]
@@ -93,7 +93,7 @@
       "payload": {
         "data": {
           "product": {
-            "id": "gid://shopify/Product/10213936759090",
+            "id": "gid://shopify/Product/10230033613106",
             "publishedAt": null,
             "publishedOnCurrentPublication": false,
             "publishedOnPublication": false,
@@ -112,9 +112,9 @@
               "nodes": [
                 {
                   "isPublished": true,
-                  "publishDate": "2026-06-16T05:31:18Z",
+                  "publishDate": "2026-07-02T22:49:10Z",
                   "product": {
-                    "id": "gid://shopify/Product/10213936759090"
+                    "id": "gid://shopify/Product/10230033613106"
                   }
                 }
               ]
@@ -127,7 +127,7 @@
             "actualQueryCost": 13,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1987,
+              "currentlyAvailable": 1986,
               "restoreRate": 100
             }
           }
@@ -140,9 +140,9 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10213936759090"]
+        "ids": ["gid://shopify/Product/10230033613106"]
       },
-      "query": "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n    }\n  }\n}",
+      "query": "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      availablePublicationsCount { count precision }\n      resourcePublicationsCount { count precision }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n      publications(first: 10) { nodes { isPublished publishDate product { id } } }\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
@@ -150,39 +150,58 @@
             "nodes": [
               {
                 "__typename": "Product",
-                "id": "gid://shopify/Product/10213936759090",
-                "legacyResourceId": "10213936759090",
-                "title": "Hermes Product Publication Conformance 1781587861405",
-                "handle": "hermes-product-publication-conformance-1781587861405",
+                "id": "gid://shopify/Product/10230033613106",
+                "legacyResourceId": "10230033613106",
+                "title": "Hermes Product Publication Conformance 1783032533945",
+                "handle": "hermes-product-publication-conformance-1783032533945",
                 "status": "ACTIVE",
                 "vendor": "harry-test-heelo",
                 "productType": "",
                 "tags": [],
                 "totalInventory": 0,
                 "tracksInventory": false,
-                "createdAt": "2026-06-16T05:31:18Z",
-                "updatedAt": "2026-06-16T05:31:18Z",
+                "createdAt": "2026-07-02T22:49:10Z",
+                "updatedAt": "2026-07-02T22:49:10Z",
                 "publishedAt": null,
                 "descriptionHtml": "",
-                "onlineStorePreviewUrl": "https://l4qd2wh4nkpww6x5-92891250994.shopifypreview.com/products_preview?preview_key=4ea5ff4efdcdb813d1fd4860746be531&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNi0xNlQwNjozMToxOC45OTlaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--bb8dc79b084ba1b73fa675948cf317c387611e0f",
+                "onlineStorePreviewUrl": "https://5qlfa4wec6y4e585-92891250994.shopifypreview.com/products_preview?preview_key=5b97e60d959626a44349893b0da7a2e5&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0wMlQyMzo0OToxMC44MDZaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--d37e7c45f0aed0b100a20067cf1a70682ab1a09a",
                 "templateSuffix": null,
                 "seo": {
                   "title": null,
                   "description": null
                 },
+                "availablePublicationsCount": {
+                  "count": 2,
+                  "precision": "EXACT"
+                },
+                "resourcePublicationsCount": {
+                  "count": 2,
+                  "precision": "EXACT"
+                },
                 "resourcePublicationsV2": {
                   "nodes": []
+                },
+                "publications": {
+                  "nodes": [
+                    {
+                      "isPublished": true,
+                      "publishDate": "2026-07-02T22:49:10Z",
+                      "product": {
+                        "id": "gid://shopify/Product/10230033613106"
+                      }
+                    }
+                  ]
                 }
               }
             ]
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 12,
-              "actualQueryCost": 9,
+              "requestedQueryCost": 24,
+              "actualQueryCost": 15,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1991,
+                "currentlyAvailable": 1985,
                 "restoreRate": 100
               }
             }

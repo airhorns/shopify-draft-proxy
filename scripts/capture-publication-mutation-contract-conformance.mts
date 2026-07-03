@@ -87,10 +87,17 @@ const publicationDeleteDocumentPath = path.join(
   'products',
   'publicationDelete-contract.graphql',
 );
+const publicationReadDocumentPath = path.join(
+  'config',
+  'parity-requests',
+  'products',
+  'publication-created-read.graphql',
+);
 
 const publicationCreateMutation = await readFile(publicationCreateDocumentPath, 'utf8');
 const publicationUpdateMutation = await readFile(publicationUpdateDocumentPath, 'utf8');
 const publicationDeleteMutation = await readFile(publicationDeleteDocumentPath, 'utf8');
+const publicationReadQuery = await readFile(publicationReadDocumentPath, 'utf8');
 
 // The node-hydrate query the proxy forwards in live-hybrid to prove a publishable
 // product/variant exists before staging a publicationUpdate. Shared verbatim with
@@ -251,6 +258,7 @@ try {
       `publicationCreate(input: {}) did not return a publication id: ${JSON.stringify(createOmittedCatalog)}`,
     );
   }
+  cases['createdPublicationRead'] = await captureCase(publicationReadQuery, { id: publicationId });
 
   cases['createUnknownCatalog'] = await captureCase(publicationCreateMutation, {
     input: { catalogId: 'gid://shopify/Catalog/999999999999' },
@@ -314,6 +322,7 @@ try {
 
   deleteCreated = await captureCase(publicationDeleteMutation, { id: publicationId });
   cases['deleteCreatedPublication'] = deleteCreated;
+  cases['afterDeletePublicationRead'] = await captureCase(publicationReadQuery, { id: publicationId });
   publicationId = null;
 } finally {
   if (publicationId) {
@@ -382,6 +391,7 @@ await writeFile(
         'Live publicationUpdate accepts Product publishables and returns payload userErrors for missing Product IDs and update batches over 50.',
         'Live ProductVariant IDs resolved through node(id:) but publicationUpdate returned top-level RESOURCE_NOT_FOUND for ProductVariant-only and Product+ProductVariant publishablesToAdd inputs.',
         'publicationDelete payload exposes deletedId and userErrors only.',
+        'publication(id:) returns the created publication before delete and null immediately after deleting that publication.',
       ],
       upstreamCalls,
     },

@@ -1,0 +1,146 @@
+{
+  "scenarioId": "discount-update-reference-validation",
+  "operationNames": ["discountCodeBasicCreate", "discountCodeBasicUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "mutation-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-update-reference-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-update-reference-validation-setup.graphql",
+    "variablesCapturePath": "$.variables.setup"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-user-errors",
+        "capturePath": "$.setup.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.first.userErrors", "$.second.userErrors"]
+      },
+      {
+        "name": "taken-code-update-error",
+        "capturePath": "$.takenCode.payload.data.discountCodeBasicUpdate",
+        "proxyPath": "$.data.discountCodeBasicUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-update-reference-validation-basic-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.second.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.variables.takenCode.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "own-code-update-success",
+        "capturePath": "$.ownCode.payload.data.discountCodeBasicUpdate",
+        "proxyPath": "$.data.discountCodeBasicUpdate",
+        "expectedDifferences": [
+          {
+            "path": "$.codeDiscountNode.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy stages the successful self-code update against a synthetic discount node ID instead of Shopify's live ID."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-update-reference-validation-basic-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.first.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.variables.ownCode.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "product-zero-update-error",
+        "capturePath": "$.productZero.payload.data.discountCodeBasicUpdate",
+        "proxyPath": "$.data.discountCodeBasicUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-update-reference-validation-basic-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.first.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.variables.productZero.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-product-update-error",
+        "capturePath": "$.unknownProduct.payload.data.discountCodeBasicUpdate",
+        "proxyPath": "$.data.discountCodeBasicUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-update-reference-validation-basic-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.first.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.variables.unknownProduct.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-variant-update-error",
+        "capturePath": "$.unknownVariant.payload.data.discountCodeBasicUpdate",
+        "proxyPath": "$.data.discountCodeBasicUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-update-reference-validation-basic-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.first.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.variables.unknownVariant.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-collection-update-error",
+        "capturePath": "$.unknownCollection.payload.data.discountCodeBasicUpdate",
+        "proxyPath": "$.data.discountCodeBasicUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-update-reference-validation-basic-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.first.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.variables.unknownCollection.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "product-collection-conflict-update-error",
+        "capturePath": "$.productCollectionConflict.payload.data.discountCodeBasicUpdate",
+        "proxyPath": "$.data.discountCodeBasicUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-update-reference-validation-basic-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.first.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.variables.productCollectionConflict.input"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live 2026-04 evidence for discountCodeBasicUpdate reference and uniqueness validation on update. The scenario proves taken-code rejection, own-code success, /0 product rejection, unknown product/variant/collection rejection, and product/collection conflict. Product/variant/collection existence is replayed through recorded ProductsHydrateNodes upstream calls rather than seeded proxy state."
+}

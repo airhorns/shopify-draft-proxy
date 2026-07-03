@@ -1,0 +1,69 @@
+{
+  "scenarioId": "data-sale-opt-out-strict-format-residual",
+  "operationNames": ["dataSaleOptOut"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-strict-format-residual.json"
+  ],
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison covers residual Shopify Core EmailAddressValidator strict_regexp branches for dataSaleOptOut: final TLD alphabetic-only shape, independent local-part length cap, and double-quote local atom acceptance. Rejected branches require no store seeding; the accepted quoted local atom creates a disposable customer that the capture script deletes during cleanup.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "digit-tld-failed-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/privacy/dataSaleOptOut-parity.graphql",
+          "variablesCapturePath": "$.mutation.variables"
+        }
+      },
+      {
+        "name": "digit-in-tld-failed-data",
+        "capturePath": "$.validation.residualFormats.digitInTld.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/privacy/dataSaleOptOut-parity.graphql",
+          "variablesCapturePath": "$.validation.residualFormats.digitInTld.variables"
+        }
+      },
+      {
+        "name": "hyphen-in-tld-failed-data",
+        "capturePath": "$.validation.residualFormats.hyphenInTld.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/privacy/dataSaleOptOut-parity.graphql",
+          "variablesCapturePath": "$.validation.residualFormats.hyphenInTld.variables"
+        }
+      },
+      {
+        "name": "local-over-128-failed-data",
+        "capturePath": "$.validation.residualFormats.localOver128.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/privacy/dataSaleOptOut-parity.graphql",
+          "variablesCapturePath": "$.validation.residualFormats.localOver128.variables"
+        }
+      },
+      {
+        "name": "quoted-local-atom-success-data",
+        "capturePath": "$.validation.residualFormats.quotedLocalAtom.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/privacy/dataSaleOptOut-parity.graphql",
+          "variablesCapturePath": "$.validation.residualFormats.quotedLocalAtom.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.dataSaleOptOut.customerId",
+            "matcher": "shopify-gid:Customer",
+            "reason": "Shopify creates a real customer for the accepted quoted local atom; the proxy stages a synthetic customer ID locally."
+          }
+        ]
+      }
+    ]
+  }
+}
