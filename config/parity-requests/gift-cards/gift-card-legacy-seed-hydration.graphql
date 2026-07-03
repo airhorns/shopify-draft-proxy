@@ -1,0 +1,16 @@
+mutation GiftCardLegacySeedHydration(
+  $smallBalanceId: ID!
+  $insufficientDebitInput: GiftCardDebitInput!
+) {
+  debitError: giftCardDebit(id: $smallBalanceId, debitInput: $insufficientDebitInput) {
+    giftCardDebitTransaction {
+      id
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+}
