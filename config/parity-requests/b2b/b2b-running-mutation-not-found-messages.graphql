@@ -1,0 +1,53 @@
+mutation B2BRunningMutationNotFoundMessages(
+  $companyId: ID!
+  $addressId: ID!
+  $companyLocationId: ID!
+  $contactInput: CompanyContactInput!
+  $rolesToAssign: [CompanyLocationRoleAssign!]!
+  $rolesToRevoke: [ID!]!
+) {
+  companyDelete(id: $companyId) {
+    deletedCompanyId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  companyContactCreate(companyId: $companyId, input: $contactInput) {
+    companyContact {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  companyAddressDelete(addressId: $addressId) {
+    deletedAddressId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  companyLocationAssignRoles(companyLocationId: $companyLocationId, rolesToAssign: $rolesToAssign) {
+    roleAssignments {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  companyLocationRevokeRoles(companyLocationId: $companyLocationId, rolesToRevoke: $rolesToRevoke) {
+    revokedRoleAssignmentIds
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
