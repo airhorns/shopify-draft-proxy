@@ -1090,6 +1090,17 @@ fn product_set_shape_error_response(
             Some("INVALID_INPUT"),
         ));
     }
+    for (index, option) in product_options.iter().enumerate() {
+        if resolved_string_field(option, "name")
+            .is_some_and(|name| product_option_name_has_title_delimiter(&name))
+        {
+            errors.push(user_error(
+                json!(["input", "productOptions", index.to_string(), "name"]),
+                PRODUCT_OPTION_NAME_DELIMITER_MESSAGE,
+                Some("INVALID_INPUT"),
+            ));
+        }
+    }
     if product_options
         .iter()
         .any(product_set_option_values_over_limit)
