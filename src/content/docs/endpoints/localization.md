@@ -82,7 +82,9 @@ removed rows. Staged `Translation` rows include a synthetic DateTime-shaped
 `updatedAt` value in the `translationsRegister` echo and in downstream
 `translatableResource(...).translations` reads; re-registering an existing row
 refreshes that timestamp. `translationsRemove` removes every requested
-translation-key/locale/market combination that exists in staged state.
+translation-key/locale/market combination that exists in staged state. An empty
+`translationKeys` list matches no rows and returns Shopify's no-op
+`translations: null, userErrors: []` payload.
 For `translationsRegister` rows that violate multiple rules, captured Shopify
 behavior validates locale and market gates before translation-record value and
 digest validation; the market-scoped value-matches-base-translation check runs

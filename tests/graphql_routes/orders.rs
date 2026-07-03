@@ -2043,6 +2043,157 @@ fn orders_search_unsupported_predicates_do_not_match_everything() {
 }
 
 #[test]
+fn orders_search_common_predicates_share_connection_and_count_semantics() {
+    fn create_order(
+        proxy: &mut DraftProxy,
+        email: &str,
+        tag: &str,
+        title: &str,
+        processed_at: &str,
+    ) -> String {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CreateOrderForSearchPredicates($order: OrderCreateOrderInput!) {
+              orderCreate(order: $order) {
+                order {
+                  id
+                  email
+                  tags
+                  createdAt
+                  updatedAt
+                  processedAt
+                  displayFinancialStatus
+                  displayFulfillmentStatus
+                }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "order": {
+                    "email": email,
+                    "currency": "USD",
+                    "financialStatus": "PENDING",
+                    "fulfillmentStatus": "UNFULFILLED",
+                    "processedAt": processed_at,
+                    "tags": [tag],
+                    "lineItems": [{
+                        "title": title,
+                        "quantity": 1,
+                        "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                    }]
+                }
+            }),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+        create.body["data"]["orderCreate"]["order"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    }
+
+    let mut proxy = snapshot_proxy();
+    let alpha_id = create_order(
+        &mut proxy,
+        "alpha-order-search@example.test",
+        "vip",
+        "Alpha search predicates",
+        "2024-02-02T03:04:05Z",
+    );
+    let zulu_id = create_order(
+        &mut proxy,
+        "zulu-order-search@example.test",
+        "standard",
+        "Zulu search predicates",
+        "2024-03-03T03:04:05Z",
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateOrderForSearchPredicates($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order { id note updatedAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": alpha_id.clone(), "note": "updated for date filter" } }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body["data"]["orderUpdate"]["userErrors"], json!([]));
+
+    let combined_query = "id:1 tag:vip email:alpha-order-search@example.test financial_status:pending fulfillment_status:unfulfilled created_at:>=2024-01-01 created_at:<2024-01-02 processed_at:>=2024-02-02 processed_at:<2024-02-03 updated_at:>=2024-01-01T00:00:02.000Z";
+    let id_miss_query = format!("id:{alpha_id}");
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query OrdersSearchCommonPredicates(
+          $combinedQuery: String!
+          $idMissQuery: String!
+          $tailQuery: String!
+          $freeTextQuery: String!
+          $freeTextMissQuery: String!
+          $processedAtQuery: String!
+        ) {
+          combined: orders(first: 5, query: $combinedQuery) {
+            nodes { id email tags processedAt updatedAt }
+          }
+          combinedCount: ordersCount(query: $combinedQuery) { count precision }
+          idMiss: orders(first: 5, query: $idMissQuery) { nodes { id email } }
+          idMissCount: ordersCount(query: $idMissQuery) { count precision }
+          tail: orders(first: 5, query: $tailQuery) { nodes { id email } }
+          freeText: orders(first: 5, query: $freeTextQuery) { nodes { id email } }
+          freeTextMiss: orders(first: 5, query: $freeTextMissQuery) { nodes { id email } }
+          processedRange: orders(first: 5, query: $processedAtQuery, sortKey: PROCESSED_AT, reverse: true) {
+            nodes { id email processedAt }
+          }
+        }
+        "#,
+        json!({
+            "combinedQuery": combined_query,
+            "idMissQuery": id_miss_query,
+            "tailQuery": "id:1",
+            "freeTextQuery": "alpha-order-search",
+            "freeTextMissQuery": "not-a-staged-order",
+            "processedAtQuery": "processed_at:>=2024-03-01",
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["combined"]["nodes"],
+        json!([{
+            "id": alpha_id,
+            "email": "alpha-order-search@example.test",
+            "tags": ["vip"],
+            "processedAt": "2024-02-02T03:04:05Z",
+            "updatedAt": "2024-01-01T00:00:02.000Z"
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["combinedCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(read.body["data"]["idMiss"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["idMissCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["tail"]["nodes"],
+        json!([{ "id": read.body["data"]["combined"]["nodes"][0]["id"].clone(), "email": "alpha-order-search@example.test" }])
+    );
+    assert_eq!(
+        read.body["data"]["freeText"]["nodes"],
+        json!([{ "id": read.body["data"]["combined"]["nodes"][0]["id"].clone(), "email": "alpha-order-search@example.test" }])
+    );
+    assert_eq!(read.body["data"]["freeTextMiss"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["processedRange"]["nodes"],
+        json!([{ "id": zulu_id, "email": "zulu-order-search@example.test", "processedAt": "2024-03-03T03:04:05Z" }])
+    );
+}
+
+#[test]
 fn orders_sorted_connection_handles_interleaved_create_and_update_windows() {
     fn create_order(proxy: &mut DraftProxy, email: &str, title: &str) -> String {
         let create = proxy.process_request(json_graphql_request(
@@ -7646,7 +7797,7 @@ fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
 
     let first_capture = capture_proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/order-payment-capture-local-staging.graphql"),
-        json!({"input": {"id": create.body["data"]["orderCreate"]["order"]["id"].clone(), "parentTransactionId": create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone(), "amount": "10.00", "currency": "CAD", "finalCapture": false}}),
+        json!({"input": {"id": create.body["data"]["orderCreate"]["order"]["id"].clone(), "parentTransactionId": create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone(), "amount": "10.00", "currency": "CAD"}}),
     ));
     assert_eq!(
         first_capture.body["data"]["orderCapture"]["order"]["displayFinancialStatus"],
@@ -7659,7 +7810,7 @@ fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
 
     let final_capture = capture_proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/order-payment-capture-local-staging.graphql"),
-        json!({"input": {"id": create.body["data"]["orderCreate"]["order"]["id"].clone(), "parentTransactionId": create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone(), "amount": "15.00", "currency": "CAD", "finalCapture": true}}),
+        json!({"input": {"id": create.body["data"]["orderCreate"]["order"]["id"].clone(), "parentTransactionId": create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone(), "amount": "15.00", "currency": "CAD", "finalCapture": null}}),
     ));
     let final_order = final_capture.body["data"]["orderCapture"]["order"].clone();
     assert_eq!(final_order["displayFinancialStatus"], json!("PAID"));
@@ -7735,6 +7886,84 @@ fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
 }
 
 #[test]
+fn order_capture_rejects_boolean_final_capture_for_manual_gateway_without_side_effects() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-create-local-staging.graphql"
+        ),
+        json!({
+            "order": {
+                "currency": "CAD",
+                "transactions": [{
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": { "shopMoney": { "amount": "20.00", "currencyCode": "CAD" } }
+                }],
+                "lineItems": [{
+                    "title": "manual final capture unsupported",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "20.00", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"]
+        .as_str()
+        .expect("order id")
+        .to_string();
+    let parent_transaction_id = create.body["data"]["orderCreate"]["order"]["transactions"][0]
+        ["id"]
+        .as_str()
+        .expect("parent transaction id")
+        .to_string();
+    let expected_error = json!([{
+        "field": null,
+        "message": "Setting final capture is not supported for this transaction's payment gateway. Please remove the parameter or set it to null, then try again."
+    }]);
+
+    for final_capture in [true, false] {
+        let log_before = log_snapshot(&proxy);
+        let state_before = state_snapshot(&proxy);
+        let order_before = state_before["stagedState"]["orders"][&order_id].clone();
+
+        let capture = proxy.process_request(json_graphql_request(
+            include_str!(
+                "../../config/parity-requests/orders/order-payment-capture-local-staging.graphql"
+            ),
+            json!({
+                "input": {
+                    "id": order_id,
+                    "parentTransactionId": parent_transaction_id,
+                    "amount": "5.00",
+                    "currency": "CAD",
+                    "finalCapture": final_capture
+                }
+            }),
+        ));
+
+        assert_eq!(capture.status, 200);
+        assert_eq!(
+            capture.body["data"]["orderCapture"]["transaction"],
+            Value::Null
+        );
+        assert_eq!(
+            capture.body["data"]["orderCapture"]["userErrors"],
+            expected_error
+        );
+        assert_eq!(log_snapshot(&proxy), log_before);
+        assert_eq!(
+            state_snapshot(&proxy)["stagedState"]["orders"][&order_id],
+            order_before
+        );
+    }
+}
+
+#[test]
 fn order_payment_transactions_dispatch_by_root_for_ordinary_operation_names() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
@@ -7766,8 +7995,7 @@ fn order_payment_transactions_dispatch_by_root_for_ordinary_operation_names() {
                 "id": order_id.clone(),
                 "parentTransactionId": authorization_id.clone(),
                 "amount": "10.00",
-                "currency": "CAD",
-                "finalCapture": false
+                "currency": "CAD"
             }
         }),
     ));

@@ -9,6 +9,7 @@ pub(in crate::proxy) use self::collections::*;
 pub(in crate::proxy) use self::saved_search::*;
 
 const PRODUCT_STATUS_BASE_VALUES: &[&str] = &["ACTIVE", "ARCHIVED", "DRAFT"];
+const VARIANT_MONEY_UPPER_BOUND: f64 = 1_000_000_000_000_000_000.0;
 
 // The batched node-hydrate query the proxy forwards to observe pre-existing
 // products / variants / collections in LiveHybrid. Shared verbatim with the
@@ -1603,7 +1604,6 @@ pub(in crate::proxy) fn product_seo_json(
 pub(in crate::proxy) fn product_matches_search_query(
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
-    search_tags: Option<&BTreeSet<String>>,
     query: &str,
 ) -> bool {
     let query = query.trim();
@@ -1617,7 +1617,7 @@ pub(in crate::proxy) fn product_matches_search_query(
     let mut parser = ProductSearchParser::new(tokens);
     parser
         .parse()
-        .map(|expression| expression.matches(product, variants, search_tags))
+        .map(|expression| expression.matches(product, variants))
         .unwrap_or(false)
 }
 
@@ -1752,23 +1752,16 @@ impl ProductSearchParser {
 }
 
 impl ProductSearchExpression {
-    fn matches(
-        &self,
-        product: &ProductRecord,
-        variants: &[ProductVariantRecord],
-        search_tags: Option<&BTreeSet<String>>,
-    ) -> bool {
+    fn matches(&self, product: &ProductRecord, variants: &[ProductVariantRecord]) -> bool {
         match self {
-            ProductSearchExpression::Term(term) => term.matches(product, variants, search_tags),
-            ProductSearchExpression::Not(expression) => {
-                !expression.matches(product, variants, search_tags)
-            }
+            ProductSearchExpression::Term(term) => term.matches(product, variants),
+            ProductSearchExpression::Not(expression) => !expression.matches(product, variants),
             ProductSearchExpression::And(expressions) => expressions
                 .iter()
-                .all(|expression| expression.matches(product, variants, search_tags)),
+                .all(|expression| expression.matches(product, variants)),
             ProductSearchExpression::Or(expressions) => expressions
                 .iter()
-                .any(|expression| expression.matches(product, variants, search_tags)),
+                .any(|expression| expression.matches(product, variants)),
         }
     }
 }
@@ -1788,29 +1781,24 @@ impl ProductSearchTerm {
         Self { field: None, value }
     }
 
-    fn matches(
-        &self,
-        product: &ProductRecord,
-        variants: &[ProductVariantRecord],
-        search_tags: Option<&BTreeSet<String>>,
-    ) -> bool {
+    fn matches(&self, product: &ProductRecord, variants: &[ProductVariantRecord]) -> bool {
         let value = self.value.trim();
         if value.is_empty() {
             return true;
         }
         match self.field.as_deref() {
-            Some("status") => product.status == value,
+            Some("status") => product.status.eq_ignore_ascii_case(value),
             Some("vendor") => product_search_string_matches(&product.vendor, value),
             Some("product_type") => product_search_string_matches(&product.product_type, value),
             Some("title") => product_search_string_matches(&product.title, value),
-            Some("tag") => product_matches_search_tag(product, search_tags, value),
-            Some("tag_not") => !product_matches_search_tag(product, search_tags, value),
+            Some("tag") => product_matches_search_tag(product, value),
+            Some("tag_not") => !product_matches_search_tag(product, value),
             Some("sku") => product_matches_search_sku(product, variants, value),
             Some("published_status") => product_matches_published_status(product, value),
             Some("created_at") => product_matches_date_query(&product.created_at, value),
             Some("updated_at") => product_matches_date_query(&product.updated_at, value),
             Some(_) => false,
-            None => product_matches_free_text(product, variants, search_tags, value),
+            None => product_matches_free_text(product, variants, value),
         }
     }
 }
@@ -1889,33 +1877,21 @@ fn product_search_tokens(query: &str) -> Vec<ProductSearchToken> {
 fn product_matches_free_text(
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
-    search_tags: Option<&BTreeSet<String>>,
     value: &str,
 ) -> bool {
     product_search_string_matches(&product.title, value)
         || product_search_string_matches(&product.handle, value)
         || product_search_string_matches(&product.vendor, value)
         || product_search_string_matches(&product.product_type, value)
-        || product_matches_search_tag(product, search_tags, value)
+        || product_matches_search_tag(product, value)
         || product_matches_search_sku(product, variants, value)
 }
 
-fn product_matches_search_tag(
-    product: &ProductRecord,
-    search_tags: Option<&BTreeSet<String>>,
-    value: &str,
-) -> bool {
-    search_tags
-        .map(|tags| {
-            tags.iter()
-                .any(|tag| product_search_string_matches(tag, value))
-        })
-        .unwrap_or_else(|| {
-            product
-                .tags
-                .iter()
-                .any(|tag| product_search_string_matches(tag, value))
-        })
+fn product_matches_search_tag(product: &ProductRecord, value: &str) -> bool {
+    product
+        .tags
+        .iter()
+        .any(|tag| product_search_string_matches(tag, value))
 }
 
 fn product_matches_search_sku(
@@ -2632,7 +2608,7 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
                 "Price must be greater than or equal to 0",
                 Some("GREATER_THAN_OR_EQUAL_TO"),
             ));
-        } else if price >= 1_000_000_000_000_000_000.0 {
+        } else if price >= VARIANT_MONEY_UPPER_BOUND {
             errors.push(user_error(
                 prefixed_error_field(field_prefix, &["price"]),
                 "Price must be less than 1000000000000000000",
@@ -2642,7 +2618,7 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
     }
 
     if let Some(compare_at_price) = resolved_f64_path(input, &["compareAtPrice"]) {
-        if compare_at_price >= 1_000_000_000_000_000_000.0 {
+        if compare_at_price >= VARIANT_MONEY_UPPER_BOUND {
             errors.push(user_error(
                 prefixed_error_field(field_prefix, &["compareAtPrice"]),
                 "must be less than 1000000000000000000",
@@ -2690,10 +2666,48 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
     }
 
     if let Some(inventory_item) = resolved_object_field(input, "inventoryItem") {
+        if let Some(cost) = resolved_f64_path(&inventory_item, &["cost"]) {
+            if cost < 0.0 {
+                if is_bulk_variant_error_prefix(field_prefix) {
+                    errors.push(user_error(
+                        prefixed_error_field(field_prefix, &[]),
+                        "must be greater than or equal to 0",
+                        None,
+                    ));
+                }
+                errors.push(user_error(
+                    prefixed_error_field(field_prefix, &["inventoryItem", "cost"]),
+                    "Cost per item must be greater than or equal to 0",
+                    Some(if is_product_set_variant_error_prefix(field_prefix) {
+                        "INVALID_VARIANT"
+                    } else {
+                        "GREATER_THAN_OR_EQUAL_TO"
+                    }),
+                ));
+            } else if cost >= VARIANT_MONEY_UPPER_BOUND {
+                if is_bulk_variant_error_prefix(field_prefix) {
+                    errors.push(user_error(
+                        prefixed_error_field(field_prefix, &[]),
+                        "must be less than 1000000000000000000",
+                        None,
+                    ));
+                }
+                errors.push(user_error(
+                    prefixed_error_field(field_prefix, &["inventoryItem", "cost"]),
+                    "Cost per item must be less than 1000000000000000000",
+                    Some(if is_product_set_variant_error_prefix(field_prefix) {
+                        "INVALID_VARIANT"
+                    } else {
+                        "INVALID_INPUT"
+                    }),
+                ));
+            }
+        }
+
         if resolved_string_field(&inventory_item, "sku")
             .is_some_and(|sku| sku.chars().count() > 255)
         {
-            let bulk_field = !field_prefix.is_empty();
+            let bulk_field = is_bulk_variant_error_prefix(field_prefix);
             errors.push(user_error(
                 if bulk_field {
                     prefixed_error_field(field_prefix, &[])
@@ -2779,11 +2793,22 @@ fn prefixed_error_field(prefix: &[String], suffix: &[&str]) -> Value {
     )
 }
 
+fn is_bulk_variant_error_prefix(prefix: &[String]) -> bool {
+    prefix.first().is_some_and(|field| field == "variants")
+}
+
+fn is_product_set_variant_error_prefix(prefix: &[String]) -> bool {
+    matches!(
+        prefix,
+        [input, variants, ..] if input == "input" && variants == "variants"
+    )
+}
+
 fn variant_weight_error_field(prefix: &[String]) -> Value {
-    if prefix.is_empty() {
-        prefixed_error_field(prefix, &["inventoryItem", "measurement", "weight"])
-    } else {
+    if is_bulk_variant_error_prefix(prefix) {
         prefixed_error_field(prefix, &[])
+    } else {
+        prefixed_error_field(prefix, &["inventoryItem", "measurement", "weight"])
     }
 }
 

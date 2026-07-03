@@ -1,0 +1,27 @@
+{
+  "scenarioId": "price_list_fixed_prices_add_short_circuit",
+  "operationNames": ["priceListFixedPricesAdd"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-fixed-prices-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price_list_fixed_prices_add_short_circuit.graphql",
+    "variablesCapturePath": "$.cases.addMissingVariantCurrencyMismatchShortCircuit.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "add-missing-variant-currency-mismatch-short-circuit",
+        "capturePath": "$.cases.addMissingVariantCurrencyMismatchShortCircuit.response.payload.data.priceListFixedPricesAdd",
+        "proxyPath": "$.data.priceListFixedPricesAdd"
+      }
+    ]
+  },
+  "notes": "Captured Admin GraphQL 2026-04 priceListFixedPricesAdd per-index short-circuit behavior. When one input row has both an unknown variantId and a price currency that does not match the price list, Shopify returns only VARIANT_NOT_FOUND at prices[0].variantId and leaves prices as an empty list."
+}
