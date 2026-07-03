@@ -5645,7 +5645,7 @@ fn localization_translations_remove_empty_keys_is_noop_and_preserves_read_after(
           }
         }"#,
         json!({
-            "resourceId": resource_id,
+            "resourceId": resource_id.as_str(),
             "translations": [
                 { "locale": "fr", "key": "title", "value": "Titre local", "translatableContentDigest": title_digest },
                 { "locale": "fr", "key": "body_html", "value": "Description locale", "translatableContentDigest": body_digest }
@@ -5668,7 +5668,7 @@ fn localization_translations_remove_empty_keys_is_noop_and_preserves_read_after(
             userErrors { field message code }
           }
         }"#,
-        json!({ "resourceId": resource_id, "keys": [], "locales": ["fr"] }),
+        json!({ "resourceId": resource_id.as_str(), "keys": [], "locales": ["fr"] }),
     ));
     assert_eq!(
         remove.body["data"]["translationsRemove"],
@@ -5681,7 +5681,7 @@ fn localization_translations_remove_empty_keys_is_noop_and_preserves_read_after(
             translations(locale: "fr") { key value locale outdated updatedAt market { id } }
           }
         }"#,
-        json!({ "resourceId": resource_id }),
+        json!({ "resourceId": resource_id.as_str() }),
     ));
     assert_eq!(
         read_after_remove.body["data"]["translatableResource"]["translations"],

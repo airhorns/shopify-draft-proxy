@@ -9274,23 +9274,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
-    captureId: 'money-bag-presentment-local-runtime',
-    scriptPath: 'scripts/capture-money-bag-presentment-local-runtime.ts',
+    captureId: 'money-bag-presentment',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-money-bag-presentment-conformance.ts',
     purpose:
-      'Executable local-runtime MoneyBag presentment coverage for orderCreate, orderMarkAsPaid, refundCreate, and orderEditBegin/orderEditCommit selected money payloads.',
-    requiredAuthScopes: ['local-runtime'],
+      'Live Shopify Admin GraphQL MoneyBag presentment coverage for orderCreate, orderMarkAsPaid, refundCreate, and orderEditBegin/orderEditCommit selected money payloads.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
     fixtureOutputs: [
-      'fixtures/conformance/local-runtime/2026-05/orders/money-bag-presentment-parity.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/money-bag-presentment-parity.json',
       'config/parity-specs/orders/money-bag-presentment-parity.json',
       'config/parity-requests/orders/money-bag-presentment-single-create.graphql',
-      'config/parity-requests/orders/money-bag-presentment-multi-create.graphql',
       'config/parity-requests/orders/money-bag-presentment-mark-as-paid.graphql',
       'config/parity-requests/orders/money-bag-presentment-refund.graphql',
       'config/parity-requests/orders/money-bag-presentment-order-edit-begin.graphql',
       'config/parity-requests/orders/money-bag-presentment-order-edit-commit.graphql',
     ],
-    cleanupBehavior: 'Local-runtime parity only; no live Shopify objects are created.',
-    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
+    cleanupBehavior:
+      'Creates one disposable multi-currency test order, records edit, mark-as-paid, and refund MoneyBag payloads through public GraphQL, and attempts orderCancel cleanup.',
+    expectedStatusChecks: ['conformance:status', 'conformance:check', 'conformance:parity', 'rust:test'],
   },
   {
     domain: 'payments',
