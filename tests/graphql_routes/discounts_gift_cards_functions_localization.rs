@@ -6694,6 +6694,131 @@ fn gift_card_recipient_notification_checks_actual_contact_projection() {
 }
 
 #[test]
+fn gift_card_customer_notification_checks_actual_contact_projection() {
+    let mut proxy = snapshot_proxy();
+
+    let customer = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardNoContactAssignedCustomer {
+          customerCreate(input: { firstName: "No", lastName: "Contact" }) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        customer.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let customer_id = customer.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .expect("customer id")
+        .to_string();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardCustomerNoContactCreate($customerId: ID!) {
+          create: giftCardCreate(input: { initialValue: "10", customerId: $customerId }) {
+            giftCard { id customer { id } }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "customerId": customer_id }),
+    ));
+
+    assert_eq!(create.body["data"]["create"]["userErrors"], json!([]));
+    let gift_card_id = json_string(
+        &create.body["data"]["create"]["giftCard"]["id"],
+        "created gift card id",
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardCustomerNoContactNotify($id: ID!) {
+          notifyCustomer: giftCardSendNotificationToCustomer(id: $id) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "id": gift_card_id }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["notifyCustomer"],
+        json!({
+            "giftCard": null,
+            "userErrors": [{
+                "field": null,
+                "code": "INVALID",
+                "message": "The customer has no contact information (e.g. email address or phone number)."
+            }]
+        })
+    );
+}
+
+#[test]
+fn gift_card_customer_notification_allows_reachable_and_unknown_contact_projection() {
+    let mut proxy = snapshot_proxy();
+    seed_legacy_gift_card_base_state(&mut proxy);
+
+    restore_proxy_state(&mut proxy, |restored| {
+        for (tail, customer) in [
+            (
+                "customer-contact-unknown",
+                json!({ "id": "gid://shopify/Customer/customer-contact-unknown" }),
+            ),
+            (
+                "customer-email",
+                json!({ "id": "gid://shopify/Customer/customer-email", "email": "customer-email@example.com" }),
+            ),
+            (
+                "customer-phone",
+                json!({ "id": "gid://shopify/Customer/customer-phone", "phone": "+14155550100" }),
+            ),
+            (
+                "customer-default-email",
+                json!({
+                    "id": "gid://shopify/Customer/customer-default-email",
+                    "defaultEmailAddress": { "emailAddress": "customer-default-email@example.com" }
+                }),
+            ),
+            (
+                "customer-default-phone",
+                json!({
+                    "id": "gid://shopify/Customer/customer-default-phone",
+                    "defaultPhoneNumber": { "phoneNumber": "+14155550101" }
+                }),
+            ),
+        ] {
+            let id = format!("gid://shopify/GiftCard/{tail}");
+            let mut card = legacy_gift_card_fixture(&id);
+            card["customer"] = customer;
+            restored["state"]["baseState"]["giftCards"][id] = card;
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardCustomerReachableProjection {
+          unknown: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/customer-contact-unknown") { giftCard { id } userErrors { field code message } }
+          email: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/customer-email") { giftCard { id } userErrors { field code message } }
+          phone: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/customer-phone") { giftCard { id } userErrors { field code message } }
+          defaultEmail: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/customer-default-email") { giftCard { id } userErrors { field code message } }
+          defaultPhone: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/customer-default-phone") { giftCard { id } userErrors { field code message } }
+        }"#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "unknown": { "giftCard": { "id": "gid://shopify/GiftCard/customer-contact-unknown" }, "userErrors": [] },
+            "email": { "giftCard": { "id": "gid://shopify/GiftCard/customer-email" }, "userErrors": [] },
+            "phone": { "giftCard": { "id": "gid://shopify/GiftCard/customer-phone" }, "userErrors": [] },
+            "defaultEmail": { "giftCard": { "id": "gid://shopify/GiftCard/customer-default-email" }, "userErrors": [] },
+            "defaultPhone": { "giftCard": { "id": "gid://shopify/GiftCard/customer-default-phone" }, "userErrors": [] }
+        })
+    );
+}
+
+#[test]
 fn gift_card_update_validation_rejects_deactivated_empty_missing_and_long_inputs_and_allows_note() {
     let mut proxy = snapshot_proxy();
     seed_legacy_gift_card_base_state(&mut proxy);
