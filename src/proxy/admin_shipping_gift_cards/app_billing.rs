@@ -1093,14 +1093,14 @@ fn app_subscription_trial_is_active(subscription: &Value) -> bool {
         .and_then(Value::as_str)
         .and_then(parse_rfc3339_epoch_seconds)
         .is_some_and(|period_end| {
-            parse_rfc3339_epoch_seconds(&app_billing_validation_now_timestamp())
-                .is_some_and(|now| period_end > now)
+            app_billing_now_epoch_seconds().is_some_and(|now| period_end > now)
         })
 }
 
 fn app_subscription_current_period_end(trial_days: i64) -> String {
-    let now = parse_rfc3339_epoch_seconds(&app_billing_validation_now_timestamp()).unwrap_or(0);
-    format_epoch_seconds_utc_millis(now + trial_days.max(0) * 86_400)
+    let now = app_billing_now_epoch_seconds().unwrap_or(0);
+    let trial_seconds = trial_days.max(0).saturating_mul(86_400);
+    format_epoch_seconds_utc_millis(now.saturating_add(trial_seconds))
 }
 
 fn format_epoch_seconds_utc_millis(seconds: i64) -> String {
@@ -1207,8 +1207,11 @@ fn delegate_expires_after_parent(request: &Request, expires_in: i64, created_at:
     created_at + expires_in > parent_expires_at
 }
 
-fn app_billing_validation_now_timestamp() -> String {
-    format!("{:04}-{:02}-{:02}T02:10:00.000Z", 2026, 4, 28)
+fn app_billing_now_epoch_seconds() -> Option<i64> {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_secs() as i64)
 }
 
 fn app_revoke_access_scopes_missing_source_app(request: &Request) -> bool {

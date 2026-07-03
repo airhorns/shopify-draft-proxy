@@ -19,6 +19,43 @@ fn synthetic_gid(value: &Value, resource: &str) -> String {
     id.to_string()
 }
 
+fn current_epoch_seconds() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("test clock should be after Unix epoch")
+        .as_secs() as i64
+}
+
+fn rfc3339_millis_utc_epoch_seconds(value: &Value) -> i64 {
+    let timestamp = value
+        .as_str()
+        .expect("timestamp should be a string in UTC RFC3339 format");
+    assert!(
+        timestamp.ends_with(".000Z"),
+        "{timestamp} should use Shopify-style millisecond UTC formatting"
+    );
+    let parse = |start: usize, end: usize| -> i64 {
+        timestamp[start..end]
+            .parse::<i64>()
+            .expect("timestamp component should be numeric")
+    };
+    let date = time::Date::from_calendar_date(
+        parse(0, 4) as i32,
+        time::Month::try_from(parse(5, 7) as u8).expect("timestamp month should be valid"),
+        parse(8, 10) as u8,
+    )
+    .expect("timestamp date should be a valid calendar date");
+    let clock_time = time::Time::from_hms(
+        parse(11, 13) as u8,
+        parse(14, 16) as u8,
+        parse(17, 19) as u8,
+    )
+    .expect("timestamp time should be valid");
+    time::PrimitiveDateTime::new(date, clock_time)
+        .assume_utc()
+        .unix_timestamp()
+}
+
 #[test]
 fn delegate_access_token_create_validates_and_stages_synthetic_secret() {
     let mut proxy = snapshot_proxy();
@@ -1917,6 +1954,7 @@ fn app_subscription_trial_extend_validates_days_unknown_and_inactive_status() {
 fn app_subscription_create_activates_test_charge_and_reads_back_current_installation() {
     let mut proxy = snapshot_proxy();
 
+    let before_create = current_epoch_seconds();
     let create = proxy.process_request(json_graphql_request(
         r#"
         mutation AppSubscriptionCreateActivationReadback {
@@ -1937,10 +1975,22 @@ fn app_subscription_create_activates_test_charge_and_reads_back_current_installa
         "#,
         json!({}),
     ));
+    let after_create = current_epoch_seconds();
     let subscription_id = create.body["data"]["subscription"]["appSubscription"]["id"]
         .as_str()
         .unwrap()
         .to_string();
+    let current_period_end =
+        create.body["data"]["subscription"]["appSubscription"]["currentPeriodEnd"].clone();
+    let current_period_end_epoch = rfc3339_millis_utc_epoch_seconds(&current_period_end);
+    assert!(
+        current_period_end_epoch >= before_create + 7 * 86_400,
+        "{current_period_end_epoch} should be at least 7 days after the pre-create clock"
+    );
+    assert!(
+        current_period_end_epoch <= after_create + 7 * 86_400,
+        "{current_period_end_epoch} should be no later than 7 days after the post-create clock"
+    );
     assert_eq!(
         create.body["data"]["subscription"],
         json!({
@@ -1950,7 +2000,7 @@ fn app_subscription_create_activates_test_charge_and_reads_back_current_installa
                 "status": "ACTIVE",
                 "test": true,
                 "trialDays": 7,
-                "currentPeriodEnd": "2026-05-05T02:10:00.000Z"
+                "currentPeriodEnd": current_period_end.clone()
             },
             "userErrors": []
         })
@@ -1974,7 +2024,7 @@ fn app_subscription_create_activates_test_charge_and_reads_back_current_installa
                     "activeSubscriptions": [{
                         "id": subscription_id,
                         "status": "ACTIVE",
-                        "currentPeriodEnd": "2026-05-05T02:10:00.000Z"
+                        "currentPeriodEnd": current_period_end
                     }]
                 }
             }
@@ -2462,6 +2512,7 @@ fn removed_app_usage_record_create_cap_and_idempotency_scenario_has_rust_coverag
 fn removed_app_subscription_activation_readback_scenario_has_rust_coverage() {
     let mut proxy = snapshot_proxy();
 
+    let before_create = current_epoch_seconds();
     let create = proxy.process_request(json_graphql_request(
         r#"
         mutation {
@@ -2482,8 +2533,20 @@ fn removed_app_subscription_activation_readback_scenario_has_rust_coverage() {
         "#,
         json!({}),
     ));
+    let after_create = current_epoch_seconds();
     let subscription_id =
         create.body["data"]["appSubscriptionCreate"]["appSubscription"]["id"].clone();
+    let current_period_end =
+        create.body["data"]["appSubscriptionCreate"]["appSubscription"]["currentPeriodEnd"].clone();
+    let current_period_end_epoch = rfc3339_millis_utc_epoch_seconds(&current_period_end);
+    assert!(
+        current_period_end_epoch >= before_create + 7 * 86_400,
+        "{current_period_end_epoch} should be at least 7 days after the pre-create clock"
+    );
+    assert!(
+        current_period_end_epoch <= after_create + 7 * 86_400,
+        "{current_period_end_epoch} should be no later than 7 days after the post-create clock"
+    );
     assert_eq!(
         create.body["data"]["appSubscriptionCreate"]["appSubscription"]["status"],
         json!("ACTIVE")
@@ -2504,7 +2567,7 @@ fn removed_app_subscription_activation_readback_scenario_has_rust_coverage() {
         json!([{
             "id": subscription_id,
             "status": "ACTIVE",
-            "currentPeriodEnd": "2026-05-05T02:10:00.000Z"
+            "currentPeriodEnd": current_period_end
         }])
     );
 }
