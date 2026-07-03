@@ -128,8 +128,23 @@ pub(in crate::proxy) struct ProductPublicationEntry {
 }
 
 pub(in crate::proxy) fn product_publication_state_known(product: &ProductRecord) -> bool {
-    product.extra_fields.contains_key("productPublications")
-        || product.extra_fields.contains_key("resourcePublicationsV2")
+    if product.extra_fields.contains_key("productPublications") {
+        return true;
+    }
+    let resource_nodes = product
+        .extra_fields
+        .get("resourcePublicationsV2")
+        .and_then(|connection| connection.get("nodes"))
+        .and_then(Value::as_array);
+    if resource_nodes.is_some_and(|nodes| !nodes.is_empty()) {
+        return true;
+    }
+    product
+        .extra_fields
+        .get("resourcePublicationsCount")
+        .and_then(|count| count.get("count"))
+        .and_then(Value::as_u64)
+        == Some(0)
 }
 
 pub(in crate::proxy) fn product_publication_entries(
@@ -366,11 +381,29 @@ pub(in crate::proxy) fn product_publication_field_json(
                 &publication_id,
             )))
         }
-        "availablePublicationsCount" | "resourcePublicationsCount" => Some(selected_count_json(
-            product_visible_publication_entries(product).len(),
-            &selection.selection,
-        )),
-        "publications" | "productPublications" => Some(product_publication_connection_json(
+        "availablePublicationsCount" | "resourcePublicationsCount" => product
+            .extra_fields
+            .get(&selection.name)
+            .cloned()
+            .map(|value| selected_json(&value, &selection.selection))
+            .or_else(|| {
+                Some(selected_count_json(
+                    product_visible_publication_entries(product).len(),
+                    &selection.selection,
+                ))
+            }),
+        "publications" => product
+            .extra_fields
+            .get("publications")
+            .cloned()
+            .map(|value| selected_json(&value, &selection.selection))
+            .or_else(|| {
+                Some(product_publication_connection_json(
+                    product,
+                    &selection.selection,
+                ))
+            }),
+        "productPublications" => Some(product_publication_connection_json(
             product,
             &selection.selection,
         )),
@@ -379,11 +412,18 @@ pub(in crate::proxy) fn product_publication_field_json(
             "ResourcePublication",
             &selection.selection,
         )),
-        "resourcePublicationsV2" => Some(resource_publication_connection_json(
-            product,
-            "ResourcePublicationV2",
-            &selection.selection,
-        )),
+        "resourcePublicationsV2" => product
+            .extra_fields
+            .get("resourcePublicationsV2")
+            .cloned()
+            .map(|value| selected_json(&value, &selection.selection))
+            .or_else(|| {
+                Some(resource_publication_connection_json(
+                    product,
+                    "ResourcePublicationV2",
+                    &selection.selection,
+                ))
+            }),
         "resourcePublicationOnCurrentPublication" => Some(Value::Null),
         _ => None,
     }

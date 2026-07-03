@@ -13,6 +13,15 @@ mutation ProductVariantCompatibilitySetupVariant($input: ProductVariantInput!) {
       price
       compareAtPrice
       taxable
+      taxCode
+      requiresComponents
+      showUnitPrice
+      unitPriceMeasurement {
+        quantityValue
+        quantityUnit
+        referenceValue
+        referenceUnit
+      }
       inventoryPolicy
       inventoryQuantity
       selectedOptions {
@@ -23,6 +32,15 @@ mutation ProductVariantCompatibilitySetupVariant($input: ProductVariantInput!) {
         id
         tracked
         requiresShipping
+        countryCodeOfOrigin
+        provinceCodeOfOrigin
+        harmonizedSystemCode
+        measurement {
+          weight {
+            value
+            unit
+          }
+        }
       }
     }
     userErrors {

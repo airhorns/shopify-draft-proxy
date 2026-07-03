@@ -187,8 +187,3 @@ Staged discount bulk mutations:
 - Tokens must come through `scripts/shopify-conformance-auth.mts`; repo `.env` files must not contain Admin access tokens.
 - Discount capture fails before discount reads or writes when either required discount scope is missing.
 - Discount capture files use the `discount-*` conformance naming convention only after scope checks pass.
-
-### Evidence and validation
-
-- Conformance fixtures and requests: `config/parity-specs/discounts/discount*.json` and matching files under `config/parity-requests/discounts/`; singular detail fixtures are `discount-code-basic-detail-read.json` and `discount-automatic-basic-detail-read.json`, and lifecycle evidence includes `discount-bxgy-lifecycle.json` plus `discount-free-shipping-lifecycle.json`, under the 2026-04 conformance fixture domain directory.
-- Capture helper tests: `tests/unit/discount-conformance-lib.test.ts`
