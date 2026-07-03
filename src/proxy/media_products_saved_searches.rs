@@ -101,6 +101,8 @@ impl DraftProxy {
             "product" => Some(self.product_by_id_field(field)),
             "products" => Some(self.products_connection_field(field)),
             "productsCount" => Some(self.products_count_field(field)),
+            "collections" => Some(self.collections_connection_field(field)),
+            "collectionsCount" => Some(self.collections_count_field(field)),
             "productByIdentifier" => Some(self.product_by_identifier_field(field)),
             "productOperation" => Some(self.product_operation_by_id_field(field)),
             "productFeed" => Some(self.product_tail_feed_read_field(field)),
