@@ -225,16 +225,3 @@ with `/endpoints/orders/` and `/endpoints/returns/`.
   supported local slices.
 - Unsupported mutation documents outside the ported local slices follow the
   configured unsupported path and must remain visible in logs/observability.
-
-### Evidence
-
-- Registry status: `src/operation_registry.rs`
-- Runtime coverage: `tests/graphql_routes.rs`
-- Shipping/fulfillment parity specs: `config/parity-specs/shipping-fulfillments/*.json`
-- Shipping/fulfillment fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-fulfillments/*.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/*.json`
-- Related order/return shipping specs: `config/parity-specs/orders/fulfillment-state-preconditions.json`, `config/parity-specs/orders/return-reverse-logistics-local-staging.json`, `config/parity-specs/orders/return-reverse-logistics-recorded.json`, `config/parity-specs/orders/return-reverse-logistics-dispose-validation.json`, and the order-edit shipping-line specs under `config/parity-specs/orders/`
-
-### Validation
-
-- `corepack pnpm lint`
-- `corepack pnpm rust:test`

@@ -860,8 +860,8 @@ After the initial orders-domain creation scaffolding landed, the next easy mista
   - `email`, `phone`, `poNumber`, `shippingAddress`, `customAttributes`, and order-scoped `metafields`
   - downstream `order(id:)` reads expose the staged values, including `customer.email` when the input updates `email`
   - `billingAddress` is intentionally not part of that local `orderUpdate` slice because the current `OrderInput` docs do not expose it
-  - executable local-runtime parity: `config/parity-specs/orders/orderUpdate-snapshot-staging.json` replays public `orderCreate -> orderUpdate -> order(id:) / orders / ordersCount` requests without seeding internal proxy state
-  - expanded live parity is captured for `email`, `poNumber`, `note`, `tags`, `customAttributes`, `shippingAddress`, and order-scoped `metafields` in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json`; `phone` remains local-runtime backed because Shopify 2025-01 rejected it as an `OrderInput` field in that capture path
+  - executable parity: `config/parity-specs/orders/orderUpdate-snapshot-staging.json` replays public `orderCreate -> orderUpdate -> order(id:) / orders / ordersCount` requests against the live 2026-04 fixture without seeding internal proxy state
+  - expanded live parity is captured for `email`, `poNumber`, `note`, `tags`, `customAttributes`, `shippingAddress`, and order-scoped `metafields` in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json`; `phone` remains runtime-test-backed because Shopify 2025-01 rejected it as an `OrderInput` field in that capture path
 - a later 2026-04 localization capture exposed several easy-to-miss `orderUpdate` details:
   - `localizedFields` and deprecated `localizationExtensions` both read back from the same localized-order record set; updating either connection makes the key visible through both `Order.localizedFields` and `Order.localizationExtensions`
   - Brazilian credential values are validated for real CPF/CNPJ shape; arbitrary 11-digit strings can fail with `Localization extension: 'value' provided is invalid`
