@@ -10923,6 +10923,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'bulk-operations',
+    captureId: 'bulk-operation-run-mutation-empty-file',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-run-mutation-empty-file-conformance.ts',
+    purpose:
+      'bulkOperationRunMutation rejects a zero-byte staged JSONL upload with INVALID_STAGED_UPLOAD_FILE and the empty-file message.',
+    requiredAuthScopes: ['bulk operation access and product write access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-run-mutation-empty-file.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-run-mutation-empty-file.json',
+      'config/parity-requests/bulk-operations/bulk-operation-run-mutation-empty-file-staged-upload.graphql',
+      'config/parity-requests/bulk-operations/bulk-operation-run-mutation-empty-file.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one staged upload target and uploads a zero-byte JSONL body; Shopify rejects bulkOperationRunMutation before creating a bulk operation or product data.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
     captureId: 'bulk-operation-run-mutation-allowed-roots',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-run-mutation-allowed-roots-conformance.ts',

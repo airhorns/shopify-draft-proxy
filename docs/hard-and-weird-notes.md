@@ -3965,3 +3965,17 @@ Practical rule:
 - keep restored media parity request documents on public fields only, and use
   reverse-order immediate reads when the scenario needs the newly created file
   without relying on full file-search semantics.
+
+## 93. `bulkOperationRunMutation` rejects empty staged uploads before throttling
+
+Admin GraphQL 2026-04 rejects a zero-byte `BULK_MUTATION_VARIABLES` staged
+upload before creating a mutation bulk operation. The payload is
+`bulkOperation: null` with one userError at `field: null`, message
+`The input file is empty.`, and code `INVALID_STAGED_UPLOAD_FILE`.
+
+Practical rule:
+
+- treat resolved staged-upload size `0` as a file validation error before
+  same-type `OPERATION_IN_PROGRESS` throttling
+- keep the oversized and empty-file messages distinct even though both use
+  `INVALID_STAGED_UPLOAD_FILE`
