@@ -96,6 +96,10 @@ const variableMissingNameDocument = await readRequest(
 );
 const emptyQueryDocument = await readRequest('saved-search-required-input-empty-query-create.graphql');
 const missingUpdateIdDocument = await readRequest('saved-search-required-input-missing-id-update.graphql');
+const missingDeleteIdDocument = await readRequest('saved-search-required-input-missing-id-delete.graphql');
+const variableMissingDeleteIdDocument = await readRequest(
+  'saved-search-required-input-variable-missing-id-delete.graphql',
+);
 
 const token = `ssri-${Date.now().toString(36)}`;
 const emptyQueryVariables = {
@@ -115,6 +119,14 @@ const variableMissingNameVariables = {
   input: {
     resourceType: 'PRODUCT',
     query: 'tag:variable-required',
+  },
+};
+const variableMissingDeleteIdVariables = {
+  input: {},
+};
+const variableNullDeleteIdVariables = {
+  input: {
+    id: null,
   },
 };
 
@@ -158,6 +170,25 @@ try {
   const savedSearchUpdateMissingId = await client.runGraphqlRequest(missingUpdateIdDocument);
   assertTopLevelCoercionError(savedSearchUpdateMissingId, 'savedSearchUpdate', 'missing-id update capture');
 
+  const savedSearchDeleteMissingId = await client.runGraphqlRequest(missingDeleteIdDocument);
+  assertTopLevelCoercionError(savedSearchDeleteMissingId, 'savedSearchDelete', 'missing-id delete capture');
+
+  const savedSearchDeleteVariableMissingId = await client.runGraphqlRequest(
+    variableMissingDeleteIdDocument,
+    variableMissingDeleteIdVariables,
+  );
+  assertTopLevelCoercionError(
+    savedSearchDeleteVariableMissingId,
+    'savedSearchDelete',
+    'variable missing-id delete capture',
+  );
+
+  const savedSearchDeleteVariableNullId = await client.runGraphqlRequest(
+    variableMissingDeleteIdDocument,
+    variableNullDeleteIdVariables,
+  );
+  assertTopLevelCoercionError(savedSearchDeleteVariableNullId, 'savedSearchDelete', 'variable null-id delete capture');
+
   cleanupDelete = await cleanup(createdId);
   assertNoTopLevelErrors(cleanupDelete, 'empty-query saved-search cleanup');
 
@@ -167,11 +198,13 @@ try {
     apiVersion,
     token,
     notes: [
-      'Capture for savedSearchCreate/savedSearchUpdate required input coercion.',
+      'Capture for savedSearchCreate/savedSearchUpdate/savedSearchDelete required input coercion.',
       'Missing inline SavedSearchCreateInput required fields return top-level GraphQL errors before a data payload is emitted.',
       'Missing variable-supplied SavedSearchCreateInput required fields return top-level INVALID_VARIABLE GraphQL errors before resolver userErrors.',
       'An explicitly empty query string is accepted on savedSearchCreate and the disposable saved search is deleted during cleanup.',
       'Missing inline SavedSearchUpdateInput.id returns a top-level GraphQL error before resolver userErrors.',
+      'Missing inline SavedSearchDeleteInput.id returns a top-level GraphQL error before resolver userErrors.',
+      'Missing or null variable-supplied SavedSearchDeleteInput.id returns top-level INVALID_VARIABLE before resolver userErrors.',
     ],
     savedSearchCreateMissingName: {
       documentPath: 'config/parity-requests/saved-searches/saved-search-required-input-missing-name-create.graphql',
@@ -205,6 +238,23 @@ try {
       documentPath: 'config/parity-requests/saved-searches/saved-search-required-input-missing-id-update.graphql',
       variables: {},
       payload: savedSearchUpdateMissingId.payload,
+    },
+    savedSearchDeleteMissingId: {
+      documentPath: 'config/parity-requests/saved-searches/saved-search-required-input-missing-id-delete.graphql',
+      variables: {},
+      payload: savedSearchDeleteMissingId.payload,
+    },
+    savedSearchDeleteVariableMissingId: {
+      documentPath:
+        'config/parity-requests/saved-searches/saved-search-required-input-variable-missing-id-delete.graphql',
+      variables: variableMissingDeleteIdVariables,
+      payload: savedSearchDeleteVariableMissingId.payload,
+    },
+    savedSearchDeleteVariableNullId: {
+      documentPath:
+        'config/parity-requests/saved-searches/saved-search-required-input-variable-missing-id-delete.graphql',
+      variables: variableNullDeleteIdVariables,
+      payload: savedSearchDeleteVariableNullId.payload,
     },
     cleanupDelete: {
       documentPath: 'config/parity-requests/saved-searches/saved-search-query-grammar-delete.graphql',
