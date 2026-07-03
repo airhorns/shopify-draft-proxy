@@ -34,6 +34,27 @@
         "proxyPath": "$.data.publicationCreate"
       },
       {
+        "name": "created-publication-root-read",
+        "capturePath": "$.cases.createdPublicationRead.response.payload.data.publication",
+        "proxyPath": "$.data.publication",
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Publication",
+            "reason": "Publication ids are generated independently by Shopify and the local synthetic allocator."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/publication-created-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.publicationCreate.publication.id"
+            }
+          }
+        }
+      },
+      {
         "name": "publication-update-add-product",
         "capturePath": "$.cases.updateAddProduct.response.payload.data.publicationUpdate",
         "proxyPath": "$.data.publicationUpdate",
@@ -183,6 +204,20 @@
         "proxyPath": "$.data.publicationDelete",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/publicationDelete-contract.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.publicationCreate.publication.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "deleted-publication-root-read",
+        "capturePath": "$.cases.afterDeletePublicationRead.response.payload.data.publication",
+        "proxyPath": "$.data.publication",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/publication-created-read.graphql",
           "apiVersion": "2026-04",
           "variables": {
             "id": {
