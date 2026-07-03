@@ -596,6 +596,85 @@ fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
 }
 
 #[test]
+fn marketing_external_activity_uses_request_app_custom_channel_and_tracking_values() {
+    let mut proxy = snapshot_proxy();
+    let mut create = json_graphql_request(
+        r#"
+        mutation MarketingActivityRequestIdentityAndTracking {
+          createExternal: marketingActivityCreateExternal(input: {
+            title: "Social Launch",
+            remoteId: "social-remote-1",
+            status: ACTIVE,
+            tactic: AD,
+            marketingChannelType: SEARCH,
+            channelHandle: "social-feed",
+            remoteUrl: "https://example.com/social-launch",
+            previewUrl: "https://example.com/social-preview",
+            utm: { campaign: "social-campaign", source: "social", medium: "paid" }
+          }) {
+            marketingActivity {
+              id
+              remoteId
+              app { id title }
+              utmParameters { campaign source medium }
+              marketingEvent {
+                id
+                remoteId
+                channelHandle
+                utmCampaign
+                utmSource
+                utmMedium
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    create.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let create = proxy.process_request(create);
+    let created = &create.body["data"]["createExternal"]["marketingActivity"];
+    let activity_id = created["id"].as_str().expect("activity id");
+    let activity_tail = activity_id
+        .rsplit('/')
+        .next()
+        .and_then(|tail| tail.parse::<u64>().ok())
+        .expect("numeric marketing activity id");
+    let assumed_event_id = format!("gid://shopify/MarketingEvent/{}", activity_tail + 1);
+
+    assert_eq!(
+        create.body["data"]["createExternal"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created,
+        &json!({
+            "id": activity_id,
+            "remoteId": "social-remote-1",
+            "app": { "id": "gid://shopify/App/347082227713", "title": "347082227713" },
+            "utmParameters": { "campaign": "social-campaign", "source": "social", "medium": "paid" },
+            "marketingEvent": {
+                "id": created["marketingEvent"]["id"],
+                "remoteId": "social-remote-1",
+                "channelHandle": "social-feed",
+                "utmCampaign": "social-campaign",
+                "utmSource": "social",
+                "utmMedium": "paid"
+            }
+        })
+    );
+    assert_ne!(
+        created["marketingEvent"]["id"],
+        json!(assumed_event_id),
+        "marketing event ids must be allocated independently from activity ids"
+    );
+}
+
+#[test]
 fn marketing_engagement_currency_validation_matches_shopify_error_codes() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
@@ -644,24 +723,24 @@ fn marketing_engagement_currency_validation_matches_shopify_error_codes() {
 }
 
 #[test]
-fn marketing_channel_handle_errors_match_live_capture() {
+fn marketing_channel_handles_accept_non_empty_values() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
         r#"
-        mutation MarketingChannelHandleMessages(
+        mutation MarketingChannelHandleAcceptance(
           $createInput: MarketingActivityCreateExternalInput!
           $upsertInput: MarketingActivityUpsertExternalInput!
           $engagement: MarketingEngagementInput!
         ) {
-          invalidEngagement: marketingEngagementCreate(channelHandle: "not-a-real-channel", marketingEngagement: $engagement) {
+          customEngagement: marketingEngagementCreate(channelHandle: "not-a-real-channel", marketingEngagement: $engagement) {
             marketingEngagement { occurredOn }
             userErrors { field message code }
           }
-          invalidCreate: marketingActivityCreateExternal(input: $createInput) {
+          customCreate: marketingActivityCreateExternal(input: $createInput) {
             marketingActivity { id }
             userErrors { field message code }
           }
-          invalidUpsert: marketingActivityUpsertExternal(input: $upsertInput) {
+          customUpsert: marketingActivityUpsertExternal(input: $upsertInput) {
             marketingActivity { id }
             userErrors { field message code }
           }
@@ -675,28 +754,26 @@ fn marketing_channel_handle_errors_match_live_capture() {
     ));
 
     assert_eq!(
-        response.body["data"]["invalidEngagement"],
-        json!({"marketingEngagement": null, "userErrors": [{
-            "field": ["channelHandle"],
-            "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
-            "code": "INVALID_CHANNEL_HANDLE"
-        }]})
+        response.body["data"]["customEngagement"],
+        json!({"marketingEngagement": {"occurredOn": "2026-04-01"}, "userErrors": []})
     );
     assert_eq!(
-        response.body["data"]["invalidCreate"],
-        json!({"marketingActivity": null, "userErrors": [{
-            "field": ["input"],
-            "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
-            "code": "INVALID_CHANNEL_HANDLE"
-        }]})
+        response.body["data"]["customCreate"]["userErrors"],
+        json!([])
     );
     assert_eq!(
-        response.body["data"]["invalidUpsert"],
-        json!({"marketingActivity": null, "userErrors": [{
-            "field": ["input"],
-            "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
-            "code": "INVALID_CHANNEL_HANDLE"
-        }]})
+        response.body["data"]["customUpsert"]["userErrors"],
+        json!([])
+    );
+    assert!(
+        response.body["data"]["customCreate"]["marketingActivity"]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("gid://shopify/MarketingActivity/"))
+    );
+    assert!(
+        response.body["data"]["customUpsert"]["marketingActivity"]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("gid://shopify/MarketingActivity/"))
     );
 }
 
@@ -1078,7 +1155,7 @@ fn marketing_engagements_delete_validates_selectors_and_channel_handles() {
     );
     assert_eq!(
         response.body["data"]["unknownChannel"],
-        json!({"result": null, "userErrors": [{"field": ["channelHandle"], "message": "The channel handle is not recognized. Please contact your partner manager for more information.", "code": "INVALID_CHANNEL_HANDLE"}]})
+        json!({"result": "Engagement data associated to channel handle 'unknown-channel' marked for deletion", "userErrors": []})
     );
     assert_eq!(
         response.body["data"]["singleChannel"],
@@ -1107,7 +1184,7 @@ fn marketing_engagements_delete_validates_selectors_and_channel_handles() {
     let unowned_delete = proxy.process_request(unowned_delete);
     assert_eq!(
         unowned_delete.body["data"]["unownedChannel"],
-        json!({"result": null, "userErrors": [{"field": ["channelHandle"], "message": "The channel handle is not recognized. Please contact your partner manager for more information.", "code": "INVALID_CHANNEL_HANDLE"}]})
+        json!({"result": "Engagement data associated to channel handle 'email' marked for deletion", "userErrors": []})
     );
 }
 
