@@ -6,6 +6,9 @@ mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefin
       displayNameKey
       fieldDefinitions {
         key
+        type {
+          name
+        }
       }
     }
     userErrors {

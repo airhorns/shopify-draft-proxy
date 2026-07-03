@@ -12,7 +12,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "Executable parity for companyLocationAssignAddress address id stability. The live capture script asserts that Shopify creates a CompanyAddress id on first assignment, preserves that same id on a later billing update, preserves separate billing/shipping ids on dual update, and returns the preserved ids on downstream companyLocation read. The proxy comparison uses exact local synthetic ids on the update/read targets so a fresh-id regression fails parity instead of being hidden by generic GID matching.",
   "comparison": {
     "mode": "strict-json",

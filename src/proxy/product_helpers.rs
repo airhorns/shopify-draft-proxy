@@ -9,6 +9,7 @@ pub(in crate::proxy) use self::collections::*;
 pub(in crate::proxy) use self::saved_search::*;
 
 const PRODUCT_STATUS_BASE_VALUES: &[&str] = &["ACTIVE", "ARCHIVED", "DRAFT"];
+const VARIANT_MONEY_UPPER_BOUND: f64 = 1_000_000_000_000_000_000.0;
 
 // The batched node-hydrate query the proxy forwards to observe pre-existing
 // products / variants / collections in LiveHybrid. Shared verbatim with the
@@ -597,7 +598,6 @@ impl DraftProxy {
             }));
         }
 
-        let ready_url = product_media_ready_url();
         let mut updated = Vec::new();
         for item in &media_inputs {
             let Some(id) = resolved_string_field(item, "id") else {
@@ -611,12 +611,13 @@ impl DraftProxy {
                 if let Some(alt) = &alt {
                     node["alt"] = json!(alt);
                 }
+                let ready_url = product_media_ready_url(node);
                 node["status"] = json!("READY");
-                node["preview"] = json!({ "image": { "url": ready_url } });
+                node["preview"] = json!({ "image": { "url": ready_url.clone() } });
                 if node.get("mediaContentType").and_then(Value::as_str) == Some("IMAGE") {
                     // Preserve an observed ProductImage id so downstream deletes can
                     // still derive `deletedProductImageIds` from the asset.
-                    match node.get("image").and_then(|image| image.get("id")) {
+                    match node.get("image").and_then(|image| image.get("id")).cloned() {
                         Some(image_id) => {
                             node["image"] = json!({ "id": image_id, "url": ready_url })
                         }
@@ -852,6 +853,9 @@ fn product_media_node_with_type(
     });
     if media_content_type == "IMAGE" {
         node["image"] = image;
+        if let Some(source) = original_source {
+            node["originalSource"] = json!({ "url": source });
+        }
     } else if matches!(media_content_type, "VIDEO" | "MODEL_3D") {
         if let Some(source) = original_source {
             node["originalSource"] = json!({ "url": source });
@@ -879,8 +883,60 @@ fn product_media_gid_type(media_content_type: &str) -> &'static str {
     }
 }
 
-fn product_media_ready_url() -> &'static str {
-    "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664"
+fn product_media_ready_url(node: &Value) -> String {
+    product_media_image_url(node)
+        .map(str::to_string)
+        .unwrap_or_else(|| product_media_local_ready_url(node))
+}
+
+fn product_media_image_url(node: &Value) -> Option<&str> {
+    node.get("image")
+        .and_then(|image| image.get("url"))
+        .and_then(Value::as_str)
+        .filter(|url| !url.is_empty())
+        .or_else(|| {
+            node.get("preview")
+                .and_then(|preview| preview.get("image"))
+                .and_then(|image| image.get("url"))
+                .and_then(Value::as_str)
+                .filter(|url| !url.is_empty())
+        })
+}
+
+fn product_media_original_source_url(node: &Value) -> Option<&str> {
+    node.get("originalSource")
+        .and_then(|source| {
+            source
+                .get("url")
+                .and_then(Value::as_str)
+                .or_else(|| source.as_str())
+        })
+        .filter(|url| !url.is_empty())
+}
+
+fn product_media_local_ready_url(node: &Value) -> String {
+    let id = node.get("id").and_then(Value::as_str).unwrap_or("media");
+    let resource_type = shopify_gid_resource_type(id).unwrap_or("Media");
+    let tail = resource_id_tail(id);
+    let token = product_media_url_token(&format!("{resource_type}-{tail}"));
+    let extension = product_media_original_source_url(node)
+        .map(file_extension)
+        .filter(|extension| !extension.is_empty() && extension.chars().all(token_char))
+        .unwrap_or_else(|| "png".to_string());
+    format!("https://shopify-draft-proxy.local/media/{token}.{extension}")
+}
+
+fn product_media_url_token(value: &str) -> String {
+    let token: String = value
+        .chars()
+        .map(|ch| if token_char(ch) { ch } else { '-' })
+        .collect();
+    let token = token.trim_matches('-');
+    if token.is_empty() {
+        "media".to_string()
+    } else {
+        token.to_ascii_lowercase()
+    }
 }
 
 fn infer_product_media_content_type(original_source: &str) -> &'static str {
@@ -1603,7 +1659,6 @@ pub(in crate::proxy) fn product_seo_json(
 pub(in crate::proxy) fn product_matches_search_query(
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
-    search_tags: Option<&BTreeSet<String>>,
     query: &str,
 ) -> bool {
     let query = query.trim();
@@ -1617,7 +1672,7 @@ pub(in crate::proxy) fn product_matches_search_query(
     let mut parser = ProductSearchParser::new(tokens);
     parser
         .parse()
-        .map(|expression| expression.matches(product, variants, search_tags))
+        .map(|expression| expression.matches(product, variants))
         .unwrap_or(false)
 }
 
@@ -1752,23 +1807,16 @@ impl ProductSearchParser {
 }
 
 impl ProductSearchExpression {
-    fn matches(
-        &self,
-        product: &ProductRecord,
-        variants: &[ProductVariantRecord],
-        search_tags: Option<&BTreeSet<String>>,
-    ) -> bool {
+    fn matches(&self, product: &ProductRecord, variants: &[ProductVariantRecord]) -> bool {
         match self {
-            ProductSearchExpression::Term(term) => term.matches(product, variants, search_tags),
-            ProductSearchExpression::Not(expression) => {
-                !expression.matches(product, variants, search_tags)
-            }
+            ProductSearchExpression::Term(term) => term.matches(product, variants),
+            ProductSearchExpression::Not(expression) => !expression.matches(product, variants),
             ProductSearchExpression::And(expressions) => expressions
                 .iter()
-                .all(|expression| expression.matches(product, variants, search_tags)),
+                .all(|expression| expression.matches(product, variants)),
             ProductSearchExpression::Or(expressions) => expressions
                 .iter()
-                .any(|expression| expression.matches(product, variants, search_tags)),
+                .any(|expression| expression.matches(product, variants)),
         }
     }
 }
@@ -1788,29 +1836,24 @@ impl ProductSearchTerm {
         Self { field: None, value }
     }
 
-    fn matches(
-        &self,
-        product: &ProductRecord,
-        variants: &[ProductVariantRecord],
-        search_tags: Option<&BTreeSet<String>>,
-    ) -> bool {
+    fn matches(&self, product: &ProductRecord, variants: &[ProductVariantRecord]) -> bool {
         let value = self.value.trim();
         if value.is_empty() {
             return true;
         }
         match self.field.as_deref() {
-            Some("status") => product.status == value,
+            Some("status") => product.status.eq_ignore_ascii_case(value),
             Some("vendor") => product_search_string_matches(&product.vendor, value),
             Some("product_type") => product_search_string_matches(&product.product_type, value),
             Some("title") => product_search_string_matches(&product.title, value),
-            Some("tag") => product_matches_search_tag(product, search_tags, value),
-            Some("tag_not") => !product_matches_search_tag(product, search_tags, value),
+            Some("tag") => product_matches_search_tag(product, value),
+            Some("tag_not") => !product_matches_search_tag(product, value),
             Some("sku") => product_matches_search_sku(product, variants, value),
             Some("published_status") => product_matches_published_status(product, value),
             Some("created_at") => product_matches_date_query(&product.created_at, value),
             Some("updated_at") => product_matches_date_query(&product.updated_at, value),
             Some(_) => false,
-            None => product_matches_free_text(product, variants, search_tags, value),
+            None => product_matches_free_text(product, variants, value),
         }
     }
 }
@@ -1889,33 +1932,21 @@ fn product_search_tokens(query: &str) -> Vec<ProductSearchToken> {
 fn product_matches_free_text(
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
-    search_tags: Option<&BTreeSet<String>>,
     value: &str,
 ) -> bool {
     product_search_string_matches(&product.title, value)
         || product_search_string_matches(&product.handle, value)
         || product_search_string_matches(&product.vendor, value)
         || product_search_string_matches(&product.product_type, value)
-        || product_matches_search_tag(product, search_tags, value)
+        || product_matches_search_tag(product, value)
         || product_matches_search_sku(product, variants, value)
 }
 
-fn product_matches_search_tag(
-    product: &ProductRecord,
-    search_tags: Option<&BTreeSet<String>>,
-    value: &str,
-) -> bool {
-    search_tags
-        .map(|tags| {
-            tags.iter()
-                .any(|tag| product_search_string_matches(tag, value))
-        })
-        .unwrap_or_else(|| {
-            product
-                .tags
-                .iter()
-                .any(|tag| product_search_string_matches(tag, value))
-        })
+fn product_matches_search_tag(product: &ProductRecord, value: &str) -> bool {
+    product
+        .tags
+        .iter()
+        .any(|tag| product_search_string_matches(tag, value))
 }
 
 fn product_matches_search_sku(
@@ -2632,7 +2663,7 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
                 "Price must be greater than or equal to 0",
                 Some("GREATER_THAN_OR_EQUAL_TO"),
             ));
-        } else if price >= 1_000_000_000_000_000_000.0 {
+        } else if price >= VARIANT_MONEY_UPPER_BOUND {
             errors.push(user_error(
                 prefixed_error_field(field_prefix, &["price"]),
                 "Price must be less than 1000000000000000000",
@@ -2642,7 +2673,7 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
     }
 
     if let Some(compare_at_price) = resolved_f64_path(input, &["compareAtPrice"]) {
-        if compare_at_price >= 1_000_000_000_000_000_000.0 {
+        if compare_at_price >= VARIANT_MONEY_UPPER_BOUND {
             errors.push(user_error(
                 prefixed_error_field(field_prefix, &["compareAtPrice"]),
                 "must be less than 1000000000000000000",
@@ -2690,10 +2721,48 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
     }
 
     if let Some(inventory_item) = resolved_object_field(input, "inventoryItem") {
+        if let Some(cost) = resolved_f64_path(&inventory_item, &["cost"]) {
+            if cost < 0.0 {
+                if is_bulk_variant_error_prefix(field_prefix) {
+                    errors.push(user_error(
+                        prefixed_error_field(field_prefix, &[]),
+                        "must be greater than or equal to 0",
+                        None,
+                    ));
+                }
+                errors.push(user_error(
+                    prefixed_error_field(field_prefix, &["inventoryItem", "cost"]),
+                    "Cost per item must be greater than or equal to 0",
+                    Some(if is_product_set_variant_error_prefix(field_prefix) {
+                        "INVALID_VARIANT"
+                    } else {
+                        "GREATER_THAN_OR_EQUAL_TO"
+                    }),
+                ));
+            } else if cost >= VARIANT_MONEY_UPPER_BOUND {
+                if is_bulk_variant_error_prefix(field_prefix) {
+                    errors.push(user_error(
+                        prefixed_error_field(field_prefix, &[]),
+                        "must be less than 1000000000000000000",
+                        None,
+                    ));
+                }
+                errors.push(user_error(
+                    prefixed_error_field(field_prefix, &["inventoryItem", "cost"]),
+                    "Cost per item must be less than 1000000000000000000",
+                    Some(if is_product_set_variant_error_prefix(field_prefix) {
+                        "INVALID_VARIANT"
+                    } else {
+                        "INVALID_INPUT"
+                    }),
+                ));
+            }
+        }
+
         if resolved_string_field(&inventory_item, "sku")
             .is_some_and(|sku| sku.chars().count() > 255)
         {
-            let bulk_field = !field_prefix.is_empty();
+            let bulk_field = is_bulk_variant_error_prefix(field_prefix);
             errors.push(user_error(
                 if bulk_field {
                     prefixed_error_field(field_prefix, &[])
@@ -2779,11 +2848,22 @@ fn prefixed_error_field(prefix: &[String], suffix: &[&str]) -> Value {
     )
 }
 
+fn is_bulk_variant_error_prefix(prefix: &[String]) -> bool {
+    prefix.first().is_some_and(|field| field == "variants")
+}
+
+fn is_product_set_variant_error_prefix(prefix: &[String]) -> bool {
+    matches!(
+        prefix,
+        [input, variants, ..] if input == "input" && variants == "variants"
+    )
+}
+
 fn variant_weight_error_field(prefix: &[String]) -> Value {
-    if prefix.is_empty() {
-        prefixed_error_field(prefix, &["inventoryItem", "measurement", "weight"])
-    } else {
+    if is_bulk_variant_error_prefix(prefix) {
         prefixed_error_field(prefix, &[])
+    } else {
+        prefixed_error_field(prefix, &["inventoryItem", "measurement", "weight"])
     }
 }
 
@@ -2896,12 +2976,14 @@ pub(in crate::proxy) fn product_category_input_id(
 
 /// Resolve a taxonomy category GID to its `{id, fullName}` shape. Shopify materializes
 /// `category.fullName` from its global product taxonomy; we mirror the well-known nodes
-/// the taxonomy exposes (falling back to the bare id for nodes we don't model).
+/// the taxonomy exposes and leave unknown nodes unresolved.
 pub(in crate::proxy) fn product_category_value(id: &str) -> Value {
     let full_name = match id {
-        "gid://shopify/TaxonomyCategory/aa-1-1" => "Apparel & Accessories > Clothing > Activewear",
-        "gid://shopify/TaxonomyCategory/na" => "Uncategorized",
-        other => other,
+        "gid://shopify/TaxonomyCategory/aa-1-1" => {
+            json!("Apparel & Accessories > Clothing > Activewear")
+        }
+        "gid://shopify/TaxonomyCategory/na" => json!("Uncategorized"),
+        _ => Value::Null,
     };
     json!({ "id": id, "fullName": full_name })
 }

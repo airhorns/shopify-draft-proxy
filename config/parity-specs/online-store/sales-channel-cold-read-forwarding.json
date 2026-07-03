@@ -1,0 +1,27 @@
+{
+  "scenarioId": "sales-channel-cold-read-forwarding",
+  "operationNames": ["scriptTag", "scriptTags"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["cold-read-forwarding", "upstream-passthrough", "payload-shape", "live-shopify-recording"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/online-store/online-store-salvaged-parity-recordings.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-integration-root-dispatch-read-local-runtime.graphql",
+    "variablesCapturePath": "$.captures.online-store-integration-root-dispatch-local-runtime.readAfterDelete.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify capture for scriptTag/scriptTags proves a cold sales-channel read must forward upstream instead of serving local empty state. Current conformance credentials lack read_script_tags, so the captured access-denied response is the fidelity signal: a local-only answer would omit these Shopify errors.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "script-tag cold read forwards upstream response",
+        "capturePath": "$.captures.online-store-integration-root-dispatch-local-runtime.readAfterDelete.response",
+        "proxyPath": "$"
+      }
+    ]
+  }
+}

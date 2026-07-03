@@ -59,8 +59,8 @@ local lifecycle/read models and executable evidence for those roots.
 
 ### Local behavior
 
-The Rust runtime has scenario-backed Markets slices for ported parity requests
-and runtime tests. These slices stage local state only for the request families
+The Rust runtime has scenario-backed Markets slices for parity requests and
+runtime tests. These slices stage local state only for the request families
 recognized by the Rust dispatcher and should not be treated as broad registry
 support.
 
@@ -119,12 +119,19 @@ product and variant IDs. Downstream `priceList` / `priceLists` reads expose the
 staged rows in the checked-in scenarios. Validation covers name, currency,
 parent adjustment, `catalogId` existence/taken checks, unknown resource,
 duplicate fixed-price, missing fixed-price, fixed-price `price` /
-`compareAtPrice` currency mismatches, product-level fixed-price, no-op,
-quantity-rule, and price-limit branches represented by parity specs. Captured
-Admin API 2026-04 behavior returns `CATALOG_DOES_NOT_EXIST` or
+`compareAtPrice` currency mismatches, fixed-price missing-variant short-circuit
+behavior, product-level fixed-price, no-op, quantity-rule, and price-limit
+branches represented by parity specs. Captured Admin API 2026-04 behavior
+returns `CATALOG_DOES_NOT_EXIST` or
 `CATALOG_TAKEN` at `["input", "catalogId"]` for price-list catalog relation
-validation, and `priceListUpdate` returns `priceList: null` for those catalog
-validation failures while leaving the staged price list unchanged.
+validation. When `priceListCreate` has both a catalog relation error and
+another invalid field such as a duplicate name or invalid parent adjustment, the
+catalog error is returned first. `priceListUpdate` returns `priceList: null` for
+those catalog validation failures while leaving the staged price list unchanged.
+`quantityRulesDelete` validates variant IDs against observed base/staged
+ProductVariant and fixed-price variant state when the proxy has variant state
+available; unknown IDs return `PRODUCT_VARIANT_DOES_NOT_EXIST` instead of being
+treated as deleted.
 
 Web-presence slices stage create/update/delete behavior for the captured
 subfolder, default-locale, alternate-locale, root-URL, duplicate-language,
@@ -134,6 +141,9 @@ price-list roots with `webPresenceCreate`, `webPresenceUpdate`,
 payload validation as the standalone local paths. Market-localization slices
 stage and remove localized content for captured localizable resources, including
 unknown-resource, too-many-key, digest, market key, and no-op removal branches.
+`marketLocalizableResource` resolves only resource IDs observed in staged
+market-localizable resource state or staged market-scoped translations; unknown
+IDs return `null`.
 
 `marketsResolvedValues` and market/catalog/price-list reads have fixture-backed
 empty, fallback, and buyer-country behavior where captured. Unsupported
@@ -161,5 +171,5 @@ derivations are not synthesized beyond the checked-in evidence.
 - Deprecated `marketWebPresenceCreate`, `marketWebPresenceUpdate`, and
   `marketWebPresenceDelete` aliases are not marked implemented without their
   own payload, cleanup, and validation evidence.
-- Unsupported mutation documents outside the ported local slices follow the
+- Unsupported mutation documents outside the modeled local slices follow the
   configured unsupported path and must remain visible in logs/observability.

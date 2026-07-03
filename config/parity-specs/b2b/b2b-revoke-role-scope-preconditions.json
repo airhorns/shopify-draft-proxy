@@ -21,7 +21,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "Executable parity coverage for HAR-762 B2B revoke-role parent/scope preconditions. The live fixture creates a disposable B2B company, secondary contact, and extra locations, assigns roles, records Shopify's public 2026-04 wrong-contact/wrong-location revoke errors plus the empty-ids precondition and contact partial-success branch, then deletes the company.",
   "comparison": {
     "mode": "strict-json",

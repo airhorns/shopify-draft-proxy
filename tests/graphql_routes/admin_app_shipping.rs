@@ -400,6 +400,27 @@ fn bulk_operation_completed_url_is_absolute_and_serves_jsonl_artifact() {
     let parsed_url = url::Url::parse(url).expect("bulk artifact url parses");
     assert_eq!(parsed_url.scheme(), "https");
     assert_eq!(parsed_url.host_str(), Some("localhost"));
+    assert_eq!(parsed_url.port(), Some(0));
+
+    let connection_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadProductBulkArtifactConnection {
+          bulkOperations(first: 5) {
+            nodes { id url }
+            edges { node { id url } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let connection_url = connection_read.body["data"]["bulkOperations"]["nodes"][0]["url"]
+        .as_str()
+        .unwrap();
+    assert_eq!(connection_url, url);
+    assert_eq!(
+        connection_read.body["data"]["bulkOperations"]["edges"][0]["node"]["url"],
+        json!(url)
+    );
 
     let artifact = proxy.process_request(request_with_body("GET", parsed_url.path(), ""));
     assert_eq!(artifact.status, 200);
@@ -1311,6 +1332,61 @@ fn bulk_operation_run_mutation_rejects_oversized_staged_upload_with_shopify_erro
 }
 
 #[test]
+fn bulk_operation_run_mutation_rejects_empty_staged_upload_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let path = staged_bulk_mutation_upload_path(&mut proxy, "empty-import.jsonl", "0");
+    let log_before = log_snapshot(&proxy);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+            "path": path
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "The input file is empty.",
+            "code": "INVALID_STAGED_UPLOAD_FILE"
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy),
+        log_before,
+        "empty-file validation must not append a bulk mutation log entry"
+    );
+
+    let current = proxy.process_request(json_graphql_request(
+        r#"
+        query CurrentMutation {
+          currentBulkOperation(type: MUTATION) { id }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        current.body["data"]["currentBulkOperation"],
+        Value::Null,
+        "empty-file validation must not stage a mutation bulk operation"
+    );
+}
+
+#[test]
 fn bulk_operation_run_mutation_rejects_storage_query_over_65535_bytes_without_staging() {
     let mut proxy = snapshot_proxy();
     let oversized_mutation = padded_bulk_document_for_bytes(
@@ -1379,7 +1455,7 @@ fn bulk_operation_run_mutation_allows_65535_storage_bytes() {
     );
     assert_eq!(mutation.len(), BULK_OPERATION_STORAGE_BYTE_LIMIT);
     let mut proxy = snapshot_proxy();
-    let path = staged_bulk_mutation_upload_path(&mut proxy, "exact-limit-import.jsonl", "0");
+    let path = staged_bulk_mutation_upload_path(&mut proxy, "exact-limit-import.jsonl", "1");
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -1549,6 +1625,83 @@ fn bulk_operation_run_mutation_file_size_error_precedes_in_progress_throttle() {
 }
 
 #[test]
+fn bulk_operation_run_mutation_empty_file_error_precedes_in_progress_throttle() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let operation = bulk_operation_test_record(
+            "gid://shopify/BulkOperation/7749099127090",
+            "CREATED",
+            "MUTATION",
+            "2026-05-05T20:34:00Z",
+            "#graphql\nmutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+        );
+        move |_request| bulk_operation_hydrate_response(operation.clone())
+    });
+    let path = staged_bulk_mutation_upload_path(
+        &mut proxy,
+        "empty-import-with-running-mutation.jsonl",
+        "0",
+    );
+    let mut cancel_request = json_graphql_request(
+        r#"
+        mutation CancelCapturedMutation($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/BulkOperation/7749099127090" }),
+    );
+    cancel_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let cancel = proxy.process_request(cancel_request);
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["type"],
+        json!("MUTATION")
+    );
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
+        json!("CANCELING")
+    );
+    let log_before = log_snapshot(&proxy);
+
+    let mut run_request = json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+            "path": path
+        }),
+    );
+    run_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let response = proxy.process_request(run_request);
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "The input file is empty.",
+            "code": "INVALID_STAGED_UPLOAD_FILE"
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy),
+        log_before,
+        "empty-file validation must not append a bulk mutation log entry"
+    );
+}
+
+#[test]
 fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
     let id = "gid://shopify/BulkOperation/7749099127090";
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
@@ -1582,7 +1735,7 @@ fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
         cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
         json!("CANCELING")
     );
-    let path = staged_bulk_mutation_upload_path(&mut proxy, "throttled-import.jsonl", "0");
+    let path = staged_bulk_mutation_upload_path(&mut proxy, "throttled-import.jsonl", "1");
 
     // A single non-terminal mutation only throttles at the pre-2026.1 limit of 1.
     let mut run_request = json_graphql_request(
@@ -1660,7 +1813,7 @@ fn run_bulk_operation_mutation(proxy: &mut DraftProxy, api_version: &str) -> Val
     let path = staged_bulk_mutation_upload_path(
         proxy,
         &format!("mutation-import-{api_version}.jsonl"),
-        "0",
+        "1",
     );
     let mut request = json_graphql_request(
         r#"
@@ -3372,7 +3525,7 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
         missing.body["data"]["delegateAccessTokenDestroy"],
         json!({
             "status": false,
-            "shop": { "id": "gid://shopify/Shop/0", "name": "Shopify Draft Proxy" },
+            "shop": {},
             "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
         })
     );
@@ -3391,11 +3544,7 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
     ));
     assert_eq!(
         create.body["data"]["delegateAccessTokenCreate"]["shop"],
-        json!({
-            "id": "gid://shopify/Shop/0",
-            "myshopifyDomain": "shopify-draft-proxy.local",
-            "currencyCode": "USD"
-        })
+        json!({})
     );
     assert_eq!(
         create.body["data"]["delegateAccessTokenCreate"]["userErrors"],
@@ -3422,7 +3571,7 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
     assert_eq!(
         destroy.body["data"]["delegateAccessTokenDestroy"],
         json!({
-            "shop": { "id": "gid://shopify/Shop/0" },
+            "shop": {},
             "status": true,
             "userErrors": []
         })
@@ -3443,7 +3592,7 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
     assert_eq!(
         repeat.body["data"]["delegateAccessTokenDestroy"],
         json!({
-            "shop": { "id": "gid://shopify/Shop/0" },
+            "shop": {},
             "status": false,
             "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
         })
@@ -4976,6 +5125,99 @@ fn data_sale_opt_out_rejects_strict_core_invalid_formats_without_staging() {
         assert_eq!(read.body["data"]["customerByIdentifier"], Value::Null);
         assert_eq!(read.body["data"]["customers"]["nodes"], json!([]));
     }
+}
+
+#[test]
+fn data_sale_opt_out_matches_core_strict_format_residual_boundaries() {
+    let mutation = r#"
+        mutation DataSaleOptOut($email: String!) {
+          dataSaleOptOut(email: $email) {
+            customerId
+            userErrors { field message code }
+          }
+        }
+        "#;
+    let failed_payload = json!({
+        "customerId": null,
+        "userErrors": [{
+            "field": null,
+            "message": "Data sale opt out failed.",
+            "code": "FAILED"
+        }]
+    });
+    let local_200_email = format!("{}@e.co", "a".repeat(200));
+    let invalid_emails = [
+        ("digit-tld", "foo@bar.co2".to_string()),
+        ("digit-in-tld", "user@example.c0m".to_string()),
+        ("hyphen-in-tld", "user@example.c-o".to_string()),
+        ("local-over-128", local_200_email),
+    ];
+    let valid_emails = [
+        ("single-character-tld", "user@example.x".to_string()),
+        ("quoted-local-atom", "ab\"cd@example.com".to_string()),
+        ("local-128", format!("{}@e.co", "a".repeat(128))),
+    ];
+    let mut failures = Vec::new();
+
+    for (name, email) in invalid_emails {
+        let mut proxy = snapshot_proxy();
+        let response = proxy.process_request(json_graphql_request(
+            mutation,
+            json!({ "email": email.clone() }),
+        ));
+        if response.status != 200 {
+            failures.push(format!("{name}: expected 200, got {}", response.status));
+        }
+        if response.body["data"]["dataSaleOptOut"] != failed_payload {
+            failures.push(format!(
+                "{name}: expected FAILED payload, got {}",
+                response.body["data"]["dataSaleOptOut"]
+            ));
+        }
+        if log_snapshot(&proxy)["entries"] != json!([]) {
+            failures.push(format!("{name}: invalid email staged a mutation log entry"));
+        }
+        if state_snapshot(&proxy)["stagedState"]["customers"] != json!({}) {
+            failures.push(format!("{name}: invalid email staged a customer"));
+        }
+    }
+
+    for (name, email) in valid_emails {
+        let mut proxy = snapshot_proxy();
+        let response = proxy.process_request(json_graphql_request(
+            mutation,
+            json!({ "email": email.clone() }),
+        ));
+        if response.status != 200 {
+            failures.push(format!("{name}: expected 200, got {}", response.status));
+            continue;
+        }
+        let payload = &response.body["data"]["dataSaleOptOut"];
+        let customer_id = payload["customerId"].as_str();
+        if customer_id.is_none() || !payload["userErrors"].as_array().is_some_and(Vec::is_empty) {
+            failures.push(format!("{name}: expected SUCCESS payload, got {payload}"));
+            continue;
+        }
+        let state = state_snapshot(&proxy);
+        let customers = state["stagedState"]["customers"].as_object().unwrap();
+        if customers.len() != 1 {
+            failures.push(format!(
+                "{name}: expected one staged customer, got {}",
+                customers.len()
+            ));
+            continue;
+        }
+        let customer = customers.get(customer_id.unwrap()).unwrap();
+        if customer["email"] != json!(email) || customer["dataSaleOptOut"] != json!(true) {
+            failures.push(format!("{name}: staged customer mismatch: {customer}"));
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "strict format residual mismatches:\n{}",
+        failures.join("\n")
+    );
 }
 
 #[test]

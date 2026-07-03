@@ -12,7 +12,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-invalid-date-range-all-types.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/discounts_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/discounts/discount-invalid-date-range-code-basic.graphql",
     "variablesCapturePath": "$.cases.codeBasic.variables",

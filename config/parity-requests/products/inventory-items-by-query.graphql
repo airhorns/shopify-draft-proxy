@@ -1,0 +1,30 @@
+query InventoryItemsByQuery($query: String!) {
+  inventoryItems(first: 5, query: $query) {
+    nodes {
+      id
+      tracked
+      requiresShipping
+      variant {
+        id
+        inventoryQuantity
+        product {
+          id
+          title
+          tracksInventory
+        }
+      }
+      inventoryLevels(first: 10) {
+        nodes {
+          location {
+            id
+            name
+          }
+          quantities(names: ["available", "on_hand"]) {
+            name
+            quantity
+          }
+        }
+      }
+    }
+  }
+}

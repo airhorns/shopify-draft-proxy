@@ -21,16 +21,13 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-lifecycle.json"
   ],
-  "runtimeTestFiles": [
-    "test/shopify_draft_proxy/proxy/gift_cards_test.gleam",
-    "test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"
-  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/gift-cards/gift-card-lifecycle.graphql",
     "variablesCapturePath": "$.proxyVariables.lifecycle"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "This scenario captures and replays the gift-card read/lifecycle slice with a conformance credential that has read_gift_cards, write_gift_cards, read_gift_card_transactions, and write_gift_card_transactions. The parity suite executes this strict proxy parity spec after the TypeScript gift-card handler was deleted. Strict proxy parity covers filtered empty reads, configuration, update, credit, debit, deactivate, transaction read-after-write, and filtered non-empty downstream reads. Notification roots are intentionally not executed in live capture because they are customer-visible side effects; local runtime handling short-circuits them without sending notifications. Search-filter parity for the same captured lifecycle lives in gift-card-search-filters because it compares the post-debit, pre-deactivation state.",
+  "notes": "This scenario captures and replays the gift-card read/lifecycle slice with a conformance credential that has read_gift_cards, write_gift_cards, read_gift_card_transactions, and write_gift_card_transactions. The parity runner executes this strict proxy parity spec against the current runtime. Strict proxy parity covers filtered empty reads, configuration, update, credit, debit, deactivate, transaction read-after-write, and filtered non-empty downstream reads. Notification roots are intentionally not executed in live capture because they are customer-visible side effects; local runtime handling short-circuits them without sending notifications. Search-filter parity for the same captured lifecycle lives in gift-card-search-filters because it compares the post-debit, pre-deactivation state.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

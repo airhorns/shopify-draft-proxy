@@ -15,7 +15,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "Executable parity for B2B CompanyAddressInput validation: country, zone, zip, HTML, emoji, and name URL validation branches across companyLocationCreate, companyLocationAssignAddress, and nested companyCreate companyLocation address input paths. `CompanyLocationUpdateInput` does not expose address fields in the public Admin GraphQL schema on the live capture target, so local update-path validation is covered by focused runtime tests rather than fabricated Shopify evidence.",
   "comparison": {
     "mode": "strict-json",

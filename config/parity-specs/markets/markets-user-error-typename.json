@@ -14,7 +14,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/markets-user-error-typename.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/markets/markets-user-error-typename.graphql",
     "variablesCapturePath": "$.cases[0].variables",

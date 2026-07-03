@@ -1,0 +1,33 @@
+query DiscountLifecycleCrossKindRead($codeId: ID!, $automaticId: ID!, $rejectedCode: String!) {
+  codeDiscountNode(id: $codeId) {
+    id
+    codeDiscount {
+      __typename
+      ... on DiscountCodeBasic {
+        status
+        codes(first: 1) {
+          nodes {
+            id
+            code
+          }
+        }
+        codesCount {
+          count
+          precision
+        }
+      }
+    }
+  }
+  automaticDiscountNode(id: $automaticId) {
+    id
+    automaticDiscount {
+      __typename
+      ... on DiscountAutomaticBasic {
+        status
+      }
+    }
+  }
+  rejectedCodeLookup: codeDiscountNodeByCode(code: $rejectedCode) {
+    id
+  }
+}
