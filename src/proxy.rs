@@ -263,6 +263,7 @@ type MetafieldDefinitionKey = (String, String, String);
 struct StagedState {
     products: StagedRecords<ProductRecord>,
     product_variants: StagedRecords<ProductVariantRecord>,
+    product_feeds: StagedRecords<Value>,
     selling_plan_groups: StagedRecords<SellingPlanGroupRecord>,
     saved_searches: StagedRecords<SavedSearchRecord>,
     shop_policies: StagedRecords<ShopPolicyRecord>,
@@ -725,6 +726,7 @@ impl Default for StagedState {
         Self {
             products: StagedRecords::default(),
             product_variants: StagedRecords::default(),
+            product_feeds: StagedRecords::default(),
             selling_plan_groups: StagedRecords::default(),
             saved_searches: StagedRecords::default(),
             shop_policies: StagedRecords::default(),
@@ -1239,6 +1241,32 @@ impl Store {
         !self.staged.collections.is_empty() || !self.staged.collection_jobs.is_empty()
     }
 
+    fn product_feed_by_id(&self, id: &str) -> Option<&Value> {
+        self.staged.product_feeds.get(id)
+    }
+
+    fn product_feeds(&self) -> Vec<Value> {
+        self.staged.product_feeds.values().cloned().collect()
+    }
+
+    fn has_product_feed_state(&self) -> bool {
+        !self.staged.product_feeds.is_empty()
+    }
+
+    fn product_feed_is_tombstoned(&self, id: &str) -> bool {
+        self.staged.product_feeds.is_tombstoned(id)
+    }
+
+    fn stage_product_feed(&mut self, feed: Value) {
+        if let Some(id) = feed.get("id").and_then(Value::as_str) {
+            self.staged.product_feeds.stage(id.to_string(), feed);
+        }
+    }
+
+    fn delete_product_feed(&mut self, id: &str) -> bool {
+        self.staged.product_feeds.tombstone_staged(id)
+    }
+
     fn has_product(&self, id: &str) -> bool {
         self.product_by_id(id).is_some()
     }
@@ -1394,6 +1422,20 @@ impl Store {
 
     fn product_variants(&self) -> Vec<ProductVariantRecord> {
         effective_records(&self.base.product_variants, &self.staged.product_variants)
+    }
+
+    fn has_product_variant_reference_state(&self) -> bool {
+        !self.base.product_variants.records.is_empty()
+            || !self.staged.product_variants.is_empty()
+            || self
+                .products()
+                .iter()
+                .any(|product| !product.variants.is_empty())
+    }
+
+    fn has_product_variant_reference(&self, variant_id: &str) -> bool {
+        self.product_variant_by_id(variant_id).is_some()
+            || self.fixed_price_variant_lookup(variant_id).is_some()
     }
 
     /// Resolve a variant id to its `(variant_json, product)` by scanning the

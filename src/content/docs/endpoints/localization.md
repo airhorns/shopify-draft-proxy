@@ -108,9 +108,14 @@ body HTML / SEO source fields, with Shopify key names such as `body_html`,
 shop primary locale, the modeled `LocalizableContentType`, the source value, and
 `sha256(value)` as the digest. The digest emitted by these reads is accepted by
 the local `translationsRegister(translatableContentDigest:)` guard for the same
-resource and key. Modeled Collection resources use the same source-backed
-projection for title, handle, body HTML, and SEO fields that exist in local
-state.
+resource and key. Digest validation compares against known source content only;
+when a resource/key has not been hydrated with source content, the proxy does
+not reject a row by digest prefix or other synthetic sentinel. Modeled
+Collection resources use the same source-backed projection for title, handle,
+body HTML, and SEO fields that exist in local state.
+Unknown or omitted singular `translatableResource` IDs return `null`, and
+empty `translatableResources` connections remain empty instead of fabricating a
+default resource ID.
 
 Collection translation lifecycle and market-scoped translation read support
 remain fixture-backed. Product and product-metafield translation behavior has

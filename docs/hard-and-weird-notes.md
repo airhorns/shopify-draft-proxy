@@ -3555,6 +3555,7 @@ Captured facts:
 - blank `input.name` returns a mutation-scoped userError with `field: ["input", "name"]` and `code: "BLANK"`
 - omitting `fulfillsOnlineOrders` creates a location whose mutation payload and immediate `location(id:)` read both show `fulfillsOnlineOrders: true`
 - explicitly passing `fulfillsOnlineOrders: false` is reflected in both the mutation payload and immediate read
+- `LocationAddInput.address.countryCode` / `provinceCode` are expanded in the mutation payload and immediate `location(id:)` read. Current 2026-04 capture covers GB with no province, AU/NSW, AE/DU, and a CA location edited from QC to ON with provinceCode only.
 - invalid `address.countryCode: "QQ"` variables are rejected by enum coercion before the resolver; a separate probe with only `address.countryCode: "ZZ"` created a disposable location on this store instead of returning a country-code userError because `ZZ` is a public enum member
 - current 2026-04 schema does not expose `LocationAddInput.capabilities`, `capabilitiesToAdd`, `capabilitiesToRemove`, or `Location.capabilities`; inline unknown input fields return `argumentNotAccepted`, variable unknown input fields return `INVALID_VARIABLE`, and selecting `Location.capabilities` returns `undefinedField`
 
@@ -3984,3 +3985,25 @@ Practical rule:
   same-type `OPERATION_IN_PROGRESS` throttling
 - keep the oversized and empty-file messages distinct even though both use
   `INVALID_STAGED_UPLOAD_FILE`
+
+## 94. Bulk mutation nested connections hit the count validator first
+
+Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` returns
+`Bulk mutations cannot contain more than 1 connection.` for
+`bulkOperationRunMutation` inner documents that select a connection nested under
+another connection, such as `productCreate { product { variants { edges { node
+{ media { ... } } } } } }`. The public response does not reach the
+`connection_nested_too_deep` message for that shape because the connection-count
+validator wins first.
+
+The same store and a 2025-01 probe showed the same count-first response. Single
+shallow connection selections, and single connections reached through ordinary
+object/list fields, pass the analyzer and proceed to staged-file lookup.
+
+Practical rule:
+
+- run the `bulkOperationRunMutation` connection count check before the nesting
+  depth check
+- keep nested-connection parity targets pinned to the public count-precedence
+  response unless a future capture finds a public document that isolates the
+  depth message

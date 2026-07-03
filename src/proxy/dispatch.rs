@@ -132,6 +132,8 @@ impl DraftProxy {
             | "productsCount"
             | "productByIdentifier"
             | "productOperation"
+            | "productFeed"
+            | "productFeeds"
             | "productVariant" => {
                 if Self::product_query_needs_upstream_catalog_search(query, variables) {
                     (self.upstream_transport)(request.clone())
@@ -342,7 +344,7 @@ impl DraftProxy {
         })
     }
 
-    fn local_node_query_data(
+    pub(in crate::proxy) fn local_node_query_data(
         &self,
         fields: &[RootFieldSelection],
         allow_unknown_null: bool,
@@ -492,6 +494,11 @@ impl DraftProxy {
         if shopify_gid_resource_type(id) == Some("ProductVariant") {
             let value = self.product_variant_by_id_value(id, selection);
             if !value.is_null() {
+                return Some(value);
+            }
+        }
+        if shopify_gid_resource_type(id) == Some("ProductFeed") {
+            if let Some(value) = self.product_tail_feed_node_value(id, selection) {
                 return Some(value);
             }
         }
@@ -801,7 +808,10 @@ impl DraftProxy {
                             | "publicationUpdate"
                             | "publicationDelete"
                             | "productFeedCreate"
+                            | "productFeedDelete"
                             | "productFullSync"
+                            | "combinedListingUpdate"
+                            | "productVariantRelationshipBulkUpdate"
                             | "bulkProductResourceFeedbackCreate"
                             | "shopResourceFeedbackCreate"
                     ) =>
@@ -1799,7 +1809,12 @@ impl DraftProxy {
                 } else if operation.root_fields.iter().all(|field| {
                     matches!(field.as_str(), "quantityRulesAdd" | "quantityRulesDelete")
                 }) {
-                    return quantity_rules_mutation_response(root_field, &query, &variables);
+                    return quantity_rules_mutation_response(
+                        root_field,
+                        &query,
+                        &variables,
+                        &self.store,
+                    );
                 } else if operation.root_fields.iter().any(|field| {
                     matches!(
                         field.as_str(),
