@@ -1119,10 +1119,8 @@ impl DraftProxy {
                     .uninstalled_app_ids
                     .contains(&request_app_id)
                     || self
-                        .store
-                        .staged
-                        .installed_apps
-                        .contains_key(&request_app_id)
+                        .current_app_installation_app_id_for_request(&request_app_id)
+                        .is_some()
                     || !self.store.staged.app_subscriptions.is_empty()
                     || !self.store.staged.app_one_time_purchases.is_empty()
                     || self
