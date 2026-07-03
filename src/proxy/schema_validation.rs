@@ -2517,12 +2517,18 @@ fn extend_graphql_base_validation_input_schema(schema: &mut AdminInputSchema, ap
     if let Some((name, arguments)) = captured_mutation_arguments(&parsed, "stagedUploadsCreate") {
         schema.mutation_fields.insert(name, arguments);
     }
+    if let Some((name, arguments)) = captured_mutation_arguments(&parsed, "fileUpdate") {
+        schema.mutation_fields.insert(name, arguments);
+    }
     if let Some((name, fields)) =
         captured_input_object_fields(&parsed, "PubSubWebhookSubscriptionInput")
     {
         schema.input_objects.insert(name, fields);
     }
     if let Some((name, fields)) = captured_input_object_fields(&parsed, "StagedUploadInput") {
+        schema.input_objects.insert(name, fields);
+    }
+    if let Some((name, fields)) = captured_input_object_fields(&parsed, "FileUpdateInput") {
         schema.input_objects.insert(name, fields);
     }
 }

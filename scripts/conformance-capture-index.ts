@@ -1504,6 +1504,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-update-missing-id-coercion',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-update-missing-id-coercion-conformance.ts',
+    purpose:
+      'Files API fileUpdate omitted FileUpdateInput.id GraphQL coercion plus supplied missing-id userError contrast.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}file-update-missing-id-coercion.json`,
+      'config/parity-specs/media/file_update_missing_id_coercion.json',
+      'config/parity-requests/media/file_update_missing_id_coercion.graphql',
+      'config/parity-requests/media/file_update_missing_id_coercion_inline.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; creates no live Shopify objects.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-update-filename-extension-aggregation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-media-file-update-filename-extension-aggregation.ts',
