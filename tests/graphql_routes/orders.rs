@@ -1435,6 +1435,189 @@ fn order_create_stages_rich_order_and_downstream_reads() {
 }
 
 #[test]
+fn orders_search_unsupported_predicates_do_not_match_everything() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOrderForUnsupportedSearch($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id email }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "unsupported-order-search@example.test",
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "Unsupported search term",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query UnsupportedOrderSearchPredicate {
+          orders(first: 5, query: "warehouse:nowhere") { nodes { id email } }
+          ordersCount(query: "warehouse:nowhere") { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["orders"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["ordersCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn orders_sorted_connection_handles_interleaved_create_and_update_windows() {
+    fn create_order(proxy: &mut DraftProxy, email: &str, title: &str) -> String {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CreateOrderForConnectionWindow($order: OrderCreateOrderInput!) {
+              orderCreate(order: $order) {
+                order { id email createdAt updatedAt }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "order": {
+                    "email": email,
+                    "currency": "USD",
+                    "lineItems": [{
+                        "title": title,
+                        "quantity": 1,
+                        "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                    }]
+                }
+            }),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+        create.body["data"]["orderCreate"]["order"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    }
+
+    let mut proxy = snapshot_proxy();
+    let alpha_id = create_order(&mut proxy, "alpha-window@example.test", "Alpha window");
+    let beta_id = create_order(&mut proxy, "beta-window@example.test", "Beta window");
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query OrdersCreatedFirstPage {
+          orders(first: 1, sortKey: CREATED_AT, reverse: true) {
+            edges { cursor node { id email } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["orders"]["edges"],
+        json!([{ "cursor": beta_id.clone(), "node": { "id": beta_id.clone(), "email": "beta-window@example.test" } }])
+    );
+
+    let gamma_id = create_order(&mut proxy, "gamma-window@example.test", "Gamma window");
+    let next_page = proxy.process_request(json_graphql_request(
+        r#"
+        query OrdersCreatedNextPage($after: String!) {
+          orders(first: 1, after: $after, sortKey: CREATED_AT, reverse: true) {
+            nodes { id email }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          ordersCount { count precision }
+        }
+        "#,
+        json!({"after": first_page.body["data"]["orders"]["pageInfo"]["endCursor"]}),
+    ));
+    assert_eq!(
+        next_page.body["data"]["orders"]["nodes"],
+        json!([{ "id": alpha_id.clone(), "email": "alpha-window@example.test" }])
+    );
+    assert_eq!(
+        next_page.body["data"]["orders"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert_eq!(
+        next_page.body["data"]["ordersCount"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MoveOrderAcrossUpdatedAtCursor($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order { id note updatedAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"id": alpha_id.clone(), "note": "moves ahead of the prior cursor"}}),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body["data"]["orderUpdate"]["userErrors"], json!([]));
+
+    let fresh_updated_page = proxy.process_request(json_graphql_request(
+        r#"
+        query OrdersUpdatedFreshPage {
+          orders(first: 3, sortKey: UPDATED_AT, reverse: true) {
+            nodes { id email }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        fresh_updated_page.body["data"]["orders"]["nodes"],
+        json!([
+            { "id": alpha_id.clone(), "email": "alpha-window@example.test" },
+            { "id": gamma_id, "email": "gamma-window@example.test" },
+            { "id": beta_id.clone(), "email": "beta-window@example.test" }
+        ])
+    );
+
+    let after_stale_cursor = proxy.process_request(json_graphql_request(
+        r#"
+        query OrdersUpdatedAfterPriorCursor($after: String!) {
+          orders(first: 1, after: $after, sortKey: UPDATED_AT, reverse: true) {
+            nodes { id email }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"after": first_page.body["data"]["orders"]["pageInfo"]["endCursor"]}),
+    ));
+    assert_eq!(
+        after_stale_cursor.body["data"]["orders"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        after_stale_cursor.body["data"]["orders"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": null,
+            "endCursor": null
+        })
+    );
+}
+
+#[test]
 fn orders_count_fallback_preserves_alias_and_selection() {
     let mut proxy = snapshot_proxy();
 

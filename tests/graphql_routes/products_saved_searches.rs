@@ -5712,6 +5712,134 @@ fn products_connection_paginates_edges_nodes_and_page_info_consistently() {
 }
 
 #[test]
+fn products_connection_applies_title_sort_and_reverse_before_windowing() {
+    let mut zulu = seed_product("gid://shopify/Product/zulu");
+    zulu.title = "Zulu Probe Product".to_string();
+    zulu.handle = "zulu-probe-product".to_string();
+    let mut alpha = seed_product("gid://shopify/Product/alpha");
+    alpha.title = "Alpha Probe Product".to_string();
+    alpha.handle = "alpha-probe-product".to_string();
+
+    let mut proxy = snapshot_proxy().with_base_products(vec![zulu, alpha]);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductsTitleSort {
+          ascending: products(first: 10, sortKey: TITLE) { nodes { title } }
+          descending: products(first: 10, sortKey: TITLE, reverse: true) { nodes { title } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["ascending"]["nodes"],
+        json!([
+            { "title": "Alpha Probe Product" },
+            { "title": "Zulu Probe Product" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["descending"]["nodes"],
+        json!([
+            { "title": "Zulu Probe Product" },
+            { "title": "Alpha Probe Product" }
+        ])
+    );
+}
+
+#[test]
+fn products_sorted_connection_paginates_after_interleaved_create() {
+    let mut alpha = seed_product("gid://shopify/Product/alpha");
+    alpha.title = "Alpha Product".to_string();
+    alpha.handle = "alpha-product".to_string();
+    let mut beta = seed_product("gid://shopify/Product/beta");
+    beta.title = "Beta Product".to_string();
+    beta.handle = "beta-product".to_string();
+    let mut zulu = seed_product("gid://shopify/Product/zulu");
+    zulu.title = "Zulu Product".to_string();
+    zulu.handle = "zulu-product".to_string();
+
+    let mut proxy = snapshot_proxy().with_base_products(vec![zulu, beta, alpha]);
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductsTitleFirstPage {
+          products(first: 1, sortKey: TITLE) {
+            edges { cursor node { title } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["products"]["edges"],
+        json!([{ "cursor": "gid://shopify/Product/alpha", "node": { "title": "Alpha Product" } }])
+    );
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productCreate(product: { title: \"Aardvark Product\", handle: \"aardvark-product\" }) { product { id title } userErrors { field message code } } }"}"#,
+    ));
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+
+    let next_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductsTitleNextPage($after: String!) {
+          products(first: 1, after: $after, sortKey: TITLE) {
+            nodes { title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          productsCount { count precision }
+        }
+        "#,
+        json!({"after": first_page.body["data"]["products"]["pageInfo"]["endCursor"]}),
+    ));
+    assert_eq!(
+        next_page.body["data"]["products"]["nodes"],
+        json!([{ "title": "Beta Product" }])
+    );
+    assert_eq!(
+        next_page.body["data"]["products"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert_eq!(
+        next_page.body["data"]["productsCount"],
+        json!({ "count": 4, "precision": "EXACT" })
+    );
+
+    let before_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductsTitleBeforePage {
+          products(last: 1, before: "gid://shopify/Product/zulu", sortKey: TITLE) {
+            nodes { title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        before_page.body["data"]["products"]["nodes"],
+        json!([{ "title": "Beta Product" }])
+    );
+    assert_eq!(
+        before_page.body["data"]["products"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": true,
+            "startCursor": "gid://shopify/Product/beta",
+            "endCursor": "gid://shopify/Product/beta"
+        })
+    );
+}
+
+#[test]
 fn products_count_reflects_staged_creates_and_deletes() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/base".to_string(),
