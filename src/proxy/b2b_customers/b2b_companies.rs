@@ -1232,7 +1232,10 @@ impl DraftProxy {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         if !self.store.staged.b2b_companies.contains_key(&company_id) {
             return (
-                b2b_company_contact_payload(None, vec![b2b_resource_not_found(["companyId"])]),
+                b2b_company_contact_payload(
+                    None,
+                    vec![b2b_not_found(["companyId"], "Company does not exist.")],
+                ),
                 "failed",
                 Vec::new(),
             );
@@ -1834,7 +1837,7 @@ impl DraftProxy {
             return (
                 json!({
                     "deletedCompanyId": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["id"])]
+                    "userErrors": [b2b_not_found(["id"], "Company does not exist.")]
                 }),
                 "failed",
                 Vec::new(),
@@ -2260,7 +2263,7 @@ impl DraftProxy {
             return (
                 json!({
                     "deletedAddressId": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["addressId"])]
+                    "userErrors": [b2b_not_found(["addressId"], "Company address was not found.")]
                 }),
                 "failed",
                 Vec::new(),
@@ -2434,7 +2437,7 @@ impl DraftProxy {
             return (
                 json!({
                     "roleAssignments": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["companyLocationId"])]
+                    "userErrors": [b2b_not_found(["companyLocationId"], "Location does not exist.")]
                 }),
                 "failed",
                 Vec::new(),
@@ -2513,7 +2516,7 @@ impl DraftProxy {
                 json!({
                     "revokedRoleAssignmentIds": Value::Null,
                     "revokedCompanyContactRoleAssignmentIds": Value::Null,
-                    "userErrors": [b2b_resource_not_found(["companyLocationId"])]
+                    "userErrors": [b2b_not_found(["companyLocationId"], "Location does not exist.")]
                 }),
                 "failed",
                 Vec::new(),
