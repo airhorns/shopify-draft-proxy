@@ -3141,7 +3141,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let resource_id = resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
-        if !self.localization_translatable_resource_exists(&resource_id) {
+        if !self.localization_translation_mutation_resource_exists(&resource_id) {
             return selected_json(
                 &json!({
                     "translations": null,
@@ -3300,7 +3300,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let resource_id = resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
-        if !self.localization_translatable_resource_exists(&resource_id) {
+        if !self.localization_translation_mutation_resource_exists(&resource_id) {
             return selected_json(
                 &json!({
                     "translations": null,
@@ -4033,10 +4033,26 @@ impl DraftProxy {
         if resource_id.is_empty() {
             return false;
         }
-        if resource_id.starts_with("gid://shopify/Product/") {
-            return self.store.has_localization_product(resource_id);
+        match shopify_gid_resource_type(resource_id) {
+            Some("Product") => self.store.has_localization_product(resource_id),
+            Some("Collection") => self.store.collection_by_id(resource_id).is_some(),
+            Some(_) => true,
+            _ => false,
         }
-        true
+    }
+
+    /// Mutations must reject resource IDs the proxy cannot resolve locally, while
+    /// read roots still keep Shopify-like empty placeholders for unmodeled types.
+    fn localization_translation_mutation_resource_exists(&self, resource_id: &str) -> bool {
+        if resource_id.is_empty() {
+            return false;
+        }
+        match shopify_gid_resource_type(resource_id) {
+            Some("Product") => self.store.has_localization_product(resource_id),
+            Some("Collection") => self.store.collection_by_id(resource_id).is_some(),
+            Some("PackingSlipTemplate") => true,
+            _ => false,
+        }
     }
 
     fn localization_translatable_content(&self, resource_id: &str) -> Vec<Value> {

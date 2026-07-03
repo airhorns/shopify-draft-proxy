@@ -4627,7 +4627,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-translations-unknown-resource-conformance.mts',
     purpose:
-      'translationsRegister and translationsRemove for an unknown/non-existent resource ID return NOT_FOUND userErrors without staging any translations.',
+      'translationsRegister and translationsRemove for unknown Product, missing Collection, and absent Menu resource IDs return NOT_FOUND userErrors without staging any translations.',
     requiredAuthScopes: ['read_products', 'read_translations', 'write_translations', 'read_locales', 'write_locales'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}localization-translations-unknown-resource.json`,
@@ -4636,7 +4636,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/localization/localization-unknown-resource-validation.graphql',
     ],
     cleanupBehavior:
-      'Creates a disposable product, uses a non-existent GID for unknown-resource validation, then deletes the disposable product during cleanup.',
+      'Creates a disposable product, records unknown Product, missing Collection, and absent Menu validation, deletes the product, and restores the pre-capture French locale state during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
