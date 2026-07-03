@@ -5886,6 +5886,7 @@ fn product_metafields_set_stages_product_owned_readbacks() {
 }
 
 fn owner_metafield_hydration_proxy(fixture: Value) -> DraftProxy {
+    let hydrate_nodes = owner_metafield_hydration_nodes(&fixture);
     configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
         let body: Value =
             serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
@@ -5893,10 +5894,24 @@ fn owner_metafield_hydration_proxy(fixture: Value) -> DraftProxy {
         let response = if query.contains("OwnerMetafieldsHydrateNodes")
             || query.contains("ProductsHydrateNodes")
         {
-            fixture["upstreamCalls"][0]["response"]
-                .get("body")
-                .cloned()
-                .unwrap_or_else(|| fixture["upstreamCalls"][0]["response"].clone())
+            let nodes = body["variables"]["ids"]
+                .as_array()
+                .map(|ids| {
+                    ids.iter()
+                        .map(|id| {
+                            id.as_str()
+                                .and_then(|id| {
+                                    hydrate_nodes.iter().find(|node| {
+                                        node.get("id").and_then(Value::as_str) == Some(id)
+                                    })
+                                })
+                                .cloned()
+                                .unwrap_or(Value::Null)
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_else(|| hydrate_nodes.clone());
+            json!({ "data": { "nodes": nodes } })
         } else {
             json!({"errors": [{"message": format!("unexpected upstream query: {query}")}]})
         };
@@ -5904,6 +5919,91 @@ fn owner_metafield_hydration_proxy(fixture: Value) -> DraftProxy {
             status: 200,
             headers: Default::default(),
             body: response,
+        }
+    })
+}
+
+fn owner_metafield_hydration_nodes(fixture: &Value) -> Vec<Value> {
+    let mut nodes = Vec::new();
+    if let Some(product) = fixture.pointer("/preconditionRead/data/product") {
+        nodes.push(owner_hydrate_node(product.clone(), "Product"));
+    }
+    if let Some(product) = fixture.pointer("/downstreamRead/data/product") {
+        nodes.push(owner_hydrate_product_with_deleted_metafields(
+            product.clone(),
+            fixture,
+        ));
+    }
+    if let Some(product) = fixture.get("seedProduct") {
+        let product = owner_hydrate_node(product.clone(), "Product");
+        if let Some(variants) = product
+            .pointer("/variants/nodes")
+            .and_then(Value::as_array)
+            .cloned()
+        {
+            for variant in variants {
+                let mut variant = owner_hydrate_node(variant, "ProductVariant");
+                variant["product"] = product.clone();
+                variant["metafields"] = empty_metafields_connection();
+                nodes.push(variant);
+            }
+        }
+        nodes.push(product);
+    }
+    if let Some(collection) = fixture.get("seedCollection") {
+        let mut collection = owner_hydrate_node(collection.clone(), "Collection");
+        collection["metafields"] = empty_metafields_connection();
+        nodes.push(collection);
+    }
+    nodes
+}
+
+fn owner_hydrate_product_with_deleted_metafields(mut product: Value, fixture: &Value) -> Value {
+    product["__typename"] = json!("Product");
+    let owner_id = product["id"].as_str().unwrap_or_default().to_string();
+    let mut nodes = product
+        .pointer("/metafields/nodes")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    for deleted in fixture
+        .pointer("/mutation/response/data/metafieldsDelete/deletedMetafields")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        if deleted.get("ownerId").and_then(Value::as_str) == Some(owner_id.as_str()) {
+            nodes.push(deleted.clone());
+        }
+    }
+    product["metafields"] = json!({
+        "nodes": nodes,
+        "pageInfo": product
+            .pointer("/metafields/pageInfo")
+            .cloned()
+            .unwrap_or_else(|| json!({
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": Value::Null,
+                "endCursor": Value::Null
+            }))
+    });
+    product
+}
+
+fn owner_hydrate_node(mut node: Value, typename: &str) -> Value {
+    node["__typename"] = json!(typename);
+    node
+}
+
+fn empty_metafields_connection() -> Value {
+    json!({
+        "nodes": [],
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": Value::Null,
+            "endCursor": Value::Null
         }
     })
 }

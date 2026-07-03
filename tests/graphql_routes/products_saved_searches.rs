@@ -3164,7 +3164,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
             "userErrors": [{
                 "field": ["id"],
                 "message": "ProductFeed does not exist",
-                "code": "NOT_FOUND"
+                "code": Value::Null
             }]
         })
     );
@@ -3188,7 +3188,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
                     "userErrors": [{
                         "field": ["id"],
                         "message": "ProductFeed does not exist",
-                        "code": "NOT_FOUND"
+                        "code": Value::Null
                     }]
                 }
             }
@@ -3212,7 +3212,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
             "userErrors": [{
                 "field": ["id"],
                 "message": "ProductFeed does not exist",
-                "code": "NOT_FOUND"
+                "code": Value::Null
             }]
         })
     );
@@ -3251,7 +3251,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavio
             "userErrors": [{
                 "field": ["id"],
                 "message": "ProductFeed does not exist",
-                "code": "NOT_FOUND"
+                "code": Value::Null
             }]
         })
     );
@@ -3946,7 +3946,7 @@ fn product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log() {
     assert_eq!(product_feedback_enum.status, 200);
     assert!(product_feedback_enum.body["errors"][0]["message"]
         .as_str()
-        .is_some_and(|message| message.contains("Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.")));
+        .is_some_and(|message| message.contains("Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState!'.")));
     assert_eq!(
         product_feedback_enum.body["errors"][0]["extensions"]["code"],
         json!("argumentLiteralsIncompatible")
@@ -3970,7 +3970,7 @@ fn product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log() {
     assert_eq!(shop_feedback_enum.status, 200);
     assert!(shop_feedback_enum.body["errors"][0]["message"]
         .as_str()
-        .is_some_and(|message| message.contains("Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.")));
+        .is_some_and(|message| message.contains("Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState!'.")));
     assert_eq!(
         shop_feedback_enum.body["errors"][0]["extensions"]["code"],
         json!("argumentLiteralsIncompatible")
@@ -4404,6 +4404,187 @@ fn product_publish_unpublish_stage_publication_state_for_downstream_reads() {
 }
 
 #[test]
+fn product_unpublish_hydrated_aggregate_only_publication_state_does_not_false_error() {
+    let product_id = "gid://shopify/Product/publication-aggregate-only";
+    let publication_id = "gid://shopify/Publication/aggregate-only";
+    let upstream_requests = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream hydrate request parses");
+            let query = body["query"]
+                .as_str()
+                .expect("upstream hydrate query should be a string");
+            captured_requests.lock().unwrap().push(request.body);
+            if query.contains("ProductsHydrateNodes") {
+                assert_eq!(body["variables"], json!({ "ids": [product_id] }));
+                assert!(query.contains("availablePublicationsCount"));
+                assert!(query.contains("resourcePublicationsCount"));
+                assert!(query.contains("publications(first: 10)"));
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "__typename": "Product",
+                                "id": product_id,
+                                "title": "Aggregate-only publication product",
+                                "handle": "aggregate-only-publication-product",
+                                "status": "ACTIVE",
+                                "vendor": "conformance",
+                                "productType": "",
+                                "tags": [],
+                                "totalInventory": 0,
+                                "tracksInventory": false,
+                                "createdAt": "2026-07-02T22:49:10Z",
+                                "updatedAt": "2026-07-02T22:49:10Z",
+                                "publishedAt": Value::Null,
+                                "descriptionHtml": "",
+                                "templateSuffix": Value::Null,
+                                "seo": { "title": Value::Null, "description": Value::Null },
+                                "availablePublicationsCount": { "count": 2, "precision": "EXACT" },
+                                "resourcePublicationsCount": { "count": 2, "precision": "EXACT" },
+                                "resourcePublicationsV2": { "nodes": [] },
+                                "publications": {
+                                    "nodes": [{
+                                        "isPublished": true,
+                                        "publishDate": "2026-07-02T22:49:10Z",
+                                        "product": { "id": product_id }
+                                    }]
+                                }
+                            }]
+                        }
+                    }),
+                };
+            }
+            assert!(query.contains("StorePropertiesPublishableInputValidationHydrate"));
+            assert_eq!(body["variables"], json!({ "id": product_id }));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "publishable": {
+                            "id": product_id,
+                            "publishedOnCurrentPublication": false,
+                            "resourcePublicationsCount": { "count": 2, "precision": "EXACT" }
+                        },
+                        "shop": { "publicationCount": 1 },
+                        "publications": {
+                            "nodes": [{ "id": publication_id, "name": "Aggregate-only publication" }]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let unpublish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductUnpublishAggregateOnly($input: ProductUnpublishInput!, $publicationId: ID!) {
+          productUnpublish(input: $input) {
+            product {
+              id
+              publishedAt
+              publishedOnPublication(publicationId: $publicationId)
+              availablePublicationsCount { count precision }
+              resourcePublicationsCount { count precision }
+              resourcePublicationsV2(first: 10) { nodes { publication { id } isPublished publishDate } }
+              publications(first: 10) { nodes { isPublished publishDate product { id } } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": product_id,
+                "productPublications": [{ "publicationId": publication_id }]
+            },
+            "publicationId": publication_id
+        }),
+    ));
+    assert_eq!(unpublish.status, 200);
+    assert_eq!(
+        unpublish.body["data"]["productUnpublish"],
+        json!({
+            "product": {
+                "id": product_id,
+                "publishedAt": Value::Null,
+                "publishedOnPublication": false,
+                "availablePublicationsCount": { "count": 2, "precision": "EXACT" },
+                "resourcePublicationsCount": { "count": 2, "precision": "EXACT" },
+                "resourcePublicationsV2": { "nodes": [] },
+                "publications": {
+                    "nodes": [{
+                        "isPublished": true,
+                        "publishDate": "2026-07-02T22:49:10Z",
+                        "product": { "id": product_id }
+                    }]
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let read_after_unpublish = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductPublicationAggregateOnlyRead($id: ID!, $publicationId: ID!) {
+          product(id: $id) {
+            id
+            publishedAt
+            publishedOnPublication(publicationId: $publicationId)
+            availablePublicationsCount { count precision }
+            resourcePublicationsCount { count precision }
+            resourcePublicationsV2(first: 10) { nodes { publication { id } isPublished publishDate } }
+            publications(first: 10) { nodes { isPublished publishDate product { id } } }
+          }
+        }
+        "#,
+        json!({ "id": product_id, "publicationId": publication_id }),
+    ));
+    assert_eq!(
+        read_after_unpublish.body["data"]["product"],
+        json!({
+            "id": product_id,
+            "publishedAt": Value::Null,
+            "publishedOnPublication": false,
+            "availablePublicationsCount": { "count": 2, "precision": "EXACT" },
+            "resourcePublicationsCount": { "count": 2, "precision": "EXACT" },
+            "resourcePublicationsV2": { "nodes": [] },
+            "publications": {
+                "nodes": [{
+                    "isPublished": true,
+                    "publishDate": "2026-07-02T22:49:10Z",
+                    "product": { "id": product_id }
+                }]
+            }
+        })
+    );
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(
+        requests.len(),
+        2,
+        "mutation should hydrate product state and publication catalog once; downstream read should reuse the staged hydrated product"
+    );
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|body| body.contains("ProductsHydrateNodes"))
+            .count(),
+        1
+    );
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|body| body.contains("StorePropertiesPublishableInputValidationHydrate"))
+            .count(),
+        1
+    );
+}
+
+#[test]
 fn product_publish_unpublish_validate_publication_state_locally() {
     let product_id = "gid://shopify/Product/publication-validation";
     let mut product = ProductRecord {
@@ -4569,6 +4750,46 @@ fn product_publish_live_hybrid_hydrates_publication_catalog_before_validation() 
         .with_base_products(vec![seed_product(product_id)])
         .with_upstream_transport(move |request| {
             captured.lock().unwrap().push(request.clone());
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream hydrate request parses");
+            let query = body["query"]
+                .as_str()
+                .expect("upstream hydrate query should be a string");
+            if query.contains("ProductsHydrateNodes") {
+                assert_eq!(body["variables"], json!({ "ids": [product_id] }));
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "__typename": "Product",
+                                "id": product_id,
+                                "title": "Publication hydrate product",
+                                "handle": "publication-hydrate-product",
+                                "status": "ACTIVE",
+                                "vendor": "conformance",
+                                "productType": "",
+                                "tags": [],
+                                "totalInventory": 0,
+                                "tracksInventory": false,
+                                "createdAt": "2026-07-03T11:24:00Z",
+                                "updatedAt": "2026-07-03T11:24:00Z",
+                                "publishedAt": Value::Null,
+                                "descriptionHtml": "",
+                                "templateSuffix": Value::Null,
+                                "seo": { "title": Value::Null, "description": Value::Null },
+                                "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+                                "resourcePublicationsCount": { "count": 0, "precision": "EXACT" },
+                                "resourcePublicationsV2": { "nodes": [] },
+                                "publications": { "nodes": [] }
+                            }]
+                        }
+                    }),
+                };
+            }
+            assert!(query.contains("StorePropertiesPublishableInputValidationHydrate"));
+            assert_eq!(body["variables"], json!({ "id": product_id }));
             Response {
                 status: 200,
                 headers: Default::default(),
@@ -4614,9 +4835,26 @@ fn product_publish_live_hybrid_hydrates_publication_catalog_before_validation() 
         json!([])
     );
     let requests = forwarded.lock().unwrap();
-    assert_eq!(requests.len(), 1);
-    let hydrate_body: Value =
-        serde_json::from_str(&requests[0].body).expect("upstream hydrate request should parse");
+    assert_eq!(requests.len(), 3);
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|request| request.body.contains("ProductsHydrateNodes"))
+            .count(),
+        2,
+        "the rejected first mutation should not stage the hydrated product"
+    );
+    let shop_hydrates = requests
+        .iter()
+        .filter(|request| {
+            request
+                .body
+                .contains("StorePropertiesPublishableInputValidationHydrate")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(shop_hydrates.len(), 1);
+    let hydrate_body: Value = serde_json::from_str(&shop_hydrates[0].body)
+        .expect("upstream publishable hydrate request should parse");
     assert_eq!(hydrate_body["variables"], json!({ "id": product_id }));
     assert!(hydrate_body["query"]
         .as_str()

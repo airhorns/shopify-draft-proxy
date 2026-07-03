@@ -1,4 +1,4 @@
-mutation ProductFeedCreateLocalRuntime($input: ProductFeedInput) {
+mutation ProductFeedCreate($input: ProductFeedInput) {
   productFeedCreate(input: $input) {
     productFeed {
       id

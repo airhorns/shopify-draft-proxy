@@ -1,6 +1,6 @@
 {
   "scenarioId": "combinedListingUpdate-validation",
-  "capturedAt": "2026-05-06T00:38:16.232Z",
+  "capturedAt": "2026-06-30T13:40:12.184Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "notes": [
@@ -13,8 +13,8 @@
         "query": "mutation CombinedListingUpdateValidationProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      combinedListingRole\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
         "variables": {
           "product": {
-            "title": "har-852-1778027887023 parent validation",
-            "handle": "har-852-1778027887023-parent-validation",
+            "title": "har-852-1782826803807 parent validation",
+            "handle": "har-852-1782826803807-parent-validation",
             "combinedListingRole": "PARENT"
           }
         }
@@ -23,9 +23,9 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10177891467570",
-              "title": "har-852-1778027887023 parent validation",
-              "handle": "har-852-1778027887023-parent-validation",
+              "id": "gid://shopify/Product/10225391206706",
+              "title": "har-852-1782826803807 parent validation",
+              "handle": "har-852-1782826803807-parent-validation",
               "combinedListingRole": "PARENT"
             },
             "userErrors": []
@@ -50,8 +50,8 @@
         "query": "mutation CombinedListingUpdateValidationProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      combinedListingRole\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
         "variables": {
           "product": {
-            "title": "har-852-1778027887023 plain parent",
-            "handle": "har-852-1778027887023-plain-parent"
+            "title": "har-852-1782826803807 plain parent",
+            "handle": "har-852-1782826803807-plain-parent"
           }
         }
       },
@@ -59,9 +59,9 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10177891500338",
-              "title": "har-852-1778027887023 plain parent",
-              "handle": "har-852-1778027887023-plain-parent",
+              "id": "gid://shopify/Product/10225391239474",
+              "title": "har-852-1782826803807 plain parent",
+              "handle": "har-852-1782826803807-plain-parent",
               "combinedListingRole": null
             },
             "userErrors": []
@@ -85,8 +85,8 @@
         "query": "mutation CombinedListingUpdateValidationProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      combinedListingRole\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
         "variables": {
           "product": {
-            "title": "har-852-1778027887023 child validation",
-            "handle": "har-852-1778027887023-child-validation"
+            "title": "har-852-1782826803807 child validation",
+            "handle": "har-852-1782826803807-child-validation"
           }
         }
       },
@@ -94,9 +94,9 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10177891533106",
-              "title": "har-852-1778027887023 child validation",
-              "handle": "har-852-1778027887023-child-validation",
+              "id": "gid://shopify/Product/10225391272242",
+              "title": "har-852-1782826803807 child validation",
+              "handle": "har-852-1782826803807-child-validation",
               "combinedListingRole": null
             },
             "userErrors": []
@@ -120,8 +120,8 @@
         "query": "mutation CombinedListingUpdateValidationProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      combinedListingRole\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
         "variables": {
           "product": {
-            "title": "har-852-1778027887023 parent already",
-            "handle": "har-852-1778027887023-parent-already",
+            "title": "har-852-1782826803807 parent already",
+            "handle": "har-852-1782826803807-parent-already",
             "combinedListingRole": "PARENT"
           }
         }
@@ -130,9 +130,9 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10177891565874",
-              "title": "har-852-1778027887023 parent already",
-              "handle": "har-852-1778027887023-parent-already",
+              "id": "gid://shopify/Product/10225391305010",
+              "title": "har-852-1782826803807 parent already",
+              "handle": "har-852-1782826803807-parent-already",
               "combinedListingRole": "PARENT"
             },
             "userErrors": []
@@ -157,8 +157,8 @@
         "query": "mutation CombinedListingUpdateValidationProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      combinedListingRole\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
         "variables": {
           "product": {
-            "title": "har-852-1778027887023 child already",
-            "handle": "har-852-1778027887023-child-already"
+            "title": "har-852-1782826803807 child already",
+            "handle": "har-852-1782826803807-child-already"
           }
         }
       },
@@ -166,9 +166,9 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10177891598642",
-              "title": "har-852-1778027887023 child already",
-              "handle": "har-852-1778027887023-child-already",
+              "id": "gid://shopify/Product/10225391337778",
+              "title": "har-852-1782826803807 child already",
+              "handle": "har-852-1782826803807-child-already",
               "combinedListingRole": null
             },
             "userErrors": []
@@ -192,8 +192,8 @@
         "query": "mutation CombinedListingUpdateValidationProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      combinedListingRole\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
         "variables": {
           "product": {
-            "title": "har-852-1778027887023 parent edit remove",
-            "handle": "har-852-1778027887023-parent-edit-remove",
+            "title": "har-852-1782826803807 parent edit remove",
+            "handle": "har-852-1782826803807-parent-edit-remove",
             "combinedListingRole": "PARENT"
           }
         }
@@ -202,9 +202,9 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10177891631410",
-              "title": "har-852-1778027887023 parent edit remove",
-              "handle": "har-852-1778027887023-parent-edit-remove",
+              "id": "gid://shopify/Product/10225391370546",
+              "title": "har-852-1782826803807 parent edit remove",
+              "handle": "har-852-1782826803807-parent-edit-remove",
               "combinedListingRole": "PARENT"
             },
             "userErrors": []
@@ -229,8 +229,8 @@
         "query": "mutation CombinedListingUpdateValidationProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      combinedListingRole\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
         "variables": {
           "product": {
-            "title": "har-852-1778027887023 child edit remove",
-            "handle": "har-852-1778027887023-child-edit-remove"
+            "title": "har-852-1782826803807 child edit remove",
+            "handle": "har-852-1782826803807-child-edit-remove"
           }
         }
       },
@@ -238,9 +238,9 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10177891664178",
-              "title": "har-852-1778027887023 child edit remove",
-              "handle": "har-852-1778027887023-child-edit-remove",
+              "id": "gid://shopify/Product/10225391436082",
+              "title": "har-852-1782826803807 child edit remove",
+              "handle": "har-852-1782826803807-child-edit-remove",
               "combinedListingRole": null
             },
             "userErrors": []
@@ -263,7 +263,7 @@
       "request": {
         "query": "mutation CombinedListingUpdateValidation(\n  $parentProductId: ID!\n  $title: String\n  $productsAdded: [ChildProductRelationInput!]\n  $productsEdited: [ChildProductRelationInput!]\n  $productsRemovedIds: [ID!]\n  $optionsAndValues: [OptionAndValueInput!]\n) {\n  combinedListingUpdate(\n    parentProductId: $parentProductId\n    title: $title\n    productsAdded: $productsAdded\n    productsEdited: $productsEdited\n    productsRemovedIds: $productsRemovedIds\n    optionsAndValues: $optionsAndValues\n  ) {\n    product {\n      id\n      title\n      combinedListingRole\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
         "variables": {
-          "parentProductId": "gid://shopify/Product/10177891500338"
+          "parentProductId": "gid://shopify/Product/10225391239474"
         }
       },
       "response": {
@@ -296,10 +296,10 @@
       "request": {
         "query": "mutation CombinedListingUpdateValidation(\n  $parentProductId: ID!\n  $title: String\n  $productsAdded: [ChildProductRelationInput!]\n  $productsEdited: [ChildProductRelationInput!]\n  $productsRemovedIds: [ID!]\n  $optionsAndValues: [OptionAndValueInput!]\n) {\n  combinedListingUpdate(\n    parentProductId: $parentProductId\n    title: $title\n    productsAdded: $productsAdded\n    productsEdited: $productsEdited\n    productsRemovedIds: $productsRemovedIds\n    optionsAndValues: $optionsAndValues\n  ) {\n    product {\n      id\n      title\n      combinedListingRole\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
         "variables": {
-          "parentProductId": "gid://shopify/Product/10177891467570",
+          "parentProductId": "gid://shopify/Product/10225391206706",
           "productsAdded": [
             {
-              "childProductId": "gid://shopify/Product/10177891533106",
+              "childProductId": "gid://shopify/Product/10225391272242",
               "selectedParentOptionValues": [
                 {
                   "name": "Title",
@@ -340,10 +340,10 @@
       "request": {
         "query": "mutation CombinedListingUpdateValidation(\n  $parentProductId: ID!\n  $title: String\n  $productsAdded: [ChildProductRelationInput!]\n  $productsEdited: [ChildProductRelationInput!]\n  $productsRemovedIds: [ID!]\n  $optionsAndValues: [OptionAndValueInput!]\n) {\n  combinedListingUpdate(\n    parentProductId: $parentProductId\n    title: $title\n    productsAdded: $productsAdded\n    productsEdited: $productsEdited\n    productsRemovedIds: $productsRemovedIds\n    optionsAndValues: $optionsAndValues\n  ) {\n    product {\n      id\n      title\n      combinedListingRole\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
         "variables": {
-          "parentProductId": "gid://shopify/Product/10177891467570",
+          "parentProductId": "gid://shopify/Product/10225391206706",
           "productsAdded": [
             {
-              "childProductId": "gid://shopify/Product/10177891467570",
+              "childProductId": "gid://shopify/Product/10225391206706",
               "selectedParentOptionValues": [
                 {
                   "name": "Title",
@@ -390,10 +390,10 @@
       "request": {
         "query": "mutation CombinedListingUpdateValidation(\n  $parentProductId: ID!\n  $title: String\n  $productsAdded: [ChildProductRelationInput!]\n  $productsEdited: [ChildProductRelationInput!]\n  $productsRemovedIds: [ID!]\n  $optionsAndValues: [OptionAndValueInput!]\n) {\n  combinedListingUpdate(\n    parentProductId: $parentProductId\n    title: $title\n    productsAdded: $productsAdded\n    productsEdited: $productsEdited\n    productsRemovedIds: $productsRemovedIds\n    optionsAndValues: $optionsAndValues\n  ) {\n    product {\n      id\n      title\n      combinedListingRole\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
         "variables": {
-          "parentProductId": "gid://shopify/Product/10177891467570",
+          "parentProductId": "gid://shopify/Product/10225391206706",
           "productsAdded": [
             {
-              "childProductId": "gid://shopify/Product/10177891533106",
+              "childProductId": "gid://shopify/Product/10225391272242",
               "selectedParentOptionValues": [
                 {
                   "name": "Title",
@@ -402,7 +402,7 @@
               ]
             },
             {
-              "childProductId": "gid://shopify/Product/10177891533106",
+              "childProductId": "gid://shopify/Product/10225391272242",
               "selectedParentOptionValues": [
                 {
                   "name": "Title",
@@ -449,7 +449,7 @@
       "request": {
         "query": "mutation CombinedListingUpdateValidation(\n  $parentProductId: ID!\n  $title: String\n  $productsAdded: [ChildProductRelationInput!]\n  $productsEdited: [ChildProductRelationInput!]\n  $productsRemovedIds: [ID!]\n  $optionsAndValues: [OptionAndValueInput!]\n) {\n  combinedListingUpdate(\n    parentProductId: $parentProductId\n    title: $title\n    productsAdded: $productsAdded\n    productsEdited: $productsEdited\n    productsRemovedIds: $productsRemovedIds\n    optionsAndValues: $optionsAndValues\n  ) {\n    product {\n      id\n      title\n      combinedListingRole\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
         "variables": {
-          "parentProductId": "gid://shopify/Product/10177891467570",
+          "parentProductId": "gid://shopify/Product/10225391206706",
           "productsAdded": [
             {
               "childProductId": "gid://shopify/Product/999999999999999999",
@@ -495,7 +495,7 @@
         }
       },
       "proxyVariables": {
-        "parentProductId": "gid://shopify/Product/10177891467570",
+        "parentProductId": "gid://shopify/Product/10225391206706",
         "productsAdded": [
           {
             "childProductId": "gid://shopify/Product/999999999999999999",
@@ -519,10 +519,10 @@
       "request": {
         "query": "mutation CombinedListingUpdateValidation(\n  $parentProductId: ID!\n  $title: String\n  $productsAdded: [ChildProductRelationInput!]\n  $productsEdited: [ChildProductRelationInput!]\n  $productsRemovedIds: [ID!]\n  $optionsAndValues: [OptionAndValueInput!]\n) {\n  combinedListingUpdate(\n    parentProductId: $parentProductId\n    title: $title\n    productsAdded: $productsAdded\n    productsEdited: $productsEdited\n    productsRemovedIds: $productsRemovedIds\n    optionsAndValues: $optionsAndValues\n  ) {\n    product {\n      id\n      title\n      combinedListingRole\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
         "variables": {
-          "parentProductId": "gid://shopify/Product/10177891467570",
+          "parentProductId": "gid://shopify/Product/10225391206706",
           "productsAdded": [
             {
-              "childProductId": "gid://shopify/Product/10177891533106",
+              "childProductId": "gid://shopify/Product/10225391272242",
               "selectedParentOptionValues": []
             }
           ],
@@ -564,7 +564,7 @@
       "request": {
         "query": "mutation CombinedListingUpdateValidation(\n  $parentProductId: ID!\n  $title: String\n  $productsAdded: [ChildProductRelationInput!]\n  $productsEdited: [ChildProductRelationInput!]\n  $productsRemovedIds: [ID!]\n  $optionsAndValues: [OptionAndValueInput!]\n) {\n  combinedListingUpdate(\n    parentProductId: $parentProductId\n    title: $title\n    productsAdded: $productsAdded\n    productsEdited: $productsEdited\n    productsRemovedIds: $productsRemovedIds\n    optionsAndValues: $optionsAndValues\n  ) {\n    product {\n      id\n      title\n      combinedListingRole\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
         "variables": {
-          "parentProductId": "gid://shopify/Product/10177891467570",
+          "parentProductId": "gid://shopify/Product/10225391206706",
           "title": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
         }
       },
@@ -598,10 +598,10 @@
       "request": {
         "query": "mutation CombinedListingUpdateValidation(\n  $parentProductId: ID!\n  $title: String\n  $productsAdded: [ChildProductRelationInput!]\n  $productsEdited: [ChildProductRelationInput!]\n  $productsRemovedIds: [ID!]\n  $optionsAndValues: [OptionAndValueInput!]\n) {\n  combinedListingUpdate(\n    parentProductId: $parentProductId\n    title: $title\n    productsAdded: $productsAdded\n    productsEdited: $productsEdited\n    productsRemovedIds: $productsRemovedIds\n    optionsAndValues: $optionsAndValues\n  ) {\n    product {\n      id\n      title\n      combinedListingRole\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
         "variables": {
-          "parentProductId": "gid://shopify/Product/10177891565874",
+          "parentProductId": "gid://shopify/Product/10225391305010",
           "productsAdded": [
             {
-              "childProductId": "gid://shopify/Product/10177891598642",
+              "childProductId": "gid://shopify/Product/10225391337778",
               "selectedParentOptionValues": [
                 {
                   "name": "Title",
@@ -622,8 +622,8 @@
         "data": {
           "combinedListingUpdate": {
             "product": {
-              "id": "gid://shopify/Product/10177891565874",
-              "title": "har-852-1778027887023 parent already",
+              "id": "gid://shopify/Product/10225391305010",
+              "title": "har-852-1782826803807 parent already",
               "combinedListingRole": "PARENT"
             },
             "userErrors": []
@@ -646,10 +646,10 @@
       "request": {
         "query": "mutation CombinedListingUpdateValidation(\n  $parentProductId: ID!\n  $title: String\n  $productsAdded: [ChildProductRelationInput!]\n  $productsEdited: [ChildProductRelationInput!]\n  $productsRemovedIds: [ID!]\n  $optionsAndValues: [OptionAndValueInput!]\n) {\n  combinedListingUpdate(\n    parentProductId: $parentProductId\n    title: $title\n    productsAdded: $productsAdded\n    productsEdited: $productsEdited\n    productsRemovedIds: $productsRemovedIds\n    optionsAndValues: $optionsAndValues\n  ) {\n    product {\n      id\n      title\n      combinedListingRole\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
         "variables": {
-          "parentProductId": "gid://shopify/Product/10177891565874",
+          "parentProductId": "gid://shopify/Product/10225391305010",
           "productsAdded": [
             {
-              "childProductId": "gid://shopify/Product/10177891598642",
+              "childProductId": "gid://shopify/Product/10225391337778",
               "selectedParentOptionValues": [
                 {
                   "name": "Title",
@@ -696,10 +696,10 @@
       "request": {
         "query": "mutation CombinedListingUpdateValidation(\n  $parentProductId: ID!\n  $title: String\n  $productsAdded: [ChildProductRelationInput!]\n  $productsEdited: [ChildProductRelationInput!]\n  $productsRemovedIds: [ID!]\n  $optionsAndValues: [OptionAndValueInput!]\n) {\n  combinedListingUpdate(\n    parentProductId: $parentProductId\n    title: $title\n    productsAdded: $productsAdded\n    productsEdited: $productsEdited\n    productsRemovedIds: $productsRemovedIds\n    optionsAndValues: $optionsAndValues\n  ) {\n    product {\n      id\n      title\n      combinedListingRole\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
         "variables": {
-          "parentProductId": "gid://shopify/Product/10177891631410",
+          "parentProductId": "gid://shopify/Product/10225391370546",
           "productsAdded": [
             {
-              "childProductId": "gid://shopify/Product/10177891664178",
+              "childProductId": "gid://shopify/Product/10225391436082",
               "selectedParentOptionValues": [
                 {
                   "name": "Title",
@@ -720,8 +720,8 @@
         "data": {
           "combinedListingUpdate": {
             "product": {
-              "id": "gid://shopify/Product/10177891631410",
-              "title": "har-852-1778027887023 parent edit remove",
+              "id": "gid://shopify/Product/10225391370546",
+              "title": "har-852-1782826803807 parent edit remove",
               "combinedListingRole": "PARENT"
             },
             "userErrors": []
@@ -744,10 +744,10 @@
       "request": {
         "query": "mutation CombinedListingUpdateValidation(\n  $parentProductId: ID!\n  $title: String\n  $productsAdded: [ChildProductRelationInput!]\n  $productsEdited: [ChildProductRelationInput!]\n  $productsRemovedIds: [ID!]\n  $optionsAndValues: [OptionAndValueInput!]\n) {\n  combinedListingUpdate(\n    parentProductId: $parentProductId\n    title: $title\n    productsAdded: $productsAdded\n    productsEdited: $productsEdited\n    productsRemovedIds: $productsRemovedIds\n    optionsAndValues: $optionsAndValues\n  ) {\n    product {\n      id\n      title\n      combinedListingRole\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
         "variables": {
-          "parentProductId": "gid://shopify/Product/10177891631410",
+          "parentProductId": "gid://shopify/Product/10225391370546",
           "productsEdited": [
             {
-              "childProductId": "gid://shopify/Product/10177891664178",
+              "childProductId": "gid://shopify/Product/10225391436082",
               "selectedParentOptionValues": [
                 {
                   "name": "Title",
@@ -756,7 +756,7 @@
               ]
             }
           ],
-          "productsRemovedIds": ["gid://shopify/Product/10177891664178"],
+          "productsRemovedIds": ["gid://shopify/Product/10225391436082"],
           "optionsAndValues": [
             {
               "name": "Title",
@@ -794,11 +794,11 @@
   },
   "cleanup": [
     {
-      "id": "gid://shopify/Product/10177891664178",
+      "id": "gid://shopify/Product/10225391436082",
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177891664178",
+            "deletedProductId": "gid://shopify/Product/10225391436082",
             "userErrors": []
           }
         },
@@ -816,11 +816,11 @@
       }
     },
     {
-      "id": "gid://shopify/Product/10177891631410",
+      "id": "gid://shopify/Product/10225391370546",
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177891631410",
+            "deletedProductId": "gid://shopify/Product/10225391370546",
             "userErrors": []
           }
         },
@@ -838,11 +838,11 @@
       }
     },
     {
-      "id": "gid://shopify/Product/10177891598642",
+      "id": "gid://shopify/Product/10225391337778",
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177891598642",
+            "deletedProductId": "gid://shopify/Product/10225391337778",
             "userErrors": []
           }
         },
@@ -860,11 +860,11 @@
       }
     },
     {
-      "id": "gid://shopify/Product/10177891565874",
+      "id": "gid://shopify/Product/10225391305010",
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177891565874",
+            "deletedProductId": "gid://shopify/Product/10225391305010",
             "userErrors": []
           }
         },
@@ -882,11 +882,11 @@
       }
     },
     {
-      "id": "gid://shopify/Product/10177891533106",
+      "id": "gid://shopify/Product/10225391272242",
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177891533106",
+            "deletedProductId": "gid://shopify/Product/10225391272242",
             "userErrors": []
           }
         },
@@ -904,11 +904,11 @@
       }
     },
     {
-      "id": "gid://shopify/Product/10177891500338",
+      "id": "gid://shopify/Product/10225391239474",
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177891500338",
+            "deletedProductId": "gid://shopify/Product/10225391239474",
             "userErrors": []
           }
         },
@@ -926,11 +926,11 @@
       }
     },
     {
-      "id": "gid://shopify/Product/10177891467570",
+      "id": "gid://shopify/Product/10225391206706",
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177891467570",
+            "deletedProductId": "gid://shopify/Product/10225391206706",
             "userErrors": []
           }
         },
@@ -954,11 +954,23 @@
       "variables": {
         "ids": ["gid://shopify/Product/999999999999999999"]
       },
+      "query": "#graphql\n  query ProductsHydrateNodes($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      id\n      ... on Product {\n        title\n        handle\n        status\n        combinedListingRole\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }

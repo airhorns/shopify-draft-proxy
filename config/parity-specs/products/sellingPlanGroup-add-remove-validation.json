@@ -12,7 +12,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-add-remove-validation.json"
   ],
-  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "runtimeTestFiles": ["tests/graphql_routes/selling_plans.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/selling-plan-group-create.graphql",
     "documentCapturePath": "$.captures[2].request.query",
