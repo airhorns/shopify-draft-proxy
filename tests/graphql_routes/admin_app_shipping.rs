@@ -1434,7 +1434,7 @@ fn bulk_operation_run_mutation_allows_65535_storage_bytes() {
     );
     assert_eq!(mutation.len(), BULK_OPERATION_STORAGE_BYTE_LIMIT);
     let mut proxy = snapshot_proxy();
-    let path = staged_bulk_mutation_upload_path(&mut proxy, "exact-limit-import.jsonl", "0");
+    let path = staged_bulk_mutation_upload_path(&mut proxy, "exact-limit-import.jsonl", "1");
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -1714,7 +1714,7 @@ fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
         cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
         json!("CANCELING")
     );
-    let path = staged_bulk_mutation_upload_path(&mut proxy, "throttled-import.jsonl", "0");
+    let path = staged_bulk_mutation_upload_path(&mut proxy, "throttled-import.jsonl", "1");
 
     // A single non-terminal mutation only throttles at the pre-2026.1 limit of 1.
     let mut run_request = json_graphql_request(
@@ -1792,7 +1792,7 @@ fn run_bulk_operation_mutation(proxy: &mut DraftProxy, api_version: &str) -> Val
     let path = staged_bulk_mutation_upload_path(
         proxy,
         &format!("mutation-import-{api_version}.jsonl"),
-        "0",
+        "1",
     );
     let mut request = json_graphql_request(
         r#"
