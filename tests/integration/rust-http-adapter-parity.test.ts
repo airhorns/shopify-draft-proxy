@@ -118,7 +118,7 @@ async function withChunkedUpstream<T>(run: (origin: string) => Promise<T>): Prom
 }
 
 describe('Rust HTTP adapter route surface', () => {
-  it('serves the required meta route response shapes without the TS/Gleam HTTP adapter', async () => {
+  it('serves the required meta route response shapes through the Rust HTTP adapter', async () => {
     const port = await unusedLocalPort();
     await withRustServer(port, async (origin) => {
       expect(await getJson(origin, '/__meta/health')).toEqual({

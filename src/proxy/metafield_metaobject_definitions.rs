@@ -1187,7 +1187,7 @@ impl DraftProxy {
         definition
     }
 
-    /// Mirrors Gleam `local_has_metafield_definition_state`. A cold
+    /// A cold
     /// LiveHybrid metafield-definition read with no local state is just an
     /// upstream read; once a lifecycle has staged (or a synthetic id is
     /// referenced) definitions, reads must stay local so read-after-write
@@ -1692,8 +1692,7 @@ impl DraftProxy {
 
     // True when loose (unstructured) metafields already exist for this owner
     // type, namespace, and key — used to gate standard-definition promotion when
-    // forceEnable is not set. Mirrors the Gleam effective-metafield filter,
-    // honoring tombstoned deletions.
+    // forceEnable is not set, honoring tombstoned deletions.
     fn metafield_definition_has_unstructured_metafields(
         &self,
         owner_type: &str,

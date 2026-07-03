@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Hand-synthesized capture mirroring Shopify's `argumentLiteralsIncompatible` envelope when `draftOrderUpdate` is invoked with a literal null `id` (with `input` provided). The schema-driven validator in `proxy/mutation_helpers.gleam` is the single source for this error envelope; the fixture format follows the existing `draftOrderComplete-inline-null-id` capture verbatim.",
+  "notes": "Hand-synthesized capture mirroring Shopify's `argumentLiteralsIncompatible` envelope when `draftOrderUpdate` is invoked with a literal null `id` (with `input` provided). The local schema validator is the single source for this error envelope; the fixture format follows the existing `draftOrderComplete-inline-null-id` capture verbatim.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

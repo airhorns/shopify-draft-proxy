@@ -6854,7 +6854,7 @@ fn localization_translations_register_stages_locally_and_keeps_raw_mutation_for_
 }
 
 #[test]
-fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
+fn localization_shop_locale_update_disable_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
     let known_presence = stage_web_presence(&mut proxy, "it");
     let unknown_presence = "gid://shopify/MarketWebPresence/9999999999";

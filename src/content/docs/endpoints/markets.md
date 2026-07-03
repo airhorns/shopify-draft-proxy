@@ -59,8 +59,8 @@ local lifecycle/read models and executable evidence for those roots.
 
 ### Local behavior
 
-The Rust runtime has scenario-backed Markets slices for ported parity requests
-and runtime tests. These slices stage local state only for the request families
+The Rust runtime has scenario-backed Markets slices for parity requests and
+runtime tests. These slices stage local state only for the request families
 recognized by the Rust dispatcher and should not be treated as broad registry
 support.
 
@@ -164,5 +164,5 @@ derivations are not synthesized beyond the checked-in evidence.
 - Deprecated `marketWebPresenceCreate`, `marketWebPresenceUpdate`, and
   `marketWebPresenceDelete` aliases are not marked implemented without their
   own payload, cleanup, and validation evidence.
-- Unsupported mutation documents outside the ported local slices follow the
+- Unsupported mutation documents outside the modeled local slices follow the
   configured unsupported path and must remain visible in logs/observability.
