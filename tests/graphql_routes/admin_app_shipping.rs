@@ -1311,6 +1311,61 @@ fn bulk_operation_run_mutation_rejects_oversized_staged_upload_with_shopify_erro
 }
 
 #[test]
+fn bulk_operation_run_mutation_rejects_empty_staged_upload_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let path = staged_bulk_mutation_upload_path(&mut proxy, "empty-import.jsonl", "0");
+    let log_before = log_snapshot(&proxy);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+            "path": path
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "The input file is empty.",
+            "code": "INVALID_STAGED_UPLOAD_FILE"
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy),
+        log_before,
+        "empty-file validation must not append a bulk mutation log entry"
+    );
+
+    let current = proxy.process_request(json_graphql_request(
+        r#"
+        query CurrentMutation {
+          currentBulkOperation(type: MUTATION) { id }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        current.body["data"]["currentBulkOperation"],
+        Value::Null,
+        "empty-file validation must not stage a mutation bulk operation"
+    );
+}
+
+#[test]
 fn bulk_operation_run_mutation_rejects_storage_query_over_65535_bytes_without_staging() {
     let mut proxy = snapshot_proxy();
     let oversized_mutation = padded_bulk_document_for_bytes(
@@ -1544,6 +1599,83 @@ fn bulk_operation_run_mutation_file_size_error_precedes_in_progress_throttle() {
         log_snapshot(&proxy),
         log_before,
         "oversized validation must not append a bulk mutation log entry"
+    );
+}
+
+#[test]
+fn bulk_operation_run_mutation_empty_file_error_precedes_in_progress_throttle() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let operation = bulk_operation_test_record(
+            "gid://shopify/BulkOperation/7749099127090",
+            "CREATED",
+            "MUTATION",
+            "2026-05-05T20:34:00Z",
+            "#graphql\nmutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+        );
+        move |_request| bulk_operation_hydrate_response(operation.clone())
+    });
+    let path = staged_bulk_mutation_upload_path(
+        &mut proxy,
+        "empty-import-with-running-mutation.jsonl",
+        "0",
+    );
+    let mut cancel_request = json_graphql_request(
+        r#"
+        mutation CancelCapturedMutation($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/BulkOperation/7749099127090" }),
+    );
+    cancel_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let cancel = proxy.process_request(cancel_request);
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["type"],
+        json!("MUTATION")
+    );
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
+        json!("CANCELING")
+    );
+    let log_before = log_snapshot(&proxy);
+
+    let mut run_request = json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+            "path": path
+        }),
+    );
+    run_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let response = proxy.process_request(run_request);
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "The input file is empty.",
+            "code": "INVALID_STAGED_UPLOAD_FILE"
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy),
+        log_before,
+        "empty-file validation must not append a bulk mutation log entry"
     );
 }
 

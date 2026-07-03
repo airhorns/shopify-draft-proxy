@@ -443,6 +443,13 @@ impl DraftProxy {
                 )],
             );
         }
+        if staged_upload_file_size.flatten() == Some(0) {
+            return bulk_operation_run_mutation_error_response(
+                &response_key,
+                &payload_selection,
+                vec![bulk_operation_run_mutation_empty_file_user_error()],
+            );
+        }
         if let Some(operation_id) = self.throttled_bulk_operation_id("MUTATION", request) {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
@@ -529,7 +536,7 @@ impl DraftProxy {
 
     fn bulk_operation_staged_upload_size(&self, staged_upload_path: &str) -> Option<Option<u64>> {
         if staged_upload_path == "valid" {
-            return Some(Some(0));
+            return Some(Some(1));
         }
         self.store
             .staged
@@ -969,6 +976,14 @@ fn bulk_operation_run_mutation_file_size_too_large_user_error(max_file_size_byte
     user_error(
         Value::Null,
         &format!("The input file size exceeds the maximum allowed size of {max_size_mb} MB."),
+        Some("INVALID_STAGED_UPLOAD_FILE"),
+    )
+}
+
+fn bulk_operation_run_mutation_empty_file_user_error() -> Value {
+    user_error(
+        Value::Null,
+        "The input file is empty.",
         Some("INVALID_STAGED_UPLOAD_FILE"),
     )
 }
