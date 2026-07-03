@@ -6317,6 +6317,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'collections',
+    captureId: 'collection-top-level-staged-read',
+    scriptPath: 'scripts/capture-collection-top-level-staged-read-conformance.mts',
+    purpose:
+      'Top-level collections and collectionsCount read-after-write for staged collection create, update, delete, query filters, sortKey, reverse, cursor windows, and count limit precision.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}collection-top-level-staged-read.json`,
+      'config/parity-specs/products/collection-top-level-staged-read.json',
+      'config/parity-requests/products/collection-top-level-staged-read-create.graphql',
+      'config/parity-requests/products/collection-top-level-staged-read-update.graphql',
+      'config/parity-requests/products/collection-top-level-staged-read-delete.graphql',
+      'config/parity-requests/products/collection-top-level-staged-read-initial-page1.graphql',
+      'config/parity-requests/products/collection-top-level-staged-read-initial-page2.graphql',
+      'config/parity-requests/products/collection-top-level-staged-read-post-update.graphql',
+      'config/parity-requests/products/collection-top-level-staged-read-post-delete.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable custom collections, updates one, deletes the other, and deletes any remaining collection in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'collections',
     captureId: 'collection-reorder-products-manual-sort',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-collection-reorder-products-conformance.mts',
