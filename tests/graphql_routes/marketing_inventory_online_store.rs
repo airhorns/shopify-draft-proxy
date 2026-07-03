@@ -240,6 +240,232 @@ fn marketing_empty_reads_keep_shopify_connection_shapes() {
 }
 
 #[test]
+fn marketing_activity_connections_honor_sort_window_and_query_for_staged_records() {
+    let mut proxy = snapshot_proxy();
+    let mut create_alpha_request = json_graphql_request(
+        r#"
+        mutation SeedMarketingActivity($input: MarketingActivityCreateExternalInput!) {
+          created: marketingActivityCreateExternal(input: $input) {
+            marketingActivity { id title createdAt marketingEvent { id type } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+                "title": "Alpha launch",
+                "remoteId": "alpha-launch",
+                "status": "ACTIVE",
+                "remoteUrl": "https://example.com/alpha",
+                "tactic": "NEWSLETTER",
+                "marketingChannelType": "EMAIL",
+                "scheduledEnd": "2024-01-03T00:00:00.000Z",
+                "utm": {"campaign": "alpha", "source": "email", "medium": "newsletter"}
+        }}),
+    );
+    create_alpha_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "gid://shopify/App/42".to_string(),
+    );
+    let create_alpha = proxy.process_request(create_alpha_request);
+    let mut create_zulu_request = json_graphql_request(
+        r#"
+        mutation SeedMarketingActivity($input: MarketingActivityCreateExternalInput!) {
+          created: marketingActivityCreateExternal(input: $input) {
+            marketingActivity { id title createdAt marketingEvent { id type } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+                "title": "Zulu launch",
+                "remoteId": "zulu-launch",
+                "status": "ACTIVE",
+                "remoteUrl": "https://example.com/zulu",
+                "tactic": "AD",
+                "marketingChannelType": "SEARCH",
+                "scheduledEnd": "2024-01-04T00:00:00.000Z",
+                "utm": {"campaign": "zulu", "source": "search", "medium": "ad"}
+        }}),
+    );
+    create_zulu_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "gid://shopify/App/42".to_string(),
+    );
+    let create_zulu = proxy.process_request(create_zulu_request);
+    assert_eq!(
+        create_alpha.body["data"]["created"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(create_zulu.body["data"]["created"]["userErrors"], json!([]));
+
+    let alpha_id = create_alpha.body["data"]["created"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let zulu_id = create_zulu.body["data"]["created"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let alpha_event_id = create_alpha.body["data"]["created"]["marketingActivity"]
+        ["marketingEvent"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let zulu_event_id = create_zulu.body["data"]["created"]["marketingActivity"]["marketingEvent"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingActivityConnectionRead(
+          $activityCursor: String!
+          $activityQuery: String!
+          $eventQuery: String!
+          $titleQuery: String!
+          $createdAtQuery: String!
+          $idRangeQuery: String!
+          $scheduledEndQuery: String!
+          $appIdQuery: String!
+          $appNameQuery: String!
+          $unknownFieldQuery: String!
+        ) {
+          latestActivity: marketingActivities(first: 1, sortKey: CREATED_AT, reverse: true) {
+            nodes { id title createdAt }
+            edges { cursor node { id title } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          afterLatest: marketingActivities(first: 1, after: $activityCursor, sortKey: CREATED_AT, reverse: true) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          titleSearch: marketingActivities(first: 5, sortKey: TITLE, query: $activityQuery) {
+            nodes { id title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          titleFilter: marketingActivities(first: 5, sortKey: ID, query: $titleQuery) {
+            nodes { id title }
+          }
+          createdAtFilter: marketingActivities(first: 5, sortKey: ID, query: $createdAtQuery) {
+            nodes { id title }
+          }
+          idRangeFilter: marketingActivities(first: 5, sortKey: ID, query: $idRangeQuery) {
+            nodes { id title }
+          }
+          scheduledEndFilter: marketingActivities(first: 5, sortKey: ID, query: $scheduledEndQuery) {
+            nodes { id title }
+          }
+          appIdFilter: marketingActivities(first: 5, sortKey: ID, query: $appIdQuery) {
+            nodes { id title }
+          }
+          appNameFilter: marketingActivities(first: 5, sortKey: ID, query: $appNameQuery) {
+            nodes { id title }
+          }
+          unknownFieldFallback: marketingActivities(first: 5, sortKey: ID, query: $unknownFieldQuery) {
+            nodes { id title }
+          }
+          latestEvent: marketingEvents(first: 1, sortKey: ID, reverse: true) {
+            nodes { id type }
+            edges { cursor node { id type } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          eventSearch: marketingEvents(first: 5, query: $eventQuery) {
+            nodes { id type }
+          }
+        }
+        "#,
+        json!({
+            "activityCursor": format!("cursor:{zulu_id}"),
+            "activityQuery": "launch",
+            "eventQuery": "tactic:newsletter",
+            "titleQuery": "title:\"Zulu launch\"",
+            "createdAtQuery": "created_at:>=2024-01-01T00:00:02.000Z",
+            "idRangeQuery": "id:>1",
+            "scheduledEndQuery": "scheduled_to_end_at:2024-01-04",
+            "appIdQuery": "app_id:42",
+            "appNameQuery": "app_name:42",
+            "unknownFieldQuery": "unknown_field:\"Alpha launch\""
+        }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["latestActivity"]["nodes"],
+        json!([{ "id": zulu_id, "title": "Zulu launch", "createdAt": "2024-01-01T00:00:02.000Z" }])
+    );
+    assert_eq!(
+        read.body["data"]["latestActivity"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": format!("cursor:{zulu_id}"),
+            "endCursor": format!("cursor:{zulu_id}")
+        })
+    );
+    assert_eq!(
+        read.body["data"]["afterLatest"]["nodes"],
+        json!([{ "id": alpha_id, "title": "Alpha launch" }])
+    );
+    assert_eq!(
+        read.body["data"]["afterLatest"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["titleSearch"]["nodes"],
+        json!([
+            { "id": alpha_id, "title": "Alpha launch" },
+            { "id": zulu_id, "title": "Zulu launch" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["titleFilter"]["nodes"],
+        json!([{ "id": zulu_id, "title": "Zulu launch" }])
+    );
+    assert_eq!(
+        read.body["data"]["createdAtFilter"]["nodes"],
+        json!([{ "id": zulu_id, "title": "Zulu launch" }])
+    );
+    assert_eq!(
+        read.body["data"]["idRangeFilter"]["nodes"],
+        json!([{ "id": zulu_id, "title": "Zulu launch" }])
+    );
+    assert_eq!(
+        read.body["data"]["scheduledEndFilter"]["nodes"],
+        json!([{ "id": zulu_id, "title": "Zulu launch" }])
+    );
+    assert_eq!(
+        read.body["data"]["appIdFilter"]["nodes"],
+        json!([
+            { "id": alpha_id, "title": "Alpha launch" },
+            { "id": zulu_id, "title": "Zulu launch" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["appNameFilter"]["nodes"],
+        json!([
+            { "id": alpha_id, "title": "Alpha launch" },
+            { "id": zulu_id, "title": "Zulu launch" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["unknownFieldFallback"]["nodes"],
+        json!([{ "id": alpha_id, "title": "Alpha launch" }])
+    );
+    assert_eq!(
+        read.body["data"]["latestEvent"]["nodes"],
+        json!([{ "id": zulu_event_id, "type": "AD" }])
+    );
+    assert_eq!(
+        read.body["data"]["latestEvent"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["eventSearch"]["nodes"],
+        json!([{ "id": alpha_event_id, "type": "NEWSLETTER" }])
+    );
+}
+
+#[test]
 fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_back() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(

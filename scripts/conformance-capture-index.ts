@@ -5459,6 +5459,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'marketing',
+    captureId: 'marketing-activity-connection-window',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-marketing-activity-connection-window-conformance.mts',
+    purpose:
+      'External marketing activity and event connection sortKey, reverse, cursor windowing, pageInfo, and documented query-field behavior for disposable staged-like records.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-activity-connection-window.json`,
+      'config/parity-specs/marketing/marketing-activity-connection-window.json',
+      'config/parity-requests/marketing/marketing-activity-connection-window-create.graphql',
+      'config/parity-requests/marketing/marketing-activity-connection-window-read-first.graphql',
+      'config/parity-requests/marketing/marketing-activity-connection-window-read-after.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable external marketing activities, captures first-page and after-cursor connection reads, then deletes both activities by remote ID.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'marketing',
     captureId: 'marketing-activity-create-external-default-status',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-marketing-activity-create-external-default-status-conformance.mts',
