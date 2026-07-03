@@ -240,7 +240,7 @@ impl DraftProxy {
                 if !selection_errors.is_empty() {
                     return ok_json(json!({ "errors": selection_errors }));
                 }
-                if let Some(data) = self.local_node_query_data(&fields, false) {
+                if let Some(data) = self.local_node_query_data(&fields, false, Some(request)) {
                     ok_json(json!({ "data": data }))
                 } else if self.config.read_mode != ReadMode::Snapshot {
                     // Cold read: forward upstream and hydrate the observed
@@ -254,7 +254,7 @@ impl DraftProxy {
                     response
                 } else {
                     ok_json(
-                        json!({ "data": self.local_node_query_data(&fields, true).unwrap_or_else(|| Value::Object(serde_json::Map::new())) }),
+                        json!({ "data": self.local_node_query_data(&fields, true, Some(request)).unwrap_or_else(|| Value::Object(serde_json::Map::new())) }),
                     )
                 }
             }
@@ -269,9 +269,8 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         root_field: &str,
     ) -> Response {
-        if is_shipping_fulfillment_order_local_order_read(query, variables)
-            || (root_field == "order"
-                && self.should_handle_shipping_fulfillment_order_local_order_read(query, variables))
+        if root_field == "order"
+            && self.should_handle_shipping_fulfillment_order_local_order_read(query, variables)
         {
             return self.shipping_fulfillment_order_local_order_read(query, variables);
         }
@@ -347,6 +346,7 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
         allow_unknown_null: bool,
+        request: Option<&Request>,
     ) -> Option<Value> {
         let mut missing_required = false;
         let data = root_payload_json(fields, |field| {
@@ -354,7 +354,7 @@ impl DraftProxy {
                 "node" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     match self
-                        .local_node_value_by_id(&id, &field.selection)
+                        .local_node_value_by_id_with_request(&id, &field.selection, request)
                         .or_else(|| allow_unknown_null.then_some(Value::Null))
                     {
                         Some(value) => value,
@@ -372,7 +372,7 @@ impl DraftProxy {
                         .unwrap_or_default()
                         .into_iter()
                         .map(|id| {
-                            self.local_node_value_by_id(&id, &field.selection)
+                            self.local_node_value_by_id_with_request(&id, &field.selection, request)
                                 .or_else(|| allow_unknown_null.then_some(Value::Null))
                         })
                         .collect::<Option<Vec<_>>>()
@@ -476,6 +476,15 @@ impl DraftProxy {
         id: &str,
         selection: &[SelectedField],
     ) -> Option<Value> {
+        self.local_node_value_by_id_with_request(id, selection, None)
+    }
+
+    fn local_node_value_by_id_with_request(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+        request: Option<&Request>,
+    ) -> Option<Value> {
         if let Some(data) = local_node_value(id, selection, Some(&self.store.staged.backup_region))
         {
             return Some(data);
@@ -508,7 +517,7 @@ impl DraftProxy {
         if let Some(abandonment) = self.store.staged.abandonments.get(id) {
             return Some(selected_json(abandonment, selection));
         }
-        if let Some(value) = self.app_node_value_by_id(id, selection) {
+        if let Some(value) = self.app_node_value_by_id(id, selection, request) {
             return Some(value);
         }
         if shopify_gid_resource_type(id) == Some("GiftCard") {
@@ -587,7 +596,18 @@ impl DraftProxy {
         None
     }
 
-    fn app_node_value_by_id(&self, id: &str, selection: &[SelectedField]) -> Option<Value> {
+    fn app_node_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+        request: Option<&Request>,
+    ) -> Option<Value> {
+        let current_app_id = request
+            .map(request_app_id)
+            .unwrap_or_else(|| default_local_app_id().to_string());
+        let granted_access_scopes = request
+            .map(app_granted_access_scopes)
+            .unwrap_or_else(|| vec!["read_products".to_string(), "write_products".to_string()]);
         match id {
             "gid://shopify/AppInstallation/expected" if self.store.staged.app_uninstalled => {
                 Some(Value::Null)
@@ -596,9 +616,13 @@ impl DraftProxy {
                 &self.store.staged.app_subscriptions,
                 &self.store.staged.app_one_time_purchases,
                 &self.store.staged.revoked_app_access_scopes,
+                &granted_access_scopes,
                 selection,
             )),
-            "gid://shopify/App/expected" => Some(selected_json(&local_app_json(), selection)),
+            id if id == default_local_app_id() || id == current_app_id => Some(selected_json(
+                &local_app_json_with_id(&current_app_id),
+                selection,
+            )),
             _ => self
                 .store
                 .staged
@@ -704,8 +728,12 @@ impl DraftProxy {
             return json_error(400, "Operation has no root field");
         };
 
-        let schema_input_errors =
-            public_admin_schema_input_errors(&query, &variables, &request.body);
+        let schema_input_errors = public_admin_schema_input_errors(
+            &query,
+            &variables,
+            &request.body,
+            admin_graphql_version(&request.path),
+        );
         if !schema_input_errors.is_empty() {
             return ok_json(json!({ "errors": schema_input_errors }));
         }
@@ -1051,7 +1079,7 @@ impl DraftProxy {
                 {
                     let fields = try_root_fields!(&query, &variables);
                     ok_json(json!({
-                        "data": self.current_app_installation_read_data(&fields)
+                        "data": self.current_app_installation_read_data(request, &fields)
                     }))
                 } else {
                     (self.upstream_transport)(request.clone())
@@ -1375,6 +1403,7 @@ impl DraftProxy {
                     && matches!(
                         root_field,
                         "fulfillmentCreate"
+                            | "fulfillmentCreateV2"
                             | "fulfillmentCancel"
                             | "fulfillmentTrackingInfoUpdate"
                             | "fulfillmentEventCreate"
@@ -2003,10 +2032,6 @@ impl DraftProxy {
                     self.delivery_profile_locations_read_response(request, &fields)
                 } else if let Some(data) = self.fulfillment_service_read_data(&fields) {
                     ok_json(json!({ "data": data }))
-                } else if root_field == "fulfillmentOrder"
-                    && is_fulfillment_order_request_lifecycle_direct_read(&query, &variables)
-                {
-                    self.fulfillment_order_request_lifecycle_direct_read(&query, &variables)
                 } else if matches!(
                     root_field,
                     "fulfillmentOrder"
@@ -2081,14 +2106,9 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation
                     && root_field == "fulfillmentOrderMove" =>
             {
-                if fulfillment_order_move_is_sentinel_scenario(&query, &variables) {
-                    self.fulfillment_order_move_assignment_status(&query, &variables, request)
-                } else {
-                    // Real-id moves stage against the local fulfillment-order engine.
-                    self.shipping_fulfillment_order_mutation_response(
-                        root_field, request, &query, &variables,
-                    )
-                }
+                self.shipping_fulfillment_order_mutation_response(
+                    root_field, request, &query, &variables,
+                )
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
@@ -2097,27 +2117,17 @@ impl DraftProxy {
                         "fulfillmentOrderOpen" | "fulfillmentOrderReportProgress"
                     ) =>
             {
-                if fulfillment_order_status_precondition_is_sentinel_scenario(&query, &variables) {
-                    self.fulfillment_order_status_precondition(root_field, &query, &variables)
-                } else {
-                    // Real-id open/report-progress stage against the local engine.
-                    self.shipping_fulfillment_order_mutation_response(
-                        root_field, request, &query, &variables,
-                    )
-                }
+                self.shipping_fulfillment_order_mutation_response(
+                    root_field, request, &query, &variables,
+                )
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && root_field == "fulfillmentOrdersSetFulfillmentDeadline" =>
             {
-                if fulfillment_order_set_deadline_is_sentinel_scenario(&query, &variables) {
-                    self.fulfillment_order_set_deadline(&query, &variables, request)
-                } else {
-                    // Real-id deadline updates stage against the local engine.
-                    self.shipping_fulfillment_order_mutation_response(
-                        root_field, request, &query, &variables,
-                    )
-                }
+                self.shipping_fulfillment_order_mutation_response(
+                    root_field, request, &query, &variables,
+                )
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation

@@ -248,9 +248,9 @@ describe('Rust parity runner CLI', () => {
         'parity',
         '--',
         '--spec',
-        'config/parity-specs/products/inventory-transfer-ready-item-adjustments-local-staging.json',
+        'config/parity-specs/shipping-fulfillments/fulfillment-order-split-multi.json',
       ]);
-      expect(output).toContain('inventory-transfer-ready-item-adjustments-local-staging.json passed');
+      expect(output).toContain('fulfillment-order-split-multi.json passed');
     },
     parityCliTimeoutMs,
   );

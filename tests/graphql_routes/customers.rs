@@ -233,6 +233,135 @@ fn customers_count_uses_staged_customers_when_no_baseline_exists() {
 }
 
 #[test]
+fn customers_connection_applies_name_sort_and_reverse_before_windowing() {
+    let mut proxy = snapshot_proxy();
+    create_customer(
+        &mut proxy,
+        "zulu-customer@example.test",
+        "Zulu",
+        "Customer",
+        vec![],
+        None,
+    );
+    create_customer(
+        &mut proxy,
+        "alpha-customer@example.test",
+        "Alpha",
+        "Customer",
+        vec![],
+        None,
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersNameSort {
+          ascending: customers(first: 10, sortKey: NAME) { nodes { email displayName } }
+          descending: customers(first: 10, sortKey: NAME, reverse: true) { nodes { email displayName } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["ascending"]["nodes"],
+        json!([
+            { "email": "alpha-customer@example.test", "displayName": "Alpha Customer" },
+            { "email": "zulu-customer@example.test", "displayName": "Zulu Customer" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["descending"]["nodes"],
+        json!([
+            { "email": "zulu-customer@example.test", "displayName": "Zulu Customer" },
+            { "email": "alpha-customer@example.test", "displayName": "Alpha Customer" }
+        ])
+    );
+}
+
+#[test]
+fn customers_sorted_connection_paginates_after_interleaved_create() {
+    let mut proxy = snapshot_proxy();
+    create_customer(
+        &mut proxy,
+        "alpha-page@example.test",
+        "Alpha",
+        "Page",
+        vec![],
+        None,
+    );
+    create_customer(
+        &mut proxy,
+        "zulu-page@example.test",
+        "Zulu",
+        "Page",
+        vec![],
+        None,
+    );
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersNameFirstPage {
+          customers(first: 1, sortKey: NAME) {
+            edges { cursor node { email displayName } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["customers"]["edges"][0]["node"],
+        json!({ "email": "alpha-page@example.test", "displayName": "Alpha Page" })
+    );
+
+    create_customer(
+        &mut proxy,
+        "aaron-page@example.test",
+        "Aaron",
+        "Page",
+        vec![],
+        None,
+    );
+
+    let next_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersNameNextPage($after: String!) {
+          customers(first: 1, after: $after, sortKey: NAME) {
+            nodes { email displayName }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"after": first_page.body["data"]["customers"]["pageInfo"]["endCursor"]}),
+    ));
+    assert_eq!(
+        next_page.body["data"]["customers"]["nodes"],
+        json!([{ "email": "zulu-page@example.test", "displayName": "Zulu Page" }])
+    );
+    assert_eq!(
+        next_page.body["data"]["customers"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+
+    let before_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersNameBeforePage($before: String!) {
+          customers(last: 1, before: $before, sortKey: NAME) {
+            nodes { email displayName }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"before": next_page.body["data"]["customers"]["pageInfo"]["startCursor"]}),
+    ));
+    assert_eq!(
+        before_page.body["data"]["customers"]["nodes"],
+        json!([{ "email": "alpha-page@example.test", "displayName": "Alpha Page" }])
+    );
+}
+
+#[test]
 fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
     let mut proxy = snapshot_proxy();
     let source_id = create_customer(

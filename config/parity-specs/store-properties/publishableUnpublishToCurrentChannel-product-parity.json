@@ -4,26 +4,26 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-unpublish-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-properties/publishable-unpublish-current-shop-count-parity.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/store-properties/publishableUnpublishToCurrentChannel-product-parity.graphql",
-    "variablesPath": "config/parity-requests/store-properties/publishableUnpublishToCurrentChannel-product-parity.variables.json"
+    "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Product-scoped current-publication generic unpublish support uses the same captured DRAFT product aggregate publication expectations as the product unpublication fixture; the local model removes a current-publication placeholder without exposing upstream writes.",
+  "notes": "Product-scoped `publishableUnpublishToCurrentChannel` aggregate fields are backed by the direct live store-properties capture for the same root instead of the legacy productUnpublish cassette.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
         "name": "publishable product aggregate payload",
-        "capturePath": "$.aggregateSelection.response.payload.data.productUnpublish.product",
+        "capturePath": "$.mutation.response.data.publishableUnpublishToCurrentChannel.publishable",
         "proxyPath": "$.data.publishableUnpublishToCurrentChannel.publishable"
       },
       {
         "name": "user errors",
-        "capturePath": "$.aggregateSelection.response.payload.data.productUnpublish.userErrors",
+        "capturePath": "$.mutation.response.data.publishableUnpublishToCurrentChannel.userErrors",
         "proxyPath": "$.data.publishableUnpublishToCurrentChannel.userErrors"
       }
     ]

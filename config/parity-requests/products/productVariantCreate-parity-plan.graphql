@@ -11,6 +11,17 @@ mutation ProductVariantCreateParityPlan($input: ProductVariantInput!) {
       sku
       barcode
       price
+      compareAtPrice
+      taxable
+      taxCode
+      requiresComponents
+      showUnitPrice
+      unitPriceMeasurement {
+        quantityValue
+        quantityUnit
+        referenceValue
+        referenceUnit
+      }
       inventoryQuantity
       selectedOptions {
         name
@@ -20,6 +31,15 @@ mutation ProductVariantCreateParityPlan($input: ProductVariantInput!) {
         id
         tracked
         requiresShipping
+        countryCodeOfOrigin
+        provinceCodeOfOrigin
+        harmonizedSystemCode
+        measurement {
+          weight {
+            value
+            unit
+          }
+        }
       }
     }
     userErrors {
