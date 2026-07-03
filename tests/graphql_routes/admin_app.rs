@@ -1759,7 +1759,7 @@ fn removed_delegate_access_token_current_input_local_staging_scenario_has_rust_c
     );
     assert_eq!(
         create.body["data"]["delegateAccessTokenCreate"]["shop"],
-        json!({ "id": "gid://shopify/Shop/0", "currencyCode": "USD" })
+        json!({})
     );
     assert_eq!(
         create.body["data"]["delegateAccessTokenCreate"]["userErrors"],

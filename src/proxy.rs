@@ -21,7 +21,6 @@ pub(in crate::proxy) const METAFIELDS_SET_INPUT_LIMIT: usize = 25;
 const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
 const LOCAL_APP_SUBSCRIPTION_ACTIVATION_ID: &str = "gid://shopify/AppSubscription/expected";
 const LOCAL_APP_PURCHASE_ONE_TIME_ID: &str = "gid://shopify/AppPurchaseOneTime/expected";
-const LOCALIZATION_BASELINE_PRODUCT_ID: &str = "gid://shopify/Product/9801098789170";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReadMode {
@@ -1064,19 +1063,6 @@ fn domain_host_from_url(url: &str) -> Option<String> {
 impl Store {
     fn with_default_baseline() -> Self {
         let mut store = Self::default();
-        store.base.shop = json!({
-            "id": "gid://shopify/Shop/0",
-            "name": "Shopify Draft Proxy",
-            "myshopifyDomain": "shopify-draft-proxy.local",
-            "url": "https://shopify-draft-proxy.local",
-            "primaryDomain": {
-                "id": "gid://shopify/Domain/1000",
-                "host": "shopify-draft-proxy.local",
-                "url": "https://shopify-draft-proxy.local",
-                "sslEnabled": true
-            },
-            "currencyCode": "USD"
-        });
         store.base.available_locales = default_available_locales();
         store.base.shop_locales.insert(
             "en".to_string(),
@@ -1085,16 +1071,9 @@ impl Store {
                 "name": "English",
                 "primary": true,
                 "published": true,
-                "marketWebPresences": [{
-                    "id": "gid://shopify/MarketWebPresence/62842765618",
-                    "subfolderSuffix": null
-                }]
+                "marketWebPresences": []
             }),
         );
-        store
-            .base
-            .localization_product_ids
-            .insert(LOCALIZATION_BASELINE_PRODUCT_ID.to_string());
         store
     }
 

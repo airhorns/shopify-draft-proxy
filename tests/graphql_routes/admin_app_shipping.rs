@@ -3365,7 +3365,7 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
         missing.body["data"]["delegateAccessTokenDestroy"],
         json!({
             "status": false,
-            "shop": { "id": "gid://shopify/Shop/0", "name": "Shopify Draft Proxy" },
+            "shop": {},
             "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
         })
     );
@@ -3384,11 +3384,7 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
     ));
     assert_eq!(
         create.body["data"]["delegateAccessTokenCreate"]["shop"],
-        json!({
-            "id": "gid://shopify/Shop/0",
-            "myshopifyDomain": "shopify-draft-proxy.local",
-            "currencyCode": "USD"
-        })
+        json!({})
     );
     assert_eq!(
         create.body["data"]["delegateAccessTokenCreate"]["userErrors"],
@@ -3415,7 +3411,7 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
     assert_eq!(
         destroy.body["data"]["delegateAccessTokenDestroy"],
         json!({
-            "shop": { "id": "gid://shopify/Shop/0" },
+            "shop": {},
             "status": true,
             "userErrors": []
         })
@@ -3436,7 +3432,7 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
     assert_eq!(
         repeat.body["data"]["delegateAccessTokenDestroy"],
         json!({
-            "shop": { "id": "gid://shopify/Shop/0" },
+            "shop": {},
             "status": false,
             "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
         })

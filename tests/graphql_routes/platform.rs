@@ -355,6 +355,100 @@ fn domain_id_resolves_after_live_hybrid_shop_hydration() {
 }
 
 #[test]
+fn dump_restore_round_trips_hydrated_shop_identity() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "shop": {
+                        "id": "gid://shopify/Shop/live-round-trip",
+                        "name": "Restored live shop",
+                        "myshopifyDomain": "restored-live.myshopify.com",
+                        "primaryDomain": {
+                            "id": "gid://shopify/Domain/444555666",
+                            "host": "restored-live.example",
+                            "url": "https://restored-live.example",
+                            "sslEnabled": true
+                        },
+                        "currencyCode": "EUR"
+                    }
+                }
+            }),
+        });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateShopForDumpRestore {
+          shop {
+            id
+            name
+            myshopifyDomain
+            primaryDomain { id host url sslEnabled }
+            currencyCode
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(hydrate.status, 200);
+    assert_eq!(
+        hydrate.body["data"]["shop"]["id"],
+        json!("gid://shopify/Shop/live-round-trip")
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["baseState"]["shop"]["primaryDomain"]["id"],
+        json!("gid://shopify/Domain/444555666")
+    );
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let restored_shop = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredHydratedShop {
+          shop {
+            id
+            name
+            myshopifyDomain
+            primaryDomain { id host url sslEnabled }
+            currencyCode
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(restored_shop.status, 200);
+    assert_eq!(
+        restored_shop.body["data"]["shop"],
+        hydrate.body["data"]["shop"]
+    );
+
+    let restored_domain = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredHydratedDomain($id: ID!) {
+          domain(id: $id) { id host url sslEnabled }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Domain/444555666" }),
+    ));
+    assert_eq!(restored_domain.status, 200);
+    assert_eq!(
+        restored_domain.body["data"]["domain"]["host"],
+        json!("restored-live.example")
+    );
+}
+
+#[test]
 fn domain_id_live_hybrid_forwards_cold_domain_reads() {
     let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_calls = Arc::clone(&upstream_calls);
@@ -405,7 +499,7 @@ fn domain_id_live_hybrid_forwards_cold_domain_reads() {
 }
 
 #[test]
-fn cold_snapshot_shop_baseline_uses_neutral_identity() {
+fn cold_snapshot_shop_baseline_leaves_identity_absent() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -423,21 +517,7 @@ fn cold_snapshot_shop_baseline_uses_neutral_identity() {
     ));
 
     assert_eq!(response.status, 200);
-    assert_eq!(
-        response.body["data"]["shop"],
-        json!({
-            "id": "gid://shopify/Shop/0",
-            "name": "Shopify Draft Proxy",
-            "myshopifyDomain": "shopify-draft-proxy.local",
-            "primaryDomain": {
-                "id": "gid://shopify/Domain/1000",
-                "host": "shopify-draft-proxy.local",
-                "url": "https://shopify-draft-proxy.local",
-                "sslEnabled": true
-            },
-            "currencyCode": "USD"
-        })
-    );
+    assert_eq!(response.body["data"]["shop"], json!({}));
 }
 
 #[test]
