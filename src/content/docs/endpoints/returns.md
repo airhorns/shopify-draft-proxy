@@ -39,9 +39,9 @@ Local staged mutations:
   shipping fee, and reverse-fulfillment-order references for returned quantities. The original raw mutation is retained
   in the meta log for explicit commit replay.
 - `returnRequest` stages the same order-backed shape with status `REQUESTED` and uses the same already-returned quantity
-  cap as `returnCreate`. When `notifyCustomer: true` is supplied, the proxy validates the hidden
-  `tmp_notify_customer.email_address` input with the shared basic email guard but does not send notification side
-  effects.
+  cap as `returnCreate`. Public `notifyCustomer` input is accepted, but the public Admin schema does not expose the
+  non-public `tmp_notify_customer` payload; variable-bound requests that include it fail with top-level
+  `INVALID_VARIABLE` before local staging. The proxy does not send notification side effects.
 - `returnCreate` / `returnRequest` validate return-line reasons before order hydration, return staging, or mutation-log
   append. Public 2026-04 capture shows root-specific missing-reason shapes: `returnCreate` returns `NOT_FOUND` on
   `["returnInput", "returnLineItems", "0"]`, while `returnRequest` returns `BLANK` on
@@ -54,14 +54,16 @@ Local staged mutations:
   longer `REQUESTED` returns `INVALID_STATE` on `["input", "id"]` with Shopify's rendered
   `Return is not approvable. Only returns with status REQUESTED can be approved.` message, does not change the return,
   and does not create additional reverse fulfillment order work. Unknown Return IDs return `NOT_FOUND` on
-  `["input", "id"]` with `Return not found.` When `notifyCustomer: true` is supplied, the proxy validates
-  `tmp_notify_customer.email_address` with the shared basic email guard but does not send notification side effects.
+  `["input", "id"]` with `Return not found.` Public `notifyCustomer` input is accepted, while non-public
+  `tmp_notify_customer` payloads are rejected by public-schema input validation before the handler runs. The proxy does
+  not send notification side effects.
 - `returnDeclineRequest` transitions a local `REQUESTED` return to `DECLINED` and stores the selected decline reason/note.
-  Decline reasons are canonicalized to Shopify enum casing and must be `RETURN_PERIOD_ENDED`, `FINAL_SALE`, or `OTHER`;
-  unknown values return `INVALID` on `["declineReason"]` with Shopify-like enum deserialization wording. Decline notes
-  longer than 500 characters return `TOO_LONG` on `["input", "declineNote"]`. When `notifyCustomer: true` is supplied,
-  the proxy validates `tmp_notify_customer.email_address` with the shared basic email guard but does not send
-  notification side effects.
+  Variable-bound decline reasons must be public `ReturnDeclineReason` enum values (`RETURN_PERIOD_ENDED`, `FINAL_SALE`,
+  or `OTHER`); out-of-set values fail public GraphQL variable coercion with top-level `INVALID_VARIABLE` errors and no
+  `data` payload before local staging. Decline notes longer than 500 characters return `TOO_LONG` on
+  `["input", "declineNote"]`. Public `notifyCustomer` input is accepted, while non-public `tmp_notify_customer`
+  payloads are rejected by public-schema input validation before the handler runs. The proxy does not send notification
+  side effects.
   Declining a non-`REQUESTED` return returns `INVALID_STATE` on `["input", "id"]` with Shopify's rendered
   `Return is not declinable. Only non-refunded returns with status REQUESTED can be declined.` message and leaves local
   return state unchanged. Declining an already `DECLINED` return returns `INVALID_STATE` with
@@ -108,10 +110,10 @@ Local staged mutations:
   covers empty `reverseFulfillmentOrderDispose` inputs, custom-line `RESTOCKED` rejection, multiple reverse fulfillment
   order rejection, valid `NOT_RESTOCKED` disposal, and downstream disposition readback. Unknown-line and over-disposal
   guardrails remain covered by focused runtime tests because the public custom-line capture did not reject those probes.
-- `return-request-decline-local-staging` also covers invalid `returnDeclineRequest` decline reasons and invalid
-  `tmp_notify_customer.email_address` notification payloads against the local runtime staging fixture. Public Admin
-  GraphQL evidence for the exposed `ReturnDeclineReason` enum and the current public-schema `tmp_notify_customer`
-  boundary is recorded separately in `return-decline-request-validation.json`.
+- `return-decline-request-validation` covers public-schema `returnDeclineRequest` validation for invalid
+  `ReturnDeclineReason` variables and non-public `tmp_notify_customer` payloads, comparing proxy responses against the
+  live `return-decline-request-validation.json` fixture. `return-request-decline-local-staging` covers successful
+  request-to-decline local staging and downstream state.
 - Executable local-runtime parity covers return quantity validation:
   `config/parity-specs/orders/returnRequest-quantity-cap.json` hydrates an order with an existing `OPEN` return consuming
   part of the fulfilled quantity and verifies over-cap `returnRequest` and `returnCreate` calls return a quantity userError
