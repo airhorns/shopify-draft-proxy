@@ -624,7 +624,7 @@ impl DraftProxy {
                     "__typename": "ProductFullSyncPayload",
                     "id": null,
                     "job": null,
-                    "userErrors": [user_error(["id"], "ProductFeed does not exist", Some("NOT_FOUND"))]
+                    "userErrors": [user_error(["id"], "ProductFeed does not exist", None)]
                 }),
                 Vec::new(),
                 "failed",
@@ -786,7 +786,7 @@ fn product_tail_invalid_enum_response(
         "bulkProductResourceFeedbackCreate" if product_feedback_state_invalid_literal(field) => {
             Some(ok_json(json!({
                 "errors": [{
-                    "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
+                    "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState!'.",
                     "extensions": {
                         "code": "argumentLiteralsIncompatible",
                         "typeName": "InputObject",
@@ -798,7 +798,7 @@ fn product_tail_invalid_enum_response(
         "shopResourceFeedbackCreate" if shop_feedback_state_invalid_literal(field) => {
             Some(ok_json(json!({
                 "errors": [{
-                    "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
+                    "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState!'.",
                     "extensions": {
                         "code": "argumentLiteralsIncompatible",
                         "typeName": "InputObject",

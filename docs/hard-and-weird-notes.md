@@ -313,17 +313,17 @@ require validation before staging: blank group ID lists, duplicate IDs within on
 request, too many post-join memberships, and leave requests for groups that are
 not direct members should all return payload `userErrors` without changing local
 membership state. The local runtime models that guard contract and covers it with
-`config/parity-specs/products/productJoinLeaveSellingPlanGroups-validation.json`
-plus focused product mutation tests.
+focused product mutation tests, but no checked-in products parity fixture is
+retained for those divergent local-only branches.
 
 A live public Admin probe against `harry-test-heelo.myshopify.com` on 2025-01,
 2026-04, and `unstable` did not expose the same branches: duplicate joins,
 leave-non-member requests, and 32-group joins returned empty `userErrors`, and
 the public `SellingPlanGroupUserErrorCode` enum lacked `DUPLICATE`,
-`NOT_A_MEMBER`, and `SELLING_PLAN_GROUPS_TOO_MANY`. Treat the checked-in
-local-runtime parity fixture as the current internal guardrail contract, and
-re-capture against a target that reproduces the internal package behavior before
-changing those codes/messages or replacing the fixture with live evidence.
+`NOT_A_MEMBER`, and `SELLING_PLAN_GROUPS_TOO_MANY`. Treat the Rust integration
+coverage as the current internal guardrail contract, and re-capture against a
+target that reproduces the internal package behavior before changing those
+codes/messages or adding parity evidence.
 
 ## Current: Selling-plan group lower-bound validation is create-specific, but update deletes can still reject the final plan
 

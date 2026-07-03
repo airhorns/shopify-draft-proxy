@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-06-23T00:29:35.901Z",
+  "capturedAt": "2026-07-02T23:41:03.911Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "adminOrigin": "https://harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
@@ -10,8 +10,8 @@
           "query": "mutation FulfillmentCreatePreconditionsOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors { field message }\n  }\n}",
           "variables": {
             "order": {
-              "email": "fulfillment-create-preconditions-cancelled-1782174561741@example.com",
-              "note": "fulfillmentCreate preconditions cancelled 1782174561741",
+              "email": "fulfillment-create-preconditions-cancelled-1783035559545@example.com",
+              "note": "fulfillmentCreate preconditions cancelled 1783035559545",
               "tags": ["parity-probe", "fulfillment-create-preconditions"],
               "test": true,
               "lineItems": [
@@ -26,7 +26,7 @@
                   },
                   "requiresShipping": true,
                   "taxable": false,
-                  "sku": "FULFILLMENT-CREATE-PRECONDITIONS-cancelled-1782174561741"
+                  "sku": "FULFILLMENT-CREATE-PRECONDITIONS-cancelled-1783035559545"
                 }
               ],
               "transactions": [
@@ -51,35 +51,35 @@
             "data": {
               "orderCreate": {
                 "order": {
-                  "id": "gid://shopify/Order/8838116442418",
-                  "name": "#1515",
-                  "email": "fulfillment-create-preconditions-cancelled-1782174561741@example.com",
+                  "id": "gid://shopify/Order/8887505649970",
+                  "name": "#1671",
+                  "email": "fulfillment-create-preconditions-cancelled-1783035559545@example.com",
                   "phone": null,
-                  "createdAt": "2026-06-23T00:29:22Z",
-                  "updatedAt": "2026-06-23T00:29:22Z",
+                  "createdAt": "2026-07-02T23:39:19Z",
+                  "updatedAt": "2026-07-02T23:39:19Z",
                   "closed": false,
                   "closedAt": null,
                   "cancelledAt": null,
                   "cancelReason": null,
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
-                  "note": "fulfillmentCreate preconditions cancelled 1782174561741",
+                  "note": "fulfillmentCreate preconditions cancelled 1783035559545",
                   "tags": ["fulfillment-create-preconditions", "parity-probe"],
                   "fulfillments": [],
                   "fulfillmentOrders": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentOrder/9774471971122",
+                        "id": "gid://shopify/FulfillmentOrder/9825095713074",
                         "status": "OPEN",
                         "requestStatus": "UNSUBMITTED",
                         "lineItems": {
                           "nodes": [
                             {
-                              "id": "gid://shopify/FulfillmentOrderLineItem/19663785558322",
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19872514670898",
                               "totalQuantity": 1,
                               "remainingQuantity": 1,
                               "lineItem": {
-                                "id": "gid://shopify/LineItem/19495376388402",
+                                "id": "gid://shopify/LineItem/19702865133874",
                                 "title": "fulfillmentCreate preconditions cancelled",
                                 "quantity": 1,
                                 "fulfillableQuantity": 1
@@ -110,7 +110,7 @@
         "orderCancel": {
           "query": "mutation FulfillmentCreatePreconditionsOrderCancel(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean!\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job { id done }\n    orderCancelUserErrors { field message code }\n    userErrors { field message }\n  }\n}",
           "variables": {
-            "orderId": "gid://shopify/Order/8838116442418",
+            "orderId": "gid://shopify/Order/8887505649970",
             "reason": "OTHER",
             "notifyCustomer": false,
             "restock": true
@@ -120,7 +120,7 @@
             "data": {
               "orderCancel": {
                 "job": {
-                  "id": "gid://shopify/Job/c37a893a-bd9e-4344-9d30-df7a120691c0",
+                  "id": "gid://shopify/Job/3b05d148-76aa-44ab-bdca-2a9b3a5965e5",
                   "done": false
                 },
                 "orderCancelUserErrors": [],
@@ -143,43 +143,43 @@
         "hydrate": {
           "query": "query OrdersFulfillmentOrderHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
           "variables": {
-            "id": "gid://shopify/FulfillmentOrder/9774471971122"
+            "id": "gid://shopify/FulfillmentOrder/9825095713074"
           },
           "status": 200,
           "response": {
             "data": {
               "fulfillmentOrder": {
-                "id": "gid://shopify/FulfillmentOrder/9774471971122",
+                "id": "gid://shopify/FulfillmentOrder/9825095713074",
                 "order": {
-                  "id": "gid://shopify/Order/8838116442418",
-                  "name": "#1515",
-                  "email": "fulfillment-create-preconditions-cancelled-1782174561741@example.com",
+                  "id": "gid://shopify/Order/8887505649970",
+                  "name": "#1671",
+                  "email": "fulfillment-create-preconditions-cancelled-1783035559545@example.com",
                   "phone": null,
-                  "createdAt": "2026-06-23T00:29:22Z",
-                  "updatedAt": "2026-06-23T00:29:27Z",
+                  "createdAt": "2026-07-02T23:39:19Z",
+                  "updatedAt": "2026-07-02T23:40:55Z",
                   "closed": false,
                   "closedAt": null,
-                  "cancelledAt": "2026-06-23T00:29:27Z",
+                  "cancelledAt": "2026-07-02T23:40:55Z",
                   "cancelReason": "OTHER",
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
-                  "note": "fulfillmentCreate preconditions cancelled 1782174561741",
+                  "note": "fulfillmentCreate preconditions cancelled 1783035559545",
                   "tags": ["fulfillment-create-preconditions", "parity-probe"],
                   "fulfillments": [],
                   "fulfillmentOrders": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentOrder/9774471971122",
+                        "id": "gid://shopify/FulfillmentOrder/9825095713074",
                         "status": "CLOSED",
                         "requestStatus": "UNSUBMITTED",
                         "lineItems": {
                           "nodes": [
                             {
-                              "id": "gid://shopify/FulfillmentOrderLineItem/19663785558322",
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19872514670898",
                               "totalQuantity": 1,
                               "remainingQuantity": 1,
                               "lineItem": {
-                                "id": "gid://shopify/LineItem/19495376388402",
+                                "id": "gid://shopify/LineItem/19702865133874",
                                 "title": "fulfillmentCreate preconditions cancelled",
                                 "quantity": 1,
                                 "fulfillableQuantity": 1
@@ -211,13 +211,13 @@
         "fulfillment": {
           "notifyCustomer": false,
           "trackingInfo": {
-            "number": "FCP-CANCELLED-1782174561741",
-            "url": "https://example.com/track/FCP-CANCELLED-1782174561741",
+            "number": "FCP-CANCELLED-1783035559545",
+            "url": "https://example.com/track/FCP-CANCELLED-1783035559545",
             "company": "Hermes"
           },
           "lineItemsByFulfillmentOrder": [
             {
-              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9774471971122"
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9825095713074"
             }
           ]
         },
@@ -230,7 +230,7 @@
             "userErrors": [
               {
                 "field": ["fulfillment"],
-                "message": "Fulfillment order 9774471971122 has an unfulfillable status= closed."
+                "message": "Fulfillment order 9825095713074 has an unfulfillable status= closed."
               }
             ]
           }
@@ -248,19 +248,19 @@
         }
       }
     },
-    "overFulfill": {
+    "nonPositiveQuantity": {
       "setup": {
         "orderCreate": {
           "query": "mutation FulfillmentCreatePreconditionsOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors { field message }\n  }\n}",
           "variables": {
             "order": {
-              "email": "fulfillment-create-preconditions-over-1782174561741@example.com",
-              "note": "fulfillmentCreate preconditions over 1782174561741",
+              "email": "fulfillment-create-preconditions-non-positive-1783035559545@example.com",
+              "note": "fulfillmentCreate preconditions non-positive 1783035559545",
               "tags": ["parity-probe", "fulfillment-create-preconditions"],
               "test": true,
               "lineItems": [
                 {
-                  "title": "fulfillmentCreate preconditions over",
+                  "title": "fulfillmentCreate preconditions non-positive",
                   "quantity": 1,
                   "priceSet": {
                     "shopMoney": {
@@ -270,7 +270,7 @@
                   },
                   "requiresShipping": true,
                   "taxable": false,
-                  "sku": "FULFILLMENT-CREATE-PRECONDITIONS-over-1782174561741"
+                  "sku": "FULFILLMENT-CREATE-PRECONDITIONS-non-positive-1783035559545"
                 }
               ],
               "transactions": [
@@ -295,35 +295,483 @@
             "data": {
               "orderCreate": {
                 "order": {
-                  "id": "gid://shopify/Order/8838116507954",
-                  "name": "#1516",
-                  "email": "fulfillment-create-preconditions-over-1782174561741@example.com",
+                  "id": "gid://shopify/Order/8887505682738",
+                  "name": "#1672",
+                  "email": "fulfillment-create-preconditions-non-positive-1783035559545@example.com",
                   "phone": null,
-                  "createdAt": "2026-06-23T00:29:23Z",
-                  "updatedAt": "2026-06-23T00:29:23Z",
+                  "createdAt": "2026-07-02T23:39:20Z",
+                  "updatedAt": "2026-07-02T23:39:20Z",
                   "closed": false,
                   "closedAt": null,
                   "cancelledAt": null,
                   "cancelReason": null,
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
-                  "note": "fulfillmentCreate preconditions over 1782174561741",
+                  "note": "fulfillmentCreate preconditions non-positive 1783035559545",
                   "tags": ["fulfillment-create-preconditions", "parity-probe"],
                   "fulfillments": [],
                   "fulfillmentOrders": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentOrder/9774472003890",
+                        "id": "gid://shopify/FulfillmentOrder/9825095811378",
                         "status": "OPEN",
                         "requestStatus": "UNSUBMITTED",
                         "lineItems": {
                           "nodes": [
                             {
-                              "id": "gid://shopify/FulfillmentOrderLineItem/19663785591090",
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19872514834738",
                               "totalQuantity": 1,
                               "remainingQuantity": 1,
                               "lineItem": {
-                                "id": "gid://shopify/LineItem/19495376453938",
+                                "id": "gid://shopify/LineItem/19702865297714",
+                                "title": "fulfillmentCreate preconditions non-positive",
+                                "quantity": 1,
+                                "fulfillableQuantity": 1
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 58,
+                "actualQueryCost": 16,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1984,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "hydrate": {
+          "query": "query OrdersFulfillmentOrderHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
+          "variables": {
+            "id": "gid://shopify/FulfillmentOrder/9825095811378"
+          },
+          "status": 200,
+          "response": {
+            "data": {
+              "fulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9825095811378",
+                "order": {
+                  "id": "gid://shopify/Order/8887505682738",
+                  "name": "#1672",
+                  "email": "fulfillment-create-preconditions-non-positive-1783035559545@example.com",
+                  "phone": null,
+                  "createdAt": "2026-07-02T23:39:20Z",
+                  "updatedAt": "2026-07-02T23:39:21Z",
+                  "closed": false,
+                  "closedAt": null,
+                  "cancelledAt": null,
+                  "cancelReason": null,
+                  "displayFinancialStatus": "PAID",
+                  "displayFulfillmentStatus": "UNFULFILLED",
+                  "note": "fulfillmentCreate preconditions non-positive 1783035559545",
+                  "tags": ["fulfillment-create-preconditions", "parity-probe"],
+                  "fulfillments": [],
+                  "fulfillmentOrders": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrder/9825095811378",
+                        "status": "OPEN",
+                        "requestStatus": "UNSUBMITTED",
+                        "lineItems": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19872514834738",
+                              "totalQuantity": 1,
+                              "remainingQuantity": 1,
+                              "lineItem": {
+                                "id": "gid://shopify/LineItem/19702865297714",
+                                "title": "fulfillmentCreate preconditions non-positive",
+                                "quantity": 1,
+                                "fulfillableQuantity": 1
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 50,
+                "actualQueryCost": 8,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1992,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "FCP-NON-POSITIVE-1783035559545",
+            "url": "https://example.com/track/FCP-NON-POSITIVE-1783035559545",
+            "company": "Hermes"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9825095811378",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/19872514834738",
+                  "quantity": 0
+                }
+              ]
+            }
+          ]
+        },
+        "message": "fulfillmentCreate non-positive quantity precondition"
+      },
+      "response": {
+        "data": {
+          "fulfillmentCreate": {
+            "fulfillment": null,
+            "userErrors": [
+              {
+                "field": [
+                  "fulfillment",
+                  "lineItemsByFulfillmentOrder",
+                  "0",
+                  "fulfillmentOrderLineItems",
+                  "0",
+                  "quantity"
+                ],
+                "message": "Quantity must be greater than 0"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "nonPositiveQuantityV2": {
+      "setup": {
+        "orderCreate": {
+          "query": "mutation FulfillmentCreatePreconditionsOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors { field message }\n  }\n}",
+          "variables": {
+            "order": {
+              "email": "fulfillment-create-preconditions-non-positive-v2-1783035559545@example.com",
+              "note": "fulfillmentCreate preconditions non-positive-v2 1783035559545",
+              "tags": ["parity-probe", "fulfillment-create-preconditions"],
+              "test": true,
+              "lineItems": [
+                {
+                  "title": "fulfillmentCreate preconditions non-positive-v2",
+                  "quantity": 1,
+                  "priceSet": {
+                    "shopMoney": {
+                      "amount": "10.00",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "requiresShipping": true,
+                  "taxable": false,
+                  "sku": "FULFILLMENT-CREATE-PRECONDITIONS-non-positive-v2-1783035559545"
+                }
+              ],
+              "transactions": [
+                {
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "test": true,
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "10.00",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "options": null
+          },
+          "status": 200,
+          "response": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8887505715506",
+                  "name": "#1673",
+                  "email": "fulfillment-create-preconditions-non-positive-v2-1783035559545@example.com",
+                  "phone": null,
+                  "createdAt": "2026-07-02T23:39:21Z",
+                  "updatedAt": "2026-07-02T23:39:21Z",
+                  "closed": false,
+                  "closedAt": null,
+                  "cancelledAt": null,
+                  "cancelReason": null,
+                  "displayFinancialStatus": "PAID",
+                  "displayFulfillmentStatus": "UNFULFILLED",
+                  "note": "fulfillmentCreate preconditions non-positive-v2 1783035559545",
+                  "tags": ["fulfillment-create-preconditions", "parity-probe"],
+                  "fulfillments": [],
+                  "fulfillmentOrders": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrder/9825095844146",
+                        "status": "OPEN",
+                        "requestStatus": "UNSUBMITTED",
+                        "lineItems": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19872514867506",
+                              "totalQuantity": 1,
+                              "remainingQuantity": 1,
+                              "lineItem": {
+                                "id": "gid://shopify/LineItem/19702865330482",
+                                "title": "fulfillmentCreate preconditions non-positive-v2",
+                                "quantity": 1,
+                                "fulfillableQuantity": 1
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 58,
+                "actualQueryCost": 16,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1984,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        },
+        "hydrate": {
+          "query": "query OrdersFulfillmentOrderHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
+          "variables": {
+            "id": "gid://shopify/FulfillmentOrder/9825095844146"
+          },
+          "status": 200,
+          "response": {
+            "data": {
+              "fulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9825095844146",
+                "order": {
+                  "id": "gid://shopify/Order/8887505715506",
+                  "name": "#1673",
+                  "email": "fulfillment-create-preconditions-non-positive-v2-1783035559545@example.com",
+                  "phone": null,
+                  "createdAt": "2026-07-02T23:39:21Z",
+                  "updatedAt": "2026-07-02T23:39:21Z",
+                  "closed": false,
+                  "closedAt": null,
+                  "cancelledAt": null,
+                  "cancelReason": null,
+                  "displayFinancialStatus": "PAID",
+                  "displayFulfillmentStatus": "UNFULFILLED",
+                  "note": "fulfillmentCreate preconditions non-positive-v2 1783035559545",
+                  "tags": ["fulfillment-create-preconditions", "parity-probe"],
+                  "fulfillments": [],
+                  "fulfillmentOrders": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrder/9825095844146",
+                        "status": "OPEN",
+                        "requestStatus": "UNSUBMITTED",
+                        "lineItems": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19872514867506",
+                              "totalQuantity": 1,
+                              "remainingQuantity": 1,
+                              "lineItem": {
+                                "id": "gid://shopify/LineItem/19702865330482",
+                                "title": "fulfillmentCreate preconditions non-positive-v2",
+                                "quantity": 1,
+                                "fulfillableQuantity": 1
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 50,
+                "actualQueryCost": 8,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1991,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "FCP-V2-NON-POSITIVE-1783035559545",
+            "url": "https://example.com/track/FCP-V2-NON-POSITIVE-1783035559545",
+            "company": "Hermes"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9825095844146",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/19872514867506",
+                  "quantity": 0
+                }
+              ]
+            }
+          ]
+        },
+        "message": "fulfillmentCreateV2 non-positive quantity precondition"
+      },
+      "response": {
+        "data": {
+          "fulfillmentCreateV2": {
+            "fulfillment": null,
+            "userErrors": [
+              {
+                "field": [
+                  "fulfillment",
+                  "lineItemsByFulfillmentOrder",
+                  "0",
+                  "fulfillmentOrderLineItems",
+                  "0",
+                  "quantity"
+                ],
+                "message": "Quantity must be greater than 0"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "overFulfill": {
+      "setup": {
+        "orderCreate": {
+          "query": "mutation FulfillmentCreatePreconditionsOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors { field message }\n  }\n}",
+          "variables": {
+            "order": {
+              "email": "fulfillment-create-preconditions-over-1783035559545@example.com",
+              "note": "fulfillmentCreate preconditions over 1783035559545",
+              "tags": ["parity-probe", "fulfillment-create-preconditions"],
+              "test": true,
+              "lineItems": [
+                {
+                  "title": "fulfillmentCreate preconditions over",
+                  "quantity": 1,
+                  "priceSet": {
+                    "shopMoney": {
+                      "amount": "10.00",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "requiresShipping": true,
+                  "taxable": false,
+                  "sku": "FULFILLMENT-CREATE-PRECONDITIONS-over-1783035559545"
+                }
+              ],
+              "transactions": [
+                {
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "test": true,
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "10.00",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "options": null
+          },
+          "status": 200,
+          "response": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8887505748274",
+                  "name": "#1674",
+                  "email": "fulfillment-create-preconditions-over-1783035559545@example.com",
+                  "phone": null,
+                  "createdAt": "2026-07-02T23:39:22Z",
+                  "updatedAt": "2026-07-02T23:39:22Z",
+                  "closed": false,
+                  "closedAt": null,
+                  "cancelledAt": null,
+                  "cancelReason": null,
+                  "displayFinancialStatus": "PAID",
+                  "displayFulfillmentStatus": "UNFULFILLED",
+                  "note": "fulfillmentCreate preconditions over 1783035559545",
+                  "tags": ["fulfillment-create-preconditions", "parity-probe"],
+                  "fulfillments": [],
+                  "fulfillmentOrders": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrder/9825095876914",
+                        "status": "OPEN",
+                        "requestStatus": "UNSUBMITTED",
+                        "lineItems": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19872514900274",
+                              "totalQuantity": 1,
+                              "remainingQuantity": 1,
+                              "lineItem": {
+                                "id": "gid://shopify/LineItem/19702865363250",
                                 "title": "fulfillmentCreate preconditions over",
                                 "quantity": 1,
                                 "fulfillableQuantity": 1
@@ -354,43 +802,43 @@
         "hydrate": {
           "query": "query OrdersFulfillmentOrderHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
           "variables": {
-            "id": "gid://shopify/FulfillmentOrder/9774472003890"
+            "id": "gid://shopify/FulfillmentOrder/9825095876914"
           },
           "status": 200,
           "response": {
             "data": {
               "fulfillmentOrder": {
-                "id": "gid://shopify/FulfillmentOrder/9774472003890",
+                "id": "gid://shopify/FulfillmentOrder/9825095876914",
                 "order": {
-                  "id": "gid://shopify/Order/8838116507954",
-                  "name": "#1516",
-                  "email": "fulfillment-create-preconditions-over-1782174561741@example.com",
+                  "id": "gid://shopify/Order/8887505748274",
+                  "name": "#1674",
+                  "email": "fulfillment-create-preconditions-over-1783035559545@example.com",
                   "phone": null,
-                  "createdAt": "2026-06-23T00:29:23Z",
-                  "updatedAt": "2026-06-23T00:29:23Z",
+                  "createdAt": "2026-07-02T23:39:22Z",
+                  "updatedAt": "2026-07-02T23:39:22Z",
                   "closed": false,
                   "closedAt": null,
                   "cancelledAt": null,
                   "cancelReason": null,
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
-                  "note": "fulfillmentCreate preconditions over 1782174561741",
+                  "note": "fulfillmentCreate preconditions over 1783035559545",
                   "tags": ["fulfillment-create-preconditions", "parity-probe"],
                   "fulfillments": [],
                   "fulfillmentOrders": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentOrder/9774472003890",
+                        "id": "gid://shopify/FulfillmentOrder/9825095876914",
                         "status": "OPEN",
                         "requestStatus": "UNSUBMITTED",
                         "lineItems": {
                           "nodes": [
                             {
-                              "id": "gid://shopify/FulfillmentOrderLineItem/19663785591090",
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19872514900274",
                               "totalQuantity": 1,
                               "remainingQuantity": 1,
                               "lineItem": {
-                                "id": "gid://shopify/LineItem/19495376453938",
+                                "id": "gid://shopify/LineItem/19702865363250",
                                 "title": "fulfillmentCreate preconditions over",
                                 "quantity": 1,
                                 "fulfillableQuantity": 1
@@ -422,16 +870,16 @@
         "fulfillment": {
           "notifyCustomer": false,
           "trackingInfo": {
-            "number": "FCP-OVER-1782174561741",
-            "url": "https://example.com/track/FCP-OVER-1782174561741",
+            "number": "FCP-OVER-1783035559545",
+            "url": "https://example.com/track/FCP-OVER-1783035559545",
             "company": "Hermes"
           },
           "lineItemsByFulfillmentOrder": [
             {
-              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9774472003890",
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9825095876914",
               "fulfillmentOrderLineItems": [
                 {
-                  "id": "gid://shopify/FulfillmentOrderLineItem/19663785591090",
+                  "id": "gid://shopify/FulfillmentOrderLineItem/19872514900274",
                   "quantity": 2
                 }
               ]
@@ -465,14 +913,110 @@
         }
       }
     },
+    "missingFulfillmentOrder": {
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "FCP-MISSING-1783035559545",
+            "url": "https://example.com/track/FCP-MISSING-1783035559545",
+            "company": "Hermes"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/999999999",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/999999999",
+                  "quantity": 1
+                }
+              ]
+            }
+          ]
+        },
+        "message": "fulfillmentCreate missing fulfillment order precondition"
+      },
+      "response": {
+        "data": {
+          "fulfillmentCreate": {
+            "fulfillment": null,
+            "userErrors": [
+              {
+                "field": ["fulfillment"],
+                "message": "Fulfillment order does not exist."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "missingFulfillmentOrderV2": {
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "FCP-V2-MISSING-1783035559545",
+            "url": "https://example.com/track/FCP-V2-MISSING-1783035559545",
+            "company": "Hermes"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/999999998",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/999999998",
+                  "quantity": 1
+                }
+              ]
+            }
+          ]
+        },
+        "message": "fulfillmentCreateV2 missing fulfillment order precondition"
+      },
+      "response": {
+        "data": {
+          "fulfillmentCreateV2": {
+            "fulfillment": null,
+            "userErrors": [
+              {
+                "field": ["fulfillment"],
+                "message": "Fulfillment order does not exist."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
     "closed": {
       "setup": {
         "orderCreate": {
           "query": "mutation FulfillmentCreatePreconditionsOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors { field message }\n  }\n}",
           "variables": {
             "order": {
-              "email": "fulfillment-create-preconditions-closed-1782174561741@example.com",
-              "note": "fulfillmentCreate preconditions closed 1782174561741",
+              "email": "fulfillment-create-preconditions-closed-1783035559545@example.com",
+              "note": "fulfillmentCreate preconditions closed 1783035559545",
               "tags": ["parity-probe", "fulfillment-create-preconditions"],
               "test": true,
               "lineItems": [
@@ -487,7 +1031,7 @@
                   },
                   "requiresShipping": true,
                   "taxable": false,
-                  "sku": "FULFILLMENT-CREATE-PRECONDITIONS-closed-1782174561741"
+                  "sku": "FULFILLMENT-CREATE-PRECONDITIONS-closed-1783035559545"
                 }
               ],
               "transactions": [
@@ -512,35 +1056,35 @@
             "data": {
               "orderCreate": {
                 "order": {
-                  "id": "gid://shopify/Order/8838116540722",
-                  "name": "#1517",
-                  "email": "fulfillment-create-preconditions-closed-1782174561741@example.com",
+                  "id": "gid://shopify/Order/8887505781042",
+                  "name": "#1675",
+                  "email": "fulfillment-create-preconditions-closed-1783035559545@example.com",
                   "phone": null,
-                  "createdAt": "2026-06-23T00:29:23Z",
-                  "updatedAt": "2026-06-23T00:29:23Z",
+                  "createdAt": "2026-07-02T23:39:22Z",
+                  "updatedAt": "2026-07-02T23:39:22Z",
                   "closed": false,
                   "closedAt": null,
                   "cancelledAt": null,
                   "cancelReason": null,
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
-                  "note": "fulfillmentCreate preconditions closed 1782174561741",
+                  "note": "fulfillmentCreate preconditions closed 1783035559545",
                   "tags": ["fulfillment-create-preconditions", "parity-probe"],
                   "fulfillments": [],
                   "fulfillmentOrders": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentOrder/9774472069426",
+                        "id": "gid://shopify/FulfillmentOrder/9825095909682",
                         "status": "OPEN",
                         "requestStatus": "UNSUBMITTED",
                         "lineItems": {
                           "nodes": [
                             {
-                              "id": "gid://shopify/FulfillmentOrderLineItem/19663785656626",
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19872514933042",
                               "totalQuantity": 1,
                               "remainingQuantity": 1,
                               "lineItem": {
-                                "id": "gid://shopify/LineItem/19495376519474",
+                                "id": "gid://shopify/LineItem/19702865396018",
                                 "title": "fulfillmentCreate preconditions closed",
                                 "quantity": 1,
                                 "fulfillableQuantity": 1
@@ -574,13 +1118,13 @@
             "fulfillment": {
               "notifyCustomer": false,
               "trackingInfo": {
-                "number": "FCP-CLOSED-SETUP-1782174561741",
-                "url": "https://example.com/track/FCP-CLOSED-SETUP-1782174561741",
+                "number": "FCP-CLOSED-SETUP-1783035559545",
+                "url": "https://example.com/track/FCP-CLOSED-SETUP-1783035559545",
                 "company": "Hermes"
               },
               "lineItemsByFulfillmentOrder": [
                 {
-                  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9774472069426"
+                  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9825095909682"
                 }
               ]
             },
@@ -591,23 +1135,23 @@
             "data": {
               "fulfillmentCreate": {
                 "fulfillment": {
-                  "id": "gid://shopify/Fulfillment/7987148128562",
+                  "id": "gid://shopify/Fulfillment/8036708221234",
                   "status": "SUCCESS",
                   "displayStatus": "FULFILLED",
                   "trackingInfo": [
                     {
-                      "number": "FCP-CLOSED-SETUP-1782174561741",
-                      "url": "https://example.com/track/FCP-CLOSED-SETUP-1782174561741",
+                      "number": "FCP-CLOSED-SETUP-1783035559545",
+                      "url": "https://example.com/track/FCP-CLOSED-SETUP-1783035559545",
                       "company": "Hermes"
                     }
                   ],
                   "fulfillmentLineItems": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentLineItem/17274245546290",
+                        "id": "gid://shopify/FulfillmentLineItem/17481200337202",
                         "quantity": 1,
                         "lineItem": {
-                          "id": "gid://shopify/LineItem/19495376519474",
+                          "id": "gid://shopify/LineItem/19702865396018",
                           "title": "fulfillmentCreate preconditions closed"
                         }
                       }
@@ -633,39 +1177,39 @@
         "hydrate": {
           "query": "query OrdersFulfillmentOrderHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
           "variables": {
-            "id": "gid://shopify/FulfillmentOrder/9774472069426"
+            "id": "gid://shopify/FulfillmentOrder/9825095909682"
           },
           "status": 200,
           "response": {
             "data": {
               "fulfillmentOrder": {
-                "id": "gid://shopify/FulfillmentOrder/9774472069426",
+                "id": "gid://shopify/FulfillmentOrder/9825095909682",
                 "order": {
-                  "id": "gid://shopify/Order/8838116540722",
-                  "name": "#1517",
-                  "email": "fulfillment-create-preconditions-closed-1782174561741@example.com",
+                  "id": "gid://shopify/Order/8887505781042",
+                  "name": "#1675",
+                  "email": "fulfillment-create-preconditions-closed-1783035559545@example.com",
                   "phone": null,
-                  "createdAt": "2026-06-23T00:29:23Z",
-                  "updatedAt": "2026-06-23T00:29:29Z",
-                  "closed": true,
-                  "closedAt": "2026-06-23T00:29:29Z",
+                  "createdAt": "2026-07-02T23:39:22Z",
+                  "updatedAt": "2026-07-02T23:40:58Z",
+                  "closed": false,
+                  "closedAt": null,
                   "cancelledAt": null,
                   "cancelReason": null,
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "FULFILLED",
-                  "note": "fulfillmentCreate preconditions closed 1782174561741",
+                  "note": "fulfillmentCreate preconditions closed 1783035559545",
                   "tags": ["fulfillment-create-preconditions", "parity-probe"],
                   "fulfillments": [
                     {
-                      "id": "gid://shopify/Fulfillment/7987148128562",
+                      "id": "gid://shopify/Fulfillment/8036708221234",
                       "status": "SUCCESS",
                       "displayStatus": "FULFILLED",
-                      "createdAt": "2026-06-23T00:29:29Z",
-                      "updatedAt": "2026-06-23T00:29:29Z",
+                      "createdAt": "2026-07-02T23:40:58Z",
+                      "updatedAt": "2026-07-02T23:40:58Z",
                       "trackingInfo": [
                         {
-                          "number": "FCP-CLOSED-SETUP-1782174561741",
-                          "url": "https://example.com/track/FCP-CLOSED-SETUP-1782174561741",
+                          "number": "FCP-CLOSED-SETUP-1783035559545",
+                          "url": "https://example.com/track/FCP-CLOSED-SETUP-1783035559545",
                           "company": "Hermes"
                         }
                       ]
@@ -674,17 +1218,17 @@
                   "fulfillmentOrders": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentOrder/9774472069426",
+                        "id": "gid://shopify/FulfillmentOrder/9825095909682",
                         "status": "CLOSED",
                         "requestStatus": "UNSUBMITTED",
                         "lineItems": {
                           "nodes": [
                             {
-                              "id": "gid://shopify/FulfillmentOrderLineItem/19663785656626",
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19872514933042",
                               "totalQuantity": 1,
                               "remainingQuantity": 0,
                               "lineItem": {
-                                "id": "gid://shopify/LineItem/19495376519474",
+                                "id": "gid://shopify/LineItem/19702865396018",
                                 "title": "fulfillmentCreate preconditions closed",
                                 "quantity": 1,
                                 "fulfillableQuantity": 0
@@ -716,13 +1260,13 @@
         "fulfillment": {
           "notifyCustomer": false,
           "trackingInfo": {
-            "number": "FCP-CLOSED-1782174561741",
-            "url": "https://example.com/track/FCP-CLOSED-1782174561741",
+            "number": "FCP-CLOSED-1783035559545",
+            "url": "https://example.com/track/FCP-CLOSED-1783035559545",
             "company": "Hermes"
           },
           "lineItemsByFulfillmentOrder": [
             {
-              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9774472069426"
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9825095909682"
             }
           ]
         },
@@ -735,7 +1279,7 @@
             "userErrors": [
               {
                 "field": ["fulfillment"],
-                "message": "Fulfillment order 9774472069426 has an unfulfillable status= closed."
+                "message": "Fulfillment order 9825095909682 has an unfulfillable status= closed."
               }
             ]
           }
@@ -746,7 +1290,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1989,
               "restoreRate": 100
             }
           }
@@ -759,8 +1303,8 @@
           "query": "mutation FulfillmentCreatePreconditionsOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors { field message }\n  }\n}",
           "variables": {
             "order": {
-              "email": "fulfillment-create-preconditions-in-progress-1782174561741@example.com",
-              "note": "fulfillmentCreate preconditions in-progress 1782174561741",
+              "email": "fulfillment-create-preconditions-in-progress-1783035559545@example.com",
+              "note": "fulfillmentCreate preconditions in-progress 1783035559545",
               "tags": ["parity-probe", "fulfillment-create-preconditions"],
               "test": true,
               "lineItems": [
@@ -775,7 +1319,7 @@
                   },
                   "requiresShipping": true,
                   "taxable": false,
-                  "sku": "FULFILLMENT-CREATE-PRECONDITIONS-in-progress-1782174561741"
+                  "sku": "FULFILLMENT-CREATE-PRECONDITIONS-in-progress-1783035559545"
                 }
               ],
               "transactions": [
@@ -800,35 +1344,35 @@
             "data": {
               "orderCreate": {
                 "order": {
-                  "id": "gid://shopify/Order/8838116606258",
-                  "name": "#1518",
-                  "email": "fulfillment-create-preconditions-in-progress-1782174561741@example.com",
+                  "id": "gid://shopify/Order/8887507648818",
+                  "name": "#1676",
+                  "email": "fulfillment-create-preconditions-in-progress-1783035559545@example.com",
                   "phone": null,
-                  "createdAt": "2026-06-23T00:29:24Z",
-                  "updatedAt": "2026-06-23T00:29:24Z",
+                  "createdAt": "2026-07-02T23:40:53Z",
+                  "updatedAt": "2026-07-02T23:40:53Z",
                   "closed": false,
                   "closedAt": null,
                   "cancelledAt": null,
                   "cancelReason": null,
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
-                  "note": "fulfillmentCreate preconditions in-progress 1782174561741",
+                  "note": "fulfillmentCreate preconditions in-progress 1783035559545",
                   "tags": ["fulfillment-create-preconditions", "parity-probe"],
                   "fulfillments": [],
                   "fulfillmentOrders": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentOrder/9774472134962",
+                        "id": "gid://shopify/FulfillmentOrder/9825098105138",
                         "status": "OPEN",
                         "requestStatus": "UNSUBMITTED",
                         "lineItems": {
                           "nodes": [
                             {
-                              "id": "gid://shopify/FulfillmentOrderLineItem/19663785722162",
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19872518439218",
                               "totalQuantity": 1,
                               "remainingQuantity": 1,
                               "lineItem": {
-                                "id": "gid://shopify/LineItem/19495376617778",
+                                "id": "gid://shopify/LineItem/19702868934962",
                                 "title": "fulfillmentCreate preconditions in-progress",
                                 "quantity": 1,
                                 "fulfillableQuantity": 1
@@ -859,7 +1403,7 @@
         "reportProgress": {
           "query": "mutation FulfillmentCreatePreconditionsReportProgress(\n  $id: ID!\n  $progressReport: FulfillmentOrderReportProgressInput\n) {\n  fulfillmentOrderReportProgress(id: $id, progressReport: $progressReport) {\n    fulfillmentOrder {\n      id\n      status\n      requestStatus\n      lineItems(first: 5) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n        }\n      }\n    }\n    userErrors { field message }\n  }\n}",
           "variables": {
-            "id": "gid://shopify/FulfillmentOrder/9774472134962",
+            "id": "gid://shopify/FulfillmentOrder/9825098105138",
             "progressReport": {
               "reasonNotes": "fulfillmentCreate preconditions in-progress setup"
             }
@@ -869,13 +1413,13 @@
             "data": {
               "fulfillmentOrderReportProgress": {
                 "fulfillmentOrder": {
-                  "id": "gid://shopify/FulfillmentOrder/9774472134962",
+                  "id": "gid://shopify/FulfillmentOrder/9825098105138",
                   "status": "IN_PROGRESS",
                   "requestStatus": "UNSUBMITTED",
                   "lineItems": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentOrderLineItem/19663785722162",
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19872518439218",
                         "totalQuantity": 1,
                         "remainingQuantity": 1
                       }
@@ -901,43 +1445,43 @@
         "hydrate": {
           "query": "query OrdersFulfillmentOrderHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
           "variables": {
-            "id": "gid://shopify/FulfillmentOrder/9774472134962"
+            "id": "gid://shopify/FulfillmentOrder/9825098105138"
           },
           "status": 200,
           "response": {
             "data": {
               "fulfillmentOrder": {
-                "id": "gid://shopify/FulfillmentOrder/9774472134962",
+                "id": "gid://shopify/FulfillmentOrder/9825098105138",
                 "order": {
-                  "id": "gid://shopify/Order/8838116606258",
-                  "name": "#1518",
-                  "email": "fulfillment-create-preconditions-in-progress-1782174561741@example.com",
+                  "id": "gid://shopify/Order/8887507648818",
+                  "name": "#1676",
+                  "email": "fulfillment-create-preconditions-in-progress-1783035559545@example.com",
                   "phone": null,
-                  "createdAt": "2026-06-23T00:29:24Z",
-                  "updatedAt": "2026-06-23T00:29:30Z",
+                  "createdAt": "2026-07-02T23:40:53Z",
+                  "updatedAt": "2026-07-02T23:40:59Z",
                   "closed": false,
                   "closedAt": null,
                   "cancelledAt": null,
                   "cancelReason": null,
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "IN_PROGRESS",
-                  "note": "fulfillmentCreate preconditions in-progress 1782174561741",
+                  "note": "fulfillmentCreate preconditions in-progress 1783035559545",
                   "tags": ["fulfillment-create-preconditions", "parity-probe"],
                   "fulfillments": [],
                   "fulfillmentOrders": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentOrder/9774472134962",
+                        "id": "gid://shopify/FulfillmentOrder/9825098105138",
                         "status": "IN_PROGRESS",
                         "requestStatus": "UNSUBMITTED",
                         "lineItems": {
                           "nodes": [
                             {
-                              "id": "gid://shopify/FulfillmentOrderLineItem/19663785722162",
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19872518439218",
                               "totalQuantity": 1,
                               "remainingQuantity": 1,
                               "lineItem": {
-                                "id": "gid://shopify/LineItem/19495376617778",
+                                "id": "gid://shopify/LineItem/19702868934962",
                                 "title": "fulfillmentCreate preconditions in-progress",
                                 "quantity": 1,
                                 "fulfillableQuantity": 1
@@ -969,13 +1513,13 @@
         "fulfillment": {
           "notifyCustomer": false,
           "trackingInfo": {
-            "number": "FCP-IN-PROGRESS-1782174561741",
-            "url": "https://example.com/track/FCP-IN-PROGRESS-1782174561741",
+            "number": "FCP-IN-PROGRESS-1783035559545",
+            "url": "https://example.com/track/FCP-IN-PROGRESS-1783035559545",
             "company": "Hermes"
           },
           "lineItemsByFulfillmentOrder": [
             {
-              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9774472134962"
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9825098105138"
             }
           ]
         },
@@ -985,23 +1529,23 @@
         "data": {
           "fulfillmentCreate": {
             "fulfillment": {
-              "id": "gid://shopify/Fulfillment/7987148194098",
+              "id": "gid://shopify/Fulfillment/8036708254002",
               "status": "SUCCESS",
               "displayStatus": "FULFILLED",
               "trackingInfo": [
                 {
-                  "number": "FCP-IN-PROGRESS-1782174561741",
-                  "url": "https://example.com/track/FCP-IN-PROGRESS-1782174561741",
+                  "number": "FCP-IN-PROGRESS-1783035559545",
+                  "url": "https://example.com/track/FCP-IN-PROGRESS-1783035559545",
                   "company": "Hermes"
                 }
               ],
               "fulfillmentLineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/FulfillmentLineItem/17274245611826",
+                    "id": "gid://shopify/FulfillmentLineItem/17481200369970",
                     "quantity": 1,
                     "lineItem": {
-                      "id": "gid://shopify/LineItem/19495376617778",
+                      "id": "gid://shopify/LineItem/19702868934962",
                       "title": "fulfillmentCreate preconditions in-progress"
                     }
                   }
@@ -1030,8 +1574,8 @@
           "query": "mutation FulfillmentCreatePreconditionsOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors { field message }\n  }\n}",
           "variables": {
             "order": {
-              "email": "fulfillment-create-preconditions-happy-1782174561741@example.com",
-              "note": "fulfillmentCreate preconditions happy 1782174561741",
+              "email": "fulfillment-create-preconditions-happy-1783035559545@example.com",
+              "note": "fulfillmentCreate preconditions happy 1783035559545",
               "tags": ["parity-probe", "fulfillment-create-preconditions"],
               "test": true,
               "lineItems": [
@@ -1046,7 +1590,7 @@
                   },
                   "requiresShipping": true,
                   "taxable": false,
-                  "sku": "FULFILLMENT-CREATE-PRECONDITIONS-happy-1782174561741"
+                  "sku": "FULFILLMENT-CREATE-PRECONDITIONS-happy-1783035559545"
                 }
               ],
               "transactions": [
@@ -1071,35 +1615,35 @@
             "data": {
               "orderCreate": {
                 "order": {
-                  "id": "gid://shopify/Order/8838116639026",
-                  "name": "#1519",
-                  "email": "fulfillment-create-preconditions-happy-1782174561741@example.com",
+                  "id": "gid://shopify/Order/8887507681586",
+                  "name": "#1677",
+                  "email": "fulfillment-create-preconditions-happy-1783035559545@example.com",
                   "phone": null,
-                  "createdAt": "2026-06-23T00:29:25Z",
-                  "updatedAt": "2026-06-23T00:29:25Z",
+                  "createdAt": "2026-07-02T23:40:54Z",
+                  "updatedAt": "2026-07-02T23:40:54Z",
                   "closed": false,
                   "closedAt": null,
                   "cancelledAt": null,
                   "cancelReason": null,
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
-                  "note": "fulfillmentCreate preconditions happy 1782174561741",
+                  "note": "fulfillmentCreate preconditions happy 1783035559545",
                   "tags": ["fulfillment-create-preconditions", "parity-probe"],
                   "fulfillments": [],
                   "fulfillmentOrders": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentOrder/9774472200498",
+                        "id": "gid://shopify/FulfillmentOrder/9825098170674",
                         "status": "OPEN",
                         "requestStatus": "UNSUBMITTED",
                         "lineItems": {
                           "nodes": [
                             {
-                              "id": "gid://shopify/FulfillmentOrderLineItem/19663785820466",
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19872518504754",
                               "totalQuantity": 1,
                               "remainingQuantity": 1,
                               "lineItem": {
-                                "id": "gid://shopify/LineItem/19495376650546",
+                                "id": "gid://shopify/LineItem/19702868967730",
                                 "title": "fulfillmentCreate preconditions happy",
                                 "quantity": 1,
                                 "fulfillableQuantity": 1
@@ -1130,43 +1674,43 @@
         "hydrate": {
           "query": "query OrdersFulfillmentOrderHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
           "variables": {
-            "id": "gid://shopify/FulfillmentOrder/9774472200498"
+            "id": "gid://shopify/FulfillmentOrder/9825098170674"
           },
           "status": 200,
           "response": {
             "data": {
               "fulfillmentOrder": {
-                "id": "gid://shopify/FulfillmentOrder/9774472200498",
+                "id": "gid://shopify/FulfillmentOrder/9825098170674",
                 "order": {
-                  "id": "gid://shopify/Order/8838116639026",
-                  "name": "#1519",
-                  "email": "fulfillment-create-preconditions-happy-1782174561741@example.com",
+                  "id": "gid://shopify/Order/8887507681586",
+                  "name": "#1677",
+                  "email": "fulfillment-create-preconditions-happy-1783035559545@example.com",
                   "phone": null,
-                  "createdAt": "2026-06-23T00:29:25Z",
-                  "updatedAt": "2026-06-23T00:29:26Z",
+                  "createdAt": "2026-07-02T23:40:54Z",
+                  "updatedAt": "2026-07-02T23:40:55Z",
                   "closed": false,
                   "closedAt": null,
                   "cancelledAt": null,
                   "cancelReason": null,
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED",
-                  "note": "fulfillmentCreate preconditions happy 1782174561741",
+                  "note": "fulfillmentCreate preconditions happy 1783035559545",
                   "tags": ["fulfillment-create-preconditions", "parity-probe"],
                   "fulfillments": [],
                   "fulfillmentOrders": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentOrder/9774472200498",
+                        "id": "gid://shopify/FulfillmentOrder/9825098170674",
                         "status": "OPEN",
                         "requestStatus": "UNSUBMITTED",
                         "lineItems": {
                           "nodes": [
                             {
-                              "id": "gid://shopify/FulfillmentOrderLineItem/19663785820466",
+                              "id": "gid://shopify/FulfillmentOrderLineItem/19872518504754",
                               "totalQuantity": 1,
                               "remainingQuantity": 1,
                               "lineItem": {
-                                "id": "gid://shopify/LineItem/19495376650546",
+                                "id": "gid://shopify/LineItem/19702868967730",
                                 "title": "fulfillmentCreate preconditions happy",
                                 "quantity": 1,
                                 "fulfillableQuantity": 1
@@ -1198,13 +1742,13 @@
         "fulfillment": {
           "notifyCustomer": false,
           "trackingInfo": {
-            "number": "FCP-HAPPY-1782174561741",
-            "url": "https://example.com/track/FCP-HAPPY-1782174561741",
+            "number": "FCP-HAPPY-1783035559545",
+            "url": "https://example.com/track/FCP-HAPPY-1783035559545",
             "company": "Hermes"
           },
           "lineItemsByFulfillmentOrder": [
             {
-              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9774472200498"
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9825098170674"
             }
           ]
         },
@@ -1214,23 +1758,23 @@
         "data": {
           "fulfillmentCreate": {
             "fulfillment": {
-              "id": "gid://shopify/Fulfillment/7987148259634",
+              "id": "gid://shopify/Fulfillment/8036708286770",
               "status": "SUCCESS",
               "displayStatus": "FULFILLED",
               "trackingInfo": [
                 {
-                  "number": "FCP-HAPPY-1782174561741",
-                  "url": "https://example.com/track/FCP-HAPPY-1782174561741",
+                  "number": "FCP-HAPPY-1783035559545",
+                  "url": "https://example.com/track/FCP-HAPPY-1783035559545",
                   "company": "Hermes"
                 }
               ],
               "fulfillmentLineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/FulfillmentLineItem/17274245677362",
+                    "id": "gid://shopify/FulfillmentLineItem/17481200402738",
                     "quantity": 1,
                     "lineItem": {
-                      "id": "gid://shopify/LineItem/19495376650546",
+                      "id": "gid://shopify/LineItem/19702868967730",
                       "title": "fulfillmentCreate preconditions happy"
                     }
                   }
@@ -1258,7 +1802,7 @@
     {
       "operationName": "ShippingFulfillmentOrderHydrate",
       "variables": {
-        "id": "gid://shopify/FulfillmentOrder/9774471971122"
+        "id": "gid://shopify/FulfillmentOrder/9825095713074"
       },
       "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
       "response": {
@@ -1266,12 +1810,12 @@
         "body": {
           "data": {
             "fulfillmentOrder": {
-              "id": "gid://shopify/FulfillmentOrder/9774471971122",
+              "id": "gid://shopify/FulfillmentOrder/9825095713074",
               "status": "CLOSED",
               "requestStatus": "UNSUBMITTED",
-              "fulfillAt": "2026-06-23T00:00:00Z",
+              "fulfillAt": "2026-07-02T23:00:00Z",
               "fulfillBy": null,
-              "updatedAt": "2026-06-23T00:29:27Z",
+              "updatedAt": "2026-07-02T23:40:55Z",
               "supportedActions": [],
               "assignedLocation": {
                 "name": "Shop location",
@@ -1287,11 +1831,11 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/FulfillmentOrderLineItem/19663785558322",
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19872514670898",
                     "totalQuantity": 1,
                     "remainingQuantity": 1,
                     "lineItem": {
-                      "id": "gid://shopify/LineItem/19495376388402",
+                      "id": "gid://shopify/LineItem/19702865133874",
                       "title": "fulfillmentCreate preconditions cancelled",
                       "quantity": 1,
                       "fulfillableQuantity": 1
@@ -1300,8 +1844,8 @@
                 ]
               },
               "order": {
-                "id": "gid://shopify/Order/8838116442418",
-                "name": "#1515",
+                "id": "gid://shopify/Order/8887505649970",
+                "name": "#1671",
                 "displayFulfillmentStatus": "UNFULFILLED"
               }
             }
@@ -1323,7 +1867,7 @@
     {
       "operationName": "ShippingFulfillmentOrderHydrate",
       "variables": {
-        "id": "gid://shopify/FulfillmentOrder/9774472003890"
+        "id": "gid://shopify/FulfillmentOrder/9825095811378"
       },
       "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
       "response": {
@@ -1331,12 +1875,12 @@
         "body": {
           "data": {
             "fulfillmentOrder": {
-              "id": "gid://shopify/FulfillmentOrder/9774472003890",
+              "id": "gid://shopify/FulfillmentOrder/9825095811378",
               "status": "OPEN",
               "requestStatus": "UNSUBMITTED",
-              "fulfillAt": "2026-06-23T00:00:00Z",
+              "fulfillAt": "2026-07-02T23:00:00Z",
               "fulfillBy": null,
-              "updatedAt": "2026-06-23T00:29:23Z",
+              "updatedAt": "2026-07-02T23:39:21Z",
               "supportedActions": [
                 {
                   "action": "CREATE_FULFILLMENT"
@@ -1365,12 +1909,12 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/FulfillmentOrderLineItem/19663785591090",
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19872514834738",
                     "totalQuantity": 1,
                     "remainingQuantity": 1,
                     "lineItem": {
-                      "id": "gid://shopify/LineItem/19495376453938",
-                      "title": "fulfillmentCreate preconditions over",
+                      "id": "gid://shopify/LineItem/19702865297714",
+                      "title": "fulfillmentCreate preconditions non-positive",
                       "quantity": 1,
                       "fulfillableQuantity": 1
                     }
@@ -1378,8 +1922,8 @@
                 ]
               },
               "order": {
-                "id": "gid://shopify/Order/8838116507954",
-                "name": "#1516",
+                "id": "gid://shopify/Order/8887505682738",
+                "name": "#1672",
                 "displayFulfillmentStatus": "UNFULFILLED"
               }
             }
@@ -1401,7 +1945,7 @@
     {
       "operationName": "ShippingFulfillmentOrderHydrate",
       "variables": {
-        "id": "gid://shopify/FulfillmentOrder/9774472069426"
+        "id": "gid://shopify/FulfillmentOrder/9825095844146"
       },
       "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
       "response": {
@@ -1409,12 +1953,220 @@
         "body": {
           "data": {
             "fulfillmentOrder": {
-              "id": "gid://shopify/FulfillmentOrder/9774472069426",
+              "id": "gid://shopify/FulfillmentOrder/9825095844146",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-02T23:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-02T23:39:21Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Shop location",
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19872514867506",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19702865330482",
+                      "title": "fulfillmentCreate preconditions non-positive-v2",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8887505715506",
+                "name": "#1673",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9825095876914"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9825095876914",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-07-02T23:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-07-02T23:39:22Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Shop location",
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19872514900274",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19702865363250",
+                      "title": "fulfillmentCreate preconditions over",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8887505748274",
+                "name": "#1674",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/999999999"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/999999998"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9825095909682"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9825095909682",
               "status": "CLOSED",
               "requestStatus": "UNSUBMITTED",
-              "fulfillAt": "2026-06-23T00:00:00Z",
+              "fulfillAt": "2026-07-02T23:00:00Z",
               "fulfillBy": null,
-              "updatedAt": "2026-06-23T00:29:29Z",
+              "updatedAt": "2026-07-02T23:40:58Z",
               "supportedActions": [],
               "assignedLocation": {
                 "name": "Shop location",
@@ -1430,11 +2182,11 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/FulfillmentOrderLineItem/19663785656626",
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19872514933042",
                     "totalQuantity": 1,
                     "remainingQuantity": 0,
                     "lineItem": {
-                      "id": "gid://shopify/LineItem/19495376519474",
+                      "id": "gid://shopify/LineItem/19702865396018",
                       "title": "fulfillmentCreate preconditions closed",
                       "quantity": 1,
                       "fulfillableQuantity": 0
@@ -1443,8 +2195,8 @@
                 ]
               },
               "order": {
-                "id": "gid://shopify/Order/8838116540722",
-                "name": "#1517",
+                "id": "gid://shopify/Order/8887505781042",
+                "name": "#1675",
                 "displayFulfillmentStatus": "FULFILLED"
               }
             }
@@ -1466,7 +2218,7 @@
     {
       "operationName": "ShippingFulfillmentOrderHydrate",
       "variables": {
-        "id": "gid://shopify/FulfillmentOrder/9774472134962"
+        "id": "gid://shopify/FulfillmentOrder/9825098105138"
       },
       "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
       "response": {
@@ -1474,12 +2226,12 @@
         "body": {
           "data": {
             "fulfillmentOrder": {
-              "id": "gid://shopify/FulfillmentOrder/9774472134962",
+              "id": "gid://shopify/FulfillmentOrder/9825098105138",
               "status": "IN_PROGRESS",
               "requestStatus": "UNSUBMITTED",
-              "fulfillAt": "2026-06-23T00:00:00Z",
+              "fulfillAt": "2026-07-02T23:00:00Z",
               "fulfillBy": null,
-              "updatedAt": "2026-06-23T00:29:30Z",
+              "updatedAt": "2026-07-02T23:40:59Z",
               "supportedActions": [
                 {
                   "action": "CREATE_FULFILLMENT"
@@ -1508,11 +2260,11 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/FulfillmentOrderLineItem/19663785722162",
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19872518439218",
                     "totalQuantity": 1,
                     "remainingQuantity": 1,
                     "lineItem": {
-                      "id": "gid://shopify/LineItem/19495376617778",
+                      "id": "gid://shopify/LineItem/19702868934962",
                       "title": "fulfillmentCreate preconditions in-progress",
                       "quantity": 1,
                       "fulfillableQuantity": 1
@@ -1521,8 +2273,8 @@
                 ]
               },
               "order": {
-                "id": "gid://shopify/Order/8838116606258",
-                "name": "#1518",
+                "id": "gid://shopify/Order/8887507648818",
+                "name": "#1676",
                 "displayFulfillmentStatus": "IN_PROGRESS"
               }
             }
@@ -1544,7 +2296,7 @@
     {
       "operationName": "ShippingFulfillmentOrderHydrate",
       "variables": {
-        "id": "gid://shopify/FulfillmentOrder/9774472200498"
+        "id": "gid://shopify/FulfillmentOrder/9825098170674"
       },
       "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
       "response": {
@@ -1552,12 +2304,12 @@
         "body": {
           "data": {
             "fulfillmentOrder": {
-              "id": "gid://shopify/FulfillmentOrder/9774472200498",
+              "id": "gid://shopify/FulfillmentOrder/9825098170674",
               "status": "OPEN",
               "requestStatus": "UNSUBMITTED",
-              "fulfillAt": "2026-06-23T00:00:00Z",
+              "fulfillAt": "2026-07-02T23:00:00Z",
               "fulfillBy": null,
-              "updatedAt": "2026-06-23T00:29:26Z",
+              "updatedAt": "2026-07-02T23:40:54Z",
               "supportedActions": [
                 {
                   "action": "CREATE_FULFILLMENT"
@@ -1586,11 +2338,11 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/FulfillmentOrderLineItem/19663785820466",
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19872518504754",
                     "totalQuantity": 1,
                     "remainingQuantity": 1,
                     "lineItem": {
-                      "id": "gid://shopify/LineItem/19495376650546",
+                      "id": "gid://shopify/LineItem/19702868967730",
                       "title": "fulfillmentCreate preconditions happy",
                       "quantity": 1,
                       "fulfillableQuantity": 1
@@ -1599,8 +2351,8 @@
                 ]
               },
               "order": {
-                "id": "gid://shopify/Order/8838116639026",
-                "name": "#1519",
+                "id": "gid://shopify/Order/8887507681586",
+                "name": "#1677",
                 "displayFulfillmentStatus": "UNFULFILLED"
               }
             }
@@ -1621,11 +2373,11 @@
     }
   ],
   "cleanup": {
-    "gid://shopify/Order/8838116639026": {
+    "gid://shopify/Order/8887507681586": {
       "cancel": {
         "query": "mutation FulfillmentCreatePreconditionsOrderCancel(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean!\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job { id done }\n    orderCancelUserErrors { field message code }\n    userErrors { field message }\n  }\n}",
         "variables": {
-          "orderId": "gid://shopify/Order/8838116639026",
+          "orderId": "gid://shopify/Order/8887507681586",
           "reason": "OTHER",
           "notifyCustomer": false,
           "restock": true
@@ -1666,13 +2418,13 @@
       "delete": {
         "query": "mutation FulfillmentCreatePreconditionsOrderDelete($orderId: ID!) {\n  orderDelete(orderId: $orderId) {\n    deletedId\n    userErrors { field message code }\n  }\n}",
         "variables": {
-          "orderId": "gid://shopify/Order/8838116639026"
+          "orderId": "gid://shopify/Order/8887507681586"
         },
         "status": 200,
         "response": {
           "data": {
             "orderDelete": {
-              "deletedId": "gid://shopify/Order/8838116639026",
+              "deletedId": "gid://shopify/Order/8887507681586",
               "userErrors": []
             }
           },
@@ -1690,11 +2442,11 @@
         }
       }
     },
-    "gid://shopify/Order/8838116606258": {
+    "gid://shopify/Order/8887507648818": {
       "cancel": {
         "query": "mutation FulfillmentCreatePreconditionsOrderCancel(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean!\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job { id done }\n    orderCancelUserErrors { field message code }\n    userErrors { field message }\n  }\n}",
         "variables": {
-          "orderId": "gid://shopify/Order/8838116606258",
+          "orderId": "gid://shopify/Order/8887507648818",
           "reason": "OTHER",
           "notifyCustomer": false,
           "restock": true
@@ -1735,13 +2487,13 @@
       "delete": {
         "query": "mutation FulfillmentCreatePreconditionsOrderDelete($orderId: ID!) {\n  orderDelete(orderId: $orderId) {\n    deletedId\n    userErrors { field message code }\n  }\n}",
         "variables": {
-          "orderId": "gid://shopify/Order/8838116606258"
+          "orderId": "gid://shopify/Order/8887507648818"
         },
         "status": 200,
         "response": {
           "data": {
             "orderDelete": {
-              "deletedId": "gid://shopify/Order/8838116606258",
+              "deletedId": "gid://shopify/Order/8887507648818",
               "userErrors": []
             }
           },
@@ -1751,7 +2503,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }
@@ -1759,11 +2511,11 @@
         }
       }
     },
-    "gid://shopify/Order/8838116540722": {
+    "gid://shopify/Order/8887505781042": {
       "cancel": {
         "query": "mutation FulfillmentCreatePreconditionsOrderCancel(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean!\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job { id done }\n    orderCancelUserErrors { field message code }\n    userErrors { field message }\n  }\n}",
         "variables": {
-          "orderId": "gid://shopify/Order/8838116540722",
+          "orderId": "gid://shopify/Order/8887505781042",
           "reason": "OTHER",
           "notifyCustomer": false,
           "restock": true
@@ -1804,13 +2556,13 @@
       "delete": {
         "query": "mutation FulfillmentCreatePreconditionsOrderDelete($orderId: ID!) {\n  orderDelete(orderId: $orderId) {\n    deletedId\n    userErrors { field message code }\n  }\n}",
         "variables": {
-          "orderId": "gid://shopify/Order/8838116540722"
+          "orderId": "gid://shopify/Order/8887505781042"
         },
         "status": 200,
         "response": {
           "data": {
             "orderDelete": {
-              "deletedId": "gid://shopify/Order/8838116540722",
+              "deletedId": "gid://shopify/Order/8887505781042",
               "userErrors": []
             }
           },
@@ -1828,11 +2580,11 @@
         }
       }
     },
-    "gid://shopify/Order/8838116507954": {
+    "gid://shopify/Order/8887505748274": {
       "cancel": {
         "query": "mutation FulfillmentCreatePreconditionsOrderCancel(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean!\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job { id done }\n    orderCancelUserErrors { field message code }\n    userErrors { field message }\n  }\n}",
         "variables": {
-          "orderId": "gid://shopify/Order/8838116507954",
+          "orderId": "gid://shopify/Order/8887505748274",
           "reason": "OTHER",
           "notifyCustomer": false,
           "restock": true
@@ -1842,7 +2594,7 @@
           "data": {
             "orderCancel": {
               "job": {
-                "id": "gid://shopify/Job/eadc2ac3-9fdc-414f-9109-2c4ede17f4c6",
+                "id": "gid://shopify/Job/26b71736-1a40-46ff-ac7f-cd50e7a7cf80",
                 "done": false
               },
               "orderCancelUserErrors": [],
@@ -1865,13 +2617,13 @@
       "delete": {
         "query": "mutation FulfillmentCreatePreconditionsOrderDelete($orderId: ID!) {\n  orderDelete(orderId: $orderId) {\n    deletedId\n    userErrors { field message code }\n  }\n}",
         "variables": {
-          "orderId": "gid://shopify/Order/8838116507954"
+          "orderId": "gid://shopify/Order/8887505748274"
         },
         "status": 200,
         "response": {
           "data": {
             "orderDelete": {
-              "deletedId": "gid://shopify/Order/8838116507954",
+              "deletedId": "gid://shopify/Order/8887505748274",
               "userErrors": []
             }
           },
@@ -1889,11 +2641,133 @@
         }
       }
     },
-    "gid://shopify/Order/8838116442418": {
+    "gid://shopify/Order/8887505715506": {
       "cancel": {
         "query": "mutation FulfillmentCreatePreconditionsOrderCancel(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean!\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job { id done }\n    orderCancelUserErrors { field message code }\n    userErrors { field message }\n  }\n}",
         "variables": {
-          "orderId": "gid://shopify/Order/8838116442418",
+          "orderId": "gid://shopify/Order/8887505715506",
+          "reason": "OTHER",
+          "notifyCustomer": false,
+          "restock": true
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/fc7a8d82-c8f2-417b-8d2c-321e8df2a484",
+                "done": false
+              },
+              "orderCancelUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "query": "mutation FulfillmentCreatePreconditionsOrderDelete($orderId: ID!) {\n  orderDelete(orderId: $orderId) {\n    deletedId\n    userErrors { field message code }\n  }\n}",
+        "variables": {
+          "orderId": "gid://shopify/Order/8887505715506"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderDelete": {
+              "deletedId": "gid://shopify/Order/8887505715506",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "gid://shopify/Order/8887505682738": {
+      "cancel": {
+        "query": "mutation FulfillmentCreatePreconditionsOrderCancel(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean!\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job { id done }\n    orderCancelUserErrors { field message code }\n    userErrors { field message }\n  }\n}",
+        "variables": {
+          "orderId": "gid://shopify/Order/8887505682738",
+          "reason": "OTHER",
+          "notifyCustomer": false,
+          "restock": true
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/55b71bdc-134c-4a81-8834-1d5606265e7c",
+                "done": false
+              },
+              "orderCancelUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "query": "mutation FulfillmentCreatePreconditionsOrderDelete($orderId: ID!) {\n  orderDelete(orderId: $orderId) {\n    deletedId\n    userErrors { field message code }\n  }\n}",
+        "variables": {
+          "orderId": "gid://shopify/Order/8887505682738"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderDelete": {
+              "deletedId": "gid://shopify/Order/8887505682738",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "gid://shopify/Order/8887505649970": {
+      "cancel": {
+        "query": "mutation FulfillmentCreatePreconditionsOrderCancel(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean!\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job { id done }\n    orderCancelUserErrors { field message code }\n    userErrors { field message }\n  }\n}",
+        "variables": {
+          "orderId": "gid://shopify/Order/8887505649970",
           "reason": "OTHER",
           "notifyCustomer": false,
           "restock": true
@@ -1934,13 +2808,13 @@
       "delete": {
         "query": "mutation FulfillmentCreatePreconditionsOrderDelete($orderId: ID!) {\n  orderDelete(orderId: $orderId) {\n    deletedId\n    userErrors { field message code }\n  }\n}",
         "variables": {
-          "orderId": "gid://shopify/Order/8838116442418"
+          "orderId": "gid://shopify/Order/8887505649970"
         },
         "status": 200,
         "response": {
           "data": {
             "orderDelete": {
-              "deletedId": "gid://shopify/Order/8838116442418",
+              "deletedId": "gid://shopify/Order/8887505649970",
               "userErrors": []
             }
           },
