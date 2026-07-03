@@ -6678,6 +6678,189 @@ fn segment_mutations_validate_inputs_without_operation_name_markers() {
 }
 
 #[test]
+fn segment_create_stages_neutral_operation_without_upstream_passthrough() {
+    let upstream_called = Arc::new(Mutex::new(false));
+    let upstream_called_for_proxy = Arc::clone(&upstream_called);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_| {
+            *upstream_called_for_proxy.lock().unwrap() = true;
+            Response {
+                status: 599,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "segmentCreate must not proxy upstream" }] }),
+            }
+        });
+    let create_query = r#"
+        mutation NeutralSegmentOperation($name: String!, $query: String!) {
+          segmentCreate(name: $name, query: $query) {
+            segment { id name query creationDate lastEditDate }
+            userErrors { __typename field message }
+          }
+        }
+    "#;
+    let create_variables = json!({
+        "name": "Neutral local segment",
+        "query": "number_of_orders >= 1"
+    });
+
+    let created =
+        proxy.process_request(json_graphql_request(create_query, create_variables.clone()));
+    assert_eq!(created.status, 200);
+    let segment_id = created.body["data"]["segmentCreate"]["segment"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        created.body["data"]["segmentCreate"],
+        json!({
+            "segment": {
+                "id": segment_id,
+                "name": "Neutral local segment",
+                "query": "number_of_orders >= 1",
+                "creationDate": created.body["data"]["segmentCreate"]["segment"]["creationDate"],
+                "lastEditDate": created.body["data"]["segmentCreate"]["segment"]["lastEditDate"],
+            },
+            "userErrors": []
+        })
+    );
+    assert_eq!(
+        *upstream_called.lock().unwrap(),
+        false,
+        "supported segmentCreate must stage locally without live-hybrid passthrough"
+    );
+
+    let log = log_snapshot(&proxy);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("segmentCreate")
+    );
+    assert_eq!(log["entries"][0]["status"], json!("staged"));
+    assert_eq!(log["entries"][0]["stagedResourceIds"], json!([segment_id]));
+    assert_eq!(
+        log["entries"][0]["rawBody"],
+        json_graphql_request(create_query, create_variables).body
+    );
+}
+
+#[test]
+fn segment_private_fields_project_local_defaults_and_nulls_across_lifecycle() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SegmentPrivateFieldCreate($name: String!, $query: String!) {
+          segmentCreate(name: $name, query: $query) {
+            segment {
+              id
+              name
+              query
+              creationDate
+              lastEditDate
+              tagMigrated
+              valid
+              percentageSnapshot
+              percentageSnapshotUpdatedAt
+              translation
+              author { name }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "name": "Private projection segment",
+            "query": "number_of_orders >= 1"
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    let created_segment = create.body["data"]["segmentCreate"]["segment"].clone();
+    let segment_id = created_segment["id"].as_str().unwrap().to_string();
+    assert_eq!(
+        create.body["data"]["segmentCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(created_segment["tagMigrated"], json!(false));
+    assert_eq!(created_segment["valid"], json!(true));
+    assert_eq!(created_segment["percentageSnapshot"], Value::Null);
+    assert_eq!(created_segment["percentageSnapshotUpdatedAt"], Value::Null);
+    assert_eq!(created_segment["translation"], Value::Null);
+    assert_eq!(created_segment["author"], Value::Null);
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SegmentPrivateFieldUpdate($id: ID!, $name: String, $query: String) {
+          segmentUpdate(id: $id, name: $name, query: $query) {
+            segment {
+              id
+              name
+              query
+              creationDate
+              lastEditDate
+              tagMigrated
+              valid
+              percentageSnapshot
+              percentageSnapshotUpdatedAt
+              translation
+              author { name }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": segment_id,
+            "name": "Private projection segment updated",
+            "query": "number_of_orders >= 2"
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    let updated_segment = update.body["data"]["segmentUpdate"]["segment"].clone();
+    assert_eq!(
+        update.body["data"]["segmentUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(updated_segment["id"], created_segment["id"]);
+    assert_eq!(
+        updated_segment["name"],
+        json!("Private projection segment updated")
+    );
+    assert_eq!(updated_segment["query"], json!("number_of_orders >= 2"));
+    assert_eq!(
+        updated_segment["creationDate"],
+        created_segment["creationDate"]
+    );
+    assert_eq!(updated_segment["tagMigrated"], json!(false));
+    assert_eq!(updated_segment["valid"], json!(true));
+    assert_eq!(updated_segment["percentageSnapshot"], Value::Null);
+    assert_eq!(updated_segment["percentageSnapshotUpdatedAt"], Value::Null);
+    assert_eq!(updated_segment["translation"], Value::Null);
+    assert_eq!(updated_segment["author"], Value::Null);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query SegmentPrivateFieldRead($id: ID!) {
+          segment(id: $id) {
+            id
+            name
+            query
+            creationDate
+            lastEditDate
+            tagMigrated
+            valid
+            percentageSnapshot
+            percentageSnapshotUpdatedAt
+            translation
+            author { name }
+          }
+        }
+        "#,
+        json!({ "id": updated_segment["id"] }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["segment"], updated_segment);
+}
+
+#[test]
 fn segment_update_literal_null_only_attributes_are_absent_changes() {
     let mut proxy = snapshot_proxy();
     let created = proxy.process_request(json_graphql_request(

@@ -1,0 +1,36 @@
+{
+  "scenarioId": "order-create-mandate-payment-validation",
+  "capturedAt": "2026-07-02T23:43:05.901Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "source": "live-shopify-admin-graphql",
+  "notes": "Live public Admin API schema-validation capture for orderCreateMandatePayment with omitted mandateId. Successful mandate payment remains runtime-test-backed until a real CustomerPaymentMethod/PaymentMandate can be provisioned for the conformance app.",
+  "missingMandate": {
+    "query": "mutation OrderCreateMandatePaymentMissingMandate($id: ID!, $idempotencyKey: String!) {\n  orderCreateMandatePayment(id: $id, idempotencyKey: $idempotencyKey) {\n    paymentReferenceId\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "id": "gid://shopify/Order/1",
+      "idempotencyKey": "missing-mandate"
+    },
+    "response": {
+      "errors": [
+        {
+          "message": "Field 'orderCreateMandatePayment' is missing required arguments: mandateId",
+          "locations": [
+            {
+              "line": 2,
+              "column": 3
+            }
+          ],
+          "path": ["mutation OrderCreateMandatePaymentMissingMandate", "orderCreateMandatePayment"],
+          "extensions": {
+            "code": "missingRequiredArguments",
+            "className": "Field",
+            "name": "orderCreateMandatePayment",
+            "arguments": "mandateId"
+          }
+        }
+      ]
+    }
+  },
+  "upstreamCalls": []
+}
