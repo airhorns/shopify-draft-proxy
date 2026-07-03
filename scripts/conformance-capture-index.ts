@@ -11917,16 +11917,18 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-address-input-validation.json`,
       'config/parity-specs/customers/customer-address-input-validation.json',
+      'config/parity-specs/customers/customer-address-phone-normalization.json',
       'config/parity-requests/customers/customerInputValidation-create.graphql',
+      'config/parity-requests/customers/customer-address-phone-normalization-read.graphql',
       'config/parity-requests/customers/customer-address-lifecycle-create-address.graphql',
       'config/parity-requests/customers/customer-address-lifecycle-update-address.graphql',
       'config/parity-requests/customers/customerSet-parity.graphql',
     ],
     cleanupBehavior:
-      'Creates one disposable customer, records address validation and normalization branches, then deletes it.',
+      'Creates disposable customers, records address validation and normalization branches, then deletes them.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'Dedicated customerAddressCreate and customerSet accept all-blank address strings after normalizing them to null, while nested CustomerInput addresses reject an all-blank entry.',
+      'Dedicated customerAddressCreate and customerSet accept all-blank address strings after normalizing them to null, while nested CustomerInput addresses reject an all-blank entry. Standalone address phone normalization removes formatting only for values with an explicit international country code.',
   },
   {
     domain: 'customers',

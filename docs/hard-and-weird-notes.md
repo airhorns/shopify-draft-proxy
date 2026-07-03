@@ -3164,6 +3164,7 @@ Captured facts:
 - duplicate `customerAddressCreate` returns payload `userErrors[{ field: ["address"], message: "Address already exists" }]`
 - deleting the default address promotes the remaining address to `Customer.defaultAddress`; omitted/null `setAsDefault` does not replace an existing default
 - the bounded maximum-address probe successfully created 105 addresses without a Shopify failure, so local staging should not enforce a lower artificial limit
+- address phone normalization is best-effort and deliberately ignores the address country: a formatted international value with a leading `+` is compacted to E.164, digit-shaped no-`+` values such as `(613) 450-4538` and `450-4538` normalize through the captured shop calling-code path, and unparseable values such as `613` or `not a phone` stay raw
 
 Practical rule:
 
