@@ -1,0 +1,135 @@
+{
+  "capturedAt": "2026-07-02T23:31:15.366Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "rootAvailability": {
+    "mutations": [
+      "refundCreate",
+      "fulfillmentCreate",
+      "fulfillmentCreateV2",
+      "fulfillmentCancel",
+      "fulfillmentTrackingInfoUpdate",
+      "fulfillmentTrackingInfoUpdateV2",
+      "fulfillmentEventCreate"
+    ]
+  },
+  "codeSelection": {
+    "query": "#graphql\n  mutation OrdersPlainUserErrorCodeSelectionRejected {\n    refund: refundCreate(input: { orderId: \"gid://shopify/Order/999999999\" }) {\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n    create: fulfillmentCreate(fulfillment: {\n      lineItemsByFulfillmentOrder: [{ fulfillmentOrderId: \"gid://shopify/FulfillmentOrder/1\" }]\n    }) {\n      userErrors {\n        code\n      }\n    }\n    createV2: fulfillmentCreateV2(fulfillment: {\n      lineItemsByFulfillmentOrder: [{ fulfillmentOrderId: \"gid://shopify/FulfillmentOrder/1\" }]\n    }) {\n      userErrors {\n        code\n      }\n    }\n    cancel: fulfillmentCancel(id: \"gid://shopify/Fulfillment/1\") {\n      userErrors {\n        code\n      }\n    }\n    tracking: fulfillmentTrackingInfoUpdate(\n      fulfillmentId: \"gid://shopify/Fulfillment/1\"\n      trackingInfoInput: { number: \"TRACK-1\" }\n    ) {\n      userErrors {\n        code\n      }\n    }\n    trackingV2: fulfillmentTrackingInfoUpdateV2(\n      fulfillmentId: \"gid://shopify/Fulfillment/1\"\n      trackingInfoInput: { number: \"TRACK-1\" }\n    ) {\n      userErrors {\n        code\n      }\n    }\n    event: fulfillmentEventCreate(fulfillmentEvent: {\n      fulfillmentId: \"gid://shopify/Fulfillment/1\"\n      status: IN_TRANSIT\n    }) {\n      userErrors {\n        code\n      }\n    }\n  }\n",
+    "request": {
+      "variables": {}
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Field 'code' doesn't exist on type 'UserError'",
+            "locations": [
+              {
+                "line": 7,
+                "column": 9
+              }
+            ],
+            "path": ["mutation OrdersPlainUserErrorCodeSelectionRejected", "refund", "userErrors", "code"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "UserError",
+              "fieldName": "code"
+            }
+          },
+          {
+            "message": "Field 'code' doesn't exist on type 'UserError'",
+            "locations": [
+              {
+                "line": 14,
+                "column": 9
+              }
+            ],
+            "path": ["mutation OrdersPlainUserErrorCodeSelectionRejected", "create", "userErrors", "code"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "UserError",
+              "fieldName": "code"
+            }
+          },
+          {
+            "message": "Field 'code' doesn't exist on type 'UserError'",
+            "locations": [
+              {
+                "line": 21,
+                "column": 9
+              }
+            ],
+            "path": ["mutation OrdersPlainUserErrorCodeSelectionRejected", "createV2", "userErrors", "code"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "UserError",
+              "fieldName": "code"
+            }
+          },
+          {
+            "message": "Field 'code' doesn't exist on type 'UserError'",
+            "locations": [
+              {
+                "line": 26,
+                "column": 9
+              }
+            ],
+            "path": ["mutation OrdersPlainUserErrorCodeSelectionRejected", "cancel", "userErrors", "code"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "UserError",
+              "fieldName": "code"
+            }
+          },
+          {
+            "message": "Field 'code' doesn't exist on type 'UserError'",
+            "locations": [
+              {
+                "line": 34,
+                "column": 9
+              }
+            ],
+            "path": ["mutation OrdersPlainUserErrorCodeSelectionRejected", "tracking", "userErrors", "code"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "UserError",
+              "fieldName": "code"
+            }
+          },
+          {
+            "message": "Field 'code' doesn't exist on type 'UserError'",
+            "locations": [
+              {
+                "line": 42,
+                "column": 9
+              }
+            ],
+            "path": ["mutation OrdersPlainUserErrorCodeSelectionRejected", "trackingV2", "userErrors", "code"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "UserError",
+              "fieldName": "code"
+            }
+          },
+          {
+            "message": "Field 'code' doesn't exist on type 'UserError'",
+            "locations": [
+              {
+                "line": 50,
+                "column": 9
+              }
+            ],
+            "path": ["mutation OrdersPlainUserErrorCodeSelectionRejected", "event", "userErrors", "code"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "UserError",
+              "fieldName": "code"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "upstreamCalls": []
+}

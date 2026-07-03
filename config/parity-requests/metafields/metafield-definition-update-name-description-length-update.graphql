@@ -1,0 +1,19 @@
+mutation MetafieldDefinitionUpdateNameDescriptionLengthUpdate($definition: MetafieldDefinitionUpdateInput!) {
+  metafieldDefinitionUpdate(definition: $definition) {
+    updatedDefinition {
+      namespace
+      key
+      name
+      description
+    }
+    userErrors {
+      __typename
+      field
+      message
+      code
+    }
+    validationJob {
+      id
+    }
+  }
+}

@@ -3,7 +3,7 @@
     "variables": {
       "synchronous": true,
       "input": {
-        "title": "Hermes ProductSet Variant Limit 1777936367085",
+        "title": "Hermes ProductSet Variant Limit 1783076977925",
         "vendor": "Hermes",
         "variants": [
           {
@@ -18483,7 +18483,7 @@
     "variables": {
       "synchronous": true,
       "input": {
-        "title": "Hermes ProductSet Inventory Limit 1777936367085",
+        "title": "Hermes ProductSet Inventory Limit 1783076977925",
         "vendor": "Hermes",
         "productOptions": [
           {
@@ -18507,1257 +18507,1257 @@
             ],
             "inventoryQuantities": [
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               },
               {
-                "locationId": "gid://shopify/Location/106318463282",
+                "locationId": "gid://shopify/Location/112829759794",
                 "name": "available",
                 "quantity": 1
               }
@@ -19795,6 +19795,84 @@
       }
     }
   },
+  "inventoryItemCost": {
+    "variables": {
+      "synchronous": true,
+      "input": {
+        "title": "Hermes ProductSet Inventory Cost 1783076977925",
+        "vendor": "Hermes",
+        "productOptions": [
+          {
+            "name": "Color",
+            "values": [
+              {
+                "name": "Red"
+              },
+              {
+                "name": "Blue"
+              }
+            ]
+          }
+        ],
+        "variants": [
+          {
+            "price": "10.00",
+            "optionValues": [
+              {
+                "optionName": "Color",
+                "name": "Red"
+              }
+            ],
+            "inventoryItem": {
+              "cost": "-1"
+            }
+          },
+          {
+            "price": "11.00",
+            "optionValues": [
+              {
+                "optionName": "Color",
+                "name": "Blue"
+              }
+            ],
+            "inventoryItem": {
+              "cost": "1000000000000000000"
+            }
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "productSet": {
+          "product": null,
+          "userErrors": [
+            {
+              "field": ["input", "variants", "0", "inventoryItem", "cost"],
+              "message": "Cost per item must be greater than or equal to 0",
+              "code": "INVALID_VARIANT"
+            },
+            {
+              "field": ["input", "variants", "1", "inventoryItem", "cost"],
+              "message": "Cost per item must be less than 1000000000000000000",
+              "code": "INVALID_VARIANT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1582,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
   "unknownProduct": {
     "variables": {
       "synchronous": true,
@@ -19823,7 +19901,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1584,
+            "currentlyAvailable": 1590,
             "restoreRate": 100
           }
         }
@@ -19836,7 +19914,7 @@
         "locations": {
           "nodes": [
             {
-              "id": "gid://shopify/Location/106318463282"
+              "id": "gid://shopify/Location/112829759794"
             }
           ]
         }

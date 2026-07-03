@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/markets/market-create-plan-limit-markets-home.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/markets/market-create-plan-limit.graphql",
     "variablesCapturePath": "$.cases[0].variables",

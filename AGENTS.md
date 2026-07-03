@@ -8,12 +8,20 @@ Preserve the intent in `docs/original-intent.md`.
 
 This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a generic mock server. The goal is to let tests stage realistic Shopify writes locally and observe downstream reads as if those writes happened, without mutating the real store during normal supported mutation handling.
 
+## Evidence anti-forgery rule
+
+When a task asks for **parity**, **conformance**, **captured evidence**, or a scenario that proves Shopify behavior, the artifact must be backed by a real Shopify Admin GraphQL interaction from a registered capture script. The anti-pattern is any repo artifact that makes proxy-generated, hand-authored, replayed, or guessed data look like Shopify evidence.
+
+- Do **not** satisfy a parity/evidence request by adding a new conformance fixture, parity spec, cassette, or expected payload whose source is the local proxy, a runtime test, a snapshot, a generator script, an edited older fixture, or your own assumptions. Those are proxy regression tests or test scaffolding, not Shopify evidence, no matter what directory or field name is used.
+- Do **not** mark non-Shopify output as `scenarioStatus: "captured"`, put it in `liveCaptureFiles`, or otherwise make status/discovery tooling count it as conformance. If live capture is blocked, record the blocker in the workpad/Linear and add focused Rust/unit/runtime tests instead.
+- Do **not** create `upstreamCalls` entries with `sha:`, `hand-synthesized`, `recorded by ...`, generated descriptors, or any other provenance marker as `query`. Cassette queries must be the exact GraphQL document text sent upstream, matched with exact variables.
+- If a reviewer says “add a parity scenario that would have failed before this change,” default to a real Shopify capture. Use a runtime test only when the reviewer explicitly asks for a proxy-only regression guard, and do not call that Shopify parity evidence.
+
 ## Current runtime
 
 - The runtime is **Rust**, centered on `src/proxy.rs`, `src/graphql.rs`, `src/operation_registry.rs`, and `src/bin/shopify-draft-proxy-server.rs`.
 - The TypeScript package surface in `js/src/` is a thin embeddable shim around the Rust HTTP runtime.
 - Operation registry metadata lives in `src/operation_registry.rs`; TypeScript tooling reads it through the Rust `operation-registry-json` exporter so there is no second checked-in registry source.
-- No Gleam source or build steps remain. Do not reintroduce Gleam runtime code, BEAM/Elixir smoke tests, or Gleam build requirements.
 
 ## Non-negotiables
 
@@ -79,7 +87,7 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 
 ## Verification loop
 
-Run the full Rust-port gate before pushing:
+Run the full verification gate before pushing:
 
 ```bash
 corepack pnpm conformance:fixture-invariants

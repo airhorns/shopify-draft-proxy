@@ -159,7 +159,7 @@ function buildSpec(): Record<string, unknown> {
     scenarioStatus: 'captured',
     assertionKinds: ['payload-shape', 'sort-order-parity', 'graphql-validation-parity'],
     liveCaptureFiles: [outputPath],
-    runtimeTestFiles: ['test/parity_test.gleam', 'test/shopify_draft_proxy/proxy/bulk_operations_test.gleam'],
+    runtimeTestFiles: ['tests/graphql_routes/admin_app_shipping.rs'],
     proxyRequest: {
       documentPath: sortKeyDocumentPath,
       apiVersion,

@@ -2,7 +2,7 @@
   "scenarioId": "combinedListingUpdate-validation",
   "operationNames": ["productCreate", "combinedListingUpdate"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "local-runtime-backed"],
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/combinedListingUpdate-validation.json"
   ],
@@ -417,5 +417,5 @@
       }
     ]
   },
-  "notes": "Live 2025-01 capture on harry-test-heelo.myshopify.com for combinedListingUpdate validation branches. The scenario creates disposable PARENT/plain/child products through Shopify, replays equivalent setup locally, then compares the validation payloads strictly. Product IDs are not preseeded; local state is earned by replayed productCreate/combinedListingUpdate setup requests. The missing-child branch uses a cassette-backed null Product hydration for the fixed absent product id."
+  "notes": "Live 2025-01 capture on harry-test-heelo.myshopify.com for combinedListingUpdate validation branches. The scenario creates disposable PARENT/plain/child products through Shopify, replays equivalent setup locally, then compares the validation payloads strictly. Product IDs are not preseeded; local state is earned by replayed productCreate/combinedListingUpdate setup requests. The missing-child branch uses captured null Product hydration for the fixed absent product id."
 }

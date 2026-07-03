@@ -12,7 +12,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "HAR-760 live parity evidence that Shopify rejects companyUpdate customerSince when present as a timestamp, alongside another update field, or as null, and leaves the company name/customerSince unchanged after each rejection.",
   "comparison": {
     "mode": "strict-json",

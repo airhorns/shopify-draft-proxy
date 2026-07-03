@@ -1,11 +1,14 @@
 {
-  "capturedAt": "2026-06-22T23:17:33.328Z",
+  "capturedAt": "2026-07-03T12:26:58.032Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "variables": {
     "tagQuery": "tag:merchant-realistic",
     "nameQuery": "name:1494",
     "statusQuery": "financial_status:paid fulfillment_status:unfulfilled",
+    "idQuery": "id:8837991727410",
+    "idMissQuery": "id:999999999999999999",
+    "combinedQuery": "id:8837991727410 tag:merchant-realistic financial_status:paid fulfillment_status:unfulfilled",
     "pageSize": 1,
     "seedSize": 2,
     "countLimit": 1,
@@ -104,23 +107,66 @@
           "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
         }
       },
-      "byStatus": {
+      "byId": {
         "nodes": [
-          {
-            "id": "gid://shopify/Order/8838031900978",
-            "name": "#1501",
-            "displayFinancialStatus": "PAID",
-            "displayFulfillmentStatus": "UNFULFILLED"
-          },
-          {
-            "id": "gid://shopify/Order/8838022168882",
-            "name": "#1497",
-            "displayFinancialStatus": "PAID",
-            "displayFulfillmentStatus": "UNFULFILLED"
-          },
           {
             "id": "gid://shopify/Order/8837991727410",
             "name": "#1494",
+            "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+            "email": "hermes-draft-order-complete-20260622223358@example.com"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yMiAyMjozNDowMC42MDk1OTkifQ==",
+          "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yMiAyMjozNDowMC42MDk1OTkifQ=="
+        }
+      },
+      "byIdMiss": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "byCombinedAnd": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Order/8837991727410",
+            "name": "#1494",
+            "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+            "email": "hermes-draft-order-complete-20260622223358@example.com",
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ==",
+          "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
+        }
+      },
+      "byStatus": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Order/8887492149554",
+            "name": "#1661",
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED"
+          },
+          {
+            "id": "gid://shopify/Order/8887492116786",
+            "name": "#1660",
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED"
+          },
+          {
+            "id": "gid://shopify/Order/8887492084018",
+            "name": "#1659",
             "displayFinancialStatus": "PAID",
             "displayFulfillmentStatus": "UNFULFILLED"
           }
@@ -128,8 +174,8 @@
         "pageInfo": {
           "hasNextPage": true,
           "hasPreviousPage": false,
-          "startCursor": "eyJsYXN0X2lkIjo4ODM4MDMxOTAwOTc4LCJsYXN0X3ZhbHVlIjoxNzgyMTY5ODAzMDAwfQ==",
-          "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
+          "startCursor": "eyJsYXN0X2lkIjo4ODg3NDkyMTQ5NTU0LCJsYXN0X3ZhbHVlIjoxNzgzMDM0Nzk4MDAwfQ==",
+          "endCursor": "eyJsYXN0X2lkIjo4ODg3NDkyMDg0MDE4LCJsYXN0X3ZhbHVlIjoxNzgzMDM0Nzk2MDAwfQ=="
         }
       },
       "limitedTaggedCount": {
@@ -139,15 +185,23 @@
       "exactTaggedCount": {
         "count": 2,
         "precision": "EXACT"
+      },
+      "idMissCount": {
+        "count": 0,
+        "precision": "EXACT"
+      },
+      "combinedAndCount": {
+        "count": 1,
+        "precision": "EXACT"
       }
     },
     "extensions": {
       "cost": {
-        "requestedQueryCost": 37,
-        "actualQueryCost": 36,
+        "requestedQueryCost": 69,
+        "actualQueryCost": 66,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1964,
+          "currentlyAvailable": 1928,
           "restoreRate": 100
         }
       }
@@ -188,7 +242,7 @@
           "actualQueryCost": 3,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1992,
+            "currentlyAvailable": 1958,
             "restoreRate": 100
           }
         }
@@ -202,12 +256,15 @@
         "tagQuery": "tag:merchant-realistic",
         "nameQuery": "name:1494",
         "statusQuery": "financial_status:paid fulfillment_status:unfulfilled",
+        "idQuery": "id:8837991727410",
+        "idMissQuery": "id:999999999999999999",
+        "combinedQuery": "id:8837991727410 tag:merchant-realistic financial_status:paid fulfillment_status:unfulfilled",
         "pageSize": 1,
         "seedSize": 2,
         "countLimit": 1,
         "unlimited": null
       },
-      "query": "query OrderCatalogCountRead(\n  $tagQuery: String!\n  $nameQuery: String!\n  $statusQuery: String!\n  $pageSize: Int!\n  $seedSize: Int!\n  $countLimit: Int\n  $unlimited: Int\n) {\n  seedCatalog: orders(first: $seedSize, query: $tagQuery, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      name\n      createdAt\n      updatedAt\n      displayFinancialStatus\n      displayFulfillmentStatus\n      tags\n      email\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n  recent: orders(first: $pageSize, query: $tagQuery, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      name\n      createdAt\n      updatedAt\n      displayFinancialStatus\n      displayFulfillmentStatus\n      tags\n      email\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  oldest: orders(first: $pageSize, query: $tagQuery, sortKey: CREATED_AT, reverse: false) {\n    nodes {\n      id\n      name\n      createdAt\n      updatedAt\n      displayFinancialStatus\n      displayFulfillmentStatus\n      tags\n      email\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  byName: orders(first: 3, query: $nameQuery, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      name\n      tags\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  byStatus: orders(first: 3, query: $statusQuery, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      name\n      displayFinancialStatus\n      displayFulfillmentStatus\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  limitedTaggedCount: ordersCount(query: $tagQuery, limit: $countLimit) {\n    count\n    precision\n  }\n  exactTaggedCount: ordersCount(query: $tagQuery, limit: $unlimited) {\n    count\n    precision\n  }\n}\n",
+      "query": "query OrderCatalogCountRead(\n  $tagQuery: String!\n  $nameQuery: String!\n  $statusQuery: String!\n  $idQuery: String!\n  $idMissQuery: String!\n  $combinedQuery: String!\n  $pageSize: Int!\n  $seedSize: Int!\n  $countLimit: Int\n  $unlimited: Int\n) {\n  seedCatalog: orders(first: $seedSize, query: $tagQuery, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      name\n      createdAt\n      updatedAt\n      displayFinancialStatus\n      displayFulfillmentStatus\n      tags\n      email\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n  recent: orders(first: $pageSize, query: $tagQuery, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      name\n      createdAt\n      updatedAt\n      displayFinancialStatus\n      displayFulfillmentStatus\n      tags\n      email\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  oldest: orders(first: $pageSize, query: $tagQuery, sortKey: CREATED_AT, reverse: false) {\n    nodes {\n      id\n      name\n      createdAt\n      updatedAt\n      displayFinancialStatus\n      displayFulfillmentStatus\n      tags\n      email\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  byName: orders(first: 3, query: $nameQuery, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      name\n      tags\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  byId: orders(first: 3, query: $idQuery, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      name\n      tags\n      email\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  byIdMiss: orders(first: 3, query: $idMissQuery, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      name\n      tags\n      email\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  byCombinedAnd: orders(first: 3, query: $combinedQuery, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      name\n      tags\n      email\n      displayFinancialStatus\n      displayFulfillmentStatus\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  byStatus: orders(first: 3, query: $statusQuery, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      name\n      displayFinancialStatus\n      displayFulfillmentStatus\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  limitedTaggedCount: ordersCount(query: $tagQuery, limit: $countLimit) {\n    count\n    precision\n  }\n  exactTaggedCount: ordersCount(query: $tagQuery, limit: $unlimited) {\n    count\n    precision\n  }\n  idMissCount: ordersCount(query: $idMissQuery, limit: $unlimited) {\n    count\n    precision\n  }\n  combinedAndCount: ordersCount(query: $combinedQuery, limit: $unlimited) {\n    count\n    precision\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -303,23 +360,66 @@
                 "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
               }
             },
-            "byStatus": {
+            "byId": {
               "nodes": [
-                {
-                  "id": "gid://shopify/Order/8838031900978",
-                  "name": "#1501",
-                  "displayFinancialStatus": "PAID",
-                  "displayFulfillmentStatus": "UNFULFILLED"
-                },
-                {
-                  "id": "gid://shopify/Order/8838022168882",
-                  "name": "#1497",
-                  "displayFinancialStatus": "PAID",
-                  "displayFulfillmentStatus": "UNFULFILLED"
-                },
                 {
                   "id": "gid://shopify/Order/8837991727410",
                   "name": "#1494",
+                  "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+                  "email": "hermes-draft-order-complete-20260622223358@example.com"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yMiAyMjozNDowMC42MDk1OTkifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNi0yMiAyMjozNDowMC42MDk1OTkifQ=="
+              }
+            },
+            "byIdMiss": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "byCombinedAnd": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Order/8837991727410",
+                  "name": "#1494",
+                  "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+                  "email": "hermes-draft-order-complete-20260622223358@example.com",
+                  "displayFinancialStatus": "PAID",
+                  "displayFulfillmentStatus": "UNFULFILLED"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
+              }
+            },
+            "byStatus": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Order/8887492149554",
+                  "name": "#1661",
+                  "displayFinancialStatus": "PAID",
+                  "displayFulfillmentStatus": "UNFULFILLED"
+                },
+                {
+                  "id": "gid://shopify/Order/8887492116786",
+                  "name": "#1660",
+                  "displayFinancialStatus": "PAID",
+                  "displayFulfillmentStatus": "UNFULFILLED"
+                },
+                {
+                  "id": "gid://shopify/Order/8887492084018",
+                  "name": "#1659",
                   "displayFinancialStatus": "PAID",
                   "displayFulfillmentStatus": "UNFULFILLED"
                 }
@@ -327,8 +427,8 @@
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjo4ODM4MDMxOTAwOTc4LCJsYXN0X3ZhbHVlIjoxNzgyMTY5ODAzMDAwfQ==",
-                "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
+                "startCursor": "eyJsYXN0X2lkIjo4ODg3NDkyMTQ5NTU0LCJsYXN0X3ZhbHVlIjoxNzgzMDM0Nzk4MDAwfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4ODg3NDkyMDg0MDE4LCJsYXN0X3ZhbHVlIjoxNzgzMDM0Nzk2MDAwfQ=="
               }
             },
             "limitedTaggedCount": {
@@ -338,15 +438,23 @@
             "exactTaggedCount": {
               "count": 2,
               "precision": "EXACT"
+            },
+            "idMissCount": {
+              "count": 0,
+              "precision": "EXACT"
+            },
+            "combinedAndCount": {
+              "count": 1,
+              "precision": "EXACT"
             }
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 37,
-              "actualQueryCost": 36,
+              "requestedQueryCost": 69,
+              "actualQueryCost": 66,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1964,
+                "currentlyAvailable": 1928,
                 "restoreRate": 100
               }
             }
@@ -393,7 +501,7 @@
               "actualQueryCost": 3,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1992,
+                "currentlyAvailable": 1958,
                 "restoreRate": 100
               }
             }

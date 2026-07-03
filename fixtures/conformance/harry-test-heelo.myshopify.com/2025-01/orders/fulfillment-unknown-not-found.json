@@ -1,0 +1,82 @@
+{
+  "scenarioId": "fulfillment-unknown-not-found",
+  "capturedAt": "2026-07-02T23:28:10.526Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "fulfillmentCancel": {
+    "request": {
+      "query": "mutation FulfillmentCancelUnknownNotFound($id: ID!) {\n  fulfillmentCancel(id: $id) {\n    fulfillment {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Fulfillment/999999999999991"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentCancel": {
+            "fulfillment": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Fulfillment not found."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "fulfillmentTrackingInfoUpdate": {
+    "request": {
+      "query": "mutation FulfillmentTrackingInfoUpdateUnknownNotFound(\n  $fulfillmentId: ID!\n  $trackingInfoInput: FulfillmentTrackingInput!\n) {\n  fulfillmentTrackingInfoUpdate(\n    fulfillmentId: $fulfillmentId\n    trackingInfoInput: $trackingInfoInput\n  ) {\n    fulfillment {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "fulfillmentId": "gid://shopify/Fulfillment/999999999999992",
+        "trackingInfoInput": {
+          "company": "UPS",
+          "number": "UNKNOWN-TRACK",
+          "url": "https://tracking.example/UNKNOWN-TRACK"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentTrackingInfoUpdate": {
+            "fulfillment": null,
+            "userErrors": [
+              {
+                "field": ["fulfillmentId"],
+                "message": "Fulfillment does not exist."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 50,
+            "actualQueryCost": 50,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1949,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
