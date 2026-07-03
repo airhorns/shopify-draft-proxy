@@ -48,6 +48,8 @@ const FIXED_PRICE_VALIDATION_PRICE_LIST_ID: &str = "gid://shopify/PriceList/1817
 const FIXED_PRICE_VALIDATION_PRODUCT_ID: &str = "gid://shopify/Product/1817001";
 const FIXED_PRICE_VALIDATION_VARIANT_A_ID: &str = "gid://shopify/ProductVariant/1817001";
 const FIXED_PRICE_VALIDATION_VARIANT_B_ID: &str = "gid://shopify/ProductVariant/1817002";
+const FIXED_PRICE_VALIDATION_MISSING_VARIANT_ID: &str =
+    "gid://shopify/ProductVariant/9999991817001";
 
 fn fixed_price_validation_proxy() -> DraftProxy {
     configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
@@ -64,11 +66,45 @@ fn fixed_price_validation_proxy() -> DraftProxy {
             body["variables"]["priceListId"],
             json!(FIXED_PRICE_VALIDATION_PRICE_LIST_ID)
         );
-        assert!(body["variables"]["variantIds"]
+        let requested_variant_ids = body["variables"]["variantIds"]
             .as_array()
-            .is_some_and(|ids| ids
-                .iter()
-                .any(|id| id == &json!(FIXED_PRICE_VALIDATION_VARIANT_A_ID))));
+            .expect("preflight includes variant ids");
+        let product = json!({
+            "__typename": "Product",
+            "id": FIXED_PRICE_VALIDATION_PRODUCT_ID,
+            "title": "Fixed price validation product",
+            "handle": "fixed-price-validation-product",
+            "status": "ACTIVE",
+            "variants": {
+                "nodes": [
+                    { "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID, "title": "Variant A", "sku": "FIXED-COMPARE-A", "price": "10.00", "compareAtPrice": null },
+                    { "id": FIXED_PRICE_VALIDATION_VARIANT_B_ID, "title": "Variant B", "sku": "FIXED-COMPARE-B", "price": "10.00", "compareAtPrice": null }
+                ]
+            }
+        });
+        let mut product_variants = Vec::new();
+        if requested_variant_ids.contains(&json!(FIXED_PRICE_VALIDATION_VARIANT_A_ID)) {
+            product_variants.push(json!({
+                "__typename": "ProductVariant",
+                "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                "title": "Variant A",
+                "sku": "FIXED-COMPARE-A",
+                "price": "10.00",
+                "compareAtPrice": null,
+                "product": product.clone()
+            }));
+        }
+        if requested_variant_ids.contains(&json!(FIXED_PRICE_VALIDATION_VARIANT_B_ID)) {
+            product_variants.push(json!({
+                "__typename": "ProductVariant",
+                "id": FIXED_PRICE_VALIDATION_VARIANT_B_ID,
+                "title": "Variant B",
+                "sku": "FIXED-COMPARE-B",
+                "price": "10.00",
+                "compareAtPrice": null,
+                "product": product
+            }));
+        }
         Response {
             status: 200,
             headers: Default::default(),
@@ -90,27 +126,7 @@ fn fixed_price_validation_proxy() -> DraftProxy {
                             }
                         }
                     },
-                    "productVariants": [{
-                        "__typename": "ProductVariant",
-                        "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
-                        "title": "Variant A",
-                        "sku": "FIXED-COMPARE-A",
-                        "price": "10.00",
-                        "compareAtPrice": null,
-                        "product": {
-                            "__typename": "Product",
-                            "id": FIXED_PRICE_VALIDATION_PRODUCT_ID,
-                            "title": "Fixed price validation product",
-                            "handle": "fixed-price-validation-product",
-                            "status": "ACTIVE",
-                            "variants": {
-                                "nodes": [
-                                    { "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID, "title": "Variant A", "sku": "FIXED-COMPARE-A", "price": "10.00", "compareAtPrice": null },
-                                    { "id": FIXED_PRICE_VALIDATION_VARIANT_B_ID, "title": "Variant B", "sku": "FIXED-COMPARE-B", "price": "10.00", "compareAtPrice": null }
-                                ]
-                            }
-                        }
-                    }]
+                    "productVariants": product_variants
                 }
             }),
         }
@@ -124,6 +140,96 @@ fn fixed_price_validation_read(proxy: &mut DraftProxy, price_list_id: &str) -> V
     ));
     assert_eq!(response.status, 200);
     response.body["data"]["priceList"].clone()
+}
+
+#[test]
+fn price_list_fixed_prices_add_short_circuits_currency_after_missing_variant() {
+    let mut proxy = fixed_price_validation_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FixedPricesAddMissingVariantCurrencyMismatch($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
+          priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
+            prices { variant { id } price { amount currencyCode } }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "prices": [{
+                "variantId": FIXED_PRICE_VALIDATION_MISSING_VARIANT_ID,
+                "price": { "amount": "10.00", "currencyCode": "EUR" }
+            }]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["priceListFixedPricesAdd"]["prices"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["priceListFixedPricesAdd"]["userErrors"],
+        json!([{
+            "__typename": "PriceListPriceUserError",
+            "field": ["prices", "0", "variantId"],
+            "message": "Product variant ID does not exist.",
+            "code": "VARIANT_NOT_FOUND"
+        }])
+    );
+}
+
+#[test]
+fn price_list_fixed_prices_update_short_circuits_currency_after_missing_variant() {
+    let mut proxy = fixed_price_validation_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FixedPricesUpdateMissingVariantCurrencyMismatch(
+          $priceListId: ID!
+          $pricesToAdd: [PriceListPriceInput!]!
+          $variantIdsToDelete: [ID!]!
+        ) {
+          priceListFixedPricesUpdate(
+            priceListId: $priceListId
+            pricesToAdd: $pricesToAdd
+            variantIdsToDelete: $variantIdsToDelete
+          ) {
+            pricesAdded { variant { id } price { amount currencyCode } }
+            deletedFixedPriceVariantIds
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "pricesToAdd": [{
+                "variantId": FIXED_PRICE_VALIDATION_MISSING_VARIANT_ID,
+                "price": { "amount": "10.00", "currencyCode": "EUR" }
+            }],
+            "variantIdsToDelete": []
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["priceListFixedPricesUpdate"]["pricesAdded"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["priceListFixedPricesUpdate"]["deletedFixedPriceVariantIds"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["priceListFixedPricesUpdate"]["userErrors"],
+        json!([{
+            "__typename": "PriceListPriceUserError",
+            "field": ["pricesToAdd", "0", "variantId"],
+            "message": "Product variant ID does not exist.",
+            "code": "VARIANT_NOT_FOUND"
+        }])
+    );
 }
 
 #[test]
@@ -3360,7 +3466,7 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
         ),
         (
             json!({"title": "EU Catalog", "status": "ACTIVE", "context": {}}),
-            json!({"__typename": "CatalogUserError", "field": ["input", "context", "marketIds"], "message": "Market ids can't be blank", "code": "INVALID"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "context"], "message": "Must provide exactly one context type.", "code": "MUST_PROVIDE_EXACTLY_ONE_CONTEXT_TYPE"}),
         ),
         (
             json!({"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/404"]}}),
@@ -3639,6 +3745,46 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
         context_update.body["data"]["catalogContextUpdate"],
         json!({"catalog": {"id": "gid://shopify/MarketCatalog/3", "markets": {"nodes": [{"id": second_market_id}]}}, "userErrors": []})
     );
+}
+
+#[test]
+fn catalog_create_context_requires_exactly_one_context_type() {
+    let create_query = r#"
+        mutation CatalogCreateContextValidation($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let expected_error = json!({
+        "__typename": "CatalogUserError",
+        "field": ["input", "context"],
+        "message": "Must provide exactly one context type.",
+        "code": "MUST_PROVIDE_EXACTLY_ONE_CONTEXT_TYPE"
+    });
+
+    for input in [
+        json!({"title": "EU Catalog", "status": "ACTIVE", "context": {}}),
+        json!({
+            "title": "EU Catalog",
+            "status": "ACTIVE",
+            "context": {
+                "marketIds": ["gid://shopify/Market/1"],
+                "companyLocationIds": ["gid://shopify/CompanyLocation/1"]
+            }
+        }),
+    ] {
+        let mut proxy = snapshot_proxy();
+        let response =
+            proxy.process_request(json_graphql_request(create_query, json!({"input": input})));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["catalogCreate"],
+            json!({"catalog": null, "userErrors": [expected_error]})
+        );
+        assert_no_staged_catalogs(&proxy);
+    }
 }
 
 #[test]
@@ -4999,6 +5145,35 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
         json!([])
     );
 
+    let mut duplicate_name_missing_catalog_proxy = snapshot_proxy();
+    let baseline = duplicate_name_missing_catalog_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "EU Prices", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}}),
+    ));
+    assert_eq!(
+        baseline.body["data"]["priceListCreate"]["userErrors"],
+        json!([])
+    );
+    let duplicate_name_missing_catalog =
+        duplicate_name_missing_catalog_proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": {"name": "EU Prices", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalogId": missing_catalog_id}}),
+        ));
+    assert_eq!(
+        duplicate_name_missing_catalog.body["data"]["priceListCreate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog does not exist.", "code": "CATALOG_DOES_NOT_EXIST"}]})
+    );
+
+    let missing_catalog_invalid_adjustment =
+        duplicate_name_missing_catalog_proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": {"name": "Catalog Before Adjustment", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 250}}, "catalogId": missing_catalog_id}}),
+        ));
+    assert_eq!(
+        missing_catalog_invalid_adjustment.body["data"]["priceListCreate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog does not exist.", "code": "CATALOG_DOES_NOT_EXIST"}]})
+    );
+
     let mut wrong_type_proxy = snapshot_proxy();
     let wrong_type_create = wrong_type_proxy.process_request(json_graphql_request(
         create_query,
@@ -5073,6 +5248,14 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
     ));
     assert_eq!(
         taken_create.body["data"]["priceListCreate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog has a price list already assigned.", "code": "CATALOG_TAKEN"}]})
+    );
+    let taken_catalog_duplicate_name = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "First Catalog PL", "currency": "DKK", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalogId": first_catalog_id}}),
+    ));
+    assert_eq!(
+        taken_catalog_duplicate_name.body["data"]["priceListCreate"],
         json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog has a price list already assigned.", "code": "CATALOG_TAKEN"}]})
     );
 
@@ -5886,6 +6069,7 @@ fn product_metafields_set_stages_product_owned_readbacks() {
 }
 
 fn owner_metafield_hydration_proxy(fixture: Value) -> DraftProxy {
+    let hydrate_nodes = owner_metafield_hydration_nodes(&fixture);
     configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
         let body: Value =
             serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
@@ -5893,10 +6077,24 @@ fn owner_metafield_hydration_proxy(fixture: Value) -> DraftProxy {
         let response = if query.contains("OwnerMetafieldsHydrateNodes")
             || query.contains("ProductsHydrateNodes")
         {
-            fixture["upstreamCalls"][0]["response"]
-                .get("body")
-                .cloned()
-                .unwrap_or_else(|| fixture["upstreamCalls"][0]["response"].clone())
+            let nodes = body["variables"]["ids"]
+                .as_array()
+                .map(|ids| {
+                    ids.iter()
+                        .map(|id| {
+                            id.as_str()
+                                .and_then(|id| {
+                                    hydrate_nodes.iter().find(|node| {
+                                        node.get("id").and_then(Value::as_str) == Some(id)
+                                    })
+                                })
+                                .cloned()
+                                .unwrap_or(Value::Null)
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_else(|| hydrate_nodes.clone());
+            json!({ "data": { "nodes": nodes } })
         } else {
             json!({"errors": [{"message": format!("unexpected upstream query: {query}")}]})
         };
@@ -5904,6 +6102,91 @@ fn owner_metafield_hydration_proxy(fixture: Value) -> DraftProxy {
             status: 200,
             headers: Default::default(),
             body: response,
+        }
+    })
+}
+
+fn owner_metafield_hydration_nodes(fixture: &Value) -> Vec<Value> {
+    let mut nodes = Vec::new();
+    if let Some(product) = fixture.pointer("/preconditionRead/data/product") {
+        nodes.push(owner_hydrate_node(product.clone(), "Product"));
+    }
+    if let Some(product) = fixture.pointer("/downstreamRead/data/product") {
+        nodes.push(owner_hydrate_product_with_deleted_metafields(
+            product.clone(),
+            fixture,
+        ));
+    }
+    if let Some(product) = fixture.get("seedProduct") {
+        let product = owner_hydrate_node(product.clone(), "Product");
+        if let Some(variants) = product
+            .pointer("/variants/nodes")
+            .and_then(Value::as_array)
+            .cloned()
+        {
+            for variant in variants {
+                let mut variant = owner_hydrate_node(variant, "ProductVariant");
+                variant["product"] = product.clone();
+                variant["metafields"] = empty_metafields_connection();
+                nodes.push(variant);
+            }
+        }
+        nodes.push(product);
+    }
+    if let Some(collection) = fixture.get("seedCollection") {
+        let mut collection = owner_hydrate_node(collection.clone(), "Collection");
+        collection["metafields"] = empty_metafields_connection();
+        nodes.push(collection);
+    }
+    nodes
+}
+
+fn owner_hydrate_product_with_deleted_metafields(mut product: Value, fixture: &Value) -> Value {
+    product["__typename"] = json!("Product");
+    let owner_id = product["id"].as_str().unwrap_or_default().to_string();
+    let mut nodes = product
+        .pointer("/metafields/nodes")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    for deleted in fixture
+        .pointer("/mutation/response/data/metafieldsDelete/deletedMetafields")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        if deleted.get("ownerId").and_then(Value::as_str) == Some(owner_id.as_str()) {
+            nodes.push(deleted.clone());
+        }
+    }
+    product["metafields"] = json!({
+        "nodes": nodes,
+        "pageInfo": product
+            .pointer("/metafields/pageInfo")
+            .cloned()
+            .unwrap_or_else(|| json!({
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": Value::Null,
+                "endCursor": Value::Null
+            }))
+    });
+    product
+}
+
+fn owner_hydrate_node(mut node: Value, typename: &str) -> Value {
+    node["__typename"] = json!(typename);
+    node
+}
+
+fn empty_metafields_connection() -> Value {
+    json!({
+        "nodes": [],
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": Value::Null,
+            "endCursor": Value::Null
         }
     })
 }
@@ -6075,8 +6358,11 @@ fn product_tags_add_remove_and_multi_resource_reads_match_captured_state() {
                 "id": "gid://shopify/Product/10173064872242",
                 "tags": ["existing", "hermes-sale-1777416213315", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
             },
-            "products": { "nodes": [] },
-            "productsCount": { "count": 0, "precision": "EXACT" }
+            "products": { "nodes": [{
+                "id": "gid://shopify/Product/10173064872242",
+                "tags": ["existing", "hermes-sale-1777416213315", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
+            }] },
+            "productsCount": { "count": 1, "precision": "EXACT" }
         })
     );
 
@@ -6141,9 +6427,9 @@ fn product_tags_add_remove_and_multi_resource_reads_match_captured_state() {
                 "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
             },
             "remaining": { "nodes": [{ "id": "gid://shopify/Product/10173064872242", "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"] }] },
-            "removed": { "nodes": [{ "id": "gid://shopify/Product/10173064872242", "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"] }] },
+            "removed": { "nodes": [] },
             "remainingCount": { "count": 1, "precision": "EXACT" },
-            "removedCount": { "count": 1, "precision": "EXACT" }
+            "removedCount": { "count": 0, "precision": "EXACT" }
         })
     );
 
@@ -6606,7 +6892,7 @@ fn polymorphic_tags_add_remove_split_and_match_case_insensitively() {
 }
 
 #[test]
-fn product_change_status_stages_archived_status_and_downstream_read_lag() {
+fn product_change_status_stages_archived_status_and_effective_downstream_read() {
     let mut proxy = snapshot_proxy().with_base_products(vec![product_state_test_product(
         "gid://shopify/Product/10173064872242",
         "Hermes Product State Conformance 1777416213315",
@@ -6690,8 +6976,11 @@ fn product_change_status_stages_archived_status_and_downstream_read_lag() {
                 "status": "ARCHIVED",
                 "updatedAt": "2026-04-28T22:43:34Z"
             },
-            "products": { "nodes": [] },
-            "productsCount": { "count": 0, "precision": "EXACT" }
+            "products": { "nodes": [{
+                "id": "gid://shopify/Product/10173064872242",
+                "status": "ARCHIVED"
+            }] },
+            "productsCount": { "count": 1, "precision": "EXACT" }
         })
     );
 }

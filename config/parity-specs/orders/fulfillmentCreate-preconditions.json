@@ -1,8 +1,8 @@
 {
   "scenarioId": "fulfillmentCreate-preconditions",
-  "operationNames": ["fulfillmentCreate"],
+  "operationNames": ["fulfillmentCreate", "fulfillmentCreateV2"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["validation-parity", "mutation-lifecycle", "no-upstream-passthrough"],
+  "assertionKinds": ["validation-parity", "user-errors-parity", "mutation-lifecycle", "no-upstream-passthrough"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/fulfillment-create-preconditions.json"
   ],
@@ -22,6 +22,30 @@
         "proxyPath": "$.data.fulfillmentCreate"
       },
       {
+        "name": "non-positive-line-item-quantity",
+        "capturePath": "$.cases.nonPositiveQuantity.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentCreate-preconditions.graphql",
+          "variables": {
+            "fromCapturePath": "$.cases.nonPositiveQuantity.variables"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "non-positive-line-item-quantity-v2",
+        "capturePath": "$.cases.nonPositiveQuantityV2.response.data.fulfillmentCreateV2",
+        "proxyPath": "$.data.fulfillmentCreateV2",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentCreateV2-preconditions.graphql",
+          "variables": {
+            "fromCapturePath": "$.cases.nonPositiveQuantityV2.variables"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
         "name": "over-fulfill-quantity",
         "capturePath": "$.cases.overFulfill.response.data.fulfillmentCreate",
         "proxyPath": "$.data.fulfillmentCreate",
@@ -29,6 +53,30 @@
           "documentPath": "config/parity-requests/orders/fulfillmentCreate-preconditions.graphql",
           "variables": {
             "fromCapturePath": "$.cases.overFulfill.variables"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "missing-fulfillment-order",
+        "capturePath": "$.cases.missingFulfillmentOrder.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentCreate-preconditions.graphql",
+          "variables": {
+            "fromCapturePath": "$.cases.missingFulfillmentOrder.variables"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "missing-fulfillment-order-v2",
+        "capturePath": "$.cases.missingFulfillmentOrderV2.response.data.fulfillmentCreateV2",
+        "proxyPath": "$.data.fulfillmentCreateV2",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentCreateV2-preconditions.graphql",
+          "variables": {
+            "fromCapturePath": "$.cases.missingFulfillmentOrderV2.variables"
           },
           "apiVersion": "2026-04"
         }
@@ -87,5 +135,5 @@
       }
     ]
   },
-  "notes": "Captured public Admin API fulfillmentCreate preconditions. Public userErrors expose field/message only for this root; 2026-04 accepts fulfillmentCreate after fulfillmentOrderReportProgress leaves a fulfillment order IN_PROGRESS, so the scenario records that as the public happy-path contrast rather than treating it as a rejection."
+  "notes": "Captured public Admin API fulfillmentCreate and deprecated fulfillmentCreateV2 preconditions. Public userErrors expose field/message only for these roots; non-positive line-item quantities return an indexed quantity path, missing fulfillment orders return field [\"fulfillment\"], and Admin 2026-04 accepts fulfillmentCreate after fulfillmentOrderReportProgress leaves the fulfillment order IN_PROGRESS."
 }

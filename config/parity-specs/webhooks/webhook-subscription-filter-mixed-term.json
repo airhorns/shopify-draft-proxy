@@ -1,0 +1,102 @@
+{
+  "scenarioId": "webhook-subscription-filter-mixed-term",
+  "operationNames": ["webhookSubscriptionCreate", "webhookSubscriptionUpdate", "webhookSubscription"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "local-staging", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-filter-mixed-term.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_graphql_webhooks.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.cases.createMixedQualifiedAndBareRejected.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity for webhook subscription filter syntax when a qualified field term is mixed with a bare/default term. Shopify rejects the whole filter on create/update with field [\"webhookSubscription\"], while a fully qualified customer_id control remains accepted and survives the rejected update unchanged.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-mixed-qualified-and-bare-rejected",
+        "capturePath": "$.cases.createMixedQualifiedAndBareRejected.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate"
+      },
+      {
+        "name": "create-fully-qualified-accepted",
+        "capturePath": "$.cases.createFullyQualifiedAccepted.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.cases.createFullyQualifiedAccepted.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.webhookSubscription.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The proxy creates a stable synthetic webhook subscription ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.webhookSubscription.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          },
+          {
+            "path": "$.webhookSubscription.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          }
+        ]
+      },
+      {
+        "name": "update-mixed-qualified-and-bare-rejected",
+        "capturePath": "$.cases.updateMixedQualifiedAndBareRejected.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-fully-qualified-accepted",
+              "path": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.cases.updateMixedQualifiedAndBareRejected.variables.webhookSubscription"
+            }
+          }
+        }
+      },
+      {
+        "name": "read-after-rejected-mixed-filter-update",
+        "capturePath": "$.cases.detailAfterRejectedUpdate.response.payload.data.webhookSubscription",
+        "proxyPath": "$.data.webhookSubscription",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-detail-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-fully-qualified-accepted",
+              "path": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The downstream read sees the proxy-created synthetic webhook subscription ID."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The downstream read sees the proxy synthetic create timestamp."
+          },
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The rejected update leaves the proxy synthetic update timestamp unchanged from the create."
+          }
+        ]
+      }
+    ]
+  }
+}

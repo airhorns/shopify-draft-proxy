@@ -41,6 +41,9 @@ const createAddressMutation = await readGraphqlDocument(
 const updateAddressMutation = await readGraphqlDocument(
   'config/parity-requests/customers/customer-address-lifecycle-update-address.graphql',
 );
+const phoneReadQuery = await readGraphqlDocument(
+  'config/parity-requests/customers/customer-address-phone-normalization-read.graphql',
+);
 const customerSetMutation = await readGraphqlDocument('config/parity-requests/customers/customerSet-parity.graphql');
 
 const deleteCustomerMutation = `#graphql
@@ -120,10 +123,42 @@ const updateTrimmedAddress = {
   zip: ' M5H 2N2 ',
   phone: ' +14155550124 ',
 };
+const phoneSetupCustomerVariables = {
+  input: {
+    email: `address-phone-normalization-${timestamp}@example.com`,
+    firstName: 'Address',
+    lastName: 'Phone',
+  },
+};
+const createFormattedPhoneAddress = {
+  address1: '300 Phone Normalization',
+  city: 'Ottawa',
+  countryCode: 'CA',
+  provinceCode: 'ON',
+  phone: '+1 (613) 450-4538',
+};
+const updateFormattedPhoneAddress = {
+  phone: '+1-613-450-4538',
+};
+const updateLocalPhoneAddress = {
+  phone: '450-4538',
+};
+const updateRawFallbackPhoneAddress = {
+  phone: 'not a phone',
+};
 
 let setupCustomer!: GraphqlResult;
+let phoneSetupCustomer!: GraphqlResult;
 let addressCreateTrimmedSuccess!: GraphqlResult;
 let addressUpdateTrimmedSuccess!: GraphqlResult;
+let addressCreateFormattedPhone!: GraphqlResult;
+let addressCreateFormattedPhoneRead!: GraphqlResult;
+let addressUpdateFormattedPhone!: GraphqlResult;
+let addressUpdateFormattedPhoneRead!: GraphqlResult;
+let addressUpdateLocalPhone!: GraphqlResult;
+let addressUpdateLocalPhoneRead!: GraphqlResult;
+let addressUpdateRawFallbackPhone!: GraphqlResult;
+let addressUpdateRawFallbackPhoneRead!: GraphqlResult;
 let addressCreateTooLong!: GraphqlResult;
 let addressCreateCityHtml!: GraphqlResult;
 let addressCreateCityUrl!: GraphqlResult;
@@ -164,6 +199,65 @@ try {
     setAsDefault: true,
   });
   assertHttpOk(addressUpdateTrimmedSuccess, 'customerAddressUpdate trims address fields');
+
+  phoneSetupCustomer = await runGraphql(createCustomerMutation, phoneSetupCustomerVariables);
+  assertHttpOk(phoneSetupCustomer, 'phone setup customerCreate');
+  const phoneCustomerId = customerIdFrom(phoneSetupCustomer, 'customerCreate');
+  if (phoneCustomerId === null) {
+    throw new Error(
+      `phone setup customerCreate did not create a customer: ${JSON.stringify(phoneSetupCustomer, null, 2)}`,
+    );
+  }
+  createdCustomerIds.add(phoneCustomerId);
+
+  addressCreateFormattedPhone = await runGraphql(createAddressMutation, {
+    customerId: phoneCustomerId,
+    address: createFormattedPhoneAddress,
+    setAsDefault: true,
+  });
+  assertHttpOk(addressCreateFormattedPhone, 'customerAddressCreate formatted phone normalization');
+  const phoneAddressId = addressIdFrom(addressCreateFormattedPhone, 'customerAddressCreate');
+  if (phoneAddressId === null) {
+    throw new Error(
+      `customerAddressCreate formatted phone did not create an address: ${JSON.stringify(addressCreateFormattedPhone, null, 2)}`,
+    );
+  }
+
+  addressCreateFormattedPhoneRead = await runGraphql(phoneReadQuery, { id: phoneCustomerId });
+  assertHttpOk(addressCreateFormattedPhoneRead, 'customerAddressCreate formatted phone readback');
+
+  addressUpdateFormattedPhone = await runGraphql(updateAddressMutation, {
+    customerId: phoneCustomerId,
+    addressId: phoneAddressId,
+    address: updateFormattedPhoneAddress,
+    setAsDefault: true,
+  });
+  assertHttpOk(addressUpdateFormattedPhone, 'customerAddressUpdate formatted phone normalization');
+
+  addressUpdateFormattedPhoneRead = await runGraphql(phoneReadQuery, { id: phoneCustomerId });
+  assertHttpOk(addressUpdateFormattedPhoneRead, 'customerAddressUpdate formatted phone readback');
+
+  addressUpdateLocalPhone = await runGraphql(updateAddressMutation, {
+    customerId: phoneCustomerId,
+    addressId: phoneAddressId,
+    address: updateLocalPhoneAddress,
+    setAsDefault: true,
+  });
+  assertHttpOk(addressUpdateLocalPhone, 'customerAddressUpdate local phone normalization');
+
+  addressUpdateLocalPhoneRead = await runGraphql(phoneReadQuery, { id: phoneCustomerId });
+  assertHttpOk(addressUpdateLocalPhoneRead, 'customerAddressUpdate local phone readback');
+
+  addressUpdateRawFallbackPhone = await runGraphql(updateAddressMutation, {
+    customerId: phoneCustomerId,
+    addressId: phoneAddressId,
+    address: updateRawFallbackPhoneAddress,
+    setAsDefault: true,
+  });
+  assertHttpOk(addressUpdateRawFallbackPhone, 'customerAddressUpdate raw fallback phone');
+
+  addressUpdateRawFallbackPhoneRead = await runGraphql(phoneReadQuery, { id: phoneCustomerId });
+  assertHttpOk(addressUpdateRawFallbackPhoneRead, 'customerAddressUpdate raw fallback phone readback');
 
   addressCreateTooLong = await runGraphql(createAddressMutation, {
     customerId: primaryCustomerId,
@@ -255,6 +349,11 @@ const capture = {
     status: setupCustomer.status,
     response: setupCustomer.payload,
   },
+  phoneSetupCustomer: {
+    variables: phoneSetupCustomerVariables,
+    status: phoneSetupCustomer.status,
+    response: phoneSetupCustomer.payload,
+  },
   addressCreateTrimmedSuccess: {
     variables: {
       customerId: '<setup-customer-id>',
@@ -273,6 +372,65 @@ const capture = {
     },
     status: addressUpdateTrimmedSuccess.status,
     response: addressUpdateTrimmedSuccess.payload,
+  },
+  addressCreateFormattedPhone: {
+    variables: {
+      customerId: '<phone-setup-customer-id>',
+      address: createFormattedPhoneAddress,
+      setAsDefault: true,
+    },
+    status: addressCreateFormattedPhone.status,
+    response: addressCreateFormattedPhone.payload,
+  },
+  addressCreateFormattedPhoneRead: {
+    variables: { id: '<phone-setup-customer-id>' },
+    status: addressCreateFormattedPhoneRead.status,
+    response: addressCreateFormattedPhoneRead.payload,
+  },
+  addressUpdateFormattedPhone: {
+    variables: {
+      customerId: '<phone-setup-customer-id>',
+      addressId: '<phone-address-id>',
+      address: updateFormattedPhoneAddress,
+      setAsDefault: true,
+    },
+    status: addressUpdateFormattedPhone.status,
+    response: addressUpdateFormattedPhone.payload,
+  },
+  addressUpdateFormattedPhoneRead: {
+    variables: { id: '<phone-setup-customer-id>' },
+    status: addressUpdateFormattedPhoneRead.status,
+    response: addressUpdateFormattedPhoneRead.payload,
+  },
+  addressUpdateLocalPhone: {
+    variables: {
+      customerId: '<phone-setup-customer-id>',
+      addressId: '<phone-address-id>',
+      address: updateLocalPhoneAddress,
+      setAsDefault: true,
+    },
+    status: addressUpdateLocalPhone.status,
+    response: addressUpdateLocalPhone.payload,
+  },
+  addressUpdateLocalPhoneRead: {
+    variables: { id: '<phone-setup-customer-id>' },
+    status: addressUpdateLocalPhoneRead.status,
+    response: addressUpdateLocalPhoneRead.payload,
+  },
+  addressUpdateRawFallbackPhone: {
+    variables: {
+      customerId: '<phone-setup-customer-id>',
+      addressId: '<phone-address-id>',
+      address: updateRawFallbackPhoneAddress,
+      setAsDefault: true,
+    },
+    status: addressUpdateRawFallbackPhone.status,
+    response: addressUpdateRawFallbackPhone.payload,
+  },
+  addressUpdateRawFallbackPhoneRead: {
+    variables: { id: '<phone-setup-customer-id>' },
+    status: addressUpdateRawFallbackPhoneRead.status,
+    response: addressUpdateRawFallbackPhoneRead.payload,
   },
   addressCreateTooLong: {
     variables: {
@@ -371,7 +529,7 @@ const capture = {
   cleanup: cleanupResults,
   upstreamCalls: [],
   notes:
-    'Captured Admin GraphQL evidence for customer address input length, HTML, URL, emoji, blank-address, and whitespace normalization behavior.',
+    'Captured Admin GraphQL evidence for customer address input length, HTML, URL, emoji, blank-address, whitespace normalization, and no-default-territory address phone normalization behavior.',
 };
 
 await writeFile(outputPath, `${JSON.stringify(capture, null, 2)}\n`, 'utf8');

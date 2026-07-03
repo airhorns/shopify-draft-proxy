@@ -1,0 +1,176 @@
+{
+  "scenarioId": "customer-address-phone-normalization",
+  "operationNames": ["customerCreate", "customerAddressCreate", "customerAddressUpdate", "customer"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-address-input-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/customers.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customerInputValidation-create.graphql",
+    "variablesCapturePath": "$.phoneSetupCustomer.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2025-01 evidence for standalone customer address phone normalization: formatted international values carrying a leading + normalize to compact E.164 on create/update, digit-shaped no-+ local values normalize through the captured shop calling-code path, and unparseable no-+ values remain raw. Readback targets assert the same value through Customer.defaultAddress and Customer.addressesV2.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.address.id",
+        "matcher": "any-string",
+        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy stages the setup customer locally and returns its stable synthetic Customer GID instead of Shopify's live Customer GID."
+      },
+      {
+        "path": "$.defaultAddress.id",
+        "matcher": "any-string",
+        "reason": "The proxy stages the default address locally and returns a stable synthetic MailingAddress ID instead of Shopify's live ID."
+      },
+      {
+        "path": "$.addressesV2.nodes[*].id",
+        "matcher": "any-string",
+        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      }
+    ],
+    "targets": [
+      {
+        "name": "address-create-formatted-phone-normalizes",
+        "capturePath": "$.addressCreateFormattedPhone.response.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "address": {
+              "fromCapturePath": "$.addressCreateFormattedPhone.variables.address"
+            },
+            "setAsDefault": true
+          }
+        }
+      },
+      {
+        "name": "address-create-formatted-phone-readback",
+        "capturePath": "$.addressCreateFormattedPhoneRead.response.data.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-phone-normalization-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "address-update-formatted-phone-normalizes",
+        "capturePath": "$.addressUpdateFormattedPhone.response.data.customerAddressUpdate",
+        "proxyPath": "$.data.customerAddressUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-update-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "addressId": {
+              "fromProxyResponse": "address-create-formatted-phone-normalizes",
+              "path": "$.data.customerAddressCreate.address.id"
+            },
+            "address": {
+              "fromCapturePath": "$.addressUpdateFormattedPhone.variables.address"
+            },
+            "setAsDefault": true
+          }
+        }
+      },
+      {
+        "name": "address-update-formatted-phone-readback",
+        "capturePath": "$.addressUpdateFormattedPhoneRead.response.data.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-phone-normalization-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "address-update-local-phone-normalizes",
+        "capturePath": "$.addressUpdateLocalPhone.response.data.customerAddressUpdate",
+        "proxyPath": "$.data.customerAddressUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-update-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "addressId": {
+              "fromProxyResponse": "address-create-formatted-phone-normalizes",
+              "path": "$.data.customerAddressCreate.address.id"
+            },
+            "address": {
+              "fromCapturePath": "$.addressUpdateLocalPhone.variables.address"
+            },
+            "setAsDefault": true
+          }
+        }
+      },
+      {
+        "name": "address-update-local-phone-normalized-readback",
+        "capturePath": "$.addressUpdateLocalPhoneRead.response.data.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-phone-normalization-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "address-update-raw-fallback-phone-keeps-raw",
+        "capturePath": "$.addressUpdateRawFallbackPhone.response.data.customerAddressUpdate",
+        "proxyPath": "$.data.customerAddressUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-update-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "addressId": {
+              "fromProxyResponse": "address-create-formatted-phone-normalizes",
+              "path": "$.data.customerAddressCreate.address.id"
+            },
+            "address": {
+              "fromCapturePath": "$.addressUpdateRawFallbackPhone.variables.address"
+            },
+            "setAsDefault": true
+          }
+        }
+      },
+      {
+        "name": "address-update-raw-fallback-phone-readback",
+        "capturePath": "$.addressUpdateRawFallbackPhoneRead.response.data.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-phone-normalization-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

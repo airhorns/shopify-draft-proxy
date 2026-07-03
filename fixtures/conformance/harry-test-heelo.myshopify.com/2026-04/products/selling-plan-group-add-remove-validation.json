@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-06T05:51:14.335Z",
+  "capturedAt": "2026-06-30T13:40:22.706Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "notes": [
@@ -7,18 +7,18 @@
     "The script creates disposable products and a disposable selling-plan group, then deletes them during cleanup."
   ],
   "memberProduct": {
-    "id": "gid://shopify/Product/10178012119346",
-    "title": "Selling plan validation member motn2v47",
-    "variantId": "gid://shopify/ProductVariant/51129412944178",
+    "id": "gid://shopify/Product/10225391501618",
+    "title": "Selling plan validation member mr0p21s9",
+    "variantId": "gid://shopify/ProductVariant/51396231299378",
     "variantTitle": "Default Title"
   },
   "nonMemberProduct": {
-    "id": "gid://shopify/Product/10178012152114",
-    "title": "Selling plan validation non-member motn2v47",
-    "variantId": "gid://shopify/ProductVariant/51129412976946",
+    "id": "gid://shopify/Product/10225391534386",
+    "title": "Selling plan validation non-member mr0p21s9",
+    "variantId": "gid://shopify/ProductVariant/51396231332146",
     "variantTitle": "Default Title"
   },
-  "groupId": "gid://shopify/SellingPlanGroup/2984116530",
+  "groupId": "gid://shopify/SellingPlanGroup/3114565938",
   "unknownProductId": "gid://shopify/Product/999999999999",
   "unknownVariantId": "gid://shopify/ProductVariant/999999999999",
   "unknownGroupId": "gid://shopify/SellingPlanGroup/999999999999",
@@ -31,7 +31,7 @@
         "query": "#graphql\n  mutation CreateValidationProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title variants(first: 1) { nodes { id title } } }\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
           "product": {
-            "title": "Selling plan validation member motn2v47"
+            "title": "Selling plan validation member mr0p21s9"
           }
         }
       },
@@ -40,12 +40,12 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10178012119346",
-              "title": "Selling plan validation member motn2v47",
+              "id": "gid://shopify/Product/10225391501618",
+              "title": "Selling plan validation member mr0p21s9",
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51129412944178",
+                    "id": "gid://shopify/ProductVariant/51396231299378",
                     "title": "Default Title"
                   }
                 ]
@@ -73,7 +73,7 @@
         "query": "#graphql\n  mutation CreateValidationProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title variants(first: 1) { nodes { id title } } }\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
           "product": {
-            "title": "Selling plan validation non-member motn2v47"
+            "title": "Selling plan validation non-member mr0p21s9"
           }
         }
       },
@@ -82,12 +82,12 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10178012152114",
-              "title": "Selling plan validation non-member motn2v47",
+              "id": "gid://shopify/Product/10225391534386",
+              "title": "Selling plan validation non-member mr0p21s9",
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51129412976946",
+                    "id": "gid://shopify/ProductVariant/51396231332146",
                     "title": "Default Title"
                   }
                 ]
@@ -115,8 +115,8 @@
         "query": "#graphql\n  mutation CreateSellingPlanGroupValidation(\n    $input: SellingPlanGroupInput!\n    $resources: SellingPlanGroupResourceInput\n    $productId: ID!\n    $variantId: ID!\n  ) {\n    sellingPlanGroupCreate(input: $input, resources: $resources) {\n      sellingPlanGroup { #graphql\n  id\n  appId\n  name\n  merchantCode\n  description\n  options\n  position\n  summary\n  createdAt\n  productsCount { count precision }\n  productVariantsCount { count precision }\n  appliesToProduct(productId: $productId)\n  appliesToProductVariant(productVariantId: $variantId)\n  appliesToProductVariants(productId: $productId)\n  products(first: 5) { nodes { id title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  productVariants(first: 5) {\n    nodes { id title product { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  sellingPlans(first: 5) {\n    nodes {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n      billingPolicy {\n        __typename\n        ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n      }\n      deliveryPolicy {\n        __typename\n        ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n      }\n      inventoryPolicy { reserve }\n      pricingPolicies {\n        __typename\n        ... on SellingPlanFixedPricingPolicy {\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n          }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n }\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
           "input": {
-            "name": "Selling plan validation motn2v47",
-            "merchantCode": "selling-plan-validation-motn2v47",
+            "name": "Selling plan validation mr0p21s9",
+            "merchantCode": "selling-plan-validation-mr0p21s9",
             "description": "Temporary selling plan group for validation capture",
             "options": ["Delivery frequency"],
             "position": 1,
@@ -159,11 +159,11 @@
             ]
           },
           "resources": {
-            "productIds": ["gid://shopify/Product/10178012119346"],
-            "productVariantIds": ["gid://shopify/ProductVariant/51129412944178"]
+            "productIds": ["gid://shopify/Product/10225391501618"],
+            "productVariantIds": ["gid://shopify/ProductVariant/51396231299378"]
           },
-          "productId": "gid://shopify/Product/10178012119346",
-          "variantId": "gid://shopify/ProductVariant/51129412944178"
+          "productId": "gid://shopify/Product/10225391501618",
+          "variantId": "gid://shopify/ProductVariant/51396231299378"
         }
       },
       "status": 200,
@@ -171,15 +171,15 @@
         "data": {
           "sellingPlanGroupCreate": {
             "sellingPlanGroup": {
-              "id": "gid://shopify/SellingPlanGroup/2984116530",
+              "id": "gid://shopify/SellingPlanGroup/3114565938",
               "appId": null,
-              "name": "Selling plan validation motn2v47",
-              "merchantCode": "selling-plan-validation-motn2v47",
+              "name": "Selling plan validation mr0p21s9",
+              "merchantCode": "selling-plan-validation-mr0p21s9",
               "description": "Temporary selling plan group for validation capture",
               "options": ["Delivery frequency"],
               "position": 1,
               "summary": "1 delivery frequency, 10% discount",
-              "createdAt": "2026-05-06T05:51:11Z",
+              "createdAt": "2026-06-30T13:40:20Z",
               "productsCount": {
                 "count": 1,
                 "precision": "EXACT"
@@ -194,44 +194,44 @@
               "products": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/Product/10178012119346",
-                    "title": "Selling plan validation member motn2v47"
+                    "id": "gid://shopify/Product/10225391501618",
+                    "title": "Selling plan validation member mr0p21s9"
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoxMDE3ODAxMjExOTM0NiwibGFzdF92YWx1ZSI6IjEwMTc4MDEyMTE5MzQ2In0=",
-                  "endCursor": "eyJsYXN0X2lkIjoxMDE3ODAxMjExOTM0NiwibGFzdF92YWx1ZSI6IjEwMTc4MDEyMTE5MzQ2In0="
+                  "startCursor": "eyJsYXN0X2lkIjoxMDIyNTM5MTUwMTYxOCwibGFzdF92YWx1ZSI6IjEwMjI1MzkxNTAxNjE4In0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxMDIyNTM5MTUwMTYxOCwibGFzdF92YWx1ZSI6IjEwMjI1MzkxNTAxNjE4In0="
                 }
               },
               "productVariants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51129412944178",
+                    "id": "gid://shopify/ProductVariant/51396231299378",
                     "title": "Default Title",
                     "product": {
-                      "id": "gid://shopify/Product/10178012119346"
+                      "id": "gid://shopify/Product/10225391501618"
                     }
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo1MTEyOTQxMjk0NDE3OCwibGFzdF92YWx1ZSI6IjUxMTI5NDEyOTQ0MTc4In0=",
-                  "endCursor": "eyJsYXN0X2lkIjo1MTEyOTQxMjk0NDE3OCwibGFzdF92YWx1ZSI6IjUxMTI5NDEyOTQ0MTc4In0="
+                  "startCursor": "eyJsYXN0X2lkIjo1MTM5NjIzMTI5OTM3OCwibGFzdF92YWx1ZSI6IjUxMzk2MjMxMjk5Mzc4In0=",
+                  "endCursor": "eyJsYXN0X2lkIjo1MTM5NjIzMTI5OTM3OCwibGFzdF92YWx1ZSI6IjUxMzk2MjMxMjk5Mzc4In0="
                 }
               },
               "sellingPlans": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/SellingPlan/7134642482",
+                    "id": "gid://shopify/SellingPlan/7272857906",
                     "name": "Monthly delivery",
                     "description": "Ships every month",
                     "options": ["Monthly"],
                     "position": 1,
                     "category": "SUBSCRIPTION",
-                    "createdAt": "2026-05-06T05:51:11Z",
+                    "createdAt": "2026-06-30T13:40:20Z",
                     "billingPolicy": {
                       "__typename": "SellingPlanRecurringBillingPolicy",
                       "interval": "MONTH",
@@ -265,8 +265,8 @@
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjo3MTM0NjQyNDgyLCJsYXN0X3ZhbHVlIjoiNzEzNDY0MjQ4MiJ9",
-                  "endCursor": "eyJsYXN0X2lkIjo3MTM0NjQyNDgyLCJsYXN0X3ZhbHVlIjoiNzEzNDY0MjQ4MiJ9"
+                  "startCursor": "eyJsYXN0X2lkIjo3MjcyODU3OTA2LCJsYXN0X3ZhbHVlIjoiNzI3Mjg1NzkwNiJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo3MjcyODU3OTA2LCJsYXN0X3ZhbHVlIjoiNzI3Mjg1NzkwNiJ9"
                 }
               }
             },
@@ -291,10 +291,10 @@
       "request": {
         "query": "#graphql\n  mutation AddProductsValidation($id: ID!, $productIds: [ID!]!, $productId: ID!, $variantId: ID!) {\n    sellingPlanGroupAddProducts(id: $id, productIds: $productIds) {\n      sellingPlanGroup { #graphql\n  id\n  appId\n  name\n  merchantCode\n  description\n  options\n  position\n  summary\n  createdAt\n  productsCount { count precision }\n  productVariantsCount { count precision }\n  appliesToProduct(productId: $productId)\n  appliesToProductVariant(productVariantId: $variantId)\n  appliesToProductVariants(productId: $productId)\n  products(first: 5) { nodes { id title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  productVariants(first: 5) {\n    nodes { id title product { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  sellingPlans(first: 5) {\n    nodes {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n      billingPolicy {\n        __typename\n        ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n      }\n      deliveryPolicy {\n        __typename\n        ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n      }\n      inventoryPolicy { reserve }\n      pricingPolicies {\n        __typename\n        ... on SellingPlanFixedPricingPolicy {\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n          }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n }\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/2984116530",
-          "productIds": ["gid://shopify/Product/10178012119346"],
-          "productId": "gid://shopify/Product/10178012119346",
-          "variantId": "gid://shopify/ProductVariant/51129412944178"
+          "id": "gid://shopify/SellingPlanGroup/3114565938",
+          "productIds": ["gid://shopify/Product/10225391501618"],
+          "productId": "gid://shopify/Product/10225391501618",
+          "variantId": "gid://shopify/ProductVariant/51396231299378"
         }
       },
       "status": 200,
@@ -317,7 +317,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
@@ -329,10 +329,10 @@
       "request": {
         "query": "#graphql\n  mutation AddVariantsValidation($id: ID!, $productVariantIds: [ID!]!, $productId: ID!, $variantId: ID!) {\n    sellingPlanGroupAddProductVariants(id: $id, productVariantIds: $productVariantIds) {\n      sellingPlanGroup { #graphql\n  id\n  appId\n  name\n  merchantCode\n  description\n  options\n  position\n  summary\n  createdAt\n  productsCount { count precision }\n  productVariantsCount { count precision }\n  appliesToProduct(productId: $productId)\n  appliesToProductVariant(productVariantId: $variantId)\n  appliesToProductVariants(productId: $productId)\n  products(first: 5) { nodes { id title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  productVariants(first: 5) {\n    nodes { id title product { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  sellingPlans(first: 5) {\n    nodes {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n      billingPolicy {\n        __typename\n        ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n      }\n      deliveryPolicy {\n        __typename\n        ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n      }\n      inventoryPolicy { reserve }\n      pricingPolicies {\n        __typename\n        ... on SellingPlanFixedPricingPolicy {\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n          }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n }\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/2984116530",
-          "productVariantIds": ["gid://shopify/ProductVariant/51129412944178"],
-          "productId": "gid://shopify/Product/10178012119346",
-          "variantId": "gid://shopify/ProductVariant/51129412944178"
+          "id": "gid://shopify/SellingPlanGroup/3114565938",
+          "productVariantIds": ["gid://shopify/ProductVariant/51396231299378"],
+          "productId": "gid://shopify/Product/10225391501618",
+          "variantId": "gid://shopify/ProductVariant/51396231299378"
         }
       },
       "status": 200,
@@ -355,7 +355,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
@@ -367,10 +367,10 @@
       "request": {
         "query": "#graphql\n  mutation AddProductsValidation($id: ID!, $productIds: [ID!]!, $productId: ID!, $variantId: ID!) {\n    sellingPlanGroupAddProducts(id: $id, productIds: $productIds) {\n      sellingPlanGroup { #graphql\n  id\n  appId\n  name\n  merchantCode\n  description\n  options\n  position\n  summary\n  createdAt\n  productsCount { count precision }\n  productVariantsCount { count precision }\n  appliesToProduct(productId: $productId)\n  appliesToProductVariant(productVariantId: $variantId)\n  appliesToProductVariants(productId: $productId)\n  products(first: 5) { nodes { id title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  productVariants(first: 5) {\n    nodes { id title product { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  sellingPlans(first: 5) {\n    nodes {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n      billingPolicy {\n        __typename\n        ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n      }\n      deliveryPolicy {\n        __typename\n        ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n      }\n      inventoryPolicy { reserve }\n      pricingPolicies {\n        __typename\n        ... on SellingPlanFixedPricingPolicy {\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n          }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n }\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/2984116530",
+          "id": "gid://shopify/SellingPlanGroup/3114565938",
           "productIds": ["gid://shopify/Product/999999999999"],
-          "productId": "gid://shopify/Product/10178012119346",
-          "variantId": "gid://shopify/ProductVariant/51129412944178"
+          "productId": "gid://shopify/Product/10225391501618",
+          "variantId": "gid://shopify/ProductVariant/51396231299378"
         }
       },
       "status": 200,
@@ -393,7 +393,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
@@ -405,10 +405,10 @@
       "request": {
         "query": "#graphql\n  mutation AddVariantsValidation($id: ID!, $productVariantIds: [ID!]!, $productId: ID!, $variantId: ID!) {\n    sellingPlanGroupAddProductVariants(id: $id, productVariantIds: $productVariantIds) {\n      sellingPlanGroup { #graphql\n  id\n  appId\n  name\n  merchantCode\n  description\n  options\n  position\n  summary\n  createdAt\n  productsCount { count precision }\n  productVariantsCount { count precision }\n  appliesToProduct(productId: $productId)\n  appliesToProductVariant(productVariantId: $variantId)\n  appliesToProductVariants(productId: $productId)\n  products(first: 5) { nodes { id title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  productVariants(first: 5) {\n    nodes { id title product { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  sellingPlans(first: 5) {\n    nodes {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n      billingPolicy {\n        __typename\n        ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n      }\n      deliveryPolicy {\n        __typename\n        ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n      }\n      inventoryPolicy { reserve }\n      pricingPolicies {\n        __typename\n        ... on SellingPlanFixedPricingPolicy {\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n          }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n }\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/2984116530",
+          "id": "gid://shopify/SellingPlanGroup/3114565938",
           "productVariantIds": ["gid://shopify/ProductVariant/999999999999"],
-          "productId": "gid://shopify/Product/10178012119346",
-          "variantId": "gid://shopify/ProductVariant/51129412944178"
+          "productId": "gid://shopify/Product/10225391501618",
+          "variantId": "gid://shopify/ProductVariant/51396231299378"
         }
       },
       "status": 200,
@@ -431,7 +431,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1986,
               "restoreRate": 100
             }
           }
@@ -443,8 +443,8 @@
       "request": {
         "query": "#graphql\n  mutation RemoveProductsValidation($id: ID!, $productIds: [ID!]!) {\n    sellingPlanGroupRemoveProducts(id: $id, productIds: $productIds) {\n      removedProductIds\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/2984116530",
-          "productIds": ["gid://shopify/Product/10178012152114"]
+          "id": "gid://shopify/SellingPlanGroup/3114565938",
+          "productIds": ["gid://shopify/Product/10225391534386"]
         }
       },
       "status": 200,
@@ -461,7 +461,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
@@ -473,8 +473,8 @@
       "request": {
         "query": "#graphql\n  mutation RemoveVariantsValidation($id: ID!, $productVariantIds: [ID!]!) {\n    sellingPlanGroupRemoveProductVariants(id: $id, productVariantIds: $productVariantIds) {\n      removedProductVariantIds\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/2984116530",
-          "productVariantIds": ["gid://shopify/ProductVariant/51129412976946"]
+          "id": "gid://shopify/SellingPlanGroup/3114565938",
+          "productVariantIds": ["gid://shopify/ProductVariant/51396231332146"]
         }
       },
       "status": 200,
@@ -491,7 +491,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1985,
               "restoreRate": 100
             }
           }
@@ -503,7 +503,7 @@
       "request": {
         "query": "#graphql\n  mutation RemoveProductsValidation($id: ID!, $productIds: [ID!]!) {\n    sellingPlanGroupRemoveProducts(id: $id, productIds: $productIds) {\n      removedProductIds\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/2984116530",
+          "id": "gid://shopify/SellingPlanGroup/3114565938",
           "productIds": ["gid://shopify/Product/999999999999"]
         }
       },
@@ -521,7 +521,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1984,
               "restoreRate": 100
             }
           }
@@ -533,7 +533,7 @@
       "request": {
         "query": "#graphql\n  mutation RemoveVariantsValidation($id: ID!, $productVariantIds: [ID!]!) {\n    sellingPlanGroupRemoveProductVariants(id: $id, productVariantIds: $productVariantIds) {\n      removedProductVariantIds\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/2984116530",
+          "id": "gid://shopify/SellingPlanGroup/3114565938",
           "productVariantIds": ["gid://shopify/ProductVariant/999999999999"]
         }
       },
@@ -551,7 +551,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1986,
               "restoreRate": 100
             }
           }
@@ -563,7 +563,7 @@
       "request": {
         "query": "#graphql\n  mutation RemoveProductsValidation($id: ID!, $productIds: [ID!]!) {\n    sellingPlanGroupRemoveProducts(id: $id, productIds: $productIds) {\n      removedProductIds\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/2984116530",
+          "id": "gid://shopify/SellingPlanGroup/3114565938",
           "productIds": ["not-a-product-gid"]
         }
       },
@@ -598,7 +598,7 @@
       "request": {
         "query": "#graphql\n  mutation RemoveVariantsValidation($id: ID!, $productVariantIds: [ID!]!) {\n    sellingPlanGroupRemoveProductVariants(id: $id, productVariantIds: $productVariantIds) {\n      removedProductVariantIds\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/SellingPlanGroup/2984116530",
+          "id": "gid://shopify/SellingPlanGroup/3114565938",
           "productVariantIds": ["not-a-product-variant-gid"]
         }
       },
@@ -634,9 +634,9 @@
         "query": "#graphql\n  mutation AddProductsValidation($id: ID!, $productIds: [ID!]!, $productId: ID!, $variantId: ID!) {\n    sellingPlanGroupAddProducts(id: $id, productIds: $productIds) {\n      sellingPlanGroup { #graphql\n  id\n  appId\n  name\n  merchantCode\n  description\n  options\n  position\n  summary\n  createdAt\n  productsCount { count precision }\n  productVariantsCount { count precision }\n  appliesToProduct(productId: $productId)\n  appliesToProductVariant(productVariantId: $variantId)\n  appliesToProductVariants(productId: $productId)\n  products(first: 5) { nodes { id title } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  productVariants(first: 5) {\n    nodes { id title product { id } }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n  sellingPlans(first: 5) {\n    nodes {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n      billingPolicy {\n        __typename\n        ... on SellingPlanRecurringBillingPolicy { interval intervalCount minCycles maxCycles }\n      }\n      deliveryPolicy {\n        __typename\n        ... on SellingPlanRecurringDeliveryPolicy { interval intervalCount cutoff intent preAnchorBehavior }\n      }\n      inventoryPolicy { reserve }\n      pricingPolicies {\n        __typename\n        ... on SellingPlanFixedPricingPolicy {\n          adjustmentType\n          adjustmentValue {\n            __typename\n            ... on SellingPlanPricingPolicyPercentageValue { percentage }\n          }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n }\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
           "id": "gid://shopify/SellingPlanGroup/999999999999",
-          "productIds": ["gid://shopify/Product/10178012119346"],
-          "productId": "gid://shopify/Product/10178012119346",
-          "variantId": "gid://shopify/ProductVariant/51129412944178"
+          "productIds": ["gid://shopify/Product/10225391501618"],
+          "productId": "gid://shopify/Product/10225391501618",
+          "variantId": "gid://shopify/ProductVariant/51396231299378"
         }
       },
       "status": 200,
@@ -669,12 +669,12 @@
   ],
   "cleanup": [
     {
-      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/2984116530",
+      "label": "cleanup sellingPlanGroupDelete gid://shopify/SellingPlanGroup/3114565938",
       "status": 200,
       "response": {
         "data": {
           "sellingPlanGroupDelete": {
-            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/2984116530",
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/3114565938",
             "userErrors": []
           }
         },
@@ -692,12 +692,12 @@
       }
     },
     {
-      "label": "cleanup productDelete gid://shopify/Product/10178012119346",
+      "label": "cleanup productDelete gid://shopify/Product/10225391501618",
       "status": 200,
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10178012119346",
+            "deletedProductId": "gid://shopify/Product/10225391501618",
             "userErrors": []
           }
         },
@@ -715,12 +715,12 @@
       }
     },
     {
-      "label": "cleanup productDelete gid://shopify/Product/10178012152114",
+      "label": "cleanup productDelete gid://shopify/Product/10225391534386",
       "status": 200,
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10178012152114",
+            "deletedProductId": "gid://shopify/Product/10225391534386",
             "userErrors": []
           }
         },
@@ -742,36 +742,25 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10178012119346", "gid://shopify/ProductVariant/51129412944178"]
+        "ids": ["gid://shopify/Product/10225391501618", "gid://shopify/ProductVariant/51396231299378"]
       },
-      "query": "hand-synthesized from live setup product evidence for mutation hydration",
+      "query": "#graphql\n  query ProductsHydrateNodes($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      id\n      ... on Product {\n        title\n        variants(first: 1) {\n          nodes {\n            id\n            title\n          }\n        }\n      }\n      ... on ProductVariant {\n        title\n        product {\n          id\n        }\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "nodes": [
-              {
-                "__typename": "Product",
-                "id": "gid://shopify/Product/10178012119346",
-                "title": "Selling plan validation member motn2v47",
-                "variants": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/ProductVariant/51129412944178",
-                      "title": "Default Title"
-                    }
-                  ]
-                }
-              },
-              {
-                "__typename": "ProductVariant",
-                "id": "gid://shopify/ProductVariant/51129412944178",
-                "title": "Default Title",
-                "product": {
-                  "id": "gid://shopify/Product/10178012119346"
-                }
+            "nodes": [null, null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
               }
-            ]
+            }
           }
         }
       }
@@ -781,12 +770,23 @@
       "variables": {
         "ids": ["gid://shopify/Product/999999999999"]
       },
-      "query": "hand-synthesized from live setup product evidence for mutation hydration",
+      "query": "#graphql\n  query ProductsHydrateNodes($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      id\n      ... on Product {\n        title\n        variants(first: 1) {\n          nodes {\n            id\n            title\n          }\n        }\n      }\n      ... on ProductVariant {\n        title\n        product {\n          id\n        }\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -796,12 +796,23 @@
       "variables": {
         "ids": ["gid://shopify/ProductVariant/999999999999"]
       },
-      "query": "hand-synthesized from live setup product evidence for mutation hydration",
+      "query": "#graphql\n  query ProductsHydrateNodes($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      id\n      ... on Product {\n        title\n        variants(first: 1) {\n          nodes {\n            id\n            title\n          }\n        }\n      }\n      ... on ProductVariant {\n        title\n        product {\n          id\n        }\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -809,28 +820,25 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10178012152114"]
+        "ids": ["gid://shopify/Product/10225391534386"]
       },
-      "query": "hand-synthesized from live setup product evidence for mutation hydration",
+      "query": "#graphql\n  query ProductsHydrateNodes($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      id\n      ... on Product {\n        title\n        variants(first: 1) {\n          nodes {\n            id\n            title\n          }\n        }\n      }\n      ... on ProductVariant {\n        title\n        product {\n          id\n        }\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "nodes": [
-              {
-                "__typename": "Product",
-                "id": "gid://shopify/Product/10178012152114",
-                "title": "Selling plan validation non-member motn2v47",
-                "variants": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/ProductVariant/51129412976946",
-                      "title": "Default Title"
-                    }
-                  ]
-                }
+            "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
               }
-            ]
+            }
           }
         }
       }
@@ -838,23 +846,25 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/ProductVariant/51129412976946"]
+        "ids": ["gid://shopify/ProductVariant/51396231332146"]
       },
-      "query": "hand-synthesized from live setup product evidence for mutation hydration",
+      "query": "#graphql\n  query ProductsHydrateNodes($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      id\n      ... on Product {\n        title\n        variants(first: 1) {\n          nodes {\n            id\n            title\n          }\n        }\n      }\n      ... on ProductVariant {\n        title\n        product {\n          id\n        }\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "nodes": [
-              {
-                "__typename": "ProductVariant",
-                "id": "gid://shopify/ProductVariant/51129412976946",
-                "title": "Default Title",
-                "product": {
-                  "id": "gid://shopify/Product/10178012152114"
-                }
+            "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
               }
-            ]
+            }
           }
         }
       }

@@ -244,7 +244,12 @@ async function captureCreateUpdateGrammarScenario(marker: string): Promise<void>
       segmentName: 'Customer countries',
       query: "customer_countries CONTAINS 'CA'",
     },
-    { name: 'segmentCreateAmountSpentAccept', segmentName: 'Amount spent', query: 'amount_spent > 100' },
+    { name: 'segmentCreateAmountSpentAccept', segmentName: 'Amount spent', query: 'amount_spent > 100.50' },
+    {
+      name: 'segmentCreateAbandonedCheckoutDateAccept',
+      segmentName: 'Abandoned checkout date',
+      query: 'abandoned_checkout_date >= -30d',
+    },
     { name: 'segmentCreateCompaniesNullAccept', segmentName: 'Companies null', query: 'companies IS NULL' },
     {
       name: 'segmentCreateAndAccept',
@@ -300,6 +305,17 @@ async function captureCreateUpdateGrammarScenario(marker: string): Promise<void>
 
     await captureCase(
       cases,
+      'segmentUpdateAbandonedCheckoutDateAccept',
+      updateMutation,
+      {
+        id: updateSegmentId,
+        query: 'abandoned_checkout_date >= -30d',
+      },
+      (result) => assertNoUserErrors(result, 'segmentUpdate', 'segmentUpdate abandoned checkout query'),
+    );
+
+    await captureCase(
+      cases,
       'segmentCreateMalformedRejected',
       createMutation,
       {
@@ -319,7 +335,7 @@ async function captureCreateUpdateGrammarScenario(marker: string): Promise<void>
     cases,
     notes: [
       'Live Shopify evidence that broader segment query grammar is accepted by segmentCreate and segmentUpdate.',
-      'Accepted branches cover customer country, amount spent, IS NULL, AND, parenthesized OR, and relative date predicates. The malformed branch captures Shopify query userErrors.',
+      'Accepted branches cover customer country, decimal amount spent, abandoned checkout date, IS NULL, AND, parenthesized OR, and relative date predicates. The malformed branch captures Shopify query userErrors.',
       'The public Admin API versions tested during capture reject the `country` and `total_spent` aliases, while the proxy still accepts them optimistically for callers that follow those aliases.',
       'Disposable segments created for this capture are deleted in cleanup cases.',
     ],

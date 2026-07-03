@@ -6,14 +6,12 @@ use super::*;
 // cassette that matches this `include_str!` const exactly.
 const REFUND_ORDER_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/orders/refund-order-hydrate.graphql");
+const FINAL_CAPTURE_UNSUPPORTED_PAYMENT_PROVIDER_MESSAGE: &str =
+    "Setting final capture is not supported for this transaction's payment gateway. Please remove the parameter or set it to null, then try again.";
 
-pub(in crate::proxy) fn refund_user_error(
-    field: Value,
-    message: impl Into<String>,
-    code: &str,
-) -> Value {
+pub(in crate::proxy) fn refund_user_error(field: Value, message: impl Into<String>) -> Value {
     let message = message.into();
-    user_error(field, &message, Some(code))
+    user_error_omit_code(field, &message, None)
 }
 
 pub(in crate::proxy) fn order_currency(order: &Value, shop_currency_code: &str) -> String {
@@ -274,7 +272,6 @@ pub(in crate::proxy) fn refund_transaction_validation_error(
                     "Kind {} is not a valid transaction",
                     kind.to_ascii_lowercase()
                 ),
-                "INVALID",
             ));
         }
         let parent_id = resolved_string_field(&transaction, "parentId").unwrap_or_default();
@@ -284,7 +281,6 @@ pub(in crate::proxy) fn refund_transaction_validation_error(
             return Some(refund_user_error(
                 json!(["transactions"]),
                 "Transactions require a parent_id associated with the order",
-                "INVALID",
             ));
         }
     }
@@ -306,7 +302,6 @@ pub(in crate::proxy) fn refund_quantity_validation_error(
             return Some(refund_user_error(
                 json!(["refundLineItems", index.to_string(), "lineItemId"]),
                 "Line item does not exist",
-                "NOT_FOUND",
             ));
         };
         let quantity = refund_line_item_quantity(line_input);
@@ -318,7 +313,6 @@ pub(in crate::proxy) fn refund_quantity_validation_error(
             return Some(refund_user_error(
                 json!(["refundLineItems", index.to_string(), "quantity"]),
                 "Quantity cannot refund more items than were purchased",
-                "INVALID",
             ));
         }
     }
@@ -338,7 +332,6 @@ pub(in crate::proxy) fn refund_amount_validation_error(
                 "Refund amount ${:.2} is greater than net payment received ${:.2}",
                 refund_amount, refundable
             ),
-            "OVER_REFUND",
         ));
     }
     None
@@ -667,6 +660,10 @@ pub(in crate::proxy) fn payment_transaction_matches_parent(
         == Some(parent_id)
 }
 
+fn payment_transaction_supports_final_capture(transaction: &Value) -> bool {
+    transaction["gateway"].as_str() == Some("shopify_payments")
+}
+
 pub(in crate::proxy) fn payment_user_error(
     field: Value,
     message: &str,
@@ -794,7 +791,7 @@ impl DraftProxy {
                 refund_input_error(
                     field,
                     None,
-                    refund_user_error(json!(["input"]), "Input is required", "INVALID"),
+                    refund_user_error(json!(["input"]), "Input is required"),
                     &shop_currency_code,
                 ),
                 Vec::new(),
@@ -805,7 +802,7 @@ impl DraftProxy {
                 refund_input_error(
                     field,
                     None,
-                    refund_user_error(json!(["orderId"]), "Order does not exist", "NOT_FOUND"),
+                    refund_user_error(json!(["orderId"]), "Order does not exist"),
                     &shop_currency_code,
                 ),
                 Vec::new(),
@@ -818,7 +815,7 @@ impl DraftProxy {
                 refund_input_error(
                     field,
                     None,
-                    refund_user_error(json!(["orderId"]), "Order does not exist", "NOT_FOUND"),
+                    refund_user_error(json!(["orderId"]), "Order does not exist"),
                     &shop_currency_code,
                 ),
                 Vec::new(),
@@ -1189,17 +1186,61 @@ impl DraftProxy {
         let id = shopify_gid("Order", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
         let order_input = resolved_object_field(&field.arguments, "order").unwrap_or_default();
-        let currency = resolved_string_field(&order_input, "currency")
+        let transaction_inputs = resolved_object_list_field(&order_input, "transactions");
+        let first_transaction = transaction_inputs.first().cloned().unwrap_or_default();
+        let transaction_amount_set = payment_money_set_from_input(&first_transaction);
+        let inferred_input_currency = transaction_amount_set
+            .as_ref()
+            .and_then(|amount_set| {
+                payment_money_currency(amount_set, "shopMoney")
+                    .or_else(|| payment_money_currency(amount_set, "presentmentMoney"))
+            })
+            .or_else(|| {
+                resolved_object_list_field(&order_input, "lineItems")
+                    .into_iter()
+                    .find_map(|line_item| {
+                        resolved_object_field(&line_item, "priceSet")
+                            .or_else(|| resolved_object_field(&line_item, "originalUnitPriceSet"))
+                            .and_then(|price| input_money_currency(&price))
+                    })
+            });
+        let explicit_currency = resolved_string_field(&order_input, "currency")
+            .or_else(|| resolved_string_field(&order_input, "currencyCode"));
+        let currency = explicit_currency
+            .clone()
+            .or_else(|| inferred_input_currency.clone())
             .unwrap_or_else(|| self.store.shop_currency_code());
+        let explicit_presentment_currency =
+            resolved_string_field(&order_input, "presentmentCurrency")
+                .or_else(|| resolved_string_field(&order_input, "presentmentCurrencyCode"));
+        let presentment_currency = explicit_presentment_currency
+            .clone()
+            .or_else(|| {
+                transaction_amount_set
+                    .as_ref()
+                    .and_then(|amount_set| payment_money_currency(amount_set, "presentmentMoney"))
+            })
+            .or_else(|| inferred_input_currency.clone())
+            .unwrap_or_else(|| currency.clone());
+        let mut order_record_input = order_input.clone();
+        if explicit_currency.is_none() {
+            order_record_input.insert(
+                "currency".to_string(),
+                ResolvedValue::String(currency.clone()),
+            );
+        }
+        if explicit_presentment_currency.is_none() {
+            order_record_input.insert(
+                "presentmentCurrency".to_string(),
+                ResolvedValue::String(presentment_currency),
+            );
+        }
         // Base projection: full order math (line items + taxLines, shipping lines +
         // totalShippingPriceSet, subtotals, taxes, discounts). The payment view is
         // layered on top so a payment-field selection still receives the complete
         // order shape rather than the totals-only subset.
-        let mut order = self.build_order_create_record(&id, &order_input);
-        let transaction_inputs = resolved_object_list_field(&order_input, "transactions");
-        let first_transaction = transaction_inputs.first().cloned().unwrap_or_default();
-        let amount_set = payment_money_set_from_input(&first_transaction)
-            .unwrap_or_else(|| money_set("25.0", &currency));
+        let mut order = self.build_order_create_record(&id, &order_record_input);
+        let amount_set = transaction_amount_set.unwrap_or_else(|| money_set("25.0", &currency));
         let amount = payment_money_amount(&amount_set, "presentmentMoney")
             .or_else(|| payment_money_amount(&amount_set, "shopMoney"))
             .unwrap_or_else(|| "25.0".to_string());
@@ -1376,7 +1417,8 @@ impl DraftProxy {
             normalized_order_payment_amount(Some(requested_amount.clone()));
         let requested_amount_value = requested_amount.parse::<f64>().ok()?;
         let parent_id = resolved_string_field(input, "parentTransactionId");
-        let final_capture = matches!(input.get("finalCapture"), Some(ResolvedValue::Bool(true)));
+        let final_capture_input = input.get("finalCapture");
+        let final_capture = matches!(final_capture_input, Some(ResolvedValue::Bool(true)));
         let order = self.store.staged.orders.get(order_id)?;
         let transactions = order["transactions"]
             .as_array()
@@ -1468,6 +1510,20 @@ impl DraftProxy {
                     json!(["parent_transaction_id"]),
                     "Parent transaction must be a successful authorization",
                     Some("INVALID_TRANSACTION_STATE"),
+                )],
+                Vec::new(),
+            ));
+        }
+        if matches!(final_capture_input, Some(value) if !matches!(value, ResolvedValue::Null))
+            && !payment_transaction_supports_final_capture(&parent_transaction)
+        {
+            return Some((
+                Value::Null,
+                order.clone(),
+                vec![payment_user_error(
+                    Value::Null,
+                    FINAL_CAPTURE_UNSUPPORTED_PAYMENT_PROVIDER_MESSAGE,
+                    None,
                 )],
                 Vec::new(),
             ));

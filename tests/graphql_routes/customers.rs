@@ -233,6 +233,135 @@ fn customers_count_uses_staged_customers_when_no_baseline_exists() {
 }
 
 #[test]
+fn customers_connection_applies_name_sort_and_reverse_before_windowing() {
+    let mut proxy = snapshot_proxy();
+    create_customer(
+        &mut proxy,
+        "zulu-customer@example.test",
+        "Zulu",
+        "Customer",
+        vec![],
+        None,
+    );
+    create_customer(
+        &mut proxy,
+        "alpha-customer@example.test",
+        "Alpha",
+        "Customer",
+        vec![],
+        None,
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersNameSort {
+          ascending: customers(first: 10, sortKey: NAME) { nodes { email displayName } }
+          descending: customers(first: 10, sortKey: NAME, reverse: true) { nodes { email displayName } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["ascending"]["nodes"],
+        json!([
+            { "email": "alpha-customer@example.test", "displayName": "Alpha Customer" },
+            { "email": "zulu-customer@example.test", "displayName": "Zulu Customer" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["descending"]["nodes"],
+        json!([
+            { "email": "zulu-customer@example.test", "displayName": "Zulu Customer" },
+            { "email": "alpha-customer@example.test", "displayName": "Alpha Customer" }
+        ])
+    );
+}
+
+#[test]
+fn customers_sorted_connection_paginates_after_interleaved_create() {
+    let mut proxy = snapshot_proxy();
+    create_customer(
+        &mut proxy,
+        "alpha-page@example.test",
+        "Alpha",
+        "Page",
+        vec![],
+        None,
+    );
+    create_customer(
+        &mut proxy,
+        "zulu-page@example.test",
+        "Zulu",
+        "Page",
+        vec![],
+        None,
+    );
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersNameFirstPage {
+          customers(first: 1, sortKey: NAME) {
+            edges { cursor node { email displayName } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["customers"]["edges"][0]["node"],
+        json!({ "email": "alpha-page@example.test", "displayName": "Alpha Page" })
+    );
+
+    create_customer(
+        &mut proxy,
+        "aaron-page@example.test",
+        "Aaron",
+        "Page",
+        vec![],
+        None,
+    );
+
+    let next_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersNameNextPage($after: String!) {
+          customers(first: 1, after: $after, sortKey: NAME) {
+            nodes { email displayName }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"after": first_page.body["data"]["customers"]["pageInfo"]["endCursor"]}),
+    ));
+    assert_eq!(
+        next_page.body["data"]["customers"]["nodes"],
+        json!([{ "email": "zulu-page@example.test", "displayName": "Zulu Page" }])
+    );
+    assert_eq!(
+        next_page.body["data"]["customers"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+
+    let before_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersNameBeforePage($before: String!) {
+          customers(last: 1, before: $before, sortKey: NAME) {
+            nodes { email displayName }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"before": next_page.body["data"]["customers"]["pageInfo"]["startCursor"]}),
+    ));
+    assert_eq!(
+        before_page.body["data"]["customers"]["nodes"],
+        json!([{ "email": "alpha-page@example.test", "displayName": "Alpha Page" }])
+    );
+}
+
+#[test]
 fn customer_merge_stages_and_downstream_reads_are_operation_name_independent() {
     let mut proxy = snapshot_proxy();
     let source_id = create_customer(
@@ -973,6 +1102,199 @@ fn customer_address_accepts_supported_country_outside_original_subset() {
             "provinceCode": null,
             "formattedArea": "Copenhagen, Denmark"
         })
+    );
+}
+
+#[test]
+fn customer_address_phone_normalizes_international_format_without_inferring_country() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_customer(
+        &mut proxy,
+        "address-phone-normalization@example.test",
+        "Address",
+        "Phone",
+        Vec::new(),
+        None,
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateAddressPhone($customerId: ID!, $address: MailingAddressInput!) {
+          customerAddressCreate(customerId: $customerId, address: $address, setAsDefault: true) {
+            address { id phone }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "customerId": customer_id,
+            "address": {
+                "address1": "1 Normalized Way",
+                "city": "Ottawa",
+                "countryCode": "CA",
+                "phone": "+1 (613) 450-4538"
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["customerAddressCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["customerAddressCreate"]["address"]["phone"],
+        json!("+16134504538")
+    );
+    let address_id = create.body["data"]["customerAddressCreate"]["address"]["id"]
+        .as_str()
+        .expect("address id")
+        .to_string();
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query AddressPhoneReadback($id: ID!) {
+          customer(id: $id) {
+            defaultAddress { phone }
+            addressesV2(first: 5) { nodes { id phone } }
+          }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["customer"]["defaultAddress"]["phone"],
+        json!("+16134504538")
+    );
+    assert_eq!(
+        downstream.body["data"]["customer"]["addressesV2"]["nodes"][0]["phone"],
+        json!("+16134504538")
+    );
+
+    let update_formatted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateAddressPhone($customerId: ID!, $addressId: ID!, $address: MailingAddressInput!) {
+          customerAddressUpdate(
+            customerId: $customerId
+            addressId: $addressId
+            address: $address
+            setAsDefault: true
+          ) {
+            address { id phone }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "customerId": customer_id,
+            "addressId": address_id,
+            "address": { "phone": "+1-613-450-4538" }
+        }),
+    ));
+    assert_eq!(
+        update_formatted.body["data"]["customerAddressUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update_formatted.body["data"]["customerAddressUpdate"]["address"]["phone"],
+        json!("+16134504538")
+    );
+
+    let update_local = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateAddressLocalPhone($customerId: ID!, $addressId: ID!, $address: MailingAddressInput!) {
+          customerAddressUpdate(
+            customerId: $customerId
+            addressId: $addressId
+            address: $address
+            setAsDefault: true
+          ) {
+            address { id phone }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "customerId": customer_id,
+            "addressId": address_id,
+            "address": { "phone": "450-4538" }
+        }),
+    ));
+    assert_eq!(
+        update_local.body["data"]["customerAddressUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update_local.body["data"]["customerAddressUpdate"]["address"]["phone"],
+        json!("+14504538")
+    );
+
+    let local_downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query LocalAddressPhoneReadback($id: ID!) {
+          customer(id: $id) {
+            defaultAddress { phone }
+            addressesV2(first: 5) { nodes { id phone } }
+          }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+    assert_eq!(
+        local_downstream.body["data"]["customer"]["defaultAddress"]["phone"],
+        json!("+14504538")
+    );
+    assert_eq!(
+        local_downstream.body["data"]["customer"]["addressesV2"]["nodes"][0]["phone"],
+        json!("+14504538")
+    );
+
+    let update_raw = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateAddressRawPhone($customerId: ID!, $addressId: ID!, $address: MailingAddressInput!) {
+          customerAddressUpdate(
+            customerId: $customerId
+            addressId: $addressId
+            address: $address
+            setAsDefault: true
+          ) {
+            address { id phone }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "customerId": customer_id,
+            "addressId": address_id,
+            "address": { "phone": "not a phone" }
+        }),
+    ));
+    assert_eq!(
+        update_raw.body["data"]["customerAddressUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update_raw.body["data"]["customerAddressUpdate"]["address"]["phone"],
+        json!("not a phone")
+    );
+
+    let raw_downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query RawAddressPhoneReadback($id: ID!) {
+          customer(id: $id) {
+            defaultAddress { phone }
+            addressesV2(first: 5) { nodes { id phone } }
+          }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+    assert_eq!(
+        raw_downstream.body["data"]["customer"]["defaultAddress"]["phone"],
+        json!("not a phone")
+    );
+    assert_eq!(
+        raw_downstream.body["data"]["customer"]["addressesV2"]["nodes"][0]["phone"],
+        json!("not a phone")
     );
 }
 

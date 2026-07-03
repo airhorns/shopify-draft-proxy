@@ -161,11 +161,6 @@ pub(in crate::proxy) fn inventory_level_id(inventory_item_id: &str, location_id:
     )
 }
 
-pub(in crate::proxy) fn inventory_level_id_tail(id: &str) -> Option<&str> {
-    shopify_gid_tail_for_type(id, "InventoryLevel")
-        .map(|rest| rest.split('?').next().unwrap_or_default())
-}
-
 pub(in crate::proxy) fn inventory_level_id_tail_and_query(id: &str) -> Option<(&str, &str)> {
     let rest = shopify_gid_tail_for_type(id, "InventoryLevel")?;
     rest.split_once("?inventory_item_id=")
@@ -383,9 +378,7 @@ impl DraftProxy {
                 }
                 "inventoryItem" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    if self.inventory_item_id_is_missing(&id)
-                        && !self.inventory_item_has_local_state(&id)
-                    {
+                    if !self.inventory_item_has_local_state(&id) {
                         Value::Null
                     } else {
                         self.inventory_item_selected_json(&id, variables, &field.selection)
@@ -1487,7 +1480,8 @@ impl DraftProxy {
                 ));
             }
             if !existed_before {
-                self.store.staged.inventory_level_order.push(key);
+                self.store.staged.inventory_level_order.push(key.clone());
+                self.record_inventory_level_id(&item_id, &location_id);
             }
             self.stamp_inventory_quantity(&item_id, &location_id, &name, &updated_at);
             self.sync_variant_available_quantity(&item_id, &name, true);
@@ -1593,7 +1587,8 @@ impl DraftProxy {
                 delta
             };
             if !existed_before {
-                self.store.staged.inventory_level_order.push(key);
+                self.store.staged.inventory_level_order.push(key.clone());
+                self.record_inventory_level_id(&item_id, &location_id);
             }
             self.stamp_inventory_quantity(&item_id, &location_id, "available", &updated_at);
             self.store.staged.inventory_quantity_updated_at.remove(&(
@@ -1708,6 +1703,7 @@ impl DraftProxy {
             if delta == 0 {
                 continue;
             }
+            self.record_inventory_level_id(&item_id, &location_id);
             let level = self
                 .store
                 .staged
@@ -1835,6 +1831,7 @@ impl DraftProxy {
             let to_name = resolved_string_field(&to, "name").unwrap_or_default();
             let ledger = resolved_string_field(&to, "ledgerDocumentUri");
             {
+                self.record_inventory_level_id(&item_id, &location_id);
                 let level = self
                     .store
                     .staged
@@ -2187,12 +2184,10 @@ impl DraftProxy {
             user_errors.push(inventory_deactivate_user_error(
                 "The product couldn't be unstocked because the product was deleted.",
             ));
-        } else if self.inventory_level_id_is_missing(&inventory_level_id) {
+        } else if !self.store.staged.inventory_levels.contains_key(&key) {
             user_errors.push(inventory_deactivate_user_error(
                 "The product couldn't be unstocked because the location was deleted.",
             ));
-        } else if !self.store.staged.inventory_levels.contains_key(&key) {
-            self.ensure_default_inventory_level(&inventory_item_id, &location_id);
         }
         if user_errors.is_empty()
             && self
@@ -2436,6 +2431,10 @@ impl DraftProxy {
         if self.inventory_location_id_is_missing(location_id) {
             return false;
         }
+        self.inventory_location_has_local_state(location_id)
+    }
+
+    fn inventory_location_has_local_state(&self, location_id: &str) -> bool {
         self.store.staged.locations.contains_key(location_id)
             || self
                 .store
@@ -2495,11 +2494,6 @@ impl DraftProxy {
             || INVENTORY_ITEM_EXTRA_MISSING_ID_TAILS
                 .iter()
                 .any(|sentinel| tail.eq_ignore_ascii_case(sentinel))
-    }
-
-    fn inventory_level_id_is_missing(&self, inventory_level_id: &str) -> bool {
-        let tail = inventory_level_id_tail(inventory_level_id).unwrap_or_default();
-        inventory_id_tail_is_missing(tail)
     }
 
     fn inventory_location_id_is_missing(&self, location_id: &str) -> bool {
@@ -2634,9 +2628,19 @@ impl DraftProxy {
             .or_insert_with(empty_inventory_quantities);
     }
 
+    fn record_inventory_level_id(&mut self, inventory_item_id: &str, location_id: &str) {
+        let key = (inventory_item_id.to_string(), location_id.to_string());
+        self.store
+            .staged
+            .inventory_level_ids
+            .entry(key)
+            .or_insert_with(|| inventory_level_id(inventory_item_id, location_id));
+    }
+
     fn activate_inventory_level(&mut self, inventory_item_id: &str, location_id: &str) {
         let key = (inventory_item_id.to_string(), location_id.to_string());
         self.store.staged.inactive_inventory_levels.remove(&key);
+        self.record_inventory_level_id(inventory_item_id, location_id);
         self.store
             .staged
             .inventory_levels
@@ -4723,13 +4727,6 @@ fn default_transfer_inventory_quantities() -> BTreeMap<String, i64> {
     ])
 }
 
-fn inventory_id_tail_is_missing(tail: &str) -> bool {
-    tail.is_empty()
-        || COMMON_MISSING_INVENTORY_ID_TAILS
-            .iter()
-            .any(|sentinel| tail.eq_ignore_ascii_case(sentinel))
-}
-
 fn inventory_shipment_tracking_from_input(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Option<InventoryShipmentTrackingRecord> {
@@ -5252,4 +5249,11 @@ fn inventory_unknown_location_error(field: Vec<String>) -> Value {
         "The specified location could not be found.",
         Some("INVALID_LOCATION"),
     )
+}
+
+fn inventory_id_tail_is_missing(tail: &str) -> bool {
+    tail.is_empty()
+        || COMMON_MISSING_INVENTORY_ID_TAILS
+            .iter()
+            .any(|sentinel| tail.eq_ignore_ascii_case(sentinel))
 }
