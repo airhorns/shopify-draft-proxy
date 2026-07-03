@@ -9701,7 +9701,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}return-decline-request-validation.json`,
+      'config/parity-specs/orders/return-decline-request-validation.json',
       'config/parity-specs/orders/return-request-decline-local-staging.json',
+      'config/parity-requests/orders/return-decline-request-validation-invalid-reason.graphql',
+      'config/parity-requests/orders/return-decline-request-validation-unknown-notify-payload.graphql',
     ],
     cleanupBehavior:
       'Validation-only capture uses unknown Return/Order IDs and GraphQL variable coercion failures; it creates no live Shopify objects.',
