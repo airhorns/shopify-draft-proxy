@@ -169,9 +169,19 @@ impl DraftProxy {
             "articles" => {
                 let query = resolved_string_field(&field.arguments, "query");
                 let mut records = self.online_store_records(OnlineStoreKind::Article);
-                records.retain(|article| article["isPublished"].as_bool().unwrap_or(false));
-                if let Some(query) = query.as_deref() {
-                    records.retain(|article| article_matches_query(article, query));
+                let (published_status, search_query) =
+                    article_query_publish_status_filter(query.as_deref());
+                records.retain(|article| match published_status {
+                    ArticlePublishedStatusFilter::Published => {
+                        article["isPublished"].as_bool().unwrap_or(false)
+                    }
+                    ArticlePublishedStatusFilter::Unpublished => {
+                        !article["isPublished"].as_bool().unwrap_or(false)
+                    }
+                    ArticlePublishedStatusFilter::Any => true,
+                });
+                if let Some(search_query) = search_query.as_deref() {
+                    records.retain(|article| article_matches_query(article, search_query));
                 }
                 Some(selected_connection_json_with_args(
                     records,
@@ -1804,6 +1814,46 @@ fn article_matches_query(article: &Value, query: &str) -> bool {
                 .is_some_and(|tag| tag.to_ascii_lowercase().contains(&query))
         })
     })
+}
+
+#[derive(Clone, Copy)]
+enum ArticlePublishedStatusFilter {
+    Published,
+    Unpublished,
+    Any,
+}
+
+fn article_query_publish_status_filter(
+    query: Option<&str>,
+) -> (ArticlePublishedStatusFilter, Option<String>) {
+    let Some(query) = query else {
+        return (ArticlePublishedStatusFilter::Published, None);
+    };
+    let mut status = ArticlePublishedStatusFilter::Published;
+    let mut search_terms = Vec::new();
+    for token in query.split_whitespace() {
+        let normalized = token
+            .trim_matches(|character: char| matches!(character, '(' | ')' | ','))
+            .trim_matches('"')
+            .to_ascii_lowercase();
+        if let Some(value) = normalized.strip_prefix("published_status:") {
+            status = match value.trim_matches('"') {
+                "any" => ArticlePublishedStatusFilter::Any,
+                "unpublished" => ArticlePublishedStatusFilter::Unpublished,
+                "published" => ArticlePublishedStatusFilter::Published,
+                _ => status,
+            };
+        } else {
+            search_terms.push(token);
+        }
+    }
+    let search_query = search_terms.join(" ");
+    let search_query = if search_query.trim().is_empty() {
+        None
+    } else {
+        Some(search_query)
+    };
+    (status, search_query)
 }
 
 fn should_stage_observed_blog(record: &Value) -> bool {

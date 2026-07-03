@@ -10,7 +10,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "Executable parity coverage for B2B validation branches the current 2026-04 live Admin target reproduces: companyCreate long name, companyCreate long note, companyLocationCreate long name, explicit blank name rejection on companyCreate, companyUpdate, and companyLocationUpdate, plus the captured fallback behavior for explicit blank companyLocation create inputs. The same capture records probe-only mismatches where live Admin currently accepts HTML in company notes/contact titles and accepts 300-character contact titles, so those branches remain covered by runtime tests instead of misleading parity specs.",
   "comparison": {
     "mode": "strict-json",

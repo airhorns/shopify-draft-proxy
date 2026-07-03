@@ -8,6 +8,19 @@ fn sha256_hex(value: &str) -> String {
     format!("{:x}", hasher.finalize())
 }
 
+fn app_namespace_graphql_request(
+    query: &str,
+    variables: serde_json::Value,
+    api_client_id: &str,
+) -> Request {
+    let mut request = json_graphql_request(query, variables);
+    request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        api_client_id.to_string(),
+    );
+    request
+}
+
 fn assert_no_staged_markets(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
     let state = state_snapshot(proxy);
     let staged_markets = &state["stagedState"]["markets"];
@@ -48,6 +61,8 @@ const FIXED_PRICE_VALIDATION_PRICE_LIST_ID: &str = "gid://shopify/PriceList/1817
 const FIXED_PRICE_VALIDATION_PRODUCT_ID: &str = "gid://shopify/Product/1817001";
 const FIXED_PRICE_VALIDATION_VARIANT_A_ID: &str = "gid://shopify/ProductVariant/1817001";
 const FIXED_PRICE_VALIDATION_VARIANT_B_ID: &str = "gid://shopify/ProductVariant/1817002";
+const FIXED_PRICE_VALIDATION_MISSING_VARIANT_ID: &str =
+    "gid://shopify/ProductVariant/9999991817001";
 
 fn fixed_price_validation_proxy() -> DraftProxy {
     configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
@@ -64,11 +79,45 @@ fn fixed_price_validation_proxy() -> DraftProxy {
             body["variables"]["priceListId"],
             json!(FIXED_PRICE_VALIDATION_PRICE_LIST_ID)
         );
-        assert!(body["variables"]["variantIds"]
+        let requested_variant_ids = body["variables"]["variantIds"]
             .as_array()
-            .is_some_and(|ids| ids
-                .iter()
-                .any(|id| id == &json!(FIXED_PRICE_VALIDATION_VARIANT_A_ID))));
+            .expect("preflight includes variant ids");
+        let product = json!({
+            "__typename": "Product",
+            "id": FIXED_PRICE_VALIDATION_PRODUCT_ID,
+            "title": "Fixed price validation product",
+            "handle": "fixed-price-validation-product",
+            "status": "ACTIVE",
+            "variants": {
+                "nodes": [
+                    { "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID, "title": "Variant A", "sku": "FIXED-COMPARE-A", "price": "10.00", "compareAtPrice": null },
+                    { "id": FIXED_PRICE_VALIDATION_VARIANT_B_ID, "title": "Variant B", "sku": "FIXED-COMPARE-B", "price": "10.00", "compareAtPrice": null }
+                ]
+            }
+        });
+        let mut product_variants = Vec::new();
+        if requested_variant_ids.contains(&json!(FIXED_PRICE_VALIDATION_VARIANT_A_ID)) {
+            product_variants.push(json!({
+                "__typename": "ProductVariant",
+                "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                "title": "Variant A",
+                "sku": "FIXED-COMPARE-A",
+                "price": "10.00",
+                "compareAtPrice": null,
+                "product": product.clone()
+            }));
+        }
+        if requested_variant_ids.contains(&json!(FIXED_PRICE_VALIDATION_VARIANT_B_ID)) {
+            product_variants.push(json!({
+                "__typename": "ProductVariant",
+                "id": FIXED_PRICE_VALIDATION_VARIANT_B_ID,
+                "title": "Variant B",
+                "sku": "FIXED-COMPARE-B",
+                "price": "10.00",
+                "compareAtPrice": null,
+                "product": product
+            }));
+        }
         Response {
             status: 200,
             headers: Default::default(),
@@ -90,27 +139,7 @@ fn fixed_price_validation_proxy() -> DraftProxy {
                             }
                         }
                     },
-                    "productVariants": [{
-                        "__typename": "ProductVariant",
-                        "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
-                        "title": "Variant A",
-                        "sku": "FIXED-COMPARE-A",
-                        "price": "10.00",
-                        "compareAtPrice": null,
-                        "product": {
-                            "__typename": "Product",
-                            "id": FIXED_PRICE_VALIDATION_PRODUCT_ID,
-                            "title": "Fixed price validation product",
-                            "handle": "fixed-price-validation-product",
-                            "status": "ACTIVE",
-                            "variants": {
-                                "nodes": [
-                                    { "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID, "title": "Variant A", "sku": "FIXED-COMPARE-A", "price": "10.00", "compareAtPrice": null },
-                                    { "id": FIXED_PRICE_VALIDATION_VARIANT_B_ID, "title": "Variant B", "sku": "FIXED-COMPARE-B", "price": "10.00", "compareAtPrice": null }
-                                ]
-                            }
-                        }
-                    }]
+                    "productVariants": product_variants
                 }
             }),
         }
@@ -124,6 +153,96 @@ fn fixed_price_validation_read(proxy: &mut DraftProxy, price_list_id: &str) -> V
     ));
     assert_eq!(response.status, 200);
     response.body["data"]["priceList"].clone()
+}
+
+#[test]
+fn price_list_fixed_prices_add_short_circuits_currency_after_missing_variant() {
+    let mut proxy = fixed_price_validation_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FixedPricesAddMissingVariantCurrencyMismatch($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
+          priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
+            prices { variant { id } price { amount currencyCode } }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "prices": [{
+                "variantId": FIXED_PRICE_VALIDATION_MISSING_VARIANT_ID,
+                "price": { "amount": "10.00", "currencyCode": "EUR" }
+            }]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["priceListFixedPricesAdd"]["prices"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["priceListFixedPricesAdd"]["userErrors"],
+        json!([{
+            "__typename": "PriceListPriceUserError",
+            "field": ["prices", "0", "variantId"],
+            "message": "Product variant ID does not exist.",
+            "code": "VARIANT_NOT_FOUND"
+        }])
+    );
+}
+
+#[test]
+fn price_list_fixed_prices_update_short_circuits_currency_after_missing_variant() {
+    let mut proxy = fixed_price_validation_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FixedPricesUpdateMissingVariantCurrencyMismatch(
+          $priceListId: ID!
+          $pricesToAdd: [PriceListPriceInput!]!
+          $variantIdsToDelete: [ID!]!
+        ) {
+          priceListFixedPricesUpdate(
+            priceListId: $priceListId
+            pricesToAdd: $pricesToAdd
+            variantIdsToDelete: $variantIdsToDelete
+          ) {
+            pricesAdded { variant { id } price { amount currencyCode } }
+            deletedFixedPriceVariantIds
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "pricesToAdd": [{
+                "variantId": FIXED_PRICE_VALIDATION_MISSING_VARIANT_ID,
+                "price": { "amount": "10.00", "currencyCode": "EUR" }
+            }],
+            "variantIdsToDelete": []
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["priceListFixedPricesUpdate"]["pricesAdded"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["priceListFixedPricesUpdate"]["deletedFixedPriceVariantIds"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["priceListFixedPricesUpdate"]["userErrors"],
+        json!([{
+            "__typename": "PriceListPriceUserError",
+            "field": ["pricesToAdd", "0", "variantId"],
+            "message": "Product variant ID does not exist.",
+            "code": "VARIANT_NOT_FOUND"
+        }])
+    );
 }
 
 #[test]
@@ -1362,6 +1481,42 @@ fn metafields_set_resolves_owner_type_from_non_product_gids() {
 }
 
 #[test]
+fn metafields_set_rejects_malformed_owner_id_without_defaulting_to_product() {
+    let mut proxy = snapshot_proxy();
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MalformedOwnerMetafieldsSet {
+          metafieldsSet(
+            metafields: [{
+              ownerId: "not-a-gid",
+              namespace: "owner_type_gid",
+              key: "malformed",
+              type: "single_line_text_field",
+              value: "Malformed owner"
+            }]
+          ) {
+            metafields { ownerType owner { __typename id } }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(set.body["data"]["metafieldsSet"]["metafields"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["userErrors"],
+        json!([{
+            "field": ["metafields", "0", "ownerId"],
+            "message": "Owner is invalid",
+            "code": "INVALID_OWNER",
+            "elementIndex": null
+        }])
+    );
+}
+
+#[test]
 fn owner_scoped_metafields_do_not_leak_between_products() {
     let mut proxy = snapshot_proxy();
 
@@ -1449,18 +1604,22 @@ fn owner_scoped_metafields_do_not_leak_between_products() {
 #[test]
 fn metafields_app_namespace_set_delete_stages_product_readback() {
     let mut proxy = snapshot_proxy();
+    let api_client_id = "999999999999";
+    let canonical_namespace = "app--999999999999--value_namespace_mowuw5ai";
+    let default_namespace = "app--999999999999";
 
-    let set_canonical = proxy.process_request(json_graphql_request(
+    let set_canonical = proxy.process_request(app_namespace_graphql_request(
         r#"
         mutation MetafieldsSetAppNamespaceResolution($metafields: [MetafieldsSetInput!]!) {
           metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message code elementIndex } }
         }
         "#,
         json!({"metafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": "$app:value_namespace_mowuw5ai", "key": "tier", "type": "single_line_text_field", "value": "gold"}]}),
+        api_client_id,
     ));
     assert_eq!(
         set_canonical.body["data"]["metafieldsSet"]["metafields"][0]["namespace"],
-        json!("app--347082227713--value_namespace_mowuw5ai")
+        json!(canonical_namespace)
     );
 
     let read_after_canonical = proxy.process_request(json_graphql_request(
@@ -1473,41 +1632,43 @@ fn metafields_app_namespace_set_delete_stages_product_readback() {
           }
         }
         "#,
-        json!({"productId": "gid://shopify/Product/10180596236594", "canonicalNamespace": "app--347082227713--value_namespace_mowuw5ai", "defaultNamespace": "app--347082227713", "key": "tier", "defaultKey": "default_mowuw5ai"}),
+        json!({"productId": "gid://shopify/Product/10180596236594", "canonicalNamespace": canonical_namespace, "defaultNamespace": default_namespace, "key": "tier", "defaultKey": "default_mowuw5ai"}),
     ));
     assert_eq!(
         read_after_canonical.body["data"]["product"],
         json!({
             "id": "gid://shopify/Product/10180596236594",
-            "canonical": {"id": "gid://shopify/Metafield/1", "namespace": "app--347082227713--value_namespace_mowuw5ai", "key": "tier", "type": "single_line_text_field", "value": "gold"},
+            "canonical": {"id": "gid://shopify/Metafield/1", "namespace": canonical_namespace, "key": "tier", "type": "single_line_text_field", "value": "gold"},
             "defaulted": null
         })
     );
 
-    let set_default = proxy.process_request(json_graphql_request(
+    let set_default = proxy.process_request(app_namespace_graphql_request(
         r#"
         mutation MetafieldsSetAppNamespaceResolution($metafields: [MetafieldsSetInput!]!) {
           metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message code elementIndex } }
         }
         "#,
         json!({"metafields": [{"ownerId": "gid://shopify/Product/10180596236594", "key": "default_mowuw5ai", "type": "single_line_text_field", "value": "silver"}]}),
+        api_client_id,
     ));
     assert_eq!(
         set_default.body["data"]["metafieldsSet"]["metafields"][0]["namespace"],
-        json!("app--347082227713")
+        json!(default_namespace)
     );
 
-    let delete_canonical = proxy.process_request(json_graphql_request(
+    let delete_canonical = proxy.process_request(app_namespace_graphql_request(
         r#"
         mutation MetafieldsDeleteAppNamespaceResolution($metafields: [MetafieldIdentifierInput!]!) {
           metafieldsDelete(metafields: $metafields) { deletedMetafields { ownerId namespace key } userErrors { field message } }
         }
         "#,
         json!({"metafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": "$app:value_namespace_mowuw5ai", "key": "tier"}]}),
+        api_client_id,
     ));
     assert_eq!(
         delete_canonical.body["data"]["metafieldsDelete"],
-        json!({"deletedMetafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": "app--347082227713--value_namespace_mowuw5ai", "key": "tier"}], "userErrors": []})
+        json!({"deletedMetafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": canonical_namespace, "key": "tier"}], "userErrors": []})
     );
 
     let post_delete = proxy.process_request(json_graphql_request(
@@ -1520,15 +1681,40 @@ fn metafields_app_namespace_set_delete_stages_product_readback() {
           }
         }
         "#,
-        json!({"productId": "gid://shopify/Product/10180596236594", "canonicalNamespace": "app--347082227713--value_namespace_mowuw5ai", "defaultNamespace": "app--347082227713", "key": "tier", "defaultKey": "default_mowuw5ai"}),
+        json!({"productId": "gid://shopify/Product/10180596236594", "canonicalNamespace": canonical_namespace, "defaultNamespace": default_namespace, "key": "tier", "defaultKey": "default_mowuw5ai"}),
     ));
     assert_eq!(
         post_delete.body["data"]["product"],
         json!({
             "id": "gid://shopify/Product/10180596236594",
             "canonical": null,
-            "defaulted": {"id": "gid://shopify/Metafield/2", "namespace": "app--347082227713", "key": "default_mowuw5ai", "type": "single_line_text_field", "value": "silver"}
+            "defaulted": {"id": "gid://shopify/Metafield/2", "namespace": default_namespace, "key": "default_mowuw5ai", "type": "single_line_text_field", "value": "silver"}
         })
+    );
+}
+
+#[test]
+fn metafields_app_namespace_requires_request_api_client_id() {
+    let mut proxy = snapshot_proxy();
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldsSetAppNamespaceResolution($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) { metafields { namespace key } userErrors { field message code elementIndex } }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": "$app:value_namespace_mowuw5ai", "key": "tier", "type": "single_line_text_field", "value": "gold"}]}),
+    ));
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["metafieldsSet"]["metafields"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["userErrors"],
+        json!([{
+            "field": ["metafields", "0", "namespace"],
+            "message": "API client identity is required to resolve or authorize app-reserved namespaces and types.",
+            "code": "APP_NOT_AUTHORIZED",
+            "elementIndex": null
+        }])
     );
 }
 
@@ -1809,8 +1995,8 @@ fn market_web_presence_create_uses_observed_shop_host_from_live_preflight() {
 }
 
 #[test]
-fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
-    // Ports old Gleam web-presence helper behavior from markets_mutation_test.gleam:
+fn market_web_presence_current_runtime_helpers_stage_and_validate() {
+    // Covers web-presence helper behavior:
     // root URL construction for subfolder/domain routing, Shopify locale normalization,
     // aggregate locale errors, subfolder validation ordering, create/update readback,
     // unknown-domain create guards, and taken-suffix/no-op update behavior.
@@ -1881,6 +2067,26 @@ fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
             {"locale": "fr", "url": "https://shopify-draft-proxy.local/fr-intl/"}
         ])
     );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored_state = dump.body;
+    restored_state["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/domain-helper",
+        "myshopifyDomain": "shopify-draft-proxy.local",
+        "primaryDomain": {
+            "id": "gid://shopify/Domain/1000",
+            "host": "shopify-draft-proxy.local",
+            "url": "https://shopify-draft-proxy.local",
+            "sslEnabled": true
+        }
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored_state.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
 
     let domain = proxy.process_request(json_graphql_request(
         create_query,
@@ -2331,8 +2537,8 @@ fn market_create_region_nodes_include_country_identity_fields_in_payload_and_rea
 }
 
 #[test]
-fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tests() {
-    // Ports old Gleam proxy tests around marketCreate validation/staging:
+fn market_create_validation_and_staging_helpers_match_current_behavior() {
+    // Covers marketCreate validation/staging:
     // - status/enabled mismatch and partial-input defaults
     // - price-inclusion projection and location-condition rejection
     // - currency settings flags/read-after-write, invalid base currency, manual FX rate
@@ -3335,8 +3541,8 @@ fn catalog_relations_require_staged_price_list_and_publication_records() {
 }
 
 #[test]
-fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
-    // Ports old Gleam catalog/context helper behavior from markets_mutation_test.gleam:
+fn catalog_create_and_context_update_current_runtime_helpers_stage_and_validate() {
+    // Covers catalog/context helper behavior:
     // required/invalid status, required context/market IDs, country-code contexts,
     // typed CatalogUserError shapes, market-context staging/readback, unknown catalog delete,
     // and catalogContextUpdate add/remove validation/readback.
@@ -3360,7 +3566,7 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
         ),
         (
             json!({"title": "EU Catalog", "status": "ACTIVE", "context": {}}),
-            json!({"__typename": "CatalogUserError", "field": ["input", "context", "marketIds"], "message": "Market ids can't be blank", "code": "INVALID"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "context"], "message": "Must provide exactly one context type.", "code": "MUST_PROVIDE_EXACTLY_ONE_CONTEXT_TYPE"}),
         ),
         (
             json!({"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/404"]}}),
@@ -3639,6 +3845,46 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
         context_update.body["data"]["catalogContextUpdate"],
         json!({"catalog": {"id": "gid://shopify/MarketCatalog/3", "markets": {"nodes": [{"id": second_market_id}]}}, "userErrors": []})
     );
+}
+
+#[test]
+fn catalog_create_context_requires_exactly_one_context_type() {
+    let create_query = r#"
+        mutation CatalogCreateContextValidation($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let expected_error = json!({
+        "__typename": "CatalogUserError",
+        "field": ["input", "context"],
+        "message": "Must provide exactly one context type.",
+        "code": "MUST_PROVIDE_EXACTLY_ONE_CONTEXT_TYPE"
+    });
+
+    for input in [
+        json!({"title": "EU Catalog", "status": "ACTIVE", "context": {}}),
+        json!({
+            "title": "EU Catalog",
+            "status": "ACTIVE",
+            "context": {
+                "marketIds": ["gid://shopify/Market/1"],
+                "companyLocationIds": ["gid://shopify/CompanyLocation/1"]
+            }
+        }),
+    ] {
+        let mut proxy = snapshot_proxy();
+        let response =
+            proxy.process_request(json_graphql_request(create_query, json!({"input": input})));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["catalogCreate"],
+            json!({"catalog": null, "userErrors": [expected_error]})
+        );
+        assert_no_staged_catalogs(&proxy);
+    }
 }
 
 #[test]
@@ -4030,8 +4276,8 @@ fn catalog_context_update_company_location_errors_match_shopify() {
 }
 
 #[test]
-fn market_catalog_relation_tail_helpers_ported_from_gleam() {
-    // Ports the remaining old Gleam markets_mutation tail helpers around:
+fn market_catalog_relation_tail_helpers_cover_current_behavior() {
+    // Covers remaining markets mutation helper behavior around:
     // - marketCreate plan-limit skip cases in the Rust local-runtime shape
     // - marketUpdate unknown catalog/web-presence link additions
     // - catalogDelete detaching a surviving price list
@@ -4602,8 +4848,8 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
 }
 
 #[test]
-fn price_list_create_update_delete_ported_gleam_helpers_stage_and_validate() {
-    // Ports old Gleam price-list helper behavior from markets_mutation_test.gleam:
+fn price_list_create_update_delete_current_runtime_helpers_stage_and_validate() {
+    // Covers price-list helper behavior:
     // create validation, adjustment bounds, typed mutation user errors, name uniqueness,
     // staged reads, catalog attachment, and null-catalog detachment.
     let create_query = r#"
@@ -4999,6 +5245,35 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
         json!([])
     );
 
+    let mut duplicate_name_missing_catalog_proxy = snapshot_proxy();
+    let baseline = duplicate_name_missing_catalog_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "EU Prices", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}}),
+    ));
+    assert_eq!(
+        baseline.body["data"]["priceListCreate"]["userErrors"],
+        json!([])
+    );
+    let duplicate_name_missing_catalog =
+        duplicate_name_missing_catalog_proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": {"name": "EU Prices", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalogId": missing_catalog_id}}),
+        ));
+    assert_eq!(
+        duplicate_name_missing_catalog.body["data"]["priceListCreate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog does not exist.", "code": "CATALOG_DOES_NOT_EXIST"}]})
+    );
+
+    let missing_catalog_invalid_adjustment =
+        duplicate_name_missing_catalog_proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": {"name": "Catalog Before Adjustment", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 250}}, "catalogId": missing_catalog_id}}),
+        ));
+    assert_eq!(
+        missing_catalog_invalid_adjustment.body["data"]["priceListCreate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog does not exist.", "code": "CATALOG_DOES_NOT_EXIST"}]})
+    );
+
     let mut wrong_type_proxy = snapshot_proxy();
     let wrong_type_create = wrong_type_proxy.process_request(json_graphql_request(
         create_query,
@@ -5075,6 +5350,14 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
         taken_create.body["data"]["priceListCreate"],
         json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog has a price list already assigned.", "code": "CATALOG_TAKEN"}]})
     );
+    let taken_catalog_duplicate_name = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "First Catalog PL", "currency": "DKK", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalogId": first_catalog_id}}),
+    ));
+    assert_eq!(
+        taken_catalog_duplicate_name.body["data"]["priceListCreate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog has a price list already assigned.", "code": "CATALOG_TAKEN"}]})
+    );
 
     let missing_update = proxy.process_request(json_graphql_request(
         update_query,
@@ -5131,8 +5414,8 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
 }
 
 #[test]
-fn market_localizations_register_remove_ported_gleam_helpers_stage_and_validate() {
-    // Ports old Gleam proxy tests:
+fn market_localizations_register_remove_current_runtime_helpers_stage_and_validate() {
+    // Covers proxy tests:
     // - market_localizations_register_rejects_more_than_100_keys_test
     // - market_localizations_register_returns_translation_error_for_missing_resource_test
     // - market_localizations_remove_returns_translation_error_for_missing_resource_test
@@ -5804,9 +6087,10 @@ fn product_metafields_set_stages_product_owned_readbacks() {
             snapshot_proxy()
         };
 
-        let mutation = proxy.process_request(json_graphql_request(
+        let mutation = proxy.process_request(app_namespace_graphql_request(
             mutation_query,
             fixture["mutation"]["variables"].clone(),
+            "347082227713",
         ));
         assert_eq!(mutation.status, 200, "{case}");
         assert_eq!(
@@ -6175,8 +6459,11 @@ fn product_tags_add_remove_and_multi_resource_reads_match_captured_state() {
                 "id": "gid://shopify/Product/10173064872242",
                 "tags": ["existing", "hermes-sale-1777416213315", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
             },
-            "products": { "nodes": [] },
-            "productsCount": { "count": 0, "precision": "EXACT" }
+            "products": { "nodes": [{
+                "id": "gid://shopify/Product/10173064872242",
+                "tags": ["existing", "hermes-sale-1777416213315", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
+            }] },
+            "productsCount": { "count": 1, "precision": "EXACT" }
         })
     );
 
@@ -6241,9 +6528,9 @@ fn product_tags_add_remove_and_multi_resource_reads_match_captured_state() {
                 "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
             },
             "remaining": { "nodes": [{ "id": "gid://shopify/Product/10173064872242", "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"] }] },
-            "removed": { "nodes": [{ "id": "gid://shopify/Product/10173064872242", "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"] }] },
+            "removed": { "nodes": [] },
             "remainingCount": { "count": 1, "precision": "EXACT" },
-            "removedCount": { "count": 1, "precision": "EXACT" }
+            "removedCount": { "count": 0, "precision": "EXACT" }
         })
     );
 
@@ -6706,7 +6993,7 @@ fn polymorphic_tags_add_remove_split_and_match_case_insensitively() {
 }
 
 #[test]
-fn product_change_status_stages_archived_status_and_downstream_read_lag() {
+fn product_change_status_stages_archived_status_and_effective_downstream_read() {
     let mut proxy = snapshot_proxy().with_base_products(vec![product_state_test_product(
         "gid://shopify/Product/10173064872242",
         "Hermes Product State Conformance 1777416213315",
@@ -6790,8 +7077,11 @@ fn product_change_status_stages_archived_status_and_downstream_read_lag() {
                 "status": "ARCHIVED",
                 "updatedAt": "2026-04-28T22:43:34Z"
             },
-            "products": { "nodes": [] },
-            "productsCount": { "count": 0, "precision": "EXACT" }
+            "products": { "nodes": [{
+                "id": "gid://shopify/Product/10173064872242",
+                "status": "ARCHIVED"
+            }] },
+            "productsCount": { "count": 1, "precision": "EXACT" }
         })
     );
 }
@@ -7127,11 +7417,7 @@ fn product_update_unknown_fixture_id_returns_local_user_error_without_replay() {
         delete.body["data"]["productDelete"],
         json!({
             "deletedProductId": null,
-            "shop": {
-                "id": "gid://shopify/Shop/0",
-                "name": "Shopify Draft Proxy",
-                "myshopifyDomain": "shopify-draft-proxy.local"
-            },
+            "shop": {},
             "userErrors": [{
                 "field": ["id"],
                 "message": "Product does not exist"

@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-flow-trigger-receive-property-size-boundary.json"
   ],
-  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/admin_platform_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/platform.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/admin-platform/admin-platform-flow-trigger-receive-property-size-boundary.graphql",
     "variablesCapturePath": "$.variables",

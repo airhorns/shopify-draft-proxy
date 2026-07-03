@@ -14,71 +14,6 @@ fn platform_inventory_base_product(id: &str, title: &str) -> ProductRecord {
     }
 }
 
-fn inventory_level_id_for_test(inventory_item_id: &str, location_id: &str) -> String {
-    let item_tail = inventory_item_id
-        .rsplit('/')
-        .next()
-        .unwrap_or(inventory_item_id)
-        .split('?')
-        .next()
-        .unwrap_or(inventory_item_id);
-    let location_tail = location_id
-        .rsplit('/')
-        .next()
-        .unwrap_or(location_id)
-        .split('?')
-        .next()
-        .unwrap_or(location_id);
-    format!(
-        "gid://shopify/InventoryLevel/{item_tail}-{location_tail}?inventory_item_id={inventory_item_id}"
-    )
-}
-
-fn add_platform_inventory_location(proxy: &mut DraftProxy, name: &str) -> String {
-    let add = proxy.process_request(json_graphql_request(
-        r#"
-        mutation PlatformInventoryLocationAdd($input: LocationAddInput!) {
-          locationAdd(input: $input) {
-            location { id isActive }
-            userErrors { field code message }
-          }
-        }
-        "#,
-        json!({"input": {
-            "name": name,
-            "address": { "countryCode": "CA" }
-        }}),
-    ));
-    assert_eq!(add.body["data"]["locationAdd"]["userErrors"], json!([]));
-    assert_eq!(
-        add.body["data"]["locationAdd"]["location"]["isActive"],
-        json!(true)
-    );
-    add.body["data"]["locationAdd"]["location"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string()
-}
-
-fn deactivate_platform_inventory_location(proxy: &mut DraftProxy, location_id: &str) {
-    let edit = proxy.process_request(json_graphql_request(
-        r#"
-        mutation PlatformInventoryLocationDeactivate($id: ID!, $input: LocationEditInput!) {
-          locationEdit(id: $id, input: $input) {
-            location { id isActive }
-            userErrors { field code message }
-          }
-        }
-        "#,
-        json!({"id": location_id, "input": {"active": false}}),
-    ));
-    assert_eq!(edit.body["data"]["locationEdit"]["userErrors"], json!([]));
-    assert_eq!(
-        edit.body["data"]["locationEdit"]["location"]["isActive"],
-        json!(false)
-    );
-}
-
 fn fulfillment_order_hydrate_transport(
     orders: Vec<Value>,
 ) -> impl Fn(Request) -> Response + Send + Sync + 'static {
@@ -232,6 +167,96 @@ fn create_fulfillment_order_test_order(proxy: &mut DraftProxy, quantity: i64) ->
     let order = create_order.body["data"]["orderCreate"]["order"].clone();
     let fulfillment_order = order["fulfillmentOrders"]["nodes"][0].clone();
     (order, fulfillment_order)
+}
+
+fn create_inventory_item_for_location_test(proxy: &mut DraftProxy, title: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocationInventoryItem($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              variants(first: 1) {
+                nodes { inventoryItem { id } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": title } }),
+    ));
+    assert_eq!(
+        response.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["inventoryItem"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+fn inventory_level_id_for_platform_test(inventory_item_id: &str, location_id: &str) -> String {
+    let item_tail = inventory_item_id
+        .rsplit('/')
+        .next()
+        .unwrap_or(inventory_item_id)
+        .split('?')
+        .next()
+        .unwrap_or(inventory_item_id);
+    let location_tail = location_id
+        .rsplit('/')
+        .next()
+        .unwrap_or(location_id)
+        .split('?')
+        .next()
+        .unwrap_or(location_id);
+    format!(
+        "gid://shopify/InventoryLevel/{item_tail}-{location_tail}?inventory_item_id={inventory_item_id}"
+    )
+}
+
+fn create_location_for_platform_test(proxy: &mut DraftProxy, name: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreatePlatformLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "input": { "name": name, "address": { "countryCode": "CA" } } }),
+    ));
+    assert_eq!(
+        response.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+fn set_location_active_for_platform_test(proxy: &mut DraftProxy, location_id: &str, active: bool) {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetPlatformLocationActive($id: ID!, $input: LocationEditInput!) {
+          locationEdit(id: $id, input: $input) {
+            location { id isActive }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": location_id, "input": { "active": active } }),
+    ));
+    assert_eq!(
+        response.body["data"]["locationEdit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["locationEdit"]["location"]["isActive"],
+        json!(active)
+    );
 }
 
 #[test]
@@ -432,6 +457,100 @@ fn domain_id_resolves_after_live_hybrid_shop_hydration() {
 }
 
 #[test]
+fn dump_restore_round_trips_hydrated_shop_identity() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "shop": {
+                        "id": "gid://shopify/Shop/live-round-trip",
+                        "name": "Restored live shop",
+                        "myshopifyDomain": "restored-live.myshopify.com",
+                        "primaryDomain": {
+                            "id": "gid://shopify/Domain/444555666",
+                            "host": "restored-live.example",
+                            "url": "https://restored-live.example",
+                            "sslEnabled": true
+                        },
+                        "currencyCode": "EUR"
+                    }
+                }
+            }),
+        });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateShopForDumpRestore {
+          shop {
+            id
+            name
+            myshopifyDomain
+            primaryDomain { id host url sslEnabled }
+            currencyCode
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(hydrate.status, 200);
+    assert_eq!(
+        hydrate.body["data"]["shop"]["id"],
+        json!("gid://shopify/Shop/live-round-trip")
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["baseState"]["shop"]["primaryDomain"]["id"],
+        json!("gid://shopify/Domain/444555666")
+    );
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let restored_shop = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredHydratedShop {
+          shop {
+            id
+            name
+            myshopifyDomain
+            primaryDomain { id host url sslEnabled }
+            currencyCode
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(restored_shop.status, 200);
+    assert_eq!(
+        restored_shop.body["data"]["shop"],
+        hydrate.body["data"]["shop"]
+    );
+
+    let restored_domain = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredHydratedDomain($id: ID!) {
+          domain(id: $id) { id host url sslEnabled }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Domain/444555666" }),
+    ));
+    assert_eq!(restored_domain.status, 200);
+    assert_eq!(
+        restored_domain.body["data"]["domain"]["host"],
+        json!("restored-live.example")
+    );
+}
+
+#[test]
 fn domain_id_live_hybrid_forwards_cold_domain_reads() {
     let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
     let captured_calls = Arc::clone(&upstream_calls);
@@ -482,7 +601,7 @@ fn domain_id_live_hybrid_forwards_cold_domain_reads() {
 }
 
 #[test]
-fn cold_snapshot_shop_baseline_uses_neutral_identity() {
+fn cold_snapshot_shop_baseline_leaves_identity_absent() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -500,21 +619,7 @@ fn cold_snapshot_shop_baseline_uses_neutral_identity() {
     ));
 
     assert_eq!(response.status, 200);
-    assert_eq!(
-        response.body["data"]["shop"],
-        json!({
-            "id": "gid://shopify/Shop/0",
-            "name": "Shopify Draft Proxy",
-            "myshopifyDomain": "shopify-draft-proxy.local",
-            "primaryDomain": {
-                "id": "gid://shopify/Domain/1000",
-                "host": "shopify-draft-proxy.local",
-                "url": "https://shopify-draft-proxy.local",
-                "sslEnabled": true
-            },
-            "currencyCode": "USD"
-        })
-    );
+    assert_eq!(response.body["data"]["shop"], json!({}));
 }
 
 #[test]
@@ -2874,8 +2979,8 @@ fn generic_location_add_stages_location_and_downstream_reads() {
         })
     );
 
-    let variant = create_legacy_variant(&mut proxy, product_id, "GENERIC-LOCATION-ADD", "10.00");
-    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
+    let inventory_item_id =
+        create_inventory_item_for_location_test(&mut proxy, "Generic location add inventory item");
     let set_quantities = r#"
         mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
           inventorySetQuantities(input: $input) {
@@ -3464,8 +3569,8 @@ fn generic_location_delete_stages_tombstone_and_cascades_inventory_levels() {
         })
     );
 
-    let variant = create_legacy_variant(&mut proxy, product_id, "DELETE-CASCADE", "10.00");
-    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
+    let inventory_item_id =
+        create_inventory_item_for_location_test(&mut proxy, "Delete cascade inventory item");
     let seed_inventory = proxy.process_request(json_graphql_request(
         r#"
         mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
@@ -3788,19 +3893,144 @@ fn location_edit_and_delete_are_local_in_live_hybrid_mode() {
 }
 
 #[test]
+fn location_deactivate_recomputes_inventory_for_hydrated_base_location() {
+    let location_id = "gid://shopify/Location/live-inventory-base";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(body.clone());
+            let requested_ids = body["variables"]["ids"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+            if requested_ids
+                .iter()
+                .any(|id| id.as_str() == Some(location_id))
+            {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "__typename": "Location",
+                                "id": location_id,
+                                "name": "Live Inventory Base",
+                                "isActive": true,
+                                "deactivatable": true,
+                                "deletable": false,
+                                "fulfillsOnlineOrders": false,
+                                "hasActiveInventory": false,
+                                "hasUnfulfilledOrders": false,
+                                "isFulfillmentService": false,
+                                "shipsInventory": true
+                            }]
+                        }
+                    }),
+                }
+            } else if body["variables"]["id"] == location_id {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "location": {
+                                "id": location_id,
+                                "name": "Live Inventory Base",
+                                "isActive": true,
+                                "deactivatable": true,
+                                "deletable": false,
+                                "fulfillsOnlineOrders": false,
+                                "hasActiveInventory": false,
+                                "hasUnfulfilledOrders": false,
+                                "isFulfillmentService": false,
+                                "shipsInventory": true
+                            }
+                        }
+                    }),
+                }
+            } else {
+                Response {
+                    status: 599,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "unexpected upstream call" }] }),
+                }
+            }
+        });
+    let inventory_item_id =
+        create_inventory_item_for_location_test(&mut proxy, "Hydrated location inventory guard");
+
+    let seed_inventory = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedHydratedLocationInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            inventoryAdjustmentGroup { changes { location { id } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "available",
+                "reason": "correction",
+                "ignoreCompareQuantity": true,
+                "quantities": [{
+                    "inventoryItemId": inventory_item_id,
+                    "locationId": location_id,
+                    "quantity": 7
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        seed_inventory.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationDeactivateHydratedInventory($locationId: ID!) {
+          locationDeactivate(locationId: $locationId) @idempotent(key: "hydrated-inventory") {
+            location { id isActive hasActiveInventory }
+            locationDeactivateUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["locationDeactivate"],
+        json!({
+            "location": {
+                "id": location_id,
+                "isActive": true,
+                "hasActiveInventory": true
+            },
+            "locationDeactivateUserErrors": [{
+                "field": ["locationId"],
+                "message": "Location could not be deactivated without specifying where to relocate inventory stocked at the location.",
+                "code": "HAS_ACTIVE_INVENTORY_ERROR"
+            }]
+        })
+    );
+
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0]["variables"], json!({ "ids": [location_id] }));
+}
+
+#[test]
 fn location_deactivate_with_destination_relocates_and_merges_inventory_quantities() {
-    let product_id = "gid://shopify/Product/9103";
-    let mut proxy = snapshot_proxy().with_base_products(vec![platform_inventory_base_product(
-        product_id,
-        "Location Deactivate Relocation Product",
-    )]);
-    let source_location_id = add_platform_inventory_location(&mut proxy, "Source location");
+    let mut proxy = snapshot_proxy();
+    let source_location_id = create_location_for_platform_test(&mut proxy, "Source location");
     let destination_location_id =
-        add_platform_inventory_location(&mut proxy, "Destination location");
-    let variant = create_legacy_variant(&mut proxy, product_id, "LOCATION-RELOCATE", "10.00");
-    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
+        create_location_for_platform_test(&mut proxy, "Destination location");
+    let inventory_item_id =
+        create_inventory_item_for_location_test(&mut proxy, "Relocation inventory item");
     let destination_level_id =
-        inventory_level_id_for_test(&inventory_item_id, &destination_location_id);
+        inventory_level_id_for_platform_test(&inventory_item_id, &destination_location_id);
     let set_quantities = r#"
         mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
           inventorySetQuantities(input: $input) {
@@ -3892,18 +4122,15 @@ fn location_deactivate_with_destination_relocates_and_merges_inventory_quantitie
 
 #[test]
 fn location_deactivate_user_error_does_not_relocate_inventory_quantities() {
-    let product_id = "gid://shopify/Product/9104";
-    let mut proxy = snapshot_proxy().with_base_products(vec![platform_inventory_base_product(
-        product_id,
-        "Location Deactivate Guard Product",
-    )]);
-    let source_location_id = add_platform_inventory_location(&mut proxy, "Source location");
+    let mut proxy = snapshot_proxy();
+    let source_location_id = create_location_for_platform_test(&mut proxy, "Source location");
     let inactive_destination_location_id =
-        add_platform_inventory_location(&mut proxy, "Inactive destination");
-    deactivate_platform_inventory_location(&mut proxy, &inactive_destination_location_id);
-    let variant = create_legacy_variant(&mut proxy, product_id, "LOCATION-NO-RELOCATE", "10.00");
-    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
-    let source_level_id = inventory_level_id_for_test(&inventory_item_id, &source_location_id);
+        create_location_for_platform_test(&mut proxy, "Inactive destination location");
+    set_location_active_for_platform_test(&mut proxy, &inactive_destination_location_id, false);
+    let inventory_item_id =
+        create_inventory_item_for_location_test(&mut proxy, "Relocation guard inventory item");
+    let source_level_id =
+        inventory_level_id_for_platform_test(&inventory_item_id, &source_location_id);
     let set_quantities = r#"
         mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
           inventorySetQuantities(input: $input) {

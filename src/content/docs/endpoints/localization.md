@@ -34,7 +34,7 @@ The registry-only mutation roots are:
 ### Local behavior
 
 The Rust runtime has a store-backed locale-catalog slice plus scenario-backed
-translation branches for ported parity requests and runtime tests.
+translation branches for parity requests and runtime tests.
 `availableLocales` and `shopLocales` project from the proxy store's baseline
 locale state plus staged shop-locale rows; plain catalog reads are not selected
 by document name. The runtime stages selected `shopLocaleEnable`,
@@ -65,8 +65,8 @@ enable/update/disable effects are merged with that baseline for subsequent
 `shopLocales` reads.
 
 `translationsRegister` and `translationsRemove` are locally modeled for the
-ported product, collection, product-metafield, and market-scoped translation
-scenarios. For Product resource IDs, the local slice validates existence against
+product, collection, product-metafield, and market-scoped translation scenarios.
+For Product resource IDs, the local slice validates existence against
 known localization Product resources plus normalized product state before
 applying translation-specific validation; unknown Product GIDs return
 `RESOURCE_NOT_FOUND` with `field: ["resourceId"]` and `translations: null`. The
@@ -82,7 +82,9 @@ removed rows. Staged `Translation` rows include a synthetic DateTime-shaped
 `updatedAt` value in the `translationsRegister` echo and in downstream
 `translatableResource(...).translations` reads; re-registering an existing row
 refreshes that timestamp. `translationsRemove` removes every requested
-translation-key/locale/market combination that exists in staged state.
+translation-key/locale/market combination that exists in staged state. An empty
+`translationKeys` list matches no rows and returns Shopify's no-op
+`translations: null, userErrors: []` payload.
 For `translationsRegister` rows that violate multiple rules, captured Shopify
 behavior validates locale and market gates before translation-record value and
 digest validation; the market-scoped value-matches-base-translation check runs
@@ -117,10 +119,10 @@ cleanly.
 
 ### Boundaries
 
-- Localization roots are handled locally for the ported request families and are
+- Localization roots are handled locally for the modeled request families and are
   marked `implemented` in the operation registry (i.e. they answer locally rather
   than 501), but that flag is not a broad-support claim: documents outside the
-  ported request families fall through to passthrough and must not be treated as
+  modeled request families fall through to passthrough and must not be treated as
   supported local behavior.
 - `TranslatableResource` support is limited to product, collection, and
   product-metafield evidence. Product existence checks use localization baseline

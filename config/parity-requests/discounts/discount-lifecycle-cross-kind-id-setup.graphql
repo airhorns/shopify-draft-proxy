@@ -1,0 +1,51 @@
+mutation DiscountLifecycleCrossKindSetup(
+  $codeInput: DiscountCodeBasicInput!
+  $automaticInput: DiscountAutomaticBasicInput!
+) {
+  codeSetup: discountCodeBasicCreate(basicCodeDiscount: $codeInput) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          codes(first: 1) {
+            nodes {
+              id
+              code
+            }
+          }
+          codesCount {
+            count
+            precision
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticSetup: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticInput) {
+    automaticDiscountNode {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+          status
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

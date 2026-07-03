@@ -101,5 +101,5 @@
       }
     ]
   },
-  "notes": "Captured live Shopify Admin GraphQL 2026-04 public-schema refundCreate transaction validation against disposable orderCreate orders. Invalid kind and missing parent are strict for refund:null, unchanged order state, and messages; local field/code paths are covered by focused Gleam runtime tests because the public schema returned no code field and less specific field paths. The mismatched gateway branch is included as executable evidence of a known public-schema divergence: Shopify accepted and normalized gateway while this local implementation explicitly requires a gateway guardrail."
+  "notes": "Captured live Shopify Admin GraphQL 2026-04 public-schema refundCreate transaction validation against disposable orderCreate orders. Invalid kind and missing parent are strict for refund:null, unchanged order state, and messages; local field/code paths are covered by focused runtime tests because the public schema returned no code field and less specific field paths. The mismatched gateway branch is included as executable evidence of a known public-schema divergence: Shopify accepted and normalized gateway while this local implementation explicitly requires a gateway guardrail."
 }
