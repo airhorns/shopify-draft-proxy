@@ -3283,6 +3283,78 @@ fn customer_update_rejects_inline_marketing_consent_without_mutating_customer() 
         sms_errors
     );
 
+    let whatsapp_rejection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerUpdateInlineWhatsAppConsent($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id firstName lastName displayName tags }
+            userErrors { field message }
+            customerUpdateUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": id,
+                "firstName": "ShouldNot",
+                "lastName": "Apply",
+                "tags": ["mutated"],
+                "whatsAppMarketingConsent": {
+                    "marketingState": "SUBSCRIBED"
+                }
+            }
+        }),
+    ));
+    let whatsapp_errors = json!([{
+        "field": ["whatsAppMarketingConsent"],
+        "message": "To update whatsAppMarketingConsent, please use the customerWhatsAppMarketingConsentUpdate Mutation instead"
+    }]);
+    assert_eq!(
+        whatsapp_rejection.body["data"]["customerUpdate"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        whatsapp_rejection.body["data"]["customerUpdate"]["userErrors"],
+        whatsapp_errors
+    );
+    assert_eq!(
+        whatsapp_rejection.body["data"]["customerUpdate"]["customerUpdateUserErrors"],
+        whatsapp_errors
+    );
+
+    let whatsapp_rejection_unknown_customer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerUpdateInlineWhatsAppConsentUnknownCustomer($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id }
+            userErrors { field message }
+            customerUpdateUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Customer/999999999999999",
+                "whatsAppMarketingConsent": {
+                    "marketingState": "SUBSCRIBED"
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        whatsapp_rejection_unknown_customer.body["data"]["customerUpdate"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        whatsapp_rejection_unknown_customer.body["data"]["customerUpdate"]["userErrors"],
+        whatsapp_errors
+    );
+    assert_eq!(
+        whatsapp_rejection_unknown_customer.body["data"]["customerUpdate"]
+            ["customerUpdateUserErrors"],
+        whatsapp_errors
+    );
+
     let both_rejection = proxy.process_request(json_graphql_request(
         r#"
         mutation CustomerUpdateInlineConsentBoth($input: CustomerInput!) {
@@ -4278,6 +4350,115 @@ fn customer_create_supports_consent_precondition_shapes_without_synthesizing_mis
         json!("hermes-consent-email-only-1777943566021@example.com")
     );
     assert_eq!(email_customer["defaultPhoneNumber"], Value::Null);
+}
+
+#[test]
+fn customer_create_rejects_inline_whatsapp_marketing_consent_validation_failures_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let no_phone = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateWhatsAppConsentNoPhone($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "firstName": "Hermes",
+                "whatsAppMarketingConsent": {
+                    "marketingState": "SUBSCRIBED"
+                }
+            }
+        }),
+    ));
+    assert_eq!(no_phone.body.get("errors"), None);
+    assert_eq!(
+        no_phone.body["data"]["customerCreate"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        no_phone.body["data"]["customerCreate"]["userErrors"],
+        json!([{
+            "field": ["whatsAppMarketingConsent"],
+            "message": "A phone number is required to set the WhatsApp consent state."
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["customers"],
+        json!({})
+    );
+
+    let redacted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateWhatsAppConsentRedacted($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "phone": "+14155556025",
+                "whatsAppMarketingConsent": {
+                    "marketingState": "REDACTED"
+                }
+            }
+        }),
+    ));
+    assert_eq!(redacted.body["data"]["customerCreate"], Value::Null);
+    assert_eq!(
+        redacted.body["errors"],
+        json!([{
+            "message": "Cannot specify REDACTED as a marketing state input",
+            "path": ["customerCreate"],
+            "extensions": { "code": "INVALID" }
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["customers"],
+        json!({})
+    );
+
+    let public_shape_redacted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateWhatsAppConsentPublicShapeRedacted($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "phone": "+14155556026",
+                "whatsAppMarketingConsent": {
+                    "state": "REDACTED"
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        public_shape_redacted.body["data"]["customerCreate"],
+        Value::Null
+    );
+    assert_eq!(
+        public_shape_redacted.body["errors"],
+        json!([{
+            "message": "Cannot specify REDACTED as a marketing state input",
+            "path": ["customerCreate"],
+            "extensions": { "code": "INVALID" }
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["customers"],
+        json!({})
+    );
 }
 
 #[test]

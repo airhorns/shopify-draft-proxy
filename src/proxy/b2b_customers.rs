@@ -2293,11 +2293,15 @@ impl DraftProxy {
         field: &RootFieldSelection,
         input: &BTreeMap<String, ResolvedValue>,
     ) -> Option<(Value, Vec<Value>)> {
-        for field_name in ["emailMarketingConsent", "smsMarketingConsent"] {
+        for field_name in [
+            "emailMarketingConsent",
+            "smsMarketingConsent",
+            "whatsAppMarketingConsent",
+        ] {
             let Some(consent) = resolved_object_field(input, field_name) else {
                 continue;
             };
-            if resolved_string_field(&consent, "marketingState").as_deref() == Some("REDACTED") {
+            if resolved_inline_consent_state(&consent, field_name).as_deref() == Some("REDACTED") {
                 return Some((
                     customer_payload(Value::Null, Vec::new()),
                     vec![json!({
@@ -2332,6 +2336,21 @@ impl DraftProxy {
                     vec![user_error_omit_code(
                         json!(["smsMarketingConsent"]),
                         "A phone number is required to set the SMS consent state.",
+                        None,
+                    )],
+                ),
+                Vec::new(),
+            ));
+        }
+        if input.contains_key("whatsAppMarketingConsent")
+            && resolved_string_field(input, "phone").is_none_or(|phone| phone.trim().is_empty())
+        {
+            return Some((
+                customer_payload(
+                    Value::Null,
+                    vec![user_error_omit_code(
+                        json!(["whatsAppMarketingConsent"]),
+                        "A phone number is required to set the WhatsApp consent state.",
                         None,
                     )],
                 ),
@@ -4504,6 +4523,12 @@ fn customer_update_inline_consent_errors(input: &BTreeMap<String, ResolvedValue>
             "customerEmailMarketingConsentUpdate",
         ));
     }
+    if input.contains_key("whatsAppMarketingConsent") {
+        errors.push(customer_update_inline_consent_error(
+            "whatsAppMarketingConsent",
+            "customerWhatsAppMarketingConsentUpdate",
+        ));
+    }
     errors
 }
 
@@ -4513,6 +4538,18 @@ fn customer_update_inline_consent_error(field: &str, mutation: &str) -> Value {
         &format!("To update {field}, please use the {mutation} Mutation instead"),
         None,
     )
+}
+
+fn resolved_inline_consent_state(
+    consent: &BTreeMap<String, ResolvedValue>,
+    field_name: &str,
+) -> Option<String> {
+    if field_name == "whatsAppMarketingConsent" {
+        resolved_string_field(consent, "marketingState")
+            .or_else(|| resolved_string_field(consent, "state"))
+    } else {
+        resolved_string_field(consent, "marketingState")
+    }
 }
 
 impl DraftProxy {
