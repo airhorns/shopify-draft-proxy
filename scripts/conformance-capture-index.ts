@@ -8335,6 +8335,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-update-reference-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-update-reference-validation-conformance.ts',
+    purpose:
+      'discountCodeBasicUpdate reference and uniqueness validation for taken code, own-code resubmission, invalid product/variant/collection references, and product/collection conflict.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-update-reference-validation.json`,
+      'config/parity-specs/discounts/discount-update-reference-validation.json',
+      'config/parity-requests/discounts/discount-update-reference-validation-basic-update.graphql',
+      'config/parity-requests/discounts/discount-update-reference-validation-setup.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, one disposable collection, and two disposable code-basic discounts; deletes all resources during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-timestamps-monotonic',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-timestamps-monotonic-conformance.ts',
