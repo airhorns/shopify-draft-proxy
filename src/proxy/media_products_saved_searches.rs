@@ -2551,13 +2551,7 @@ impl DraftProxy {
     }
 
     fn bulk_variant_location_exists(&self, location_id: &str) -> bool {
-        location_id == "gid://shopify/Location/1"
-            || self.store.staged.locations.contains_key(location_id)
-            || self
-                .store
-                .staged
-                .fulfillment_service_locations
-                .contains_key(location_id)
+        self.location_for_read(location_id).is_some()
     }
 
     fn product_option_names(product: &ProductRecord) -> BTreeSet<String> {
@@ -3148,6 +3142,9 @@ impl DraftProxy {
             });
 
         let targets = product_publication_input_entries(&input);
+        if !self.store.has_known_publication_catalog() {
+            self.hydrate_publishable_payload_shop(&product_id, request);
+        }
         let user_errors = self.product_publication_user_errors(
             root_field,
             &product,
@@ -3159,7 +3156,9 @@ impl DraftProxy {
             match root_field {
                 "productPublish" => {
                     for target in &targets {
-                        let Some(publication_id) = target.target_id() else {
+                        let Some(publication_id) =
+                            self.product_publication_target_publication_id(target)
+                        else {
                             continue;
                         };
                         if !existing
@@ -3167,7 +3166,7 @@ impl DraftProxy {
                             .any(|entry| entry.publication_id == publication_id)
                         {
                             existing.push(ProductPublicationEntry {
-                                publication_id: publication_id.to_string(),
+                                publication_id,
                                 publish_date: target.publish_date.clone(),
                                 published_at: Some(
                                     target
@@ -3182,9 +3181,9 @@ impl DraftProxy {
                 "productUnpublish" => {
                     let remove_ids = targets
                         .iter()
-                        .filter_map(ProductPublicationInputEntry::target_id)
+                        .filter_map(|target| self.product_publication_target_publication_id(target))
                         .collect::<BTreeSet<_>>();
-                    existing.retain(|entry| !remove_ids.contains(entry.publication_id.as_str()));
+                    existing.retain(|entry| !remove_ids.contains(&entry.publication_id));
                 }
                 _ => {}
             }
@@ -3215,6 +3214,18 @@ impl DraftProxy {
         }
     }
 
+    fn product_publication_target_publication_id(
+        &self,
+        target: &ProductPublicationInputEntry,
+    ) -> Option<String> {
+        target.publication_id.clone().or_else(|| {
+            target
+                .channel_id
+                .as_deref()
+                .and_then(|channel_id| self.store.publication_id_for_channel_id(channel_id))
+        })
+    }
+
     fn product_publication_user_errors(
         &self,
         root_field: &str,
@@ -3226,33 +3237,32 @@ impl DraftProxy {
         let mut errors = Vec::new();
         for target in targets {
             let field_index = target.index.to_string();
-            if let Some(channel_id) = target.channel_id.as_deref() {
-                if channel_id == "gid://shopify/Channel/999999999999" {
-                    errors.push(user_error_omit_code(
-                        json!(["productPublications", field_index, "publicationId"]),
-                        "Channel does not exist or is not publishable",
-                        None,
-                    ));
-                    continue;
+            let target_publication_id = if let Some(publication_id) = target.publication_id.clone()
+            {
+                Some(publication_id)
+            } else if let Some(channel_id) = target.channel_id.as_deref() {
+                match self.store.publication_id_for_channel_id(channel_id) {
+                    Some(publication_id) => Some(publication_id),
+                    None if !channel_id.is_empty() => {
+                        errors.push(user_error_omit_code(
+                            json!(["productPublications", field_index, "publicationId"]),
+                            "Channel does not exist or is not publishable",
+                            None,
+                        ));
+                        continue;
+                    }
+                    None => None,
                 }
-            }
-            match target.target_id() {
+            } else {
+                None
+            };
+            match target_publication_id.as_deref() {
                 Some("") | None => errors.push(user_error_omit_code(
                     json!(["productPublications", field_index, "publicationId"]),
                     "PublicationId cannot be empty",
                     None,
                 )),
-                Some("gid://shopify/Publication/999999999999") => {
-                    errors.push(user_error_omit_code(
-                        json!(["productPublications", field_index, "publicationId"]),
-                        "Publication does not exist or is not publishable",
-                        None,
-                    ))
-                }
-                Some(id)
-                    if self.store.has_known_publication_catalog()
-                        && !self.store.has_publication_id(id) =>
-                {
+                Some(id) if !self.store.has_publication_id(id) => {
                     errors.push(user_error_omit_code(
                         json!(["productPublications", field_index, "publicationId"]),
                         "Publication does not exist or is not publishable",
@@ -3418,14 +3428,6 @@ struct ProductPublicationInputEntry {
     publication_id: Option<String>,
     channel_id: Option<String>,
     publish_date: Option<String>,
-}
-
-impl ProductPublicationInputEntry {
-    fn target_id(&self) -> Option<&str> {
-        self.publication_id
-            .as_deref()
-            .or(self.channel_id.as_deref())
-    }
 }
 
 fn product_publication_input_entries(
