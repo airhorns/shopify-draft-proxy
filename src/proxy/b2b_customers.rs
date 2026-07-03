@@ -464,7 +464,9 @@ impl DraftProxy {
         if is_credit
             && resolved_string_field(&input, "expiresAt")
                 .as_deref()
-                .map(store_credit_expires_at_in_past)
+                .map(|expires_at| {
+                    store_credit_expires_at_in_past(expires_at, self.current_epoch_seconds())
+                })
                 .unwrap_or(false)
         {
             return self.store_credit_error_outcome(
@@ -5378,12 +5380,10 @@ fn resolved_money_amount_text(
     }
 }
 
-fn store_credit_expires_at_in_past(expires_at: &str) -> bool {
-    !expires_at.is_empty() && expires_at < store_credit_synthetic_today().as_str()
-}
-
-fn store_credit_synthetic_today() -> String {
-    format!("{:04}-{:02}-{:02}T00:00:00Z", 2026, 6, 15)
+fn store_credit_expires_at_in_past(expires_at: &str, now_epoch: i64) -> bool {
+    super::app_shipping_helpers::parse_rfc3339_epoch_seconds(expires_at)
+        .map(|expires_at| expires_at <= now_epoch)
+        .unwrap_or(false)
 }
 
 fn store_credit_result_only_currency_response(fields: &[RootFieldSelection]) -> Option<Response> {

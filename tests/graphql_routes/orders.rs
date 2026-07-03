@@ -7039,6 +7039,90 @@ fn assert_payment_terms_due_state(terms: &Value, expected_due: bool, expected_du
 }
 
 #[test]
+fn payment_terms_due_state_recomputes_from_the_proxy_clock() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_080_000)));
+    let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+    let create_query = r#"
+        mutation PaymentTermsClockedCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {
+          paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {
+            paymentTerms {
+              id
+              due
+              overdue
+              paymentSchedules(first: 1) {
+                nodes { dueAt completedAt due }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let read_query = r#"
+        query PaymentTermsClockedDraftRead($id: ID!) {
+          draftOrder(id: $id) {
+            paymentTerms {
+              due
+              overdue
+              paymentSchedules(first: 1) {
+                nodes { dueAt completedAt due }
+              }
+            }
+          }
+        }
+    "#;
+
+    let due_today = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/DraftOrder/clock-due-today",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+                "paymentSchedules": [{ "dueAt": "2026-07-03T00:00:00Z" }]
+            }
+        }),
+    ));
+    assert_eq!(due_today.status, 200);
+    assert_eq!(
+        due_today.body["data"]["paymentTermsCreate"]["userErrors"],
+        json!([])
+    );
+    assert_payment_terms_due_state(
+        &due_today.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        true,
+        "2026-07-03T00:00:00Z",
+    );
+
+    let future = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": "gid://shopify/DraftOrder/clock-future",
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+                "paymentSchedules": [{ "dueAt": "2026-07-04T12:00:00Z" }]
+            }
+        }),
+    ));
+    assert_eq!(future.status, 200);
+    assert_payment_terms_due_state(
+        &future.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        false,
+        "2026-07-04T12:00:00Z",
+    );
+
+    set_clock(&clock, 1_783_252_800);
+    let future_read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": "gid://shopify/DraftOrder/clock-future" }),
+    ));
+    assert_eq!(future_read.status, 200);
+    assert_payment_terms_due_state(
+        &future_read.body["data"]["draftOrder"]["paymentTerms"],
+        true,
+        "2026-07-04T12:00:00Z",
+    );
+}
+
+#[test]
 fn payment_terms_create_update_guardrails_cover_current_helper_edges() {
     let create_query = r#"
         mutation RustPaymentTermsLocalRuntimeCreate($referenceId: ID!, $attrs: PaymentTermsAttributesInput!) {

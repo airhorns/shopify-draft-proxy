@@ -657,6 +657,166 @@ fn create_free_shipping_code_discount(proxy: &mut DraftProxy, title: &str, code:
 }
 
 #[test]
+fn discount_code_status_recomputes_from_the_proxy_clock_on_reads_and_filters() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_080_000)));
+    let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateClockedDiscount($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode {
+              id
+              codeDiscount {
+                ... on DiscountCodeBasic {
+                  status
+                  startsAt
+                  endsAt
+                  createdAt
+                  updatedAt
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Clocked status",
+            "code": "CLOCKED-STATUS",
+            "startsAt": "2026-07-02T12:00:00Z",
+            "endsAt": "2026-07-04T12:00:00Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+    let node = &create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"];
+    let id = json_string(&node["id"], "clocked discount id");
+    assert_eq!(node["codeDiscount"]["status"], json!("ACTIVE"));
+    assert_eq!(
+        node["codeDiscount"]["createdAt"],
+        json!("2026-07-03T12:00:00Z")
+    );
+    assert_eq!(
+        node["codeDiscount"]["updatedAt"],
+        json!("2026-07-03T12:00:00Z")
+    );
+
+    set_clock(&clock, 1_783_252_800);
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadClockedDiscount($id: ID!, $query: String!) {
+          codeDiscountNode(id: $id) {
+            codeDiscount {
+              ... on DiscountCodeBasic { status }
+            }
+          }
+          discountNodes(query: $query) {
+            nodes {
+              id
+              discount {
+                ... on DiscountCodeBasic { status }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": id, "query": "status:expired" }),
+    ));
+    assert_eq!(
+        read.body["data"]["codeDiscountNode"]["codeDiscount"]["status"],
+        json!("EXPIRED")
+    );
+    assert_eq!(
+        read.body["data"]["discountNodes"]["nodes"],
+        json!([{
+            "id": id,
+            "discount": { "status": "EXPIRED" }
+        }])
+    );
+}
+
+#[test]
+fn discount_mutation_timestamps_advance_with_the_proxy_clock() {
+    let clock = Arc::new(Mutex::new(utc_time(1_783_080_000)));
+    let mut proxy = snapshot_proxy_with_clock(Arc::clone(&clock));
+
+    let create_id = create_basic_code_discount(&mut proxy, "Clocked timestamp", "CLOCKED-TIME");
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadCreatedDiscount($id: ID!) {
+          codeDiscountNode(id: $id) {
+            codeDiscount {
+              ... on DiscountCodeBasic { createdAt updatedAt status startsAt endsAt }
+            }
+          }
+        }
+        "#,
+        json!({ "id": create_id }),
+    ));
+    let created_discount = &created.body["data"]["codeDiscountNode"]["codeDiscount"];
+    assert_eq!(created_discount["createdAt"], json!("2026-07-03T12:00:00Z"));
+    assert_eq!(created_discount["updatedAt"], json!("2026-07-03T12:00:00Z"));
+    assert_eq!(created_discount["status"], json!("ACTIVE"));
+
+    set_clock(&clock, 1_783_166_400);
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateClockedDiscount($id: ID!, $input: DiscountCodeBasicInput!) {
+          discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {
+            codeDiscountNode {
+              codeDiscount { ... on DiscountCodeBasic { createdAt updatedAt status } }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": create_id, "input": {
+            "title": "Clocked timestamp updated",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.2 }, "items": { "all": true } }
+        }}),
+    ));
+    let updated_discount =
+        &update.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"];
+    assert_eq!(updated_discount["createdAt"], json!("2026-07-03T12:00:00Z"));
+    assert_eq!(updated_discount["updatedAt"], json!("2026-07-04T12:00:00Z"));
+    assert!(updated_discount["updatedAt"].as_str() > created_discount["updatedAt"].as_str());
+
+    set_clock(&clock, 1_783_252_800);
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeactivateClockedDiscount($id: ID!) {
+          discountCodeDeactivate(id: $id) {
+            codeDiscountNode {
+              codeDiscount { ... on DiscountCodeBasic { updatedAt status endsAt } }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": create_id }),
+    ));
+    let deactivated_discount =
+        &deactivate.body["data"]["discountCodeDeactivate"]["codeDiscountNode"]["codeDiscount"];
+    assert_eq!(
+        deactivated_discount["updatedAt"],
+        json!("2026-07-05T12:00:00Z")
+    );
+    assert_eq!(deactivated_discount["status"], json!("EXPIRED"));
+    assert_eq!(
+        deactivated_discount["endsAt"],
+        json!("2026-07-05T12:00:00Z")
+    );
+    assert!(deactivated_discount["updatedAt"].as_str() > updated_discount["updatedAt"].as_str());
+}
+
+#[test]
 fn discount_stage_locally_roots_dispatch_by_root_field_not_operation_name_or_alias() {
     let hits = Arc::new(Mutex::new(0usize));
     let hit_counter = Arc::clone(&hits);

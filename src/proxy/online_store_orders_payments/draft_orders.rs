@@ -1445,7 +1445,12 @@ impl DraftProxy {
             .staged
             .draft_orders
             .get(&id)
-            .map(|draft_order| selected_json(draft_order, &field.selection))
+            .map(|draft_order| {
+                selected_json(
+                    &self.payment_terms_owner_record_with_effective_due(draft_order),
+                    &field.selection,
+                )
+            })
             .unwrap_or(Value::Null)
     }
 
@@ -1457,7 +1462,7 @@ impl DraftProxy {
             .draft_orders
             .values()
             .filter(|draft_order| draft_order_matches_query(draft_order, &query_arg))
-            .cloned()
+            .map(|draft_order| self.payment_terms_owner_record_with_effective_due(draft_order))
             .collect::<Vec<_>>();
         records.sort_by(|left, right| {
             right["id"]
