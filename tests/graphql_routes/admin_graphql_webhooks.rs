@@ -1275,6 +1275,141 @@ fn webhook_subscription_filter_byte_size_validation_matches_shopify_ordering() {
 }
 
 #[test]
+fn webhook_subscription_filter_rejects_mixed_qualified_and_bare_terms_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let create_mutation = r#"
+        mutation WebhookSubscriptionFilterMixedTermCreate(
+          $topic: WebhookSubscriptionTopic!
+          $webhookSubscription: WebhookSubscriptionInput!
+        ) {
+          webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id filter }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let update_mutation = r#"
+        mutation WebhookSubscriptionFilterMixedTermUpdate(
+          $id: ID!
+          $webhookSubscription: WebhookSubscriptionInput!
+        ) {
+          webhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id filter }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let detail_query = r#"
+        query WebhookSubscriptionFilterMixedTermDetail($id: ID!) {
+          webhookSubscription(id: $id) { id filter }
+          webhookSubscriptionsCount { count }
+        }
+    "#;
+    let invalid_filter_error = json!({
+        "webhookSubscription": null,
+        "userErrors": [{
+            "field": ["webhookSubscription"],
+            "message": "The specified filter is invalid, please ensure you specify the field(s) you wish to filter on."
+        }]
+    });
+
+    let mixed_create = proxy.process_request(json_graphql_request(
+        create_mutation,
+        json!({
+            "topic": "CUSTOMERS_UPDATE",
+            "webhookSubscription": {
+                "uri": "https://example.com/filter-mixed-create",
+                "format": "JSON",
+                "filter": "customer_id:123 bareword"
+            }
+        }),
+    ));
+    assert_eq!(
+        mixed_create.body["data"]["webhookSubscriptionCreate"],
+        invalid_filter_error
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"],
+        json!([]),
+        "rejected mixed-filter create must not append a mutation log entry"
+    );
+
+    let count_after_rejected_create = proxy.process_request(json_graphql_request(
+        r#"query { webhookSubscriptionsCount { count } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        count_after_rejected_create.body["data"]["webhookSubscriptionsCount"]["count"],
+        json!(0),
+        "rejected mixed-filter create must not stage a subscription"
+    );
+
+    let accepted_create = proxy.process_request(json_graphql_request(
+        create_mutation,
+        json!({
+            "topic": "CUSTOMERS_UPDATE",
+            "webhookSubscription": {
+                "uri": "https://example.com/filter-qualified-create",
+                "format": "JSON",
+                "filter": "-customer_id:123 AND id:1 OR orders_count:1"
+            }
+        }),
+    ));
+    assert_eq!(
+        accepted_create.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    let webhook_id = accepted_create.body["data"]["webhookSubscriptionCreate"]
+        ["webhookSubscription"]["id"]
+        .as_str()
+        .expect("qualified filter create should stage a subscription")
+        .to_string();
+    assert_eq!(
+        accepted_create.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["filter"],
+        json!("-customer_id:123 AND id:1 OR orders_count:1")
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+
+    let mixed_update = proxy.process_request(json_graphql_request(
+        update_mutation,
+        json!({
+            "id": webhook_id,
+            "webhookSubscription": {
+                "uri": "https://example.com/filter-qualified-create",
+                "format": "JSON",
+                "filter": "customer_id:123 bareword"
+            }
+        }),
+    ));
+    assert_eq!(
+        mixed_update.body["data"]["webhookSubscriptionUpdate"],
+        invalid_filter_error
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        1,
+        "rejected mixed-filter update must not append a mutation log entry"
+    );
+
+    let detail_after_rejected_update = proxy.process_request(json_graphql_request(
+        detail_query,
+        json!({ "id": webhook_id }),
+    ));
+    assert_eq!(
+        detail_after_rejected_update.body["data"]["webhookSubscription"],
+        json!({
+            "id": webhook_id,
+            "filter": "-customer_id:123 AND id:1 OR orders_count:1"
+        }),
+        "rejected mixed-filter update must leave the existing filter unchanged"
+    );
+    assert_eq!(
+        detail_after_rejected_update.body["data"]["webhookSubscriptionsCount"]["count"],
+        json!(1)
+    );
+}
+
+#[test]
 fn webhook_subscription_rejects_unknown_topic_before_staging() {
     let mut proxy = snapshot_proxy();
 
