@@ -143,28 +143,3 @@ The customer surface includes roots that look related but have different safety 
 - `customerPaymentMethodGetUpdateUrl` synthesizes a non-deliverable local URL only for Shop Pay agreement instruments. Do not replace it with a live Shopify URL fetch during supported runtime handling.
 
 Do not mark outbound email roots implemented by proxying them upstream. Support means local validation/buffering plus original raw mutation retention for commit-time replay; it does not require pretending the runtime email or URL side effect already happened in Shopify.
-
-### Evidence and validation
-
-- CustomerInput address-list parity: `corepack pnpm conformance:parity` executes `customer-input-addresses-parity` from `fixtures/conformance/<store>/<version>/customers/customer-input-addresses-parity.json`; capture refresh remains `corepack pnpm conformance:capture-customer-input-addresses`
-- Customer metafields, non-CA/US/SG address normalization, and hydrated
-  data-erasure parity:
-  `corepack pnpm parity -- customer-metafields-erasure-address-fidelity`,
-  backed by
-  `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-metafields-erasure-address-fidelity.json`
-  and
-  `config/parity-specs/customers/customer-metafields-erasure-address-fidelity.json`
-- Store credit account success-path capture: `corepack pnpm conformance:capture-store-credit`, writing `store-credit-account-parity.json`
-- Customer address lifecycle parity: `corepack pnpm conformance:parity` executes `customer-address-lifecycle-parity` and `customer-address-update-id-mismatch` from `fixtures/conformance/<store>/<version>/customers/customer-address-lifecycle.json` through chained local proxy requests; capture refresh remains `corepack pnpm conformance:capture-customer-addresses`
-- Customer address Rust runtime coverage: `cargo test customer_address --test graphql_routes` and `cargo test customer_create_with_addresses --test graphql_routes`
-- CustomerSet capture: `corepack pnpm conformance:capture-customer-set`, writing `fixtures/conformance/<store>/<version>/customers/customer-set-parity.json`
-- CustomerInput validation capture: `corepack pnpm conformance:capture-customer-input-validation`, writing `fixtures/conformance/<store>/<version>/customers/customer-input-validation-parity.json`
-- Customer tag/note limits capture: `corepack pnpm conformance:capture -- --run customer-tag-note-limits`, writing `fixtures/conformance/<store>/<version>/customers/customer-tag-note-limits-parity.json`
-- Customer consent capture: `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:capture-customer-consent`, writing `customer-email-marketing-consent-update-parity.json` and `customer-sms-marketing-consent-update-parity.json` with strict parity branches plus the captured consent validation matrix.
-- Customer tax exemption capture: `corepack pnpm conformance:capture-customer-tax-exemptions`, writing `customer-add-tax-exemptions-parity.json`, `customer-remove-tax-exemptions-parity.json`, and `customer-replace-tax-exemptions-parity.json`
-- Data sale opt-out capture: `corepack pnpm conformance:capture-data-sale-opt-out`, writing `data-sale-opt-out-parity.json`
-- Customer order-summary parity: `corepack pnpm conformance:parity` executes `customer-order-summary-read-effects` from `customer-order-summary-read-effects.json` through local setup, `orderCustomerSet`, read, `orderCustomerRemove`, and read requests; capture refresh remains `corepack pnpm conformance:capture-customer-order-summary`
-- Customer merge base capture: `corepack pnpm conformance:capture-customer-merge`, writing `customer-merge-parity.json`
-- Customer merge attached-resource capture: `corepack pnpm conformance:capture-customer-merge-attached-resources`, writing `customer-merge-attached-resources-parity.json`
-- CustomerInput inline consent parity: `corepack pnpm exec tsx scripts/capture-customer-input-consent-conformance.ts`, writing `customer-input-inline-consent-parity.json`; `corepack pnpm conformance:parity` executes `customer-input-inline-consent-parity`
-- Conformance fixtures and requests: `config/parity-specs/customers/customer*.json`, `config/parity-specs/customers/customers*.json`, and matching files under `config/parity-requests/customers/`

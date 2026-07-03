@@ -37,15 +37,22 @@ function expectNoUserErrors(pathLabel, userErrors) {
 }
 
 const productSetMutation = readFileSync(
-  path.join(repoRoot, 'config', 'parity-requests', 'productSet-parity-plan.graphql'),
+  path.join(repoRoot, 'config', 'parity-requests', 'products', 'productSet-parity-plan.graphql'),
   'utf8',
 );
+const productSetVariablesPath = path.join(
+  repoRoot,
+  'config',
+  'parity-requests',
+  'products',
+  'productSet-parity-plan.variables.json',
+);
 const productSetDownstreamReadQuery = readFileSync(
-  path.join(repoRoot, 'config', 'parity-requests', 'productSet-downstream-read.graphql'),
+  path.join(repoRoot, 'config', 'parity-requests', 'products', 'productSet-downstream-read.graphql'),
   'utf8',
 );
 const productDuplicateMutation = readFileSync(
-  path.join(repoRoot, 'config', 'parity-requests', 'productDuplicate-parity-plan.graphql'),
+  path.join(repoRoot, 'config', 'parity-requests', 'products', 'productDuplicate-parity-plan.graphql'),
   'utf8',
 );
 
@@ -148,7 +155,7 @@ const sourceAugmentQuery = `#graphql
 
 const locationQuery = `#graphql
   query ProductGraphConformanceLocations {
-    locations(first: 2) {
+    locations(first: 50) {
       edges {
         cursor
         node {
@@ -160,6 +167,8 @@ const locationQuery = `#graphql
     }
   }
 `;
+
+const preferredProductSetLocationIds = ['gid://shopify/Location/106318463282', 'gid://shopify/Location/106318430514'];
 
 const productsByHandleQuery = `#graphql
   query ProductGraphProductsByHandle($query: String!) {
@@ -305,6 +314,14 @@ function buildProductSetVariables(runId, locations) {
       ],
     },
   };
+}
+
+function selectProductSetLocations(locations) {
+  const activeLocations = locations.filter((location) => location?.isActive !== false);
+  const preferredLocations = preferredProductSetLocationIds
+    .map((id) => activeLocations.find((location) => location.id === id))
+    .filter(Boolean);
+  return preferredLocations.length > 0 ? preferredLocations : activeLocations.slice(0, 2);
 }
 
 function readProductSetVariantRefs(productSetResponse) {
@@ -491,13 +508,14 @@ try {
   const locations = (locationResponse.data?.locations?.edges ?? [])
     .map((edge) => edge?.node)
     .filter((location) => location?.id);
-  if (locations.length === 0) {
+  const productSetLocations = selectProductSetLocations(locations);
+  if (productSetLocations.length === 0) {
     throw new Error(
       'Product graph capture could not resolve a writable location id for productSet inventoryQuantities.',
     );
   }
 
-  const productSetVariables = buildProductSetVariables(runId, locations);
+  const productSetVariables = buildProductSetVariables(runId, productSetLocations);
   const productSetResponse = await runGraphql(productSetMutation, productSetVariables);
   expectNoUserErrors('productSet', productSetResponse.data?.productSet?.userErrors);
   sourceProductId = productSetResponse.data?.productSet?.product?.id ?? null;
@@ -506,7 +524,7 @@ try {
   }
   const productSetDownstreamVariables = buildProductSetDownstreamVariables(productSetResponse);
   const postSetRead = await runGraphql(productSetDownstreamReadQuery, productSetDownstreamVariables);
-  const productSetUpdateVariables = buildProductSetUpdateVariables(runId, productSetResponse, locations);
+  const productSetUpdateVariables = buildProductSetUpdateVariables(runId, productSetResponse, productSetLocations);
   const productSetUpdateResponse = await runGraphql(productSetMutation, productSetUpdateVariables);
   expectNoUserErrors('productSet update', productSetUpdateResponse.data?.productSet?.userErrors);
   const productSetUpdateDownstreamVariables = buildProductSetDownstreamVariables(productSetUpdateResponse);
@@ -648,6 +666,7 @@ try {
   for (const [filename, payload] of Object.entries(captures)) {
     await writeFile(path.join(outputDir, filename), `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
   }
+  await writeFile(productSetVariablesPath, `${JSON.stringify(productSetVariables, null, 2)}\n`, 'utf8');
 
   console.log(
     JSON.stringify(

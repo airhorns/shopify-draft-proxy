@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.cases.productAdd.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture covers the polymorphic Admin `tagsAdd`/`tagsRemove` resource set currently modeled locally: Product, Order, Customer, Article, and DraftOrder. Proxy replay hydrates existing resources through cassette-backed reads and stages the supported mutations locally without forwarding them to Shopify.",
+  "notes": "Live capture covers the polymorphic Admin `tagsAdd`/`tagsRemove` resource set currently modeled locally: Product, Order, Customer, Article, and DraftOrder. Proxy replay hydrates existing resources through recorded reads and stages the supported mutations locally without forwarding them to Shopify.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
