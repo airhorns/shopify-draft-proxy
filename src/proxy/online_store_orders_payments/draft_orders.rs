@@ -891,7 +891,7 @@ impl DraftProxy {
                 let field = field?;
                 Some(data_response(
                     &field.response_key,
-                    self.complete_staged_draft_order(field),
+                    self.complete_staged_draft_order(request, field),
                 ))
             }
             "order" => {
@@ -1832,7 +1832,11 @@ impl DraftProxy {
         }
     }
 
-    pub(super) fn complete_staged_draft_order(&mut self, field: &RootFieldSelection) -> Value {
+    pub(super) fn complete_staged_draft_order(
+        &mut self,
+        request: &Request,
+        field: &RootFieldSelection,
+    ) -> Value {
         let Some(id) = resolved_string_field(&field.arguments, "id") else {
             return selected_json(
                 &json!({
@@ -1916,7 +1920,7 @@ impl DraftProxy {
         let source_name = draft_order["sourceName"]
             .as_str()
             .map(str::to_string)
-            .unwrap_or_else(|| MODELED_FUNCTION_APP_ID.to_string());
+            .unwrap_or_else(|| request_api_client_id(request));
         let payment_gateway_names = vec![json!("manual")];
         // Shopify records both settled and pending draft-order completions as a
         // manual SALE transaction. The transaction status, not its presence,

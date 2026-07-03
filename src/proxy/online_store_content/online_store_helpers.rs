@@ -51,18 +51,10 @@ pub(in crate::proxy) fn web_pixel_settings_from_resolved(value: &ResolvedValue) 
 
 pub(in crate::proxy) fn synthetic_storefront_access_token(id: &str) -> String {
     let suffix = resource_id_tail(id).parse::<u64>().ok().unwrap_or(0);
-    let token = match suffix {
-        1 => "bcc6fd83f41123b4",
-        3 => "43199f7763e24d2f",
-        5 => "5ceddc5ce1576036",
-        _ => {
-            return format!(
-                "shpat_{:016x}",
-                0xbcc6_fd83_f411_23b4u64.wrapping_add(suffix)
-            )
-        }
-    };
-    format!("shpat_{token}")
+    format!(
+        "shpat_{:016x}",
+        0xbcc6_fd83_f411_23b4u64.wrapping_add(suffix)
+    )
 }
 
 pub(in crate::proxy) fn storefront_access_scopes_for_request(request: &Request) -> Vec<Value> {

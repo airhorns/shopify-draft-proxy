@@ -598,7 +598,6 @@ impl DraftProxy {
             }));
         }
 
-        let ready_url = product_media_ready_url();
         let mut updated = Vec::new();
         for item in &media_inputs {
             let Some(id) = resolved_string_field(item, "id") else {
@@ -612,12 +611,13 @@ impl DraftProxy {
                 if let Some(alt) = &alt {
                     node["alt"] = json!(alt);
                 }
+                let ready_url = product_media_ready_url(node);
                 node["status"] = json!("READY");
-                node["preview"] = json!({ "image": { "url": ready_url } });
+                node["preview"] = json!({ "image": { "url": ready_url.clone() } });
                 if node.get("mediaContentType").and_then(Value::as_str) == Some("IMAGE") {
                     // Preserve an observed ProductImage id so downstream deletes can
                     // still derive `deletedProductImageIds` from the asset.
-                    match node.get("image").and_then(|image| image.get("id")) {
+                    match node.get("image").and_then(|image| image.get("id")).cloned() {
                         Some(image_id) => {
                             node["image"] = json!({ "id": image_id, "url": ready_url })
                         }
@@ -853,6 +853,9 @@ fn product_media_node_with_type(
     });
     if media_content_type == "IMAGE" {
         node["image"] = image;
+        if let Some(source) = original_source {
+            node["originalSource"] = json!({ "url": source });
+        }
     } else if matches!(media_content_type, "VIDEO" | "MODEL_3D") {
         if let Some(source) = original_source {
             node["originalSource"] = json!({ "url": source });
@@ -880,8 +883,60 @@ fn product_media_gid_type(media_content_type: &str) -> &'static str {
     }
 }
 
-fn product_media_ready_url() -> &'static str {
-    "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664"
+fn product_media_ready_url(node: &Value) -> String {
+    product_media_image_url(node)
+        .map(str::to_string)
+        .unwrap_or_else(|| product_media_local_ready_url(node))
+}
+
+fn product_media_image_url(node: &Value) -> Option<&str> {
+    node.get("image")
+        .and_then(|image| image.get("url"))
+        .and_then(Value::as_str)
+        .filter(|url| !url.is_empty())
+        .or_else(|| {
+            node.get("preview")
+                .and_then(|preview| preview.get("image"))
+                .and_then(|image| image.get("url"))
+                .and_then(Value::as_str)
+                .filter(|url| !url.is_empty())
+        })
+}
+
+fn product_media_original_source_url(node: &Value) -> Option<&str> {
+    node.get("originalSource")
+        .and_then(|source| {
+            source
+                .get("url")
+                .and_then(Value::as_str)
+                .or_else(|| source.as_str())
+        })
+        .filter(|url| !url.is_empty())
+}
+
+fn product_media_local_ready_url(node: &Value) -> String {
+    let id = node.get("id").and_then(Value::as_str).unwrap_or("media");
+    let resource_type = shopify_gid_resource_type(id).unwrap_or("Media");
+    let tail = resource_id_tail(id);
+    let token = product_media_url_token(&format!("{resource_type}-{tail}"));
+    let extension = product_media_original_source_url(node)
+        .map(file_extension)
+        .filter(|extension| !extension.is_empty() && extension.chars().all(token_char))
+        .unwrap_or_else(|| "png".to_string());
+    format!("https://shopify-draft-proxy.local/media/{token}.{extension}")
+}
+
+fn product_media_url_token(value: &str) -> String {
+    let token: String = value
+        .chars()
+        .map(|ch| if token_char(ch) { ch } else { '-' })
+        .collect();
+    let token = token.trim_matches('-');
+    if token.is_empty() {
+        "media".to_string()
+    } else {
+        token.to_ascii_lowercase()
+    }
 }
 
 fn infer_product_media_content_type(original_source: &str) -> &'static str {
@@ -2921,12 +2976,14 @@ pub(in crate::proxy) fn product_category_input_id(
 
 /// Resolve a taxonomy category GID to its `{id, fullName}` shape. Shopify materializes
 /// `category.fullName` from its global product taxonomy; we mirror the well-known nodes
-/// the taxonomy exposes (falling back to the bare id for nodes we don't model).
+/// the taxonomy exposes and leave unknown nodes unresolved.
 pub(in crate::proxy) fn product_category_value(id: &str) -> Value {
     let full_name = match id {
-        "gid://shopify/TaxonomyCategory/aa-1-1" => "Apparel & Accessories > Clothing > Activewear",
-        "gid://shopify/TaxonomyCategory/na" => "Uncategorized",
-        other => other,
+        "gid://shopify/TaxonomyCategory/aa-1-1" => {
+            json!("Apparel & Accessories > Clothing > Activewear")
+        }
+        "gid://shopify/TaxonomyCategory/na" => json!("Uncategorized"),
+        _ => Value::Null,
     };
     json!({ "id": id, "fullName": full_name })
 }
