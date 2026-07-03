@@ -925,7 +925,11 @@ impl DraftProxy {
     /// name/scope/state across the mutation instead of fabricating one. A miss
     /// (no recorded call) returns non-2xx and falls back to the default staged
     /// record for non-hydrate scenarios.
-    fn ensure_location_hydrated(&mut self, location_id: &str, request: &Request) {
+    pub(in crate::proxy) fn ensure_location_hydrated(
+        &mut self,
+        location_id: &str,
+        request: &Request,
+    ) {
         if self.config.read_mode == ReadMode::Snapshot {
             return;
         }
