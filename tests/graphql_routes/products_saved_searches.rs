@@ -1909,6 +1909,41 @@ fn product_variants_bulk_create_rejects_inventory_quantity_caps_atomically() {
     ));
     assert_eq!(read.body["data"]["product"]["variants"]["nodes"], json!([]));
 
+    let mut proxy = snapshot_proxy().with_base_products(vec![seed_product(product_id)]);
+    let response = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({
+            "productId": product_id,
+            "variants": [{
+                "price": "10",
+                "inventoryQuantities": [{
+                    "availableQuantity": 2_000_000_000,
+                    "locationId": "gid://shopify/Location/1"
+                }]
+            }]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productVariantsBulkCreate"],
+        json!({
+            "product": null,
+            "productVariants": [],
+            "userErrors": [{
+                "field": ["variants", "0", "inventoryQuantities"],
+                "message": "Inventory quantity must be less than or equal to 1000000000",
+                "code": "INVALID_INPUT"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    let read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "productId": product_id }),
+    ));
+    assert_eq!(read.body["data"]["product"]["variants"]["nodes"], json!([]));
+
     let too_many_locations = (0..201)
         .map(|_| json!({ "availableQuantity": 1, "locationId": "gid://shopify/Location/1" }))
         .collect::<Vec<_>>();
