@@ -1286,6 +1286,188 @@ fn remove_from_return_allows_requested_returns() {
 }
 
 #[test]
+fn return_create_and_request_reject_quantities_beyond_remaining_fulfillment() {
+    let mut proxy = snapshot_proxy();
+    let (order_id, fulfillment_line_item_id) = stage_fulfilled_order_for_return(&mut proxy);
+
+    let initial = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateInitialQuantityCapReturn($returnInput: ReturnInput!) {
+          returnCreate(returnInput: $returnInput) {
+            return {
+              id
+              status
+              totalQuantity
+              returnLineItems(first: 5) {
+                nodes { id quantity processedQuantity unprocessedQuantity }
+              }
+              reverseFulfillmentOrders(first: 5) {
+                nodes {
+                  id
+                  lineItems(first: 5) {
+                    nodes { id totalQuantity remainingQuantity returnLineItem { id } }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "returnInput": {
+                "orderId": order_id.clone(),
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": fulfillment_line_item_id.clone(),
+                    "quantity": 2,
+                    "returnReason": "UNWANTED"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(initial.status, 200);
+    assert_eq!(
+        initial.body["data"]["returnCreate"]["userErrors"],
+        json!([])
+    );
+    let staged_return = initial.body["data"]["returnCreate"]["return"].clone();
+    let log_before_rejections = log_snapshot(&proxy);
+
+    let over_request = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RequestBeyondRemainingQuantity($input: ReturnRequestInput!) {
+          returnRequest(input: $input) {
+            return { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "orderId": order_id.clone(),
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": fulfillment_line_item_id.clone(),
+                    "quantity": 1,
+                    "returnReason": "UNWANTED"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(over_request.status, 200);
+    assert_eq!(
+        over_request.body["data"]["returnRequest"]["return"],
+        Value::Null
+    );
+    assert_eq!(
+        over_request.body["data"]["returnRequest"]["userErrors"],
+        json!([{
+            "field": ["input", "returnLineItems", "0", "quantity"],
+            "message": "Return line item has an invalid quantity.",
+            "code": "INVALID"
+        }])
+    );
+
+    let over_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBeyondRemainingQuantity($returnInput: ReturnInput!) {
+          returnCreate(returnInput: $returnInput) {
+            return { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "returnInput": {
+                "orderId": order_id.clone(),
+                "returnLineItems": [{
+                    "fulfillmentLineItemId": fulfillment_line_item_id,
+                    "quantity": 1,
+                    "returnReason": "UNWANTED"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(over_create.status, 200);
+    assert_eq!(
+        over_create.body["data"]["returnCreate"]["return"],
+        Value::Null
+    );
+    assert_eq!(
+        over_create.body["data"]["returnCreate"]["userErrors"],
+        json!([{
+            "field": ["returnInput", "returnLineItems", "0", "quantity"],
+            "message": "Return line item has an invalid quantity.",
+            "code": "INVALID"
+        }])
+    );
+
+    assert_eq!(log_snapshot(&proxy), log_before_rejections);
+    let read_after = read_return_removal_state(&mut proxy, staged_return["id"].clone(), order_id);
+    assert_eq!(read_after["return"], staged_return);
+    assert_eq!(
+        read_after["order"]["returns"]["nodes"],
+        json!([staged_return])
+    );
+}
+
+#[test]
+fn remove_from_return_rejects_zero_and_over_quantity_without_state_changes() {
+    let mut proxy = snapshot_proxy();
+    let setup = stage_open_return_for_removal(&mut proxy);
+    let before =
+        read_return_removal_state(&mut proxy, setup.return_id.clone(), setup.order_id.clone());
+    let log_before_rejections = log_snapshot(&proxy);
+
+    for quantity in [3, 0] {
+        let response = proxy.process_request(json_graphql_request(
+            r#"
+            mutation RemoveInvalidQuantity($returnId: ID!, $returnLineItems: [ReturnLineItemRemoveFromReturnInput!]) {
+              removeFromReturn(returnId: $returnId, returnLineItems: $returnLineItems) {
+                return { id totalQuantity }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "returnId": setup.return_id.clone(),
+                "returnLineItems": [{
+                    "returnLineItemId": setup.return_line_item_id.clone(),
+                    "quantity": quantity
+                }]
+            }),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["removeFromReturn"]["return"],
+            Value::Null
+        );
+        assert_eq!(
+            response.body["data"]["removeFromReturn"]["userErrors"],
+            if quantity == 0 {
+                json!([{
+                    "field": null,
+                    "message": "Quantity must be greater than 0",
+                    "code": "GREATER_THAN"
+                }])
+            } else {
+                json!([{
+                    "field": ["returnLineItems", "0", "quantity"],
+                    "message": "Return line item has an invalid quantity.",
+                    "code": "INVALID"
+                }])
+            },
+            "quantity {quantity} should be rejected without staging a removal"
+        );
+        assert_eq!(log_snapshot(&proxy), log_before_rejections);
+        assert_eq!(
+            read_return_removal_state(&mut proxy, setup.return_id.clone(), setup.order_id.clone()),
+            before
+        );
+    }
+}
+
+#[test]
 fn return_request_approval_and_decline_invalid_states_use_shopify_error_shapes() {
     let mut proxy = snapshot_proxy();
     let open_return = stage_open_return_for_removal(&mut proxy);
@@ -1359,6 +1541,97 @@ fn return_request_approval_and_decline_unknown_ids_use_not_found_shape() {
             "code": "NOT_FOUND"
         }])
     );
+}
+
+#[test]
+fn return_decline_request_invalid_decline_reason_variable_fails_schema_validation() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReturnDeclineRequestInvalidReason($input: ReturnDeclineRequestInput!) {
+          returnDeclineRequest(input: $input) {
+            return { id status decline { reason note } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Return/999999999",
+                "declineReason": "BANANAS",
+                "notifyCustomer": false
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body.get("data"), None);
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        json!(
+            "Variable $input of type ReturnDeclineRequestInput! was provided invalid value for declineReason (Expected \"BANANAS\" to be one of: RETURN_PERIOD_ENDED, FINAL_SALE, OTHER)"
+        )
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["problems"][0],
+        json!({
+            "path": ["declineReason"],
+            "explanation": "Expected \"BANANAS\" to be one of: RETURN_PERIOD_ENDED, FINAL_SALE, OTHER"
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn return_decline_request_hidden_notify_payload_variable_fails_schema_validation() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReturnDeclineRequestUnknownNotifyPayload($input: ReturnDeclineRequestInput!) {
+          returnDeclineRequest(input: $input) {
+            return { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Return/999999999",
+                "declineReason": "OTHER",
+                "notifyCustomer": true,
+                "tmp_notify_customer": {
+                    "email_address": "not-an-email"
+                }
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body.get("data"), None);
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        json!(
+            "Variable $input of type ReturnDeclineRequestInput! was provided invalid value for tmp_notify_customer (Field is not defined on ReturnDeclineRequestInput)"
+        )
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["problems"][0],
+        json!({
+            "path": ["tmp_notify_customer"],
+            "explanation": "Field is not defined on ReturnDeclineRequestInput"
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
@@ -6606,6 +6879,102 @@ fn order_capture_rejects_boolean_final_capture_for_manual_gateway_without_side_e
 }
 
 #[test]
+fn order_payment_transactions_dispatch_by_root_for_ordinary_operation_names() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
+    ))
+    .unwrap();
+
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-non-recording-create.graphql"
+        ),
+        fixture["paymentCaptureFlow"]["create"]["variables"].clone(),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["orderCreate"]["order"]["displayFinancialStatus"],
+        json!("AUTHORIZED")
+    );
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let authorization_id =
+        create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone();
+
+    let capture = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-non-recording-capture.graphql"
+        ),
+        json!({
+            "input": {
+                "id": order_id.clone(),
+                "parentTransactionId": authorization_id.clone(),
+                "amount": "10.00",
+                "currency": "CAD"
+            }
+        }),
+    ));
+    assert_eq!(capture.status, 200);
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["order"]["displayFinancialStatus"],
+        json!("PARTIALLY_PAID")
+    );
+
+    let read_after_capture = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-non-recording-read.graphql"
+        ),
+        json!({ "id": order_id.clone() }),
+    ));
+    assert_eq!(
+        read_after_capture.body["data"]["order"]["displayFinancialStatus"],
+        json!("PARTIALLY_PAID")
+    );
+
+    let mandate = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-non-recording-mandate.graphql"
+        ),
+        json!({
+            "id": order_id,
+            "mandateId": "gid://shopify/PaymentMandate/non-recording-payment",
+            "idempotencyKey": "ordinary-operation-name-payment",
+            "amount": { "amount": "15.00", "currencyCode": "CAD" }
+        }),
+    ));
+    assert_eq!(mandate.status, 200);
+    assert_eq!(
+        mandate.body["data"]["orderCreateMandatePayment"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        mandate.body["data"]["orderCreateMandatePayment"]["order"]["displayFinancialStatus"],
+        json!("PAID")
+    );
+
+    let mut void_proxy = snapshot_proxy();
+    let void_create = void_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-non-recording-create.graphql"
+        ),
+        fixture["voidFlow"]["create"]["variables"].clone(),
+    ));
+    let void_response = void_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-non-recording-void.graphql"
+        ),
+        json!({
+            "id": void_create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone()
+        }),
+    ));
+    assert_eq!(void_response.status, 200);
+    assert_eq!(
+        void_response.body["data"]["transactionVoid"]["transaction"]["kind"],
+        json!("VOID")
+    );
+}
+
+#[test]
 fn order_capture_accepts_omitted_currency_for_single_currency_order() {
     let mut proxy = snapshot_proxy();
 
@@ -6883,6 +7252,98 @@ fn order_payment_transactions_use_order_transaction_state_not_magic_values() {
         .as_str()
         .expect("raw body")
         .contains("OrderPaymentVoid"));
+}
+
+#[test]
+fn transaction_void_code_flow_preserves_payment_currency_without_order_currency() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/transaction-void-codes-order-create.graphql"
+        ),
+        json!({
+            "order": {
+                "email": "transaction-void-codes@example.com",
+                "test": true,
+                "lineItems": [{
+                    "title": "transaction void code parity",
+                    "quantity": 1,
+                    "priceSet": {
+                        "shopMoney": {
+                            "amount": "25.00",
+                            "currencyCode": "CAD"
+                        }
+                    },
+                    "requiresShipping": false,
+                    "taxable": false
+                }],
+                "transactions": [{
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "test": true,
+                    "amountSet": {
+                        "shopMoney": {
+                            "amount": "25.00",
+                            "currencyCode": "CAD"
+                        }
+                    }
+                }]
+            },
+            "options": null
+        }),
+    ));
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    assert_eq!(
+        create.body["data"]["orderCreate"]["order"]["transactions"][0]["amountSet"]["shopMoney"]
+            ["currencyCode"],
+        json!("CAD")
+    );
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let parent_transaction_id =
+        create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone();
+
+    let capture = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/transaction-void-codes-order-capture.graphql"
+        ),
+        json!({
+            "input": {
+                "id": order_id,
+                "parentTransactionId": parent_transaction_id.clone(),
+                "amount": "25.00",
+                "currency": "CAD"
+            }
+        }),
+    ));
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["transaction"]["kind"],
+        json!("CAPTURE")
+    );
+
+    let void = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/transaction-void-codes-transaction-void.graphql"
+        ),
+        json!({ "id": parent_transaction_id }),
+    ));
+    assert_eq!(
+        void.body["data"]["transactionVoid"]["transaction"],
+        Value::Null
+    );
+    assert_eq!(
+        void.body["data"]["transactionVoid"]["userErrors"][0],
+        json!({
+            "field": ["parentTransactionId"],
+            "message": "Parent transaction require a parent_id referring to a voidable transaction",
+            "code": "AUTH_NOT_VOIDABLE"
+        })
+    );
 }
 
 #[test]
