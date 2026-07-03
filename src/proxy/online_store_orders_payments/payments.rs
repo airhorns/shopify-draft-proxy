@@ -6,6 +6,8 @@ use super::*;
 // cassette that matches this `include_str!` const exactly.
 const REFUND_ORDER_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/orders/refund-order-hydrate.graphql");
+const FINAL_CAPTURE_UNSUPPORTED_PAYMENT_PROVIDER_MESSAGE: &str =
+    "Setting final capture is not supported for this transaction's payment gateway. Please remove the parameter or set it to null, then try again.";
 
 pub(in crate::proxy) fn refund_user_error(
     field: Value,
@@ -665,6 +667,10 @@ pub(in crate::proxy) fn payment_transaction_matches_parent(
         .and_then(|parent| parent.get("id"))
         .and_then(Value::as_str)
         == Some(parent_id)
+}
+
+fn payment_transaction_supports_final_capture(transaction: &Value) -> bool {
+    transaction["gateway"].as_str() == Some("shopify_payments")
 }
 
 pub(in crate::proxy) fn payment_user_error(
@@ -1376,7 +1382,8 @@ impl DraftProxy {
             normalized_order_payment_amount(Some(requested_amount.clone()));
         let requested_amount_value = requested_amount.parse::<f64>().ok()?;
         let parent_id = resolved_string_field(input, "parentTransactionId");
-        let final_capture = matches!(input.get("finalCapture"), Some(ResolvedValue::Bool(true)));
+        let final_capture_input = input.get("finalCapture");
+        let final_capture = matches!(final_capture_input, Some(ResolvedValue::Bool(true)));
         let order = self.store.staged.orders.get(order_id)?;
         let transactions = order["transactions"]
             .as_array()
@@ -1468,6 +1475,20 @@ impl DraftProxy {
                     json!(["parent_transaction_id"]),
                     "Parent transaction must be a successful authorization",
                     Some("INVALID_TRANSACTION_STATE"),
+                )],
+                Vec::new(),
+            ));
+        }
+        if matches!(final_capture_input, Some(value) if !matches!(value, ResolvedValue::Null))
+            && !payment_transaction_supports_final_capture(&parent_transaction)
+        {
+            return Some((
+                Value::Null,
+                order.clone(),
+                vec![payment_user_error(
+                    Value::Null,
+                    FINAL_CAPTURE_UNSUPPORTED_PAYMENT_PROVIDER_MESSAGE,
+                    None,
                 )],
                 Vec::new(),
             ));

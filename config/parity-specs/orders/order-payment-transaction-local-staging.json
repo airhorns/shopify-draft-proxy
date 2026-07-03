@@ -152,8 +152,7 @@
                 "fromPrimaryProxyPath": "$.data.orderCreate.order.transactions[0].id"
               },
               "amount": "10.00",
-              "currency": "CAD",
-              "finalCapture": false
+              "currency": "CAD"
             }
           }
         }
@@ -174,7 +173,7 @@
               },
               "amount": "15.00",
               "currency": "CAD",
-              "finalCapture": true
+              "finalCapture": null
             }
           }
         }
