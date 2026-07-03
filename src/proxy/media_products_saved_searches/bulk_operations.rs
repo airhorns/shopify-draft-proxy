@@ -528,9 +528,6 @@ impl DraftProxy {
     }
 
     fn bulk_operation_staged_upload_size(&self, staged_upload_path: &str) -> Option<Option<u64>> {
-        if staged_upload_path == "valid" {
-            return Some(Some(0));
-        }
         self.store
             .staged
             .bulk_operation_staged_uploads

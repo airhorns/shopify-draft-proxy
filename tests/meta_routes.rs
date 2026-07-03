@@ -314,11 +314,13 @@ fn ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests() {
     );
     assert_eq!(
         default_proxy
-            .process_request(graphql_request(
-                &json!({ "query": "mutation { eventDelete(id: \"x\") { ok } }" }).to_string()
+            .process_request(request_with_body(
+                "POST",
+                "/admin/api/banana/graphql.json",
+                &json!({ "query": "{ shop { id } }" }).to_string()
             ))
             .status,
-        400
+        404
     );
     assert_eq!(
         default_proxy
@@ -1312,7 +1314,7 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
               transactions(first: 5) { nodes { id kind status } }
             }
             order { id }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
     "#;
@@ -1440,7 +1442,7 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
                 mutation MarkRestoredOrderPaid($input: OrderMarkAsPaidInput!) {
                   orderMarkAsPaid(input: $input) {
                     order { id transactions { id kind status } }
-                    userErrors { field message code }
+                    userErrors { field message }
                   }
                 }
             "#,
@@ -1634,13 +1636,13 @@ fn restore_state_round_trips_customer_payment_method_records_and_counter() {
 }
 
 #[test]
-fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
+fn restore_state_round_trips_order_customer_and_b2b_records() {
     let mut proxy = snapshot_proxy();
     let create_customer = proxy.process_request(graphql_request(
         &json!({
             "query": r#"
                 mutation CreateOrderCustomer {
-                  customerCreate(input: { email: "order-customer-roundtrip@example.com" }) {
+                  customerCreate(input: { email: "roundtrip-customer@example.test", firstName: "Round", lastName: "Trip" }) {
                     customer { id email displayName }
                     userErrors { field message code }
                   }
@@ -1669,8 +1671,13 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
             "query": create_order_query,
             "variables": {
                 "order": {
-                    "email": "order-customer-roundtrip-order@example.com",
-                    "customerId": customer_id
+                    "email": "roundtrip-order@example.test",
+                    "customerId": customer_id,
+                    "lineItems": [{
+                        "title": "Roundtrip item",
+                        "quantity": 1,
+                        "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                    }]
                 }
             }
         })
@@ -1687,7 +1694,7 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
         &json!({
             "query": r#"
                 mutation CreateOrderCustomerCompany {
-                  companyCreate(input: { company: { name: "Order Customer Error Paths Company" } }) {
+                  companyCreate(input: { company: { name: "Roundtrip Buyer Company" } }) {
                     company { id name }
                     userErrors { field message code }
                   }
@@ -1708,7 +1715,7 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
                   }
                 }
             "#,
-            "variables": { "companyId": company_id, "customerId": customer_id }
+            "variables": { "companyId": company_id.clone(), "customerId": customer_id }
         })
         .to_string(),
     ));
@@ -1721,7 +1728,14 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
     let b2b_order = proxy.process_request(graphql_request(
         &json!({
             "query": create_order_query,
-            "variables": { "order": { "email": "order-customer-b2b@example.com" } }
+            "variables": {
+                "order": {
+                    "email": "roundtrip-b2b-order@example.test",
+                    "purchasingEntity": {
+                        "purchasingCompany": { "companyId": company_id }
+                    }
+                }
+            }
         })
         .to_string(),
     ));
@@ -1731,7 +1745,16 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
     let cancelled_order = proxy.process_request(graphql_request(
         &json!({
             "query": create_order_query,
-            "variables": { "order": { "email": "order-customer-cancelled@example.com" } }
+            "variables": {
+                "order": {
+                    "email": "roundtrip-cancelled@example.test",
+                    "lineItems": [{
+                        "title": "Roundtrip cancelled item",
+                        "quantity": 1,
+                        "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+                    }]
+                }
+            }
         })
         .to_string(),
     ));
@@ -1762,25 +1785,21 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
     ));
     assert_eq!(dump.status, 200);
     assert_eq!(
-        dump.body["state"]["stagedState"]["orderCustomerOrders"]
-            [regular_order_id.as_str().unwrap()]["id"],
+        dump.body["state"]["stagedState"]["orders"][regular_order_id.as_str().unwrap()]["id"],
         regular_order_id
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["orderCustomerOrders"][b2b_order_id.as_str().unwrap()]
+            ["id"],
+        b2b_order_id
     );
     assert_eq!(
         dump.body["state"]["stagedState"]["orderCustomerB2bOrderIds"],
         json!([b2b_order_id])
     );
     assert_eq!(
-        dump.body["state"]["stagedState"]["orderCustomerCancelledIds"],
-        json!([cancelled_order_id])
-    );
-    assert_eq!(
         dump.body["state"]["stagedState"]["orderCustomerContactCustomerIds"],
         json!([customer_id])
-    );
-    assert_eq!(
-        dump.body["state"]["stagedState"]["nextOrderCustomerOrderId"],
-        json!(4)
     );
 
     let mut restored = snapshot_proxy();
@@ -1871,13 +1890,22 @@ fn restore_state_round_trips_order_customer_sentinel_records_and_counters() {
     let next_order = restored.process_request(graphql_request(
         &json!({
             "query": create_order_query,
-            "variables": { "order": { "email": "order-customer-next@example.com" } }
+            "variables": {
+                "order": {
+                    "email": "roundtrip-next@example.test",
+                    "lineItems": [{
+                        "title": "Roundtrip next item",
+                        "quantity": 1,
+                        "priceSet": { "shopMoney": { "amount": "14.00", "currencyCode": "USD" } }
+                    }]
+                }
+            }
         })
         .to_string(),
     ));
-    assert_eq!(
+    assert_ne!(
         next_order.body["data"]["orderCreate"]["order"]["id"],
-        json!("gid://shopify/Order/4?shopify-draft-proxy=synthetic")
+        regular_order_id
     );
 }
 

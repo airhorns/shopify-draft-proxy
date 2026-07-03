@@ -313,17 +313,17 @@ require validation before staging: blank group ID lists, duplicate IDs within on
 request, too many post-join memberships, and leave requests for groups that are
 not direct members should all return payload `userErrors` without changing local
 membership state. The local runtime models that guard contract and covers it with
-`config/parity-specs/products/productJoinLeaveSellingPlanGroups-validation.json`
-plus focused product mutation tests.
+focused product mutation tests, but no checked-in products parity fixture is
+retained for those divergent local-only branches.
 
 A live public Admin probe against `harry-test-heelo.myshopify.com` on 2025-01,
 2026-04, and `unstable` did not expose the same branches: duplicate joins,
 leave-non-member requests, and 32-group joins returned empty `userErrors`, and
 the public `SellingPlanGroupUserErrorCode` enum lacked `DUPLICATE`,
-`NOT_A_MEMBER`, and `SELLING_PLAN_GROUPS_TOO_MANY`. Treat the checked-in
-local-runtime parity fixture as the current internal guardrail contract, and
-re-capture against a target that reproduces the internal package behavior before
-changing those codes/messages or replacing the fixture with live evidence.
+`NOT_A_MEMBER`, and `SELLING_PLAN_GROUPS_TOO_MANY`. Treat the Rust integration
+coverage as the current internal guardrail contract, and re-capture against a
+target that reproduces the internal package behavior before changing those
+codes/messages or adding parity evidence.
 
 ## Current: Selling-plan group lower-bound validation is create-specific, but update deletes can still reject the final plan
 
@@ -860,8 +860,8 @@ After the initial orders-domain creation scaffolding landed, the next easy mista
   - `email`, `phone`, `poNumber`, `shippingAddress`, `customAttributes`, and order-scoped `metafields`
   - downstream `order(id:)` reads expose the staged values, including `customer.email` when the input updates `email`
   - `billingAddress` is intentionally not part of that local `orderUpdate` slice because the current `OrderInput` docs do not expose it
-  - executable local-runtime parity: `config/parity-specs/orders/orderUpdate-snapshot-staging.json` replays public `orderCreate -> orderUpdate -> order(id:) / orders / ordersCount` requests without seeding internal proxy state
-  - expanded live parity is captured for `email`, `poNumber`, `note`, `tags`, `customAttributes`, `shippingAddress`, and order-scoped `metafields` in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json`; `phone` remains local-runtime backed because Shopify 2025-01 rejected it as an `OrderInput` field in that capture path
+  - executable parity: `config/parity-specs/orders/orderUpdate-snapshot-staging.json` replays public `orderCreate -> orderUpdate -> order(id:) / orders / ordersCount` requests against the live 2026-04 fixture without seeding internal proxy state
+  - expanded live parity is captured for `email`, `poNumber`, `note`, `tags`, `customAttributes`, `shippingAddress`, and order-scoped `metafields` in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json`; `phone` remains runtime-test-backed because Shopify 2025-01 rejected it as an `OrderInput` field in that capture path
 - a later 2026-04 localization capture exposed several easy-to-miss `orderUpdate` details:
   - `localizedFields` and deprecated `localizationExtensions` both read back from the same localized-order record set; updating either connection makes the key visible through both `Order.localizedFields` and `Order.localizationExtensions`
   - Brazilian credential values are validated for real CPF/CNPJ shape; arbitrary 11-digit strings can fail with `Localization extension: 'value' provided is invalid`

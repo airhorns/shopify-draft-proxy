@@ -382,7 +382,7 @@ async function recordProductHydrationCall(ids) {
   return {
     operationName: 'ProductsHydrateNodes',
     variables,
-    query: 'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration',
+    query: productHydrateNodesQuery,
     response: {
       status: response.status,
       body: response.payload,
