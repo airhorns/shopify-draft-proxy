@@ -386,12 +386,7 @@ impl DraftProxy {
             return StagedSearchDecision::Match;
         };
         let variants = self.store.product_variants_for_product(&product.id);
-        StagedSearchDecision::from_bool(product_matches_search_query(
-            product,
-            &variants,
-            self.store.staged.product_search_tags.get(&product.id),
-            query,
-        ))
+        StagedSearchDecision::from_bool(product_matches_search_query(product, &variants, query))
     }
 
     fn product_payload_shop_needs_hydration(&self, shop_selection: &[SelectedField]) -> bool {
@@ -2923,14 +2918,6 @@ impl DraftProxy {
                 "No mutation dispatcher implemented for product tags id",
             ));
         };
-
-        if !self.store.staged.product_search_tags.contains_key(id) {
-            let search_tags = product.tags.iter().cloned().collect();
-            self.store
-                .staged
-                .product_search_tags
-                .insert(id.clone(), search_tags);
-        }
 
         let tags = normalized_taggable_tags_argument(field.arguments.get("tags"));
         match root_field {

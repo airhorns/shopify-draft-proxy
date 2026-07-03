@@ -1161,14 +1161,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose: 'productChangeStatus/tagsAdd/tagsRemove mutation branches.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-change-status-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/tags-add-multi-resource.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/tags-add-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/tags-remove-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/tags-normalization-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/tags-add-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/tags-remove-parity.json',
+      'config/parity-specs/products/productChangeStatus-parity-plan.json',
       'config/parity-specs/products/tagsAdd-parity-plan.json',
+      'config/parity-specs/products/tagsRemove-parity-plan.json',
       'config/parity-specs/products/tags-normalization-parity.json',
+      'config/parity-requests/products/productChangeStatus-downstream-read.graphql',
+      'config/parity-requests/products/tagsAdd-downstream-read.graphql',
+      'config/parity-requests/products/tagsRemove-downstream-read.graphql',
       'config/parity-requests/products/tags-normalization-setup.graphql',
       'config/parity-requests/products/tagsAdd-case-variant.graphql',
       'config/parity-requests/products/tagsAdd-comma-list-element.graphql',
@@ -1500,6 +1506,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/media/file_update_validation_ordering.json',
     ],
     cleanupBehavior: 'Creates one disposable image file and deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
+    captureId: 'media-file-update-missing-id-coercion',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-update-missing-id-coercion-conformance.ts',
+    purpose:
+      'Files API fileUpdate omitted FileUpdateInput.id GraphQL coercion plus supplied missing-id userError contrast.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}file-update-missing-id-coercion.json`,
+      'config/parity-specs/media/file_update_missing_id_coercion.json',
+      'config/parity-requests/media/file_update_missing_id_coercion.graphql',
+      'config/parity-requests/media/file_update_missing_id_coercion_inline.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; creates no live Shopify objects.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -6999,6 +7022,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-catalog-count-read.json',
       'config/parity-specs/orders/order-catalog-count-read.json',
+      'config/parity-requests/orders/order-catalog-count-read.graphql',
     ],
     cleanupBehavior:
       'Creates disposable paid test orders tagged merchant-realistic only if fewer than two exist; leaves them in place as the durable read catalog.',
@@ -8335,6 +8359,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-update-reference-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-update-reference-validation-conformance.ts',
+    purpose:
+      'discountCodeBasicUpdate reference and uniqueness validation for taken code, own-code resubmission, invalid product/variant/collection references, and product/collection conflict.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-update-reference-validation.json`,
+      'config/parity-specs/discounts/discount-update-reference-validation.json',
+      'config/parity-requests/discounts/discount-update-reference-validation-basic-update.graphql',
+      'config/parity-requests/discounts/discount-update-reference-validation-setup.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, one disposable collection, and two disposable code-basic discounts; deletes all resources during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-timestamps-monotonic',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-timestamps-monotonic-conformance.ts',
@@ -9167,6 +9209,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_orders', 'write_orders'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}order-capture-validation.json`,
+      'config/parity-specs/payments/order_capture_final_capture_unsupported_gateway.json',
       'config/parity-specs/payments/order_capture_validation.json',
       'config/parity-requests/payments/order-capture-validation-order-capture.graphql',
       'config/parity-requests/payments/order-capture-validation-order-create.graphql',

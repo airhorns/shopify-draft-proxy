@@ -1604,7 +1604,6 @@ pub(in crate::proxy) fn product_seo_json(
 pub(in crate::proxy) fn product_matches_search_query(
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
-    search_tags: Option<&BTreeSet<String>>,
     query: &str,
 ) -> bool {
     let query = query.trim();
@@ -1618,7 +1617,7 @@ pub(in crate::proxy) fn product_matches_search_query(
     let mut parser = ProductSearchParser::new(tokens);
     parser
         .parse()
-        .map(|expression| expression.matches(product, variants, search_tags))
+        .map(|expression| expression.matches(product, variants))
         .unwrap_or(false)
 }
 
@@ -1753,23 +1752,16 @@ impl ProductSearchParser {
 }
 
 impl ProductSearchExpression {
-    fn matches(
-        &self,
-        product: &ProductRecord,
-        variants: &[ProductVariantRecord],
-        search_tags: Option<&BTreeSet<String>>,
-    ) -> bool {
+    fn matches(&self, product: &ProductRecord, variants: &[ProductVariantRecord]) -> bool {
         match self {
-            ProductSearchExpression::Term(term) => term.matches(product, variants, search_tags),
-            ProductSearchExpression::Not(expression) => {
-                !expression.matches(product, variants, search_tags)
-            }
+            ProductSearchExpression::Term(term) => term.matches(product, variants),
+            ProductSearchExpression::Not(expression) => !expression.matches(product, variants),
             ProductSearchExpression::And(expressions) => expressions
                 .iter()
-                .all(|expression| expression.matches(product, variants, search_tags)),
+                .all(|expression| expression.matches(product, variants)),
             ProductSearchExpression::Or(expressions) => expressions
                 .iter()
-                .any(|expression| expression.matches(product, variants, search_tags)),
+                .any(|expression| expression.matches(product, variants)),
         }
     }
 }
@@ -1789,29 +1781,24 @@ impl ProductSearchTerm {
         Self { field: None, value }
     }
 
-    fn matches(
-        &self,
-        product: &ProductRecord,
-        variants: &[ProductVariantRecord],
-        search_tags: Option<&BTreeSet<String>>,
-    ) -> bool {
+    fn matches(&self, product: &ProductRecord, variants: &[ProductVariantRecord]) -> bool {
         let value = self.value.trim();
         if value.is_empty() {
             return true;
         }
         match self.field.as_deref() {
-            Some("status") => product.status == value,
+            Some("status") => product.status.eq_ignore_ascii_case(value),
             Some("vendor") => product_search_string_matches(&product.vendor, value),
             Some("product_type") => product_search_string_matches(&product.product_type, value),
             Some("title") => product_search_string_matches(&product.title, value),
-            Some("tag") => product_matches_search_tag(product, search_tags, value),
-            Some("tag_not") => !product_matches_search_tag(product, search_tags, value),
+            Some("tag") => product_matches_search_tag(product, value),
+            Some("tag_not") => !product_matches_search_tag(product, value),
             Some("sku") => product_matches_search_sku(product, variants, value),
             Some("published_status") => product_matches_published_status(product, value),
             Some("created_at") => product_matches_date_query(&product.created_at, value),
             Some("updated_at") => product_matches_date_query(&product.updated_at, value),
             Some(_) => false,
-            None => product_matches_free_text(product, variants, search_tags, value),
+            None => product_matches_free_text(product, variants, value),
         }
     }
 }
@@ -1890,33 +1877,21 @@ fn product_search_tokens(query: &str) -> Vec<ProductSearchToken> {
 fn product_matches_free_text(
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
-    search_tags: Option<&BTreeSet<String>>,
     value: &str,
 ) -> bool {
     product_search_string_matches(&product.title, value)
         || product_search_string_matches(&product.handle, value)
         || product_search_string_matches(&product.vendor, value)
         || product_search_string_matches(&product.product_type, value)
-        || product_matches_search_tag(product, search_tags, value)
+        || product_matches_search_tag(product, value)
         || product_matches_search_sku(product, variants, value)
 }
 
-fn product_matches_search_tag(
-    product: &ProductRecord,
-    search_tags: Option<&BTreeSet<String>>,
-    value: &str,
-) -> bool {
-    search_tags
-        .map(|tags| {
-            tags.iter()
-                .any(|tag| product_search_string_matches(tag, value))
-        })
-        .unwrap_or_else(|| {
-            product
-                .tags
-                .iter()
-                .any(|tag| product_search_string_matches(tag, value))
-        })
+fn product_matches_search_tag(product: &ProductRecord, value: &str) -> bool {
+    product
+        .tags
+        .iter()
+        .any(|tag| product_search_string_matches(tag, value))
 }
 
 fn product_matches_search_sku(

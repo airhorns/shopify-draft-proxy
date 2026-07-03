@@ -3137,6 +3137,14 @@ impl DraftProxy {
             validation_errors =
                 metaobject_required_field_errors_for_upsert(validation_errors, &definition);
         }
+        if let Some(handle) = resolved_string_field(input, "handle") {
+            if !handle.is_empty() {
+                validation_errors.extend(metaobject_handle_validation_errors(
+                    &handle,
+                    vec!["metaobject", "handle"],
+                ));
+            }
+        }
         if !validation_errors.is_empty() {
             return self.selected_metaobject_payload(
                 &json!({"metaobject": null, "userErrors": validation_errors}),
@@ -3395,6 +3403,16 @@ impl DraftProxy {
                 &field.selection,
             );
         };
+        if !meta_handle_input.is_empty() {
+            let locator_errors =
+                metaobject_handle_validation_errors(&meta_handle_input, vec!["handle", "handle"]);
+            if !locator_errors.is_empty() {
+                return self.selected_metaobject_payload(
+                    &json!({"metaobject": null, "userErrors": locator_errors}),
+                    &field.selection,
+                );
+            }
+        }
         if let Some(existing) = self
             .metaobject_by_type_and_handle(&meta_type, &meta_handle)
             .or_else(|| self.hydrate_metaobject_by_handle(request, &meta_type, &meta_handle))

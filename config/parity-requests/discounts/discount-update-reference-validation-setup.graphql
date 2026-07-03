@@ -1,0 +1,27 @@
+mutation DiscountUpdateReferenceValidationSetup(
+  $first: DiscountCodeBasicInput!
+  $second: DiscountCodeBasicInput!
+) {
+  first: discountCodeBasicCreate(basicCodeDiscount: $first) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  second: discountCodeBasicCreate(basicCodeDiscount: $second) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

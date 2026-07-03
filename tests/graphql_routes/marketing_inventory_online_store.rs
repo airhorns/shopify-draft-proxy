@@ -8218,6 +8218,214 @@ fn metaobject_auto_handles_and_fallback_display_names_follow_core_shapes() {
 }
 
 #[test]
+fn metaobject_create_and_upsert_validate_explicit_handles_before_staging() {
+    let mut proxy = snapshot_proxy();
+    create_metaobject_definition_for_test(
+        &mut proxy,
+        "handle_validation_type",
+        vec![
+            json!({"key": "title", "name": "Title", "type": "single_line_text_field", "required": false}),
+        ],
+    );
+
+    let create_query = r#"
+        mutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle type displayName }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let update_query = r#"
+        mutation UpdateMetaobject($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id handle type displayName }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let upsert_query = r#"
+        mutation UpsertMetaobject($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject { id handle type displayName }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let read_query = r#"
+        query ReadHandleValidationState($type: String!, $handle: MetaobjectHandleInput!) {
+          definition: metaobjectDefinitionByType(type: $type) { metaobjectsCount }
+          entries: metaobjects(type: $type, first: 10) { nodes { id handle } }
+          byHandle: metaobjectByHandle(handle: $handle) { id handle }
+        }
+        "#;
+
+    let invalid_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "handle_validation_type",
+            "handle": "hello world!",
+            "fields": [{"key": "title", "value": "Handle hello world!"}]
+        }}),
+    ));
+    assert_eq!(
+        invalid_create.body["data"]["metaobjectCreate"],
+        json!({
+            "metaobject": null,
+            "userErrors": [{
+                "field": ["metaobject", "handle"],
+                "message": "Handle is invalid",
+                "code": "INVALID",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let too_long = "x".repeat(256);
+    let too_long_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "handle_validation_type",
+            "handle": too_long,
+            "fields": [{"key": "title", "value": "Handle too long"}]
+        }}),
+    ));
+    assert_eq!(
+        too_long_create.body["data"]["metaobjectCreate"],
+        json!({
+            "metaobject": null,
+            "userErrors": [{
+                "field": ["metaobject", "handle"],
+                "message": "Handle is too long (maximum is 255 characters)",
+                "code": "TOO_LONG",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let invalid_upsert = proxy.process_request(json_graphql_request(
+        upsert_query,
+        json!({
+            "handle": {"type": "handle_validation_type", "handle": "hello world!"},
+            "metaobject": {"fields": [{"key": "title", "value": "Handle hello world!"}]}
+        }),
+    ));
+    assert_eq!(
+        invalid_upsert.body["data"]["metaobjectUpsert"],
+        json!({
+            "metaobject": null,
+            "userErrors": [{
+                "field": ["handle", "handle"],
+                "message": "Handle is invalid",
+                "code": "INVALID",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let too_long = "x".repeat(256);
+    let too_long_upsert = proxy.process_request(json_graphql_request(
+        upsert_query,
+        json!({
+            "handle": {"type": "handle_validation_type", "handle": too_long},
+            "metaobject": {"fields": [{"key": "title", "value": "Handle too long"}]}
+        }),
+    ));
+    assert_eq!(
+        too_long_upsert.body["data"]["metaobjectUpsert"],
+        json!({
+            "metaobject": null,
+            "userErrors": [{
+                "field": ["handle", "handle"],
+                "message": "Handle is too long (maximum is 255 characters)",
+                "code": "TOO_LONG",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let after_rejects = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({
+            "type": "handle_validation_type",
+            "handle": {"type": "handle_validation_type", "handle": "hello-world"}
+        }),
+    ));
+    assert_eq!(
+        after_rejects.body["data"]["definition"]["metaobjectsCount"],
+        json!(0)
+    );
+    assert_eq!(after_rejects.body["data"]["entries"]["nodes"], json!([]));
+    assert_eq!(after_rejects.body["data"]["byHandle"], Value::Null);
+
+    let blank_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "handle_validation_type",
+            "handle": "",
+            "fields": [{"key": "title", "value": "Blank create"}]
+        }}),
+    ));
+    assert_eq!(
+        blank_create.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    let blank_create_metaobject = &blank_create.body["data"]["metaobjectCreate"]["metaobject"];
+    let blank_create_id = blank_create_metaobject["id"].as_str().unwrap().to_string();
+    let blank_create_handle = blank_create_metaobject["handle"].as_str().unwrap();
+    assert!(!blank_create_handle.is_empty());
+    assert_eq!(
+        blank_create_metaobject["displayName"],
+        json!("Blank create")
+    );
+
+    let blank_upsert = proxy.process_request(json_graphql_request(
+        upsert_query,
+        json!({
+            "handle": {"type": "handle_validation_type", "handle": ""},
+            "metaobject": {"fields": [{"key": "title", "value": "Blank upsert"}]}
+        }),
+    ));
+    assert_eq!(
+        blank_upsert.body["data"]["metaobjectUpsert"]["userErrors"],
+        json!([])
+    );
+    let blank_upsert_metaobject = &blank_upsert.body["data"]["metaobjectUpsert"]["metaobject"];
+    let blank_upsert_handle = blank_upsert_metaobject["handle"].as_str().unwrap();
+    assert!(!blank_upsert_handle.is_empty());
+    assert_ne!(blank_upsert_handle, blank_create_handle);
+    assert_eq!(
+        blank_upsert_metaobject["displayName"],
+        json!("Blank upsert")
+    );
+
+    let update_invalid = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": blank_create_id, "metaobject": {
+            "handle": "hello world!",
+            "fields": [{"key": "title", "value": "Update invalid"}]
+        }}),
+    ));
+    assert_eq!(
+        update_invalid.body["data"]["metaobjectUpdate"],
+        json!({
+            "metaobject": null,
+            "userErrors": [{
+                "field": ["metaobject", "handle"],
+                "message": "Handle is invalid",
+                "code": "INVALID",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+}
+
+#[test]
 fn metaobject_create_validates_definition_fields_and_capabilities() {
     let mut proxy = snapshot_proxy();
 
@@ -9751,6 +9959,113 @@ fn media_file_update_hydrates_real_file_before_staging_captured_id() {
 }
 
 #[test]
+fn media_file_update_missing_id_coerces_before_staging() {
+    let upstream_bodies = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_bodies = Arc::clone(&upstream_bodies);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_bodies.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "nodes": [Value::Null] } }),
+            }
+        });
+    let mutation = r#"
+        mutation MediaFileUpdateMissingId($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) {
+            files { id }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let omitted = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"alt": "new alt"}]}),
+    ));
+    assert_eq!(omitted.status, 200);
+    assert_eq!(omitted.body.get("data"), None);
+    assert_eq!(
+        omitted.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        omitted.body["errors"][0]["extensions"]["problems"],
+        json!([{ "path": [0, "id"], "explanation": "Expected value to not be null" }])
+    );
+    assert!(
+        omitted.body["errors"][0]["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("0.id (Expected value to not be null)")),
+        "{:?}",
+        omitted.body["errors"][0]
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let batch_omitted = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [
+            {"id": "gid://shopify/MediaImage/404", "alt": "supplied"},
+            {"alt": "missing id"}
+        ]}),
+    ));
+    assert_eq!(batch_omitted.status, 200);
+    assert_eq!(batch_omitted.body.get("data"), None);
+    assert_eq!(
+        batch_omitted.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        batch_omitted.body["errors"][0]["extensions"]["problems"],
+        json!([{ "path": [1, "id"], "explanation": "Expected value to not be null" }])
+    );
+    assert_eq!(
+        upstream_bodies.lock().unwrap().len(),
+        0,
+        "coercion should reject the whole fileUpdate list before resolver hydration"
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let inline_omitted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileUpdateInlineMissingId {
+          fileUpdate(files: [{ alt: "new alt" }]) {
+            files { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(inline_omitted.status, 200);
+    assert_eq!(inline_omitted.body.get("data"), None);
+    assert_eq!(
+        inline_omitted.body["errors"][0]["message"],
+        json!("Argument 'id' on InputObject 'FileUpdateInput' is required. Expected type ID!")
+    );
+    assert_eq!(
+        inline_omitted.body["errors"][0]["extensions"]["code"],
+        json!("missingRequiredInputObjectAttribute")
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let supplied_missing = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"id": "gid://shopify/MediaImage/404", "alt": "missing"}]}),
+    ));
+    assert_eq!(
+        supplied_missing.body["data"]["fileUpdate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files"],
+            "message": "File id [\"gid://shopify/MediaImage/404\"] does not exist.",
+            "code": "FILE_DOES_NOT_EXIST"
+        }]})
+    );
+}
+
+#[test]
 fn media_file_update_validates_core_bucket_ordering() {
     let mut proxy =
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
@@ -9831,17 +10146,41 @@ fn media_file_update_validates_core_bucket_ordering() {
         }]})
     );
 
-    let missing_with_source_version = proxy.process_request(json_graphql_request(
+    let unknown_version_field = proxy.process_request(json_graphql_request(
         mutation,
         json!({"files": [{"id": "gid://shopify/MediaImage/404", "originalSource": "https://cdn.example.com/source.png", "revertToVersionId": "gid://shopify/FileVersion/9"}]}),
     ));
     assert_eq!(
-        missing_with_source_version.body["data"]["fileUpdate"],
-        json!({"files": [], "userErrors": [{
-            "field": ["files"],
-            "message": "File id [\"gid://shopify/MediaImage/404\"] does not exist.",
-            "code": "FILE_DOES_NOT_EXIST"
-        }]})
+        unknown_version_field.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        unknown_version_field.body["errors"][0]["extensions"]["problems"],
+        json!([{
+            "path": [0, "revertToVersionId"],
+            "explanation": "Field is not defined on FileUpdateInput"
+        }])
+    );
+    assert_eq!(unknown_version_field.body.get("data"), None);
+
+    let unknown_version_field_on_external_video = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"id": "gid://shopify/ExternalVideo/43688017953074", "originalSource": "https://cdn.example.com/source.mp4", "revertToVersionId": "gid://shopify/FileVersion/9"}]}),
+    ));
+    assert_eq!(
+        unknown_version_field_on_external_video.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        unknown_version_field_on_external_video.body["errors"][0]["extensions"]["problems"],
+        json!([{
+            "path": [0, "revertToVersionId"],
+            "explanation": "Field is not defined on FileUpdateInput"
+        }])
+    );
+    assert_eq!(
+        unknown_version_field_on_external_video.body.get("data"),
+        None
     );
 
     let missing = proxy.process_request(json_graphql_request(
@@ -9904,32 +10243,6 @@ fn media_file_update_validates_core_bucket_ordering() {
                 "code": "INVALID"
             }
         ]})
-    );
-
-    let unsupported_source_before_version_conflict = proxy.process_request(json_graphql_request(
-        mutation,
-        json!({"files": [{"id": "gid://shopify/ExternalVideo/43688017953074", "originalSource": "https://cdn.example.com/source.mp4", "revertToVersionId": "gid://shopify/FileVersion/9"}]}),
-    ));
-    assert_eq!(
-        unsupported_source_before_version_conflict.body["data"]["fileUpdate"],
-        json!({"files": [], "userErrors": [{
-            "field": ["files", "0", "originalSource"],
-            "message": "Updating the original source is not supported for this media type.",
-            "code": "INVALID"
-        }]})
-    );
-
-    let ready_source_version_conflict = proxy.process_request(json_graphql_request(
-        mutation,
-        json!({"files": [{"id": "gid://shopify/MediaImage/43688017887538", "originalSource": "https://cdn.example.com/source.png", "revertToVersionId": "gid://shopify/FileVersion/9"}]}),
-    ));
-    assert_eq!(
-        ready_source_version_conflict.body["data"]["fileUpdate"],
-        json!({"files": [], "userErrors": [{
-            "field": ["files", "0"],
-            "message": "Specify either a source or revertToVersionId, not both.",
-            "code": "CANNOT_SPECIFY_SOURCE_AND_VERSION_ID"
-        }]})
     );
 }
 
