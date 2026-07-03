@@ -1,0 +1,38 @@
+{
+  "scenarioId": "gift-card-legacy-seed-hydration",
+  "operationNames": ["giftCardDebit"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["upstream-hydration-parity", "state-parity", "regression"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-user-error-typename.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-legacy-seed-hydration.graphql",
+    "variablesCapturePath": "$.proxyVariables.userErrorTypename",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Regression coverage for former gift-card seed IDs. The replay sends a public giftCardDebit mutation against the live-created legacy ID captured in gift-card-user-error-typename, then asserts the proxy earned base gift-card state from the recorded GiftCardHydrate upstream call. Before the seed fallback was removed, this request resolved a baked local card first, skipped upstream hydration, and left no captured base record.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "legacy seed id mutation hydrates captured base card",
+        "capturePath": "$.upstreamCalls[0].response.body.data.giftCard",
+        "proxyStatePath": "$.baseState.giftCards[\"gid://shopify/GiftCard/654865301810\"]",
+        "selectedPaths": [
+          "$.id",
+          "$.lastCharacters",
+          "$.maskedCode",
+          "$.note",
+          "$.customer",
+          "$.recipientAttributes",
+          "$.initialValue",
+          "$.balance"
+        ]
+      }
+    ]
+  }
+}
