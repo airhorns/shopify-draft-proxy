@@ -2419,6 +2419,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-update-name-description-length',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-metafield-definition-update-name-description-length-conformance.mts',
+    purpose:
+      'metafieldDefinitionUpdate name and description length validation, rejected-update readback, and 255-character boundary acceptance.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-update-name-description-length.json`,
+      'config/parity-specs/metafields/metafield-definition-update-name-description-length.json',
+      'config/parity-requests/metafields/metafield-definition-update-name-description-length-create.graphql',
+      'config/parity-requests/metafields/metafield-definition-update-name-description-length-update.graphql',
+      'config/parity-requests/metafields/metafield-definition-update-name-description-length-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product-owned metafield definition, captures too-long update rejections plus boundary success/readback, then deletes the definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-validation-affects-values',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metafield-definition-validation-affects-values-conformance.mts',
