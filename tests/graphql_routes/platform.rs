@@ -1528,7 +1528,7 @@ fn backup_region_update_uses_delegate_token_scopes_for_access_denied() {
         json!([])
     );
 
-    let markets_delegate = proxy.process_request(json_graphql_request(
+    let mut markets_delegate_request = json_graphql_request(
         r#"
         mutation CreateMarketsDelegate {
           delegateAccessTokenCreate(input: { delegateAccessScope: ["read_markets", "write_markets"], expiresIn: 300 }) {
@@ -1538,7 +1538,12 @@ fn backup_region_update_uses_delegate_token_scopes_for_access_denied() {
         }
         "#,
         json!({}),
-    ));
+    );
+    markets_delegate_request.headers.insert(
+        "x-shopify-draft-proxy-access-scopes".to_string(),
+        "read_products,write_products,read_markets,write_markets".to_string(),
+    );
+    let markets_delegate = proxy.process_request(markets_delegate_request);
     assert_eq!(
         markets_delegate.body["data"]["delegateAccessTokenCreate"]["userErrors"],
         json!([])

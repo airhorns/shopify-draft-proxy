@@ -72,6 +72,29 @@ fn assert_user_error_with_field_and_code(user_errors: &Value, field: Value, code
     );
 }
 
+fn staged_fulfillment_service_location_id(proxy: &mut DraftProxy, name: &str) -> String {
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateInventoryLocation($name: String!) {
+          fulfillmentServiceCreate(name: $name, inventoryManagement: true) {
+            fulfillmentService { location { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "name": name }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["fulfillmentServiceCreate"]["userErrors"],
+        json!([])
+    );
+    create.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]["location"]["id"]
+        .as_str()
+        .expect("fulfillmentServiceCreate should stage a location id")
+        .to_string()
+}
+
 fn read_variant_sku_positions(proxy: &mut DraftProxy, product_id: &str) -> Value {
     let read = proxy.process_request(json_graphql_request(
         r#"
@@ -1399,6 +1422,8 @@ fn product_variants_bulk_create_stages_locally_and_hydrates_downstream_reads() {
             *captured.lock().unwrap() += 1;
             panic!("bulk variant create should not call upstream")
         });
+    let location_id =
+        staged_fulfillment_service_location_id(&mut proxy, "Bulk variant inventory location");
 
     let create = proxy.process_request(json_graphql_request(
         r#"
@@ -1414,7 +1439,7 @@ fn product_variants_bulk_create_stages_locally_and_hydrates_downstream_reads() {
             "productId": "gid://shopify/Product/1",
             "variants": [{
                 "price": "9.99",
-                "inventoryQuantities": [{ "availableQuantity": 7, "locationId": "gid://shopify/Location/1" }],
+                "inventoryQuantities": [{ "availableQuantity": 7, "locationId": location_id }],
                 "optionValues": [{ "optionName": "Color", "name": "Blue" }],
                 "inventoryItem": {
                     "sku": "BULK-BLUE",
@@ -1489,8 +1514,17 @@ fn product_variants_bulk_create_stages_locally_and_hydrates_downstream_reads() {
         json!(7)
     );
     assert_eq!(*forwarded.lock().unwrap(), 0);
+    let log = log_snapshot(&proxy);
+    let bulk_create_entry = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| {
+            entry["interpreted"]["primaryRootField"] == json!("productVariantsBulkCreate")
+        })
+        .expect("bulk variant create should append a mutation log entry");
     assert_eq!(
-        log_snapshot(&proxy)["entries"][0]["interpreted"]["capability"],
+        bulk_create_entry["interpreted"]["capability"],
         json!({
             "operationName": "productVariantsBulkCreate",
             "domain": "products",
@@ -1635,6 +1669,55 @@ fn product_variants_bulk_create_omitted_strategy_removes_default_standalone_vari
             "execution": "stage-locally"
         })
     );
+}
+
+#[test]
+fn product_variants_bulk_create_rejects_unknown_inventory_location_without_sentinel() {
+    let product_id = "gid://shopify/Product/bulk-location-validation";
+    let mut proxy = snapshot_proxy().with_base_products(vec![seed_product(product_id)]);
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkVariantCreateMissingLocation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            product { id }
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variants": [{
+                "price": "9.99",
+                "inventoryQuantities": [{ "availableQuantity": 7, "locationId": "gid://shopify/Location/1" }],
+                "optionValues": [{ "optionName": "Color", "name": "Blue" }]
+            }]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productVariantsBulkCreate"],
+        json!({
+            "product": null,
+            "productVariants": [],
+            "userErrors": [{
+                "field": ["variants", "0", "inventoryQuantities"],
+                "message": "Quantity for Blue couldn't be set because the location was deleted.",
+                "code": "TRACKED_VARIANT_LOCATION_NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkVariantCreateMissingLocationRead($productId: ID!) {
+          product(id: $productId) { variants(first: 10) { nodes { id } } }
+        }
+        "#,
+        json!({ "productId": product_id }),
+    ));
+    assert_eq!(read.body["data"]["product"]["variants"]["nodes"], json!([]));
 }
 
 #[test]
@@ -4555,6 +4638,134 @@ fn product_publish_unpublish_validate_publication_state_locally() {
             "message": "Product is not published on this publication"
         }])
     );
+}
+
+#[test]
+fn product_publish_unpublish_reject_unknown_publication_and_channel_without_sentinels() {
+    let product_id = "gid://shopify/Product/publication-missing-target";
+
+    for (root, query, entry, expected_message) in [
+        (
+            "productPublish",
+            r#"
+            mutation ProductPublishMissingTarget($input: ProductPublishInput!) {
+              productPublish(input: $input) { product { id } userErrors { field message } }
+            }
+            "#,
+            json!({ "publicationId": "gid://shopify/Publication/123456789" }),
+            "Publication does not exist or is not publishable",
+        ),
+        (
+            "productPublish",
+            r#"
+            mutation ProductPublishMissingChannel($input: ProductPublishInput!) {
+              productPublish(input: $input) { product { id } userErrors { field message } }
+            }
+            "#,
+            json!({ "channelId": "gid://shopify/Channel/123456789" }),
+            "Channel does not exist or is not publishable",
+        ),
+        (
+            "productUnpublish",
+            r#"
+            mutation ProductUnpublishMissingTarget($input: ProductUnpublishInput!) {
+              productUnpublish(input: $input) { product { id } userErrors { field message } }
+            }
+            "#,
+            json!({ "publicationId": "gid://shopify/Publication/123456789" }),
+            "Publication does not exist or is not publishable",
+        ),
+        (
+            "productUnpublish",
+            r#"
+            mutation ProductUnpublishMissingChannel($input: ProductUnpublishInput!) {
+              productUnpublish(input: $input) { product { id } userErrors { field message } }
+            }
+            "#,
+            json!({ "channelId": "gid://shopify/Channel/123456789" }),
+            "Channel does not exist or is not publishable",
+        ),
+    ] {
+        let mut proxy = snapshot_proxy().with_base_products(vec![seed_product(product_id)]);
+        let response = proxy.process_request(json_graphql_request(
+            query,
+            json!({ "input": { "id": product_id, "productPublications": [entry] } }),
+        ));
+        assert_eq!(response.status, 200, "{root}");
+        assert_eq!(
+            response.body["data"][root]["userErrors"],
+            json!([{
+                "field": ["productPublications", "0", "publicationId"],
+                "message": expected_message
+            }]),
+            "{root}"
+        );
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]), "{root}");
+    }
+}
+
+#[test]
+fn product_publish_live_hybrid_hydrates_publication_catalog_before_validation() {
+    let product_id = "gid://shopify/Product/publication-hydrate";
+    let live_publication_id = "gid://shopify/Publication/live";
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request.clone());
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "publishable": {
+                            "id": product_id,
+                            "publishedOnCurrentPublication": false,
+                            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+                        },
+                        "shop": { "publicationCount": 1 },
+                        "publications": {
+                            "nodes": [{ "id": live_publication_id, "name": "Live publication" }]
+                        }
+                    }
+                }),
+            }
+        });
+    let publish = r#"
+        mutation ProductPublishHydrate($input: ProductPublishInput!) {
+          productPublish(input: $input) { product { id } userErrors { field message } }
+        }
+    "#;
+
+    let missing = proxy.process_request(json_graphql_request(
+        publish,
+        json!({ "input": { "id": product_id, "productPublications": [{ "publicationId": "gid://shopify/Publication/missing" }] } }),
+    ));
+    assert_eq!(
+        missing.body["data"]["productPublish"]["userErrors"],
+        json!([{
+            "field": ["productPublications", "0", "publicationId"],
+            "message": "Publication does not exist or is not publishable"
+        }])
+    );
+
+    let observed = proxy.process_request(json_graphql_request(
+        publish,
+        json!({ "input": { "id": product_id, "productPublications": [{ "publicationId": live_publication_id }] } }),
+    ));
+    assert_eq!(
+        observed.body["data"]["productPublish"]["userErrors"],
+        json!([])
+    );
+    let requests = forwarded.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    let hydrate_body: Value =
+        serde_json::from_str(&requests[0].body).expect("upstream hydrate request should parse");
+    assert_eq!(hydrate_body["variables"], json!({ "id": product_id }));
+    assert!(hydrate_body["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("publications(first: 20)")));
 }
 
 #[test]

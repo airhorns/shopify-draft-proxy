@@ -157,11 +157,36 @@ pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
     user_error(Value::Null, message, Some(code))
 }
 
-pub(in crate::proxy) fn local_app_json() -> Value {
+const DEFAULT_LOCAL_APP_ID: &str = "gid://shopify/App/expected";
+
+pub(in crate::proxy) fn default_local_app_id() -> &'static str {
+    DEFAULT_LOCAL_APP_ID
+}
+
+pub(in crate::proxy) fn request_app_id(request: &Request) -> String {
+    request_header(request, "x-shopify-draft-proxy-api-client-id")
+        .map(|value| normalize_app_id(&value))
+        .unwrap_or_else(|| DEFAULT_LOCAL_APP_ID.to_string())
+}
+
+pub(in crate::proxy) fn request_matches_current_app(request: &Request, id: &str) -> bool {
+    id == DEFAULT_LOCAL_APP_ID || id == request_app_id(request)
+}
+
+pub(in crate::proxy) fn local_app_json_with_id(id: &str) -> Value {
     json!({
-        "id": "gid://shopify/App/expected",
+        "id": id,
         "handle": "shopify-draft-proxy"
     })
+}
+
+fn normalize_app_id(value: &str) -> String {
+    let value = value.trim();
+    if value.starts_with("gid://shopify/App/") {
+        value.to_string()
+    } else {
+        shopify_gid("App", value)
+    }
 }
 
 pub(in crate::proxy) fn app_uninstall_payload_json(
@@ -241,6 +266,7 @@ pub(in crate::proxy) fn app_purchase_one_time_payload_json(
     payload_selection: &[SelectedField],
     purchase_selection: &[SelectedField],
     user_errors: Vec<Value>,
+    confirmation_url: Option<Value>,
 ) -> Value {
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
@@ -252,7 +278,7 @@ pub(in crate::proxy) fn app_purchase_one_time_payload_json(
                 }
             }
             "confirmationUrl" => Some(if user_errors.is_empty() {
-                json!("https://app.example.test/local-confirmation")
+                confirmation_url.clone().unwrap_or(Value::Null)
             } else {
                 Value::Null
             }),
@@ -270,12 +296,14 @@ pub(in crate::proxy) fn app_subscription_create_payload_json(
     subscription: &Value,
     payload_selection: &[SelectedField],
     subscription_selection: &[SelectedField],
+    confirmation_url: Value,
 ) -> Value {
-    app_subscription_payload_json(
+    app_subscription_payload_json_with_confirmation_url(
         subscription.clone(),
         payload_selection,
         subscription_selection,
         vec![],
+        Some(confirmation_url),
     )
 }
 
@@ -290,7 +318,7 @@ pub(in crate::proxy) fn app_subscription_payload_json(
         payload_selection,
         subscription_selection,
         user_errors,
-        Some(json!("https://app.example.test/local-confirmation")),
+        None,
     )
 }
 
@@ -346,12 +374,20 @@ fn app_user_error_json(error: Value, typename: &str, selection: &[SelectedField]
 
 pub(in crate::proxy) fn app_subscription_line_items_from_arguments(
     arguments: &BTreeMap<String, ResolvedValue>,
+    line_item_ids: Vec<String>,
 ) -> Vec<Value> {
     match arguments.get("lineItems") {
         Some(ResolvedValue::List(items)) => items
             .iter()
             .enumerate()
-            .map(|(index, item)| app_subscription_line_item_from_input(index, items.len(), item))
+            .map(|(index, item)| {
+                app_subscription_line_item_from_input(
+                    index,
+                    items.len(),
+                    item,
+                    line_item_ids.get(index).cloned(),
+                )
+            })
             .collect(),
         _ => Vec::new(),
     }
@@ -378,13 +414,14 @@ pub(in crate::proxy) fn app_subscription_line_item_from_input(
     index: usize,
     total_items: usize,
     value: &ResolvedValue,
+    allocated_id: Option<String>,
 ) -> Value {
-    let default_id = match (total_items, index) {
+    let default_id = allocated_id.unwrap_or_else(|| match (total_items, index) {
         (2, 0) => "gid://shopify/AppSubscriptionLineItem/usage".to_string(),
         (2, 1) => "gid://shopify/AppSubscriptionLineItem/recurring".to_string(),
         _ if index == 0 => shopify_gid("AppSubscriptionLineItem", "expected"),
         _ => shopify_gid("AppSubscriptionLineItem", format!("expected-{}", index + 1)),
-    };
+    });
     let mut capped_amount = "100.0".to_string();
     let mut currency_code = "USD".to_string();
     let mut terms = "usage terms".to_string();
@@ -448,6 +485,7 @@ pub(in crate::proxy) fn current_app_installation_json(
     subscriptions: &BTreeMap<String, Value>,
     one_time_purchases: &BTreeMap<String, Value>,
     revoked_access_scopes: &BTreeSet<String>,
+    granted_access_scopes: &[String],
     selections: &[SelectedField],
 ) -> Value {
     let mut fields = serde_json::Map::new();
@@ -482,9 +520,9 @@ pub(in crate::proxy) fn current_app_installation_json(
                 }))
             }
             "accessScopes" => Some(Value::Array(
-                ["read_products", "write_products"]
-                    .into_iter()
-                    .filter(|scope| !revoked_access_scopes.contains(*scope))
+                granted_access_scopes
+                    .iter()
+                    .filter(|scope| !revoked_access_scopes.contains(scope.as_str()))
                     .map(|scope| selected_json(&json!({ "handle": scope }), &selection.selection))
                     .collect(),
             )),
@@ -495,6 +533,49 @@ pub(in crate::proxy) fn current_app_installation_json(
         }
     }
     Value::Object(fields)
+}
+
+pub(in crate::proxy) fn app_granted_access_scopes(request: &Request) -> Vec<String> {
+    let parsed = request_header(request, "x-shopify-draft-proxy-access-scopes")
+        .map(|header| {
+            header
+                .split(',')
+                .map(str::trim)
+                .filter(|scope| !scope.is_empty() && app_access_scope_handle_is_valid(scope))
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if parsed.is_empty() && request_header(request, "x-shopify-draft-proxy-access-scopes").is_none()
+    {
+        vec!["read_products".to_string(), "write_products".to_string()]
+    } else {
+        parsed
+    }
+}
+
+pub(in crate::proxy) fn app_required_access_scopes(request: &Request) -> BTreeSet<String> {
+    request_header(request, "x-shopify-draft-proxy-required-access-scopes")
+        .map(|header| {
+            header
+                .split(',')
+                .map(str::trim)
+                .filter(|scope| !scope.is_empty() && app_access_scope_handle_is_valid(scope))
+                .map(str::to_string)
+                .collect()
+        })
+        .filter(|scopes: &BTreeSet<String>| !scopes.is_empty())
+        .unwrap_or_else(|| BTreeSet::from(["read_products".to_string()]))
+}
+
+pub(in crate::proxy) fn app_access_scope_handle_is_valid(scope: &str) -> bool {
+    let mut parts = scope.split('_');
+    let prefix = parts.next().unwrap_or_default();
+    matches!(prefix, "read" | "write" | "unauthenticated")
+        && parts.clone().next().is_some()
+        && scope
+            .chars()
+            .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_')
 }
 
 pub(in crate::proxy) fn location_deactivate_payload_json(
