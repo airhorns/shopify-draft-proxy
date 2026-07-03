@@ -860,8 +860,8 @@ After the initial orders-domain creation scaffolding landed, the next easy mista
   - `email`, `phone`, `poNumber`, `shippingAddress`, `customAttributes`, and order-scoped `metafields`
   - downstream `order(id:)` reads expose the staged values, including `customer.email` when the input updates `email`
   - `billingAddress` is intentionally not part of that local `orderUpdate` slice because the current `OrderInput` docs do not expose it
-  - executable local-runtime parity: `config/parity-specs/orders/orderUpdate-snapshot-staging.json` replays public `orderCreate -> orderUpdate -> order(id:) / orders / ordersCount` requests without seeding internal proxy state
-  - expanded live parity is captured for `email`, `poNumber`, `note`, `tags`, `customAttributes`, `shippingAddress`, and order-scoped `metafields` in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json`; `phone` remains local-runtime backed because Shopify 2025-01 rejected it as an `OrderInput` field in that capture path
+  - executable parity: `config/parity-specs/orders/orderUpdate-snapshot-staging.json` replays public `orderCreate -> orderUpdate -> order(id:) / orders / ordersCount` requests against the live 2026-04 fixture without seeding internal proxy state
+  - expanded live parity is captured for `email`, `poNumber`, `note`, `tags`, `customAttributes`, `shippingAddress`, and order-scoped `metafields` in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json`; `phone` remains runtime-test-backed because Shopify 2025-01 rejected it as an `OrderInput` field in that capture path
 - a later 2026-04 localization capture exposed several easy-to-miss `orderUpdate` details:
   - `localizedFields` and deprecated `localizationExtensions` both read back from the same localized-order record set; updating either connection makes the key visible through both `Order.localizedFields` and `Order.localizationExtensions`
   - Brazilian credential values are validated for real CPF/CNPJ shape; arbitrary 11-digit strings can fail with `Localization extension: 'value' provided is invalid`
@@ -2231,14 +2231,14 @@ Observed behavior from live writes:
 
 Practical rule for the proxy:
 
-- `available` remains the only quantity name that should mutate `productVariant.inventoryQuantity` and the mirrored synthetic `on_hand` change rows
+- `available` remains the only quantity name that should mutate `productVariant.inventoryQuantity`; quantity names that belong to `on_hand` (`damaged`, `quality_control`, `reserved`, and `safety_stock`) also return mirrored `on_hand` change rows and update downstream `on_hand` totals without changing the available-backed variant quantity
 - Fresh 2026-04 evidence corrects older notes for `inventoryAdjustQuantities`: Admin GraphQL rejects direct `on_hand` and `committed` public adjust names with the valid-values message `available, damaged, incoming, quality_control, reserved, safety_stock`. Public adjust and move validators share that six-name allowlist; `inventorySetQuantities` remains a separate `available` / `on_hand` set path.
 - for non-available mutation names, each change needs its own `ledgerDocumentUri`; Shopify returned that requirement even when the quantity name itself was invalid
 - omitting required nested change inputs such as `inventoryItemId`, `locationId`, or `delta` did **not** yield mutation-scoped `userErrors`; Shopify failed variable coercion first and returned top-level GraphQL `INVALID_VARIABLE` errors naming the exact `changes.<index>.<field>` path
 - by contrast, an unknown-but-present inventory item id did reach the mutation resolver and returned a fielded `userErrors` entry at `['input', 'changes', '0', 'inventoryItemId']` with message `The specified inventory item could not be found.`
 - an unknown-but-present `locationId` also reached the mutation resolver on this host and returned a fielded `userErrors` entry at `['input', 'changes', '0', 'locationId']` with message `The specified location could not be found.` instead of silently creating a new location-scoped adjustment row
 - non-available quantity writes such as `incoming` update downstream `inventoryLevels.quantities(name: ...)` immediately without changing `productVariant.inventoryQuantity` or product-level aggregates
-- a 2026-04 ledger-document validation capture found that a valid `damaged` adjustment returns both the submitted `damaged` change row and a companion `on_hand` change row, unlike the existing `incoming` capture; do not generalize `incoming`'s no-on-hand behavior across every non-available name that belongs to `on_hand`
+- a 2026-04 on-hand-family mirror capture found that valid `damaged`, `quality_control`, `reserved`, and `safety_stock` adjustments return both the submitted quantity row and a companion `on_hand` row, while the `incoming` control remains a single-row adjustment; the companion `on_hand` row has `ledgerDocumentUri: null`, and downstream `on_hand.updatedAt` remains `null` even though its quantity changes
 - `InventoryAdjustmentGroup.id` is worth keeping in the first richer payload slice; Shopify returns a real group gid even when the local proxy still stages the broader inventory model in memory only
 - `InventoryChange.ledgerDocumentUri` is per-change data, not a synonym for the group-level `referenceDocumentUri`; when a non-available write supplies a change-scoped ledger URI, Shopify echoes that URI back on each change entry while leaving `referenceDocumentUri` at the group scope
 - `changes.location` is richer than an id-only echo on this host: live capture returned both `id` and merchant-facing `name` (for example `103 ossington`), so local replay should preserve `name` whenever the effective location graph knows it
@@ -3089,7 +3089,8 @@ Capture prerequisites and safety constraints:
 - A 2026-04 disposable-order capture for successful `paymentTermsCreate` template reprojection confirmed FIXED returns `Fixed`/`FIXED`/`dueInDays: null`, Net 7 returns `Net 7`/`NET`/`dueInDays: 7`, and Due on fulfillment returns `Due on fulfillment`/`FULFILLMENT`/`dueInDays: null` with no schedule nodes. The Net 7 success path required `paymentSchedules.issuedAt`; sending only `dueAt` for that NET template returned user errors for missing issue date and inconsistent due date.
 - A 2026-04 live capture for `paymentTermsCreate` unknown owners showed public Admin GraphQL serializes the internal base reference-not-found error as `field: null`, not `["base"]`: unknown `Order` returns `Cannot find the specific Order with id <numeric id>.`, and unknown `DraftOrder` returns `Cannot find the specific Draft order with id <numeric id>.`
 - A 2026-04 live capture for `paymentTermsCreate` and `paymentTermsUpdate` multiple `paymentSchedules` shows the internal base-scoped error also serializes as `field: null`. Both roots use the exact message `Cannot create payment terms with multiple payment schedules.`, with create/update-specific unsuccessful codes.
-- customer payment method live captures remain blocked on `read_customer_payment_methods` / `write_customer_payment_methods` even though `read_customers`, `write_customers`, and `write_orders` are present on the 2026-04-28 probe. Root introspection confirms the HAR-365 mutations exist on the configured 2025-01 API, but live success paths still need isolated test payment methods and no-recipient/customer-safe email coverage before real captures can be checked in.
+- A 2026-07-02 salvage capture restored the old payment-terms create-on-order, update-missing, delete-owner-cascade, and paymentReminderSend payload-shape parity scenarios as live Shopify recordings rather than local-runtime evidence. The standalone missing `paymentTermsUpdate` branch now matches live Shopify's `field: null`, `message: "Could not find payment terms."`, and `PAYMENT_TERMS_UPDATE_UNSUCCESSFUL` payload.
+- customer payment method live captures remain blocked on `read_customer_payment_methods` / `write_customer_payment_methods` even though `read_customers`, `write_customers`, and `write_orders` are present. The checked-in conformance app config now requests the missing customer-payment-method scopes, but an unattended `corepack pnpm exec shopify app deploy --allow-updates` attempt on 2026-07-02 stopped at interactive Shopify device-code login. The refreshed `customer-payment-method-access-probe` fixture records the active token still lacks both scopes: `customerPaymentMethod(id:)` returns `ACCESS_DENIED` requiring `read_customer_payment_methods`, and `customerPaymentMethodRemoteCreate` returns `ACCESS_DENIED` requiring `write_customer_payment_methods`. Root introspection confirms the HAR-365 mutations exist on the configured Admin API, but live success paths still need a reauthorized token, isolated test payment methods, and no-recipient/customer-safe email coverage before real captures can be checked in.
 - HAR-365 local runtime support stages customer payment-method writes without runtime Shopify calls: credit-card and PayPal roots store scrubbed instrument shells, remote create stores an incomplete `instrument: null` method, duplication uses a non-secret proxy token, update-url returns a non-deliverable `shopify-draft-proxy.local` URL, revoke blocks methods with local subscription-contract links, marks contract-free active methods with `CUSTOMER_REVOKED`, treats already-revoked methods idempotently, and payment reminders record a local intent only.
 - Duplication data and update URLs must remain local/synthetic in runtime support; do not fetch real encrypted duplication data or expiring customer payment update links unless recording an intentional scrubbed conformance fixture with suitable scopes and cleanup.
 - Revoked payment methods must stay hidden from root and customer-owned lookups unless `showRevoked: true` is supplied. `customerPaymentMethodSendUpdateEmail` and `paymentReminderSend` are locally buffered/staged customer-visible side effects; the runtime must not deliver customer email upstream outside explicit commit replay.
@@ -3903,7 +3904,7 @@ Practical rule:
 - keep the app-reserved namespace delete message aligned with the public
   2026-04 capture, not older/internal wording
 
-## 89. `locationActivate` limit is public-capturable, ongoing relocation was not
+## 90. `locationActivate` limit is public-capturable, ongoing relocation was not
 
 Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` can produce a real
 `locationActivate` `LOCATION_LIMIT` branch by creating a disposable active
@@ -3924,3 +3925,43 @@ Practical rule:
 - keep `HAS_ONGOING_RELOCATION` as runtime-test-only behavior until a
   deterministic public or approved disposable-store setup can leave a real
   incomplete relocation job observable through `locationActivate`
+
+## 91. Public 2026-04 Files API does not expose `MediaImage.references`
+
+Admin GraphQL 2026-04 live capture against
+`harry-test-heelo.myshopify.com` recorded the runtime
+`MediaFileReferencesHydrate` query returning a top-level schema error:
+`Field 'references' doesn't exist on type 'MediaImage'`.
+
+Older checked-in 2025-01 cascade evidence has a successful
+`MediaImage.references(first:)` response for product/media/variant relationship
+hydration, so do not assume this field is stable across public API versions.
+
+Practical rule:
+
+- media parity cassettes must store the exact hydrate query and exact Shopify
+  response, including public schema errors when that is what the runtime query
+  receives
+- future file-delete cascade improvements should prefer a public,
+  version-stable product/media hydration path over relying on
+  `MediaImage.references` in API versions where the field is not exposed
+
+## 92. Public 2026-04 Files API selection boundaries for local replacement parity
+
+The live replacement captures for the older media parity scenarios exposed two
+public-schema boundaries that the former local fixtures had papered over:
+
+- `filename` is accepted in `FileCreateInput`, but public Admin GraphQL 2026-04
+  rejects selecting `filename` on the `File` interface.
+- `mediaErrors` and `mediaWarnings` are not `File` interface fields; select
+  them under concrete media fragments such as `... on MediaImage`.
+- An immediate `files(query: "filename:'name.jpg'")` read did not return the
+  freshly created files in this capture. The stable live read shape for these
+  scenarios is `files(first: 1, reverse: true)`, matching the existing
+  immediate media read captures.
+
+Practical rule:
+
+- keep restored media parity request documents on public fields only, and use
+  reverse-order immediate reads when the scenario needs the newly created file
+  without relying on full file-search semantics.
