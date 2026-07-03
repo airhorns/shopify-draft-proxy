@@ -280,6 +280,128 @@ fn customers_connection_applies_name_sort_and_reverse_before_windowing() {
 }
 
 #[test]
+fn customers_connection_applies_id_and_location_sort_keys() {
+    let mut proxy = snapshot_proxy();
+    create_customer_from_input(
+        &mut proxy,
+        json!({
+            "email": "toronto-sort@example.test",
+            "firstName": "Toronto",
+            "lastName": "Sort",
+            "addresses": [{
+                "address1": "1 King St W",
+                "city": "Toronto",
+                "provinceCode": "ON",
+                "countryCode": "CA",
+                "zip": "M5H 1A1"
+            }]
+        }),
+    );
+    create_customer_from_input(
+        &mut proxy,
+        json!({
+            "email": "ottawa-sort@example.test",
+            "firstName": "Ottawa",
+            "lastName": "Sort",
+            "addresses": [{
+                "address1": "111 Wellington St",
+                "city": "Ottawa",
+                "provinceCode": "ON",
+                "countryCode": "CA",
+                "zip": "K1A 0A4"
+            }]
+        }),
+    );
+    create_customer_from_input(
+        &mut proxy,
+        json!({
+            "email": "seattle-sort@example.test",
+            "firstName": "Seattle",
+            "lastName": "Sort",
+            "addresses": [{
+                "address1": "600 4th Ave",
+                "city": "Seattle",
+                "provinceCode": "WA",
+                "countryCode": "US",
+                "zip": "98104"
+            }]
+        }),
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersIdAndLocationSort {
+          idOrder: customers(first: 5, sortKey: ID) {
+            nodes { email }
+          }
+          idReverse: customers(first: 5, sortKey: ID, reverse: true) {
+            nodes { email }
+          }
+          locationOrder: customers(first: 5, sortKey: LOCATION) {
+            nodes { email defaultAddress { country province city } }
+          }
+          locationReverse: customers(first: 5, sortKey: LOCATION, reverse: true) {
+            nodes { email defaultAddress { country province city } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["idOrder"]["nodes"],
+        json!([
+            { "email": "toronto-sort@example.test" },
+            { "email": "ottawa-sort@example.test" },
+            { "email": "seattle-sort@example.test" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["idReverse"]["nodes"],
+        json!([
+            { "email": "seattle-sort@example.test" },
+            { "email": "ottawa-sort@example.test" },
+            { "email": "toronto-sort@example.test" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["locationOrder"]["nodes"],
+        json!([
+            {
+                "email": "ottawa-sort@example.test",
+                "defaultAddress": { "country": "Canada", "province": "Ontario", "city": "Ottawa" }
+            },
+            {
+                "email": "toronto-sort@example.test",
+                "defaultAddress": { "country": "Canada", "province": "Ontario", "city": "Toronto" }
+            },
+            {
+                "email": "seattle-sort@example.test",
+                "defaultAddress": { "country": "United States", "province": "Washington", "city": "Seattle" }
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["locationReverse"]["nodes"],
+        json!([
+            {
+                "email": "seattle-sort@example.test",
+                "defaultAddress": { "country": "United States", "province": "Washington", "city": "Seattle" }
+            },
+            {
+                "email": "toronto-sort@example.test",
+                "defaultAddress": { "country": "Canada", "province": "Ontario", "city": "Toronto" }
+            },
+            {
+                "email": "ottawa-sort@example.test",
+                "defaultAddress": { "country": "Canada", "province": "Ontario", "city": "Ottawa" }
+            }
+        ])
+    );
+}
+
+#[test]
 fn customers_sorted_connection_paginates_after_interleaved_create() {
     let mut proxy = snapshot_proxy();
     create_customer(
@@ -358,6 +480,193 @@ fn customers_sorted_connection_paginates_after_interleaved_create() {
     assert_eq!(
         before_page.body["data"]["customers"]["nodes"],
         json!([{ "email": "alpha-page@example.test", "displayName": "Alpha Page" }])
+    );
+}
+
+#[test]
+fn customers_filtered_sorted_connection_counts_and_reverses_after_interleaved_update() {
+    let mut proxy = snapshot_proxy();
+    create_customer(
+        &mut proxy,
+        "beta-filtered@example.test",
+        "Beta",
+        "Shopper",
+        vec!["vip".to_string()],
+        None,
+    );
+    create_customer(
+        &mut proxy,
+        "zulu-filtered@example.test",
+        "Zulu",
+        "Shopper",
+        vec!["vip".to_string()],
+        None,
+    );
+    let alpha_id = create_customer(
+        &mut proxy,
+        "alpha-filtered@example.test",
+        "Alpha",
+        "Shopper",
+        vec!["standard".to_string()],
+        None,
+    );
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersFilteredFirstPage($query: String!) {
+          customers(first: 1, query: $query, sortKey: NAME) {
+            edges { cursor node { email displayName tags } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "query": "tag:vip" }),
+    ));
+    assert_eq!(
+        first_page.body["data"]["customers"]["edges"][0]["node"],
+        json!({
+            "email": "beta-filtered@example.test",
+            "displayName": "Beta Shopper",
+            "tags": ["vip"]
+        })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PromoteAlphaCustomer($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id tags }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": alpha_id,
+                "tags": ["vip", "standard"]
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["tags"],
+        json!(["standard", "vip"])
+    );
+
+    let after_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersFilteredAfterPage($query: String!, $after: String!) {
+          customers(first: 1, after: $after, query: $query, sortKey: NAME) {
+            nodes { email displayName tags }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({
+            "query": "tag:vip",
+            "after": first_page.body["data"]["customers"]["pageInfo"]["endCursor"]
+        }),
+    ));
+    assert_eq!(
+        after_page.body["data"]["customers"]["nodes"],
+        json!([{
+            "email": "zulu-filtered@example.test",
+            "displayName": "Zulu Shopper",
+            "tags": ["vip"]
+        }])
+    );
+    assert_eq!(
+        after_page.body["data"]["customers"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+
+    let read_all = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersFilteredAllAndCount($query: String!) {
+          customers(first: 10, query: $query, sortKey: NAME) {
+            nodes { email displayName tags }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+          customersCount(query: $query) { count precision }
+        }
+        "#,
+        json!({ "query": "tag:vip" }),
+    ));
+    assert_eq!(
+        read_all.body["data"]["customers"]["nodes"],
+        json!([
+            {
+                "email": "alpha-filtered@example.test",
+                "displayName": "Alpha Shopper",
+                "tags": ["standard", "vip"]
+            },
+            {
+                "email": "beta-filtered@example.test",
+                "displayName": "Beta Shopper",
+                "tags": ["vip"]
+            },
+            {
+                "email": "zulu-filtered@example.test",
+                "displayName": "Zulu Shopper",
+                "tags": ["vip"]
+            }
+        ])
+    );
+    assert_eq!(
+        read_all.body["data"]["customersCount"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+
+    let reverse_first = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersFilteredReverseFirst($query: String!) {
+          customers(first: 1, query: $query, sortKey: NAME, reverse: true) {
+            edges { cursor node { email displayName } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "query": "tag:vip" }),
+    ));
+    assert_eq!(
+        reverse_first.body["data"]["customers"]["edges"][0]["node"],
+        json!({
+            "email": "zulu-filtered@example.test",
+            "displayName": "Zulu Shopper"
+        })
+    );
+
+    let reverse_after = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomersFilteredReverseAfter($query: String!, $after: String!) {
+          customers(first: 1, after: $after, query: $query, sortKey: NAME, reverse: true) {
+            nodes { email displayName }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({
+            "query": "tag:vip",
+            "after": reverse_first.body["data"]["customers"]["pageInfo"]["endCursor"]
+        }),
+    ));
+    assert_eq!(
+        reverse_after.body["data"]["customers"]["nodes"],
+        json!([{
+            "email": "beta-filtered@example.test",
+            "displayName": "Beta Shopper"
+        }])
+    );
+    assert_eq!(
+        reverse_after.body["data"]["customers"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+    assert_eq!(
+        reverse_after.body["data"]["customers"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
     );
 }
 
