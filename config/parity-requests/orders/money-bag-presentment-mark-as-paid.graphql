@@ -13,6 +13,7 @@ mutation MoneyBagPresentmentMarkAsPaid($input: OrderMarkAsPaidInput!) {
         }
       }
       transactions {
+        id
         kind
         status
         gateway

@@ -128,6 +128,10 @@ validation. When `priceListCreate` has both a catalog relation error and
 another invalid field such as a duplicate name or invalid parent adjustment, the
 catalog error is returned first. `priceListUpdate` returns `priceList: null` for
 those catalog validation failures while leaving the staged price list unchanged.
+`quantityRulesDelete` validates variant IDs against observed base/staged
+ProductVariant and fixed-price variant state when the proxy has variant state
+available; unknown IDs return `PRODUCT_VARIANT_DOES_NOT_EXIST` instead of being
+treated as deleted.
 
 Web-presence slices stage create/update/delete behavior for the captured
 subfolder, default-locale, alternate-locale, root-URL, duplicate-language,
@@ -137,6 +141,9 @@ price-list roots with `webPresenceCreate`, `webPresenceUpdate`,
 payload validation as the standalone local paths. Market-localization slices
 stage and remove localized content for captured localizable resources, including
 unknown-resource, too-many-key, digest, market key, and no-op removal branches.
+`marketLocalizableResource` resolves only resource IDs observed in staged
+market-localizable resource state or staged market-scoped translations; unknown
+IDs return `null`.
 
 `marketsResolvedValues` and market/catalog/price-list reads have fixture-backed
 empty, fallback, and buyer-country behavior where captured. Unsupported

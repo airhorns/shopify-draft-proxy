@@ -1799,7 +1799,12 @@ impl DraftProxy {
                 } else if operation.root_fields.iter().all(|field| {
                     matches!(field.as_str(), "quantityRulesAdd" | "quantityRulesDelete")
                 }) {
-                    return quantity_rules_mutation_response(root_field, &query, &variables);
+                    return quantity_rules_mutation_response(
+                        root_field,
+                        &query,
+                        &variables,
+                        &self.store,
+                    );
                 } else if operation.root_fields.iter().any(|field| {
                     matches!(
                         field.as_str(),
