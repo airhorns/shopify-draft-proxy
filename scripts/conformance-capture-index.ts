@@ -11185,6 +11185,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'webhooks',
+    captureId: 'webhook-subscription-filter-mixed-term',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-filter-mixed-term.ts',
+    purpose:
+      'WebhookSubscriptionInput.filter validation for a mixed qualified customer_id term plus bare/default term on create and update.',
+    requiredAuthScopes: [
+      'webhook subscription management access for the installed app',
+      'read_customers',
+      'write_customers',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-filter-mixed-term.json`,
+      'config/parity-specs/webhooks/webhook-subscription-filter-mixed-term.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable customer and one fully qualified CUSTOMERS_UPDATE subscription, records mixed-term create/update validation failures, then deletes both created resources during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'webhooks',
     captureId: 'webhook-subscription-topic-format-name-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-subscription-topic-format-name-validation.ts',

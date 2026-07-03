@@ -1167,10 +1167,10 @@ fn resolve_webhook_metafield_namespace(namespace: &str, api_client_id: Option<&s
     }
 }
 
-/// A webhook filter is a search-query string that must reference at least one
-/// field via `field:value` syntax. A non-empty filter that names no field
-/// (e.g. `totally bogus syntax`) is rejected by Shopify. Empty/blank filters
-/// mean "no filter" and are accepted.
+/// A webhook filter is a search-query string where every non-boolean term must
+/// reference a field via `field:value` syntax. A non-empty filter containing any
+/// bare/default term (e.g. `customer_id:123 bareword`) is rejected by Shopify.
+/// Empty/blank filters mean "no filter" and are accepted.
 fn webhook_filter_exceeds_byte_size_limit(filter: &str) -> bool {
     filter.len() > WEBHOOK_FILTER_MAX_BYTE_SIZE
 }
@@ -1180,11 +1180,24 @@ fn webhook_filter_is_invalid(filter: &str) -> bool {
     if trimmed.is_empty() {
         return false;
     }
-    !trimmed.split_whitespace().any(|token| {
-        token
-            .split_once(':')
-            .is_some_and(|(field, _)| !field.is_empty() && field.chars().all(graphql_name_char))
-    })
+    let mut saw_field_term = false;
+    for token in trimmed.split_whitespace() {
+        if token.eq_ignore_ascii_case("AND") || token.eq_ignore_ascii_case("OR") {
+            continue;
+        }
+
+        let term = token.strip_prefix('-').unwrap_or(token);
+        let Some((field, _)) = term.split_once(':') else {
+            return true;
+        };
+        if field.is_empty() || !field.chars().all(graphql_name_char) {
+            return true;
+        }
+
+        saw_field_term = true;
+    }
+
+    !saw_field_term
 }
 
 fn is_known_webhook_subscription_topic(topic: &str) -> bool {
