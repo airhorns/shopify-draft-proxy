@@ -5067,9 +5067,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/markets/market-create-price-inclusions.json',
       'config/parity-requests/markets/market-create-price-inclusions.graphql',
       'config/parity-requests/markets/market-price-inclusions-read.graphql',
+      'config/parity-requests/markets/market-price-inclusions-resolved-values-read.graphql',
+      'config/parity-requests/markets/market-price-inclusions-shop-currency.graphql',
     ],
     cleanupBehavior:
-      'Creates one disposable region market with explicit price inclusions, verifies read-after-write, records a rejected locations-condition branch, then deletes the created market.',
+      'Hydrates shop currency, creates one disposable region market with explicit price inclusions and omitted baseCurrency, verifies read-after-write plus resolved values for the created buyer country, records a rejected locations-condition branch, then deletes the created market.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

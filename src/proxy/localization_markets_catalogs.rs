@@ -4248,7 +4248,8 @@ impl DraftProxy {
     /// read is served from `staged.web_presences`, so the staged records are
     /// mutated in place. Modeled from captured localization mutation behavior.
     fn sync_web_presence_locales(&mut self, locale: &str, target_ids: &[String], replace: bool) {
-        if locale == "en" {
+        let primary_locale = self.localization_primary_locale();
+        if locale == primary_locale {
             return;
         }
         let name = self

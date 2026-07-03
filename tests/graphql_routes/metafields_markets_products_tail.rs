@@ -2535,6 +2535,7 @@ fn non_english_primary_locale_drives_shop_locale_and_web_presence_rules() {
         mutation NonEnglishPrimaryWebPresenceDefault($input: WebPresenceCreateInput!) {
           webPresenceCreate(input: $input) {
             webPresence {
+              id
               defaultLocale { locale name primary published }
               alternateLocales { locale primary }
               rootUrls { locale url }
@@ -2560,6 +2561,74 @@ fn non_english_primary_locale_drives_shop_locale_and_web_presence_rules() {
     assert_eq!(
         web_presence.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([{"locale": "it", "url": "https://shopify-draft-proxy.local/it-it/"}])
+    );
+    let web_presence_id = web_presence.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let associate_english = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NonEnglishPrimaryAssociateEnglish($id: ID!) {
+          shopLocaleUpdate(locale: "en", shopLocale: { marketWebPresenceIds: [$id] }) {
+            shopLocale {
+              locale
+              primary
+              marketWebPresences { id defaultLocale { locale } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": web_presence_id.clone() }),
+    ));
+    assert_eq!(
+        associate_english.body["data"]["shopLocaleUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        associate_english.body["data"]["shopLocaleUpdate"]["shopLocale"]["marketWebPresences"],
+        json!([{
+            "id": web_presence_id,
+            "defaultLocale": { "locale": "it" }
+        }])
+    );
+
+    let web_presence_read = proxy.process_request(json_graphql_request(
+        r#"
+        query NonEnglishPrimaryWebPresenceAfterEnglishAssociation {
+          webPresences(first: 5) {
+            nodes {
+              id
+              defaultLocale { locale primary }
+              alternateLocales { locale primary }
+              rootUrls { locale url }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let updated_presence = web_presence_read.body["data"]["webPresences"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|presence| presence["id"] == json!(web_presence_id))
+        .unwrap();
+    assert_eq!(
+        updated_presence["defaultLocale"],
+        json!({"locale": "it", "primary": true})
+    );
+    assert_eq!(
+        updated_presence["alternateLocales"],
+        json!([{"locale": "en", "primary": false}])
+    );
+    assert_eq!(
+        updated_presence["rootUrls"],
+        json!([
+            {"locale": "it", "url": "https://shopify-draft-proxy.local/it-it/"},
+            {"locale": "en", "url": "https://shopify-draft-proxy.local/en-it/"}
+        ])
     );
 }
 
