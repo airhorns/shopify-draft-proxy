@@ -1311,7 +1311,7 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
     );
     assert_eq!(
         set.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["changes"][0],
-        json!({"name": "available", "delta": 7, "quantityAfterChange": null, "ledgerDocumentUri": null, "location": {"id": "gid://shopify/Location/106318430514", "name": "Shop location"}})
+        json!({"name": "available", "delta": 7, "quantityAfterChange": null, "ledgerDocumentUri": null, "location": {"id": "gid://shopify/Location/106318430514", "name": "Location"}})
     );
     assert_eq!(
         set.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["changes"][2]
@@ -1511,7 +1511,7 @@ fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field()
     ));
     assert_eq!(
         adjust.body["data"]["adjust"]["inventoryAdjustmentGroup"]["changes"][0],
-        json!({"name": "available", "delta": 5, "item": {"id": "gid://shopify/InventoryItem/store-backed"}, "location": {"id": "gid://shopify/Location/1", "name": "Source location"}})
+        json!({"name": "available", "delta": 5, "item": {"id": "gid://shopify/InventoryItem/store-backed"}, "location": {"id": "gid://shopify/Location/1", "name": "Location"}})
     );
     assert_eq!(adjust.body["data"]["adjust"]["userErrors"], json!([]));
 
@@ -2327,14 +2327,14 @@ fn inventory_set_on_hand_quantities_stages_locally_logs_and_reads_back() {
                 "delta": 8,
                 "quantityAfterChange": null,
                 "item": { "id": inventory_item_id },
-                "location": { "id": location_id, "name": "Source location" }
+                "location": { "id": location_id, "name": "Location" }
             },
             {
                 "name": "on_hand",
                 "delta": 8,
                 "quantityAfterChange": null,
                 "item": { "id": inventory_item_id },
-                "location": { "id": location_id, "name": "Source location" }
+                "location": { "id": location_id, "name": "Location" }
             }
         ])
     );
@@ -3096,11 +3096,11 @@ fn inventory_activate_on_hand_seeds_and_validates_locally() {
             "userErrors": [
                 {
                     "field": ["available"],
-                    "message": "The product couldn't be stocked at Shop location because not allowed to set available and on_hand quantities at the same time."
+                    "message": "The product couldn't be stocked at Location because not allowed to set available and on_hand quantities at the same time."
                 },
                 {
                     "field": ["onHand"],
-                    "message": "The product couldn't be stocked at Shop location because not allowed to set available and on_hand quantities at the same time."
+                    "message": "The product couldn't be stocked at Location because not allowed to set available and on_hand quantities at the same time."
                 }
             ]
         })
@@ -3168,7 +3168,7 @@ fn inventory_activate_on_hand_seeds_and_validates_locally() {
             "inventoryLevel": null,
             "userErrors": [{
                 "field": ["onHand"],
-                "message": "The product couldn't be stocked at Shop location because the quantity needs to be between -1 billion and 1 billion."
+                "message": "The product couldn't be stocked at Location because the quantity needs to be between -1 billion and 1 billion."
             }]
         })
     );
@@ -3257,7 +3257,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         last_location_deactivate.body["data"]["inventoryDeactivate"]["userErrors"],
         json!([{
             "field": null,
-            "message": "The product couldn't be unstocked from Source location because products need to be stocked at a minimum of 1 location."
+            "message": "The product couldn't be unstocked from Location because products need to be stocked at a minimum of 1 location."
         }])
     );
 

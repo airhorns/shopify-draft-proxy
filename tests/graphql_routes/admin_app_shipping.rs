@@ -6691,6 +6691,76 @@ fn delivery_settings_roots_return_read_only_settings_with_aliases_and_selected_f
 }
 
 #[test]
+fn delivery_profile_location_group_uses_staged_location_record_name() {
+    let mut proxy = snapshot_proxy();
+    let location = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileLocationNameSeed($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Hydrated Profile Origin",
+                "address": { "countryCode": "US" },
+                "fulfillsOnlineOrders": false
+            }
+        }),
+    ));
+    assert_eq!(location.status, 200);
+    assert_eq!(
+        location.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    let location_id = location.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let profile = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileLocationName($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              profileLocationGroups {
+                locationGroup {
+                  locations(first: 5) { nodes { id name } }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "profile": {
+                "name": "Profile with staged origin",
+                "locationGroupsToCreate": [{
+                    "locations": [location_id],
+                    "zonesToCreate": [{
+                        "name": "Domestic",
+                        "countries": [{ "code": "US", "includeAllProvinces": true }]
+                    }]
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(
+        profile.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        profile.body["data"]["deliveryProfileCreate"]["profile"]["profileLocationGroups"][0]
+            ["locationGroup"]["locations"]["nodes"],
+        json!([{ "id": location_id, "name": "Hydrated Profile Origin" }])
+    );
+}
+
+#[test]
 fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"

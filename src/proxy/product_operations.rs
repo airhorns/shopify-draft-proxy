@@ -718,7 +718,7 @@ impl DraftProxy {
                 "id": inventory_level_id(&inventory_item_id, location_id),
                 "location": {
                     "id": location_id,
-                    "name": inventory_location_name(location_id)
+                    "name": self.inventory_location_display_name(location_id)
                 },
                 "quantities": [
                     { "name": "available", "quantity": available, "updatedAt": updated_at },

@@ -1011,20 +1011,6 @@ pub(in crate::proxy) fn refresh_delivery_profile_counts(profile: &mut Value) {
     profile["productVariantsCount"] = count_object(variant_count);
 }
 
-pub(in crate::proxy) fn delivery_profile_location_record(id: &str) -> Value {
-    json!({
-        "id": id,
-        "name": delivery_profile_location_name(id)
-    })
-}
-
-fn delivery_profile_location_name(id: &str) -> String {
-    match Some(resource_id_path_tail(id)).filter(|tail| !tail.is_empty()) {
-        Some(tail) => format!("Location {tail}"),
-        None => "Delivery profile location".to_string(),
-    }
-}
-
 pub(in crate::proxy) fn delivery_profile_item_for_variant(
     variant_id: &str,
     observed_variant: Option<&Value>,
@@ -1097,10 +1083,11 @@ fn delivery_profile_zone_countries_from_input(
 
 fn delivery_profile_country_record(code: &str) -> Value {
     let rest_of_world = code == "REST_OF_WORLD";
+    let country_name = delivery_profile_country_name(code);
     json!({
         "id": shopify_gid("DeliveryCountry", code),
-        "name": if rest_of_world { "Rest of World" } else { delivery_profile_country_name(code) },
-        "translatedName": if rest_of_world { "Rest of World" } else { delivery_profile_country_name(code) },
+        "name": if rest_of_world { "Rest of World".to_string() } else { country_name.clone() },
+        "translatedName": if rest_of_world { "Rest of World".to_string() } else { country_name },
         "code": {
             "countryCode": if rest_of_world { Value::Null } else { json!(code) },
             "restOfWorld": rest_of_world
@@ -1109,13 +1096,8 @@ fn delivery_profile_country_record(code: &str) -> Value {
     })
 }
 
-fn delivery_profile_country_name(code: &str) -> &'static str {
-    match code {
-        "US" => "United States",
-        "CA" => "Canada",
-        "GB" => "United Kingdom",
-        _ => "Country",
-    }
+fn delivery_profile_country_name(code: &str) -> String {
+    country_name_for_code(code).unwrap_or(code).to_string()
 }
 
 pub(in crate::proxy) fn delivery_price_from_method_input(
