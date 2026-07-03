@@ -12256,6 +12256,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    captureId: 'customer-address-missing-customer',
+    scriptPath: 'scripts/capture-customer-address-missing-customer-conformance.mts',
+    purpose:
+      'customerAddressUpdate, customerAddressDelete, and customerUpdateDefaultAddress missing-customer userError ordering.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-address-missing-customer.json`,
+      'config/parity-specs/customers/customer-address-missing-customer-errors.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable customer/address for foreign-address ordering checks, records missing-customer mutations, then deletes the setup customer.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     captureId: 'customer-merge',
     scriptPath: 'scripts/capture-customer-merge-conformance.mts',
     purpose: 'Base two-customer customerMerge behavior.',

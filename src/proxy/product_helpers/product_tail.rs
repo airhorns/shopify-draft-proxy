@@ -1472,6 +1472,10 @@ fn resource_feedback_scope_is_explicitly_missing(request: &Request) -> bool {
             .any(|scope| scope == "write_resource_feedbacks")
 }
 
+fn app_granted_access_scopes(request: &Request) -> BTreeSet<String> {
+    app_access_scope_handles(&current_app_installation_from_request(request))
+}
+
 fn product_tail_resource_feedback_access_denied_error(field: &RootFieldSelection) -> Value {
     const REQUIRED_ACCESS: &str = "`write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.";
     json!({
