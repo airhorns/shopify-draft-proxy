@@ -2043,6 +2043,157 @@ fn orders_search_unsupported_predicates_do_not_match_everything() {
 }
 
 #[test]
+fn orders_search_common_predicates_share_connection_and_count_semantics() {
+    fn create_order(
+        proxy: &mut DraftProxy,
+        email: &str,
+        tag: &str,
+        title: &str,
+        processed_at: &str,
+    ) -> String {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CreateOrderForSearchPredicates($order: OrderCreateOrderInput!) {
+              orderCreate(order: $order) {
+                order {
+                  id
+                  email
+                  tags
+                  createdAt
+                  updatedAt
+                  processedAt
+                  displayFinancialStatus
+                  displayFulfillmentStatus
+                }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "order": {
+                    "email": email,
+                    "currency": "USD",
+                    "financialStatus": "PENDING",
+                    "fulfillmentStatus": "UNFULFILLED",
+                    "processedAt": processed_at,
+                    "tags": [tag],
+                    "lineItems": [{
+                        "title": title,
+                        "quantity": 1,
+                        "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                    }]
+                }
+            }),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+        create.body["data"]["orderCreate"]["order"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    }
+
+    let mut proxy = snapshot_proxy();
+    let alpha_id = create_order(
+        &mut proxy,
+        "alpha-order-search@example.test",
+        "vip",
+        "Alpha search predicates",
+        "2024-02-02T03:04:05Z",
+    );
+    let zulu_id = create_order(
+        &mut proxy,
+        "zulu-order-search@example.test",
+        "standard",
+        "Zulu search predicates",
+        "2024-03-03T03:04:05Z",
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateOrderForSearchPredicates($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order { id note updatedAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": alpha_id.clone(), "note": "updated for date filter" } }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body["data"]["orderUpdate"]["userErrors"], json!([]));
+
+    let combined_query = "id:1 tag:vip email:alpha-order-search@example.test financial_status:pending fulfillment_status:unfulfilled created_at:>=2024-01-01 created_at:<2024-01-02 processed_at:>=2024-02-02 processed_at:<2024-02-03 updated_at:>=2024-01-01T00:00:02.000Z";
+    let id_miss_query = format!("id:{alpha_id}");
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query OrdersSearchCommonPredicates(
+          $combinedQuery: String!
+          $idMissQuery: String!
+          $tailQuery: String!
+          $freeTextQuery: String!
+          $freeTextMissQuery: String!
+          $processedAtQuery: String!
+        ) {
+          combined: orders(first: 5, query: $combinedQuery) {
+            nodes { id email tags processedAt updatedAt }
+          }
+          combinedCount: ordersCount(query: $combinedQuery) { count precision }
+          idMiss: orders(first: 5, query: $idMissQuery) { nodes { id email } }
+          idMissCount: ordersCount(query: $idMissQuery) { count precision }
+          tail: orders(first: 5, query: $tailQuery) { nodes { id email } }
+          freeText: orders(first: 5, query: $freeTextQuery) { nodes { id email } }
+          freeTextMiss: orders(first: 5, query: $freeTextMissQuery) { nodes { id email } }
+          processedRange: orders(first: 5, query: $processedAtQuery, sortKey: PROCESSED_AT, reverse: true) {
+            nodes { id email processedAt }
+          }
+        }
+        "#,
+        json!({
+            "combinedQuery": combined_query,
+            "idMissQuery": id_miss_query,
+            "tailQuery": "id:1",
+            "freeTextQuery": "alpha-order-search",
+            "freeTextMissQuery": "not-a-staged-order",
+            "processedAtQuery": "processed_at:>=2024-03-01",
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["combined"]["nodes"],
+        json!([{
+            "id": alpha_id,
+            "email": "alpha-order-search@example.test",
+            "tags": ["vip"],
+            "processedAt": "2024-02-02T03:04:05Z",
+            "updatedAt": "2024-01-01T00:00:02.000Z"
+        }])
+    );
+    assert_eq!(
+        read.body["data"]["combinedCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(read.body["data"]["idMiss"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["idMissCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["tail"]["nodes"],
+        json!([{ "id": read.body["data"]["combined"]["nodes"][0]["id"].clone(), "email": "alpha-order-search@example.test" }])
+    );
+    assert_eq!(
+        read.body["data"]["freeText"]["nodes"],
+        json!([{ "id": read.body["data"]["combined"]["nodes"][0]["id"].clone(), "email": "alpha-order-search@example.test" }])
+    );
+    assert_eq!(read.body["data"]["freeTextMiss"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["processedRange"]["nodes"],
+        json!([{ "id": zulu_id, "email": "zulu-order-search@example.test", "processedAt": "2024-03-03T03:04:05Z" }])
+    );
+}
+
+#[test]
 fn orders_sorted_connection_handles_interleaved_create_and_update_windows() {
     fn create_order(proxy: &mut DraftProxy, email: &str, title: &str) -> String {
         let create = proxy.process_request(json_graphql_request(

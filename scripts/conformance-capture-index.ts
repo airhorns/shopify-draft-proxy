@@ -6935,6 +6935,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-catalog-count-read.json',
       'config/parity-specs/orders/order-catalog-count-read.json',
+      'config/parity-requests/orders/order-catalog-count-read.graphql',
     ],
     cleanupBehavior:
       'Creates disposable paid test orders tagged merchant-realistic only if fewer than two exist; leaves them in place as the durable read catalog.',
