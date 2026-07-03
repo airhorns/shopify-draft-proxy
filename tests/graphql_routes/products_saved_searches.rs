@@ -3081,7 +3081,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
             "userErrors": [{
                 "field": ["id"],
                 "message": "ProductFeed does not exist",
-                "code": "NOT_FOUND"
+                "code": Value::Null
             }]
         })
     );
@@ -3105,7 +3105,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
                     "userErrors": [{
                         "field": ["id"],
                         "message": "ProductFeed does not exist",
-                        "code": "NOT_FOUND"
+                        "code": Value::Null
                     }]
                 }
             }
@@ -3129,7 +3129,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
             "userErrors": [{
                 "field": ["id"],
                 "message": "ProductFeed does not exist",
-                "code": "NOT_FOUND"
+                "code": Value::Null
             }]
         })
     );
@@ -3168,7 +3168,7 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
             "userErrors": [{
                 "field": ["id"],
                 "message": "ProductFeed does not exist",
-                "code": "NOT_FOUND"
+                "code": Value::Null
             }]
         })
     );
@@ -3863,7 +3863,7 @@ fn product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log() {
     assert_eq!(product_feedback_enum.status, 200);
     assert!(product_feedback_enum.body["errors"][0]["message"]
         .as_str()
-        .is_some_and(|message| message.contains("Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.")));
+        .is_some_and(|message| message.contains("Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState!'.")));
     assert_eq!(
         product_feedback_enum.body["errors"][0]["extensions"]["code"],
         json!("argumentLiteralsIncompatible")
@@ -3887,7 +3887,7 @@ fn product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log() {
     assert_eq!(shop_feedback_enum.status, 200);
     assert!(shop_feedback_enum.body["errors"][0]["message"]
         .as_str()
-        .is_some_and(|message| message.contains("Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.")));
+        .is_some_and(|message| message.contains("Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState!'.")));
     assert_eq!(
         shop_feedback_enum.body["errors"][0]["extensions"]["code"],
         json!("argumentLiteralsIncompatible")

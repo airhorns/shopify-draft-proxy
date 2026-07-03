@@ -2,10 +2,13 @@
   "scenarioId": "product-merchandising-mutation-guardrails",
   "operationNames": [
     "productFeedDelete",
+    "productFullSync",
     "productBundleCreate",
     "productBundleUpdate",
     "combinedListingUpdate",
-    "productVariantRelationshipBulkUpdate"
+    "productVariantRelationshipBulkUpdate",
+    "bulkProductResourceFeedbackCreate",
+    "shopResourceFeedbackCreate"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity"],
@@ -27,6 +30,15 @@
         "name": "product-feed-delete-unknown-id",
         "capturePath": "$.probes[1].response.data.productFeedDelete",
         "proxyPath": "$.data.productFeedDelete"
+      },
+      {
+        "name": "product-full-sync-unknown-id",
+        "capturePath": "$.probes[2].response.data.productFullSync",
+        "proxyPath": "$.data.productFullSync",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-merchandising-product-full-sync.graphql",
+          "variablesCapturePath": "$.probes[2].variables"
+        }
       },
       {
         "name": "product-bundle-create-empty-components",
@@ -63,8 +75,26 @@
           "documentPath": "config/parity-requests/products/product-merchandising-variant-relationship-bulk-update.graphql",
           "variablesCapturePath": "$.probes[6].variables"
         }
+      },
+      {
+        "name": "product-feedback-invalid-state-schema-error",
+        "capturePath": "$.probes[7].response.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feedback-invalid-state.graphql"
+        }
+      },
+      {
+        "name": "shop-feedback-invalid-state-schema-error",
+        "capturePath": "$.probes[8].response.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/shop-feedback-invalid-state.graphql"
+        }
       }
     ]
   },
-  "notes": "Executable guardrail parity for product-adjacent merchandising roots whose validation branches can be replayed without live Shopify writes. Success-path local staging is covered by runtime tests; the current disposable store still blocks productFeedCreate success with channel lookup and feedback success with write_resource_feedbacks/sales-channel access requirements. ProductFullSync unknown-feed rejection is covered by focused Rust tests because the public capture currently returns the older null-code shape."
+  "notes": "Executable guardrail parity for product-adjacent merchandising and feedback roots whose validation branches can be replayed without live Shopify writes. Success-path local staging is covered by runtime tests; the current disposable store blocks productFeedCreate success with automatic channel/spec feed management and missing feed webhook registration, and feedback success remains blocked by write_resource_feedbacks plus Storefront API / Sales Channel configuration. Strict targets cover productFeedDelete and productFullSync unknown-feed payloads, product bundle/listing/relationship validation payloads, and schema-level invalid-state errors for product and shop feedback mutation roots."
 }

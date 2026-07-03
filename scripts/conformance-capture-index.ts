@@ -781,7 +781,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-delete-async-operation.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-duplicate-async-missing.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-duplicate-async-success.json',
-      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-feedback-mutation-access-blockers.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-feeds-empty-read.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-handle-dedup-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-handle-validation-parity.json',
@@ -789,8 +788,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-inline-synthetic-id-read.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-invalid-search-query-syntax.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-media-validation-branches.json',
-      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-merchandising-mutation-probes.json',
-      'config/parity-specs/products/product-merchandising-mutation-guardrails.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-metafields.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-option-update-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-limits-and-duplicates-parity.json',
@@ -1233,6 +1230,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-merchandising-feedback-guardrails',
+    scriptPath: 'scripts/capture-product-merchandising-feedback-conformance.ts',
+    purpose:
+      'Product feed, product merchandising, and product/shop feedback guardrail payloads that can be recorded without mutating Shopify data.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_product_listings'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-merchandising-mutation-probes.json`,
+      `${CAPTURE_ROOT}product-feedback-mutation-access-blockers.json`,
+      'config/parity-specs/products/product-merchandising-mutation-guardrails.json',
+      'config/parity-requests/products/product-merchandising-product-feed-create.graphql',
+      'config/parity-requests/products/product-merchandising-product-feed-delete.graphql',
+      'config/parity-requests/products/product-merchandising-product-full-sync.graphql',
+      'config/parity-requests/products/product-feedback-invalid-state.graphql',
+      'config/parity-requests/products/shop-feedback-invalid-state.graphql',
+    ],
+    cleanupBehavior:
+      'Validation/access-blocker probes only; productFeedCreate is rejected by Shopify before a feed is created, unknown-id probes do not mutate state, and feedback probes either fail schema validation or access checks.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Feedback success capture still requires a reauthorized app/token with write_resource_feedbacks plus Storefront API or Sales Channel configuration; this recorder keeps the available real Shopify feedback branches executable.',
+  },
+  {
+    domain: 'products',
     captureId: 'publication-mutation-contract',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-publication-mutation-contract-conformance.mts',
@@ -1246,6 +1266,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/publicationCreate-validation.graphql',
       'config/parity-requests/products/publicationUpdate-contract.graphql',
       'config/parity-requests/products/publicationDelete-contract.graphql',
+      'config/parity-requests/products/publication-created-read.graphql',
       'config/parity-requests/products/products-hydrate-nodes-observation.graphql',
     ],
     cleanupBehavior:
