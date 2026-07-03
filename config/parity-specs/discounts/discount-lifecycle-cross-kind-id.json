@@ -1,0 +1,92 @@
+{
+  "scenarioId": "discount-lifecycle-cross-kind-id",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "discountAutomaticBasicCreate",
+    "discountCodeDelete",
+    "discountAutomaticDelete",
+    "discountCodeActivate",
+    "discountAutomaticActivate",
+    "discountCodeDeactivate",
+    "discountAutomaticDeactivate",
+    "discountRedeemCodeBulkAdd",
+    "codeDiscountNode",
+    "automaticDiscountNode",
+    "codeDiscountNodeByCode"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "mutation-lifecycle", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-lifecycle-cross-kind-id.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-lifecycle-cross-kind-id-setup.graphql",
+    "variablesCapturePath": "$.requests.setup.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cross-kind-lifecycle-and-bulk-not-found-payloads",
+        "capturePath": "$.crossKind.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-lifecycle-cross-kind-id-mutations.graphql",
+          "variables": {
+            "codeRootAutomaticId": {
+              "fromPrimaryProxyPath": "$.data.automaticSetup.automaticDiscountNode.id"
+            },
+            "automaticRootCodeId": {
+              "fromPrimaryProxyPath": "$.data.codeSetup.codeDiscountNode.id"
+            },
+            "rejectedCode": {
+              "fromCapturePath": "$.variables.rejectedCode"
+            }
+          }
+        }
+      },
+      {
+        "name": "cross-kind-read-after-rejections-preserves-records",
+        "capturePath": "$.readAfter.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-lifecycle-cross-kind-id-read.graphql",
+          "variables": {
+            "codeId": {
+              "fromPrimaryProxyPath": "$.data.codeSetup.codeDiscountNode.id"
+            },
+            "automaticId": {
+              "fromPrimaryProxyPath": "$.data.automaticSetup.automaticDiscountNode.id"
+            },
+            "rejectedCode": {
+              "fromCapturePath": "$.variables.rejectedCode"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.codeDiscountNode.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "Live Shopify and local replay create different DiscountCodeNode IDs; this target asserts the code discount remains present after rejected wrong-kind mutations."
+          },
+          {
+            "path": "$.codeDiscountNode.codeDiscount.codes.nodes[0].id",
+            "matcher": "shopify-gid:DiscountRedeemCode",
+            "reason": "Live Shopify and local replay create different redeem-code IDs; the submitted code and count remain strict."
+          },
+          {
+            "path": "$.automaticDiscountNode.id",
+            "matcher": "shopify-gid:DiscountAutomaticNode",
+            "reason": "Live Shopify and local replay create different DiscountAutomaticNode IDs; this target asserts the automatic discount remains present after rejected wrong-kind mutations."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence that discount lifecycle roots resolve IDs through kind-scoped relations: code roots reject a DiscountCodeNode GID built from an automatic discount's numeric id, automatic roots reject a DiscountAutomaticNode GID built from a code discount's numeric id, and redeem-code bulk add rejects the cross-typed automatic id with the same code-discount not-found payload. The capture creates one disposable code basic discount and one disposable automatic basic discount, records all cross-kind rejection payloads in one serial mutation request, verifies both records and the original code remain unchanged while the rejected redeem code is absent, then deletes both setup discounts in cleanup. Proxy replay creates equivalent staged discounts through public GraphQL mutations, feeds the staged automatic/code IDs into the opposite-kind roots so the local model exercises wrong-kind existing-record handling, and compares full selected wrong-kind payloads plus read-after-rejection state, allowing only generated live-vs-local IDs."
+}

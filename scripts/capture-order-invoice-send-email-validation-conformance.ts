@@ -211,13 +211,13 @@ async function cleanupOrder(orderId: string): Promise<unknown> {
   };
 }
 
-function hydrateCallFromOrder(order: GraphqlPayload, note: string): unknown {
+function hydrateCallFromOrder(order: GraphqlPayload): unknown {
   return {
     operationName: 'OrdersOrderHydrate',
     variables: {
       id: order['id'],
     },
-    query: note,
+    query: stripGraphqlTag(orderReadQuery),
     response: {
       status: 200,
       body: {
@@ -335,16 +335,7 @@ async function main(): Promise<void> {
         },
       ],
       cleanup,
-      upstreamCalls: [
-        hydrateCallFromOrder(
-          noEmailHydrateOrder,
-          'hand-synthesized from orderInvoiceSend email validation no-recipient setup read for Pattern 2 order hydration',
-        ),
-        hydrateCallFromOrder(
-          happyHydrateOrder,
-          'hand-synthesized from orderInvoiceSend email validation happy-path setup read for Pattern 2 order hydration',
-        ),
-      ],
+      upstreamCalls: [hydrateCallFromOrder(noEmailHydrateOrder), hydrateCallFromOrder(happyHydrateOrder)],
     });
 
     console.log(`Wrote ${fixturePath}`);

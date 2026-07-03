@@ -1,0 +1,14 @@
+{
+  "updateInput": {
+    "id": "gid://shopify/Order/999999999999"
+  },
+  "closeInput": {
+    "id": "gid://shopify/Order/999999999999"
+  },
+  "openInput": {
+    "id": "gid://shopify/Order/999999999999"
+  },
+  "markAsPaidInput": {
+    "id": "gid://shopify/Order/999999999999"
+  }
+}

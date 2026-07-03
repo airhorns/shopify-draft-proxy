@@ -7,6 +7,7 @@
     "selected-fields",
     "pagination-shape",
     "sort-order",
+    "id-search-filtering",
     "search-filtering",
     "count-limit"
   ],
@@ -18,7 +19,7 @@
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured against Admin GraphQL 2026-04 with a non-empty merchant order catalog. The strict targets compare seeded local order catalog/count behavior for query filters, sort/reverse ordering, cursor-window pageInfo booleans, dynamic next-page pagination, and count-limit precision. Opaque Shopify cursor strings are intentionally outside the strict targets.",
+  "notes": "Captured against Admin GraphQL 2026-04 with a non-empty merchant order catalog. The strict targets compare seeded local order catalog/count behavior for query filters, id positive/miss filters, combined AND filters, sort/reverse ordering, cursor-window pageInfo booleans, dynamic next-page pagination, and count-limit precision. Opaque Shopify cursor strings are intentionally outside the strict targets.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -54,6 +55,24 @@
         "upstreamCapturePath": null
       },
       {
+        "name": "id-filtered order nodes",
+        "capturePath": "$.response.data.byId.nodes",
+        "proxyPath": "$.data.byId.nodes",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "missing id-filtered order nodes",
+        "capturePath": "$.response.data.byIdMiss.nodes",
+        "proxyPath": "$.data.byIdMiss.nodes",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "combined AND-filtered order nodes",
+        "capturePath": "$.response.data.byCombinedAnd.nodes",
+        "proxyPath": "$.data.byCombinedAnd.nodes",
+        "upstreamCapturePath": null
+      },
+      {
         "name": "status-filtered order nodes",
         "capturePath": "$.response.data.byStatus.nodes",
         "proxyPath": "$.data.byStatus.nodes",
@@ -69,6 +88,18 @@
         "name": "unlimited tagged count precision",
         "capturePath": "$.response.data.exactTaggedCount",
         "proxyPath": "$.data.exactTaggedCount",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "missing id-filtered count precision",
+        "capturePath": "$.response.data.idMissCount",
+        "proxyPath": "$.data.idMissCount",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "combined AND-filtered count precision",
+        "capturePath": "$.response.data.combinedAndCount",
+        "proxyPath": "$.data.combinedAndCount",
         "upstreamCapturePath": null
       },
       {

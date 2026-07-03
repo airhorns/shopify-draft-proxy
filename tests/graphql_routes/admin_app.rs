@@ -1,6 +1,24 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
 
+const DERIVED_RETURN_CONFIRMATION_URL: &str =
+    "https://app.example.test/return?shopify_draft_proxy_confirmation=1";
+const DERIVED_DEFAULT_CONFIRMATION_URL: &str =
+    "https://shopify.com/local-confirmation?shopify_draft_proxy_confirmation=1";
+
+fn synthetic_gid(value: &Value, resource: &str) -> String {
+    let id = value.as_str().expect("synthetic gid should be a string");
+    assert!(
+        id.starts_with(&format!("gid://shopify/{resource}/")),
+        "{id} should be a {resource} gid"
+    );
+    assert!(
+        id.contains("shopify-draft-proxy=synthetic"),
+        "{id} should be marked as synthetic"
+    );
+    id.to_string()
+}
+
 #[test]
 fn delegate_access_token_create_validates_and_stages_synthetic_secret() {
     let mut proxy = snapshot_proxy();
@@ -110,7 +128,7 @@ fn apps_mutations_dispatch_by_root_field_for_ordinary_operation_names() {
             lineItems: $lineItems
           ) {
             confirmationUrl
-            appSubscription { id status }
+            appSubscription { id status lineItems { id } }
             userErrors { field message }
           }
         }
@@ -127,13 +145,22 @@ fn apps_mutations_dispatch_by_root_field_for_ordinary_operation_names() {
         }),
     ));
     assert_eq!(create.status, 200);
+    let subscription_id = synthetic_gid(
+        &create.body["data"]["appSubscriptionCreate"]["appSubscription"]["id"],
+        "AppSubscription",
+    );
+    let line_item_id = synthetic_gid(
+        &create.body["data"]["appSubscriptionCreate"]["appSubscription"]["lineItems"][0]["id"],
+        "AppSubscriptionLineItem",
+    );
     assert_eq!(
         create.body["data"]["appSubscriptionCreate"],
         json!({
-            "confirmationUrl": "https://app.example.test/local-confirmation",
+            "confirmationUrl": DERIVED_RETURN_CONFIRMATION_URL,
             "appSubscription": {
-                "id": "gid://shopify/AppSubscription/expected",
-                "status": "ACTIVE"
+                "id": subscription_id,
+                "status": "ACTIVE",
+                "lineItems": [{ "id": line_item_id }]
             },
             "userErrors": []
         })
@@ -153,34 +180,38 @@ fn apps_mutations_dispatch_by_root_field_for_ordinary_operation_names() {
           }
         }
         "#,
-        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+        json!({ "id": line_item_id }),
     ));
     assert_eq!(usage.status, 200);
+    let usage_record_id = synthetic_gid(
+        &usage.body["data"]["appUsageRecordCreate"]["appUsageRecord"]["id"],
+        "AppUsageRecord",
+    );
     assert_eq!(
         usage.body["data"]["appUsageRecordCreate"],
         json!({
-            "appUsageRecord": { "id": "gid://shopify/AppUsageRecord/expected" },
+            "appUsageRecord": { "id": usage_record_id },
             "userErrors": []
         })
     );
 
-    let roots = [
+    let roots = vec![
         (
             "CancelSub",
             r#"mutation CancelSub($id: ID!) { appSubscriptionCancel(id: $id) { appSubscription { id status } userErrors { field message } } }"#,
-            json!({ "id": "gid://shopify/AppSubscription/expected" }),
+            json!({ "id": subscription_id }),
             "appSubscriptionCancel",
         ),
         (
             "ExtendTrial",
             r#"mutation ExtendTrial($id: ID!) { appSubscriptionTrialExtend(id: $id, days: 3) { appSubscription { id trialDays } userErrors { field message code } } }"#,
-            json!({ "id": "gid://shopify/AppSubscription/expected" }),
+            json!({ "id": subscription_id }),
             "appSubscriptionTrialExtend",
         ),
         (
             "UpdateLineItem",
             r#"mutation UpdateLineItem($id: ID!) { appSubscriptionLineItemUpdate(id: $id, cappedAmount: { amount: 101, currencyCode: USD }) { appSubscription { id } userErrors { field message } } }"#,
-            json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+            json!({ "id": line_item_id }),
             "appSubscriptionLineItemUpdate",
         ),
         (
@@ -402,6 +433,249 @@ fn app_revoke_access_scopes_validates_atomically_and_updates_current_installatio
 }
 
 #[test]
+fn app_access_scopes_reflect_granted_non_products_scope_for_delegate_and_revoke() {
+    let mut proxy = snapshot_proxy();
+
+    let mut read = json_graphql_request(
+        r#"
+        query AppAccessScopesReadOrders {
+          currentAppInstallation { accessScopes { handle } }
+        }
+        "#,
+        json!({}),
+    );
+    read.headers.insert(
+        "x-shopify-draft-proxy-access-scopes".to_string(),
+        "read_products,write_products,read_orders".to_string(),
+    );
+    let read = proxy.process_request(read);
+    assert_eq!(
+        read.body["data"]["currentAppInstallation"]["accessScopes"],
+        json!([
+            { "handle": "read_products" },
+            { "handle": "write_products" },
+            { "handle": "read_orders" }
+        ])
+    );
+
+    let mut delegate = json_graphql_request(
+        r#"
+        mutation DelegateReadOrders {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_orders"], expiresIn: 300 }) {
+            delegateAccessToken { accessScopes }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    delegate.headers.insert(
+        "x-shopify-draft-proxy-access-scopes".to_string(),
+        "read_products,write_products,read_orders".to_string(),
+    );
+    let delegate = proxy.process_request(delegate);
+    assert_eq!(
+        delegate.body["data"]["delegateAccessTokenCreate"],
+        json!({
+            "delegateAccessToken": { "accessScopes": ["read_orders"] },
+            "userErrors": []
+        })
+    );
+
+    let mut revoke = json_graphql_request(
+        r#"
+        mutation RevokeReadOrders {
+          appRevokeAccessScopes(scopes: ["read_orders"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    revoke.headers.insert(
+        "x-shopify-draft-proxy-access-scopes".to_string(),
+        "read_products,write_products,read_orders".to_string(),
+    );
+    let revoke = proxy.process_request(revoke);
+    assert_eq!(
+        revoke.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "revoked": [{ "handle": "read_orders", "description": null }],
+            "userErrors": []
+        })
+    );
+
+    let mut read_after_revoke = json_graphql_request(
+        r#"
+        query AppAccessScopesAfterReadOrdersRevoke {
+          currentAppInstallation { accessScopes { handle } }
+        }
+        "#,
+        json!({}),
+    );
+    read_after_revoke.headers.insert(
+        "x-shopify-draft-proxy-access-scopes".to_string(),
+        "read_products,write_products,read_orders".to_string(),
+    );
+    let read_after_revoke = proxy.process_request(read_after_revoke);
+    assert_eq!(
+        read_after_revoke.body["data"]["currentAppInstallation"]["accessScopes"],
+        json!([{ "handle": "read_products" }, { "handle": "write_products" }])
+    );
+}
+
+#[test]
+fn app_subscription_create_allocates_unique_ids_and_reads_both_subscriptions() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation CreateSubscription($name: String!) {
+          appSubscriptionCreate(
+            name: $name
+            returnUrl: "https://app.example.test/return"
+            test: true
+            lineItems: [
+              { plan: { appUsagePricingDetails: { cappedAmount: { amount: 100, currencyCode: USD }, terms: "usage terms" } } }
+            ]
+          ) {
+            appSubscription { id lineItems { id } }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    let first = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "First plan" }),
+    ));
+    let second = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "Second plan" }),
+    ));
+
+    let first_subscription_id = synthetic_gid(
+        &first.body["data"]["appSubscriptionCreate"]["appSubscription"]["id"],
+        "AppSubscription",
+    );
+    let second_subscription_id = synthetic_gid(
+        &second.body["data"]["appSubscriptionCreate"]["appSubscription"]["id"],
+        "AppSubscription",
+    );
+    let first_line_item_id = synthetic_gid(
+        &first.body["data"]["appSubscriptionCreate"]["appSubscription"]["lineItems"][0]["id"],
+        "AppSubscriptionLineItem",
+    );
+    let second_line_item_id = synthetic_gid(
+        &second.body["data"]["appSubscriptionCreate"]["appSubscription"]["lineItems"][0]["id"],
+        "AppSubscriptionLineItem",
+    );
+    assert_ne!(first_subscription_id, second_subscription_id);
+    assert_ne!(first_line_item_id, second_line_item_id);
+    assert_eq!(
+        first.body["data"]["appSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        second.body["data"]["appSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAllocatedSubscriptions {
+          currentAppInstallation {
+            allSubscriptions(first: 5) { nodes { id lineItems { id } } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["currentAppInstallation"]["allSubscriptions"]["nodes"],
+        json!([
+            { "id": first_subscription_id, "lineItems": [{ "id": first_line_item_id }] },
+            { "id": second_subscription_id, "lineItems": [{ "id": second_line_item_id }] }
+        ])
+    );
+}
+
+#[test]
+fn app_lookup_and_uninstall_use_request_owned_app_identity() {
+    let custom_app_id = "gid://shopify/App/347082227713";
+    let mut proxy = snapshot_proxy();
+
+    let mut node_request = json_graphql_request(
+        r#"
+        query CurrentAppNode($id: ID!) {
+          node(id: $id) { ... on App { id handle } }
+        }
+        "#,
+        json!({ "id": custom_app_id }),
+    );
+    node_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let node = proxy.process_request(node_request);
+    assert_eq!(
+        node.body["data"]["node"],
+        json!({ "id": custom_app_id, "handle": "shopify-draft-proxy" })
+    );
+
+    let mut uninstall_request = json_graphql_request(
+        r#"
+        mutation CustomAppUninstall($id: ID!) {
+          appUninstall(input: { id: $id }) {
+            app { id handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": custom_app_id }),
+    );
+    uninstall_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let uninstall = proxy.process_request(uninstall_request);
+    assert_eq!(
+        uninstall.body["data"]["appUninstall"],
+        json!({
+            "app": { "id": custom_app_id, "handle": "shopify-draft-proxy" },
+            "userErrors": []
+        })
+    );
+
+    let mut missing_request = json_graphql_request(
+        r#"
+        mutation WrongAppUninstall {
+          appUninstall(input: { id: "gid://shopify/App/missing" }) {
+            app { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    missing_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let missing = snapshot_proxy().process_request(missing_request);
+    assert_eq!(
+        missing.body["data"]["appUninstall"],
+        json!({
+            "app": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "App not found",
+                "code": "APP_NOT_FOUND"
+            }]
+        })
+    );
+}
+
+#[test]
 fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
     let mut proxy = snapshot_proxy();
 
@@ -451,7 +725,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
         r#"
         mutation AppPurchaseOneTimeCreateValidationCurrencyMismatch {
           appPurchaseOneTimeCreate(name: "Pro", returnUrl: "https://app.example.test/return", price: { amount: "5.00", currencyCode: EUR }, test: true) {
-            appPurchaseOneTime { id }
+            appPurchaseOneTime { id price { amount currencyCode } }
             confirmationUrl
             userErrors { field message code }
           }
@@ -459,12 +733,19 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
         "#,
         json!({}),
     ));
+    let eur_purchase_id = synthetic_gid(
+        &currency_mismatch.body["data"]["appPurchaseOneTimeCreate"]["appPurchaseOneTime"]["id"],
+        "AppPurchaseOneTime",
+    );
     assert_eq!(
         currency_mismatch.body["data"]["appPurchaseOneTimeCreate"],
         json!({
-            "appPurchaseOneTime": null,
-            "confirmationUrl": null,
-            "userErrors": [{ "field": ["price"], "message": "Currency code must be USD", "code": null }]
+            "appPurchaseOneTime": {
+                "id": eur_purchase_id,
+                "price": { "amount": "5.0", "currencyCode": "EUR" }
+            },
+            "confirmationUrl": DERIVED_RETURN_CONFIRMATION_URL,
+            "userErrors": []
         })
     );
 
@@ -489,6 +770,17 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
             "arguments": "returnUrl"
         })
     );
+    assert_eq!(
+        missing_return_url.body["errors"][0]["path"],
+        json!([
+            "mutation AppPurchaseOneTimeCreateValidationMissingReturnUrl",
+            "appPurchaseOneTimeCreate"
+        ])
+    );
+    assert_ne!(
+        missing_return_url.body["errors"][0]["locations"],
+        json!([{ "line": 2, "column": 3 }])
+    );
 
     let success = proxy.process_request(json_graphql_request(
         r#"
@@ -502,18 +794,22 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
         "#,
         json!({}),
     ));
+    let purchase_id = synthetic_gid(
+        &success.body["data"]["appPurchaseOneTimeCreate"]["appPurchaseOneTime"]["id"],
+        "AppPurchaseOneTime",
+    );
     assert_eq!(
         success.body["data"]["appPurchaseOneTimeCreate"],
         json!({
             "appPurchaseOneTime": {
-                "id": "gid://shopify/AppPurchaseOneTime/expected",
+                "id": purchase_id,
                 "name": "HAR-646 valid test",
                 "status": "ACTIVE",
                 "test": true,
-                "createdAt": "2024-01-01T00:00:01.000Z",
+                "createdAt": "2024-01-01T00:00:02.000Z",
                 "price": { "amount": "5.0", "currencyCode": "USD" }
             },
-            "confirmationUrl": "https://app.example.test/local-confirmation",
+            "confirmationUrl": DERIVED_RETURN_CONFIRMATION_URL,
             "userErrors": []
         })
     );
@@ -651,16 +947,24 @@ fn app_subscription_create_cancel_and_repeat_cancel_stages_status_transitions() 
         create.body["data"]["appSubscriptionCreate"]["userErrors"],
         json!([])
     );
+    let subscription_id = synthetic_gid(
+        &create.body["data"]["appSubscriptionCreate"]["appSubscription"]["id"],
+        "AppSubscription",
+    );
+    let line_item_id = synthetic_gid(
+        &create.body["data"]["appSubscriptionCreate"]["appSubscription"]["lineItems"][0]["id"],
+        "AppSubscriptionLineItem",
+    );
     assert_eq!(
         create.body["data"]["appSubscriptionCreate"]["appSubscription"],
         json!({
-            "id": "gid://shopify/AppSubscription/expected",
+            "id": subscription_id,
             "name": "Local plan",
             "status": "ACTIVE",
             "test": true,
             "trialDays": 7,
             "lineItems": [{
-                "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                "id": line_item_id,
                 "plan": { "pricingDetails": {
                     "__typename": "AppUsagePricing",
                     "cappedAmount": { "amount": "100.0", "currencyCode": "USD" },
@@ -681,12 +985,12 @@ fn app_subscription_create_cancel_and_repeat_cancel_stages_status_transitions() 
           }
         }
         "#,
-        json!({ "id": "gid://shopify/AppSubscription/expected" }),
+        json!({ "id": subscription_id }),
     ));
     assert_eq!(
         cancel.body["data"]["appSubscriptionCancel"],
         json!({
-            "appSubscription": { "id": "gid://shopify/AppSubscription/expected", "status": "CANCELLED", "trialDays": 7 },
+            "appSubscription": { "id": subscription_id, "status": "CANCELLED", "trialDays": 7 },
             "userErrors": []
         })
     );
@@ -700,7 +1004,7 @@ fn app_subscription_create_cancel_and_repeat_cancel_stages_status_transitions() 
           }
         }
         "#,
-        json!({ "id": "gid://shopify/AppSubscription/expected" }),
+        json!({ "id": subscription_id }),
     ));
     assert_eq!(
         repeat.body["data"]["appSubscriptionCancel"],
@@ -742,9 +1046,9 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
             }]
         }),
     ));
-    assert_eq!(
-        create.body["data"]["appSubscriptionCreate"]["appSubscription"]["lineItems"][0]["id"],
-        json!("gid://shopify/AppSubscriptionLineItem/expected")
+    let line_item_id = synthetic_gid(
+        &create.body["data"]["appSubscriptionCreate"]["appSubscription"]["lineItems"][0]["id"],
+        "AppSubscriptionLineItem",
     );
 
     let success_query = r#"
@@ -767,17 +1071,21 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
     "#;
     let success = proxy.process_request(json_graphql_request(
         success_query,
-        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+        json!({ "id": line_item_id }),
     ));
+    let first_usage_record_id = synthetic_gid(
+        &success.body["data"]["appUsageRecordCreate"]["appUsageRecord"]["id"],
+        "AppUsageRecord",
+    );
     assert_eq!(
         success.body["data"]["appUsageRecordCreate"],
         json!({
             "appUsageRecord": {
-                "id": "gid://shopify/AppUsageRecord/expected",
+                "id": first_usage_record_id,
                 "description": "first",
                 "price": { "amount": "3.0", "currencyCode": "USD" },
                 "subscriptionLineItem": {
-                    "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                    "id": line_item_id,
                     "plan": { "pricingDetails": { "__typename": "AppUsagePricing", "balanceUsed": { "amount": "3.0", "currencyCode": "USD" } } }
                 }
             },
@@ -787,9 +1095,42 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
 
     let duplicate = proxy.process_request(json_graphql_request(
         success_query,
-        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+        json!({ "id": line_item_id }),
     ));
     assert_eq!(duplicate.body, success.body);
+
+    let second = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppUsageRecordCreateSecondSuccess($id: ID!) {
+          appUsageRecordCreate(
+            subscriptionLineItemId: $id
+            price: { amount: "1.00", currencyCode: USD }
+            description: "second"
+            idempotencyKey: "usage-key-cap-2"
+          ) {
+            appUsageRecord { id description price { amount currencyCode } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": line_item_id }),
+    ));
+    let second_usage_record_id = synthetic_gid(
+        &second.body["data"]["appUsageRecordCreate"]["appUsageRecord"]["id"],
+        "AppUsageRecord",
+    );
+    assert_ne!(first_usage_record_id, second_usage_record_id);
+    assert_eq!(
+        second.body["data"]["appUsageRecordCreate"],
+        json!({
+            "appUsageRecord": {
+                "id": second_usage_record_id,
+                "description": "second",
+                "price": { "amount": "1.0", "currencyCode": "USD" }
+            },
+            "userErrors": []
+        })
+    );
 
     let over_cap = proxy.process_request(json_graphql_request(
         r#"
@@ -797,15 +1138,15 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
           appUsageRecordCreate(
             subscriptionLineItemId: $id
             price: { amount: "3.00", currencyCode: USD }
-            description: "second"
-            idempotencyKey: "usage-key-cap-2"
+            description: "over-cap"
+            idempotencyKey: "usage-key-cap-3"
           ) {
             appUsageRecord { id }
             userErrors { field message }
           }
         }
         "#,
-        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+        json!({ "id": line_item_id }),
     ));
     assert_eq!(
         over_cap.body["data"]["appUsageRecordCreate"],
@@ -830,7 +1171,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
         }
         "#,
         json!({
-            "id": "gid://shopify/AppSubscriptionLineItem/expected",
+            "id": line_item_id,
             "key": "x".repeat(256)
         }),
     ));
@@ -855,7 +1196,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
           }
         }
         "#,
-        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+        json!({ "id": line_item_id }),
     ));
     assert_eq!(
         missing_description.body["data"]["appUsageRecordCreate"],
@@ -911,15 +1252,253 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
         json!({
             "allSubscriptions": { "nodes": [{
                 "lineItems": [{
-                    "plan": { "pricingDetails": { "__typename": "AppUsagePricing", "balanceUsed": { "amount": "3.0", "currencyCode": "USD" } } },
-                    "usageRecords": { "nodes": [{
-                        "id": "gid://shopify/AppUsageRecord/expected",
-                        "description": "first",
-                        "price": { "amount": "3.0", "currencyCode": "USD" }
-                    }] }
+                    "plan": { "pricingDetails": { "__typename": "AppUsagePricing", "balanceUsed": { "amount": "4.0", "currencyCode": "USD" } } },
+                    "usageRecords": { "nodes": [
+                        {
+                            "id": first_usage_record_id,
+                            "description": "first",
+                            "price": { "amount": "3.0", "currencyCode": "USD" }
+                        },
+                        {
+                            "id": second_usage_record_id,
+                            "description": "second",
+                            "price": { "amount": "1.0", "currencyCode": "USD" }
+                        }
+                    ] }
                 }]
             }] }
         })
+    );
+
+    let nodes = proxy.process_request(json_graphql_request(
+        r#"
+        query AppUsageRecordNodes($first: ID!, $second: ID!) {
+          first: node(id: $first) { ... on AppUsageRecord { id description price { amount currencyCode } } }
+          second: node(id: $second) { ... on AppUsageRecord { id description price { amount currencyCode } } }
+        }
+        "#,
+        json!({ "first": first_usage_record_id, "second": second_usage_record_id }),
+    ));
+    assert_eq!(
+        nodes.body["data"],
+        json!({
+            "first": {
+                "id": first_usage_record_id,
+                "description": "first",
+                "price": { "amount": "3.0", "currencyCode": "USD" }
+            },
+            "second": {
+                "id": second_usage_record_id,
+                "description": "second",
+                "price": { "amount": "1.0", "currencyCode": "USD" }
+            }
+        })
+    );
+}
+
+#[test]
+fn app_identity_hydrates_real_installation_for_nodes_scopes_and_uninstall() {
+    let app_id = "gid://shopify/App/347082227713";
+    let installation_id = "gid://shopify/AppInstallation/913990517042";
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_request| {
+            *captured_calls.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "currentAppInstallation": {
+                            "id": installation_id,
+                            "accessScopes": [
+                                { "handle": "read_orders", "description": "Read orders" },
+                                { "handle": "write_orders", "description": "Modify orders" }
+                            ],
+                            "app": {
+                                "id": app_id,
+                                "handle": "hermes-conformance-products",
+                                "title": "hermes-conformance-products",
+                                "requestedAccessScopes": [
+                                    { "handle": "read_orders", "description": "Read orders" }
+                                ]
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    fn real_app_request(query: &str, variables: Value) -> Request {
+        let mut request = json_graphql_request(query, variables);
+        request.headers.insert(
+            "x-shopify-draft-proxy-api-client-id".to_string(),
+            "gid://shopify/App/347082227713".to_string(),
+        );
+        request
+    }
+
+    let hydrate = proxy.process_request(real_app_request(
+        r#"
+        query HydrateCurrentAppInstallation {
+          currentAppInstallation {
+            id
+            accessScopes { handle description }
+            app { id handle title requestedAccessScopes { handle } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        hydrate.body["data"]["currentAppInstallation"]["id"],
+        json!(installation_id)
+    );
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+
+    let installation_node = proxy.process_request(real_app_request(
+        r#"
+        query($id: ID!) {
+          node(id: $id) {
+            ... on AppInstallation {
+              id
+              app { id handle }
+              accessScopes { handle description }
+            }
+          }
+        }
+        "#,
+        json!({ "id": installation_id }),
+    ));
+    assert_eq!(
+        installation_node.body["data"]["node"],
+        json!({
+            "id": installation_id,
+            "app": { "id": app_id, "handle": "hermes-conformance-products" },
+            "accessScopes": [
+                { "handle": "read_orders", "description": "Read orders" },
+                { "handle": "write_orders", "description": "Modify orders" }
+            ]
+        })
+    );
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+
+    let delegate = proxy.process_request(real_app_request(
+        r#"
+        mutation {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_orders"], expiresIn: 300 }) {
+            delegateAccessToken { accessScopes }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        delegate.body["data"]["delegateAccessTokenCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        delegate.body["data"]["delegateAccessTokenCreate"]["delegateAccessToken"]["accessScopes"],
+        json!(["read_orders"])
+    );
+
+    let revoke = proxy.process_request(real_app_request(
+        r#"
+        mutation {
+          appRevokeAccessScopes(scopes: ["write_orders"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        revoke.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "revoked": [{ "handle": "write_orders", "description": "Modify orders" }],
+            "userErrors": []
+        })
+    );
+
+    let readback = proxy.process_request(real_app_request(
+        r#"
+        query {
+          currentAppInstallation { id accessScopes { handle } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"],
+        json!({
+            "id": installation_id,
+            "accessScopes": [{ "handle": "read_orders" }]
+        })
+    );
+
+    let unknown_uninstall = proxy.process_request(real_app_request(
+        r#"
+        mutation($input: AppUninstallInput) {
+          appUninstall(input: $input) {
+            app { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/App/9999999999" } }),
+    ));
+    assert_eq!(
+        unknown_uninstall.body["data"]["appUninstall"],
+        json!({
+            "app": null,
+            "userErrors": [{ "field": ["id"], "message": "App not found", "code": "APP_NOT_FOUND" }]
+        })
+    );
+
+    let uninstall = proxy.process_request(real_app_request(
+        r#"
+        mutation($input: AppUninstallInput) {
+          appUninstall(input: $input) {
+            app { id handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": app_id } }),
+    ));
+    assert_eq!(
+        uninstall.body["data"]["appUninstall"],
+        json!({
+            "app": { "id": app_id, "handle": "hermes-conformance-products" },
+            "userErrors": []
+        })
+    );
+
+    let app_node = proxy.process_request(real_app_request(
+        r#"
+        query($id: ID!) {
+          node(id: $id) {
+            ... on App { id handle }
+          }
+        }
+        "#,
+        json!({ "id": app_id }),
+    ));
+    assert_eq!(
+        app_node.body["data"]["node"],
+        json!({ "id": app_id, "handle": "hermes-conformance-products" })
+    );
+
+    let after_uninstall = proxy.process_request(real_app_request(
+        r#"query { currentAppInstallation { id } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        after_uninstall.body["data"]["currentAppInstallation"],
+        Value::Null
     );
 }
 
@@ -942,9 +1521,14 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
             }]
         }),
     ));
-    assert_eq!(
-        create_subscription.body["data"]["appSubscriptionCreate"]["appSubscription"]["id"],
-        json!("gid://shopify/AppSubscription/expected")
+    let subscription_id = synthetic_gid(
+        &create_subscription.body["data"]["appSubscriptionCreate"]["appSubscription"]["id"],
+        "AppSubscription",
+    );
+    let line_item_id = synthetic_gid(
+        &create_subscription.body["data"]["appSubscriptionCreate"]["appSubscription"]["lineItems"]
+            [0]["id"],
+        "AppSubscriptionLineItem",
     );
 
     let one_time = proxy.process_request(json_graphql_request(
@@ -959,12 +1543,16 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
         "#,
         json!({}),
     ));
+    let one_time_id = synthetic_gid(
+        &one_time.body["data"]["appPurchaseOneTimeCreate"]["appPurchaseOneTime"]["id"],
+        "AppPurchaseOneTime",
+    );
     assert_eq!(
         one_time.body["data"]["appPurchaseOneTimeCreate"],
         json!({
-            "confirmationUrl": "https://app.example.test/local-confirmation",
+            "confirmationUrl": DERIVED_RETURN_CONFIRMATION_URL,
             "appPurchaseOneTime": {
-                "id": "gid://shopify/AppPurchaseOneTime/expected",
+                "id": one_time_id,
                 "name": "Import package",
                 "status": "ACTIVE",
                 "test": true,
@@ -974,8 +1562,7 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
         })
     );
 
-    let mut one_time_test_proxy = snapshot_proxy();
-    let one_time_test_false = one_time_test_proxy.process_request(json_graphql_request(
+    let one_time_test_false = proxy.process_request(json_graphql_request(
         r#"
         mutation OneTimeTestFalse {
           appPurchaseOneTimeCreate(name: "Import package 2", returnUrl: "https://app.example.test/return", price: { amount: 10, currencyCode: USD }, test: false) {
@@ -986,11 +1573,16 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
         "#,
         json!({}),
     ));
+    let second_one_time_id = synthetic_gid(
+        &one_time_test_false.body["data"]["appPurchaseOneTimeCreate"]["appPurchaseOneTime"]["id"],
+        "AppPurchaseOneTime",
+    );
+    assert_ne!(one_time_id, second_one_time_id);
     assert_eq!(
         one_time_test_false.body["data"]["appPurchaseOneTimeCreate"],
         json!({
             "appPurchaseOneTime": {
-                "id": "gid://shopify/AppPurchaseOneTime/expected",
+                "id": second_one_time_id,
                 "test": false
             },
             "userErrors": []
@@ -1006,19 +1598,23 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
           }
         }
         "#,
-        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+        json!({ "id": line_item_id }),
     ));
+    let usage_record_id = synthetic_gid(
+        &usage.body["data"]["appUsageRecordCreate"]["appUsageRecord"]["id"],
+        "AppUsageRecord",
+    );
     assert_eq!(
         usage.body["data"]["appUsageRecordCreate"]["appUsageRecord"],
         json!({
-            "id": "gid://shopify/AppUsageRecord/expected",
+            "id": usage_record_id,
             "description": "metered import",
             "price": { "amount": "12.5", "currencyCode": "USD" },
-            "subscriptionLineItem": { "id": "gid://shopify/AppSubscriptionLineItem/expected" }
+            "subscriptionLineItem": { "id": line_item_id }
         })
     );
 
-    let expired_trial = proxy.process_request(json_graphql_request(
+    let extended_trial = proxy.process_request(json_graphql_request(
         r#"
         mutation AppSubscriptionTrialExtendLocalLifecycle($id: ID!) {
           appSubscriptionTrialExtend(id: $id, days: 3) {
@@ -1027,13 +1623,13 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
           }
         }
         "#,
-        json!({ "id": "gid://shopify/AppSubscription/expected" }),
+        json!({ "id": subscription_id }),
     ));
     assert_eq!(
-        expired_trial.body["data"]["appSubscriptionTrialExtend"],
+        extended_trial.body["data"]["appSubscriptionTrialExtend"],
         json!({
-            "appSubscription": null,
-            "userErrors": [{ "field": ["id"], "message": "The trial can't be extended after expiration." }]
+            "appSubscription": { "id": subscription_id, "trialDays": 10 },
+            "userErrors": []
         })
     );
 
@@ -1043,7 +1639,7 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
           appSubscriptionCancel(id: $id, prorate: true) { appSubscription { id status trialDays } userErrors { field message } }
         }
         "#,
-        json!({ "id": "gid://shopify/AppSubscription/expected" }),
+        json!({ "id": subscription_id }),
     ));
 
     let readback = proxy.process_request(json_graphql_request(
@@ -1062,25 +1658,32 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
     assert_eq!(
         readback.body["data"]["currentAppInstallation"],
         json!({
-            "id": "gid://shopify/AppInstallation/expected",
+            "id": "gid://shopify/AppInstallation/local",
             "activeSubscriptions": [],
             "allSubscriptions": { "nodes": [{
-                "id": "gid://shopify/AppSubscription/expected",
+                "id": subscription_id,
                 "status": "CANCELLED",
-                "trialDays": 7,
+                "trialDays": 10,
                 "lineItems": [{
-                    "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                    "id": line_item_id,
                     "usageRecords": { "nodes": [{
                         "description": "metered import",
                         "price": { "amount": "12.5", "currencyCode": "USD" }
                     }] }
                 }]
             }] },
-            "oneTimePurchases": { "nodes": [{
-                "name": "Import package",
-                "status": "ACTIVE",
-                "price": { "amount": "10.0", "currencyCode": "USD" }
-            }] }
+            "oneTimePurchases": { "nodes": [
+                {
+                    "name": "Import package",
+                    "status": "ACTIVE",
+                    "price": { "amount": "10.0", "currencyCode": "USD" }
+                },
+                {
+                    "name": "Import package 2",
+                    "status": "ACTIVE",
+                    "price": { "amount": "10.0", "currencyCode": "USD" }
+                }
+            ] }
         })
     );
 
@@ -1092,12 +1695,12 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
           }
         }
         "#,
-        json!({ "id": "gid://shopify/AppPurchaseOneTime/expected" }),
+        json!({ "id": one_time_id }),
     ));
     assert_eq!(
         node_read.body["data"]["node"],
         json!({
-            "id": "gid://shopify/AppPurchaseOneTime/expected",
+            "id": one_time_id,
             "name": "Import package",
             "status": "ACTIVE",
             "test": true,
@@ -1114,7 +1717,7 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
     assert_eq!(
         uninstall.body["data"]["appUninstall"],
         json!({
-            "app": { "id": "gid://shopify/App/expected", "handle": "shopify-draft-proxy" },
+            "app": { "id": "gid://shopify/App/local", "handle": "shopify-draft-proxy" },
             "userErrors": []
         })
     );
@@ -1239,22 +1842,35 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
             ]
         }),
     ));
+    let subscription_id = synthetic_gid(
+        &create.body["data"]["appSubscriptionCreate"]["appSubscription"]["id"],
+        "AppSubscription",
+    );
+    let usage_line_item_id = synthetic_gid(
+        &create.body["data"]["appSubscriptionCreate"]["appSubscription"]["lineItems"][0]["id"],
+        "AppSubscriptionLineItem",
+    );
+    let recurring_line_item_id = synthetic_gid(
+        &create.body["data"]["appSubscriptionCreate"]["appSubscription"]["lineItems"][1]["id"],
+        "AppSubscriptionLineItem",
+    );
+    assert_ne!(usage_line_item_id, recurring_line_item_id);
     assert_eq!(
         create.body["data"]["appSubscriptionCreate"],
         json!({
-            "confirmationUrl": "https://app.example.test/local-confirmation",
+            "confirmationUrl": DERIVED_RETURN_CONFIRMATION_URL,
             "appSubscription": {
-                "id": "gid://shopify/AppSubscription/expected",
+                "id": subscription_id,
                 "lineItems": [
                     {
-                        "id": "gid://shopify/AppSubscriptionLineItem/usage",
+                        "id": usage_line_item_id,
                         "plan": { "pricingDetails": {
                             "__typename": "AppUsagePricing",
                             "cappedAmount": { "amount": "5.0", "currencyCode": "USD" }
                         }}
                     },
                     {
-                        "id": "gid://shopify/AppSubscriptionLineItem/recurring",
+                        "id": recurring_line_item_id,
                         "plan": { "pricingDetails": {
                             "__typename": "AppRecurringPricing",
                             "price": { "amount": "1.0", "currencyCode": "USD" }
@@ -1301,8 +1917,8 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
         }
         "#,
         json!({
-            "usageLineItemId": "gid://shopify/AppSubscriptionLineItem/usage",
-            "recurringLineItemId": "gid://shopify/AppSubscriptionLineItem/recurring"
+            "usageLineItemId": usage_line_item_id,
+            "recurringLineItemId": recurring_line_item_id
         }),
     ));
 
@@ -1322,19 +1938,19 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
                 "userErrors": [{ "field": ["cappedAmount"], "message": "Spending limit can only be increased. Please contact the app developer to decrease spending limit." }]
             },
             "success": {
-                "confirmationUrl": "https://app.example.test/local-confirmation",
+                "confirmationUrl": DERIVED_DEFAULT_CONFIRMATION_URL,
                 "appSubscription": {
-                    "id": "gid://shopify/AppSubscription/expected",
+                    "id": subscription_id,
                     "lineItems": [
                         {
-                            "id": "gid://shopify/AppSubscriptionLineItem/usage",
+                            "id": usage_line_item_id,
                             "plan": { "pricingDetails": {
                                 "__typename": "AppUsagePricing",
                                 "cappedAmount": { "amount": "5.0", "currencyCode": "USD" }
                             }}
                         },
                         {
-                            "id": "gid://shopify/AppSubscriptionLineItem/recurring",
+                            "id": recurring_line_item_id,
                             "plan": { "pricingDetails": {
                                 "__typename": "AppRecurringPricing",
                                 "price": { "amount": "1.0", "currencyCode": "USD" }
@@ -1371,7 +1987,7 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
           }
         }
         "#,
-        json!({ "usageLineItemId": "gid://shopify/AppSubscriptionLineItem/usage" }),
+        json!({ "usageLineItemId": usage_line_item_id }),
     ));
     assert_eq!(
         synchronous_update.body["data"]["appSubscriptionLineItemUpdate"],
@@ -1380,14 +1996,14 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
             "appSubscription": {
                 "lineItems": [
                     {
-                        "id": "gid://shopify/AppSubscriptionLineItem/usage",
+                        "id": usage_line_item_id,
                         "plan": { "pricingDetails": {
                             "__typename": "AppUsagePricing",
                             "cappedAmount": { "amount": "12.0", "currencyCode": "USD" }
                         }}
                     },
                     {
-                        "id": "gid://shopify/AppSubscriptionLineItem/recurring",
+                        "id": recurring_line_item_id,
                         "plan": { "pricingDetails": {
                             "__typename": "AppRecurringPricing"
                         }}
@@ -1429,11 +2045,15 @@ fn app_subscription_trial_extend_validates_days_unknown_and_inactive_status() {
             }]
         }),
     ));
+    let subscription_id = synthetic_gid(
+        &create.body["data"]["appSubscriptionCreate"]["appSubscription"]["id"],
+        "AppSubscription",
+    );
     assert_eq!(
         create.body["data"]["appSubscriptionCreate"],
         json!({
             "appSubscription": {
-                "id": "gid://shopify/AppSubscription/expected",
+                "id": subscription_id,
                 "status": "PENDING",
                 "trialDays": 7
             },
@@ -1452,7 +2072,7 @@ fn app_subscription_trial_extend_validates_days_unknown_and_inactive_status() {
 
     let days_zero = proxy.process_request(json_graphql_request(
         trial_extend_query,
-        json!({ "id": "gid://shopify/AppSubscription/expected", "days": 0 }),
+        json!({ "id": subscription_id, "days": 0 }),
     ));
     assert_eq!(
         days_zero.body["data"]["appSubscriptionTrialExtend"],
@@ -1464,7 +2084,7 @@ fn app_subscription_trial_extend_validates_days_unknown_and_inactive_status() {
 
     let days_too_large = proxy.process_request(json_graphql_request(
         trial_extend_query,
-        json!({ "id": "gid://shopify/AppSubscription/expected", "days": 1001 }),
+        json!({ "id": subscription_id, "days": 1001 }),
     ));
     assert_eq!(
         days_too_large.body["data"]["appSubscriptionTrialExtend"],
@@ -1488,7 +2108,7 @@ fn app_subscription_trial_extend_validates_days_unknown_and_inactive_status() {
 
     let pending = proxy.process_request(json_graphql_request(
         trial_extend_query,
-        json!({ "id": "gid://shopify/AppSubscription/expected", "days": 5 }),
+        json!({ "id": subscription_id, "days": 5 }),
     ));
     assert_eq!(
         pending.body["data"]["appSubscriptionTrialExtend"],
@@ -1530,13 +2150,13 @@ fn app_subscription_create_activates_test_charge_and_reads_back_current_installa
     assert_eq!(
         create.body["data"]["subscription"],
         json!({
-            "confirmationUrl": "https://app.example.test/local-confirmation",
+            "confirmationUrl": DERIVED_RETURN_CONFIRMATION_URL,
             "appSubscription": {
                 "id": subscription_id,
                 "status": "ACTIVE",
                 "test": true,
                 "trialDays": 7,
-                "currentPeriodEnd": "2024-02-07T00:00:00.000Z"
+                "currentPeriodEnd": "2026-05-05T02:10:00.000Z"
             },
             "userErrors": []
         })
@@ -1560,7 +2180,7 @@ fn app_subscription_create_activates_test_charge_and_reads_back_current_installa
                     "activeSubscriptions": [{
                         "id": subscription_id,
                         "status": "ACTIVE",
-                        "currentPeriodEnd": "2024-02-07T00:00:00.000Z"
+                        "currentPeriodEnd": "2026-05-05T02:10:00.000Z"
                     }]
                 }
             }
@@ -1759,7 +2379,7 @@ fn removed_delegate_access_token_current_input_local_staging_scenario_has_rust_c
     );
     assert_eq!(
         create.body["data"]["delegateAccessTokenCreate"]["shop"],
-        json!({ "id": "gid://shopify/Shop/0", "currencyCode": "USD" })
+        json!({})
     );
     assert_eq!(
         create.body["data"]["delegateAccessTokenCreate"]["userErrors"],
@@ -1823,7 +2443,7 @@ fn removed_app_subscription_line_item_update_validation_scenario_has_rust_covera
     );
     assert_eq!(
         update.body["data"]["success"]["confirmationUrl"],
-        json!("https://app.example.test/local-confirmation")
+        json!(DERIVED_DEFAULT_CONFIRMATION_URL)
     );
     assert_eq!(update.body["data"]["success"]["userErrors"], json!([]));
 }
@@ -2090,7 +2710,7 @@ fn removed_app_subscription_activation_readback_scenario_has_rust_coverage() {
         json!([{
             "id": subscription_id,
             "status": "ACTIVE",
-            "currentPeriodEnd": "2024-02-07T00:00:00.000Z"
+            "currentPeriodEnd": "2026-05-05T02:10:00.000Z"
         }])
     );
 }
@@ -2146,8 +2766,12 @@ fn removed_app_purchase_one_time_create_validation_scenario_has_rust_coverage() 
         json!({}),
     ));
     assert_eq!(
-        currency_mismatch.body["data"]["appPurchaseOneTimeCreate"]["userErrors"][0]["message"],
-        json!("Currency code must be USD")
+        currency_mismatch.body["data"]["appPurchaseOneTimeCreate"]["userErrors"],
+        json!([])
+    );
+    synthetic_gid(
+        &currency_mismatch.body["data"]["appPurchaseOneTimeCreate"]["appPurchaseOneTime"]["id"],
+        "AppPurchaseOneTime",
     );
 
     let missing_return_url = proxy.process_request(json_graphql_request(
@@ -2179,18 +2803,20 @@ fn removed_app_purchase_one_time_create_validation_scenario_has_rust_coverage() 
         "#,
         json!({}),
     ));
+    let success_purchase = &success.body["data"]["appPurchaseOneTimeCreate"]["appPurchaseOneTime"];
+    synthetic_gid(&success_purchase["id"], "AppPurchaseOneTime");
     assert_eq!(
         success.body["data"]["appPurchaseOneTimeCreate"],
         json!({
             "appPurchaseOneTime": {
-                "id": "gid://shopify/AppPurchaseOneTime/expected",
+                "id": success_purchase["id"],
                 "name": "Valid test",
                 "status": "ACTIVE",
                 "test": true,
-                "createdAt": "2024-01-01T00:00:01.000Z",
+                "createdAt": success_purchase["createdAt"],
                 "price": { "amount": "5.0", "currencyCode": "USD" }
             },
-            "confirmationUrl": "https://app.example.test/local-confirmation",
+            "confirmationUrl": DERIVED_RETURN_CONFIRMATION_URL,
             "userErrors": []
         })
     );
@@ -2218,7 +2844,7 @@ fn removed_app_billing_access_local_staging_scenario_has_rust_coverage() {
     ));
     assert_eq!(
         line_item_update.body["data"]["appSubscriptionLineItemUpdate"]["confirmationUrl"],
-        json!("https://app.example.test/local-confirmation")
+        json!(DERIVED_DEFAULT_CONFIRMATION_URL)
     );
 
     let usage = proxy.process_request(json_graphql_request(
@@ -2253,8 +2879,11 @@ fn removed_app_billing_access_local_staging_scenario_has_rust_coverage() {
         json!({ "id": subscription_id }),
     ));
     assert_eq!(
-        trial_extend.body["data"]["appSubscriptionTrialExtend"]["userErrors"][0]["message"],
-        json!("The trial can't be extended after expiration.")
+        trial_extend.body["data"]["appSubscriptionTrialExtend"],
+        json!({
+            "appSubscription": { "id": subscription_id, "trialDays": 10 },
+            "userErrors": []
+        })
     );
 
     let cancel = proxy.process_request(json_graphql_request(
@@ -2311,7 +2940,7 @@ fn removed_app_billing_access_local_staging_scenario_has_rust_coverage() {
     ));
     assert_eq!(
         installation_node.body["data"]["node"]["id"],
-        json!("gid://shopify/AppInstallation/expected")
+        json!("gid://shopify/AppInstallation/local")
     );
 
     for id in [

@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 import { parse as parseGraphql } from 'graphql';
 import { describe, expect, it } from 'vitest';
@@ -20,6 +20,7 @@ const appsParitySpecPrefix = 'config/parity-specs/apps/';
 const descriptorCassetteQueryPattern =
   /^\s*(?:hand-synthesized|sha:|cassette-backed|recorded by scripts|local-runtime)/iu;
 const descriptorLikeUpstreamQuery = /(?:hand-synthesized|sha:|cassette-backed|recorded by scripts|local-runtime)/u;
+const removedRuntimeTestExtension = String.fromCharCode(46, 103, 108, 101, 97, 109);
 
 function readJson<T>(relativePath: string): T {
   return JSON.parse(readFileSync(resolve(repoRoot, relativePath), 'utf8')) as T;
@@ -32,14 +33,19 @@ function listJsonFiles(relativeDirectory: string): string[] {
   }
 
   return readdirSync(absoluteDirectory, { withFileTypes: true }).flatMap((entry) => {
-    const absoluteEntryPath = resolve(absoluteDirectory, entry.name);
-    const relativeEntryPath = relative(repoRoot, absoluteEntryPath);
+    const relativePath = `${relativeDirectory}/${entry.name}`;
     if (entry.isDirectory()) {
-      return listJsonFiles(relativeEntryPath);
+      return listJsonFiles(relativePath);
     }
 
-    return entry.isFile() && entry.name.endsWith('.json') ? [relativeEntryPath] : [];
+    return entry.isFile() && entry.name.endsWith('.json') ? [relativePath] : [];
   });
+}
+
+function getRecordProperty(value: unknown, key: string): unknown {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)[key]
+    : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -152,6 +158,11 @@ describe('conformance scenario discovery', () => {
       }
       if (paritySpec.proxyRequest?.variablesPath) {
         expect(existsSync(resolve(repoRoot, paritySpec.proxyRequest.variablesPath))).toBe(true);
+      }
+      for (const runtimeTestFile of paritySpec.runtimeTestFiles ?? []) {
+        expect(runtimeTestFile.endsWith(removedRuntimeTestExtension), `${runtimeTestFile} should be current`).toBe(
+          false,
+        );
       }
 
       if (scenario.status === 'captured' && paritySpec.comparisonMode === 'captured-fixture') {
@@ -336,6 +347,51 @@ describe('conformance scenario discovery', () => {
         true,
       );
     }
+  });
+
+  it('keeps orders parity evidence out of local-runtime and descriptor cassettes', () => {
+    const specsWithLocalRuntimeOrdersCapture = listJsonFiles('config/parity-specs')
+      .map((paritySpecPath) => {
+        const spec = readJson<ParitySpec>(paritySpecPath);
+        const localRuntimeCaptureFiles = (spec.liveCaptureFiles ?? []).filter(
+          (captureFile) =>
+            captureFile.startsWith('fixtures/conformance/local-runtime/') && captureFile.includes('/orders/'),
+        );
+        return localRuntimeCaptureFiles.length > 0 ? { paritySpecPath, localRuntimeCaptureFiles } : null;
+      })
+      .filter((entry): entry is { paritySpecPath: string; localRuntimeCaptureFiles: string[] } => entry !== null);
+
+    expect(specsWithLocalRuntimeOrdersCapture).toEqual([]);
+
+    const descriptorPattern = /^(?:hand-synthesized|sha:|cassette-backed|recorded by scripts\/)/u;
+    const badOrderCassetteQueries = listJsonFiles('fixtures/conformance')
+      .filter((fixturePath) => fixturePath.includes('/orders/'))
+      .flatMap((fixturePath) => {
+        const fixture = readJson<Record<string, unknown>>(fixturePath);
+        const upstreamCalls = getRecordProperty(fixture, 'upstreamCalls');
+        if (!Array.isArray(upstreamCalls)) {
+          return [];
+        }
+
+        return upstreamCalls.flatMap((call, index) => {
+          const query = getRecordProperty(call, 'query');
+          if (typeof query !== 'string' || query.trim().length === 0) {
+            return [`${fixturePath}: upstreamCalls[${index}].query is empty or missing`];
+          }
+          if (descriptorPattern.test(query)) {
+            return [`${fixturePath}: upstreamCalls[${index}].query is a descriptor: ${query}`];
+          }
+          try {
+            parseGraphql(query);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return [`${fixturePath}: upstreamCalls[${index}].query is not valid GraphQL: ${message}`];
+          }
+          return [];
+        });
+      });
+
+    expect(badOrderCassetteQueries).toEqual([]);
   });
 
   it('keeps online-store captured parity evidence backed by live Shopify fixture paths', () => {

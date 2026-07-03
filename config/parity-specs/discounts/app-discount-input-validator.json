@@ -11,7 +11,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/app-discount-input-validator.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/discounts_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/discounts/app-discount-input-validator-setup.graphql",
     "variablesCapturePath": "$.setup.request.variables",

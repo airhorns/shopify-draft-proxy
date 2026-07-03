@@ -74,12 +74,15 @@
       "unknownGateway": {
         "data": {
           "draftOrderComplete": {
-            "draftOrder": null,
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/2",
+              "status": "OPEN",
+              "order": null
+            },
             "userErrors": [
               {
-                "field": ["paymentGatewayId"],
-                "message": "payment_gateway_not_found",
-                "code": "INVALID"
+                "field": null,
+                "message": "Invalid payment gateway"
               }
             ]
           }

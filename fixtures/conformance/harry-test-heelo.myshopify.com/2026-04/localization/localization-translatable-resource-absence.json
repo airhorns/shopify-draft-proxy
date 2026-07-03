@@ -1,0 +1,103 @@
+{
+  "scenarioId": "localization-translatable-resource-absence",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-07-03T16:41:40.627Z",
+  "read": {
+    "request": {
+      "variables": {
+        "first": 5,
+        "resourceType": "ARTICLE",
+        "resourceIds": ["gid://shopify/Product/1"],
+        "missingResourceId": "gid://shopify/Product/1"
+      }
+    },
+    "response": {
+      "data": {
+        "resources": {
+          "nodes": [],
+          "edges": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        },
+        "byIds": {
+          "nodes": [],
+          "edges": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        },
+        "missing": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "LocalizationTranslatableResourceAbsence",
+      "variables": {
+        "first": 5,
+        "resourceType": "ARTICLE",
+        "resourceIds": ["gid://shopify/Product/1"],
+        "missingResourceId": "gid://shopify/Product/1"
+      },
+      "query": "query LocalizationTranslatableResourceAbsence(\n  $first: Int!\n  $resourceType: TranslatableResourceType!\n  $resourceIds: [ID!]!\n  $missingResourceId: ID!\n) {\n  resources: translatableResources(first: $first, resourceType: $resourceType) {\n    nodes {\n      resourceId\n    }\n    edges {\n      cursor\n      node {\n        resourceId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  byIds: translatableResourcesByIds(first: $first, resourceIds: $resourceIds) {\n    nodes {\n      resourceId\n    }\n    edges {\n      cursor\n      node {\n        resourceId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  missing: translatableResource(resourceId: $missingResourceId) {\n    resourceId\n    translatableContent {\n      key\n      value\n      digest\n      locale\n      type\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "resources": {
+              "nodes": [],
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "byIds": {
+              "nodes": [],
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "missing": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

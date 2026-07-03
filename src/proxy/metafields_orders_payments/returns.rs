@@ -37,6 +37,14 @@ fn return_already_declined_error() -> Value {
     )
 }
 
+fn return_user_error_null_field(message: &str, code: Option<&str>) -> Value {
+    json!({
+        "field": Value::Null,
+        "message": message,
+        "code": code
+    })
+}
+
 fn blank_return_line_string(value: Option<String>) -> bool {
     value.as_deref().is_none_or(|raw| raw.trim().is_empty())
 }
@@ -474,8 +482,13 @@ impl DraftProxy {
                     let remaining = (available - already).max(0);
                     if quantity <= 0 || quantity > remaining {
                         user_errors.push(user_error(
-                            ["returnLineItems", &index.to_string(), "quantity"],
-                            "Quantity is not available for return.",
+                            [
+                                input_name,
+                                "returnLineItems",
+                                &index.to_string(),
+                                "quantity",
+                            ],
+                            "Return line item has an invalid quantity.",
                             Some("INVALID"),
                         ));
                     } else {
@@ -788,10 +801,15 @@ impl DraftProxy {
                     let current = nodes[position]["quantity"].as_i64().unwrap_or(0);
                     let processed = nodes[position]["processedQuantity"].as_i64().unwrap_or(0);
                     let removable = current - processed;
-                    if quantity <= 0 || quantity > removable {
+                    if quantity <= 0 {
+                        user_errors.push(return_user_error_null_field(
+                            "Quantity must be greater than 0",
+                            Some("GREATER_THAN"),
+                        ));
+                    } else if quantity > removable {
                         user_errors.push(user_error(
                             ["returnLineItems", &index.to_string(), "quantity"],
-                            "Quantity is not removable from return.",
+                            "Return line item has an invalid quantity.",
                             Some("INVALID"),
                         ));
                     } else {

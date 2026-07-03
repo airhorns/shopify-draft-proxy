@@ -343,7 +343,7 @@ function buildSpecBase(args: {
     scenarioStatus: 'captured',
     assertionKinds: ['payload-shape', 'user-errors-parity', 'downstream-read-parity'],
     liveCaptureFiles: [args.fixturePath],
-    runtimeTestFiles: ['test/parity_test.gleam', 'test/shopify_draft_proxy/proxy/products_mutation_test.gleam'],
+    runtimeTestFiles: ['tests/graphql_routes/products_saved_searches.rs'],
     proxyRequest: {
       documentPath: args.requestPath,
       apiVersion,
@@ -430,7 +430,7 @@ function collectionsToJoinSpec(): Record<string, unknown> {
     scenarioStatus: 'captured',
     assertionKinds: ['payload-shape', 'user-errors-parity', 'downstream-read-parity'],
     liveCaptureFiles: [collectionsToJoinFixturePath],
-    runtimeTestFiles: ['test/parity_test.gleam', 'test/shopify_draft_proxy/proxy/products_mutation_test.gleam'],
+    runtimeTestFiles: ['tests/graphql_routes/products_saved_searches.rs'],
     proxyRequest: {
       documentPath: collectionCreateDocumentPath,
       apiVersion,

@@ -163,10 +163,22 @@ try {
       productPublications: [{ publicationId: 'gid://shopify/Publication/999999999999' }],
     },
   });
+  cases['unknownPublicationNonSentinel'] = await captureCase({
+    input: {
+      id: productId,
+      productPublications: [{ publicationId: 'gid://shopify/Publication/123456789123' }],
+    },
+  });
   cases['unknownChannel'] = await captureCase({
     input: {
       id: productId,
       productPublications: [{ channelId: 'gid://shopify/Channel/999999999999' }],
+    },
+  });
+  cases['unknownChannelNonSentinel'] = await captureCase({
+    input: {
+      id: productId,
+      productPublications: [{ channelId: 'gid://shopify/Channel/123456789123' }],
     },
   });
 
@@ -217,6 +229,7 @@ await writeFile(
         'Live Admin API accepted empty productPublications arrays with userErrors: [] for productPublish on this store/API version.',
         'Live Admin API returned top-level INVALID_VARIABLE for omitted variable productPublications.',
         'Live Admin API exposes UserError field/message only on ProductPublishPayload.userErrors for this store/API version.',
+        'Unknown publication/channel targets use the same userError shape for non-sentinel GIDs as for the original high-number fixture GIDs.',
       ],
       upstreamCalls: [
         {

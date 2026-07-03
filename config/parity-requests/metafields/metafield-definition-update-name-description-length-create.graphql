@@ -1,0 +1,16 @@
+mutation MetafieldDefinitionUpdateNameDescriptionLengthCreate($definition: MetafieldDefinitionInput!) {
+  metafieldDefinitionCreate(definition: $definition) {
+    createdDefinition {
+      id
+      namespace
+      key
+      name
+      description
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

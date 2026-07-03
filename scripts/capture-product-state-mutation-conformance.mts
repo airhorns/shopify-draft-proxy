@@ -15,7 +15,7 @@ const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, api
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-state-mutation-conformance-scope-blocker.md');
-const tagSearchIndexWaitMs = 10_000;
+const tagSearchIndexWaitMs = Number(process.env.SHOPIFY_CONFORMANCE_SEARCH_INDEX_WAIT_MS ?? '60000');
 const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
@@ -34,7 +34,7 @@ async function runGraphqlAllowErrors(query, variables = {}) {
 }
 
 const taggableProductHydrateQuery =
-  '\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n    }\n  }\n}';
+  '\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      availablePublicationsCount { count precision }\n      resourcePublicationsCount { count precision }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n      publications(first: 10) { nodes { isPublished publishDate product { id } } }\n    }\n  }\n}';
 
 async function captureProductHydrateUpstreamCall(productId) {
   const variables = { ids: [productId] };
@@ -243,9 +243,22 @@ const postStatusReadQuery = `#graphql
       updatedAt
     }
     products(first: 10, query: $query) {
+      edges {
+        cursor
+        node {
+          id
+          status
+        }
+      }
       nodes {
         id
         status
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
       }
     }
     productsCount(query: $query) {
@@ -262,9 +275,22 @@ const postTagsAddReadQuery = `#graphql
       tags
     }
     products(first: 10, query: $query) {
+      edges {
+        cursor
+        node {
+          id
+          tags
+        }
+      }
       nodes {
         id
         tags
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
       }
     }
     productsCount(query: $query) {
@@ -281,15 +307,41 @@ const postTagsRemoveReadQuery = `#graphql
       tags
     }
     remaining: products(first: 10, query: $remainingQuery) {
+      edges {
+        cursor
+        node {
+          id
+          tags
+        }
+      }
       nodes {
         id
         tags
       }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
     }
     removed: products(first: 10, query: $removedQuery) {
+      edges {
+        cursor
+        node {
+          id
+          tags
+        }
+      }
       nodes {
         id
         tags
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
       }
     }
     remainingCount: productsCount(query: $remainingQuery) {
@@ -416,6 +468,8 @@ try {
     query: `status:archived tag:hermes-state-${runId}`,
   };
   const postStatusRead = await runGraphql(postStatusReadQuery, postStatusReadVariables);
+  await sleep(tagSearchIndexWaitMs);
+  const postStatusDelayedRead = await runGraphql(postStatusReadQuery, postStatusReadVariables);
 
   const tagsAddHydrateCall = await captureProductHydrateUpstreamCall(createdProductId);
   tagsAddResponse = await runGraphql(tagsAddMutation, tagsAddVariables);
@@ -435,6 +489,8 @@ try {
     removedQuery: `tag:${uniqueSaleTag}`,
   };
   const postTagsRemoveRead = await runGraphql(postTagsRemoveReadQuery, tagsRemoveDownstreamReadVariables);
+  await sleep(tagSearchIndexWaitMs);
+  const postTagsRemoveDelayedRead = await runGraphql(postTagsRemoveReadQuery, tagsRemoveDownstreamReadVariables);
 
   const tagNormalization = {};
   for (const scenario of tagNormalizationCases) {
@@ -479,6 +535,11 @@ try {
       },
       downstreamReadVariables: postStatusReadVariables,
       downstreamRead: postStatusRead,
+      delayedDownstreamRead: {
+        waitMs: tagSearchIndexWaitMs,
+        variables: postStatusReadVariables,
+        response: postStatusDelayedRead,
+      },
       upstreamCalls: [statusHydrateCall],
     },
     'tags-add-parity.json': {
@@ -504,6 +565,11 @@ try {
       },
       downstreamReadVariables: tagsRemoveDownstreamReadVariables,
       downstreamRead: postTagsRemoveRead,
+      delayedDownstreamRead: {
+        waitMs: tagSearchIndexWaitMs,
+        variables: tagsRemoveDownstreamReadVariables,
+        response: postTagsRemoveDelayedRead,
+      },
       upstreamCalls: [tagsRemoveHydrateCall],
     },
     'tags-normalization-parity.json': {

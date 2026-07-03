@@ -100,11 +100,11 @@ Local staged mutations:
   They do not call upstream Shopify at runtime.
 - Validation branches for unknown orders, unknown fulfillment line items, invalid quantities, and unknown returns return
   local `userErrors` and do not append staged commit-log entries.
-- `return-lifecycle-local-staging` is generic strict parity. The parity replay
-  seeds a fulfilled order graph, then compares `returnCreate`, `returnClose`, `returnReopen`, `returnCancel`,
-  downstream `return(id:)` and `Order.returns` reads, `returnRequest`, and a missing fulfillment-line-item validation
-  branch against an explicit local-runtime fixture. The live reverse-logistics introspection fixture remains schema
-  evidence for root availability and blocked roots; it is not the behavior payload for the strict local lifecycle replay.
+- Return lifecycle staging is covered by Rust runtime tests rather than local-runtime parity evidence. The runtime tests
+  create fulfilled local order graphs, then cover `returnCreate`, `returnClose`, `returnReopen`, `returnCancel`,
+  downstream `return(id:)` and `Order.returns` reads, `returnRequest`, and missing fulfillment-line-item validation. The
+  live reverse-logistics introspection fixture remains schema evidence for root availability and blocked roots; it is not
+  behavior payload evidence for the local lifecycle replay.
 - Executable parity covers `returnApproveRequest`, `returnDeclineRequest`, `removeFromReturn`, `returnProcess`, reverse
   delivery creation/update, reverse fulfillment disposal, and downstream reverse logistics reads. Public 2026-04 evidence
   covers empty `reverseFulfillmentOrderDispose` inputs, custom-line `RESTOCKED` rejection, multiple reverse fulfillment
@@ -112,13 +112,17 @@ Local staged mutations:
   guardrails remain covered by focused runtime tests because the public custom-line capture did not reject those probes.
 - `return-decline-request-validation` covers public-schema `returnDeclineRequest` validation for invalid
   `ReturnDeclineReason` variables and non-public `tmp_notify_customer` payloads, comparing proxy responses against the
-  live `return-decline-request-validation.json` fixture. `return-request-decline-local-staging` covers successful
-  request-to-decline local staging and downstream state.
-- Executable local-runtime parity covers return quantity validation:
-  `config/parity-specs/orders/returnRequest-quantity-cap.json` hydrates an order with an existing `OPEN` return consuming
-  part of the fulfilled quantity and verifies over-cap `returnRequest` and `returnCreate` calls return a quantity userError
-  instead of staging a second return, while `config/parity-specs/orders/removeFromReturn-quantity-validation.json` verifies
-  zero and over-line removal quantities return `INVALID` quantity userErrors.
+  live `return-decline-request-validation.json` fixture. `return-request-decline-local-staging` covers live-backed
+  request-to-decline staging aliases and downstream state with the `returnApprove-decline-state-preconditions.json`
+  fixture.
+- Rust runtime tests cover invalid `returnDeclineRequest` decline reasons and invalid
+  `tmp_notify_customer.email_address` notification payloads against local staged return state. Public Admin GraphQL
+  evidence for the exposed `ReturnDeclineReason` enum and the current public-schema `tmp_notify_customer` boundary is
+  recorded separately in `return-decline-request-validation.json`.
+- Live 2026-04 parity covers return quantity validation: existing `OPEN` returns consuming part of the fulfilled
+  quantity make over-cap `returnRequest` and `returnCreate` calls return `Return line item has an invalid quantity.`
+  with root-specific field paths, while zero and over-line `removeFromReturn` quantities return Shopify's captured
+  `GREATER_THAN`/`INVALID` userError shapes.
 - Executable parity covers request approval, empty reverse-delivery line expansion, `ReverseDeliveryLabelInput.fileUrl`,
   shipping update, reverse-fulfillment disposal, return processing, and downstream reads from staged return and
   reverse-logistics records. Exchange processing, carrier label creation, notification sends, refund transfers, duties,
@@ -145,47 +149,3 @@ Local staged mutations:
   remain local-only boundaries until live success-path captures prove the side effects and cleanup path.
 - `returnApprove` and `returnDecline` are not exposed by live 2025-01 or 2026-04 Admin GraphQL root introspection on the
   current conformance shop.
-
-### Evidence and validation
-
-- Executable parity: `config/parity-specs/orders/return-lifecycle-local-staging.json`
-- Executable parity:
-  `config/parity-specs/orders/return-reverse-logistics-local-staging.json`,
-  `config/parity-specs/orders/return-request-decline-local-staging.json`, and
-  `config/parity-specs/orders/removeFromReturn-local-staging.json`
-- Return decline/request validation parity:
-  `config/parity-specs/orders/return-request-decline-local-staging.json`, backed by
-  `fixtures/conformance/local-runtime/2026-04/orders/return-lifecycle-local-staging.json` and public schema evidence in
-  `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/return-decline-request-validation.json`.
-- Quantity validation parity:
-  `config/parity-specs/orders/returnRequest-quantity-cap.json` and
-  `config/parity-specs/orders/removeFromReturn-quantity-validation.json`
-- `config/parity-specs/orders/return-reverse-logistics-local-staging.json` exercises empty
-  `reverseDeliveryLineItems` replay and `fileUrl` label input normalization.
-  `config/parity-specs/orders/return-reverse-logistics-non-recording-operation-name.json`
-  replays the same store-backed mutation/read flow with unrelated client operation names to guard against
-  document-marker dispatch. It also adds live recorded parity in
-  `config/parity-specs/orders/return-reverse-logistics-recorded.json` backed by
-  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json`; the live
-  recorder creates one two-line return for empty-array expansion and a second two-line return for explicit multi-line
-  input so both reverse delivery payloads are captured against real reverse fulfillment order state.
-- Reverse fulfillment disposal validation parity:
-  `config/parity-specs/orders/return-reverse-logistics-dispose-validation.json`, backed by
-  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-dispose-validation.json`
-  and captured with `scripts/capture-return-reverse-logistics-dispose-validation-conformance.mts`.
-- Return status precondition parity:
-  `config/parity-specs/orders/returnClose-Reopen-Cancel-state-preconditions.json`, backed by
-  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnClose-Reopen-Cancel-state-preconditions.json`.
-- Return approve/decline state-precondition parity:
-  `config/parity-specs/orders/returnApprove-decline-state-preconditions-live.json`, backed by
-  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnApprove-decline-state-preconditions.json`,
-  captures invalid-state and not-found userError shapes for `returnApproveRequest` and `returnDeclineRequest`.
-- Return shipping fee parity:
-  `config/parity-specs/orders/return-shipping-fee-recorded.json`, backed by
-  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-shipping-fee-recorded.json`.
-- Return reason validation parity:
-  `config/parity-specs/orders/return-reason-validation.json`, backed by
-  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reason-validation.json`.
-- No-side-effect schema evidence: live 2025-01 and 2026-04 conformance introspection captured root signatures for
-  `return`, `returnCalculate`, `returnableFulfillment(s)`, `reverseDelivery`, `reverseFulfillmentOrder`, and the listed
-  mutation payloads.
