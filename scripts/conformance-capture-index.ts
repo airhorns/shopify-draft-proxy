@@ -5934,10 +5934,15 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'online-store',
     captureId: 'online-store-content-search',
     scriptPath: 'scripts/capture-online-store-content-search-conformance.ts',
-    purpose: 'Online store article, blog, and page search filter behavior.',
+    purpose: 'Online store article, blog, page, and comment search filter plus connection sort/reverse behavior.',
     requiredAuthScopes: ['read_content', 'write_content'],
-    fixtureOutputs: [`${CAPTURE_ROOT}online-store-content-search-filters.json`],
-    cleanupBehavior: 'Creates disposable article, blog, and page records, then deletes them during cleanup.',
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-content-search-filters.json`,
+      'config/parity-specs/online-store/online-store-content-search-filters.json',
+      'config/parity-requests/online-store/online-store-content-search-filters.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable article, blog, page, and REST comment records, then deletes the articles/page/blog during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
