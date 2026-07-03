@@ -2032,6 +2032,26 @@ fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
         ])
     );
 
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored_state = dump.body;
+    restored_state["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/domain-helper",
+        "myshopifyDomain": "shopify-draft-proxy.local",
+        "primaryDomain": {
+            "id": "gid://shopify/Domain/1000",
+            "host": "shopify-draft-proxy.local",
+            "url": "https://shopify-draft-proxy.local",
+            "sslEnabled": true
+        }
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored_state.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
     let domain = proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr"], "domainId": "gid://shopify/Domain/1000"}}),
@@ -7361,11 +7381,7 @@ fn product_update_unknown_fixture_id_returns_local_user_error_without_replay() {
         delete.body["data"]["productDelete"],
         json!({
             "deletedProductId": null,
-            "shop": {
-                "id": "gid://shopify/Shop/0",
-                "name": "Shopify Draft Proxy",
-                "myshopifyDomain": "shopify-draft-proxy.local"
-            },
+            "shop": {},
             "userErrors": [{
                 "field": ["id"],
                 "message": "Product does not exist"
