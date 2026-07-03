@@ -2791,7 +2791,7 @@ Current local classification:
 - customer-metafield local replay: singular `metafield(namespace:, key:)` and the `metafields` connection are backed by the customer-owned metafield model added for `customerUpdate`
 - hydrate-and-replay candidate: captured nested `addresses` / `addressesV2`, `orders` / `lastOrder`, `events`, and non-empty metafield shapes, but broad non-empty replay still requires normalized state for each sub-resource family
 - staged-overlay capable later: customer-owned addresses once their mutation roots are staged locally
-- seeded/local replay: `customerPaymentMethod(id:, showRevoked:)` and `Customer.paymentMethods(showRevoked:)` now serialize from normalized `customerPaymentMethods` state, including instrument union fragments, revoked filtering, and payment-method-owned `subscriptionContracts` links
+- restored/local replay: `customerPaymentMethod(id:, showRevoked:)` and `Customer.paymentMethods(showRevoked:)` serialize only from normalized `customerPaymentMethods` state, including instrument union fragments, revoked filtering, and payment-method-owned `subscriptionContracts` links
 - deferred: store credit accounts, customer-level subscription contracts, customer statistics, mergeability, and product subscriber status until captured fixture evidence settles access, empty-state, and non-empty shapes
 
 Practical rule for the proxy:
