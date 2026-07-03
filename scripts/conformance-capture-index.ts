@@ -5680,6 +5680,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'segments',
+    captureId: 'segment-name-failure-query-grammar',
+    scriptPath: 'scripts/capture-segment-name-failure-query-grammar-conformance.ts',
+    purpose:
+      'segmentCreate/segmentUpdate validation ordering where Change-level name failures short-circuit CDP query grammar validation while query blank/length errors still aggregate.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-create-name-failure-short-circuits-query-grammar.json`,
+      'config/parity-specs/segments/segment-create-name-failure-short-circuits-query-grammar.json',
+      'config/parity-requests/segments/segment-update-name-query-validation-order.graphql',
+    ],
+    cleanupBehavior:
+      'Uses validation-only segmentCreate requests for name/query failures, creates one disposable segment for segmentUpdate validation ordering, then deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
     captureId: 'segment-name-suffix-and-limit',
     scriptPath: 'scripts/capture-segment-name-suffix-and-limit-conformance.ts',
     purpose:
