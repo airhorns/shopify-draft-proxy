@@ -2115,6 +2115,38 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
+    captureId: 'inventory-default-location-carrier-connection',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-inventory-default-location-carrier-conformance.ts',
+    purpose:
+      'InventoryItems staged readback, explicit order inventory decrement at the real default location, and inventoryShipmentCreate accepting a non-frozen tracking company label.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_inventory',
+      'write_inventory',
+      'read_locations',
+      'write_locations',
+      'write_orders',
+      'read_orders',
+      'write_inventory_shipments',
+      'read_inventory_shipments',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-default-location-carrier-connection.json`,
+      'config/parity-specs/products/inventory-default-location-carrier-connection.json',
+      'config/parity-requests/products/inventory-default-location-item-update.graphql',
+      'config/parity-requests/products/inventory-items-by-query.graphql',
+      'config/parity-requests/products/inventory-default-location-order-create.graphql',
+      'config/parity-requests/products/inventory-default-location-item-read.graphql',
+      'config/parity-requests/products/inventory-shipment-create-carrier.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable tracked products and two disposable locations, records item update/readback, order default-location decrement, transfer ready state, and draft shipment tracking, then cancels/deletes the created order, draft shipment, transfer, products, and locations.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
     captureId: 'inventory-item-mutations',
     scriptPath: 'scripts/capture-inventory-item-mutation-conformance.mts',
     purpose: 'inventoryItemUpdate and product-backed inventory item mutation behavior.',

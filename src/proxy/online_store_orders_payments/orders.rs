@@ -1211,6 +1211,19 @@ pub(in crate::proxy) fn normalize_hydrated_order(order: &mut Value) {
 }
 
 impl DraftProxy {
+    fn order_line_inventory_item_id(
+        &self,
+        line_item: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<String> {
+        resolved_string_field(line_item, "inventoryItemId").or_else(|| {
+            let variant_id = resolved_string_field(line_item, "variantId")?;
+            self.store
+                .product_variant_by_id(&variant_id)
+                .map(|variant| variant.inventory_item.id.clone())
+                .or_else(|| Some(shopify_gid("InventoryItem", resource_id_tail(&variant_id))))
+        })
+    }
+
     pub(in crate::proxy) fn order_create_local_data(
         &mut self,
         request: &Request,
@@ -1558,20 +1571,6 @@ impl DraftProxy {
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,
         )
-    }
-
-    fn order_line_inventory_item_id(
-        &self,
-        line_item: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<String> {
-        resolved_string_field(line_item, "inventoryItemId").or_else(|| {
-            resolved_string_field(line_item, "variantId").map(|variant_id| {
-                self.store
-                    .product_variant_by_id(&variant_id)
-                    .map(|variant| variant.inventory_item.id.clone())
-                    .unwrap_or_else(|| shopify_gid("InventoryItem", resource_id_tail(&variant_id)))
-            })
-        })
     }
 
     pub(super) fn stage_order_lifecycle(
