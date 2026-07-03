@@ -968,17 +968,25 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let expected_kind = discount_kind_for_lifecycle_root(&field.name);
         let activating = field.name.ends_with("Activate");
         let mut record = match self.discount_record(&id).cloned() {
-            Some(record) => record,
+            Some(record) if discount_kind(&record) == expected_kind => record,
+            Some(_) => {
+                return MutationFieldOutcome::unlogged(discount_payload_for_root(
+                    &field.name,
+                    Value::Null,
+                    vec![discount_unknown_id_user_error(&field.name)],
+                ))
+            }
             None => match self.hydrate_discount_record(request, &id) {
                 // Not staged locally: hydrate the discount from upstream so the
                 // transition applies against its real dates/status.
-                Some(record) => record,
+                Some(record) if discount_kind(&record) == expected_kind => record,
                 // A truly-unknown id hydrates to nothing. Activate/deactivate of an
                 // unknown id reports the type-specific "Code/Automatic discount does
                 // not exist." message, the same phrasing delete uses.
-                None => {
+                _ => {
                     return MutationFieldOutcome::unlogged(discount_payload_for_root(
                         &field.name,
                         Value::Null,
@@ -1117,7 +1125,11 @@ impl DraftProxy {
 
     fn discount_delete(&mut self, field: &RootFieldSelection) -> MutationFieldOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let exists = self.discount_record(&id).is_some();
+        let expected_kind = discount_kind_for_lifecycle_root(&field.name);
+        let exists = self
+            .discount_record(&id)
+            .map(|record| discount_kind(record) == expected_kind)
+            .unwrap_or(false);
         if !exists {
             return MutationFieldOutcome::unlogged(discount_delete_payload(
                 &field.name,
@@ -1282,7 +1294,11 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
         let discount_id = resolved_string_field(&field.arguments, "discountId").unwrap_or_default();
-        if self.discount_record(&discount_id).is_none() {
+        if !self
+            .discount_record(&discount_id)
+            .map(discount_record_accepts_redeem_code_bulk_add)
+            .unwrap_or(false)
+        {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
                 "userErrors": [discount_user_error(vec!["discountId"], "Code discount does not exist.", "INVALID")]
@@ -3100,6 +3116,23 @@ fn discount_id(record: &Value) -> &str {
 
 fn discount_kind(record: &Value) -> &str {
     record["kind"].as_str().unwrap_or_default()
+}
+
+fn discount_kind_for_lifecycle_root(root: &str) -> &'static str {
+    if root.starts_with("discountAutomatic") {
+        "automatic"
+    } else {
+        "code"
+    }
+}
+
+fn discount_record_accepts_redeem_code_bulk_add(record: &Value) -> bool {
+    discount_kind(record) == "code"
+        && record
+            .get("typename")
+            .and_then(Value::as_str)
+            .map(|typename| typename != "DiscountCodeApp")
+            .unwrap_or(true)
 }
 
 fn discount_record_codes(record: &Value) -> Vec<String> {
