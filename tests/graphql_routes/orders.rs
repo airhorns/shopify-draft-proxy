@@ -2509,7 +2509,7 @@ fn order_close_and_open_stage_lifecycle_state_and_reads() {
         mutation ClientNamedClose($input: OrderCloseInput!) {
           closeAlias: orderClose(input: $input) {
             order { id closed closedAt updatedAt }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2573,7 +2573,7 @@ fn order_close_and_open_stage_lifecycle_state_and_reads() {
         mutation ClientNamedOpen($input: OrderOpenInput!) {
           openAlias: orderOpen(input: $input) {
             order { id closed closedAt updatedAt }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2647,7 +2647,7 @@ fn order_close_and_open_unknown_ids_return_shopify_user_errors() {
         mutation CloseMissingOrder($input: OrderCloseInput!) {
           orderClose(input: $input) {
             order { id closed closedAt }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2666,7 +2666,7 @@ fn order_close_and_open_unknown_ids_return_shopify_user_errors() {
         mutation OpenMissingOrder($input: OrderOpenInput!) {
           orderOpen(input: $input) {
             order { id closed closedAt }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2685,6 +2685,102 @@ fn order_close_and_open_unknown_ids_return_shopify_user_errors() {
     assert_eq!(log["entries"][0]["operationName"], json!("orderClose"));
     assert_eq!(log["entries"][1]["status"], json!("failed"));
     assert_eq!(log["entries"][1]["operationName"], json!("orderOpen"));
+}
+
+#[test]
+fn order_lifecycle_plain_user_errors_reject_code_selection() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/orderLifecycle-plain-usererror-no-code.graphql"
+        ),
+        serde_json::from_str(include_str!(
+            "../../config/parity-requests/orders/orderLifecycle-plain-usererror-no-code.variables.json"
+        ))
+        .unwrap(),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert!(response.body.get("data").is_none());
+    let errors = response.body["errors"].as_array().unwrap();
+    assert_eq!(errors.len(), 4);
+    for (error, response_key) in errors.iter().zip(["update", "close", "open", "markAsPaid"]) {
+        assert_eq!(
+            error["message"],
+            json!("Field 'code' doesn't exist on type 'UserError'")
+        );
+        assert_eq!(
+            error["path"],
+            json!([
+                "mutation OrderLifecyclePlainUserErrorNoCode",
+                response_key,
+                "userErrors",
+                "code"
+            ])
+        );
+        assert_eq!(
+            error["extensions"],
+            json!({
+                "code": "undefinedField",
+                "typeName": "UserError",
+                "fieldName": "code"
+            })
+        );
+        assert!(error["locations"][0]["line"].as_u64().is_some());
+        assert!(error["locations"][0]["column"].as_u64().is_some());
+    }
+}
+
+#[test]
+fn order_update_and_mark_as_paid_plain_user_errors_omit_codes() {
+    let mut proxy = snapshot_proxy();
+
+    let update_unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateMissingOrder($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Order/999999" } }),
+    ));
+    assert_eq!(
+        update_unknown.body["data"]["orderUpdate"],
+        json!({
+            "order": Value::Null,
+            "userErrors": [{ "field": ["id"], "message": "Order does not exist" }]
+        })
+    );
+    assert!(update_unknown.body["data"]["orderUpdate"]["userErrors"][0]
+        .get("code")
+        .is_none());
+
+    let unknown_mark = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownMarkAsPaid($input: OrderMarkAsPaidInput!) {
+          orderMarkAsPaid(input: $input) {
+            order { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Order/999999" } }),
+    ));
+    assert_eq!(
+        unknown_mark.body["data"]["orderMarkAsPaid"],
+        json!({
+            "order": Value::Null,
+            "userErrors": [{ "field": ["id"], "message": "Order does not exist" }]
+        })
+    );
+    assert!(
+        unknown_mark.body["data"]["orderMarkAsPaid"]["userErrors"][0]
+            .get("code")
+            .is_none()
+    );
 }
 
 #[test]
@@ -7034,7 +7130,7 @@ fn order_mark_as_paid_rejects_unknown_and_non_markable_orders_without_staging() 
         mutation UnknownMarkAsPaid($input: OrderMarkAsPaidInput!) {
           orderMarkAsPaid(input: $input) {
             order { id totalOutstandingSet { presentmentMoney { amount currencyCode } } }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -7104,7 +7200,7 @@ fn order_mark_as_paid_rejects_unknown_and_non_markable_orders_without_staging() 
                 }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#;
@@ -7134,6 +7230,9 @@ fn order_mark_as_paid_rejects_unknown_and_non_markable_orders_without_staging() 
         repeat.body["data"]["orderMarkAsPaid"]["userErrors"][0]["message"],
         json!("Order cannot be marked as paid.")
     );
+    assert!(repeat.body["data"]["orderMarkAsPaid"]["userErrors"][0]
+        .get("code")
+        .is_none());
     assert_eq!(
         repeat.body["data"]["orderMarkAsPaid"]["order"]["transactions"]
             .as_array()
@@ -7184,6 +7283,11 @@ fn order_mark_as_paid_rejects_unknown_and_non_markable_orders_without_staging() 
     assert_eq!(
         cancelled_mark.body["data"]["orderMarkAsPaid"]["userErrors"][0]["message"],
         json!("Order cannot be marked as paid.")
+    );
+    assert!(
+        cancelled_mark.body["data"]["orderMarkAsPaid"]["userErrors"][0]
+            .get("code")
+            .is_none()
     );
 
     let log = log_snapshot(&proxy);

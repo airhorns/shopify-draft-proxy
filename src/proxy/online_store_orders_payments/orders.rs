@@ -190,15 +190,11 @@ pub(in crate::proxy) fn order_customer_id(order: &Value) -> Option<String> {
 }
 
 pub(in crate::proxy) fn order_mark_as_paid_cannot_mark_error() -> Value {
-    payment_user_error(
-        json!(["id"]),
-        "Order cannot be marked as paid.",
-        Some("INVALID"),
-    )
+    payment_user_error(json!(["id"]), "Order cannot be marked as paid.", None)
 }
 
 pub(in crate::proxy) fn order_mark_as_paid_not_found_error() -> Value {
-    payment_user_error(json!(["id"]), "Order does not exist", Some("NOT_FOUND"))
+    payment_user_error(json!(["id"]), "Order does not exist", None)
 }
 
 pub(in crate::proxy) fn order_read_selects_order_edit_existing_fields(
@@ -319,6 +315,10 @@ pub(in crate::proxy) fn order_sort_value(order: &Value, sort_key: &str) -> (Stri
 
 pub(in crate::proxy) fn orders_error(field: &[&str], message: &str, code: &str) -> Value {
     user_error(field, message, Some(code))
+}
+
+pub(in crate::proxy) fn orders_plain_error(field: &[&str], message: &str) -> Value {
+    user_error_omit_code(field, message, None)
 }
 
 pub(in crate::proxy) fn order_create_error(field: Vec<Value>, message: &str, code: &str) -> Value {
@@ -1237,7 +1237,7 @@ impl DraftProxy {
             return Some(selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [orders_error(&["input", "staffMemberId"], "Staff member does not exist", "NOT_FOUND")]
+                    "userErrors": [orders_plain_error(&["input", "staffMemberId"], "Staff member does not exist")]
                 }),
                 &field.selection,
             ));
@@ -1265,7 +1265,7 @@ impl DraftProxy {
             return Some(selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [orders_error(&["id"], "Order does not exist", "NOT_FOUND")]
+                    "userErrors": [orders_plain_error(&["id"], "Order does not exist")]
                 }),
                 &field.selection,
             ));
@@ -2129,7 +2129,7 @@ impl DraftProxy {
                 selected_json(
                     &json!({
                         "order": Value::Null,
-                        "userErrors": [orders_error(&["input", "staffMemberId"], "Staff member does not exist", "NOT_FOUND")]
+                        "userErrors": [orders_plain_error(&["input", "staffMemberId"], "Staff member does not exist")]
                     }),
                     &field.selection,
                 ),
