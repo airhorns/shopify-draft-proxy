@@ -1466,12 +1466,8 @@ impl DraftProxy {
 }
 
 fn resource_feedback_scope_is_explicitly_missing(request: &Request) -> bool {
-    request_header(request, "x-shopify-draft-proxy-access-scopes").is_some_and(|header| {
-        !header
-            .split(',')
-            .map(str::trim)
-            .any(|scope| scope == "write_resource_feedbacks")
-    })
+    request_header(request, "x-shopify-draft-proxy-access-scopes").is_some()
+        && !app_granted_access_scopes(request).contains("write_resource_feedbacks")
 }
 
 fn app_granted_access_scopes(request: &Request) -> BTreeSet<String> {
