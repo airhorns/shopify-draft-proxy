@@ -184,6 +184,212 @@ fn stage_fulfillment_for_event(proxy: &mut DraftProxy) -> (Value, Value) {
     )
 }
 
+fn create_fulfillment_validation_order(proxy: &mut DraftProxy) -> (Value, Vec<Value>) {
+    let create_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateFulfillmentValidationOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              fulfillmentOrders(first: 5) {
+                nodes {
+                  id
+                  lineItems(first: 5) {
+                    nodes { id totalQuantity remainingQuantity }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "fulfillment-validation@example.test",
+                "lineItems": [
+                    {
+                        "title": "Fulfillment validation first line",
+                        "quantity": 2,
+                        "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+                    },
+                    {
+                        "title": "Fulfillment validation second line",
+                        "quantity": 2,
+                        "priceSet": { "shopMoney": { "amount": "18.00", "currencyCode": "USD" } }
+                    }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(create_order.status, 200);
+    assert_eq!(
+        create_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let fulfillment_order =
+        &create_order.body["data"]["orderCreate"]["order"]["fulfillmentOrders"]["nodes"][0];
+    let line_ids = fulfillment_order["lineItems"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|line| line["id"].clone())
+        .collect::<Vec<_>>();
+    (fulfillment_order["id"].clone(), line_ids)
+}
+
+#[test]
+fn fulfillment_create_rejects_non_positive_line_item_quantity_with_indexed_path() {
+    let mut proxy = snapshot_proxy();
+    let (fulfillment_order_id, line_ids) = create_fulfillment_validation_order(&mut proxy);
+
+    for root in ["fulfillmentCreate", "fulfillmentCreateV2"] {
+        for quantity in [0, -1] {
+            let response = proxy.process_request(json_graphql_request(
+                &format!(
+                    r#"
+                    mutation FulfillmentCreateNonPositiveQuantity($fulfillment: FulfillmentInput!) {{
+                      {root}(fulfillment: $fulfillment) {{
+                        fulfillment {{ id }}
+                        userErrors {{ field message }}
+                      }}
+                    }}
+                    "#
+                ),
+                json!({
+                    "fulfillment": {
+                        "lineItemsByFulfillmentOrder": [{
+                            "fulfillmentOrderId": fulfillment_order_id,
+                            "fulfillmentOrderLineItems": [
+                                {
+                                    "id": line_ids[0],
+                                    "quantity": 1
+                                },
+                                {
+                                    "id": line_ids[1],
+                                    "quantity": quantity
+                                }
+                            ]
+                        }]
+                    }
+                }),
+            ));
+
+            assert_eq!(response.status, 200, "{root} quantity {quantity}");
+            assert_eq!(
+                response.body["data"][root]["userErrors"],
+                json!([{
+                    "field": [
+                        "fulfillment",
+                        "lineItemsByFulfillmentOrder",
+                        "0",
+                        "fulfillmentOrderLineItems",
+                        "1",
+                        "quantity"
+                    ],
+                    "message": "Quantity must be greater than 0"
+                }]),
+                "{root} quantity {quantity}"
+            );
+            assert_eq!(
+                response.body["data"][root]["fulfillment"],
+                Value::Null,
+                "{root} quantity {quantity}"
+            );
+        }
+    }
+}
+
+#[test]
+fn fulfillment_create_rejects_missing_fulfillment_order_with_shopify_message() {
+    let mut proxy = snapshot_proxy();
+
+    for root in ["fulfillmentCreate", "fulfillmentCreateV2"] {
+        let response = proxy.process_request(json_graphql_request(
+            &format!(
+                r#"
+                mutation FulfillmentCreateMissingOrder($fulfillment: FulfillmentInput!) {{
+                  {root}(fulfillment: $fulfillment) {{
+                    fulfillment {{ id }}
+                    userErrors {{ field message }}
+                  }}
+                }}
+                "#
+            ),
+            json!({
+                "fulfillment": {
+                    "lineItemsByFulfillmentOrder": [{
+                        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/999999999",
+                        "fulfillmentOrderLineItems": [{
+                            "id": "gid://shopify/FulfillmentOrderLineItem/999999998",
+                            "quantity": 1
+                        }]
+                    }]
+                }
+            }),
+        ));
+
+        assert_eq!(response.status, 200, "{root}");
+        assert_eq!(
+            response.body["data"][root],
+            json!({
+                "fulfillment": null,
+                "userErrors": [{
+                    "field": ["fulfillment"],
+                    "message": "Fulfillment order does not exist."
+                }]
+            }),
+            "{root}"
+        );
+    }
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn fulfillment_create_preserves_over_remaining_quantity_error() {
+    let mut proxy = snapshot_proxy();
+    let (fulfillment_order_id, line_ids) = create_fulfillment_validation_order(&mut proxy);
+
+    for root in ["fulfillmentCreate", "fulfillmentCreateV2"] {
+        let response = proxy.process_request(json_graphql_request(
+            &format!(
+                r#"
+                mutation FulfillmentCreateOverQuantity($fulfillment: FulfillmentInput!) {{
+                  {root}(fulfillment: $fulfillment) {{
+                    fulfillment {{ id }}
+                    userErrors {{ field message }}
+                  }}
+                }}
+                "#
+            ),
+            json!({
+                "fulfillment": {
+                    "lineItemsByFulfillmentOrder": [{
+                        "fulfillmentOrderId": fulfillment_order_id,
+                        "fulfillmentOrderLineItems": [{
+                            "id": line_ids[0],
+                            "quantity": 3
+                        }]
+                    }]
+                }
+            }),
+        ));
+
+        assert_eq!(response.status, 200, "{root}");
+        assert_eq!(
+            response.body["data"][root],
+            json!({
+                "fulfillment": null,
+                "userErrors": [{
+                    "field": ["fulfillment"],
+                    "message": "Invalid fulfillment order line item quantity requested."
+                }]
+            }),
+            "{root}"
+        );
+    }
+}
+
 struct ReturnRemovalSetup {
     order_id: Value,
     return_id: Value,

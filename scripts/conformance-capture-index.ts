@@ -7274,18 +7274,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-create-preconditions-conformance.ts',
     purpose:
-      'fulfillmentCreate cancelled/closed fulfillment order, over-quantity, in-progress, and happy-path public Admin API behavior.',
+      'fulfillmentCreate and fulfillmentCreateV2 missing fulfillment order, non-positive quantity, cancelled/closed fulfillment order, over-quantity, in-progress, and happy-path public Admin API behavior.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}fulfillment-create-preconditions.json`,
       'config/parity-specs/orders/fulfillmentCreate-preconditions.json',
       'config/parity-requests/orders/fulfillmentCreate-preconditions.graphql',
+      'config/parity-requests/orders/fulfillmentCreateV2-preconditions.graphql',
     ],
     cleanupBehavior:
       'Creates disposable test orders, cancels/deletes where possible, and deletes fulfilled orders after capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'Public fulfillmentCreate userErrors expose field/message only; Admin 2026-04 accepts fulfillmentCreate after fulfillmentOrderReportProgress leaves the fulfillment order IN_PROGRESS.',
+      'Public fulfillmentCreate and fulfillmentCreateV2 userErrors expose field/message only; non-positive line-item quantities use indexed quantity paths, and Admin 2026-04 accepts fulfillmentCreate after fulfillmentOrderReportProgress leaves the fulfillment order IN_PROGRESS.',
   },
   {
     domain: 'orders',
