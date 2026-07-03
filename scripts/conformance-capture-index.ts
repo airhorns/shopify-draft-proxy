@@ -3158,6 +3158,33 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-nested-connections',
+    scriptPath: 'scripts/capture-product-nested-connections-conformance.ts',
+    purpose:
+      'Nested Product connection sorting, reverse ordering, cursor windows, and populated product/variant media edges.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-nested-connections.json`,
+      'config/parity-specs/products/product-nested-connections-live-parity.json',
+      'config/parity-requests/products/product-nested-connections-product-create.graphql',
+      'config/parity-requests/products/product-nested-connections-variant-bulk-create.graphql',
+      'config/parity-requests/products/product-nested-connections-collection-create.graphql',
+      'config/parity-requests/products/product-nested-connections-collection-add-products-v2.graphql',
+      'config/parity-requests/products/product-nested-connections-product-create-media.graphql',
+      'config/parity-requests/products/product-nested-connections-product-update-media.graphql',
+      'config/parity-requests/products/product-nested-connections-variant-append-media.graphql',
+      'config/parity-requests/products/product-nested-connections-variant-sort-read.graphql',
+      'config/parity-requests/products/product-nested-connections-collection-sort-read.graphql',
+      'config/parity-requests/products/product-nested-connections-product-media-first.graphql',
+      'config/parity-requests/products/product-nested-connections-product-media-after.graphql',
+      'config/parity-requests/products/product-nested-connections-variant-media-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft product, variants, collections, and product media, then deletes the created product and collections.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-variant-media-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-product-variant-media-validation-conformance.ts',

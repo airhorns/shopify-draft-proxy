@@ -192,6 +192,48 @@ fn create_product_media_for_test(
         .to_string()
 }
 
+fn create_legacy_variant_for_connection_test(
+    proxy: &mut DraftProxy,
+    product_id: &str,
+    title: &str,
+    sku: &str,
+    inventory_policy: &str,
+    inventory_quantity: i64,
+    tracked: bool,
+) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateVariantForConnectionTest($input: ProductVariantInput!) {
+          productVariantCreate(input: $input) {
+            productVariant { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "productId": product_id,
+                "title": title,
+                "sku": sku,
+                "price": "10.00",
+                "inventoryPolicy": inventory_policy,
+                "inventoryQuantity": inventory_quantity,
+                "selectedOptions": [{ "name": "Title", "value": title }],
+                "inventoryItem": { "tracked": tracked }
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productVariantCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["productVariantCreate"]["productVariant"]["id"]
+        .as_str()
+        .expect("created variant id should be present")
+        .to_string()
+}
+
 fn settle_product_media_for_test(proxy: &mut DraftProxy, product_id: &str, media_id: &str) {
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -1200,6 +1242,371 @@ fn product_variants_read_respects_connection_arguments() {
     assert_eq!(
         response.body["data"]["product"]["variants"]["pageInfo"]["hasNextPage"],
         json!(true)
+    );
+}
+
+#[test]
+fn product_variants_connection_honors_sort_keys_and_reverse() {
+    let product_id = "gid://shopify/Product/variant-sort-connection";
+    let mut proxy = snapshot_proxy().with_base_products(vec![seed_product(product_id)]);
+    let zulu_id = create_legacy_variant_for_connection_test(
+        &mut proxy, product_id, "Zulu", "SKU-C", "CONTINUE", 10, true,
+    );
+    let alpha_id = create_legacy_variant_for_connection_test(
+        &mut proxy, product_id, "Alpha", "SKU-A", "DENY", 30, false,
+    );
+    let middle_id = create_legacy_variant_for_connection_test(
+        &mut proxy, product_id, "Middle", "SKU-B", "CONTINUE", 20, true,
+    );
+
+    let reorder = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedVariantPositions($productId: ID!, $positions: [ProductVariantPositionInput!]!) {
+          productVariantsBulkReorder(productId: $productId, positions: $positions) {
+            product { variants(first: 10) { nodes { sku position } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "positions": [
+                { "id": middle_id, "position": 1 },
+                { "id": zulu_id, "position": 2 },
+                { "id": alpha_id, "position": 3 }
+            ]
+        }),
+    ));
+    assert_eq!(reorder.status, 200);
+    assert_eq!(
+        reorder.body["data"]["productVariantsBulkReorder"]["userErrors"],
+        json!([])
+    );
+
+    fn sorted_variant_skus(
+        proxy: &mut DraftProxy,
+        product_id: &str,
+        sort_key: &str,
+        reverse: bool,
+    ) -> Vec<String> {
+        let query = format!(
+            r#"
+            query ProductVariantSortKey {{
+              product(id: "{product_id}") {{
+                variants(first: 10, sortKey: {sort_key}, reverse: {reverse}) {{
+                  nodes {{ sku }}
+                }}
+              }}
+            }}
+            "#
+        );
+        let response = proxy.process_request(json_graphql_request(&query, json!({})));
+        assert_eq!(response.status, 200, "{sort_key} response should be ok");
+        response.body["data"]["product"]["variants"]["nodes"]
+            .as_array()
+            .expect("variants nodes should be an array")
+            .iter()
+            .map(|node| {
+                node["sku"]
+                    .as_str()
+                    .expect("variant sku should be selected")
+                    .to_string()
+            })
+            .collect()
+    }
+
+    for (sort_key, reverse, expected) in [
+        ("POSITION", false, vec!["SKU-B", "SKU-C", "SKU-A"]),
+        ("POSITION", true, vec!["SKU-A", "SKU-C", "SKU-B"]),
+        ("SKU", false, vec!["SKU-A", "SKU-B", "SKU-C"]),
+        ("TITLE", false, vec!["SKU-A", "SKU-B", "SKU-C"]),
+        ("FULL_TITLE", false, vec!["SKU-B", "SKU-C", "SKU-A"]),
+        ("NAME", false, vec!["SKU-A", "SKU-B", "SKU-C"]),
+        ("ID", false, vec!["SKU-C", "SKU-A", "SKU-B"]),
+        ("INVENTORY_QUANTITY", false, vec!["SKU-C", "SKU-B", "SKU-A"]),
+        ("INVENTORY_LEVELS_AVAILABLE", false, Vec::<&str>::new()),
+        (
+            "INVENTORY_MANAGEMENT",
+            false,
+            vec!["SKU-A", "SKU-C", "SKU-B"],
+        ),
+        ("INVENTORY_POLICY", false, vec!["SKU-C", "SKU-B", "SKU-A"]),
+        ("POPULAR", true, vec!["SKU-A", "SKU-C", "SKU-B"]),
+        ("RELEVANCE", true, vec!["SKU-A", "SKU-C", "SKU-B"]),
+    ] {
+        assert_eq!(
+            sorted_variant_skus(&mut proxy, product_id, sort_key, reverse),
+            expected,
+            "{sort_key} reverse={reverse}"
+        );
+    }
+}
+
+#[test]
+fn product_collections_connection_honors_sort_keys_reverse_and_windowing() {
+    let product_id = "gid://shopify/Product/collection-sort-connection";
+    let mut product = seed_product(product_id);
+    product.collections = vec![
+        json!({
+            "id": "gid://shopify/Collection/30",
+            "title": "Zulu",
+            "handle": "zulu",
+            "createdAt": "2024-01-02T00:00:00.000Z"
+        }),
+        json!({
+            "id": "gid://shopify/Collection/10",
+            "title": "Alpha",
+            "handle": "alpha",
+            "createdAt": "2024-01-03T00:00:00.000Z"
+        }),
+        json!({
+            "id": "gid://shopify/Collection/20",
+            "title": "Middle",
+            "handle": "middle",
+            "createdAt": "2024-01-01T00:00:00.000Z"
+        }),
+    ];
+    let mut proxy = snapshot_proxy().with_base_products(vec![product]);
+
+    fn sorted_collection_ids(
+        proxy: &mut DraftProxy,
+        product_id: &str,
+        sort_key: &str,
+        reverse: bool,
+    ) -> Vec<String> {
+        let query = format!(
+            r#"
+            query ProductCollectionSortKey {{
+              product(id: "{product_id}") {{
+                collections(first: 10, sortKey: {sort_key}, reverse: {reverse}) {{
+                  nodes {{ id }}
+                }}
+              }}
+            }}
+            "#
+        );
+        let response = proxy.process_request(json_graphql_request(&query, json!({})));
+        assert_eq!(response.status, 200, "{sort_key} response should be ok");
+        response.body["data"]["product"]["collections"]["nodes"]
+            .as_array()
+            .expect("collection nodes should be an array")
+            .iter()
+            .map(|node| {
+                node["id"]
+                    .as_str()
+                    .expect("collection id should be selected")
+                    .to_string()
+            })
+            .collect()
+    }
+
+    for (sort_key, reverse, expected) in [
+        (
+            "ID",
+            false,
+            vec![
+                "gid://shopify/Collection/10",
+                "gid://shopify/Collection/20",
+                "gid://shopify/Collection/30",
+            ],
+        ),
+        (
+            "TITLE",
+            true,
+            vec![
+                "gid://shopify/Collection/30",
+                "gid://shopify/Collection/20",
+                "gid://shopify/Collection/10",
+            ],
+        ),
+        (
+            "CREATED",
+            false,
+            vec![
+                "gid://shopify/Collection/20",
+                "gid://shopify/Collection/30",
+                "gid://shopify/Collection/10",
+            ],
+        ),
+        (
+            "RELEVANCE",
+            true,
+            vec![
+                "gid://shopify/Collection/30",
+                "gid://shopify/Collection/20",
+                "gid://shopify/Collection/10",
+            ],
+        ),
+    ] {
+        assert_eq!(
+            sorted_collection_ids(&mut proxy, product_id, sort_key, reverse),
+            expected,
+            "{sort_key} reverse={reverse}"
+        );
+    }
+
+    let window = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductCollectionWindow($id: ID!) {
+          product(id: $id) {
+            collections(first: 1, sortKey: ID) {
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(window.status, 200);
+    assert_eq!(
+        window.body["data"]["product"]["collections"]["edges"],
+        json!([{
+            "cursor": "gid://shopify/Collection/10",
+            "node": { "id": "gid://shopify/Collection/10" }
+        }])
+    );
+    assert_eq!(
+        window.body["data"]["product"]["collections"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "gid://shopify/Collection/10",
+            "endCursor": "gid://shopify/Collection/10"
+        })
+    );
+}
+
+#[test]
+fn product_and_variant_media_connections_return_windowed_edges_and_page_info() {
+    let product_id = "gid://shopify/Product/media-connection-window";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport(|_| panic!("media connection reads should use local state"));
+    let front_id = create_product_media_for_test(&mut proxy, product_id, "IMAGE", "Front");
+    let side_id = create_product_media_for_test(&mut proxy, product_id, "IMAGE", "Side");
+    let back_id = create_product_media_for_test(&mut proxy, product_id, "IMAGE", "Back");
+    for media_id in [&front_id, &side_id, &back_id] {
+        settle_product_media_for_test(&mut proxy, product_id, media_id);
+    }
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductMediaFirstPage($id: ID!) {
+          product(id: $id) {
+            media(first: 2, sortKey: POSITION) {
+              edges { cursor node { id alt } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(first_page.status, 200);
+    assert_eq!(
+        first_page.body["data"]["product"]["media"]["edges"],
+        json!([
+            { "cursor": front_id, "node": { "id": front_id, "alt": "Front" } },
+            { "cursor": side_id, "node": { "id": side_id, "alt": "Side" } }
+        ])
+    );
+    assert_eq!(
+        first_page.body["data"]["product"]["media"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": front_id,
+            "endCursor": side_id
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductMediaAfterCursor($id: ID!, $after: String!) {
+          product(id: $id) {
+            media(first: 1, after: $after, sortKey: POSITION) {
+              edges { cursor node { id alt } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({ "id": product_id, "after": front_id }),
+    ));
+    assert_eq!(second_page.status, 200);
+    assert_eq!(
+        second_page.body["data"]["product"]["media"]["edges"],
+        json!([{ "cursor": side_id, "node": { "id": side_id, "alt": "Side" } }])
+    );
+    assert_eq!(
+        second_page.body["data"]["product"]["media"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": true,
+            "startCursor": side_id,
+            "endCursor": side_id
+        })
+    );
+
+    let variant_id = create_legacy_variant_for_connection_test(
+        &mut proxy,
+        product_id,
+        "Media Variant",
+        "MEDIA-VARIANT",
+        "DENY",
+        1,
+        true,
+    );
+    let append = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AttachVariantMedia($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+          productVariantAppendMedia(
+            productId: $productId,
+            variantMedia: $variantMedia
+          ) {
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variantMedia": [{ "variantId": variant_id, "mediaIds": [front_id] }]
+        }),
+    ));
+    assert_eq!(append.status, 200);
+    assert_eq!(
+        append.body["data"]["productVariantAppendMedia"]["userErrors"],
+        json!([])
+    );
+
+    let variant_read = proxy.process_request(json_graphql_request(
+        r#"
+        query VariantMediaZeroWindow($id: ID!) {
+          productVariant(id: $id) {
+            media(first: 0) {
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({ "id": variant_id }),
+    ));
+    assert_eq!(variant_read.status, 200);
+    assert_eq!(
+        variant_read.body["data"]["productVariant"]["media"]["edges"],
+        json!([])
+    );
+    assert_eq!(
+        variant_read.body["data"]["productVariant"]["media"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": Value::Null,
+            "endCursor": Value::Null
+        })
     );
 }
 
