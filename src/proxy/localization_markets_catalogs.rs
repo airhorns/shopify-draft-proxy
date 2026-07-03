@@ -269,19 +269,6 @@ fn catalog_context_type_fields(
     fields
 }
 
-fn catalog_context_driver_from_create_input(
-    context: &BTreeMap<String, ResolvedValue>,
-) -> CatalogContextDriver {
-    resolved_string_field(context, "driverType")
-        .and_then(|driver| CatalogContextDriver::from_type_name(&driver))
-        .or_else(|| {
-            catalog_context_type_fields(context)
-                .first()
-                .map(|(driver, _)| *driver)
-        })
-        .unwrap_or(CatalogContextDriver::Market)
-}
-
 fn company_location_ids_from_context(context: &BTreeMap<String, ResolvedValue>) -> Vec<String> {
     let mut ids = list_string_field(context, "companyLocationIds");
     for id in list_string_field(context, "locationIds") {
@@ -1367,21 +1354,16 @@ impl DraftProxy {
                 "INVALID",
             );
         };
-        if catalog_context_type_fields(&context)
-            .iter()
-            .map(|(driver, _)| *driver)
-            .collect::<BTreeSet<_>>()
-            .len()
-            > 1
-        {
+        let context_type_fields = catalog_context_type_fields(&context);
+        if context_type_fields.len() != 1 {
             return selected_catalog_error(
                 field,
                 vec!["input", "context"],
-                "Must provide exactly one catalog context type.",
+                "Must provide exactly one context type.",
                 "MUST_PROVIDE_EXACTLY_ONE_CONTEXT_TYPE",
             );
         }
-        let driver_type = catalog_context_driver_from_create_input(&context);
+        let driver_type = context_type_fields[0].0;
         let market_ids = list_string_field(&context, "marketIds");
         let company_location_ids = company_location_ids_from_context(&context);
         let country_codes = country_codes_from_context(&context);
