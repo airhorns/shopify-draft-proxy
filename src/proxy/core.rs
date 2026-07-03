@@ -160,6 +160,9 @@ impl DraftProxy {
                 "productVariants": product_variant_state_map_json(&self.store.staged.product_variants.records),
                 "productVariantOrder": self.store.staged.product_variants.order,
                 "deletedProductVariantIds": self.store.staged.product_variants.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "productFeeds": self.store.staged.product_feeds.records.clone(),
+                "productFeedOrder": self.store.staged.product_feeds.order,
+                "deletedProductFeedIds": self.store.staged.product_feeds.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "collections": self.store.staged.collections.records.clone(),
                 "deletedCollectionIds": self.store.staged.collections.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "collectionJobs": self.store.staged.collection_jobs.clone(),
@@ -760,6 +763,13 @@ impl DraftProxy {
             string_array_from_json(&state["stagedState"]["deletedProductVariantIds"])
                 .into_iter()
                 .collect(),
+        );
+        replace_staged_value_records(
+            &mut self.store.staged.product_feeds,
+            &state["stagedState"],
+            "productFeeds",
+            Some("productFeedOrder"),
+            Some("deletedProductFeedIds"),
         );
         replace_staged_value_records(
             &mut self.store.staged.collections,
