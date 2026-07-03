@@ -1,7 +1,7 @@
 {
   "mutation": {
     "variables": {
-      "productId": "gid://shopify/Product/10220355289394",
+      "productId": "gid://shopify/Product/10230804119858",
       "media": [
         {
           "mediaContentType": "IMAGE",
@@ -15,7 +15,7 @@
         "productCreateMedia": {
           "media": [
             {
-              "id": "gid://shopify/MediaImage/43929165365554",
+              "id": "gid://shopify/MediaImage/43991145840946",
               "alt": "Front view",
               "mediaContentType": "IMAGE",
               "status": "UPLOADED",
@@ -27,11 +27,11 @@
           ],
           "mediaUserErrors": [],
           "product": {
-            "id": "gid://shopify/Product/10220355289394",
+            "id": "gid://shopify/Product/10230804119858",
             "media": {
               "nodes": [
                 {
-                  "id": "gid://shopify/MediaImage/43929165365554",
+                  "id": "gid://shopify/MediaImage/43991145840946",
                   "alt": "Front view",
                   "mediaContentType": "IMAGE",
                   "status": "UPLOADED",
@@ -51,7 +51,7 @@
           "actualQueryCost": 28,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1968,
+            "currentlyAvailable": 1966,
             "restoreRate": 100
           }
         }
@@ -61,11 +61,11 @@
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10220355289394",
+        "id": "gid://shopify/Product/10230804119858",
         "media": {
           "nodes": [
             {
-              "id": "gid://shopify/MediaImage/43929165365554",
+              "id": "gid://shopify/MediaImage/43991145840946",
               "alt": "Front view",
               "mediaContentType": "IMAGE",
               "status": "PROCESSING",
@@ -84,7 +84,7 @@
         "actualQueryCost": 6,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1987,
+          "currentlyAvailable": 1984,
           "restoreRate": 100
         }
       }
@@ -93,21 +93,21 @@
   "readyRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10220355289394",
+        "id": "gid://shopify/Product/10230804119858",
         "media": {
           "nodes": [
             {
-              "id": "gid://shopify/MediaImage/43929165365554",
+              "id": "gid://shopify/MediaImage/43991145840946",
               "alt": "Front view",
               "mediaContentType": "IMAGE",
               "status": "READY",
               "preview": {
                 "image": {
-                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_80d4c899-eeb2-4b39-b486-aa09d07ccac7.png?v=1782276743"
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_75ae795b-f577-4290-a4aa-af03ad12a332.png?v=1783088751"
                 }
               },
               "image": {
-                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_80d4c899-eeb2-4b39-b486-aa09d07ccac7.png?v=1782276743"
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_75ae795b-f577-4290-a4aa-af03ad12a332.png?v=1783088751"
               }
             }
           ]

@@ -280,6 +280,7 @@ function buildProductSetVariables(runId, locations) {
       status: 'DRAFT',
       vendor: 'HERMES',
       productType: 'SNOWBOARD',
+      category: 'gid://shopify/TaxonomyCategory/aa-1-1',
       tags: ['conformance', 'product-graph', runId],
       productOptions: [
         {
