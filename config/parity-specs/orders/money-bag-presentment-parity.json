@@ -1,101 +1,143 @@
 {
   "scenarioId": "money-bag-presentment-parity",
-  "operationNames": ["orderCreate", "orderMarkAsPaid", "refundCreate", "orderEditBegin", "orderEditCommit"],
+  "operationNames": ["orderCreate"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["runtime-staging", "selected-fields", "downstream-read-parity", "no-upstream-passthrough"],
-  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-05/orders/money-bag-presentment-parity.json"],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "assertionKinds": ["money-math-parity", "payload-shape", "state-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-create-math-matrix.json"
+  ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/orders/money-bag-presentment-single-create.graphql",
-    "variablesCapturePath": "$.singleCurrencyCreate.variables"
+    "documentPath": "config/parity-requests/orders/orderCreate-math-matrix.graphql",
+    "variablesCapturePath": "$.cases.pendingNoTax.variables",
+    "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable local-runtime parity coverage for HAR-564 MoneyBag presentment behavior. The scenario stages a single-currency order, a multi-currency order, orderMarkAsPaid, refundCreate, and orderEditBegin/orderEditCommit locally, with strict selected MoneyBag comparisons and an empty upstream cassette to prove supported mutations are not passed through at runtime.",
+  "notes": "Live 2025-01 orderCreate math matrix covering pending custom-line subtotal, paid tax+shipping totals, fixed-discount totals, authorization capturable/outstanding amounts, and presentment MoneyBag propagation. Volatile order, line item, and transaction IDs are not selected; all selected money/status slices compare strictly. Replacement for retired synthetic/local-runtime orders evidence. This scenario ID is preserved for continuity but now reuses the real Shopify capture and proxy request contract from config/parity-specs/orders/orderCreate-math-matrix.json (order-create-math-matrix); the old local-runtime cassette is no longer parity evidence.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "single-currency-create",
-        "capturePath": "$.singleCurrencyCreate.expected",
-        "proxyPath": "$"
+        "name": "pending-no-tax",
+        "capturePath": "$.cases.pendingNoTax.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "selectedPaths": [
+          "$.userErrors",
+          "$.order.displayFinancialStatus",
+          "$.order.displayFulfillmentStatus",
+          "$.order.paymentGatewayNames",
+          "$.order.subtotalPriceSet",
+          "$.order.currentSubtotalPriceSet",
+          "$.order.totalShippingPriceSet",
+          "$.order.currentTotalTaxSet",
+          "$.order.totalTaxSet",
+          "$.order.currentTotalDiscountsSet",
+          "$.order.totalDiscountsSet",
+          "$.order.currentTotalPriceSet",
+          "$.order.totalPriceSet",
+          "$.order.totalOutstandingSet",
+          "$.order.totalReceivedSet",
+          "$.order.totalCapturableSet",
+          "$.order.capturable",
+          "$.order.discountCodes",
+          "$.order.lineItems.nodes[0].title",
+          "$.order.lineItems.nodes[0].quantity",
+          "$.order.lineItems.nodes[0].sku",
+          "$.order.lineItems.nodes[0].originalUnitPriceSet",
+          "$.order.lineItems.nodes[0].taxLines"
+        ]
       },
       {
-        "name": "multi-currency-create",
-        "capturePath": "$.multiCurrencyCreate.expected",
-        "proxyPath": "$",
+        "name": "paid-tax-and-shipping",
+        "capturePath": "$.cases.paidTaxShipping.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/money-bag-presentment-multi-create.graphql",
-          "variablesCapturePath": "$.multiCurrencyCreate.variables"
-        }
+          "documentPath": "config/parity-requests/orders/orderCreate-math-matrix.graphql",
+          "variablesCapturePath": "$.cases.paidTaxShipping.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.userErrors",
+          "$.order.displayFinancialStatus",
+          "$.order.paymentGatewayNames",
+          "$.order.currentTotalPriceSet",
+          "$.order.totalOutstandingSet",
+          "$.order.totalReceivedSet",
+          "$.order.totalShippingPriceSet",
+          "$.order.totalTaxSet",
+          "$.order.shippingLines.nodes[0].originalPriceSet",
+          "$.order.shippingLines.nodes[0].taxLines",
+          "$.order.lineItems.nodes[0].originalUnitPriceSet",
+          "$.order.lineItems.nodes[0].taxLines",
+          "$.order.transactions[0].kind",
+          "$.order.transactions[0].status",
+          "$.order.transactions[0].gateway",
+          "$.order.transactions[0].amountSet"
+        ]
       },
       {
-        "name": "mark-as-paid-money-bag",
-        "capturePath": "$.markAsPaid.expected",
-        "proxyPath": "$",
+        "name": "fixed-discount-response",
+        "capturePath": "$.cases.fixedDiscount.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/money-bag-presentment-mark-as-paid.graphql",
-          "variables": {
-            "input": {
-              "id": {
-                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
-              }
-            }
-          }
-        }
+          "documentPath": "config/parity-requests/orders/orderCreate-math-matrix.graphql",
+          "variablesCapturePath": "$.cases.fixedDiscount.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.userErrors",
+          "$.order.displayFinancialStatus",
+          "$.order.currentTotalPriceSet",
+          "$.order.totalDiscountsSet",
+          "$.order.currentTotalDiscountsSet",
+          "$.order.discountCodes",
+          "$.order.totalTaxSet",
+          "$.order.totalShippingPriceSet"
+        ]
       },
       {
-        "name": "refund-money-bag",
-        "capturePath": "$.refund.expected",
-        "proxyPath": "$",
+        "name": "authorization-capturable",
+        "capturePath": "$.cases.authorization.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/money-bag-presentment-refund.graphql",
-          "variables": {
-            "input": {
-              "orderId": {
-                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
-              },
-              "allowOverRefunding": true,
-              "transactions": [
-                {
-                  "amount": "5.00",
-                  "gateway": "manual",
-                  "kind": "REFUND",
-                  "orderId": {
-                    "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
-                  }
-                }
-              ]
-            }
-          }
-        }
+          "documentPath": "config/parity-requests/orders/orderCreate-math-matrix.graphql",
+          "variablesCapturePath": "$.cases.authorization.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.userErrors",
+          "$.order.displayFinancialStatus",
+          "$.order.paymentGatewayNames",
+          "$.order.currentTotalPriceSet",
+          "$.order.totalOutstandingSet",
+          "$.order.totalReceivedSet",
+          "$.order.totalCapturableSet",
+          "$.order.capturable",
+          "$.order.transactions[0].kind",
+          "$.order.transactions[0].status",
+          "$.order.transactions[0].gateway",
+          "$.order.transactions[0].amountSet"
+        ]
       },
       {
-        "name": "order-edit-begin-money-bag",
-        "capturePath": "$.orderEditBegin.expected.data.orderEditBegin.calculatedOrder.totalPriceSet",
-        "proxyPath": "$.data.orderEditBegin.calculatedOrder.totalPriceSet",
+        "name": "presentment-money",
+        "capturePath": "$.cases.presentmentMoney.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/money-bag-presentment-order-edit-begin.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
-            }
-          }
-        }
-      },
-      {
-        "name": "order-edit-commit-money-bag",
-        "capturePath": "$.orderEditCommit.expected",
-        "proxyPath": "$",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/money-bag-presentment-order-edit-commit.graphql",
-          "variables": {
-            "id": {
-              "fromProxyResponse": "order-edit-begin-money-bag",
-              "path": "$.data.orderEditBegin.calculatedOrder.id"
-            }
-          }
-        }
+          "documentPath": "config/parity-requests/orders/orderCreate-math-matrix.graphql",
+          "variablesCapturePath": "$.cases.presentmentMoney.variables",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.userErrors",
+          "$.order.subtotalPriceSet",
+          "$.order.currentTotalPriceSet",
+          "$.order.totalPriceSet",
+          "$.order.totalOutstandingSet",
+          "$.order.totalReceivedSet",
+          "$.order.lineItems.nodes[0].originalUnitPriceSet",
+          "$.order.transactions[0].amountSet"
+        ]
       }
     ]
   }

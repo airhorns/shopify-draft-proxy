@@ -13,32 +13,97 @@
     "reverseFulfillmentOrderDispose"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
+  "assertionKinds": ["payload-shape", "lifecycle-transition-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/local-runtime/2026-04/orders/return-lifecycle-local-staging.json",
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-introspection.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json"
   ],
-  "runtimeTestFiles": ["tests/integration/order-return-flow.test.ts"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/orders/return-request-reverse-local-staging.graphql",
+    "documentPath": "config/parity-requests/orders/return-request-recorded.graphql",
     "variablesCapturePath": "$.returnRequest.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2026-04 HAR-442 recording for return request approval, explicit multi-line and empty reverseDeliveryLineItems expansion, ReverseDeliveryLabelInput.fileUrl, shipping update, NOT_RESTOCKED reverse fulfillment disposal on a disposable custom order line, return processing, and downstream top-level/order reads. Shopify's live schema exposes ReverseFulfillmentOrderLineItem.dispositions rather than the older local convenience dispositionType/remainingQuantity fields. Replacement for retired synthetic/local-runtime orders evidence. This scenario ID is preserved for continuity but now reuses the real Shopify capture and proxy request contract from config/parity-specs/orders/return-reverse-logistics-recorded.json (return-reverse-logistics-recorded); the old local-runtime cassette is no longer parity evidence.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
-    "targets": [
+    "expectedDifferences": [
       {
-        "name": "return-request-primary",
-        "capturePath": "$.expected.reverseRequest",
-        "proxyPath": "$"
+        "path": "$.return.id",
+        "matcher": "shopify-gid:Return",
+        "reason": "Shopify and the proxy allocate independent return IDs."
       },
       {
-        "name": "return-approve-request",
-        "capturePath": "$.expected.approveRequest",
-        "proxyPath": "$",
+        "path": "$.return.returnLineItems.nodes[*].id",
+        "matcher": "shopify-gid:ReturnLineItem",
+        "reason": "Shopify and the proxy allocate independent return line item IDs."
+      },
+      {
+        "path": "$.return.reverseFulfillmentOrders.nodes[*].id",
+        "matcher": "shopify-gid:ReverseFulfillmentOrder",
+        "reason": "Shopify and the proxy allocate independent reverse fulfillment order IDs."
+      },
+      {
+        "path": "$.return.reverseFulfillmentOrders.nodes[*].lineItems.nodes[*].id",
+        "matcher": "shopify-gid:ReverseFulfillmentOrderLineItem",
+        "reason": "Shopify and the proxy allocate independent reverse fulfillment order line item IDs."
+      },
+      {
+        "path": "$.reverseDelivery.id",
+        "matcher": "shopify-gid:ReverseDelivery",
+        "reason": "Shopify and the proxy allocate independent reverse delivery IDs."
+      },
+      {
+        "path": "$.reverseDelivery.reverseFulfillmentOrder.id",
+        "matcher": "shopify-gid:ReverseFulfillmentOrder",
+        "reason": "Shopify and the proxy allocate independent reverse fulfillment order IDs."
+      },
+      {
+        "path": "$.reverseDelivery.reverseDeliveryLineItems.nodes[*].id",
+        "matcher": "shopify-gid:ReverseDeliveryLineItem",
+        "reason": "Shopify and the proxy allocate independent reverse delivery line item IDs."
+      },
+      {
+        "path": "$.reverseDelivery.reverseDeliveryLineItems.nodes[*].reverseFulfillmentOrderLineItem.id",
+        "matcher": "shopify-gid:ReverseFulfillmentOrderLineItem",
+        "reason": "Shopify and the proxy allocate independent reverse fulfillment order line item IDs."
+      },
+      {
+        "path": "$.reverseFulfillmentOrderLineItems[*].id",
+        "matcher": "shopify-gid:ReverseFulfillmentOrderLineItem",
+        "reason": "Shopify and the proxy allocate independent reverse fulfillment order line item IDs."
+      },
+      {
+        "path": "$.order.returns.nodes[*].id",
+        "matcher": "shopify-gid:Return",
+        "reason": "Shopify and the proxy allocate independent return IDs."
+      },
+      {
+        "path": "$.reverseFulfillmentOrder.id",
+        "matcher": "shopify-gid:ReverseFulfillmentOrder",
+        "reason": "Shopify and the proxy allocate independent reverse fulfillment order IDs."
+      },
+      {
+        "path": "$.reverseFulfillmentOrder.lineItems.nodes[*].id",
+        "matcher": "shopify-gid:ReverseFulfillmentOrderLineItem",
+        "reason": "Shopify and the proxy allocate independent reverse fulfillment order line item IDs."
+      },
+      {
+        "path": "$.reverseFulfillmentOrder.reverseDeliveries.nodes[*].id",
+        "matcher": "shopify-gid:ReverseDelivery",
+        "reason": "Shopify and the proxy allocate independent reverse delivery IDs."
+      }
+    ],
+    "targets": [
+      {
+        "name": "return-request-payload",
+        "capturePath": "$.returnRequest.response.payload.data.returnRequest",
+        "proxyPath": "$.data.returnRequest"
+      },
+      {
+        "name": "return-approve-request-payload",
+        "capturePath": "$.returnApproveRequest.response.payload.data.returnApproveRequest",
+        "proxyPath": "$.data.returnApproveRequest",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-approve-request-local-staging.graphql",
+          "documentPath": "config/parity-requests/orders/return-approve-request-recorded.graphql",
           "variables": {
             "input": {
               "id": {
@@ -49,14 +114,14 @@
         }
       },
       {
-        "name": "reverse-delivery-create",
-        "capturePath": "$.expected.reverseDeliveryCreate",
-        "proxyPath": "$",
+        "name": "reverse-delivery-create-payload",
+        "capturePath": "$.reverseDeliveryCreate.response.payload.data.reverseDeliveryCreateWithShipping",
+        "proxyPath": "$.data.reverseDeliveryCreateWithShipping",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/reverse-delivery-create-with-shipping-local-staging.graphql",
+          "documentPath": "config/parity-requests/orders/reverse-delivery-create-with-shipping-recorded.graphql",
           "variables": {
             "reverseFulfillmentOrderId": {
-              "fromProxyResponse": "return-approve-request",
+              "fromProxyResponse": "return-approve-request-payload",
               "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].id"
             },
             "reverseDeliveryLineItems": [],
@@ -70,14 +135,14 @@
         }
       },
       {
-        "name": "reverse-delivery-update",
-        "capturePath": "$.expected.reverseDeliveryUpdate",
-        "proxyPath": "$",
+        "name": "reverse-delivery-update-payload",
+        "capturePath": "$.reverseDeliveryUpdate.response.payload.data.reverseDeliveryShippingUpdate",
+        "proxyPath": "$.data.reverseDeliveryShippingUpdate",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/reverse-delivery-shipping-update-local-staging.graphql",
+          "documentPath": "config/parity-requests/orders/reverse-delivery-shipping-update-recorded.graphql",
           "variables": {
             "reverseDeliveryId": {
-              "fromProxyResponse": "reverse-delivery-create",
+              "fromProxyResponse": "reverse-delivery-create-payload",
               "path": "$.data.reverseDeliveryCreateWithShipping.reverseDelivery.id"
             },
             "trackingInput": {
@@ -87,32 +152,58 @@
         }
       },
       {
-        "name": "reverse-fulfillment-dispose",
-        "capturePath": "$.expected.dispose",
-        "proxyPath": "$",
+        "name": "reverse-fulfillment-dispose-payload",
+        "capturePath": "$.reverseFulfillmentDispose.response.payload.data.reverseFulfillmentOrderDispose",
+        "proxyPath": "$.data.reverseFulfillmentOrderDispose",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/reverse-fulfillment-order-dispose-local-staging.graphql",
+          "documentPath": "config/parity-requests/orders/reverse-fulfillment-order-dispose-recorded.graphql",
           "variables": {
             "dispositionInputs": [
               {
                 "reverseFulfillmentOrderLineItemId": {
-                  "fromProxyResponse": "return-approve-request",
+                  "fromProxyResponse": "return-approve-request-payload",
                   "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].lineItems.nodes[0].id"
                 },
                 "quantity": 1,
-                "dispositionType": "RESTOCKED",
-                "locationId": "gid://shopify/Location/return-flow"
+                "dispositionType": "NOT_RESTOCKED",
+                "locationId": {
+                  "fromCapturePath": "$.reverseFulfillmentDispose.variables.dispositionInputs[0].locationId"
+                }
               }
             ]
           }
         }
       },
       {
-        "name": "return-process",
-        "capturePath": "$.expected.process",
-        "proxyPath": "$",
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.response.payload.data",
+        "proxyPath": "$.data",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-process-local-staging.graphql",
+          "documentPath": "config/parity-requests/orders/return-reverse-logistics-read-recorded.graphql",
+          "variables": {
+            "returnId": {
+              "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
+            },
+            "orderId": {
+              "fromCapturePath": "$.returnRequest.variables.input.orderId"
+            },
+            "reverseDeliveryId": {
+              "fromProxyResponse": "reverse-delivery-create-payload",
+              "path": "$.data.reverseDeliveryCreateWithShipping.reverseDelivery.id"
+            },
+            "reverseFulfillmentOrderId": {
+              "fromProxyResponse": "return-approve-request-payload",
+              "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].id"
+            }
+          }
+        }
+      },
+      {
+        "name": "return-process-payload",
+        "capturePath": "$.returnProcess.response.payload.data.returnProcess",
+        "proxyPath": "$.data.returnProcess",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-process-recorded.graphql",
           "variables": {
             "input": {
               "returnId": {
@@ -124,6 +215,12 @@
                     "fromPrimaryProxyPath": "$.data.returnRequest.return.returnLineItems.nodes[0].id"
                   },
                   "quantity": 1
+                },
+                {
+                  "id": {
+                    "fromPrimaryProxyPath": "$.data.returnRequest.return.returnLineItems.nodes[1].id"
+                  },
+                  "quantity": 1
                 }
               ],
               "notifyCustomer": true
@@ -132,28 +229,70 @@
         }
       },
       {
-        "name": "reverse-logistics-downstream-read",
-        "capturePath": "$.expected.reverseRead",
-        "proxyPath": "$",
+        "name": "explicit-return-request-payload",
+        "capturePath": "$.explicitReturnRequest.response.payload.data.returnRequest",
+        "proxyPath": "$.data.returnRequest",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-reverse-logistics-read-local-staging.graphql",
+          "documentPath": "config/parity-requests/orders/return-request-recorded.graphql",
           "variables": {
-            "returnId": {
-              "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
-            },
-            "orderId": "gid://shopify/Order/return-flow",
-            "reverseDeliveryId": {
-              "fromProxyResponse": "reverse-delivery-create",
-              "path": "$.data.reverseDeliveryCreateWithShipping.reverseDelivery.id"
-            },
+            "input": {
+              "fromCapturePath": "$.explicitReturnRequest.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "explicit-return-approve-request-payload",
+        "capturePath": "$.explicitReturnApproveRequest.response.payload.data.returnApproveRequest",
+        "proxyPath": "$.data.returnApproveRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-approve-request-recorded.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "explicit-return-request-payload",
+                "path": "$.data.returnRequest.return.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "reverse-delivery-explicit-create-payload",
+        "capturePath": "$.reverseDeliveryExplicitCreate.response.payload.data.reverseDeliveryCreateWithShipping",
+        "proxyPath": "$.data.reverseDeliveryCreateWithShipping",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/reverse-delivery-create-with-shipping-recorded.graphql",
+          "variables": {
             "reverseFulfillmentOrderId": {
-              "fromProxyResponse": "return-approve-request",
+              "fromProxyResponse": "explicit-return-approve-request-payload",
               "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].id"
+            },
+            "reverseDeliveryLineItems": [
+              {
+                "reverseFulfillmentOrderLineItemId": {
+                  "fromProxyResponse": "explicit-return-approve-request-payload",
+                  "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].lineItems.nodes[1].id"
+                },
+                "quantity": 3
+              },
+              {
+                "reverseFulfillmentOrderLineItemId": {
+                  "fromProxyResponse": "explicit-return-approve-request-payload",
+                  "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].lineItems.nodes[0].id"
+                },
+                "quantity": 2
+              }
+            ],
+            "trackingInput": {
+              "fromCapturePath": "$.reverseLogistics.trackingInput"
+            },
+            "labelInput": {
+              "fromCapturePath": "$.reverseLogistics.labelInput"
             }
           }
         }
       }
     ]
-  },
-  "notes": "Executable local-runtime parity for HAR-370's order-backed reverse-logistics slice. Live 2026-04 introspection remains schema evidence for root signatures; this fixture verifies local request approval, reverse delivery staging/update, disposal, processing, downstream reads, and no runtime upstream mutation writes."
+  }
 }
