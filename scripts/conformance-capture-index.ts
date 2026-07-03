@@ -10182,7 +10182,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-return-status-preconditions-conformance.mts',
     purpose:
-      'returnClose, returnReopen, returnCancel, and removeFromReturn status-machine/editability preconditions, idempotent no-op branches, and processed-return cancel rejection.',
+      'returnClose, returnReopen, returnCancel, removeFromReturn, and returnProcess status-machine/editability preconditions, idempotent no-op branches, processed-return cancel rejection, and missing-return NOT_FOUND userError shapes.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns', 'write_fulfillments'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}returnClose-Reopen-Cancel-state-preconditions.json`,
@@ -10190,6 +10190,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/orders/return-cancel-state-precondition.graphql',
       'config/parity-requests/orders/return-close-state-precondition.graphql',
       'config/parity-requests/orders/remove-from-return-state-precondition.graphql',
+      'config/parity-requests/orders/return-process-recorded.graphql',
       'config/parity-requests/orders/return-reopen-state-precondition.graphql',
       'config/parity-requests/orders/return-order-hydrate.graphql',
       'config/parity-requests/orders/return-remove-from-return-state-precondition-read.graphql',

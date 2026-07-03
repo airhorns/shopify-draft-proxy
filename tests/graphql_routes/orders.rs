@@ -844,6 +844,80 @@ fn remove_from_return_for_test(
         .clone()
 }
 
+fn return_lifecycle_transition_for_test(
+    proxy: &mut DraftProxy,
+    root: &str,
+    return_id: Value,
+) -> Value {
+    let (query, response_key) = match root {
+        "returnCancel" => (
+            r#"
+            mutation ReturnCancelMissingReturnForErrorShape($id: ID!) {
+              returnCancel(id: $id) {
+                return { id status }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            "returnCancel",
+        ),
+        "returnClose" => (
+            r#"
+            mutation ReturnCloseMissingReturnForErrorShape($id: ID!) {
+              returnClose(id: $id) {
+                return { id status }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            "returnClose",
+        ),
+        "returnReopen" => (
+            r#"
+            mutation ReturnReopenMissingReturnForErrorShape($id: ID!) {
+              returnReopen(id: $id) {
+                return { id status }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            "returnReopen",
+        ),
+        _ => panic!("unsupported return lifecycle root {root}"),
+    };
+    proxy
+        .process_request(json_graphql_request(query, json!({ "id": return_id })))
+        .body["data"][response_key]
+        .clone()
+}
+
+fn return_process_for_test(
+    proxy: &mut DraftProxy,
+    return_id: Value,
+    return_line_item_id: Value,
+) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+            mutation ReturnProcessMissingReturnForErrorShape($input: ReturnProcessInput!) {
+              returnProcess(input: $input) {
+                return { id status }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "returnId": return_id,
+                    "returnLineItems": [{ "id": return_line_item_id, "quantity": 1 }],
+                    "notifyCustomer": false
+                }
+            }),
+        ))
+        .body["data"]["returnProcess"]
+        .clone()
+}
+
 fn approve_return_request_for_test(proxy: &mut DraftProxy, return_id: Value) -> Value {
     proxy
         .process_request(json_graphql_request(
@@ -1830,6 +1904,62 @@ fn return_request_approval_and_decline_unknown_ids_use_not_found_shape() {
             "code": "NOT_FOUND"
         }])
     );
+}
+
+#[test]
+fn return_lifecycle_and_process_unknown_ids_use_not_found_shape() {
+    let mut proxy = snapshot_proxy();
+    let missing_return_id = json!("gid://shopify/Return/999999999999999");
+    let missing_return_line_item_id = json!("gid://shopify/ReturnLineItem/999999999999999");
+
+    for (payload, field) in [
+        (
+            return_lifecycle_transition_for_test(
+                &mut proxy,
+                "returnCancel",
+                missing_return_id.clone(),
+            ),
+            json!(["id"]),
+        ),
+        (
+            return_lifecycle_transition_for_test(
+                &mut proxy,
+                "returnClose",
+                missing_return_id.clone(),
+            ),
+            json!(["id"]),
+        ),
+        (
+            return_lifecycle_transition_for_test(
+                &mut proxy,
+                "returnReopen",
+                missing_return_id.clone(),
+            ),
+            json!(["id"]),
+        ),
+        (
+            remove_from_return_for_test(
+                &mut proxy,
+                missing_return_id.clone(),
+                missing_return_line_item_id.clone(),
+            ),
+            json!(["returnId"]),
+        ),
+        (
+            return_process_for_test(&mut proxy, missing_return_id, missing_return_line_item_id),
+            json!(["input", "returnId"]),
+        ),
+    ] {
+        assert_eq!(payload["return"], Value::Null);
+        assert_eq!(
+            payload["userErrors"],
+            json!([{
+                "field": field,
+                "message": "Return not found.",
+                "code": "NOT_FOUND"
+            }])
+        );
+    }
 }
 
 #[test]
