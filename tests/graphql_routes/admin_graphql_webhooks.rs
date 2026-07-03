@@ -219,6 +219,111 @@ fn admin_graphql_reports_base_validation_errors_before_dispatch() {
 }
 
 #[test]
+fn admin_graphql_validation_uses_versioned_output_schema_roots() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request);
+            Response {
+                status: 202,
+                headers: Default::default(),
+                body: json!({ "data": { "returnReasonDefinitions": { "nodes": [] } } }),
+            }
+        });
+    let body = json!({
+        "query": "query VersionedRoot { returnReasonDefinitions(first: 1) { nodes { id } } }"
+    })
+    .to_string();
+
+    let old_version = proxy.process_request(request_with_body(
+        "POST",
+        "/admin/api/2025-01/graphql.json",
+        &body,
+    ));
+    assert_eq!(old_version.status, 200);
+    assert_eq!(
+        old_version.body["errors"][0]["extensions"],
+        json!({
+            "code": "undefinedField",
+            "typeName": "QueryRoot",
+            "fieldName": "returnReasonDefinitions"
+        })
+    );
+    assert_eq!(forwarded.lock().unwrap().len(), 0);
+
+    let current_version = proxy.process_request(request_with_body(
+        "POST",
+        "/admin/api/2026-04/graphql.json",
+        &body,
+    ));
+    assert_eq!(current_version.status, 202);
+    assert_eq!(
+        current_version.body,
+        json!({ "data": { "returnReasonDefinitions": { "nodes": [] } } })
+    );
+    let forwarded = forwarded.lock().unwrap();
+    assert_eq!(forwarded.len(), 1);
+    assert_eq!(forwarded[0].path, "/admin/api/2026-04/graphql.json");
+}
+
+#[test]
+fn admin_graphql_validation_uses_versioned_input_schema_fields() {
+    let mut proxy = snapshot_proxy();
+    let query = r#"
+        mutation VersionedPubSubInput {
+          pubSubWebhookSubscriptionCreate(
+            topic: SHOP_UPDATE
+            webhookSubscription: {
+              name: "Current_API-field"
+              pubSubProject: "valid-project"
+              pubSubTopic: "topic-1"
+            }
+          ) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let body = json!({ "query": query }).to_string();
+
+    let old_version = proxy.process_request(request_with_body(
+        "POST",
+        "/admin/api/2025-01/graphql.json",
+        &body,
+    ));
+    assert_eq!(old_version.status, 200);
+    assert_eq!(
+        old_version.body["errors"][0]["extensions"],
+        json!({
+            "code": "argumentNotAccepted",
+            "name": "PubSubWebhookSubscriptionInput",
+            "typeName": "InputObject",
+            "argumentName": "name"
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let current_version = proxy.process_request(request_with_body(
+        "POST",
+        "/admin/api/2026-04/graphql.json",
+        &body,
+    ));
+    assert_eq!(current_version.status, 200);
+    assert_eq!(
+        current_version.body["data"]["pubSubWebhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    assert!(
+        current_version.body["data"]["pubSubWebhookSubscriptionCreate"]["webhookSubscription"]
+            ["id"]
+            .as_str()
+            .is_some()
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
 fn admin_graphql_rejects_unknown_api_versions() {
     let mut proxy = snapshot_proxy();
 

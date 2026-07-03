@@ -704,8 +704,12 @@ impl DraftProxy {
             return json_error(400, "Operation has no root field");
         };
 
-        let schema_input_errors =
-            public_admin_schema_input_errors(&query, &variables, &request.body);
+        let schema_input_errors = public_admin_schema_input_errors(
+            &query,
+            &variables,
+            &request.body,
+            admin_graphql_version(&request.path),
+        );
         if !schema_input_errors.is_empty() {
             return ok_json(json!({ "errors": schema_input_errors }));
         }
