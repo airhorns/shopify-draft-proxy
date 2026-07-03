@@ -7335,9 +7335,24 @@ fn money_bag_presentment_replays_order_payment_refund_and_edit_shapes() {
         include_str!(
             "../../config/parity-requests/orders/money-bag-presentment-order-edit-begin.graphql"
         ),
-        json!({"id": order_id}),
+        json!({"id": order_id.clone()}),
     ));
-    assert_eq!(edit_begin.body, fixture["orderEditBegin"]["expected"]);
+    assert_eq!(
+        edit_begin.body["data"]["orderEditBegin"]["userErrors"],
+        json!([])
+    );
+    assert_ne!(
+        edit_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"],
+        json!("gid://shopify/CalculatedOrder/7")
+    );
+    assert_eq!(
+        edit_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["originalOrder"]["id"],
+        order_id
+    );
+    assert_eq!(
+        edit_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["totalPriceSet"],
+        single_create.body["data"]["orderCreate"]["order"]["totalPriceSet"]
+    );
     let calculated_order_id =
         edit_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
 
@@ -7348,6 +7363,173 @@ fn money_bag_presentment_replays_order_payment_refund_and_edit_shapes() {
         json!({"id": calculated_order_id}),
     ));
     assert_eq!(edit_commit.body, fixture["orderEditCommit"]["expected"]);
+}
+
+#[test]
+fn money_bag_order_edit_sessions_use_target_order_and_outstanding_defaults() {
+    let mut proxy = snapshot_proxy();
+    let create_document = r#"
+        mutation StageMoneyBagOrderForEdit($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              currentTotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+              totalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+              totalOutstandingSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } }
+              lineItems(first: 1) {
+                nodes {
+                  originalUnitPriceSet {
+                    shopMoney { amount currencyCode }
+                    presentmentMoney { amount currencyCode }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let first_create = proxy.process_request(json_graphql_request(
+        create_document,
+        json!({
+            "order": {
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "First money bag edit line",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    let second_create = proxy.process_request(json_graphql_request(
+        create_document,
+        json!({
+            "order": {
+                "currency": "CAD",
+                "lineItems": [{
+                    "title": "Second money bag edit line",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "22.00", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        first_create.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        second_create.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let first_order_id = first_create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let second_order_id = second_create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let begin_document = r#"
+        mutation BeginMoneyBagOrderEdit($id: ID!) {
+          orderEditBegin(id: $id) {
+            calculatedOrder {
+              id
+              originalOrder { id }
+              totalPriceSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let first_begin = proxy.process_request(json_graphql_request(
+        begin_document,
+        json!({ "id": first_order_id }),
+    ));
+    let second_begin = proxy.process_request(json_graphql_request(
+        begin_document,
+        json!({ "id": second_order_id.clone() }),
+    ));
+    assert_eq!(
+        first_begin.body["data"]["orderEditBegin"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        second_begin.body["data"]["orderEditBegin"]["userErrors"],
+        json!([])
+    );
+    let first_calculated_id =
+        first_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+    let second_calculated_id =
+        second_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+
+    let refund = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RefundMoneyBagOrderWithoutTransactions($input: RefundInput!) {
+          refundCreate(input: $input) {
+            refund { totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }
+            order { totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "orderId": second_order_id, "allowOverRefunding": true } }),
+    ));
+    assert_eq!(refund.body["data"]["refundCreate"]["userErrors"], json!([]));
+
+    let commit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CommitMoneyBagOrderEdit($id: ID!) {
+          orderEditCommit(id: $id, notifyCustomer: false) {
+            order {
+              id
+              currentTotalPriceSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+            }
+            successMessages
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": second_calculated_id }),
+    ));
+    assert_eq!(
+        commit.body["data"]["orderEditCommit"]["userErrors"],
+        json!([])
+    );
+
+    assert_eq!(
+        json!({
+            "calculatedIdsAreDistinct": first_calculated_id != second_calculated_id,
+            "firstCalculatedIdIsNotLegacyFixed": first_calculated_id != "gid://shopify/CalculatedOrder/7",
+            "secondCalculatedIdIsNotLegacyFixed": second_calculated_id != "gid://shopify/CalculatedOrder/7",
+            "secondBeginOriginalOrderId": second_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["originalOrder"]["id"].clone(),
+            "secondBeginTotalPriceSet": second_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["totalPriceSet"].clone(),
+            "secondRefundTotalRefundedSet": refund.body["data"]["refundCreate"]["refund"]["totalRefundedSet"].clone(),
+            "secondCommitOrderId": commit.body["data"]["orderEditCommit"]["order"]["id"].clone(),
+            "secondCommitCurrentTotalPriceSet": commit.body["data"]["orderEditCommit"]["order"]["currentTotalPriceSet"].clone()
+        }),
+        json!({
+            "calculatedIdsAreDistinct": true,
+            "firstCalculatedIdIsNotLegacyFixed": true,
+            "secondCalculatedIdIsNotLegacyFixed": true,
+            "secondBeginOriginalOrderId": "gid://shopify/Order/2",
+            "secondBeginTotalPriceSet": {
+                "shopMoney": { "amount": "22.0", "currencyCode": "CAD" },
+                "presentmentMoney": { "amount": "22.0", "currencyCode": "CAD" }
+            },
+            "secondRefundTotalRefundedSet": {
+                "shopMoney": { "amount": "22.0", "currencyCode": "CAD" },
+                "presentmentMoney": { "amount": "22.0", "currencyCode": "CAD" }
+            },
+            "secondCommitOrderId": "gid://shopify/Order/2",
+            "secondCommitCurrentTotalPriceSet": {
+                "shopMoney": { "amount": "22.0", "currencyCode": "CAD" },
+                "presentmentMoney": { "amount": "22.0", "currencyCode": "CAD" }
+            }
+        })
+    );
 }
 
 #[test]

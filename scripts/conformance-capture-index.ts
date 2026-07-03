@@ -8875,6 +8875,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: ['conformance:status', 'conformance:check', 'conformance:parity', 'rust:test'],
   },
   {
+    domain: 'orders',
+    captureId: 'money-bag-presentment-local-runtime',
+    scriptPath: 'scripts/capture-money-bag-presentment-local-runtime.ts',
+    purpose:
+      'Executable local-runtime MoneyBag presentment coverage for orderCreate, orderMarkAsPaid, refundCreate, and orderEditBegin/orderEditCommit selected money payloads.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      'fixtures/conformance/local-runtime/2026-05/orders/money-bag-presentment-parity.json',
+      'config/parity-specs/orders/money-bag-presentment-parity.json',
+      'config/parity-requests/orders/money-bag-presentment-single-create.graphql',
+      'config/parity-requests/orders/money-bag-presentment-multi-create.graphql',
+      'config/parity-requests/orders/money-bag-presentment-mark-as-paid.graphql',
+      'config/parity-requests/orders/money-bag-presentment-refund.graphql',
+      'config/parity-requests/orders/money-bag-presentment-order-edit-begin.graphql',
+      'config/parity-requests/orders/money-bag-presentment-order-edit-commit.graphql',
+    ],
+    cleanupBehavior: 'Local-runtime parity only; no live Shopify objects are created.',
+    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
+  },
+  {
     domain: 'payments',
     captureId: 'order-capture-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
