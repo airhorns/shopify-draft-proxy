@@ -453,6 +453,222 @@ fn product_create_update_and_reorder_media_preserve_non_image_media_types() {
     assert_eq!(reordered[1]["status"], json!("PROCESSING"));
 }
 
+#[test]
+fn product_update_media_ready_image_urls_are_stable_per_media() {
+    let product_id = "gid://shopify/Product/media-ready-url";
+    let first_source = "https://assets.example.com/product/banner-one.jpg?width=1200";
+    let second_source = "https://assets.example.com/product/banner-two.png";
+    let baked_cross_account_url =
+        "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product(product_id)])
+        .with_upstream_transport(|_| panic!("media ready URL staging should use local state"));
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReadyUrlMediaCreate($productId: ID!, $media: [CreateMediaInput!]!) {
+          productCreateMedia(productId: $productId, media: $media) {
+            media { id status }
+            mediaUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "media": [
+                { "mediaContentType": "IMAGE", "originalSource": first_source, "alt": "First banner" },
+                { "mediaContentType": "IMAGE", "originalSource": second_source, "alt": "Second banner" }
+            ]
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreateMedia"]["mediaUserErrors"],
+        json!([])
+    );
+    let first_media_id = create.body["data"]["productCreateMedia"]["media"][0]["id"]
+        .as_str()
+        .expect("first media id should be returned")
+        .to_string();
+    let second_media_id = create.body["data"]["productCreateMedia"]["media"][1]["id"]
+        .as_str()
+        .expect("second media id should be returned")
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReadyUrlMediaUpdate($productId: ID!, $media: [UpdateMediaInput!]!) {
+          productUpdateMedia(productId: $productId, media: $media) {
+            media {
+              id
+              status
+              preview { image { url } }
+              ... on MediaImage { image { url } }
+            }
+            mediaUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "media": [
+                { "id": first_media_id },
+                { "id": second_media_id }
+            ]
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productUpdateMedia"]["mediaUserErrors"],
+        json!([])
+    );
+    let updated = update.body["data"]["productUpdateMedia"]["media"]
+        .as_array()
+        .expect("updated media should be returned");
+    let first_url = updated[0]["image"]["url"]
+        .as_str()
+        .expect("first READY media image URL should be present");
+    let second_url = updated[1]["image"]["url"]
+        .as_str()
+        .expect("second READY media image URL should be present");
+    assert_ne!(first_url, baked_cross_account_url);
+    assert_ne!(second_url, baked_cross_account_url);
+    assert_ne!(
+        first_url, second_url,
+        "READY media URLs should remain stable per media rather than sharing one asset"
+    );
+    assert!(first_url.starts_with("https://shopify-draft-proxy.local/media/"));
+    assert!(second_url.starts_with("https://shopify-draft-proxy.local/media/"));
+    assert!(first_url.ends_with(".jpg"), "first URL was {first_url}");
+    assert!(second_url.ends_with(".png"), "second URL was {second_url}");
+    assert_eq!(updated[0]["preview"]["image"]["url"], json!(first_url));
+    assert_eq!(updated[1]["preview"]["image"]["url"], json!(second_url));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadyUrlMediaRead($productId: ID!) {
+          product(id: $productId) {
+            media(first: 10) {
+              nodes {
+                id
+                status
+                preview { image { url } }
+                ... on MediaImage { image { url } }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "productId": product_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["product"]["media"]["nodes"][0]["image"]["url"],
+        json!(first_url)
+    );
+    assert_eq!(
+        read.body["data"]["product"]["media"]["nodes"][1]["image"]["url"],
+        json!(second_url)
+    );
+}
+
+#[test]
+fn product_create_unknown_category_returns_null_full_name() {
+    let unknown_category = "gid://shopify/TaxonomyCategory/hb-1863";
+    let expected_category = json!({
+        "id": unknown_category,
+        "fullName": null
+    });
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownCategoryCreate($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id category { id fullName } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Unknown category create",
+                "category": unknown_category
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["category"],
+        expected_category
+    );
+    let created_id = create.body["data"]["productCreate"]["product"]["id"].clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownCategoryCreateRead($id: ID!) {
+          product(id: $id) {
+            category { id fullName }
+          }
+        }
+        "#,
+        json!({ "id": created_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["product"]["category"], expected_category);
+}
+
+#[test]
+fn product_set_unknown_category_returns_object_with_null_full_name() {
+    let unknown_category = "gid://shopify/TaxonomyCategory/hb-1863";
+    let expected_category = json!({
+        "id": unknown_category,
+        "fullName": null
+    });
+    let mut proxy = snapshot_proxy();
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownCategoryProductSet($input: ProductSetInput!) {
+          productSet(input: $input) {
+            product { id category { id fullName } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Unknown category set",
+                "category": unknown_category
+            }
+        }),
+    ));
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["productSet"]["userErrors"], json!([]));
+    assert_eq!(
+        set.body["data"]["productSet"]["product"]["category"],
+        expected_category
+    );
+    let set_id = set.body["data"]["productSet"]["product"]["id"].clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownCategoryProductSetRead($id: ID!) {
+          product(id: $id) {
+            category { id fullName }
+          }
+        }
+        "#,
+        json!({ "id": set_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["product"]["category"], expected_category);
+}
+
 fn missing_product_hydrate_response() -> Response {
     Response {
         status: 200,
