@@ -1,0 +1,111 @@
+{
+  "scenarioId": "payment-reminder-state-derived-local-staging",
+  "operationNames": ["orderCreate", "paymentTermsCreate", "paymentReminderSend"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "user-errors-parity",
+    "no-upstream-passthrough",
+    "local-runtime-backed"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/payments/payment-reminder-state-derived-local-staging.json",
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-eligibility.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-reminder-state-derived-order-create.graphql",
+    "variables": {
+      "order": {
+        "currency": "CAD",
+        "presentmentCurrency": "CAD",
+        "email": "payment-reminder-state-derived@example.test",
+        "financialStatus": "PENDING",
+        "lineItems": [
+          {
+            "title": "State-derived payment reminder",
+            "quantity": 1,
+            "priceSet": {
+              "shopMoney": {
+                "amount": "10.00",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "10.00",
+                "currencyCode": "CAD"
+              }
+            },
+            "taxable": false
+          }
+        ]
+      }
+    },
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "order-create-setup",
+        "capturePath": "$.expected.orderCreate",
+        "proxyPath": "$"
+      },
+      {
+        "name": "payment-terms-create-setup",
+        "capturePath": "$.expected.paymentTermsCreate",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-reminder-state-derived-payment-terms-create.graphql",
+          "variables": {
+            "referenceId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "attrs": {
+              "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+              "paymentSchedules": [
+                {
+                  "issuedAt": "2026-05-05T00:00:00Z"
+                }
+              ]
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "first-reminder-uses-created-schedule",
+        "capturePath": "$.expected.firstReminder",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-reminder-send.graphql",
+          "variables": {
+            "paymentScheduleId": {
+              "fromProxyResponse": "payment-terms-create-setup",
+              "path": "$.data.paymentTermsCreate.paymentTerms.paymentSchedules.nodes[0].id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "second-reminder-hits-staged-dedup-window",
+        "capturePath": "$.expected.secondReminder",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-reminder-send.graphql",
+          "variables": {
+            "paymentScheduleId": {
+              "fromProxyResponse": "payment-terms-create-setup",
+              "path": "$.data.paymentTermsCreate.paymentTerms.paymentSchedules.nodes[0].id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for the state-derived paymentReminderSend path requested during review. The scenario earns its PaymentSchedule through public orderCreate and paymentTermsCreate requests, then calls paymentReminderSend with that synthetic schedule ID. The old literal PaymentSchedule GID table would not locally handle this schedule."
+}

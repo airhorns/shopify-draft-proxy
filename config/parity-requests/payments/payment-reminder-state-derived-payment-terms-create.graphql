@@ -1,0 +1,33 @@
+mutation PaymentReminderStateDerivedTermsCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {
+  paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {
+    paymentTerms {
+      id
+      overdue
+      dueInDays
+      paymentTermsName
+      paymentTermsType
+      translatedName
+      order {
+        id
+        email
+        displayFinancialStatus
+      }
+      draftOrder {
+        id
+      }
+      paymentSchedules(first: 1) {
+        nodes {
+          id
+          issuedAt
+          dueAt
+          completedAt
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
