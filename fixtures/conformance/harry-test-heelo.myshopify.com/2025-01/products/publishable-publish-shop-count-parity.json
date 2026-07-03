@@ -1,12 +1,34 @@
 {
   "seedProduct": {
-    "id": "gid://shopify/Product/10213936759090",
-    "title": "Hermes Product Publication Conformance 1781587861405",
+    "id": "gid://shopify/Product/10230033613106",
+    "title": "Hermes Product Publication Conformance 1783032533945",
     "status": "ACTIVE"
   },
+  "seedPublications": [
+    {
+      "id": "gid://shopify/Publication/268039389490",
+      "name": "Online Store"
+    },
+    {
+      "id": "gid://shopify/Publication/268039455026",
+      "name": "Point of Sale"
+    },
+    {
+      "id": "gid://shopify/Publication/268039487794",
+      "name": "Shop"
+    },
+    {
+      "id": "gid://shopify/Publication/273897881906",
+      "name": "Shopify GraphiQL App"
+    },
+    {
+      "id": "gid://shopify/Publication/292074258738",
+      "name": "example.com"
+    }
+  ],
   "mutation": {
     "variables": {
-      "id": "gid://shopify/Product/10213936759090",
+      "id": "gid://shopify/Product/10230033613106",
       "input": [
         {
           "publicationId": "gid://shopify/Publication/268039389490"
@@ -17,7 +39,7 @@
       "data": {
         "publishablePublish": {
           "publishable": {
-            "id": "gid://shopify/Product/10213936759090",
+            "id": "gid://shopify/Product/10230033613106",
             "publishedOnCurrentPublication": false,
             "availablePublicationsCount": {
               "count": 3,

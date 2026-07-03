@@ -43,6 +43,7 @@ Local staged mutations:
 - `orderCancel`
 - `orderDelete`
 - `fulfillmentCreate`
+- `fulfillmentCreateV2`
 - `fulfillmentTrackingInfoUpdate`
 - `fulfillmentCancel`
 - `fulfillmentOrderHold`
@@ -82,90 +83,6 @@ Local staged mutations:
 - `orderEditUpdateShippingLine`
 - `orderEditCommit`
 
-### Evidence summary
-
-Current order-domain evidence covers the order catalog, lifecycle, payment,
-refund, abandoned checkout, and abandonment roots through Shopify Admin GraphQL
-docs, public GraphQL examples, checked-in parity specs, and integration tests.
-The strongest executable coverage is still the local-runtime order graph:
-`orderCreate` seeds realistic staged orders, lifecycle mutations update the same
-order rows, payment mutations derive downstream financial fields from staged
-transactions, and `refundCreate` projects refund records, refund transactions,
-shipping refunds, and downstream order totals without runtime Shopify writes.
-
-High-risk paths with executable evidence:
-
-- `draft-order-complete-already-paid` captures Shopify rejecting a second
-  `draftOrderComplete` call against the same paid draft with
-  `userErrors[{ field: null, message: "This order has been paid" }]` while
-  returning the completed draft and original linked order. The local proxy
-  mirrors that guard without recomputing or replacing the staged order.
-- `orderCancel` now mirrors Shopify's asynchronous cancellation payload more
-  closely when `job` is selected: successful local cancellation returns a
-  synthetic `Job` with `done: false`, exposes both `orderCancelUserErrors` and
-  `userErrors`, and still stages `closed`, `closedAt`, `cancelledAt`, and
-  `cancelReason` locally without upstream calls.
-- `orderCancel(restock: true, refundMethod: { originalPaymentMethodsRefund:
-true })` is covered by a 2026-04 live parity fixture. For an unfulfilled paid
-  order, the proxy stages the Shopify-observed cancellation state: the
-  fulfillment order closes with zero `totalQuantity` / `remainingQuantity`, the
-  nested line item has zero `fulfillableQuantity`, the order financial status
-  becomes `REFUNDED`, `currentTotalPriceSet` / `totalOutstandingSet` /
-  `netPaymentSet` are zeroed, and a manual refund record plus refund
-  transaction are appended. `staffNote` is exposed through
-  `Order.cancellation.staffNote`; `notifyCustomer`, the deprecated
-  `sendNotification`, private `refund`, and private `retailAttributionInput`
-  inputs are retained in draft-proxy cancellation metadata for local
-  read-after-write/state inspection. Public Admin GraphQL 2026-04 does not
-  expose `refund` or `retailAttributionInput` on `orderCancel`, so live parity
-  covers the public argument set and focused runtime tests cover the private
-  metadata preservation path.
-- `orderCapture`, `transactionVoid`, `orderCreateManualPayment`, and
-  `orderCreateMandatePayment` remain local/synthetic payment models. The staged
-  order record owns authorization, capture, void, and downstream financial
-  state, so `order(id:)` reads observe the same transaction graph and totals
-  produced by preceding local payment mutations. These roots cover downstream
-  order financial fields, transaction reads, idempotent mandate payment
-  behavior, validation branches, mutation-log preservation, and no
-  payment-service calls.
-- `refundCreate` covers staged line-item and shipping refunds, refund
-  transactions, downstream `Order.refunds`, `Order.transactions`,
-  `totalRefundedSet`, `totalRefundedShippingSet`, and over-refund validation.
-  Refund transaction inputs are locally validated before staging: `kind` must be
-  `REFUND` or `VOID`, supplied `parentId` values must resolve to a transaction
-  on the same order, and supplied `gateway` values must match the parent
-  transaction gateway. Invalid branches return indexed transaction userErrors
-  and leave local order/refund state unchanged.
-  The public Admin GraphQL 2026-04 `RefundInput` schema does not expose the
-  retail attribution keys `pointOfSaleDeviceId`, `locationId`, `userId`, or
-  `transactionGroupId`; the proxy mirrors the captured top-level coercion
-  errors for those fields before refund staging can run.
-- Abandoned checkout empty/no-data reads and local seeded reads are executable.
-  `abandonmentUpdateActivitiesDeliveryStatuses` stages known local forward
-  delivery-status transitions and preserves raw mutation order; unknown
-  abandonments mirror the captured `abandonment_not_found` branch. Focused
-  local runtime tests cover same-status no-ops, unknown activity references,
-  backwards transitions, and future `deliveredAt` rejection.
-
-Remaining gaps that should not be overclaimed:
-
-- Non-empty abandoned checkout capture is still not live-fixture-backed because
-  the conformance store had no abandoned checkout records during capture.
-- Direct `orderCreate` has a representative rich local/create parity slice, but
-  broad live business-validation expansion remains constrained by observed
-  Shopify throttling and should be added only with fresh captures.
-- Direct `orderCreate` inventory decrement readback is runtime-test-backed for
-  the product-backed inventory slice only; strict live parity still needs a
-  focused order-create-plus-inventory-read capture.
-- `orderCreateManualPayment` success with amount remains Plus/permission
-  sensitive on the current conformance store; local success coverage is a
-  synthetic-order runtime model, not live Plus-store evidence.
-- `orderCreateMandatePayment` does not validate real mandate ownership or
-  payment-service behavior; it models only local order/idempotency/amount
-  effects.
-- `orderInvoiceSend` and other customer-visible email roots remain local intent
-  only unless explicitly committed later.
-
 ### Unsupported, registry-only, and validation-only coverage
 
 - `orderRiskAssessmentCreate` is registry-only. The 2025-01 `finance-risk-access-read` capture records only an unknown-order validation branch returning `userErrors[{ field: ["orderRiskAssessmentInput", "orderId"], code: "NOT_FOUND" }]`. Do not mark this mutation supported until local risk assessment staging, downstream order risk reads, Shopify-like userErrors, and raw commit replay are modeled end to end.
@@ -175,11 +92,11 @@ Remaining gaps that should not be overclaimed:
 
 - Order and draft-order reads use the shared Shopify-style search parser for catalog, count, invalid-query, and pagination slices covered by parity fixtures.
 - The orders parity suite uses cassette-backed LiveHybrid execution. Cold order and draft-order reads use gated Pattern 1 passthrough only when no staged local order state can affect the result; supported mutations keep staging locally and use targeted Pattern 2 cassette hydration for prior order, draft-order, calculated-order, refund, fulfillment, return, customer, and product-variant context before applying local effects.
-- Order fulfillment mutations stage locally in snapshot mode. `fulfillmentCreate` covers validation slices plus order-backed creation from local fulfillment orders, while `fulfillmentEventCreate`, `fulfillmentTrackingInfoUpdate`, and `fulfillmentCancel` update seeded or staged fulfillment records locally. `fulfillmentCreate` and `fulfillmentTrackingInfoUpdate` preserve multi-package public `FulfillmentTrackingInput` arrays by expanding `numbers` / `urls` into per-entry `Fulfillment.trackingInfo` rows and falling back to scalar `number` / `url` when array fields are absent; staged downstream order reads expose the updated multi-entry tracking list. Created fulfillments project Shopify-style GraphQL `Fulfillment.name` reference numbers as `<orderName>-F<n>`, where `n` is the 1-based sequence of fulfillments already present on the order graph. `fulfillmentCreate` mirrors public Admin API 2026-04 preconditions for closed fulfillment orders and over-quantity requests before staging any fulfillment or mutation-log entry: both return `userErrors` on `field: ["fulfillment"]`, and this root's public `UserError` shape exposes `field` / `message` but no selectable `code`. The same capture records that `fulfillmentOrderReportProgress` can leave a fulfillment order `IN_PROGRESS` and public `fulfillmentCreate` still accepts it; the proxy follows that public behavior. Captured 2026-04 fulfillment state branches show that re-canceling an already `CANCELLED` fulfillment is idempotent success, `fulfillmentTrackingInfoUpdate` accepts cancelled fulfillments while preserving their lifecycle status/display status, `fulfillmentEventCreate` accepts events on cancelled fulfillments, and `fulfillmentCancel` succeeds after a `DELIVERED` fulfillment event. These accepted branches stage locally, append replayable raw mutations to the log, and return empty `userErrors`. Fulfillment-order request/cancellation roots stage against order-backed fulfillment orders: submit can split partial quantities into submitted/unsubmitted fulfillment orders, accept/reject fulfillment requests update request status, and cancellation submit/accept/reject preserves merchant request history. Fulfillment-order lifecycle support stages held, released, moved, progress-reported, reopened, and cancelled fulfillment orders from the same order-owned fulfillment-order graph and keeps downstream nested/top-level reads consistent without upstream writes.
+- Order fulfillment mutations stage locally in snapshot mode. `fulfillmentCreate` and deprecated `fulfillmentCreateV2` cover validation slices plus order-backed creation from local fulfillment orders, while `fulfillmentEventCreate`, `fulfillmentTrackingInfoUpdate`, and `fulfillmentCancel` update seeded or staged fulfillment records locally. `fulfillmentCreate`, `fulfillmentCreateV2`, and `fulfillmentTrackingInfoUpdate` preserve multi-package public `FulfillmentTrackingInput` arrays by expanding `numbers` / `urls` into per-entry `Fulfillment.trackingInfo` rows and falling back to scalar `number` / `url` when array fields are absent; staged downstream order reads expose the updated multi-entry tracking list. Created fulfillments project Shopify-style GraphQL `Fulfillment.name` reference numbers as `<orderName>-F<n>`, where `n` is the 1-based sequence of fulfillments already present on the order graph. `fulfillmentCreate` and `fulfillmentCreateV2` mirror public Admin API 2026-04 preconditions before staging any fulfillment or mutation-log entry: closed fulfillment orders and over-quantity requests return `userErrors` on `field: ["fulfillment"]`, non-positive line-item quantities return `Quantity must be greater than 0` on the full indexed quantity field path, and missing fulfillment orders return `Fulfillment order does not exist.` on `field: ["fulfillment"]`. These roots' public `UserError` shape exposes `field` / `message` but no selectable `code`. A focused validation capture covers that same plain `UserError` schema boundary for `fulfillmentCreate`, deprecated `fulfillmentCreateV2`, `fulfillmentCancel`, `fulfillmentTrackingInfoUpdate`, deprecated `fulfillmentTrackingInfoUpdateV2`, and `fulfillmentEventCreate`: selecting `userErrors { code }` is a top-level GraphQL `undefinedField` error and the resolver does not run. The same capture records that `fulfillmentOrderReportProgress` can leave a fulfillment order `IN_PROGRESS` and public `fulfillmentCreate` still accepts it; the proxy follows that public behavior. Captured 2026-04 fulfillment state branches show that re-canceling an already `CANCELLED` fulfillment is idempotent success, `fulfillmentTrackingInfoUpdate` accepts cancelled fulfillments while preserving their lifecycle status/display status, `fulfillmentEventCreate` accepts events on cancelled fulfillments, and `fulfillmentCancel` succeeds after a `DELIVERED` fulfillment event. These accepted branches stage locally, append replayable raw mutations to the log, and return empty `userErrors`. Well-formed fulfillment IDs that cannot be resolved locally or through lifecycle hydration return Shopify-like field/message-only not-found payloads without staging or logging a mutation: `fulfillmentCancel` returns `field: ["id"]` / `Fulfillment not found.`, while `fulfillmentTrackingInfoUpdate` returns `field: ["fulfillmentId"]` / `Fulfillment does not exist.`; the `fulfillment-unknown-not-found` parity scenario captures both branches. Fulfillment-order request/cancellation roots stage against order-backed fulfillment orders: submit can split partial quantities into submitted/unsubmitted fulfillment orders, accept/reject fulfillment requests update request status, and cancellation submit/accept/reject preserves merchant request history. Fulfillment-order lifecycle support stages held, released, moved, progress-reported, reopened, and cancelled fulfillment orders from the same order-owned fulfillment-order graph and keeps downstream nested/top-level reads consistent without upstream writes.
 - Nested `Order.fulfillments` and `Order.fulfillmentOrders` remain the order-owned source for top-level fulfillment reads. The shipping/fulfillments endpoint docs describe the top-level `fulfillment(id:)`, `fulfillmentOrder(id:)`, and fulfillment-order catalog roots that now serialize from the same local order graph.
 - Fulfillment flows return Shopify-shaped `userErrors` and expose staged state through immediate downstream order fulfillment reads without sending supported mutations to Shopify at runtime. Staged fulfillment events are visible through both top-level `fulfillment(id:)` and nested `Order.fulfillments.events`, and tracking/cancel updates preserve event history and shipment milestone fields. Staged fulfillment-order request statuses and merchant request messages are visible through `fulfillmentOrder`, `fulfillmentOrders`, `assignedFulfillmentOrders`, and nested `Order.fulfillmentOrders`; no fulfillment-service notification callbacks are invoked. Broader shipping/fulfillment roots and coverage boundaries are tracked in `/endpoints/shipping-fulfillments/`.
 - `orderUpdate` stages known-order simple edits locally for `note`, `tags`, `customAttributes`, `email`, `phone`, `poNumber`, `shippingAddress`, and order-scoped `metafields`. The staged order keeps its identity and line items, bumps `updatedAt`, updates the projected `Order.customer.email` when `email` changes, and preserves read-after-write through `order(id:)`, `orders`, and `ordersCount` without runtime Shopify writes. The original raw mutation body is retained for commit replay.
-- `orderUpdate` rejects locally known orders before staging when the input has no mutable attributes beyond `id`, when `phone` fails the local E.164-shaped guard, when `shippingAddress` fails the current mailing-address guardrails, when covered country/province pairs use invalid province codes for the selected country, or when `staffMemberId` is unknown. Unknown well-formed staff member IDs return `userErrors[{ field: ["input", "staffMemberId"], code: "NOT_FOUND" }]`. These validation branches leave stored order state unchanged and do not append staged-write log entries. Shopify's phone/email churn throttle is not modeled locally; treat throttle parity as captured-only fidelity until a session-scoped `Throttle::Counter` equivalent is deliberately added.
+- `orderUpdate` rejects locally known orders before staging when the input has no mutable attributes beyond `id`, when `phone` fails the local E.164-shaped guard, when `shippingAddress` fails the current mailing-address guardrails, when covered country/province pairs use invalid province codes for the selected country, or when `staffMemberId` is unknown. Unknown well-formed staff member IDs return `userErrors[{ field: ["input", "staffMemberId"], message: "Staff member does not exist" }]` with no selectable `code`. These validation branches leave stored order state unchanged and do not append staged-write log entries. Shopify's phone/email churn throttle is not modeled locally; treat throttle parity as captured-only fidelity until a session-scoped `Throttle::Counter` equivalent is deliberately added.
 - Captured `orderUpdate.localizedFields` and deprecated `orderUpdate.localizationExtensions` scenarios document Shopify's readback shape for non-local live-hybrid replay. Store-backed localization updates and successful staff-member assignment are outside the current supported simple-update slice; the public 2026-04 conformance schema on the current store rejects `OrderInput.staffMemberId` before resolver execution and staff reads are access-gated.
 - Draft-order create/complete/update/duplicate/delete/invoice/create-from-order flows preserve staged state for downstream reads and commit replay. `draftOrderComplete` builds the resulting order from the staged draft's line items, totals, tags, note, purchasing entity, selected payment arguments, stored payment terms, and modeled app source rather than fixture emails or canned totals. Omitting `paymentGatewayId` preserves the existing manual/no-gateway behavior: explicit `paymentPending: true` returns `PENDING` with a manual `SALE/PENDING` transaction, explicit `paymentPending: false` settles through a manual `SALE/SUCCESS` transaction, and omitting `paymentPending` also returns the pending manual-sale shape when the draft has payment terms and no deposit configuration. Drafts without payment terms still default to `PAID` with the manual successful sale transaction when `paymentPending` is omitted. Unknown or disabled gateway IDs return `userErrors[{ field: null, message: "Invalid payment gateway" }]` without mutating draft/order state, and public `draftOrderComplete.userErrors` is the plain `UserError` shape where `code` is not selectable. Re-completing a staged draft that is already `COMPLETED` returns the existing completed draft plus `userErrors[{ field: null, message: "This order has been paid" }]` and leaves the staged order graph unchanged.
 - Variant-backed draft-order line items on `draftOrderCreate`, `draftOrderUpdate`, and `draftOrderCalculate` hydrate the selected product variant from normalized product state or live/cassette upstream reads, then derive line title, SKU, unit price, taxable, and requires-shipping values from the catalog. Variant IDs that cannot be resolved from local state in snapshot mode or from upstream in LiveHybrid return the Shopify-style no-longer-available userError. Custom-only input fields such as `title`, `sku`, `originalUnitPrice`, `originalUnitPriceWithCurrency`, `taxable`, and `requiresShipping` are ignored when `variantId` is present; custom line items without `variantId` continue to use the submitted custom fields.
@@ -214,6 +131,9 @@ Remaining gaps that should not be overclaimed:
   inputs return one `INVALID_VARIABLE` error with all four problems, inline
   inputs return per-field `argumentNotAccepted` errors, `UserError.code` is not
   selectable for the payload, and downstream order reads remain unchanged.
+  The `order-refund-fulfillment-usererror-no-code` parity spec also records
+  the no-`code` schema boundary for `refundCreate` alongside the fulfillment
+  payload roots.
 - Return staging is order-backed: `returnCreate` and `returnRequest` create local Return rows for known fulfilled order
   line items, while `returnCancel`, `returnClose`, `returnReopen`, and `removeFromReturn` enforce captured
   status/editability preconditions before updating local return state. Top-level `return(id:)` and nested `Order.returns`
@@ -248,11 +168,3 @@ Remaining gaps that should not be overclaimed:
 - `orderCreateMandatePayment` accepts Shopify's current `mandateId` argument but does not validate real mandate ownership or contact payment services; the executable local evidence uses a synthetic PaymentMandate GID and models only the order/idempotency/amount/auto-capture effects. It creates a completed local `Job`, returns the Shopify-style `<order_gid>/<idempotency_key>` `paymentReferenceId`, and stages either a `SALE` transaction when `autoCapture` is omitted/true or an `AUTHORIZATION` transaction when `autoCapture: false`. Reusing the same order/idempotency-key pair returns the original job/reference result and does not duplicate the transaction. Missing `mandateId` is covered by live public schema-validation parity. Successful real mandate payment remains runtime-test-backed because live probes on the current recording shop returned no customer-payment-method scopes, rejected the private payload `order` field, and access-denied resolver execution without `write_payment_mandate`, `pay_orders_by_vaulted_card`, and Shopify Plus amount-field access. Missing idempotency keys and non-positive amounts return local `userErrors` without contacting payment services.
 - The local payment implementation does not contact real payment gateways and intentionally limits itself to local/synthetic orders and transaction branches covered by runtime tests or safe documentation evidence. Runtime coverage exercises store-backed order creation, over-capture validation, partial/final capture, downstream order reads, void-after-capture validation, mandate idempotency-key handling, successful `transactionVoid`, and idempotent `orderCreateMandatePayment` without treating the retired local-runtime recordings as Shopify parity evidence. Broader Plus-only and permission-specific mandate/capture branches still require live conformance evidence before they should be expanded.
 - `orderInvoiceSend` is handled locally for existing orders and does not send upstream invoice email during normal proxy runtime. The live `orderInvoiceSend-email-validation` fixture covers no-recipient, malformed explicit email, and disposable order-email success branches, with exact hydrate GraphQL documents in its cassette. Runtime coverage verifies the proxy stages intent locally and avoids upstream/email side effects until explicit commit replay. `taxSummaryCreate` mirrors the captured access-denied branch without invoking tax calculation services, but remains a declared gap rather than implemented support until tax-app semantics can be safely captured.
-
-### Validation anchors
-
-- Fulfillment-order lifecycle capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-lifecycle.json`
-- `orderUpdate` staging evidence: `config/parity-specs/orders/orderUpdate-snapshot-staging.json`, `config/parity-specs/orders/orderUpdate-live-parity.json`, `config/parity-specs/orders/orderUpdate-expanded-parity-plan.json`, and `tests/graphql_routes/orders.rs`
-- Draft-order invoice send status transition evidence: `config/parity-specs/orders/draftOrderInvoiceSend-status-transition.json`, `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/draft-order-invoice-send-status-transition.json`, and `tests/graphql_routes/orders.rs`
-- Conformance fixtures and requests: `config/parity-specs/orders/order*.json`, `config/parity-specs/orders/draftOrder*.json`, `config/parity-specs/orders/draftOrders*.json`, `config/parity-specs/shipping-fulfillments/fulfillment*.json`, `config/parity-specs/orders/refund*.json`, and matching files under `config/parity-requests/orders/` or `config/parity-requests/shipping-fulfillments/`. For order editing, prefer `orderEdit-lifecycle-userErrors`, the `orderEditExistingOrder-*` workflow specs, and the missing-id validation slices over single-root planned placeholders.
-- Residual draft-order helper capture: `corepack pnpm conformance:capture-draft-order-residual-helpers`

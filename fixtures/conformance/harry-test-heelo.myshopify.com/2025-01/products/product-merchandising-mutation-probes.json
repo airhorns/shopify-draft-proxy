@@ -1,11 +1,11 @@
 {
-  "capturedAt": "2026-04-26",
+  "capturedAt": "2026-07-03T02:15:01.149Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "notes": [
-    "These probes document product merchandising mutation payload and blocker shapes used by the HAR-362 guardrail parity spec.",
-    "productFeedCreate could not capture a success branch on this store because Shopify returned a top-level channel lookup error.",
-    "Local success-path staging for bundle, variant relationship, combined-listing, and feed behavior is covered by runtime tests; this capture file preserves the Shopify validation/userError branches that can be replayed without live writes."
+    "Live product merchandising and feedback validation probes recorded by the dedicated product merchandising/feedback conformance script.",
+    "The configured store currently rejects productFeedCreate with a payload userError because the channel/spec manages feeds automatically and requires feed webhooks; local productFeedCreate success remains runtime-test-backed.",
+    "Feedback success remains blocked by missing write_resource_feedbacks plus Storefront API / Sales Channel configuration, so this fixture captures schema-level invalid-state parity for the feedback mutation roots."
   ],
   "schemaEvidence": {
     "ProductFeed": {
@@ -37,41 +37,50 @@
   },
   "probes": [
     {
-      "name": "productFeedCreate-channel-missing",
+      "name": "productFeedCreate-channel-or-webhook-blocker",
       "operationNames": ["productFeedCreate"],
+      "query": "mutation ProductFeedCreate($input: ProductFeedInput) {\n  productFeedCreate(input: $input) {\n    productFeed {\n      id\n      country\n      language\n      status\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
           "country": "US",
           "language": "EN"
         }
       },
+      "status": 200,
       "response": {
-        "errors": [
-          {
-            "message": "Unable to find channel for product feed",
-            "locations": [
-              {
-                "line": 1,
-                "column": 56
-              }
-            ],
-            "extensions": {
-              "code": "NOT_FOUND"
-            },
-            "path": ["productFeedCreate"]
-          }
-        ],
         "data": {
-          "productFeedCreate": null
+          "productFeedCreate": {
+            "productFeed": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Product feeds are set to be managed by Shopify automatically for this channel in the associated specification, please ensure PRODUCT_FEEDS_FULL_SYNC and PRODUCT_FEEDS_INCREMENTAL_SYNC webhook subscriptions are registered.",
+                "code": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
         }
       }
     },
     {
       "name": "productFeedDelete-unknown-id",
       "operationNames": ["productFeedDelete"],
+      "query": "mutation ProductFeedDelete($id: ID!) {\n  productFeedDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "id": "gid://shopify/ProductFeed/999999999"
       },
+      "status": 200,
       "response": {
         "data": {
           "productFeedDelete": {
@@ -84,15 +93,28 @@
               }
             ]
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
         }
       }
     },
     {
       "name": "productFullSync-unknown-id",
       "operationNames": ["productFullSync"],
+      "query": "mutation ProductFullSync($id: ID!) {\n  productFullSync(id: $id) {\n    id\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "id": "gid://shopify/ProductFeed/999999999"
       },
+      "status": 200,
       "response": {
         "data": {
           "productFullSync": {
@@ -105,18 +127,31 @@
               }
             ]
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
         }
       }
     },
     {
       "name": "productBundleCreate-empty-components",
       "operationNames": ["productBundleCreate"],
+      "query": "mutation ProductBundleCreate($input: ProductBundleCreateInput!) {\n  productBundleCreate(input: $input) {\n    productBundleOperation {\n      id\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "HAR-298 bundle probe",
+          "title": "Product merchandising bundle probe",
           "components": []
         }
       },
+      "status": 200,
       "response": {
         "data": {
           "productBundleCreate": {
@@ -128,19 +163,32 @@
               }
             ]
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
         }
       }
     },
     {
       "name": "productBundleUpdate-unknown-product",
       "operationNames": ["productBundleUpdate"],
+      "query": "mutation ProductBundleUpdate($input: ProductBundleUpdateInput!) {\n  productBundleUpdate(input: $input) {\n    productBundleOperation {\n      id\n      status\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
       "variables": {
         "input": {
           "productId": "gid://shopify/Product/999999999",
-          "title": "HAR-298 bundle update probe",
+          "title": "Product merchandising bundle update probe",
           "components": []
         }
       },
+      "status": 200,
       "response": {
         "data": {
           "productBundleUpdate": {
@@ -152,15 +200,28 @@
               }
             ]
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
         }
       }
     },
     {
       "name": "combinedListingUpdate-unknown-parent",
       "operationNames": ["combinedListingUpdate"],
+      "query": "mutation CombinedListingUpdate($parentProductId: ID!) {\n  combinedListingUpdate(parentProductId: $parentProductId) {\n    product {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "parentProductId": "gid://shopify/Product/999999999"
       },
+      "status": 200,
       "response": {
         "data": {
           "combinedListingUpdate": {
@@ -173,12 +234,24 @@
               }
             ]
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
         }
       }
     },
     {
       "name": "productVariantRelationshipBulkUpdate-unknown-variants",
       "operationNames": ["productVariantRelationshipBulkUpdate"],
+      "query": "mutation ProductVariantRelationshipBulkUpdate($input: [ProductVariantRelationshipUpdateInput!]!) {\n  productVariantRelationshipBulkUpdate(input: $input) {\n    parentProductVariants {\n      id\n      requiresComponents\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": [
           {
@@ -192,6 +265,7 @@
           }
         ]
       },
+      "status": 200,
       "response": {
         "data": {
           "productVariantRelationshipBulkUpdate": {
@@ -199,12 +273,81 @@
             "userErrors": [
               {
                 "field": ["input"],
-                "message": "The product variants with ID(s) [\"gid://shopify/ProductVariant/999999999\",\"gid://shopify/ProductVariant/999999998\"] could not be found.",
+                "message": "The product variants with ID(s) [\"gid://shopify/ProductVariant/999999999\", \"gid://shopify/ProductVariant/999999998\"] could not be found.",
                 "code": "PRODUCT_VARIANTS_NOT_FOUND"
               }
             ]
           }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
         }
+      }
+    },
+    {
+      "name": "bulkProductResourceFeedbackCreate-invalid-state",
+      "operationNames": ["bulkProductResourceFeedbackCreate"],
+      "query": "mutation ProductFeedbackInvalidState {\n  bulkProductResourceFeedbackCreate(\n    feedbackInput: [\n      {\n        productId: \"gid://shopify/Product/7001\"\n        state: BANANAS\n        feedbackGeneratedAt: \"2024-01-01T00:00:00Z\"\n        productUpdatedAt: \"2024-01-01T00:00:00Z\"\n        messages: []\n      }\n    ]\n  ) {\n    feedback {\n      productId\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState!'.",
+            "locations": [
+              {
+                "line": 4,
+                "column": 7
+              }
+            ],
+            "path": [
+              "mutation ProductFeedbackInvalidState",
+              "bulkProductResourceFeedbackCreate",
+              "feedbackInput",
+              0,
+              "state"
+            ],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "InputObject",
+              "argumentName": "state"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "shopResourceFeedbackCreate-invalid-state",
+      "operationNames": ["shopResourceFeedbackCreate"],
+      "query": "mutation ShopFeedbackInvalidState {\n  shopResourceFeedbackCreate(input: { state: BANANAS, feedbackGeneratedAt: \"2024-01-01T00:00:00Z\", messages: [] }) {\n    feedback {\n      state\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState!'.",
+            "locations": [
+              {
+                "line": 2,
+                "column": 37
+              }
+            ],
+            "path": ["mutation ShopFeedbackInvalidState", "shopResourceFeedbackCreate", "input", "state"],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "InputObject",
+              "argumentName": "state"
+            }
+          }
+        ]
       }
     }
   ],

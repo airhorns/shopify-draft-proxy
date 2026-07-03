@@ -108,39 +108,3 @@ selling-plan IDs is covered by the admin-platform endpoint group. Broader
 Shopify selling-plan behavior outside the staged lifecycle and membership
 surface remains unsupported until backed by runtime behavior and captured
 parity evidence.
-
-### Evidence
-
-- `tests/graphql_routes/selling_plans.rs`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-summary.json`
-- `config/parity-specs/selling-plans/sellingPlanGroup-summary.json`
-- `config/parity-requests/selling-plans/sellingPlanGroupCreate-summary.graphql`
-- `config/parity-requests/selling-plans/sellingPlanGroupSummary-read.graphql`
-- `scripts/capture-selling-plan-group-summary-conformance.ts`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-create-active-model-validation.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-app-id-readback.json`
-- `config/parity-specs/selling-plans/sellingPlanGroupCreate-active-model-validation.json`
-- `config/parity-specs/selling-plans/sellingPlanGroup-app-id-readback.json`
-- `config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql`
-- `config/parity-requests/selling-plans/sellingPlanGroupUpdate-empty-create-list.graphql`
-- `config/parity-requests/selling-plans/sellingPlanGroupCreate-app-id-readback.graphql`
-- `config/parity-requests/selling-plans/sellingPlanGroupRead-app-id-readback.graphql`
-- `config/parity-requests/selling-plans/sellingPlanGroupUpdate-app-id-readback.graphql`
-- `scripts/capture-selling-plan-group-create-active-model-validation-conformance.ts`
-- `scripts/capture-selling-plan-group-app-id-readback-conformance.ts`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-lifecycle.json`
-- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-input-validation.json`
-- `config/parity-specs/products/sellingPlanGroupCreate-input-validation.json`
-- `config/parity-specs/products/productJoinLeaveSellingPlanGroups-validation.json`
-- `config/parity-specs/products/selling-plan-product-variant-associations.json`
-- `config/parity-specs/products/selling-plan-group-lifecycle.json`
-
-### Validation
-
-- `corepack pnpm parity -- sellingPlanGroup-summary`
-- `corepack pnpm parity -- sellingPlanGroupCreate-active-model-validation`
-- `corepack pnpm parity -- sellingPlanGroup-app-id-readback`
-- `corepack pnpm parity -- selling-plan-group-lifecycle`
-- `corepack pnpm parity -- sellingPlanGroupCreate-input-validation`
-- `corepack pnpm conformance:check`
-- `corepack pnpm rust:test`
