@@ -352,6 +352,13 @@ impl DraftProxy {
                 standard_template_immutable_field_errors,
             );
         }
+        let length_errors = metafield_definition_name_description_length_errors(
+            input,
+            "MetafieldDefinitionUpdateUserError",
+        );
+        if !length_errors.is_empty() {
+            return metafield_definition_update_null_payload(length_errors);
+        }
         if let Some(name) = resolved_string_field(input, "name") {
             definition["name"] = json!(name);
         }
@@ -1815,6 +1822,34 @@ fn metafield_definition_standard_template_immutable_field_errors(
     errors
 }
 
+fn metafield_definition_name_description_length_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    typename: &str,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if let Some(name) = resolved_string_field(input, "name") {
+        if name.chars().count() > 255 {
+            errors.push(metafield_definition_user_error(
+                typename,
+                json!(["definition", "name"]),
+                "Name is too long (maximum is 255 characters)",
+                "TOO_LONG",
+            ));
+        }
+    }
+    if let Some(description) = resolved_string_field(input, "description") {
+        if description.chars().count() > 255 {
+            errors.push(metafield_definition_user_error(
+                typename,
+                json!(["definition", "description"]),
+                "Description is too long (maximum is 255 characters)",
+                "TOO_LONG",
+            ));
+        }
+    }
+    errors
+}
+
 fn metafield_definition_delete_namespace_is_reserved(namespace: &str) -> bool {
     namespace.starts_with("app--")
         || matches!(
@@ -1991,26 +2026,10 @@ fn metafield_definition_create_errors_for_namespace(
             "INVALID_CHARACTER",
         ));
     }
-    if let Some(name) = resolved_string_field(input, "name") {
-        if name.chars().count() > 255 {
-            errors.push(metafield_definition_user_error(
-                "MetafieldDefinitionCreateUserError",
-                json!(["definition", "name"]),
-                "Name is too long (maximum is 255 characters)",
-                "TOO_LONG",
-            ));
-        }
-    }
-    if let Some(description) = resolved_string_field(input, "description") {
-        if description.chars().count() > 255 {
-            errors.push(metafield_definition_user_error(
-                "MetafieldDefinitionCreateUserError",
-                json!(["definition", "description"]),
-                "Description is too long (maximum is 255 characters)",
-                "TOO_LONG",
-            ));
-        }
-    }
+    errors.extend(metafield_definition_name_description_length_errors(
+        input,
+        "MetafieldDefinitionCreateUserError",
+    ));
     let metafield_type = resolved_string_field(input, "type").unwrap_or_default();
     if !metafield_definition_type_allowed(&metafield_type) {
         errors.push(metafield_definition_user_error(
