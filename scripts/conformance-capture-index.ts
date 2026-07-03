@@ -2403,7 +2403,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-metafield-definition-validations-input-conformance.ts',
     purpose:
-      'metafieldDefinitionCreate validations[] option validation and metafieldDefinitionUpdate metaobject_definition_id immutability.',
+      'metafieldDefinitionCreate validations[] type-ineligible option validation across multiple metafield types and metafieldDefinitionUpdate metaobject_definition_id immutability.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_metaobjects', 'write_metaobjects'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}metafield-definition-validations-input.json`,
