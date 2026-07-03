@@ -1205,6 +1205,8 @@ fn bulk_operation_run_mutation_nested_connection_returns_count_error_without_sta
 #[test]
 fn bulk_operation_run_mutation_allows_one_shallow_schema_connection() {
     let mut proxy = snapshot_proxy();
+    let path = staged_bulk_mutation_upload_path(&mut proxy, "one-shallow-connection.jsonl", "42");
+    let log_len_before = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -1217,7 +1219,7 @@ fn bulk_operation_run_mutation_allows_one_shallow_schema_connection() {
         "#,
         json!({
             "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { variants(first: 1) { edges { node { id } } } } } }",
-            "path": "valid"
+            "path": path
         }),
     ));
 
@@ -1234,7 +1236,10 @@ fn bulk_operation_run_mutation_allows_one_shallow_schema_connection() {
         response.body["data"]["bulkOperationRunMutation"]["userErrors"],
         json!([])
     );
-    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_before + 1
+    );
 }
 
 fn staged_bulk_mutation_upload_path(
