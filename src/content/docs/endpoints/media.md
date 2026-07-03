@@ -80,7 +80,9 @@ Local staged mutations:
   `acl: private`, and `x-goog-algorithm: GOOG4-RSA-SHA256` for IMAGE and FILE.
 - Admin GraphQL 2026-04 captures cover staged upload validation behavior.
   `VIDEO` and `MODEL_3D` inputs require `fileSize`; missing values return a
-  field-scoped `userErrors` entry and a null placeholder target. Invalid enum
+  field-scoped `userErrors` entry and a null placeholder target. Captured
+  messages are `file size is required for video resources` for `VIDEO` and
+  `file size is required for 3D model resources` for `MODEL_3D`. Invalid enum
   resource values are rejected as top-level GraphQL `INVALID_VARIABLE` errors
   before resolver handling. IMAGE-family resources reject unsupported MIME
   values with a `mimeType` userError. Current Shopify accepts FILE staged
@@ -229,17 +231,24 @@ Local staged mutations:
   covers omitted `contentType` inference for image, video, document,
   extensionless, and `.glb` sources. The `.glb` branch records Shopify's
   GenericFile behavior; `MODEL_3D` remains an explicit-contentType path.
-- Local executable coverage covers `files`, `fileSavedSearches`,
-  `stagedUploadsCreate`, and the former explicit
-  `fileAcknowledgeUpdateFailed` unsupported boundary. Live staged-upload target
-  payload captures cover IMAGE, FILE, VIDEO, and MODEL_3D
-  target metadata while preserving the no-upload/no-storage runtime boundary.
+- The historically named
+  `config/parity-specs/media/files-upload-local-runtime.json`,
+  `media-file-acknowledge-update-failed-semantics.json`,
+  `fileUpdate-product-reference-local-staging.json`, and
+  `fileAcknowledgeUpdateFailed-local-staging.json` scenarios are now backed by
+  live Shopify Admin GraphQL 2026-04 recordings under
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/`, not by
+  `fixtures/conformance/local-runtime`. They cover local paginated `files`
+  connection reads, empty `fileSavedSearches`, `stagedUploadsCreate`, non-ready
+  `fileUpdate`, product reference validation, and `fileAcknowledgeUpdateFailed`
+  payload/read-after-write behavior from real request/response captures.
+  Focused Rust runtime tests still guard the local staging implementation.
 - `config/parity-specs/media/staged_uploads_create_required_args.json` and
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/staged_uploads_create_required_args.json`
   cover top-level `stagedUploadsCreate` schema coercion for omitted required
   `filename` and `mimeType` fields.
-- Local executable coverage for `fileAcknowledgeUpdateFailed` covers
-  acknowledgement payloads and downstream `files` reads. The Shopify 2026-04
+- `fileAcknowledgeUpdateFailed` parity covers acknowledgement payloads and
+  downstream `files` reads. The Shopify 2026-04
   live capture records that the mutation takes `fileIds`, returns a `files`
   list, accepts READY files, reports `FILE_DOES_NOT_EXIST` for unknown/deleted
   IDs, and reports `NON_READY_STATE` for FAILED files produced by a bad-source
@@ -252,13 +261,11 @@ Local staged mutations:
   READY files. It preserves the mutation payload shape, parent READY
   validation, downstream empty error/warning list shape, and raw mutation log
   behavior without stamping synthetic acknowledgement metadata.
-- Executable local-runtime parity covers the Files API product-reference
-  lifecycle: a local `fileCreate` MediaImage is updated through
-  `fileUpdate.referencesToAdd`, becomes visible in downstream `product.media`,
-  and remains visible through top-level `files`. This is intentionally local
-  evidence because external upload byte transfer is still outside the proxy
-  boundary; existing live Files API fixtures anchor the generic create/update
-  payload family.
+- Live parity now exercises the Files API product-reference boundary for a
+  newly created non-ready file: `fileUpdate.referencesToAdd` rejects the edit,
+  the file remains visible through top-level `files`, and product media reads
+  stay empty. External upload byte transfer and Shopify processing remain
+  outside the proxy boundary.
 - Remaining media parity scenarios use cassette-backed LiveHybrid execution.
   `fileUpdate.referencesToAdd` uses a product hydrate
   cassette entry before local staging, and `fileDelete` of a product-owned

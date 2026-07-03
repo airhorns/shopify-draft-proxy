@@ -1,0 +1,13 @@
+#graphql
+  mutation ReturnDeclineRequestUnknownNotifyPayload($input: ReturnDeclineRequestInput!) {
+    returnDeclineRequest(input: $input) {
+      return {
+        id
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
