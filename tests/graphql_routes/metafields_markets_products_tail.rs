@@ -3360,7 +3360,7 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
         ),
         (
             json!({"title": "EU Catalog", "status": "ACTIVE", "context": {}}),
-            json!({"__typename": "CatalogUserError", "field": ["input", "context", "marketIds"], "message": "Market ids can't be blank", "code": "INVALID"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "context"], "message": "Must provide exactly one context type.", "code": "MUST_PROVIDE_EXACTLY_ONE_CONTEXT_TYPE"}),
         ),
         (
             json!({"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/404"]}}),
@@ -3639,6 +3639,46 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
         context_update.body["data"]["catalogContextUpdate"],
         json!({"catalog": {"id": "gid://shopify/MarketCatalog/3", "markets": {"nodes": [{"id": second_market_id}]}}, "userErrors": []})
     );
+}
+
+#[test]
+fn catalog_create_context_requires_exactly_one_context_type() {
+    let create_query = r#"
+        mutation CatalogCreateContextValidation($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let expected_error = json!({
+        "__typename": "CatalogUserError",
+        "field": ["input", "context"],
+        "message": "Must provide exactly one context type.",
+        "code": "MUST_PROVIDE_EXACTLY_ONE_CONTEXT_TYPE"
+    });
+
+    for input in [
+        json!({"title": "EU Catalog", "status": "ACTIVE", "context": {}}),
+        json!({
+            "title": "EU Catalog",
+            "status": "ACTIVE",
+            "context": {
+                "marketIds": ["gid://shopify/Market/1"],
+                "companyLocationIds": ["gid://shopify/CompanyLocation/1"]
+            }
+        }),
+    ] {
+        let mut proxy = snapshot_proxy();
+        let response =
+            proxy.process_request(json_graphql_request(create_query, json!({"input": input})));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["catalogCreate"],
+            json!({"catalog": null, "userErrors": [expected_error]})
+        );
+        assert_no_staged_catalogs(&proxy);
+    }
 }
 
 #[test]

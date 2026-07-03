@@ -4785,6 +4785,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'catalog-create-empty-context',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-catalog-create-empty-context-conformance.mts',
+    purpose: 'Safe catalogCreate validation branches for empty context input and multiple context-type keys.',
+    requiredAuthScopes: ['write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}catalog-create-empty-context.json`,
+      'config/parity-specs/markets/catalog_create_empty_context.json',
+      'config/parity-requests/markets/catalog-create-empty-context.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only mutations reject before creating a catalog; no setup or cleanup records are created.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-update-linkage',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-market-update-linkage-conformance.mts',

@@ -1,0 +1,38 @@
+{
+  "scenarioId": "catalog_create_empty_context",
+  "operationNames": ["catalogCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-create-empty-context.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-create-empty-context.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Safe live Shopify Catalog validation capture for Admin GraphQL 2026-04. Empty catalogCreate context and multi-key catalogCreate context both return MUST_PROVIDE_EXACTLY_ONE_CONTEXT_TYPE at input.context before any driver-specific validation.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "catalog-create-empty-context-user-error",
+        "capturePath": "$.cases[0].response.payload.data.catalogCreate",
+        "proxyPath": "$.data.catalogCreate"
+      },
+      {
+        "name": "catalog-create-multiple-context-types-user-error",
+        "capturePath": "$.cases[1].response.payload.data.catalogCreate",
+        "proxyPath": "$.data.catalogCreate",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-create-empty-context.graphql",
+          "variablesCapturePath": "$.cases[1].variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}
