@@ -10,6 +10,35 @@ require_relative "shopify_draft_proxy/shopify_draft_proxy_native"
 module ShopifyDraftProxy
   class Error < StandardError; end
 
+  # Raised by {#commit} when the session's staged mutations do not all replay
+  # successfully — the upstream returned a non-2xx status or GraphQL errors for
+  # at least one staged mutation, so the replay stopped. It carries the full
+  # commit result so callers can inspect exactly what happened without parsing a
+  # message string:
+  #
+  #   error.result["committed"] # => count replayed before the stop
+  #   error.result["failed"]    # => count that failed (>= 1)
+  #   error.result["stopIndex"] # => log index the replay stopped at
+  #   error.result["attempts"]  # => per-mutation records; the failing one carries
+  #                             #    { "response" => { "status", "body" } } — the
+  #                             #    real upstream response that caused the stop
+  #   error.result["error"]     # => human-readable reason for the stop
+  #
+  # A failed commit does not persist: the session's staged state is left intact
+  # so the commit can be retried after the cause is fixed. This mirrors the JS
+  # binding's `DraftProxyCommitError`, keeping the failure contract consistent
+  # across language bindings.
+  class CommitError < Error
+    # @return [Hash] the structured commit result (`"ok" => false`, plus
+    #   `committed`/`failed`/`stopIndex`/`attempts`/`error`).
+    attr_reader :result
+
+    def initialize(result)
+      @result = result
+      super(result["error"] || "commit stopped before all staged mutations were replayed")
+    end
+  end
+
   Response = Struct.new(:status, :body, :headers, keyword_init: true)
 
   # Transports perform the proxy's *outbound* HTTP — the commit replay and any
@@ -176,8 +205,14 @@ module ShopifyDraftProxy
 
     def commit(headers: {})
       result = native_commit({ "headers" => headers })
-      # Commit flips staged log entries to committed/failed in place — a state
-      # change that advances the version tuple without adding log entries.
+      # A failed replay leaves the session's staged state untouched so it stays
+      # retryable — raise the typed error carrying the full result and do NOT
+      # persist (the committed/failed flips the core made in memory are dropped
+      # with the disposed proxy).
+      raise CommitError, result unless result["ok"]
+
+      # A fully successful commit flips staged log entries to committed in place —
+      # a state change that advances the version tuple without adding log entries.
       sdp_persist! if sdp_storage? && @sdp_persist_mode == :each_mutation
       result
     end
