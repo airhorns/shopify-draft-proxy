@@ -7589,6 +7589,161 @@ fn metaobjects_read_empty_and_lifecycle_state_locally_for_arbitrary_documents() 
 }
 
 #[test]
+fn metaobjects_connection_filters_and_sorts_staged_records() {
+    let mut proxy = snapshot_proxy();
+    create_metaobject_definition_for_test(
+        &mut proxy,
+        "filter_sort_article",
+        vec![
+            json!({
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field",
+                "required": true
+            }),
+            json!({
+                "key": "subtitle",
+                "name": "Subtitle",
+                "type": "single_line_text_field",
+                "required": false
+            }),
+        ],
+    );
+
+    let create_metaobject =
+        |proxy: &mut DraftProxy, handle: &str, title: &str, subtitle: &str| -> String {
+            let response = proxy.process_request(json_graphql_request(
+                r#"
+            mutation CreateFilterSortMetaobject($metaobject: MetaobjectCreateInput!) {
+              metaobjectCreate(metaobject: $metaobject) {
+                metaobject { id }
+                userErrors { field message code elementKey elementIndex }
+              }
+            }
+            "#,
+                json!({"metaobject": {
+                    "type": "filter_sort_article",
+                    "handle": handle,
+                    "fields": [
+                        {"key": "title", "value": title},
+                        {"key": "subtitle", "value": subtitle}
+                    ]
+                }}),
+            ));
+            assert_eq!(
+                response.body["data"]["metaobjectCreate"]["userErrors"],
+                json!([])
+            );
+            response.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        };
+
+    let charlie_id = create_metaobject(&mut proxy, "charlie-handle", "Charlie", "Lake story");
+    let alpha_id = create_metaobject(&mut proxy, "alpha-handle", "Alpha", "River note");
+    let bravo_id = create_metaobject(&mut proxy, "bravo-handle", "Bravo", "Hill note");
+
+    let read_connection =
+        |proxy: &mut DraftProxy, query: Value, sort_key: Value, reverse: bool| -> Vec<String> {
+            let response = proxy.process_request(json_graphql_request(
+                r#"
+                query ReadFilterSortMetaobjects(
+                  $type: String!
+                  $query: String
+                  $sortKey: String
+                  $reverse: Boolean
+                ) {
+                  metaobjects(
+                    type: $type
+                    first: 10
+                    query: $query
+                    sortKey: $sortKey
+                    reverse: $reverse
+                  ) {
+                    nodes {
+                      id
+                      handle
+                      type
+                      displayName
+                      updatedAt
+                      fields { key value jsonValue }
+                    }
+                  }
+                }
+                "#,
+                json!({
+                    "type": "filter_sort_article",
+                    "query": query,
+                    "sortKey": sort_key,
+                    "reverse": reverse
+                }),
+            ));
+            response.body["data"]["metaobjects"]["nodes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|node| node["id"].as_str().unwrap().to_string())
+                .collect()
+        };
+
+    assert_eq!(
+        read_connection(&mut proxy, json!("display_name:Alpha"), Value::Null, false),
+        vec![alpha_id.clone()]
+    );
+    assert_eq!(
+        read_connection(
+            &mut proxy,
+            json!("fields.subtitle:lake"),
+            Value::Null,
+            false
+        ),
+        vec![charlie_id.clone()]
+    );
+    assert_eq!(
+        read_connection(&mut proxy, json!("handle:bravo-handle"), Value::Null, false),
+        vec![bravo_id.clone()]
+    );
+
+    let alpha_tail = alpha_id.rsplit('/').next().unwrap();
+    assert_eq!(
+        read_connection(
+            &mut proxy,
+            json!(format!("id:>={alpha_tail}")),
+            Value::Null,
+            false
+        ),
+        vec![alpha_id.clone(), bravo_id.clone()]
+    );
+    assert_eq!(
+        read_connection(
+            &mut proxy,
+            json!("updated_at:<2026-01-01T00:00:00Z"),
+            Value::Null,
+            false
+        ),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        read_connection(
+            &mut proxy,
+            json!("unknown_filter:value"),
+            Value::Null,
+            false
+        ),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        read_connection(&mut proxy, Value::Null, json!("display_name"), true),
+        vec![charlie_id.clone(), bravo_id.clone(), alpha_id.clone()]
+    );
+    assert_eq!(
+        read_connection(&mut proxy, Value::Null, json!("id"), true),
+        vec![bravo_id, alpha_id, charlie_id]
+    );
+}
+
+#[test]
 fn metaobject_create_rejects_duplicate_field_keys() {
     let mut proxy = snapshot_proxy();
 

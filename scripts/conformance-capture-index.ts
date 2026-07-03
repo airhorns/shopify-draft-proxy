@@ -3444,6 +3444,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobjects-filter-sort',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobjects-filter-sort-conformance.ts',
+    purpose:
+      'metaobjects(type:, query:, sortKey:, reverse:) filtering for display_name, fields.{key}, handle, id, updated_at, plus display_name/id reverse sorting.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobjects-filter-sort.json`,
+      'config/parity-specs/metaobjects/metaobjects-filter-sort.json',
+      'config/parity-requests/metaobjects/metaobjects-filter-sort-definition-create.graphql',
+      'config/parity-requests/metaobjects/metaobjects-filter-sort-entry-create.graphql',
+      'config/parity-requests/metaobjects/metaobjects-filter-sort-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable metaobject definition and three rows, waits for metaobjects(type:) search indexing, then deletes the rows and definition during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-definition-lifecycle-and-capability',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-lifecycle-and-capability-conformance.ts',
