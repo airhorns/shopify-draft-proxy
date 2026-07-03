@@ -24,23 +24,23 @@
         "proxyPath": "$.data.fileCreate",
         "expectedDifferences": [
           {
-            "path": "$.files[0].id",
+            "path": "$.files[*].id",
             "matcher": "shopify-gid:MediaImage",
             "reason": "The proxy generates a local MediaImage GID; Shopify returns the dev-store MediaImage GID."
           },
           {
-            "path": "$.files[0].createdAt",
+            "path": "$.files[*].createdAt",
             "matcher": "iso-timestamp",
             "reason": "The proxy uses deterministic staged timestamps; Shopify returns the live creation timestamp."
           },
           {
-            "path": "$.files[0].image",
+            "path": "$.files[*].image",
             "ignore": true,
             "regrettable": true,
             "reason": "Shopify image materialization is asynchronous; the proxy keeps the accepted source URL immediately."
           },
           {
-            "path": "$.files[0].preview",
+            "path": "$.files[*].preview",
             "ignore": true,
             "regrettable": true,
             "reason": "Shopify preview materialization is asynchronous; the proxy keeps the accepted source URL immediately."

@@ -91,6 +91,10 @@ export const retiredConformanceEvidencePaths = [
   'fixtures/conformance/local-runtime/2026-04/discounts/discount-activation-failure-field-base.json',
   'fixtures/conformance/local-runtime/2026-04/discounts/discount-app-bulk-local-runtime.json',
   'fixtures/conformance/local-runtime/2026-04/discounts/discount-subscription-fields-not-permitted.json',
+  'fixtures/conformance/local-runtime/2026-04/media/file-acknowledge-update-failed-local-runtime.json',
+  'fixtures/conformance/local-runtime/2026-04/media/file-update-product-reference-local-runtime.json',
+  'fixtures/conformance/local-runtime/2026-04/media/files-upload-local-runtime.json',
+  'fixtures/conformance/local-runtime/2026-04/media/media-file-acknowledge-update-failed-semantics.json',
 ] as const;
 
 function defineCaptureIndex(entries: Array<z.input<typeof captureIndexEntrySchema>>): ConformanceCaptureIndexEntry[] {
@@ -1616,6 +1620,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/media/fileAcknowledgeUpdateFailed-local-staging.json',
       'config/parity-requests/media/files-upload-local-runtime-create.graphql',
       'config/parity-requests/media/files-upload-local-runtime-read.graphql',
+      'config/parity-requests/media/files-upload-local-runtime-read-page-two.graphql',
       'config/parity-requests/media/files-upload-local-runtime-staged-upload.graphql',
       'config/parity-requests/media/media-file-acknowledge-update-failed-semantics-create.graphql',
       'config/parity-requests/media/media-file-acknowledge-update-failed-semantics-ack.graphql',

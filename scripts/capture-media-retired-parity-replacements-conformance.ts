@@ -118,7 +118,7 @@ const filesUploadCreateDocument = `mutation FilesUploadLocalRuntimeCreate($files
 `;
 
 const filesUploadReadDocument = `query FilesUploadLocalRuntimeRead {
-  files(first: 1, reverse: true) {
+  files(first: 2, reverse: true, sortKey: ID) {
     nodes {
       id
       alt
@@ -137,6 +137,13 @@ const filesUploadReadDocument = `query FilesUploadLocalRuntimeRead {
         }
       }
     }
+    edges {
+      cursor
+      node {
+        id
+        alt
+      }
+    }
     pageInfo {
       hasNextPage
       hasPreviousPage
@@ -148,6 +155,43 @@ const filesUploadReadDocument = `query FilesUploadLocalRuntimeRead {
     nodes {
       id
       name
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
+`;
+
+const filesUploadReadAfterDocument = `query FilesUploadLocalRuntimeReadPageTwo($after: String!) {
+  files(first: 1, after: $after, reverse: true, sortKey: ID) {
+    nodes {
+      id
+      alt
+      createdAt
+      fileStatus
+      ... on MediaImage {
+        image {
+          url
+          width
+          height
+        }
+        preview {
+          image {
+            url
+          }
+        }
+      }
+    }
+    edges {
+      cursor
+      node {
+        id
+        alt
+      }
     }
     pageInfo {
       hasNextPage
@@ -543,23 +587,23 @@ async function run<TData>(label: string, query: string, variables: JsonRecord = 
 function createSpecExpectedDifferences() {
   return [
     {
-      path: '$.files[0].id',
+      path: '$.files[*].id',
       matcher: 'shopify-gid:MediaImage',
       reason: 'The proxy generates a local MediaImage GID; Shopify returns the dev-store MediaImage GID.',
     },
     {
-      path: '$.files[0].createdAt',
+      path: '$.files[*].createdAt',
       matcher: 'iso-timestamp',
       reason: 'The proxy uses deterministic staged timestamps; Shopify returns the live creation timestamp.',
     },
     {
-      path: '$.files[0].image',
+      path: '$.files[*].image',
       ignore: true,
       regrettable: true,
       reason: 'Shopify image materialization is asynchronous; the proxy keeps the accepted source URL immediately.',
     },
     {
-      path: '$.files[0].preview',
+      path: '$.files[*].preview',
       ignore: true,
       regrettable: true,
       reason: 'Shopify preview materialization is asynchronous; the proxy keeps the accepted source URL immediately.',
@@ -567,36 +611,62 @@ function createSpecExpectedDifferences() {
   ];
 }
 
-function readNodeExpectedDifferences() {
+function readNodeExpectedDifferences(root = '$') {
   return [
     {
-      path: '$.id',
+      path: `${root}.id`,
       matcher: 'shopify-gid:MediaImage',
       reason: 'The proxy generates a local MediaImage GID; Shopify returns the dev-store MediaImage GID.',
     },
     {
-      path: '$.createdAt',
+      path: `${root}.createdAt`,
       matcher: 'iso-timestamp',
       reason: 'The proxy uses deterministic staged timestamps; Shopify returns the live creation timestamp.',
     },
     {
-      path: '$.fileStatus',
+      path: `${root}.fileStatus`,
       ignore: true,
       regrettable: true,
       reason:
         'Shopify media processing status can advance asynchronously; the proxy keeps deterministic staged status.',
     },
     {
-      path: '$.image',
+      path: `${root}.image`,
       ignore: true,
       regrettable: true,
       reason: 'Shopify image materialization is asynchronous; the proxy keeps the accepted source URL immediately.',
     },
     {
-      path: '$.preview',
+      path: `${root}.preview`,
       ignore: true,
       regrettable: true,
       reason: 'Shopify preview materialization is asynchronous; the proxy keeps the accepted source URL immediately.',
+    },
+  ];
+}
+
+function readConnectionExpectedDifferences() {
+  return [
+    ...readNodeExpectedDifferences('$.nodes[*]'),
+    {
+      path: '$.edges[*].cursor',
+      matcher: 'non-empty-string',
+      reason: 'Shopify and the proxy use different opaque cursor encodings.',
+    },
+    {
+      path: '$.edges[*].node.id',
+      matcher: 'shopify-gid:MediaImage',
+      reason: 'The proxy generates local MediaImage GIDs; Shopify returns dev-store MediaImage GIDs.',
+    },
+    {
+      path: '$.pageInfo.startCursor',
+      matcher: 'non-empty-string',
+      reason: 'Shopify and the proxy use different opaque cursor encodings.',
+    },
+    {
+      path: '$.pageInfo.endCursor',
+      matcher: 'non-empty-string',
+      reason: 'Shopify and the proxy use different opaque cursor encodings.',
     },
   ];
 }
@@ -665,9 +735,21 @@ try {
   const filesUploadCreateVariables = {
     files: [
       {
-        alt: 'Media parity replacement file',
+        alt: 'Media parity replacement file page one',
         contentType: 'IMAGE',
         filename: filesUploadFilename,
+        originalSource: sourceImageUrl,
+      },
+      {
+        alt: 'Media parity replacement file page two',
+        contentType: 'IMAGE',
+        filename: `media-replacement-files-upload-page-two-${runId}.jpg`,
+        originalSource: sourceImageUrl,
+      },
+      {
+        alt: 'Media parity replacement file page three',
+        contentType: 'IMAGE',
+        filename: `media-replacement-files-upload-page-three-${runId}.jpg`,
         originalSource: sourceImageUrl,
       },
     ],
@@ -679,9 +761,22 @@ try {
   );
   expectNoUserErrors('files upload fileCreate', filesUploadCreate.data?.fileCreate?.userErrors);
   const filesUploadFileId = createdFileId('files upload fileCreate', filesUploadCreate);
-  createdFileIds.push(filesUploadFileId);
+  for (const file of filesUploadCreate.data?.fileCreate?.files ?? []) {
+    if (file?.id) createdFileIds.push(file.id);
+  }
   const filesUploadReadVariables = {};
   const filesUploadRead = await run('files upload readAfterCreate', filesUploadReadDocument, filesUploadReadVariables);
+  const filesUploadReadAfterCursor = requireString(
+    (filesUploadRead.data as { files?: { pageInfo?: { endCursor?: unknown } } } | undefined)?.files?.pageInfo
+      ?.endCursor,
+    'files upload readAfterCreate endCursor',
+  );
+  const filesUploadReadPageTwoVariables = { after: filesUploadReadAfterCursor };
+  const filesUploadReadPageTwo = await run(
+    'files upload readAfterCreate page two',
+    filesUploadReadAfterDocument,
+    filesUploadReadPageTwoVariables,
+  );
   const stagedUploadsVariables = {
     input: [
       {
@@ -883,6 +978,7 @@ try {
     scenarioId: 'files-upload-local-runtime',
     create: { variables: filesUploadCreateVariables, response: filesUploadCreate },
     readAfterCreate: { variables: filesUploadReadVariables, response: filesUploadRead },
+    readAfterCreatePageTwo: { variables: filesUploadReadPageTwoVariables, response: filesUploadReadPageTwo },
     stagedUploadsCreate: { variables: stagedUploadsVariables, response: stagedUploadsCreate },
     fileUpdateConflictingSources: { variables: filesUploadConflictVariables, response: filesUploadConflict },
     upstreamCalls: [],
@@ -925,6 +1021,10 @@ try {
 
   await writeText(path.join(requestDir, 'files-upload-local-runtime-create.graphql'), filesUploadCreateDocument);
   await writeText(path.join(requestDir, 'files-upload-local-runtime-read.graphql'), filesUploadReadDocument);
+  await writeText(
+    path.join(requestDir, 'files-upload-local-runtime-read-page-two.graphql'),
+    filesUploadReadAfterDocument,
+  );
   await writeText(
     path.join(requestDir, 'files-upload-local-runtime-staged-upload.graphql'),
     stagedUploadsCreateDocument,
@@ -977,7 +1077,7 @@ try {
     },
     comparisonMode: 'captured-vs-proxy-request',
     notes:
-      'Replaces the former local-runtime evidence with live Shopify Admin GraphQL capture for fileCreate, immediate files/fileSavedSearches read, stagedUploadsCreate target metadata, and non-ready fileUpdate validation.',
+      'Replaces the former local-runtime evidence with live Shopify Admin GraphQL capture for fileCreate, immediate paginated files/fileSavedSearches reads, stagedUploadsCreate target metadata, and non-ready fileUpdate validation.',
     comparison: {
       mode: 'strict-json',
       expectedDifferences: [],
@@ -989,15 +1089,40 @@ try {
           expectedDifferences: createSpecExpectedDifferences(),
         },
         {
-          name: 'files-read-after-create-node',
-          capturePath: '$.readAfterCreate.response.data.files.nodes[0]',
-          proxyPath: '$.data.files.nodes[0]',
+          name: 'files-read-after-create-page-one',
+          capturePath: '$.readAfterCreate.response.data.files',
+          proxyPath: '$.data.files',
           proxyRequest: {
             documentPath: 'config/parity-requests/media/files-upload-local-runtime-read.graphql',
             variablesCapturePath: '$.readAfterCreate.variables',
             apiVersion,
           },
-          expectedDifferences: readNodeExpectedDifferences(),
+          expectedDifferences: readConnectionExpectedDifferences(),
+        },
+        {
+          name: 'files-read-after-create-page-two',
+          capturePath: '$.readAfterCreatePageTwo.response.data.files',
+          proxyPath: '$.data.files',
+          proxyRequest: {
+            documentPath: 'config/parity-requests/media/files-upload-local-runtime-read-page-two.graphql',
+            variables: {
+              after: {
+                fromProxyResponse: 'files-read-after-create-page-one',
+                path: '$.data.files.pageInfo.endCursor',
+              },
+            },
+            apiVersion,
+          },
+          expectedDifferences: [
+            ...readConnectionExpectedDifferences(),
+            {
+              path: '$.pageInfo.hasNextPage',
+              ignore: true,
+              regrettable: true,
+              reason:
+                'The disposable live store can contain older media beyond this scenario; the proxy only knows the staged scenario files.',
+            },
+          ],
         },
         {
           name: 'file-saved-searches-empty',

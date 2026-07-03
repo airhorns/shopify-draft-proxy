@@ -19,7 +19,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Replaces the former local-runtime evidence with live Shopify Admin GraphQL capture for fileCreate, immediate files/fileSavedSearches read, stagedUploadsCreate target metadata, and non-ready fileUpdate validation.",
+  "notes": "Replaces the former local-runtime evidence with live Shopify Admin GraphQL capture for fileCreate, immediate paginated files/fileSavedSearches reads, stagedUploadsCreate target metadata, and non-ready fileUpdate validation.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -30,23 +30,23 @@
         "proxyPath": "$.data.fileCreate",
         "expectedDifferences": [
           {
-            "path": "$.files[0].id",
+            "path": "$.files[*].id",
             "matcher": "shopify-gid:MediaImage",
             "reason": "The proxy generates a local MediaImage GID; Shopify returns the dev-store MediaImage GID."
           },
           {
-            "path": "$.files[0].createdAt",
+            "path": "$.files[*].createdAt",
             "matcher": "iso-timestamp",
             "reason": "The proxy uses deterministic staged timestamps; Shopify returns the live creation timestamp."
           },
           {
-            "path": "$.files[0].image",
+            "path": "$.files[*].image",
             "ignore": true,
             "regrettable": true,
             "reason": "Shopify image materialization is asynchronous; the proxy keeps the accepted source URL immediately."
           },
           {
-            "path": "$.files[0].preview",
+            "path": "$.files[*].preview",
             "ignore": true,
             "regrettable": true,
             "reason": "Shopify preview materialization is asynchronous; the proxy keeps the accepted source URL immediately."
@@ -54,9 +54,9 @@
         ]
       },
       {
-        "name": "files-read-after-create-node",
-        "capturePath": "$.readAfterCreate.response.data.files.nodes[0]",
-        "proxyPath": "$.data.files.nodes[0]",
+        "name": "files-read-after-create-page-one",
+        "capturePath": "$.readAfterCreate.response.data.files",
+        "proxyPath": "$.data.files",
         "proxyRequest": {
           "documentPath": "config/parity-requests/media/files-upload-local-runtime-read.graphql",
           "variablesCapturePath": "$.readAfterCreate.variables",
@@ -64,32 +64,123 @@
         },
         "expectedDifferences": [
           {
-            "path": "$.id",
+            "path": "$.nodes[*].id",
             "matcher": "shopify-gid:MediaImage",
             "reason": "The proxy generates a local MediaImage GID; Shopify returns the dev-store MediaImage GID."
           },
           {
-            "path": "$.createdAt",
+            "path": "$.nodes[*].createdAt",
             "matcher": "iso-timestamp",
             "reason": "The proxy uses deterministic staged timestamps; Shopify returns the live creation timestamp."
           },
           {
-            "path": "$.fileStatus",
+            "path": "$.nodes[*].fileStatus",
             "ignore": true,
             "regrettable": true,
             "reason": "Shopify media processing status can advance asynchronously; the proxy keeps deterministic staged status."
           },
           {
-            "path": "$.image",
+            "path": "$.nodes[*].image",
             "ignore": true,
             "regrettable": true,
             "reason": "Shopify image materialization is asynchronous; the proxy keeps the accepted source URL immediately."
           },
           {
-            "path": "$.preview",
+            "path": "$.nodes[*].preview",
             "ignore": true,
             "regrettable": true,
             "reason": "Shopify preview materialization is asynchronous; the proxy keeps the accepted source URL immediately."
+          },
+          {
+            "path": "$.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque cursor encodings."
+          },
+          {
+            "path": "$.edges[*].node.id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates local MediaImage GIDs; Shopify returns dev-store MediaImage GIDs."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque cursor encodings."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque cursor encodings."
+          }
+        ]
+      },
+      {
+        "name": "files-read-after-create-page-two",
+        "capturePath": "$.readAfterCreatePageTwo.response.data.files",
+        "proxyPath": "$.data.files",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/files-upload-local-runtime-read-page-two.graphql",
+          "variables": {
+            "after": {
+              "fromProxyResponse": "files-read-after-create-page-one",
+              "path": "$.data.files.pageInfo.endCursor"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[*].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates a local MediaImage GID; Shopify returns the dev-store MediaImage GID."
+          },
+          {
+            "path": "$.nodes[*].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic staged timestamps; Shopify returns the live creation timestamp."
+          },
+          {
+            "path": "$.nodes[*].fileStatus",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify media processing status can advance asynchronously; the proxy keeps deterministic staged status."
+          },
+          {
+            "path": "$.nodes[*].image",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify image materialization is asynchronous; the proxy keeps the accepted source URL immediately."
+          },
+          {
+            "path": "$.nodes[*].preview",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify preview materialization is asynchronous; the proxy keeps the accepted source URL immediately."
+          },
+          {
+            "path": "$.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque cursor encodings."
+          },
+          {
+            "path": "$.edges[*].node.id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates local MediaImage GIDs; Shopify returns dev-store MediaImage GIDs."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque cursor encodings."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify and the proxy use different opaque cursor encodings."
+          },
+          {
+            "path": "$.pageInfo.hasNextPage",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The disposable live store can contain older media beyond this scenario; the proxy only knows the staged scenario files."
           }
         ]
       },

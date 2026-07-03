@@ -1,5 +1,5 @@
-query FilesUploadLocalRuntimeRead {
-  files(first: 2, reverse: true, sortKey: ID) {
+query FilesUploadLocalRuntimeReadPageTwo($after: String!) {
+  files(first: 1, after: $after, reverse: true, sortKey: ID) {
     nodes {
       id
       alt
@@ -24,18 +24,6 @@ query FilesUploadLocalRuntimeRead {
         id
         alt
       }
-    }
-    pageInfo {
-      hasNextPage
-      hasPreviousPage
-      startCursor
-      endCursor
-    }
-  }
-  fileSavedSearches(first: 5) {
-    nodes {
-      id
-      name
     }
     pageInfo {
       hasNextPage

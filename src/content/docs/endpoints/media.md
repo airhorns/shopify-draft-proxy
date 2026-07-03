@@ -238,9 +238,9 @@ Local staged mutations:
   `fileAcknowledgeUpdateFailed-local-staging.json` scenarios are now backed by
   live Shopify Admin GraphQL 2026-04 recordings under
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/`, not by
-  `fixtures/conformance/local-runtime`. They cover local `files`, empty
-  `fileSavedSearches`, `stagedUploadsCreate`, non-ready `fileUpdate`, product
-  reference validation, and `fileAcknowledgeUpdateFailed`
+  `fixtures/conformance/local-runtime`. They cover local paginated `files`
+  connection reads, empty `fileSavedSearches`, `stagedUploadsCreate`, non-ready
+  `fileUpdate`, product reference validation, and `fileAcknowledgeUpdateFailed`
   payload/read-after-write behavior from real request/response captures.
   Focused Rust runtime tests still guard the local staging implementation.
 - `config/parity-specs/media/staged_uploads_create_required_args.json` and

@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-07-02T20:51:41.951Z",
+  "capturedAt": "2026-07-03T00:01:47.138Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "scenarioId": "fileAcknowledgeUpdateFailed-local-staging",
@@ -9,7 +9,7 @@
         {
           "alt": "Media parity file acknowledgement source",
           "contentType": "IMAGE",
-          "filename": "media-replacement-file-acknowledge-1783025499615.jpg",
+          "filename": "media-replacement-file-acknowledge-1783036904856.jpg",
           "originalSource": "https://placehold.co/600x400.jpg"
         }
       ]
@@ -19,9 +19,9 @@
         "fileCreate": {
           "files": [
             {
-              "id": "gid://shopify/MediaImage/43987959152946",
+              "id": "gid://shopify/MediaImage/43989267054898",
               "alt": "Media parity file acknowledgement source",
-              "createdAt": "2026-07-02T20:51:41Z",
+              "createdAt": "2026-07-03T00:01:46Z",
               "fileStatus": "UPLOADED",
               "image": null
             }
@@ -35,7 +35,7 @@
           "actualQueryCost": 21,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1979,
+            "currentlyAvailable": 1975,
             "restoreRate": 100
           }
         }
@@ -46,7 +46,7 @@
     "variables": {
       "files": [
         {
-          "id": "gid://shopify/MediaImage/43987959152946",
+          "id": "gid://shopify/MediaImage/43989267054898",
           "alt": "Media parity file acknowledgement ready attempt",
           "originalSource": "https://placehold.co/800x600.jpg"
         }
@@ -71,7 +71,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1985,
+            "currentlyAvailable": 1978,
             "restoreRate": 100
           }
         }
@@ -80,7 +80,7 @@
   },
   "acknowledge": {
     "variables": {
-      "fileIds": ["gid://shopify/MediaImage/43987959152946"]
+      "fileIds": ["gid://shopify/MediaImage/43989267054898"]
     },
     "response": {
       "data": {
@@ -89,7 +89,7 @@
           "userErrors": [
             {
               "field": ["fileIds"],
-              "message": "File with id gid://shopify/MediaImage/43987959152946 is not in the READY state.",
+              "message": "File with id gid://shopify/MediaImage/43989267054898 is not in the READY state.",
               "code": "NON_READY_STATE"
             }
           ]
@@ -101,7 +101,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1986,
+            "currentlyAvailable": 1978,
             "restoreRate": 100
           }
         }
@@ -115,9 +115,9 @@
         "files": {
           "nodes": [
             {
-              "id": "gid://shopify/MediaImage/43987959152946",
+              "id": "gid://shopify/MediaImage/43989267054898",
               "alt": "Media parity file acknowledgement source",
-              "createdAt": "2026-07-02T20:51:41Z",
+              "createdAt": "2026-07-03T00:01:46Z",
               "fileStatus": "PROCESSING",
               "image": null
             }
@@ -125,8 +125,8 @@
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0Mzk4Nzk1OTE1Mjk0NiwibGFzdF92YWx1ZSI6IjQzOTg3OTU5MTUyOTQ2In0=",
-            "endCursor": "eyJsYXN0X2lkIjo0Mzk4Nzk1OTE1Mjk0NiwibGFzdF92YWx1ZSI6IjQzOTg3OTU5MTUyOTQ2In0="
+            "startCursor": "eyJsYXN0X2lkIjo0Mzk4OTI2NzA1NDg5OCwibGFzdF92YWx1ZSI6IjQzOTg5MjY3MDU0ODk4In0=",
+            "endCursor": "eyJsYXN0X2lkIjo0Mzk4OTI2NzA1NDg5OCwibGFzdF92YWx1ZSI6IjQzOTg5MjY3MDU0ODk4In0="
           }
         }
       },
@@ -136,7 +136,7 @@
           "actualQueryCost": 4,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1992,
+            "currentlyAvailable": 1983,
             "restoreRate": 100
           }
         }

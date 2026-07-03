@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-07-02T20:51:41.951Z",
+  "capturedAt": "2026-07-03T00:01:47.138Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "scenarioId": "file-update-product-reference-local-staging",
@@ -7,7 +7,7 @@
     "productCreate": {
       "variables": {
         "product": {
-          "title": "Media parity file reference target 1783025499615",
+          "title": "Media parity file reference target 1783036904856",
           "status": "ACTIVE"
         }
       },
@@ -15,8 +15,8 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10229424619826",
-              "title": "Media parity file reference target 1783025499615"
+              "id": "gid://shopify/Product/10230382559538",
+              "title": "Media parity file reference target 1783036904856"
             },
             "userErrors": []
           }
@@ -27,7 +27,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1980,
+              "currentlyAvailable": 1981,
               "restoreRate": 100
             }
           }
@@ -41,7 +41,7 @@
         {
           "alt": "Media parity product reference source",
           "contentType": "IMAGE",
-          "filename": "media-replacement-product-reference-1783025499615.jpg",
+          "filename": "media-replacement-product-reference-1783036904856.jpg",
           "originalSource": "https://placehold.co/600x400.jpg"
         }
       ]
@@ -51,9 +51,9 @@
         "fileCreate": {
           "files": [
             {
-              "id": "gid://shopify/MediaImage/43987959120178",
+              "id": "gid://shopify/MediaImage/43989267022130",
               "alt": "Media parity product reference source",
-              "createdAt": "2026-07-02T20:51:41Z",
+              "createdAt": "2026-07-03T00:01:46Z",
               "fileStatus": "UPLOADED",
               "image": null
             }
@@ -78,10 +78,10 @@
     "variables": {
       "files": [
         {
-          "id": "gid://shopify/MediaImage/43987959120178",
+          "id": "gid://shopify/MediaImage/43989267022130",
           "alt": "Media parity product reference attached",
           "originalSource": "https://placehold.co/800x600.jpg",
-          "referencesToAdd": ["gid://shopify/Product/10229424619826"]
+          "referencesToAdd": ["gid://shopify/Product/10230382559538"]
         }
       ]
     },
@@ -104,7 +104,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1984,
+            "currentlyAvailable": 1980,
             "restoreRate": 100
           }
         }
@@ -113,13 +113,13 @@
   },
   "productReadAfterAttach": {
     "variables": {
-      "productId": "gid://shopify/Product/10229424619826"
+      "productId": "gid://shopify/Product/10230382559538"
     },
     "response": {
       "data": {
         "product": {
-          "id": "gid://shopify/Product/10229424619826",
-          "title": "Media parity file reference target 1783025499615",
+          "id": "gid://shopify/Product/10230382559538",
+          "title": "Media parity file reference target 1783036904856",
           "media": {
             "nodes": [],
             "pageInfo": {
@@ -137,7 +137,7 @@
           "actualQueryCost": 7,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1987,
+            "currentlyAvailable": 1982,
             "restoreRate": 100
           }
         }
@@ -151,9 +151,9 @@
         "files": {
           "nodes": [
             {
-              "id": "gid://shopify/MediaImage/43987959120178",
+              "id": "gid://shopify/MediaImage/43989267022130",
               "alt": "Media parity product reference source",
-              "createdAt": "2026-07-02T20:51:41Z",
+              "createdAt": "2026-07-03T00:01:46Z",
               "fileStatus": "PROCESSING",
               "image": null
             }
@@ -161,8 +161,8 @@
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjo0Mzk4Nzk1OTEyMDE3OCwibGFzdF92YWx1ZSI6IjQzOTg3OTU5MTIwMTc4In0=",
-            "endCursor": "eyJsYXN0X2lkIjo0Mzk4Nzk1OTEyMDE3OCwibGFzdF92YWx1ZSI6IjQzOTg3OTU5MTIwMTc4In0="
+            "startCursor": "eyJsYXN0X2lkIjo0Mzk4OTI2NzAyMjEzMCwibGFzdF92YWx1ZSI6IjQzOTg5MjY3MDIyMTMwIn0=",
+            "endCursor": "eyJsYXN0X2lkIjo0Mzk4OTI2NzAyMjEzMCwibGFzdF92YWx1ZSI6IjQzOTg5MjY3MDIyMTMwIn0="
           }
         }
       },
@@ -172,7 +172,7 @@
           "actualQueryCost": 4,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1993,
+            "currentlyAvailable": 1987,
             "restoreRate": 100
           }
         }
@@ -183,7 +183,7 @@
     {
       "operationName": "MediaProductHydrate",
       "variables": {
-        "id": "gid://shopify/Product/10229424619826"
+        "id": "gid://shopify/Product/10230382559538"
       },
       "query": "query MediaProductHydrate($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    status\n    media(first: 50) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n        preview { image { url width height } }\n        ... on MediaImage { image { url width height } }\n      }\n    }\n    variants(first: 50) {\n      nodes {\n        id\n        title\n        media(first: 10) { nodes { id } }\n      }\n    }\n  }\n}",
       "response": {
@@ -191,9 +191,9 @@
         "body": {
           "data": {
             "product": {
-              "id": "gid://shopify/Product/10229424619826",
-              "title": "Media parity file reference target 1783025499615",
-              "handle": "media-parity-file-reference-target-1783025499615",
+              "id": "gid://shopify/Product/10230382559538",
+              "title": "Media parity file reference target 1783036904856",
+              "handle": "media-parity-file-reference-target-1783036904856",
               "status": "ACTIVE",
               "media": {
                 "nodes": []
@@ -201,7 +201,7 @@
               "variants": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/ProductVariant/51413217116466",
+                    "id": "gid://shopify/ProductVariant/51417924108594",
                     "title": "Default Title",
                     "media": {
                       "nodes": []
