@@ -1755,6 +1755,27 @@ fn metafield_definition_create_input_validation_matches_live_branches_and_runtim
     assert!(unknown_type_message.contains("product_taxonomy_disclosure_reference"));
     assert!(unknown_type_message.contains("list.disclosure_reference"));
 
+    assert_eq!(
+        create(
+            &mut proxy,
+            json!({
+                "namespace": "loyalty",
+                "key": "disclosures",
+                "ownerType": "PRODUCT",
+                "name": "Disclosures",
+                "type": "list.disclosure_reference"
+            }),
+        ),
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "field": ["definition"],
+                "message": "The disclosure_reference type can only be used in standard definitions provided by Shopify.",
+                "code": null
+            }]
+        })
+    );
+
     for namespace in ["shopify_standard", "protected"] {
         let reserved = create(
             &mut proxy,

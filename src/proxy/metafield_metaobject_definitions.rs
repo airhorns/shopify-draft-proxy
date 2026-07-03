@@ -1726,6 +1726,15 @@ fn metafield_definition_user_error(
     user_error_typed(typename, field, message, Some(code))
 }
 
+fn metafield_definition_user_error_with_code_value(
+    typename: &str,
+    field: Value,
+    message: &str,
+    code: Value,
+) -> Value {
+    user_error_typed_with_code_value(typename, field, message, code)
+}
+
 pub(in crate::proxy) fn metafield_definition_store_key(
     owner_type: &str,
     namespace: &str,
@@ -2042,6 +2051,14 @@ fn metafield_definition_create_errors_for_namespace(
             "INCLUSION",
         ));
     }
+    if metafield_definition_type_is_standard_definition_only(&metafield_type) {
+        errors.push(metafield_definition_user_error_with_code_value(
+            "MetafieldDefinitionCreateUserError",
+            json!(["definition"]),
+            metafield_definition_standard_only_type_message(),
+            Value::Null,
+        ));
+    }
     if let Some(access) = resolved_object_field(input, "access") {
         if resolved_string_field(&access, "admin").as_deref() == Some("MERCHANT_READ") {
             errors.push(metafield_definition_user_error(
@@ -2209,6 +2226,14 @@ pub(in crate::proxy) fn metafield_definition_type_allowed(value: &str) -> bool {
 
 pub(in crate::proxy) fn metafield_definition_valid_type_message() -> &'static str {
     "antenna_gain, area, battery_charge_capacity, battery_energy_capacity, boolean, capacitance, color, concentration, data_storage_capacity, data_transfer_rate, date_time, date, dimension, display_density, distance, duration, electric_current, electrical_resistance, energy, frequency, id, illuminance, inductance, json, jurisdiction, language, link, list.antenna_gain, list.area, list.battery_charge_capacity, list.battery_energy_capacity, list.capacitance, list.color, list.concentration, list.data_storage_capacity, list.data_transfer_rate, list.date_time, list.date, list.dimension, list.display_density, list.distance, list.duration, list.electric_current, list.electrical_resistance, list.energy, list.frequency, list.illuminance, list.inductance, list.jurisdiction, list.link, list.luminous_flux, list.mass_flow_rate, list.number_decimal, list.number_integer, list.power, list.pressure, list.rating, list.resolution, list.rotational_speed, list.single_line_text_field, list.sound_level, list.speed, list.temperature, list.thermal_power, list.url, list.voltage, list.volume, list.volumetric_flow_rate, list.weight, luminous_flux, mass_flow_rate, money, multi_line_text_field, number_decimal, number_integer, power, pressure, rating, resolution, rich_text_field, rotational_speed, single_line_text_field, sound_level, speed, temperature, thermal_power, url, voltage, volume, volumetric_flow_rate, weight, company_reference, list.company_reference, customer_reference, list.customer_reference, product_reference, list.product_reference, collection_reference, list.collection_reference, variant_reference, list.variant_reference, file_reference, list.file_reference, product_taxonomy_value_reference, list.product_taxonomy_value_reference, product_taxonomy_disclosure_reference, metaobject_reference, list.metaobject_reference, mixed_reference, list.mixed_reference, disclosure_reference, list.disclosure_reference, page_reference, list.page_reference, article_reference, list.article_reference, order_reference, list.order_reference"
+}
+
+pub(in crate::proxy) fn metafield_definition_type_is_standard_definition_only(value: &str) -> bool {
+    matches!(value, "disclosure_reference" | "list.disclosure_reference")
+}
+
+pub(in crate::proxy) fn metafield_definition_standard_only_type_message() -> &'static str {
+    "The disclosure_reference type can only be used in standard definitions provided by Shopify."
 }
 
 fn metafield_definition_type(name: &str) -> Value {
