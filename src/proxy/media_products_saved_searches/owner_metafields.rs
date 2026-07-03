@@ -35,6 +35,7 @@ impl DraftProxy {
                 inputs
                     .iter()
                     .filter_map(|input| resolved_string_field(input, "ownerId"))
+                    .filter(|owner_id| shopify_gid_resource_type(owner_id).is_some())
                     .collect(),
             );
         }

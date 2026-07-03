@@ -1,4 +1,5 @@
 use super::*;
+use crate::graphql::ParsedDocument;
 use serde::Deserialize;
 use std::sync::OnceLock;
 
@@ -24,6 +25,125 @@ fn admin_filterable_definition_limit_message(owner_type: &str) -> String {
         "You can only use {ADMIN_FILTERABLE_DEFINITION_LIMIT} {} metafield definitions to filter the {} list. To add a new filter, disable filtering on an existing one.",
         owner_type.to_ascii_lowercase(),
         owner_type.to_ascii_lowercase()
+    )
+}
+
+fn metafield_access_grants_validation_response(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Response> {
+    let document = parsed_document(query, variables)?;
+    let mut errors = Vec::new();
+    for field in &document.root_fields {
+        if !matches!(
+            field.name.as_str(),
+            "metafieldDefinitionCreate" | "metafieldDefinitionUpdate"
+        ) {
+            continue;
+        }
+        let Some(definition) = field.raw_arguments.get("definition") else {
+            continue;
+        };
+        errors.extend(metafield_access_grants_errors(
+            query, &document, field, definition,
+        ));
+    }
+    (!errors.is_empty()).then(|| ok_json(json!({ "errors": errors })))
+}
+
+fn metafield_access_grants_errors(
+    query: &str,
+    document: &ParsedDocument,
+    field: &RootFieldSelection,
+    definition: &RawArgumentValue,
+) -> Vec<Value> {
+    match definition {
+        RawArgumentValue::Object(definition) => match definition.get("access") {
+            Some(RawArgumentValue::Object(access)) if access.contains_key("grants") => {
+                let context = ValidationContext {
+                    query,
+                    operation_path: &document.operation_path,
+                    response_key: &field.response_key,
+                    field_location: field.location,
+                    raw_body: "",
+                };
+                vec![input_object_argument_not_accepted_error(
+                    "MetafieldAccessInput",
+                    "grants",
+                    &[json!("definition"), json!("access")],
+                    context,
+                )]
+            }
+            Some(RawArgumentValue::Variable { name, value }) => value
+                .as_ref()
+                .map(|value| {
+                    metafield_access_grants_variable_error(
+                        query,
+                        document,
+                        name,
+                        value,
+                        vec![json!("grants")],
+                    )
+                })
+                .into_iter()
+                .collect(),
+            _ => Vec::new(),
+        },
+        RawArgumentValue::Variable { name, value } => value
+            .as_ref()
+            .and_then(|value| {
+                let ResolvedValue::Object(definition) = value else {
+                    return None;
+                };
+                let Some(ResolvedValue::Object(access)) = definition.get("access") else {
+                    return None;
+                };
+                if access.contains_key("grants") {
+                    Some(metafield_access_grants_variable_error(
+                        query,
+                        document,
+                        name,
+                        value,
+                        vec![json!("access"), json!("grants")],
+                    ))
+                } else {
+                    None
+                }
+            })
+            .into_iter()
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn metafield_access_grants_variable_error(
+    query: &str,
+    document: &ParsedDocument,
+    variable_name: &str,
+    value: &ResolvedValue,
+    path: Vec<Value>,
+) -> Value {
+    let variable = document.variable_definitions.get(variable_name);
+    let variable_type = variable
+        .map(|definition| definition.type_display.as_str())
+        .unwrap_or("MetafieldDefinitionInput");
+    let location = variable
+        .map(|definition| definition.location)
+        .or_else(|| {
+            variable_definition_info(query, variable_name).map(|definition| definition.location)
+        })
+        .unwrap_or(document.location);
+    invalid_variable_error(
+        VariableValidationContext {
+            variable_name,
+            variable_type,
+            location,
+        },
+        value,
+        vec![variable_problem_value_path(
+            &path,
+            "Field is not defined on MetafieldAccessInput",
+        )],
     )
 }
 
@@ -62,20 +182,8 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        if query.contains("access: { grants:") {
-            return ok_json(json!({
-                "errors": [{
-                    "message": "InputObject 'MetafieldAccessInput' doesn't accept argument 'grants'",
-                    "locations": [{"line": 9, "column": 17}],
-                    "path": ["mutation MetafieldDefinitionAccessValidationInlineGrants", "metafieldDefinitionCreate", "definition", "access", "grants"],
-                    "extensions": {
-                        "code": "argumentNotAccepted",
-                        "name": "MetafieldAccessInput",
-                        "typeName": "InputObject",
-                        "argumentName": "grants"
-                    }
-                }]
-            }));
+        if let Some(response) = metafield_access_grants_validation_response(query, variables) {
+            return response;
         }
         let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();

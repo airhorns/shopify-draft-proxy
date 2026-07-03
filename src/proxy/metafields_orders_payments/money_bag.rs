@@ -165,7 +165,7 @@ impl DraftProxy {
                                 field.response_key.clone(): refund_input_error(
                                     field,
                                     None,
-                                    refund_user_error(json!(["orderId"]), "Order does not exist", "NOT_FOUND"),
+                                    refund_user_error(json!(["orderId"]), "Order does not exist"),
                                     &shop_currency_code,
                                 )
                             }
