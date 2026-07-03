@@ -1,0 +1,147 @@
+{
+  "capturedAt": "2026-07-03T00:01:47.138Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "fileAcknowledgeUpdateFailed-local-staging",
+  "create": {
+    "variables": {
+      "files": [
+        {
+          "alt": "Media parity file acknowledgement source",
+          "contentType": "IMAGE",
+          "filename": "media-replacement-file-acknowledge-1783036904856.jpg",
+          "originalSource": "https://placehold.co/600x400.jpg"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "fileCreate": {
+          "files": [
+            {
+              "id": "gid://shopify/MediaImage/43989267054898",
+              "alt": "Media parity file acknowledgement source",
+              "createdAt": "2026-07-03T00:01:46Z",
+              "fileStatus": "UPLOADED",
+              "image": null
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 21,
+          "actualQueryCost": 21,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1975,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateToReady": {
+    "variables": {
+      "files": [
+        {
+          "id": "gid://shopify/MediaImage/43989267054898",
+          "alt": "Media parity file acknowledgement ready attempt",
+          "originalSource": "https://placehold.co/800x600.jpg"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "fileUpdate": {
+          "files": [],
+          "userErrors": [
+            {
+              "field": ["files"],
+              "message": "Non-ready files cannot be updated.",
+              "code": "NON_READY_STATE"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1978,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "acknowledge": {
+    "variables": {
+      "fileIds": ["gid://shopify/MediaImage/43989267054898"]
+    },
+    "response": {
+      "data": {
+        "fileAcknowledgeUpdateFailed": {
+          "files": null,
+          "userErrors": [
+            {
+              "field": ["fileIds"],
+              "message": "File with id gid://shopify/MediaImage/43989267054898 is not in the READY state.",
+              "code": "NON_READY_STATE"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1978,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterAcknowledge": {
+    "variables": {},
+    "response": {
+      "data": {
+        "files": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MediaImage/43989267054898",
+              "alt": "Media parity file acknowledgement source",
+              "createdAt": "2026-07-03T00:01:46Z",
+              "fileStatus": "PROCESSING",
+              "image": null
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0Mzk4OTI2NzA1NDg5OCwibGFzdF92YWx1ZSI6IjQzOTg5MjY3MDU0ODk4In0=",
+            "endCursor": "eyJsYXN0X2lkIjo0Mzk4OTI2NzA1NDg5OCwibGFzdF92YWx1ZSI6IjQzOTg5MjY3MDU0ODk4In0="
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
