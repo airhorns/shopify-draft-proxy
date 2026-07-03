@@ -930,6 +930,19 @@ impl DraftProxy {
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let kind = OnlineStoreKind::Comment;
+        if self
+            .store
+            .staged
+            .deleted_online_store_comment_ids
+            .contains(&id)
+        {
+            return resource_payload(
+                &field.selection,
+                kind.resource_key(),
+                Value::Null,
+                vec![kind.not_found_error()],
+            );
+        }
         let Some(mut comment) = self.load_online_store_record_for_update(request, kind, &id) else {
             return resource_payload(
                 &field.selection,
@@ -1003,6 +1016,19 @@ impl DraftProxy {
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let kind = OnlineStoreKind::Comment;
+        if self
+            .store
+            .staged
+            .deleted_online_store_comment_ids
+            .contains(&id)
+        {
+            return resource_payload(
+                &field.selection,
+                kind.deleted_key(),
+                Value::Null,
+                vec![kind.not_found_error()],
+            );
+        }
         if !self.guard_online_store_delete(request, kind, &id) {
             return resource_payload(
                 &field.selection,
