@@ -2,6 +2,8 @@ use super::*;
 
 const BULK_OPERATION_HYDRATE_QUERY: &str = "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }";
 const BULK_OPERATION_QUERY_STORAGE_BYTE_LIMIT: usize = 65_535;
+const BULK_OPERATION_RUN_MUTATION_MAX_CONNECTIONS: usize = 1;
+const BULK_OPERATION_RUN_MUTATION_MAX_CONNECTION_DEPTH: usize = 1;
 
 // Canonical mutation forwarded to upstream when a schema-valid bulk query root is
 // accepted by the validator but is not one of the locally synthesized roots
@@ -428,7 +430,10 @@ impl DraftProxy {
             resolved_string_field(&arguments, "stagedUploadPath").unwrap_or_default();
         let client_identifier = resolved_string_field(&arguments, "clientIdentifier");
 
-        if let Some(user_errors) = bulk_operation_run_mutation_document_user_errors(&mutation_text)
+        let api_version = admin_graphql_version(&request.path)
+            .unwrap_or_else(|| latest_supported_admin_graphql_version().unwrap_or("2026-04"));
+        if let Some(user_errors) =
+            bulk_operation_run_mutation_document_user_errors(&mutation_text, api_version)
         {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
@@ -928,7 +933,10 @@ fn unsupported_bulk_query_root_error(root_name: &str) -> Value {
     )
 }
 
-fn bulk_operation_run_mutation_document_user_errors(mutation_text: &str) -> Option<Vec<Value>> {
+fn bulk_operation_run_mutation_document_user_errors(
+    mutation_text: &str,
+    api_version: &str,
+) -> Option<Vec<Value>> {
     let Some(document) = parsed_document(mutation_text, &BTreeMap::new()) else {
         return Some(vec![user_error(
             Value::Null,
@@ -960,6 +968,17 @@ fn bulk_operation_run_mutation_document_user_errors(mutation_text: &str) -> Opti
             None,
         )]);
     }
+    let analysis = BulkMutationConnectionAnalysis::analyze(&document.root_fields, api_version);
+    if analysis.connection_count > BULK_OPERATION_RUN_MUTATION_MAX_CONNECTIONS {
+        return Some(vec![bulk_operation_run_mutation_user_error(
+            "Bulk mutations cannot contain more than 1 connection.",
+        )]);
+    }
+    if analysis.max_connection_depth > BULK_OPERATION_RUN_MUTATION_MAX_CONNECTION_DEPTH {
+        return Some(vec![bulk_operation_run_mutation_user_error(
+            "Bulk mutations cannot contain connections with a nesting depth greater than 1.",
+        )]);
+    }
     if let Some(user_error) = bulk_operation_query_storage_byte_limit_user_error(
         mutation_text,
         "is too large",
@@ -968,6 +987,10 @@ fn bulk_operation_run_mutation_document_user_errors(mutation_text: &str) -> Opti
         return Some(vec![user_error]);
     }
     None
+}
+
+fn bulk_operation_run_mutation_user_error(message: &str) -> Value {
+    user_error(["mutation"], message, None)
 }
 
 fn bulk_operation_run_mutation_client_identifier_user_errors(
@@ -1027,6 +1050,60 @@ fn bulk_operation_run_mutation_error_response(
         "userErrors": user_errors
     });
     ok_json(json!({ "data": { response_key: selected_json(&payload, payload_selection) } }))
+}
+
+#[derive(Default)]
+struct BulkMutationConnectionAnalysis {
+    connection_count: usize,
+    max_connection_depth: usize,
+}
+
+impl BulkMutationConnectionAnalysis {
+    fn analyze(fields: &[RootFieldSelection], api_version: &str) -> Self {
+        let mut analysis = Self::default();
+        for field in fields {
+            analyze_bulk_mutation_field(
+                api_version,
+                "Mutation",
+                &field.name,
+                &field.selection,
+                0,
+                &mut analysis,
+            );
+        }
+        analysis
+    }
+}
+
+fn analyze_bulk_mutation_field(
+    api_version: &str,
+    parent_type: &str,
+    field_name: &str,
+    selection: &[SelectedField],
+    connection_depth: usize,
+    analysis: &mut BulkMutationConnectionAnalysis,
+) {
+    let Some(named_type) =
+        public_admin_output_field_named_type(api_version, parent_type, field_name)
+    else {
+        return;
+    };
+    let is_connection = named_type.ends_with("Connection");
+    let next_connection_depth = connection_depth + usize::from(is_connection);
+    if is_connection {
+        analysis.connection_count += 1;
+        analysis.max_connection_depth = analysis.max_connection_depth.max(next_connection_depth);
+    }
+    for child in selection {
+        analyze_bulk_mutation_field(
+            api_version,
+            named_type,
+            &child.name,
+            &child.selection,
+            next_connection_depth,
+            analysis,
+        );
+    }
 }
 
 #[derive(Default)]

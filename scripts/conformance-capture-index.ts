@@ -11149,6 +11149,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'bulk-operations',
+    captureId: 'bulk-operation-run-mutation-connection-validators',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-run-mutation-connection-validators-conformance.ts',
+    purpose:
+      'Records bulkOperationRunMutation inner mutation connection-count and connection-nesting validation errors.',
+    requiredAuthScopes: ['bulk operation access through active Admin token'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-connection-validators.json',
+      'config/parity-specs/bulk-operations/bulk-operation-run-mutation-connection-validators.json',
+      'config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no Shopify data is created or mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
     captureId: 'bulk-operation-in-progress-throttle',
     environment: { SHOPIFY_CONFORMANCE_BULK_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-bulk-operation-in-progress-conformance.ts',
