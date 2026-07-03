@@ -1,11 +1,10 @@
 query FilesUploadLocalRuntimeRead {
-  files(first: 10) {
+  files(first: 2, reverse: true, sortKey: ID) {
     nodes {
       id
       alt
       createdAt
       fileStatus
-      filename
       ... on MediaImage {
         image {
           url
@@ -17,6 +16,13 @@ query FilesUploadLocalRuntimeRead {
             url
           }
         }
+      }
+    }
+    edges {
+      cursor
+      node {
+        id
+        alt
       }
     }
     pageInfo {

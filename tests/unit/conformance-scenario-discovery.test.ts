@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { parse as parseGraphql } from 'graphql';
@@ -169,6 +169,30 @@ describe('conformance scenario discovery', () => {
     },
   );
 
+  it('keeps segment strict parity evidence backed by live Shopify fixtures and exact upstream calls', () => {
+    for (const paritySpecPath of paritySpecPaths.filter((path) => path.startsWith('config/parity-specs/segments/'))) {
+      const paritySpec = readJson<ParitySpec>(paritySpecPath);
+      if (paritySpec.scenarioStatus !== 'captured' || paritySpec.comparisonMode !== 'captured-vs-proxy-request') {
+        continue;
+      }
+
+      for (const captureFile of paritySpec.liveCaptureFiles ?? []) {
+        expect(
+          captureFile.startsWith('fixtures/conformance/local-runtime/'),
+          `${paritySpec.scenarioId} must not use local-runtime fixtures as strict segment parity evidence`,
+        ).toBe(false);
+
+        const fixture = readJson<{ upstreamCalls?: unknown[] }>(captureFile);
+        if (Array.isArray(fixture.upstreamCalls)) {
+          expect(
+            validateRecordedUpstreamCalls(fixture.upstreamCalls as RecordedUpstreamCall[]),
+            `${captureFile} upstream calls`,
+          ).toEqual([]);
+        }
+      }
+    }
+  });
+
   it('keeps discounts parity evidence free of local-runtime captures and descriptor upstream cassettes', () => {
     const errors: string[] = [];
     const discountScenarios = scenarios.filter((scenario) =>
@@ -217,7 +241,7 @@ describe('conformance scenario discovery', () => {
           return [];
         }
 
-        const fixture = readJson<{ upstreamCalls?: Array<{ query?: unknown }> }>(captureFile);
+        const fixture = readJson<{ upstreamCalls?: RecordedUpstreamCall[] }>(captureFile);
         return (fixture.upstreamCalls ?? []).flatMap((call, index) =>
           typeof call.query === 'string' && descriptorLikeUpstreamQuery.test(call.query)
             ? [`${paritySpec.scenarioId}: ${captureFile} upstreamCalls[${index}].query is descriptor-like`]
@@ -273,6 +297,37 @@ describe('conformance scenario discovery', () => {
     ),
   )('keeps discovered scenario operation reachable from the operation registry: %s', (_label, operationName) => {
     expect(operationRegistry.some((entry) => entry.name === operationName)).toBe(true);
+  });
+
+  it('keeps media parity evidence on live captures with exact GraphQL cassette queries', () => {
+    const mediaParitySpecs = paritySpecPaths.filter((paritySpecPath) =>
+      paritySpecPath.startsWith('config/parity-specs/media/'),
+    );
+    const mediaCaptureFiles = new Set<string>();
+
+    for (const paritySpecPath of mediaParitySpecs) {
+      const paritySpec = readJson<ParitySpec>(paritySpecPath);
+      for (const captureFile of paritySpec.liveCaptureFiles ?? []) {
+        expect(
+          captureFile.startsWith('fixtures/conformance/local-runtime/'),
+          `${paritySpec.scenarioId ?? paritySpecPath} must not use local-runtime media parity evidence`,
+        ).toBe(false);
+        mediaCaptureFiles.add(captureFile);
+      }
+    }
+
+    expect(
+      listJsonFiles('fixtures/conformance/local-runtime').filter((fixturePath) => fixturePath.includes('/media/')),
+      'media local-runtime fixtures must be replaced by live captures or Rust integration tests',
+    ).toEqual([]);
+
+    for (const captureFile of mediaCaptureFiles) {
+      if (!captureFile.includes('/media/')) {
+        continue;
+      }
+      const capture = readJson<{ upstreamCalls?: RecordedUpstreamCall[] }>(captureFile);
+      expect(validateRecordedUpstreamCalls(capture.upstreamCalls ?? []), captureFile).toEqual([]);
+    }
   });
 
   it('keeps every runtime-tested operation covered by at least one discovered scenario', () => {
@@ -331,6 +386,40 @@ describe('conformance scenario discovery', () => {
       });
 
     expect(badOrderCassetteQueries).toEqual([]);
+  });
+
+  it('keeps online-store captured parity evidence backed by live Shopify fixture paths', () => {
+    const errors: string[] = [];
+    const onlineStoreScenarios = scenarios.filter((scenario) =>
+      scenario.paritySpecPath.startsWith('config/parity-specs/online-store/'),
+    );
+
+    for (const scenario of onlineStoreScenarios) {
+      const paritySpec = readJson<ParitySpec>(scenario.paritySpecPath);
+      if (paritySpec.scenarioStatus !== 'captured') {
+        continue;
+      }
+
+      for (const captureFile of paritySpec.liveCaptureFiles ?? []) {
+        if (captureFile.startsWith('fixtures/conformance/local-runtime/')) {
+          errors.push(`${scenario.id}: liveCaptureFiles must not point at local-runtime evidence: ${captureFile}`);
+          continue;
+        }
+
+        const fixture = readJson<{ upstreamCalls?: RecordedUpstreamCall[] }>(captureFile);
+        const upstreamCalls = Array.isArray(fixture.upstreamCalls) ? fixture.upstreamCalls : [];
+        for (const error of validateRecordedUpstreamCalls(upstreamCalls)) {
+          errors.push(`${scenario.id} ${captureFile}: ${error}`);
+        }
+        for (const [index, call] of upstreamCalls.entries()) {
+          if (typeof call.query === 'string' && descriptorLikeUpstreamQuery.test(call.query)) {
+            errors.push(`${scenario.id}: ${captureFile} upstreamCalls[${index}].query is descriptor-like`);
+          }
+        }
+      }
+    }
+
+    expect(errors).toEqual([]);
   });
 
   it('keeps functions parity evidence free of synthetic provenance markers', () => {
