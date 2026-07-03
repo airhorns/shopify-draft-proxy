@@ -1073,9 +1073,6 @@ fn metafield_definition_capability_eligibility_matches_shopify() {
             createdDefinition { id }
             userErrors { field message code }
           }
-          rejectedRead: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "json_unique" }) {
-            id
-          }
         }
         "#,
         json!({ "namespace": namespace }),
@@ -1091,7 +1088,18 @@ fn metafield_definition_capability_eligibility_matches_shopify() {
             }]
         })
     );
-    assert_eq!(invalid_unique.body["data"]["rejectedRead"], Value::Null);
+
+    let rejected_read = proxy.process_request(json_graphql_request(
+        r#"
+        query RejectedCapabilityRead($namespace: String!) {
+          rejectedRead: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "json_unique" }) {
+            id
+          }
+        }
+        "#,
+        json!({ "namespace": namespace }),
+    ));
+    assert_eq!(rejected_read.body["data"]["rejectedRead"], Value::Null);
 
     let invalid_smart = proxy.process_request(json_graphql_request(
         r#"

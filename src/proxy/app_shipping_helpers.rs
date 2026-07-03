@@ -1210,26 +1210,6 @@ pub(in crate::proxy) fn delivery_price_from_method_input(
     })
 }
 
-pub(in crate::proxy) fn fulfillment_order_move_assignment_record(
-    id: &str,
-    location_id: &str,
-) -> Value {
-    json!({
-        "id": id,
-        "status": "OPEN",
-        "requestStatus": "UNSUBMITTED",
-        "updatedAt": "2026-05-11T10:00:00Z",
-        "assignedLocation": {
-            "name": "Move assignment destination",
-            "location": {
-                "id": location_id,
-                "name": "Move assignment destination"
-            }
-        },
-        "lineItems": { "nodes": [] }
-    })
-}
-
 pub(in crate::proxy) fn fulfillment_order_move_payload_json(
     moved: Value,
     original: Value,
@@ -1347,97 +1327,6 @@ pub(in crate::proxy) fn fulfillment_order_deadline_payload_json(
             _ => None,
         }
     })
-}
-
-pub(in crate::proxy) fn shipping_fulfillment_order_local_order_record(
-    id: &str,
-    deadlines: &BTreeMap<String, String>,
-) -> Value {
-    match id {
-        "gid://shopify/Order/status-precondition-open-closed" => json!({
-            "id": id,
-            "fulfillmentOrders": { "nodes": [{
-                "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed",
-                "status": "CLOSED",
-                "updatedAt": "2026-05-11T10:00:00Z",
-                "supportedActions": []
-            }] }
-        }),
-        "gid://shopify/Order/status-precondition-progress-scheduled" => json!({
-            "id": id,
-            "fulfillmentOrders": { "nodes": [{
-                "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled",
-                "status": "SCHEDULED",
-                "updatedAt": "2026-05-11T10:05:00Z",
-                "supportedActions": [{ "action": "MARK_AS_OPEN" }]
-            }] }
-        }),
-        "gid://shopify/Order/deadline-validation" => json!({
-            "id": id,
-            "name": "#DEADLINE-VALIDATION",
-            "displayFulfillmentStatus": "UNFULFILLED",
-            "fulfillmentOrders": { "nodes": [
-                deadline_fulfillment_order("gid://shopify/FulfillmentOrder/deadline-open-a", "OPEN", deadlines),
-                deadline_fulfillment_order("gid://shopify/FulfillmentOrder/deadline-open-b", "OPEN", deadlines),
-                deadline_fulfillment_order("gid://shopify/FulfillmentOrder/deadline-closed", "CLOSED", deadlines),
-                deadline_fulfillment_order("gid://shopify/FulfillmentOrder/deadline-cancelled", "CANCELLED", deadlines)
-            ] }
-        }),
-        _ => Value::Null,
-    }
-}
-
-pub(in crate::proxy) fn deadline_fulfillment_order(
-    id: &str,
-    status: &str,
-    deadlines: &BTreeMap<String, String>,
-) -> Value {
-    json!({
-        "id": id,
-        "status": status,
-        "fulfillBy": deadlines.get(id).cloned().map(Value::String).unwrap_or(Value::Null)
-    })
-}
-
-pub(in crate::proxy) fn known_deadline_fulfillment_order_status(id: &str) -> Option<&'static str> {
-    match id {
-        "gid://shopify/FulfillmentOrder/deadline-open-a"
-        | "gid://shopify/FulfillmentOrder/deadline-open-b" => Some("OPEN"),
-        "gid://shopify/FulfillmentOrder/deadline-closed" => Some("CLOSED"),
-        "gid://shopify/FulfillmentOrder/deadline-cancelled" => Some("CANCELLED"),
-        _ => None,
-    }
-}
-
-pub(in crate::proxy) fn fulfillment_order_request_lifecycle_record(id: &str) -> Value {
-    if id == "gid://shopify/FulfillmentOrder/9656703910194" {
-        json!({
-            "id": id,
-            "status": "OPEN",
-            "requestStatus": "SUBMITTED",
-            "merchantRequests": {
-                "nodes": [{
-                    "kind": "FULFILLMENT_REQUEST",
-                    "message": "Hermes partial submit",
-                    "requestOptions": { "notify_customer": false },
-                    "responseData": null
-                }]
-            },
-            "lineItems": {
-                "nodes": [{
-                    "id": "gid://shopify/FulfillmentOrderLineItem/19457456636210",
-                    "totalQuantity": 1,
-                    "remainingQuantity": 1,
-                    "lineItem": {
-                        "id": "gid://shopify/LineItem/19308253118770",
-                        "title": "Hermes fulfillment-order request partial 20260506222236"
-                    }
-                }]
-            }
-        })
-    } else {
-        Value::Null
-    }
 }
 
 pub(in crate::proxy) fn collection_publication_record(id: String, published: bool) -> Value {
@@ -1569,77 +1458,6 @@ pub(in crate::proxy) fn destination_location_not_found_or_inactive_error() -> Va
         "code": "DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE",
         "message": "Location could not be deactivated because the destination location could be not found or is inactive."
     })
-}
-
-pub(in crate::proxy) fn is_shipping_fulfillment_order_local_order_read(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    root_fields(query, variables)
-        .unwrap_or_default()
-        .iter()
-        .any(|field| {
-            field.name == "order"
-                && resolved_string_field(&field.arguments, "id")
-                    .map(|id| {
-                        id.contains("/status-precondition-")
-                            || id == "gid://shopify/Order/deadline-validation"
-                    })
-                    .unwrap_or(false)
-        })
-}
-
-pub(in crate::proxy) fn is_fulfillment_order_request_lifecycle_direct_read(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    root_fields(query, variables)
-        .unwrap_or_default()
-        .iter()
-        .any(|field| {
-            field.name == "fulfillmentOrder"
-                && resolved_string_field(&field.arguments, "id")
-                    .map(|id| id == "gid://shopify/FulfillmentOrder/9656703910194")
-                    .unwrap_or(false)
-        })
-}
-
-/// The hand-built fulfillment-order lifecycle handlers (move-assignment,
-/// status-precondition, deadline-validation, request-lifecycle direct read) drive a
-/// handful of synthetic sentinel-id scenarios. Specs captured against real fulfillment
-/// orders carry purely numeric ids and full recorded local-runtime responses, so the
-/// proxy serves those from the cassette (recorded evidence) rather than the stale
-/// sentinel handlers. These predicates keep each local handler scoped to its own
-/// sentinel ids; everything else passes through to the recorded response.
-pub(in crate::proxy) fn fulfillment_order_move_is_sentinel_scenario(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    root_field_arguments(query, variables)
-        .and_then(|arguments| resolved_string_field(&arguments, "id"))
-        .map(|id| id.contains("move-assignment"))
-        .unwrap_or(false)
-}
-
-pub(in crate::proxy) fn fulfillment_order_status_precondition_is_sentinel_scenario(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    root_field_arguments(query, variables)
-        .and_then(|arguments| resolved_string_field(&arguments, "id"))
-        .map(|id| id.contains("status-precondition"))
-        .unwrap_or(false)
-}
-
-pub(in crate::proxy) fn fulfillment_order_set_deadline_is_sentinel_scenario(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    root_field_arguments(query, variables)
-        .map(|arguments| list_string_field(&arguments, "fulfillmentOrderIds"))
-        .unwrap_or_default()
-        .iter()
-        .any(|id| id.contains("deadline-") || id == "gid://shopify/FulfillmentOrder/9999999")
 }
 
 pub(in crate::proxy) fn carrier_service_record(

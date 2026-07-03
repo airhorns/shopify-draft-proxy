@@ -75,15 +75,6 @@ pub(in crate::proxy) fn normalize_order_lifecycle_defaults(order: &mut Value) {
     }
 }
 
-pub(in crate::proxy) fn order_line_inventory_item_id(
-    line_item: &BTreeMap<String, ResolvedValue>,
-) -> Option<String> {
-    resolved_string_field(line_item, "inventoryItemId").or_else(|| {
-        resolved_string_field(line_item, "variantId")
-            .map(|variant_id| shopify_gid("InventoryItem", resource_id_tail(&variant_id)))
-    })
-}
-
 pub(in crate::proxy) fn order_read_selects_payment_transaction_fields(
     field: &RootFieldSelection,
 ) -> bool {
@@ -1396,7 +1387,7 @@ impl DraftProxy {
         }
         if order_create_inventory_behaviour(field) != "BYPASS" {
             for line_item in resolved_object_list_field(&order_input, "lineItems") {
-                if let Some(inventory_item_id) = order_line_inventory_item_id(&line_item) {
+                if let Some(inventory_item_id) = self.order_line_inventory_item_id(&line_item) {
                     let quantity = resolved_int_field(&line_item, "quantity").unwrap_or(1);
                     self.decrement_inventory_item_available(&inventory_item_id, quantity);
                 }
@@ -1429,6 +1420,20 @@ impl DraftProxy {
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,
         )
+    }
+
+    fn order_line_inventory_item_id(
+        &self,
+        line_item: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<String> {
+        resolved_string_field(line_item, "inventoryItemId").or_else(|| {
+            resolved_string_field(line_item, "variantId").map(|variant_id| {
+                self.store
+                    .product_variant_by_id(&variant_id)
+                    .map(|variant| variant.inventory_item.id.clone())
+                    .unwrap_or_else(|| shopify_gid("InventoryItem", resource_id_tail(&variant_id)))
+            })
+        })
     }
 
     pub(super) fn stage_order_lifecycle(

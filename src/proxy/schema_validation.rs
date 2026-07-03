@@ -39,6 +39,43 @@ struct AdminOutputSchema {
 }
 
 #[derive(Debug, Clone, Copy)]
+enum AdminSchemaKind {
+    Mutation,
+    BulkQuery,
+}
+
+fn public_admin_schema_json(api_version: &str, kind: AdminSchemaKind) -> Value {
+    let raw = match (api_version, kind) {
+        ("2025-01", AdminSchemaKind::Mutation) => {
+            include_str!("../../config/admin-graphql/2025-01/mutation-schema.json")
+        }
+        ("2025-10", AdminSchemaKind::Mutation) => {
+            include_str!("../../config/admin-graphql/2025-10/mutation-schema.json")
+        }
+        ("2026-01", AdminSchemaKind::Mutation) => {
+            include_str!("../../config/admin-graphql/2026-01/mutation-schema.json")
+        }
+        ("2026-04", AdminSchemaKind::Mutation) => {
+            include_str!("../../config/admin-graphql/2026-04/mutation-schema.json")
+        }
+        ("2025-01", AdminSchemaKind::BulkQuery) => {
+            include_str!("../../config/admin-graphql/2025-01/bulk-query-schema.json")
+        }
+        ("2025-10", AdminSchemaKind::BulkQuery) => {
+            include_str!("../../config/admin-graphql/2025-10/bulk-query-schema.json")
+        }
+        ("2026-01", AdminSchemaKind::BulkQuery) => {
+            include_str!("../../config/admin-graphql/2026-01/bulk-query-schema.json")
+        }
+        ("2026-04", AdminSchemaKind::BulkQuery) => {
+            include_str!("../../config/admin-graphql/2026-04/bulk-query-schema.json")
+        }
+        _ => panic!("unsupported Admin API version has no captured schema: {api_version}"),
+    };
+    serde_json::from_str(raw).expect("checked-in Admin GraphQL schema should be valid JSON")
+}
+
+#[derive(Debug, Clone, Copy)]
 pub(in crate::proxy) struct ValidationContext<'a> {
     pub(in crate::proxy) query: &'a str,
     pub(in crate::proxy) operation_path: &'a str,
@@ -306,7 +343,12 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
     raw_body: &str,
+    api_version: Option<&str>,
 ) -> Vec<Value> {
+    let Some(api_version) = api_version.filter(|version| supported_admin_graphql_version(version))
+    else {
+        return Vec::new();
+    };
     let Some(document) = parsed_document(query, variables) else {
         return Vec::new();
     };
@@ -314,7 +356,8 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
     if document.operation_type != OperationType::Mutation {
         return errors;
     }
-    let schema = public_admin_input_schema();
+    let schema = public_admin_input_schema(api_version)
+        .expect("supported Admin API version should have captured input schema");
     for field in &document.root_fields {
         let Some(arguments) = schema.mutation_fields.get(&field.name) else {
             continue;
@@ -391,9 +434,7 @@ pub(in crate::proxy) fn public_admin_graphql_validation_response(
     variables: &BTreeMap<String, ResolvedValue>,
     api_version: Option<&str>,
 ) -> Option<Response> {
-    if api_version != Some("2025-01") {
-        return None;
-    }
+    let api_version = api_version.filter(|version| supported_admin_graphql_version(version))?;
 
     if parse_query::<&str>(query).is_err() {
         return Some(ok_json(json!({
@@ -403,14 +444,62 @@ pub(in crate::proxy) fn public_admin_graphql_validation_response(
 
     let document = parsed_document(query, variables)?;
     let mut errors = missing_required_variable_errors(&document, variables);
-    errors.extend(undefined_root_field_errors(&document));
-    errors.extend(selection_mismatch_errors(&document));
-    errors.extend(undefined_product_selection_field_errors(&document));
+    errors.extend(undefined_root_field_errors(&document, api_version));
+    errors.extend(selection_mismatch_errors(&document, api_version));
+    errors.extend(undefined_product_selection_field_errors(
+        &document,
+        api_version,
+    ));
     if !errors.is_empty() {
         return Some(ok_json(json!({ "errors": errors })));
     }
 
-    product_create_argument_arity_response(&document)
+    product_create_argument_arity_response(&document, api_version)
+}
+
+fn product_create_argument_arity_response(
+    document: &ParsedDocument,
+    api_version: &str,
+) -> Option<Response> {
+    if !version_at_least(api_version, 2025, 1) {
+        return None;
+    }
+
+    if document.operation_type != OperationType::Mutation {
+        return None;
+    }
+
+    let field = document
+        .root_fields
+        .iter()
+        .find(|candidate| candidate.name == "productCreate")?;
+    let accepted_argument_count = usize::from(field.raw_arguments.contains_key("input"))
+        + usize::from(field.raw_arguments.contains_key("product"));
+    if accepted_argument_count == 1 {
+        return None;
+    }
+    let mut data = serde_json::Map::new();
+    data.insert(field.response_key.clone(), Value::Null);
+    Some(ok_json(json!({
+        "data": Value::Object(data),
+        "errors": [{
+            "message": "productCreate must include exactly one of the following arguments: input, product.",
+            "locations": [{ "line": field.location.line, "column": field.location.column }],
+            "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
+            "path": [field.response_key.clone()]
+        }],
+        "extensions": {
+            "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                }
+            }
+        }
+    })))
 }
 
 fn parse_error(query: &str) -> Value {
@@ -460,21 +549,23 @@ fn missing_required_variable_errors(
         .collect()
 }
 
-fn undefined_root_field_errors(document: &ParsedDocument) -> Vec<Value> {
+fn undefined_root_field_errors(document: &ParsedDocument, api_version: &str) -> Vec<Value> {
+    let output_schema = public_admin_output_schema(api_version)
+        .expect("supported Admin API version should have captured output schema");
+    let mutation_root_names = public_admin_mutation_root_names(api_version)
+        .expect("supported Admin API version should have captured mutation schema");
     document
         .root_fields
         .iter()
         .filter_map(|field| {
             let parent_type = match document.operation_type {
                 OperationType::Query => {
-                    (!public_admin_output_schema()
-                        .query_root_fields
-                        .contains_key(&field.name))
+                    (!output_schema.query_root_fields.contains_key(&field.name))
                         && !local_implemented_query_root_names().contains(&field.name)
                 }
                 .then_some("QueryRoot"),
                 OperationType::Mutation => {
-                    (!public_admin_mutation_root_names().contains(&field.name))
+                    (!mutation_root_names.contains(&field.name))
                         && !local_implemented_mutation_root_names().contains(&field.name)
                 }
                 .then_some("Mutation"),
@@ -513,18 +604,18 @@ fn local_implemented_root_names(operation_type: OperationType) -> BTreeSet<Strin
     roots
 }
 
-fn selection_mismatch_errors(document: &ParsedDocument) -> Vec<Value> {
+fn selection_mismatch_errors(document: &ParsedDocument, api_version: &str) -> Vec<Value> {
     if document.operation_type != OperationType::Query {
         return Vec::new();
     }
+    let output_schema = public_admin_output_schema(api_version)
+        .expect("supported Admin API version should have captured output schema");
     document
         .root_fields
         .iter()
         .filter(|field| field.selection.is_empty())
         .filter_map(|field| {
-            let output_type = public_admin_output_schema()
-                .query_root_fields
-                .get(&field.name)?;
+            let output_type = output_schema.query_root_fields.get(&field.name)?;
             Some(json!({
                 "message": format!(
                     "Field must have selections (field '{}' returns {} but has no selections. Did you mean '{} {{ ... }}'?)",
@@ -542,10 +633,15 @@ fn selection_mismatch_errors(document: &ParsedDocument) -> Vec<Value> {
         .collect()
 }
 
-fn undefined_product_selection_field_errors(document: &ParsedDocument) -> Vec<Value> {
+fn undefined_product_selection_field_errors(
+    document: &ParsedDocument,
+    api_version: &str,
+) -> Vec<Value> {
     if document.operation_type != OperationType::Query {
         return Vec::new();
     }
+    let output_schema = public_admin_output_schema(api_version)
+        .expect("supported Admin API version should have captured output schema");
     let mut errors = Vec::new();
     for field in &document.root_fields {
         if field.name != "products" {
@@ -553,6 +649,7 @@ fn undefined_product_selection_field_errors(document: &ParsedDocument) -> Vec<Va
         }
         collect_undefined_selection_field_errors(
             document,
+            output_schema,
             "ProductConnection",
             &field.selection,
             vec![json!(document.operation_path), json!(field.response_key)],
@@ -564,20 +661,20 @@ fn undefined_product_selection_field_errors(document: &ParsedDocument) -> Vec<Va
 
 fn collect_undefined_selection_field_errors(
     document: &ParsedDocument,
+    output_schema: &AdminOutputSchema,
     parent_type: &str,
     selections: &[SelectedField],
     path: Vec<Value>,
     errors: &mut Vec<Value>,
 ) {
-    let schema_fields = public_admin_output_schema()
-        .fields_by_parent
-        .get(parent_type);
+    let schema_fields = output_schema.fields_by_parent.get(parent_type);
     for selection in selections {
         let mut child_path = path.clone();
         child_path.push(json!(selection.response_key));
         if let Some(output_type) = schema_fields.and_then(|fields| fields.get(&selection.name)) {
             collect_undefined_selection_field_errors(
                 document,
+                output_schema,
                 &output_type.named_type,
                 &selection.selection,
                 child_path,
@@ -614,6 +711,11 @@ fn common_scalar_field_name(field_name: &str) -> bool {
             | "totalInventory"
             | "tracksInventory"
             | "inventoryQuantity"
+            | "cursor"
+            | "hasNextPage"
+            | "hasPreviousPage"
+            | "startCursor"
+            | "endCursor"
     )
 }
 
@@ -636,50 +738,20 @@ fn undefined_field_error(
     })
 }
 
-fn product_create_argument_arity_response(document: &ParsedDocument) -> Option<Response> {
-    if document.operation_type != OperationType::Mutation {
-        return None;
-    }
-    let field = document
-        .root_fields
-        .iter()
-        .find(|candidate| candidate.name == "productCreate")?;
-    let accepted_argument_count = usize::from(field.raw_arguments.contains_key("input"))
-        + usize::from(field.raw_arguments.contains_key("product"));
-    if accepted_argument_count == 1 {
-        return None;
-    }
-    let mut data = serde_json::Map::new();
-    data.insert(field.response_key.clone(), Value::Null);
-    Some(ok_json(json!({
-        "data": Value::Object(data),
-        "errors": [{
-            "message": "productCreate must include exactly one of the following arguments: input, product.",
-            "locations": [{ "line": field.location.line, "column": field.location.column }],
-            "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
-            "path": [field.response_key.clone()]
-        }],
-        "extensions": {
-            "cost": {
-                "requestedQueryCost": 10,
-                "actualQueryCost": 10,
-                "throttleStatus": {
-                    "maximumAvailable": 2000,
-                    "currentlyAvailable": 1990,
-                    "restoreRate": 100
-                }
-            }
-        }
-    })))
-}
-
-fn public_admin_mutation_root_names() -> &'static BTreeSet<String> {
-    static MUTATION_ROOT_NAMES: OnceLock<BTreeSet<String>> = OnceLock::new();
-    MUTATION_ROOT_NAMES.get_or_init(|| {
-        let parsed: Value = serde_json::from_str(include_str!(
-            "../../config/admin-graphql-mutation-schema.json"
-        ))
-        .expect("checked-in Admin GraphQL mutation schema should be valid JSON");
+fn public_admin_mutation_root_names(api_version: &str) -> Option<&'static BTreeSet<String>> {
+    static MUTATION_ROOT_NAMES_2025_01: OnceLock<BTreeSet<String>> = OnceLock::new();
+    static MUTATION_ROOT_NAMES_2025_10: OnceLock<BTreeSet<String>> = OnceLock::new();
+    static MUTATION_ROOT_NAMES_2026_01: OnceLock<BTreeSet<String>> = OnceLock::new();
+    static MUTATION_ROOT_NAMES_2026_04: OnceLock<BTreeSet<String>> = OnceLock::new();
+    let cache = match api_version {
+        "2025-01" => &MUTATION_ROOT_NAMES_2025_01,
+        "2025-10" => &MUTATION_ROOT_NAMES_2025_10,
+        "2026-01" => &MUTATION_ROOT_NAMES_2026_01,
+        "2026-04" => &MUTATION_ROOT_NAMES_2026_04,
+        _ => return None,
+    };
+    Some(cache.get_or_init(|| {
+        let parsed = public_admin_schema_json(api_version, AdminSchemaKind::Mutation);
         parsed
             .get("mutations")
             .and_then(Value::as_array)
@@ -688,16 +760,23 @@ fn public_admin_mutation_root_names() -> &'static BTreeSet<String> {
             .filter_map(|mutation| mutation.get("name").and_then(Value::as_str))
             .map(str::to_string)
             .collect()
-    })
+    }))
 }
 
-fn public_admin_output_schema() -> &'static AdminOutputSchema {
-    static OUTPUT_SCHEMA: OnceLock<AdminOutputSchema> = OnceLock::new();
-    OUTPUT_SCHEMA.get_or_init(|| {
-        let parsed: Value = serde_json::from_str(include_str!(
-            "../../config/admin-graphql-bulk-query-schema.json"
-        ))
-        .expect("checked-in Admin GraphQL output schema should be valid JSON");
+fn public_admin_output_schema(api_version: &str) -> Option<&'static AdminOutputSchema> {
+    static OUTPUT_SCHEMA_2025_01: OnceLock<AdminOutputSchema> = OnceLock::new();
+    static OUTPUT_SCHEMA_2025_10: OnceLock<AdminOutputSchema> = OnceLock::new();
+    static OUTPUT_SCHEMA_2026_01: OnceLock<AdminOutputSchema> = OnceLock::new();
+    static OUTPUT_SCHEMA_2026_04: OnceLock<AdminOutputSchema> = OnceLock::new();
+    let cache = match api_version {
+        "2025-01" => &OUTPUT_SCHEMA_2025_01,
+        "2025-10" => &OUTPUT_SCHEMA_2025_10,
+        "2026-01" => &OUTPUT_SCHEMA_2026_01,
+        "2026-04" => &OUTPUT_SCHEMA_2026_04,
+        _ => return None,
+    };
+    Some(cache.get_or_init(|| {
+        let parsed = public_admin_schema_json(api_version, AdminSchemaKind::BulkQuery);
         let mut schema = AdminOutputSchema::default();
         for field in parsed
             .get("fields")
@@ -726,7 +805,7 @@ fn public_admin_output_schema() -> &'static AdminOutputSchema {
                 .insert(name.to_string(), output_type);
         }
         schema
-    })
+    }))
 }
 
 fn output_field_type(field: &Value) -> Option<OutputFieldType> {
@@ -2394,11 +2473,21 @@ fn local_extension_input_field(input_type_name: &str, field_name: &str) -> bool 
     )
 }
 
-fn public_admin_input_schema() -> &'static AdminInputSchema {
-    static SCHEMA: OnceLock<AdminInputSchema> = OnceLock::new();
-    SCHEMA.get_or_init(|| {
+fn public_admin_input_schema(api_version: &str) -> Option<&'static AdminInputSchema> {
+    static SCHEMA_2025_01: OnceLock<AdminInputSchema> = OnceLock::new();
+    static SCHEMA_2025_10: OnceLock<AdminInputSchema> = OnceLock::new();
+    static SCHEMA_2026_01: OnceLock<AdminInputSchema> = OnceLock::new();
+    static SCHEMA_2026_04: OnceLock<AdminInputSchema> = OnceLock::new();
+    let cache = match api_version {
+        "2025-01" => &SCHEMA_2025_01,
+        "2025-10" => &SCHEMA_2025_10,
+        "2026-01" => &SCHEMA_2026_01,
+        "2026-04" => &SCHEMA_2026_04,
+        _ => return None,
+    };
+    Some(cache.get_or_init(|| {
         let mut schema = AdminInputSchema::default();
-        extend_graphql_base_validation_input_schema(&mut schema);
+        extend_graphql_base_validation_input_schema(&mut schema, api_version);
         extend_gift_card_input_schema(&mut schema);
         extend_discount_basic_input_schema(&mut schema);
         extend_customer_merge_input_schema(&mut schema);
@@ -2407,7 +2496,7 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         extend_marketing_engagement_input_schema(&mut schema);
         extend_functions_input_schema(&mut schema);
         extend_online_store_input_schema(&mut schema);
-        extend_markets_input_schema(&mut schema);
+        extend_markets_input_schema(&mut schema, api_version);
         extend_product_variant_input_schema(&mut schema);
         extend_publication_input_schema(&mut schema);
         extend_payments_input_schema(&mut schema);
@@ -2415,14 +2504,11 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         extend_fulfillment_event_input_schema(&mut schema);
         extend_store_credit_input_schema(&mut schema);
         schema
-    })
+    }))
 }
 
-fn extend_graphql_base_validation_input_schema(schema: &mut AdminInputSchema) {
-    let parsed: Value = serde_json::from_str(include_str!(
-        "../../config/admin-graphql-mutation-schema.json"
-    ))
-    .expect("checked-in Admin GraphQL mutation schema should be valid JSON");
+fn extend_graphql_base_validation_input_schema(schema: &mut AdminInputSchema, api_version: &str) {
+    let parsed = public_admin_schema_json(api_version, AdminSchemaKind::Mutation);
     if let Some((name, arguments)) =
         captured_mutation_arguments(&parsed, "pubSubWebhookSubscriptionCreate")
     {
@@ -2882,11 +2968,8 @@ fn extend_gift_card_input_schema(schema: &mut AdminInputSchema) {
     );
 }
 
-fn extend_markets_input_schema(schema: &mut AdminInputSchema) {
-    let parsed: Value = serde_json::from_str(include_str!(
-        "../../config/admin-graphql-mutation-schema.json"
-    ))
-    .expect("checked-in Admin GraphQL mutation schema should be valid JSON");
+fn extend_markets_input_schema(schema: &mut AdminInputSchema, api_version: &str) {
+    let parsed = public_admin_schema_json(api_version, AdminSchemaKind::Mutation);
 
     for input_object_name in [
         "MarketCurrencySettingsUpdateInput",

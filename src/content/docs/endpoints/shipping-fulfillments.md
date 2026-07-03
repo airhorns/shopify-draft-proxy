@@ -94,7 +94,7 @@ The registry-only mutation roots are:
 
 ### Local behavior
 
-The Rust runtime has scenario-backed shipping and fulfillment slices for ported
+The Rust runtime has store-backed shipping and fulfillment slices for checked-in
 parity requests and runtime tests. These slices stage or serialize local state
 only for the request families recognized by the Rust dispatcher.
 
@@ -151,8 +151,9 @@ shape exposes `field` / `message` only. Fulfillment holds expose Shopify-like
 localized `displayReason` strings for the public hold reason set, including
 `AWAITING_RETURN_ITEMS` as `Exchange items awaiting return delivery`, and
 unknown or non-visible reasons fall back to `Other`. Store-backed local staging
-now covers
-`fulfillmentCreate` and deprecated `fulfillmentCreateV2` payload
+now covers `fulfillmentOrderMove`, `fulfillmentOrderOpen`,
+`fulfillmentOrderReportProgress`, `fulfillmentOrdersSetFulfillmentDeadline`,
+and `fulfillmentCreate` plus deprecated `fulfillmentCreateV2` payload
 `Fulfillment.name` reference numbers as `<orderName>-F<n>` for order-backed
 fulfillment sequences, plus
 `fulfillmentOrderSubmitFulfillmentRequest`,
@@ -168,6 +169,11 @@ written into the local order graph and are visible through `fulfillmentOrder`,
 `fulfillmentOrders`, `assignedFulfillmentOrders`, and nested
 `Order.fulfillmentOrders` reads. These slices operate on local order-backed
 fulfillment records and are not a general fulfillment-service execution engine.
+`fulfillmentOrderMove` resolves the destination from staged or hydrated
+location records; missing or inactive destinations return the local
+`Location not found.` user error, and successful move payloads serialize the
+assigned-location id/name from that stored location rather than from fixture
+constants.
 
 Delivery settings and delivery promise settings are read-only in the captured
 empty/no-feature branch. Delivery profiles have fixture-backed read and bounded
