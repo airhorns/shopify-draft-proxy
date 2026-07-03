@@ -1651,6 +1651,97 @@ fn return_request_approval_and_decline_unknown_ids_use_not_found_shape() {
 }
 
 #[test]
+fn return_decline_request_invalid_decline_reason_variable_fails_schema_validation() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReturnDeclineRequestInvalidReason($input: ReturnDeclineRequestInput!) {
+          returnDeclineRequest(input: $input) {
+            return { id status decline { reason note } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Return/999999999",
+                "declineReason": "BANANAS",
+                "notifyCustomer": false
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body.get("data"), None);
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        json!(
+            "Variable $input of type ReturnDeclineRequestInput! was provided invalid value for declineReason (Expected \"BANANAS\" to be one of: RETURN_PERIOD_ENDED, FINAL_SALE, OTHER)"
+        )
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["problems"][0],
+        json!({
+            "path": ["declineReason"],
+            "explanation": "Expected \"BANANAS\" to be one of: RETURN_PERIOD_ENDED, FINAL_SALE, OTHER"
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn return_decline_request_hidden_notify_payload_variable_fails_schema_validation() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReturnDeclineRequestUnknownNotifyPayload($input: ReturnDeclineRequestInput!) {
+          returnDeclineRequest(input: $input) {
+            return { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Return/999999999",
+                "declineReason": "OTHER",
+                "notifyCustomer": true,
+                "tmp_notify_customer": {
+                    "email_address": "not-an-email"
+                }
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body.get("data"), None);
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        json!(
+            "Variable $input of type ReturnDeclineRequestInput! was provided invalid value for tmp_notify_customer (Field is not defined on ReturnDeclineRequestInput)"
+        )
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["problems"][0],
+        json!({
+            "path": ["tmp_notify_customer"],
+            "explanation": "Field is not defined on ReturnDeclineRequestInput"
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
 fn order_create_stages_rich_order_and_downstream_reads() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-create-parity.json"

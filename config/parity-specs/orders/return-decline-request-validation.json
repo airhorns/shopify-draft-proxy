@@ -1,0 +1,53 @@
+{
+  "scenarioId": "return-decline-request-validation",
+  "operationNames": ["returnDeclineRequest"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["schema-validation", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/return-decline-request-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "invalid-decline-reason-invalid-variable",
+        "capturePath": "$.invalidDeclineReason.response",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-decline-request-validation-invalid-reason.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "input": {
+              "id": "gid://shopify/Return/999999999",
+              "declineReason": "BANANAS",
+              "notifyCustomer": false
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-notify-payload-invalid-variable",
+        "capturePath": "$.hiddenNotifyPayloadPublicSchema.decline.response",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-decline-request-validation-unknown-notify-payload.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "input": {
+              "id": "gid://shopify/Return/999999999",
+              "declineReason": "OTHER",
+              "notifyCustomer": true,
+              "tmp_notify_customer": {
+                "email_address": "not-an-email"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Validation-only parity for public Admin GraphQL returnDeclineRequest input coercion. The live fixture proves invalid ReturnDeclineReason variables and non-public tmp_notify_customer payloads fail before resolver execution with top-level INVALID_VARIABLE errors and no data."
+}

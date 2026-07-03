@@ -186,6 +186,18 @@ export const paritySpecSchema = z
       return;
     }
 
+    const localRuntimeOnlineStoreCapture = spec.liveCaptureFiles?.find(
+      (captureFile) =>
+        captureFile.startsWith('fixtures/conformance/local-runtime/') && captureFile.includes('/online-store/'),
+    );
+    if (localRuntimeOnlineStoreCapture) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['liveCaptureFiles'],
+        message: `Online-store parity specs must not use local-runtime fixtures as capture evidence: ${localRuntimeOnlineStoreCapture}`,
+      });
+    }
+
     if (!spec.comparisonMode) {
       ctx.addIssue({
         code: 'custom',
