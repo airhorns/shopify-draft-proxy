@@ -48,9 +48,7 @@ pub(in crate::proxy) fn shopify_gid_resource_type(id: &str) -> Option<&str> {
 }
 
 pub(in crate::proxy) fn metafield_owner_gid_resource_type(id: &str) -> String {
-    shopify_gid_resource_type(id)
-        .unwrap_or("Product")
-        .to_string()
+    shopify_gid_resource_type(id).unwrap_or(id).to_string()
 }
 
 impl DraftProxy {
@@ -167,6 +165,6 @@ mod tests {
             metafield_owner_gid_resource_type("gid://shopify/Unknown/1"),
             "Unknown"
         );
-        assert_eq!(metafield_owner_gid_resource_type("not-a-gid"), "Product");
+        assert_eq!(metafield_owner_gid_resource_type("not-a-gid"), "not-a-gid");
     }
 }

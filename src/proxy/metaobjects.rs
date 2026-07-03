@@ -206,6 +206,12 @@ fn metaobject_definition_record(
 }
 
 fn metaobject_definition_from_record(record: &Value) -> Option<Value> {
+    if let Some(definition) = record
+        .get("definition")
+        .filter(|definition| definition.is_object())
+    {
+        return Some(definition.clone());
+    }
     let meta_type = record.get("type").and_then(Value::as_str)?;
     let field_definitions = record["fields"]
         .as_array()
@@ -236,7 +242,7 @@ fn metaobject_definition_from_record(record: &Value) -> Option<Value> {
         "name": metaobject_field_name(meta_type),
         "description": Value::Null,
         "displayNameKey": display_name_key,
-        "access": {"admin": "PUBLIC_READ_WRITE", "storefront": "NONE", "customerAccount": "NONE"},
+        "access": Value::Null,
         "capabilities": {
             "publishable": {"enabled": !record["capabilities"]["publishable"].is_null()},
             "onlineStore": {"enabled": !record["capabilities"]["onlineStore"].is_null(), "data": Value::Null},
@@ -4309,4 +4315,63 @@ fn url_redirect_matches_query(redirect: &Value, query: &str) -> bool {
             .get("target")
             .and_then(Value::as_str)
             .is_some_and(|target| target.contains(query))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metaobject_definition_from_record_preserves_real_or_unknown_access() {
+        let hydrated_record = json!({
+            "type": "restricted_article",
+            "definition": {
+                "id": "gid://shopify/MetaobjectDefinition/1",
+                "type": "restricted_article",
+                "access": {
+                    "admin": "MERCHANT_READ",
+                    "storefront": "NONE",
+                    "customerAccount": "NONE"
+                },
+                "fieldDefinitions": [{
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": { "name": "single_line_text_field", "category": "TEXT" }
+                }]
+            },
+            "fields": [{
+                "key": "title",
+                "value": "Hidden",
+                "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": { "name": "single_line_text_field", "category": "TEXT" }
+                }
+            }]
+        });
+        let definition = metaobject_definition_from_record(&hydrated_record)
+            .expect("hydrated definition should be reused");
+        assert_eq!(definition["access"]["admin"], json!("MERCHANT_READ"));
+
+        let inferred_record = json!({
+            "type": "observed_article",
+            "titleField": { "key": "title" },
+            "capabilities": {},
+            "fields": [{
+                "key": "title",
+                "value": "Observed",
+                "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": { "name": "single_line_text_field", "category": "TEXT" }
+                }
+            }]
+        });
+        let inferred = metaobject_definition_from_record(&inferred_record)
+            .expect("field definitions should still infer a definition shell");
+        assert_eq!(inferred["access"], Value::Null);
+    }
 }

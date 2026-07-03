@@ -662,20 +662,27 @@ fn metafields_set_input_shape_error(
     has_effective_type: bool,
     api_client_id: Option<&str>,
 ) -> Option<Value> {
+    let index = index.to_string();
+    let owner_id = resolved_string_field(input, "ownerId").unwrap_or_default();
     let raw_namespace = resolved_string_field(input, "namespace");
     if app_metafield_namespace_requires_api_client(raw_namespace.as_deref())
         && api_client_id.is_none()
     {
         return Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string(), "namespace"],
+            vec!["metafields", &index, "namespace"],
             "APP_NOT_AUTHORIZED",
             APP_NAMESPACE_IDENTITY_REQUIRED_MESSAGE,
         ));
     }
     let namespace = canonical_app_metafield_namespace(raw_namespace.as_deref(), api_client_id);
     let key = resolved_string_field(input, "key").unwrap_or_default();
-    if let Some(error) = metafields_set_namespace_key_validation(&namespace, &key) {
-        let index = index.to_string();
+    if shopify_gid_resource_type(&owner_id).is_none() {
+        Some(metafields_set_path_user_error(
+            vec!["metafields", &index, "ownerId"],
+            "INVALID_OWNER",
+            "Owner is invalid",
+        ))
+    } else if let Some(error) = metafields_set_namespace_key_validation(&namespace, &key) {
         Some(metafields_set_path_user_error(
             vec!["metafields", &index, error.0],
             error.1,
@@ -686,19 +693,19 @@ fn metafields_set_input_shape_error(
         "shopify_standard" | "protected" | "shopify-l10n-fields"
     ) {
         Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string(), "namespace"],
+            vec!["metafields", &index, "namespace"],
             "",
             &format!("Namespace {namespace} is a reserved namespace"),
         ))
     } else if app_namespace_belongs_to_other_app(&namespace, api_client_id) {
         Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string()],
+            vec!["metafields", &index],
             "APP_NOT_AUTHORIZED",
             "Access to this namespace and key on Metafields for this resource type is not allowed.",
         ))
     } else if !input.contains_key("type") && !has_effective_type {
         Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string(), "type"],
+            vec!["metafields", &index, "type"],
             "BLANK",
             "Type can't be blank",
         ))

@@ -9056,7 +9056,7 @@ fn money_bag_order_edit_sessions_use_target_order_and_outstanding_defaults() {
           refundCreate(input: $input) {
             refund { totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }
             order { totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -9129,7 +9129,7 @@ fn money_bag_refund_missing_order_returns_user_error_without_canned_money() {
           refundCreate(input: $input) {
             refund { totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }
             order { totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -9149,8 +9149,7 @@ fn money_bag_refund_missing_order_returns_user_error_without_canned_money() {
             "order": Value::Null,
             "userErrors": [{
                 "field": ["orderId"],
-                "message": "Order does not exist",
-                "code": "NOT_FOUND"
+                "message": "Order does not exist"
             }]
         })
     );
