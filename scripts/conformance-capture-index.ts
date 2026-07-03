@@ -4300,7 +4300,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-translations-mutation-noop-validation-conformance.mts',
     purpose:
-      'translationsRemove unknown-key and disabled-locale no-op success behavior plus translationsRegister disabled-locale and primary-locale validation.',
+      'translationsRemove unknown-key, empty-translationKeys, and disabled-locale no-op success behavior plus translationsRegister disabled-locale and primary-locale validation.',
     requiredAuthScopes: [
       'read_products',
       'write_products',
@@ -4315,7 +4315,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/localization/localization-translations-mutation-noop-validation-read.graphql',
     ],
     cleanupBehavior:
-      'Creates one disposable product, temporarily enables and disables Italian for the disabled-locale removal/register branches, deletes the product, and restores Italian only if it was enabled before capture.',
+      'Creates one disposable product, temporarily enables French for empty-translationKeys removal/read-after coverage and Italian for disabled-locale removal/register branches, deletes the product, and restores French/Italian locale state after capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

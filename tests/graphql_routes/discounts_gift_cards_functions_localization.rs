@@ -4649,6 +4649,75 @@ fn localization_translations_register_multi_row_round_trip_and_indexed_errors() 
 }
 
 #[test]
+fn localization_translations_remove_empty_keys_is_noop_and_preserves_read_after() {
+    let mut proxy = snapshot_proxy();
+    let resource_id = "gid://shopify/Product/9801098789170";
+    let title_digest = fallback_product_title_digest();
+
+    let enable = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleEnable($locale: String!) {
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
+        }"#,
+        json!({ "locale": "fr" }),
+    ));
+    assert_eq!(
+        enable.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+
+    let registered = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale outdated updatedAt market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": resource_id,
+            "translations": [
+                { "locale": "fr", "key": "title", "value": "Titre local", "translatableContentDigest": title_digest },
+                { "locale": "fr", "key": "body_html", "value": "Description locale", "translatableContentDigest": "digest-body" }
+            ]
+        }),
+    ));
+    let expected_translations = json!([
+        { "key": "title", "value": "Titre local", "locale": "fr", "outdated": false, "updatedAt": registered.body["data"]["translationsRegister"]["translations"][0]["updatedAt"], "market": null },
+        { "key": "body_html", "value": "Description locale", "locale": "fr", "outdated": false, "updatedAt": registered.body["data"]["translationsRegister"]["translations"][1]["updatedAt"], "market": null }
+    ]);
+    assert_eq!(
+        registered.body["data"]["translationsRegister"]["translations"],
+        expected_translations
+    );
+
+    let remove = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRemoveEmptyKeys($resourceId: ID!, $keys: [String!]!, $locales: [String!]!) {
+          translationsRemove(resourceId: $resourceId, translationKeys: $keys, locales: $locales) {
+            translations { key value locale outdated updatedAt market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "resourceId": resource_id, "keys": [], "locales": ["fr"] }),
+    ));
+    assert_eq!(
+        remove.body["data"]["translationsRemove"],
+        json!({ "translations": null, "userErrors": [] })
+    );
+
+    let read_after_remove = proxy.process_request(json_graphql_request(
+        r#"query LocalizationTranslationsReadAfterEmptyKeyRemove($resourceId: ID!) {
+          translatableResource(resourceId: $resourceId) {
+            translations(locale: "fr") { key value locale outdated updatedAt market { id } }
+          }
+        }"#,
+        json!({ "resourceId": resource_id }),
+    ));
+    assert_eq!(
+        read_after_remove.body["data"]["translatableResource"]["translations"],
+        expected_translations
+    );
+}
+
+#[test]
 fn localization_translatable_content_uses_modeled_source_values_and_round_trips_digests() {
     let mut proxy = snapshot_proxy();
 
