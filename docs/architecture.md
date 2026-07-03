@@ -71,7 +71,7 @@ App/test harness
 - implement meta routes: health, config, log, state, reset, dump, and restore
 - keep Shopify-like Admin GraphQL route classification and request-body parsing separate from domain handlers
 - run version-scoped base GraphQL validation for captured parse, schema, variable, selection, and argument errors before local domain dispatch
-- run reusable captured-schema input validation before local mutation dispatch when a covered public Admin input object has recorded introspection evidence
+- run reusable captured-schema input validation before local mutation dispatch when a covered public Admin input object has recorded introspection evidence for the request API version
 - preserve `with_upstream_transport(...)` and `with_commit_transport(...)` test seams so behavior stays deterministic
 
 ### `src/proxy/commit.rs`
@@ -156,6 +156,7 @@ The Python package is not a second proxy implementation and does not spawn the R
 - `scripts/check-protected-evidence-invariants.ts` compares protected evidence against `origin/main` and rejects unregistered changes.
 - `scripts/conformance-capture-index.ts`, `scripts/conformance-check.ts`, and `scripts/conformance-status-report.ts` maintain capture metadata and status reporting.
 - `src/operation_registry.rs` is the executable source of truth for operation metadata. TypeScript tooling loads the same metadata through the Rust `operation-registry-json` exporter instead of maintaining a second checked-in JSON registry.
+- Version-scoped Admin GraphQL schema introspection lives under `config/admin-graphql/<api-version>/`. `mutation-schema.json` captures mutation arguments and reachable input objects; `bulk-query-schema.json` captures output object/list/connection facts. Runtime validation selects these files by the request path's Admin API version instead of reusing the default-version schema for every supported route.
 
 ## State model
 

@@ -1,0 +1,57 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "Inventory existence validation for a non-sentinel well-formed but unbacked InventoryItem GID in inventoryAdjustQuantities.",
+  "unknownInventoryItemId": "gid://shopify/InventoryItem/42",
+  "unknownLocationId": "gid://shopify/Location/999999999999",
+  "adjustUnknownInventoryItem": {
+    "query": "#graphql\n  mutation InventoryExistenceAdjustUnknownItem(\n    $input: InventoryAdjustQuantitiesInput!\n    $idempotencyKey: String!\n  ) {\n    inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {\n      inventoryAdjustmentGroup {\n        id\n        reason\n        changes {\n          name\n          delta\n          item { id }\n          location { id name }\n        }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+    "variables": {
+      "input": {
+        "name": "available",
+        "reason": "correction",
+        "referenceDocumentUri": "logistics://inventory-existence/adjust-unknown-item/1783044654705",
+        "changes": [
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/42",
+            "locationId": "gid://shopify/Location/999999999999",
+            "delta": 1,
+            "changeFromQuantity": 0
+          }
+        ]
+      },
+      "idempotencyKey": "inventory-existence-adjust-unknown-item-1783044654705"
+    },
+    "response": {
+      "data": {
+        "inventoryAdjustQuantities": {
+          "inventoryAdjustmentGroup": null,
+          "userErrors": [
+            {
+              "field": ["input", "changes", "0", "inventoryItemId"],
+              "message": "The specified inventory item could not be found.",
+              "code": "INVALID_INVENTORY_ITEM"
+            },
+            {
+              "field": ["input", "changes", "0", "locationId"],
+              "message": "The specified location could not be found.",
+              "code": "INVALID_LOCATION"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
