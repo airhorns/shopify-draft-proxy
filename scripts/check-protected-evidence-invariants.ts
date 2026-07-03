@@ -85,7 +85,12 @@ const changed = result.stdout
   .filter((entry) => entry.path.length > 0);
 
 const unregistered = changed.filter(({ status, path: changedPath }) => {
-  if (status === 'D') return !registeredProtectedEvidenceRemovals.has(changedPath);
+  if (status === 'D') {
+    return (
+      !registeredProtectedEvidenceRemovals.has(changedPath) &&
+      !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath))
+    );
+  }
   return (
     existsSync(changedPath) && !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath))
   );
