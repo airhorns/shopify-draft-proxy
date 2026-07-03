@@ -616,11 +616,18 @@ fn metafields_set_input_shape_error(
     input: &BTreeMap<String, ResolvedValue>,
     has_effective_type: bool,
 ) -> Option<Value> {
+    let index = index.to_string();
+    let owner_id = resolved_string_field(input, "ownerId").unwrap_or_default();
     let namespace =
         canonical_app_metafield_namespace(resolved_string_field(input, "namespace").as_deref());
     let key = resolved_string_field(input, "key").unwrap_or_default();
-    if let Some(error) = metafields_set_namespace_key_validation(&namespace, &key) {
-        let index = index.to_string();
+    if shopify_gid_resource_type(&owner_id).is_none() {
+        Some(metafields_set_path_user_error(
+            vec!["metafields", &index, "ownerId"],
+            "INVALID_OWNER",
+            "Owner is invalid",
+        ))
+    } else if let Some(error) = metafields_set_namespace_key_validation(&namespace, &key) {
         Some(metafields_set_path_user_error(
             vec!["metafields", &index, error.0],
             error.1,
@@ -631,19 +638,19 @@ fn metafields_set_input_shape_error(
         "shopify_standard" | "protected" | "shopify-l10n-fields"
     ) {
         Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string(), "namespace"],
+            vec!["metafields", &index, "namespace"],
             "",
             &format!("Namespace {namespace} is a reserved namespace"),
         ))
     } else if app_namespace_belongs_to_other_app(&namespace) {
         Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string()],
+            vec!["metafields", &index],
             "APP_NOT_AUTHORIZED",
             "Access to this namespace and key on Metafields for this resource type is not allowed.",
         ))
     } else if !input.contains_key("type") && !has_effective_type {
         Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string(), "type"],
+            vec!["metafields", &index, "type"],
             "BLANK",
             "Type can't be blank",
         ))

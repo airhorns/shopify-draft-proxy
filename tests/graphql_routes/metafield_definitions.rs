@@ -3515,3 +3515,97 @@ fn standard_metafield_definition_enable_accepts_catalog_template_id_for_fabric()
         json!({ "key": "category", "values": { "nodes": [] } })
     );
 }
+
+#[test]
+fn metafield_definition_access_grants_validation_uses_parsed_input_not_raw_query_text() {
+    let mut proxy = snapshot_proxy();
+
+    let valid_with_sniff_text = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ValidMetafieldDefinitionNameMentionsGrants {
+          metafieldDefinitionCreate(
+            definition: {
+              ownerType: PRODUCT
+              namespace: "grant_text"
+              key: "valid"
+              name: "access: { grants:"
+              type: "single_line_text_field"
+            }
+          ) {
+            createdDefinition { namespace key name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        valid_with_sniff_text.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        valid_with_sniff_text.body["data"]["metafieldDefinitionCreate"]["createdDefinition"],
+        json!({
+            "namespace": "grant_text",
+            "key": "valid",
+            "name": "access: { grants:"
+        })
+    );
+
+    let compact_invalid = proxy.process_request(json_graphql_request(
+        r#"mutation CompactGrantsLocation { metafieldDefinitionCreate(definition: { ownerType: PRODUCT, namespace: "grant_text", key: "compact", name: "Compact", type: "single_line_text_field", access:{grants:[{grantee:"gid://shopify/App/1",access:READ_WRITE}]} }) { createdDefinition { id } userErrors { field message code } } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        compact_invalid.body["errors"],
+        json!([{
+            "message": "InputObject 'MetafieldAccessInput' doesn't accept argument 'grants'",
+            "locations": [{ "line": 1, "column": 192 }],
+            "path": ["mutation CompactGrantsLocation", "metafieldDefinitionCreate", "definition", "access", "grants"],
+            "extensions": {
+                "code": "argumentNotAccepted",
+                "name": "MetafieldAccessInput",
+                "typeName": "InputObject",
+                "argumentName": "grants"
+            }
+        }])
+    );
+
+    let variable_invalid = proxy.process_request(json_graphql_request(
+        r#"
+        mutation VariableGrantsValidation($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "ownerType": "PRODUCT",
+                "namespace": "grant_text",
+                "key": "variable",
+                "name": "Variable",
+                "type": "single_line_text_field",
+                "access": {
+                    "grants": [{
+                        "grantee": "gid://shopify/App/1",
+                        "access": "READ_WRITE"
+                    }]
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        variable_invalid.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        variable_invalid.body["errors"][0]["extensions"]["problems"],
+        json!([{
+            "path": ["access", "grants"],
+            "explanation": "Field is not defined on MetafieldAccessInput"
+        }])
+    );
+    assert!(variable_invalid.body.get("data").is_none());
+}
