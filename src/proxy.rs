@@ -1130,11 +1130,36 @@ impl Store {
     }
 
     fn has_known_publication_catalog(&self) -> bool {
-        !self.base.publication_ids.is_empty() || !self.staged.publication_ids.is_empty()
+        self.base.publication_count.is_some()
+            || !self.base.publication_ids.is_empty()
+            || !self.staged.publication_ids.is_empty()
+            || !self.staged.publications.is_empty()
     }
 
     fn has_publication_id(&self, id: &str) -> bool {
-        self.base.publication_ids.contains(id) || self.staged.publication_ids.contains(id)
+        self.base.publication_ids.contains(id)
+            || self.staged.publication_ids.contains(id)
+            || self.staged.publications.contains_key(id)
+    }
+
+    fn publication_id_for_channel_id(&self, channel_id: &str) -> Option<String> {
+        self.staged
+            .publications
+            .iter()
+            .find_map(|(id, record)| {
+                let matches = record
+                    .get("channel")
+                    .and_then(|channel| channel.get("id"))
+                    .and_then(Value::as_str)
+                    == Some(channel_id);
+                matches.then(|| id.clone())
+            })
+            .or_else(|| {
+                let suffix = resource_id_path_tail(channel_id);
+                let publication_id = shopify_gid("Publication", suffix);
+                self.has_publication_id(&publication_id)
+                    .then_some(publication_id)
+            })
     }
 
     pub(in crate::proxy) fn effective_shop(&self) -> Value {
