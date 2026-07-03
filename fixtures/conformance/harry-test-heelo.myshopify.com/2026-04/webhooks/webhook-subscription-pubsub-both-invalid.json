@@ -1,0 +1,178 @@
+{
+  "capturedAt": "2026-07-03T07:02:46.697Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "Captures Shopify userErrors when both pubSubProject and pubSubTopic are invalid on the deprecated dedicated Pub/Sub webhook subscription create/update roots.",
+    "The project and topic validators accumulate independently on the dedicated roots; project userError is emitted before topic userError.",
+    "A temporary valid Pub/Sub subscription is created only so the update branch targets a real Shopify ID, then deleted during cleanup."
+  ],
+  "setup": {
+    "baselineCreate": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "pubSubProject": "valid-project",
+          "pubSubTopic": "topic-mr4l6cjd",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "pubSubWebhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1966859256114",
+                "topic": "SHOP_UPDATE",
+                "callbackUrl": "https://eventbridge.arn",
+                "uri": "pubsub://valid-project:topic-mr4l6cjd",
+                "format": "JSON",
+                "includeFields": [],
+                "metafieldNamespaces": [],
+                "filter": null,
+                "createdAt": "2026-07-03T07:02:46Z",
+                "updatedAt": "2026-07-03T07:02:46Z",
+                "endpoint": {
+                  "__typename": "WebhookPubSubEndpoint",
+                  "pubSubProject": "valid-project",
+                  "pubSubTopic": "topic-mr4l6cjd"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "dedicatedCreateBothInvalid": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "pubSubProject": "-bad",
+          "pubSubTopic": "1topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "pubSubWebhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "pubSubProject"],
+                  "message": "Google Cloud Pub/Sub project ID is not valid"
+                },
+                {
+                  "field": ["webhookSubscription", "pubSubTopic"],
+                  "message": "Google Cloud Pub/Sub topic ID is not valid"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "dedicatedUpdateBothInvalid": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1966859256114",
+        "webhookSubscription": {
+          "pubSubProject": "-bad",
+          "pubSubTopic": "1topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "pubSubWebhookSubscriptionUpdate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "pubSubProject"],
+                  "message": "Google Cloud Pub/Sub project ID is not valid"
+                },
+                {
+                  "field": ["webhookSubscription", "pubSubTopic"],
+                  "message": "Google Cloud Pub/Sub topic ID is not valid"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "baselineDelete": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1966859256114"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1966859256114",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

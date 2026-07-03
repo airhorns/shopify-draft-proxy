@@ -23,6 +23,10 @@ type B2bPassthroughCascadeArgs<'a> = (
     &'a str,
 );
 
+const B2B_BULK_ACTIONS_MAX_SIZE: usize = 50;
+const B2B_BULK_ACTION_LIMIT_REACHED_MESSAGE: &str =
+    "Exceeded max input size of 50. Consider using BulkOperation.";
+
 impl B2bCompanyLocationDeleteBlocker {
     fn bulk_message(&self, location_id: &str) -> String {
         let location_tail = resource_id_tail(location_id);
@@ -486,8 +490,7 @@ impl DraftProxy {
 
     /// Handles companyAssignCustomerAsContact against locally-staged b2b state.
     /// Returns None when the target company is not in local state, so callers can
-    /// defer to other handlers (e.g. the order-customer-error-path scenario, which
-    /// uses a sentinel company that is never staged in `b2b_companies`).
+    /// defer to other handlers that may own non-B2B company fixtures.
     pub(in crate::proxy) fn b2b_assign_customer_as_contact_response(
         &mut self,
         request: &Request,
@@ -502,19 +505,16 @@ impl DraftProxy {
         if !self.store.staged.b2b_companies.contains_key(&company_id) {
             return None;
         }
-        // The orderCustomerSet/Remove error-path flow assigns its sentinel customer
-        // (email "order-customer-...") as a contact and relies on the dedicated
-        // order-customer orchestrator to record the contact id its NOT_PERMITTED guard
-        // checks. Defer that case so the orchestrator below handles it.
-        if resolved_string_field(&field.arguments, "customerId")
-            .and_then(|customer_id| self.store.staged.customers.get(&customer_id).cloned())
-            .and_then(|customer| customer["email"].as_str().map(str::to_string))
-            .is_some_and(|email| email.starts_with("order-customer-"))
-        {
-            return None;
-        }
         let (payload, status, staged_ids) =
             self.b2b_company_assign_customer_as_contact_payload(field);
+        if status == "staged" {
+            if let Some(customer_id) = resolved_string_field(&field.arguments, "customerId") {
+                self.store
+                    .staged
+                    .order_customer_contact_customer_ids
+                    .insert(customer_id);
+            }
+        }
         self.record_mutation_log_with_status(
             request,
             query,
@@ -1342,6 +1342,13 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
         let contact_ids = list_string_field(&field.arguments, "companyContactIds");
+        if let Some(payload) = b2b_bulk_action_limit_payload(
+            contact_ids.len(),
+            "companyContactIds",
+            &["deletedCompanyContactIds"],
+        ) {
+            return payload;
+        }
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, contact_id) in contact_ids.iter().enumerate() {
@@ -1585,6 +1592,13 @@ impl DraftProxy {
         let contact_id =
             resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
         let roles_to_assign = resolved_object_list_field(&field.arguments, "rolesToAssign");
+        if let Some(payload) = b2b_bulk_action_limit_payload(
+            roles_to_assign.len(),
+            "rolesToAssign",
+            &["roleAssignments"],
+        ) {
+            return payload;
+        }
         if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
             return (
                 json!({
@@ -1702,6 +1716,13 @@ impl DraftProxy {
         let contact_id =
             resolved_string_field(&field.arguments, "companyContactId").unwrap_or_default();
         let assignment_ids = list_string_field(&field.arguments, "roleAssignmentIds");
+        if let Some(payload) = b2b_bulk_action_limit_payload(
+            assignment_ids.len(),
+            "roleAssignmentIds",
+            &["revokedRoleAssignmentIds"],
+        ) {
+            return payload;
+        }
         let revoke_all = resolved_bool_field(&field.arguments, "revokeAll").unwrap_or(false);
         if assignment_ids.is_empty() && !revoke_all {
             return (
@@ -1847,6 +1868,11 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
         let company_ids = list_string_field(&field.arguments, "companyIds");
+        if let Some(payload) =
+            b2b_bulk_action_limit_payload(company_ids.len(), "companyIds", &["deletedCompanyIds"])
+        {
+            return payload;
+        }
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, company_id) in company_ids.iter().enumerate() {
@@ -1993,6 +2019,13 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
         let location_ids = list_string_field(&field.arguments, "companyLocationIds");
+        if let Some(payload) = b2b_bulk_action_limit_payload(
+            location_ids.len(),
+            "companyLocationIds",
+            &["deletedCompanyLocationIds"],
+        ) {
+            return payload;
+        }
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, location_id) in location_ids.iter().enumerate() {
@@ -2251,6 +2284,13 @@ impl DraftProxy {
             .or_else(|| resolved_string_field(&field.arguments, "locationId"))
             .unwrap_or_default();
         let staff_ids = list_string_field(&field.arguments, "staffMemberIds");
+        if let Some(payload) = b2b_bulk_action_limit_payload(
+            staff_ids.len(),
+            "staffMemberIds",
+            &["companyLocationStaffMemberAssignments"],
+        ) {
+            return payload;
+        }
         let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned() else {
             return (
                 json!({
@@ -2331,6 +2371,13 @@ impl DraftProxy {
     ) -> (Value, &'static str, Vec<String>) {
         let assignment_ids =
             list_string_field(&field.arguments, "companyLocationStaffMemberAssignmentIds");
+        if let Some(payload) = b2b_bulk_action_limit_payload(
+            assignment_ids.len(),
+            "companyLocationStaffMemberAssignmentIds",
+            &["deletedCompanyLocationStaffMemberAssignmentIds"],
+        ) {
+            return payload;
+        }
         let mut deleted_ids = Vec::new();
         let mut user_errors = Vec::new();
         for (index, assignment_id) in assignment_ids.iter().enumerate() {
@@ -2376,6 +2423,13 @@ impl DraftProxy {
             .or_else(|| resolved_string_field(&field.arguments, "locationId"))
             .unwrap_or_default();
         let roles_to_assign = resolved_object_list_field(&field.arguments, "rolesToAssign");
+        if let Some(payload) = b2b_bulk_action_limit_payload(
+            roles_to_assign.len(),
+            "rolesToAssign",
+            &["roleAssignments"],
+        ) {
+            return payload;
+        }
         if !self.store.staged.b2b_locations.contains_key(&location_id) {
             return (
                 json!({
@@ -2444,6 +2498,16 @@ impl DraftProxy {
         let location_id =
             resolved_string_field(&field.arguments, "companyLocationId").unwrap_or_default();
         let assignment_ids = list_string_field(&field.arguments, "rolesToRevoke");
+        if let Some(payload) = b2b_bulk_action_limit_payload(
+            assignment_ids.len(),
+            "rolesToRevoke",
+            &[
+                "revokedRoleAssignmentIds",
+                "revokedCompanyContactRoleAssignmentIds",
+            ],
+        ) {
+            return payload;
+        }
         if !self.store.staged.b2b_locations.contains_key(&location_id) {
             return (
                 json!({
@@ -4101,6 +4165,29 @@ fn b2b_bulk_role_already_assigned_error(index: usize) -> Value {
         "Company contact has already been assigned a role in that company location.",
         "LIMIT_REACHED",
     )
+}
+
+fn b2b_bulk_action_limit_payload(
+    input_size: usize,
+    argument_field: &str,
+    empty_result_fields: &[&str],
+) -> Option<(Value, &'static str, Vec<String>)> {
+    if input_size <= B2B_BULK_ACTIONS_MAX_SIZE {
+        return None;
+    }
+    let mut payload = serde_json::Map::new();
+    for field in empty_result_fields {
+        payload.insert((*field).to_string(), json!([]));
+    }
+    payload.insert(
+        "userErrors".to_string(),
+        json!([user_error(
+            vec![argument_field],
+            B2B_BULK_ACTION_LIMIT_REACHED_MESSAGE,
+            Some("LIMIT_REACHED")
+        )]),
+    );
+    Some((Value::Object(payload), "failed", Vec::new()))
 }
 
 fn b2b_resource_not_found(field: impl Into<UserErrorField>) -> Value {

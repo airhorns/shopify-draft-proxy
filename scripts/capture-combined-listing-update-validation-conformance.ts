@@ -29,6 +29,7 @@ type CapturePayload = {
   upstreamCalls: Array<{
     operationName: string;
     variables: Record<string, unknown>;
+    query: string;
     response: {
       status: number;
       body: unknown;
@@ -52,6 +53,21 @@ const { runGraphqlRequest } = createAdminGraphqlClient({
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const outputPath = path.join(outputDir, 'combinedListingUpdate-validation.json');
 const missingProductId = 'gid://shopify/Product/999999999999999999';
+
+const productHydrateNodesQuery = `#graphql
+  query ProductsHydrateNodes($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      __typename
+      id
+      ... on Product {
+        title
+        handle
+        status
+        combinedListingRole
+      }
+    }
+  }
+`;
 
 const productCreateMutation = `mutation CombinedListingUpdateValidationProductCreate($product: ProductCreateInput!) {
   productCreate(product: $product) {
@@ -406,6 +422,8 @@ try {
   }
 }
 
+const missingProductHydrateResponse = await runGraphqlRequest(productHydrateNodesQuery, { ids: [missingProductId] });
+
 const capture: CapturePayload = {
   scenarioId: 'combinedListingUpdate-validation',
   capturedAt: new Date().toISOString(),
@@ -421,13 +439,10 @@ const capture: CapturePayload = {
     {
       operationName: 'ProductsHydrateNodes',
       variables: { ids: [missingProductId] },
+      query: productHydrateNodesQuery,
       response: {
-        status: 200,
-        body: {
-          data: {
-            nodes: [null],
-          },
-        },
+        status: missingProductHydrateResponse.status,
+        body: missingProductHydrateResponse.payload,
       },
     },
   ],

@@ -7,7 +7,7 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/standard-metaobject-definition-enable-catalog.json",
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/standard-metaobject-templates.json"
   ],
-  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metaobjects/standard-metaobject-definition-enable-catalog.graphql",
     "apiVersion": "2026-04",

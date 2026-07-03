@@ -12,6 +12,10 @@ query ProductSetDownstreamRead(
     status
     vendor
     productType
+    category {
+      id
+      fullName
+    }
     tags
     totalInventory
     descriptionHtml

@@ -177,7 +177,9 @@
           "documentPath": "config/parity-requests/b2b/b2b-contact-business-rules-draft-order-create.graphql",
           "variables": {
             "input": {
-              "email": "order-customer-b2b@example.com",
+              "email": {
+                "fromCapturePath": "$.setup.b2bDraftOrderCreate.variables.input.email"
+              },
               "purchasingEntity": {
                 "purchasingCompany": {
                   "companyId": {
@@ -331,5 +333,5 @@
       }
     ]
   },
-  "notes": "Live 2026-04 Shopify parity for orderCustomerSet and orderCustomerRemove error-path fidelity. Replay creates customers, B2B company/contact setup, B2B and non-B2B orders, cancels the non-B2B order through the public request surface, then verifies happy set/remove, not-found branches, B2B no-role set rejection, B2B remove rejection, and cancelled non-B2B remove success without runtime Shopify writes."
+  "notes": "Live 2026-04 Shopify parity for orderCustomerSet and orderCustomerRemove error-path fidelity. Replay creates varied-email customers, varied-name B2B company/contact setup, B2B and non-B2B orders, cancels the non-B2B order through the public request surface, then verifies happy set/remove, not-found branches, B2B no-role set rejection, B2B remove rejection, and cancelled non-B2B remove success without runtime Shopify writes. The B2B no-role branch protects classification and contact-state derivation from staged records rather than fixture email/name strings."
 }

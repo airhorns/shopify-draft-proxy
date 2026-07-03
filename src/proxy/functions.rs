@@ -1,6 +1,6 @@
 use super::*;
 
-pub(in crate::proxy) const MODELED_FUNCTION_APP_ID: &str = "347082227713";
+const FUNCTION_CANONICAL_API_TYPE_FIELD: &str = "__draftProxyCanonicalApiType";
 
 const FUNCTION_HYDRATE_BY_ID_QUERY: &str = "query FunctionHydrateById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      apiKey\n    }\n  }\n}\n";
 const FUNCTION_HYDRATE_BY_HANDLE_QUERY: &str = "query FunctionHydrateByHandle {\n  shopifyFunctions(first: 100) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
@@ -99,12 +99,11 @@ impl DraftProxy {
                 "shopifyFunctions" => {
                     let api_type =
                         resolved_string_field(&field.arguments, "apiType").unwrap_or_default();
-                    let api_type = match api_type.as_str() {
-                        "CART_TRANSFORM" | "cart_transform" => "CART_TRANSFORM",
-                        "FULFILLMENT_CONSTRAINT_RULE" | "fulfillment_constraint_rule" => {
-                            "FULFILLMENT_CONSTRAINT_RULE"
-                        }
-                        _ => "VALIDATION",
+                    let api_type = canonical_function_api_type(&api_type);
+                    let api_type = if api_type.is_empty() {
+                        "VALIDATION"
+                    } else {
+                        api_type.as_str()
                     };
                     json!({ "nodes": self.function_metadata_read_nodes(request, api_type) })
                 }
@@ -183,7 +182,7 @@ impl DraftProxy {
             let Some(function) = self.store.staged.function_metadata.get(id) else {
                 continue;
             };
-            if function["apiType"].as_str() == Some(api_type)
+            if function_matches_canonical_api_type(function, api_type)
                 && function_belongs_to_request(function, request)
                 && seen.insert(id.clone())
             {
@@ -217,7 +216,7 @@ impl DraftProxy {
             )
             .filter_map(|record| record.get("shopifyFunction"))
         {
-            if function["apiType"].as_str() == Some(api_type)
+            if function_matches_canonical_api_type(function, api_type)
                 && function_belongs_to_request(function, request)
             {
                 if let Some(id) = function["id"].as_str() {
@@ -361,13 +360,7 @@ impl DraftProxy {
             .collect::<Vec<_>>();
         let selected = matches
             .iter()
-            .position(|function| {
-                function["apiType"]
-                    .as_str()
-                    .map(canonical_function_api_type)
-                    .as_deref()
-                    == Some(api_type)
-            })
+            .position(|function| function_matches_canonical_api_type(function, api_type))
             .map(|index| matches.remove(index))
             .or_else(|| matches.into_iter().next())?;
         normalized_function_metadata_with_handle(selected, Some(handle))
@@ -409,7 +402,7 @@ fn normalized_function_metadata_with_handle(
     if api_type.is_empty() {
         return None;
     }
-    function["apiType"] = json!(api_type);
+    function[FUNCTION_CANONICAL_API_TYPE_FIELD] = json!(api_type);
     if let Some(handle) = handle {
         if function.get("handle").is_none() {
             function["handle"] = json!(handle);
@@ -441,12 +434,36 @@ fn function_metadata_matches_handle(function: &Value, handle: &str) -> bool {
 fn canonical_function_api_type(api_type: &str) -> String {
     match api_type {
         "VALIDATION" | "cart_checkout_validation" | "validation" => "VALIDATION".to_string(),
-        "CART_TRANSFORM" | "cart_transform" => "CART_TRANSFORM".to_string(),
-        "FULFILLMENT_CONSTRAINT_RULE" | "fulfillment_constraint_rule" => {
-            "FULFILLMENT_CONSTRAINT_RULE".to_string()
-        }
+        "CART_TRANSFORM"
+        | "cart_transform"
+        | "purchase.cart-transform.run"
+        | "cart.transform.run" => "CART_TRANSFORM".to_string(),
+        "FULFILLMENT_CONSTRAINT_RULE"
+        | "fulfillment_constraint_rule"
+        | "purchase.fulfillment-constraint-rule.run"
+        | "cart.fulfillment-constraints.generate.run" => "FULFILLMENT_CONSTRAINT_RULE".to_string(),
+        "DISCOUNT" | "discount" | "product_discounts" | "order_discounts"
+        | "shipping_discounts" => "DISCOUNT".to_string(),
+        "PAYMENT_CUSTOMIZATION" | "payment_customization" => "PAYMENT_CUSTOMIZATION".to_string(),
         other => other.to_string(),
     }
+}
+
+fn function_canonical_api_type(function: &Value) -> String {
+    function
+        .get(FUNCTION_CANONICAL_API_TYPE_FIELD)
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .or_else(|| {
+            function["apiType"]
+                .as_str()
+                .map(canonical_function_api_type)
+        })
+        .unwrap_or_default()
+}
+
+fn function_matches_canonical_api_type(function: &Value, api_type: &str) -> bool {
+    function_canonical_api_type(function) == api_type
 }
 
 fn function_belongs_to_request(function: &Value, request: &Request) -> bool {
@@ -564,6 +581,17 @@ fn payload_error(desc: FunctionPayloadDescriptor, error: Value) -> Value {
     payload.insert(desc.payload_key.to_string(), Value::Null);
     payload.insert("userErrors".to_string(), Value::Array(vec![error]));
     Value::Object(payload)
+}
+
+fn maximum_cart_transforms_error() -> Value {
+    payload_error(
+        CART_TRANSFORM_FUNCTION_PAYLOAD,
+        user_error(
+            ["base"],
+            "The maximum number of cart transforms per shop has been reached.",
+            Some("MAXIMUM_CART_TRANSFORMS"),
+        ),
+    )
 }
 
 fn function_identifier_error(
@@ -690,7 +718,7 @@ fn function_resolution_payload(
                 &current_app_id,
             )
         })?;
-    if function["apiType"].as_str() != Some(desc.expected_api_type) {
+    if !function_matches_canonical_api_type(&function, desc.expected_api_type) {
         let code = if function_id.is_some() {
             desc.api_mismatch_id_code
         } else {
@@ -1625,6 +1653,9 @@ impl DraftProxy {
             Ok(function) => function,
             Err(payload) => return payload,
         };
+        if !self.store.staged.function_cart_transform_order.is_empty() {
+            return maximum_cart_transforms_error();
+        }
         let errors = cart_transform_metafield_errors(field);
         if !errors.is_empty() {
             return json!({ "cartTransform": Value::Null, "userErrors": errors });

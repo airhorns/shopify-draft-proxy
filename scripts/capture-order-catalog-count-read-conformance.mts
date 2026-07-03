@@ -168,13 +168,24 @@ const newestName = requireString(
   readPath(newestProbe.payload, ['data', 'orders', 'nodes', 0, 'name']),
   'newest order.name',
 );
+const newestId = requireString(readPath(newestProbe.payload, ['data', 'orders', 'nodes', 0, 'id']), 'newest order.id');
 const nameNumber = newestName.replace(/[^0-9]/g, '');
 const nameQuery = `name:${nameNumber}`;
+const idNumber = newestId.split('/').at(-1);
+if (idNumber === undefined || idNumber.length === 0) {
+  throw new Error(`expected numeric tail in newest order id ${newestId}`);
+}
+const idQuery = `id:${idNumber}`;
+const idMissQuery = 'id:999999999999999999';
+const combinedQuery = `${idQuery} ${TAG_QUERY} financial_status:paid fulfillment_status:unfulfilled`;
 
 const mainVariables = {
   tagQuery: TAG_QUERY,
   nameQuery,
   statusQuery: 'financial_status:paid fulfillment_status:unfulfilled',
+  idQuery,
+  idMissQuery,
+  combinedQuery,
   pageSize: 1,
   seedSize: 2,
   countLimit: 1,
@@ -237,7 +248,12 @@ console.log(
       storeDomain,
       apiVersion,
       nameQuery,
+      idQuery,
+      idMissQuery,
+      combinedQuery,
       taggedCount: readPath(mainResult.payload, ['data', 'exactTaggedCount']),
+      idMissCount: readPath(mainResult.payload, ['data', 'idMissCount']),
+      combinedAndCount: readPath(mainResult.payload, ['data', 'combinedAndCount']),
       recentNodeCount: Array.isArray(readPath(mainResult.payload, ['data', 'recent', 'nodes']))
         ? (readPath(mainResult.payload, ['data', 'recent', 'nodes']) as unknown[]).length
         : null,

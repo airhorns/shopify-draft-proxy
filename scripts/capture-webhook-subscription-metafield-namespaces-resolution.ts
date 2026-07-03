@@ -246,7 +246,7 @@ function buildSpec(requestingApiClientId: string): Record<string, unknown> {
     scenarioStatus: 'captured',
     assertionKinds: ['payload-shape', 'read-after-write', 'downstream-read-parity'],
     liveCaptureFiles: [outputPath],
-    runtimeTestFiles: ['test/parity_test.gleam', 'test/shopify_draft_proxy/proxy/webhooks_test.gleam'],
+    runtimeTestFiles: ['tests/graphql_routes/admin_graphql_webhooks.rs'],
     proxyRequest: {
       documentPath: createRequestPath,
       variablesCapturePath: '$.lifecycle.create.variables',

@@ -1,40 +1,85 @@
 {
   "synchronous": true,
   "input": {
-    "title": "Parity Set Snowboard",
+    "title": "Hermes Product Graph 1783088692213",
     "status": "DRAFT",
-    "vendor": "BURTON",
+    "vendor": "HERMES",
     "productType": "SNOWBOARD",
-    "tags": ["parity-plan", "winter"],
+    "category": "gid://shopify/TaxonomyCategory/aa-1-1",
+    "tags": [
+      "conformance",
+      "product-graph",
+      "1783088692213"
+    ],
     "productOptions": [
       {
         "name": "Color",
         "position": 1,
-        "values": [{ "name": "Blue" }, { "name": "Black" }]
+        "values": [
+          {
+            "name": "Blue"
+          },
+          {
+            "name": "Black"
+          }
+        ]
       }
     ],
     "variants": [
       {
-        "optionValues": [{ "optionName": "Color", "name": "Blue" }],
-        "sku": "PARITY-SET-BLUE",
+        "optionValues": [
+          {
+            "optionName": "Color",
+            "name": "Blue"
+          }
+        ],
+        "sku": "GRAPH-BLUE-1783088692213",
         "price": "79.99",
-        "inventoryQuantities": [{ "locationId": "gid://shopify/Location/1", "name": "available", "quantity": 7 }],
-        "inventoryItem": { "tracked": true, "requiresShipping": true }
+        "inventoryQuantities": [
+          {
+            "quantity": 2,
+            "locationId": "gid://shopify/Location/106318463282",
+            "name": "available"
+          },
+          {
+            "quantity": 5,
+            "locationId": "gid://shopify/Location/106318430514",
+            "name": "available"
+          }
+        ],
+        "inventoryItem": {
+          "tracked": true,
+          "requiresShipping": true
+        }
       },
       {
-        "optionValues": [{ "optionName": "Color", "name": "Black" }],
-        "sku": "PARITY-SET-BLACK",
+        "optionValues": [
+          {
+            "optionName": "Color",
+            "name": "Black"
+          }
+        ],
+        "sku": "GRAPH-BLACK-1783088692213",
         "price": "69.99",
-        "inventoryQuantities": [{ "locationId": "gid://shopify/Location/1", "name": "available", "quantity": 3 }],
-        "inventoryItem": { "tracked": false, "requiresShipping": true }
+        "inventoryQuantities": [
+          {
+            "quantity": 3,
+            "locationId": "gid://shopify/Location/106318463282",
+            "name": "available"
+          }
+        ],
+        "inventoryItem": {
+          "tracked": false,
+          "requiresShipping": true
+        }
       }
     ],
     "metafields": [
       {
         "namespace": "custom",
-        "key": "season",
+        "key": "material",
         "type": "single_line_text_field",
-        "value": "winter"
+        "value": "canvas"
       }
     ]
   }

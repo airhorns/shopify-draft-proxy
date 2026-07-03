@@ -1,0 +1,105 @@
+{
+  "scenarioId": "bulk-operation-run-mutation-empty-file",
+  "capturedAt": "2026-07-03T03:17:01.771Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "request": {
+    "operationName": "BulkOperationRunMutationEmptyFile",
+    "query": "mutation BulkOperationRunMutationEmptyFile($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n"
+  },
+  "setup": {
+    "stagedUpload": {
+      "operationName": "BulkOperationRunMutationEmptyFileStagedUpload",
+      "query": "mutation BulkOperationRunMutationEmptyFileStagedUpload($input: [StagedUploadInput!]!) {\n  stagedUploadsCreate(input: $input) {\n    stagedTargets {\n      url\n      resourceUrl\n      parameters {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": [
+          {
+            "filename": "bulk-operation-run-mutation-empty-file-1783048621367.jsonl",
+            "mimeType": "text/jsonl",
+            "resource": "BULK_MUTATION_VARIABLES",
+            "httpMethod": "PUT",
+            "fileSize": "0"
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "stagedUploadsCreate": {
+            "stagedTargets": [
+              {
+                "url": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/bulk/032fbdb4-b585-4b12-bb11-b4905b7ab76b/bulk-operation-run-mutation-empty-file-1783048621367.jsonl?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=merchant-assets%40shopify-tiers.iam.gserviceaccount.com%2F20260703%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260703T031701Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=81779fa283fd35b41d9974fdffbb959a2bbcf7b8b1839d7241fd10a587fa72affc8e0f1debec61ffd44d89aca51dcde3c565f132be02fb3c632130ae52a3ae21232a164ecef8cc419125bcf864949478d7bc0125fc478fe5bc6efae4dec88375ae143d9f4c6e3df2a3628cf7c23619a2b276c9728a7f9774b20f4175d5c3d700bf1c5a386d7f504f43b9efd67657b140d8f2445f05a69a42870d8d5496668c7920d1c88b9d7dfc7b6da371265a902f504464df75948da1f969b3067665ed84aac54dd3c3eacf6157342101fabc623a1b52fc94cfdea89be4c418aecd3b0fdfda900a9fbc777fabb17a1db35ada21231cd3181336f448870eb9e6dbb6d0d11646",
+                "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/bulk/032fbdb4-b585-4b12-bb11-b4905b7ab76b/bulk-operation-run-mutation-empty-file-1783048621367.jsonl?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=merchant-assets%40shopify-tiers.iam.gserviceaccount.com%2F20260703%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260703T031701Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=81779fa283fd35b41d9974fdffbb959a2bbcf7b8b1839d7241fd10a587fa72affc8e0f1debec61ffd44d89aca51dcde3c565f132be02fb3c632130ae52a3ae21232a164ecef8cc419125bcf864949478d7bc0125fc478fe5bc6efae4dec88375ae143d9f4c6e3df2a3628cf7c23619a2b276c9728a7f9774b20f4175d5c3d700bf1c5a386d7f504f43b9efd67657b140d8f2445f05a69a42870d8d5496668c7920d1c88b9d7dfc7b6da371265a902f504464df75948da1f969b3067665ed84aac54dd3c3eacf6157342101fabc623a1b52fc94cfdea89be4c418aecd3b0fdfda900a9fbc777fabb17a1db35ada21231cd3181336f448870eb9e6dbb6d0d11646",
+                "parameters": [
+                  {
+                    "name": "content_type",
+                    "value": "text/jsonl"
+                  },
+                  {
+                    "name": "acl",
+                    "value": "private"
+                  }
+                ]
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "upload": {
+      "status": 200,
+      "body": "",
+      "sizeBytes": 0
+    },
+    "uploadContent": ""
+  },
+  "validation": {
+    "run": {
+      "operationName": "BulkOperationRunMutationEmptyFile",
+      "query": "mutation BulkOperationRunMutationEmptyFile($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }",
+        "path": "tmp/92891250994/bulk/032fbdb4-b585-4b12-bb11-b4905b7ab76b/bulk-operation-run-mutation-empty-file-1783048621367.jsonl"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "The input file is empty.",
+                "code": "INVALID_STAGED_UPLOAD_FILE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

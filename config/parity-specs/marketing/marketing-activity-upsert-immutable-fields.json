@@ -10,7 +10,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-upsert-immutable-fields.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/marketing_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/marketing/marketing-activity-immutable-create.graphql",
     "variablesCapturePath": "$.cases[0].variables"

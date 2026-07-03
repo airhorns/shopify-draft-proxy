@@ -1,0 +1,730 @@
+{
+  "data": {
+    "customCollection": {
+      "id": "gid://shopify/Collection/494967390514",
+      "legacyResourceId": "494967390514",
+      "title": "Home page",
+      "handle": "frontpage",
+      "updatedAt": "2026-06-30T11:18:48Z",
+      "description": "",
+      "descriptionHtml": "",
+      "image": null,
+      "productsCount": {
+        "count": 1,
+        "precision": "EXACT"
+      },
+      "hasProduct": true,
+      "sortOrder": "BEST_SELLING",
+      "templateSuffix": null,
+      "seo": {
+        "title": null,
+        "description": null
+      },
+      "ruleSet": null,
+      "products": {
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ==",
+            "node": {
+              "id": "gid://shopify/Product/9801098789170",
+              "title": "The Inventory Not Tracked Snowboard",
+              "handle": "the-inventory-not-tracked-snowboard",
+              "vendor": "harry-test-heelo",
+              "productType": "snowboard",
+              "tags": ["Accessory", "Sport", "Winter"],
+              "totalInventory": 0,
+              "tracksInventory": false
+            }
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ==",
+          "endCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ=="
+        }
+      }
+    },
+    "smartCollection": {
+      "id": "gid://shopify/Collection/494967423282",
+      "legacyResourceId": "494967423282",
+      "title": "Automated Collection",
+      "handle": "automated-collection",
+      "updatedAt": "2026-06-13T22:01:02Z",
+      "description": "",
+      "descriptionHtml": "",
+      "image": null,
+      "productsCount": {
+        "count": 61,
+        "precision": "EXACT"
+      },
+      "hasProduct": false,
+      "sortOrder": "BEST_SELLING",
+      "templateSuffix": null,
+      "seo": {
+        "title": null,
+        "description": null
+      },
+      "ruleSet": {
+        "appliedDisjunctively": false,
+        "rules": [
+          {
+            "column": "VARIANT_PRICE",
+            "relation": "LESS_THAN",
+            "condition": "800.00"
+          },
+          {
+            "column": "VARIANT_PRICE",
+            "relation": "GREATER_THAN",
+            "condition": "200.00"
+          }
+        ]
+      },
+      "products": {
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjo5ODg1NTE3MTE5Nzk0LCJsYXN0X3ZhbHVlIjoiMCJ9",
+            "node": {
+              "id": "gid://shopify/Product/9885517119794",
+              "title": "Charlie",
+              "handle": "charlie",
+              "vendor": "Pure Fix Cycles",
+              "productType": "Fixed Gear Bicycle",
+              "tags": [
+                "50cm",
+                "54cm",
+                "58cm",
+                "Bicycle",
+                "Bicycles",
+                "Bike",
+                "Black",
+                "College Fixie",
+                "Fixed Gear",
+                "Fixie",
+                "Pure Fix Cycles",
+                "Red",
+                "Urban Fixie"
+              ],
+              "totalInventory": 0,
+              "tracksInventory": true
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo5ODg1NTE2OTIzMTg2LCJsYXN0X3ZhbHVlIjoiMCJ9",
+            "node": {
+              "id": "gid://shopify/Product/9885516923186",
+              "title": "Golf",
+              "handle": "golf-orange-bicycle",
+              "vendor": "Pure Fix Cycles",
+              "productType": "Fixed Gear Bicycle",
+              "tags": [
+                "50cm",
+                "54cm",
+                "58cm",
+                "Bicycle",
+                "Bike",
+                "Black",
+                "Fixed Gear",
+                "Fixie",
+                "Gray",
+                "Grey",
+                "Matte Grey",
+                "Pure Fix Cycles"
+              ],
+              "totalInventory": 0,
+              "tracksInventory": true
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo5ODg1NTE2NzU5MzQ2LCJsYXN0X3ZhbHVlIjoiMCJ9",
+            "node": {
+              "id": "gid://shopify/Product/9885516759346",
+              "title": "Siva Juliet",
+              "handle": "siva-juliet",
+              "vendor": "Pure Fix Cycles",
+              "productType": "Fixed Gear Bicycle",
+              "tags": [
+                "43cm",
+                "47cm",
+                "50cm",
+                "54cm",
+                "58cm",
+                "61cm",
+                "64cm",
+                "Bicycle",
+                "Bicycles",
+                "Bike",
+                "Black",
+                "Fixed Gear",
+                "Fixie",
+                "Matte Black",
+                "Pure Fix Cycles"
+              ],
+              "totalInventory": 0,
+              "tracksInventory": true
+            }
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo5ODg1NTE3MTE5Nzk0LCJsYXN0X3ZhbHVlIjoiMCJ9",
+          "endCursor": "eyJsYXN0X2lkIjo5ODg1NTE2NzU5MzQ2LCJsYXN0X3ZhbHVlIjoiMCJ9"
+        }
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 16,
+      "actualQueryCost": 15,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1978,
+        "restoreRate": 100
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CollectionDetailRead",
+      "variables": {
+        "customCollectionId": "gid://shopify/Collection/494967390514",
+        "smartCollectionId": "gid://shopify/Collection/494967423282",
+        "productId": "gid://shopify/Product/9801098789170"
+      },
+      "query": "query CollectionDetailRead($customCollectionId: ID!, $smartCollectionId: ID!, $productId: ID!) {\n  customCollection: collection(id: $customCollectionId) {\n    id\n    legacyResourceId\n    title\n    handle\n    updatedAt\n    description\n    descriptionHtml\n    image {\n      id\n      url\n      altText\n      width\n      height\n    }\n    productsCount {\n      count\n      precision\n    }\n    hasProduct(id: $productId)\n    sortOrder\n    templateSuffix\n    seo {\n      title\n      description\n    }\n    ruleSet {\n      appliedDisjunctively\n      rules {\n        column\n        relation\n        condition\n      }\n    }\n    products(first: 3) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          vendor\n          productType\n          tags\n          totalInventory\n          tracksInventory\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  smartCollection: collection(id: $smartCollectionId) {\n    id\n    legacyResourceId\n    title\n    handle\n    updatedAt\n    description\n    descriptionHtml\n    image {\n      id\n      url\n      altText\n      width\n      height\n    }\n    productsCount {\n      count\n      precision\n    }\n    hasProduct(id: $productId)\n    sortOrder\n    templateSuffix\n    seo {\n      title\n      description\n    }\n    ruleSet {\n      appliedDisjunctively\n      rules {\n        column\n        relation\n        condition\n      }\n    }\n    products(first: 3) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          vendor\n          productType\n          tags\n          totalInventory\n          tracksInventory\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customCollection": {
+              "id": "gid://shopify/Collection/494967390514",
+              "legacyResourceId": "494967390514",
+              "title": "Home page",
+              "handle": "frontpage",
+              "updatedAt": "2026-06-30T11:18:48Z",
+              "description": "",
+              "descriptionHtml": "",
+              "image": null,
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "hasProduct": true,
+              "sortOrder": "BEST_SELLING",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "ruleSet": null,
+              "products": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ==",
+                    "node": {
+                      "id": "gid://shopify/Product/9801098789170",
+                      "title": "The Inventory Not Tracked Snowboard",
+                      "handle": "the-inventory-not-tracked-snowboard",
+                      "vendor": "harry-test-heelo",
+                      "productType": "snowboard",
+                      "tags": ["Accessory", "Sport", "Winter"],
+                      "totalInventory": 0,
+                      "tracksInventory": false
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ=="
+                }
+              }
+            },
+            "smartCollection": {
+              "id": "gid://shopify/Collection/494967423282",
+              "legacyResourceId": "494967423282",
+              "title": "Automated Collection",
+              "handle": "automated-collection",
+              "updatedAt": "2026-06-13T22:01:02Z",
+              "description": "",
+              "descriptionHtml": "",
+              "image": null,
+              "productsCount": {
+                "count": 61,
+                "precision": "EXACT"
+              },
+              "hasProduct": false,
+              "sortOrder": "BEST_SELLING",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "ruleSet": {
+                "appliedDisjunctively": false,
+                "rules": [
+                  {
+                    "column": "VARIANT_PRICE",
+                    "relation": "LESS_THAN",
+                    "condition": "800.00"
+                  },
+                  {
+                    "column": "VARIANT_PRICE",
+                    "relation": "GREATER_THAN",
+                    "condition": "200.00"
+                  }
+                ]
+              },
+              "products": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo5ODg1NTE3MTE5Nzk0LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                    "node": {
+                      "id": "gid://shopify/Product/9885517119794",
+                      "title": "Charlie",
+                      "handle": "charlie",
+                      "vendor": "Pure Fix Cycles",
+                      "productType": "Fixed Gear Bicycle",
+                      "tags": [
+                        "50cm",
+                        "54cm",
+                        "58cm",
+                        "Bicycle",
+                        "Bicycles",
+                        "Bike",
+                        "Black",
+                        "College Fixie",
+                        "Fixed Gear",
+                        "Fixie",
+                        "Pure Fix Cycles",
+                        "Red",
+                        "Urban Fixie"
+                      ],
+                      "totalInventory": 0,
+                      "tracksInventory": true
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo5ODg1NTE2OTIzMTg2LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                    "node": {
+                      "id": "gid://shopify/Product/9885516923186",
+                      "title": "Golf",
+                      "handle": "golf-orange-bicycle",
+                      "vendor": "Pure Fix Cycles",
+                      "productType": "Fixed Gear Bicycle",
+                      "tags": [
+                        "50cm",
+                        "54cm",
+                        "58cm",
+                        "Bicycle",
+                        "Bike",
+                        "Black",
+                        "Fixed Gear",
+                        "Fixie",
+                        "Gray",
+                        "Grey",
+                        "Matte Grey",
+                        "Pure Fix Cycles"
+                      ],
+                      "totalInventory": 0,
+                      "tracksInventory": true
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo5ODg1NTE2NzU5MzQ2LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                    "node": {
+                      "id": "gid://shopify/Product/9885516759346",
+                      "title": "Siva Juliet",
+                      "handle": "siva-juliet",
+                      "vendor": "Pure Fix Cycles",
+                      "productType": "Fixed Gear Bicycle",
+                      "tags": [
+                        "43cm",
+                        "47cm",
+                        "50cm",
+                        "54cm",
+                        "58cm",
+                        "61cm",
+                        "64cm",
+                        "Bicycle",
+                        "Bicycles",
+                        "Bike",
+                        "Black",
+                        "Fixed Gear",
+                        "Fixie",
+                        "Matte Black",
+                        "Pure Fix Cycles"
+                      ],
+                      "totalInventory": 0,
+                      "tracksInventory": true
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo5ODg1NTE3MTE5Nzk0LCJsYXN0X3ZhbHVlIjoiMCJ9",
+                  "endCursor": "eyJsYXN0X2lkIjo5ODg1NTE2NzU5MzQ2LCJsYXN0X3ZhbHVlIjoiMCJ9"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CollectionIdentifierRead",
+      "variables": {
+        "customCollectionId": "gid://shopify/Collection/494967390514",
+        "customCollectionHandle": "frontpage",
+        "productId": "gid://shopify/Product/9801098789170"
+      },
+      "query": "query CollectionIdentifierRead($customCollectionId: ID!, $customCollectionHandle: String!, $productId: ID!) {\n  customCollection: collectionByIdentifier(identifier: { id: $customCollectionId }) {\n    id\n    legacyResourceId\n    title\n    handle\n    updatedAt\n    description\n    descriptionHtml\n    image {\n      id\n      url\n      altText\n      width\n      height\n    }\n    productsCount {\n      count\n      precision\n    }\n    hasProduct(id: $productId)\n    sortOrder\n    templateSuffix\n    seo {\n      title\n      description\n    }\n    ruleSet {\n      appliedDisjunctively\n      rules {\n        column\n        relation\n        condition\n      }\n    }\n    products(first: 3) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          vendor\n          productType\n          tags\n          totalInventory\n          tracksInventory\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  customCollectionByHandle: collectionByIdentifier(identifier: { handle: $customCollectionHandle }) {\n    id\n    legacyResourceId\n    title\n    handle\n    updatedAt\n    description\n    descriptionHtml\n    image {\n      id\n      url\n      altText\n      width\n      height\n    }\n    productsCount {\n      count\n      precision\n    }\n    hasProduct(id: $productId)\n    sortOrder\n    templateSuffix\n    seo {\n      title\n      description\n    }\n    ruleSet {\n      appliedDisjunctively\n      rules {\n        column\n        relation\n        condition\n      }\n    }\n    products(first: 3) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          vendor\n          productType\n          tags\n          totalInventory\n          tracksInventory\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  missingCollection: collectionByIdentifier(identifier: { handle: \"missing-handle-for-parity\" }) {\n    id\n  }\n  customIdCollection: collectionByIdentifier(\n    identifier: { customId: { namespace: \"custom\", key: \"external_id\", value: \"missing\" } }\n  ) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Metafield definition of type 'id' is required when using custom ids.",
+              "locations": [
+                {
+                  "line": 117,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "NOT_FOUND"
+              },
+              "path": ["customIdCollection"]
+            }
+          ],
+          "data": {
+            "customCollection": {
+              "id": "gid://shopify/Collection/494967390514",
+              "legacyResourceId": "494967390514",
+              "title": "Home page",
+              "handle": "frontpage",
+              "updatedAt": "2026-06-30T11:18:48Z",
+              "description": "",
+              "descriptionHtml": "",
+              "image": null,
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "hasProduct": true,
+              "sortOrder": "BEST_SELLING",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "ruleSet": null,
+              "products": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ==",
+                    "node": {
+                      "id": "gid://shopify/Product/9801098789170",
+                      "title": "The Inventory Not Tracked Snowboard",
+                      "handle": "the-inventory-not-tracked-snowboard",
+                      "vendor": "harry-test-heelo",
+                      "productType": "snowboard",
+                      "tags": ["Accessory", "Sport", "Winter"],
+                      "totalInventory": 0,
+                      "tracksInventory": false
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ=="
+                }
+              }
+            },
+            "customCollectionByHandle": {
+              "id": "gid://shopify/Collection/494967390514",
+              "legacyResourceId": "494967390514",
+              "title": "Home page",
+              "handle": "frontpage",
+              "updatedAt": "2026-06-30T11:18:48Z",
+              "description": "",
+              "descriptionHtml": "",
+              "image": null,
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "hasProduct": true,
+              "sortOrder": "BEST_SELLING",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "ruleSet": null,
+              "products": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ==",
+                    "node": {
+                      "id": "gid://shopify/Product/9801098789170",
+                      "title": "The Inventory Not Tracked Snowboard",
+                      "handle": "the-inventory-not-tracked-snowboard",
+                      "vendor": "harry-test-heelo",
+                      "productType": "snowboard",
+                      "tags": ["Accessory", "Sport", "Winter"],
+                      "totalInventory": 0,
+                      "tracksInventory": false
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ=="
+                }
+              }
+            },
+            "missingCollection": null,
+            "customIdCollection": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1975,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CollectionHandleRead",
+      "variables": {
+        "customCollectionHandle": "frontpage",
+        "productId": "gid://shopify/Product/9801098789170"
+      },
+      "query": "query CollectionHandleRead($customCollectionHandle: String!, $productId: ID!) {\n  customCollection: collectionByHandle(handle: $customCollectionHandle) {\n    id\n    legacyResourceId\n    title\n    handle\n    updatedAt\n    description\n    descriptionHtml\n    image {\n      id\n      url\n      altText\n      width\n      height\n    }\n    productsCount {\n      count\n      precision\n    }\n    hasProduct(id: $productId)\n    sortOrder\n    templateSuffix\n    seo {\n      title\n      description\n    }\n    ruleSet {\n      appliedDisjunctively\n      rules {\n        column\n        relation\n        condition\n      }\n    }\n    products(first: 3) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          vendor\n          productType\n          tags\n          totalInventory\n          tracksInventory\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  missingCollection: collectionByHandle(handle: \"missing-handle-for-parity\") {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customCollection": {
+              "id": "gid://shopify/Collection/494967390514",
+              "legacyResourceId": "494967390514",
+              "title": "Home page",
+              "handle": "frontpage",
+              "updatedAt": "2026-06-30T11:18:48Z",
+              "description": "",
+              "descriptionHtml": "",
+              "image": null,
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "hasProduct": true,
+              "sortOrder": "BEST_SELLING",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "ruleSet": null,
+              "products": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ==",
+                    "node": {
+                      "id": "gid://shopify/Product/9801098789170",
+                      "title": "The Inventory Not Tracked Snowboard",
+                      "handle": "the-inventory-not-tracked-snowboard",
+                      "vendor": "harry-test-heelo",
+                      "productType": "snowboard",
+                      "tags": ["Accessory", "Sport", "Winter"],
+                      "totalInventory": 0,
+                      "tracksInventory": false
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ=="
+                }
+              }
+            },
+            "missingCollection": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 9,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CollectionIdentifierRead",
+      "variables": {
+        "customCollectionId": "gid://shopify/Collection/494967390514",
+        "customCollectionHandle": "frontpage",
+        "productId": "gid://shopify/Product/9801098789170"
+      },
+      "query": "query CollectionIdentifierRead($customCollectionId: ID!, $customCollectionHandle: String!, $productId: ID!) {\n  customCollection: collectionByIdentifier(identifier: { id: $customCollectionId }) {\n    id\n    legacyResourceId\n    title\n    handle\n    updatedAt\n    description\n    descriptionHtml\n    image {\n      id\n      url\n      altText\n      width\n      height\n    }\n    productsCount {\n      count\n      precision\n    }\n    hasProduct(id: $productId)\n    sortOrder\n    templateSuffix\n    seo {\n      title\n      description\n    }\n    ruleSet {\n      appliedDisjunctively\n      rules {\n        column\n        relation\n        condition\n      }\n    }\n    products(first: 3) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          vendor\n          productType\n          tags\n          totalInventory\n          tracksInventory\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  customCollectionByHandle: collectionByIdentifier(identifier: { handle: $customCollectionHandle }) {\n    id\n    legacyResourceId\n    title\n    handle\n    updatedAt\n    description\n    descriptionHtml\n    image {\n      id\n      url\n      altText\n      width\n      height\n    }\n    productsCount {\n      count\n      precision\n    }\n    hasProduct(id: $productId)\n    sortOrder\n    templateSuffix\n    seo {\n      title\n      description\n    }\n    ruleSet {\n      appliedDisjunctively\n      rules {\n        column\n        relation\n        condition\n      }\n    }\n    products(first: 3) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          handle\n          vendor\n          productType\n          tags\n          totalInventory\n          tracksInventory\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  missingCollection: collectionByIdentifier(identifier: { handle: \"missing-handle-for-parity\" }) {\n    id\n  }\n  customIdCollection: collectionByIdentifier(\n    identifier: { customId: { namespace: \"custom\", key: \"external_id\", value: \"missing\" } }\n  ) {\n    id\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Metafield definition of type 'id' is required when using custom ids.",
+              "locations": [
+                {
+                  "line": 117,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "NOT_FOUND"
+              },
+              "path": ["customIdCollection"]
+            }
+          ],
+          "data": {
+            "customCollection": {
+              "id": "gid://shopify/Collection/494967390514",
+              "legacyResourceId": "494967390514",
+              "title": "Home page",
+              "handle": "frontpage",
+              "updatedAt": "2026-06-30T11:18:48Z",
+              "description": "",
+              "descriptionHtml": "",
+              "image": null,
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "hasProduct": true,
+              "sortOrder": "BEST_SELLING",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "ruleSet": null,
+              "products": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ==",
+                    "node": {
+                      "id": "gid://shopify/Product/9801098789170",
+                      "title": "The Inventory Not Tracked Snowboard",
+                      "handle": "the-inventory-not-tracked-snowboard",
+                      "vendor": "harry-test-heelo",
+                      "productType": "snowboard",
+                      "tags": ["Accessory", "Sport", "Winter"],
+                      "totalInventory": 0,
+                      "tracksInventory": false
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ=="
+                }
+              }
+            },
+            "customCollectionByHandle": {
+              "id": "gid://shopify/Collection/494967390514",
+              "legacyResourceId": "494967390514",
+              "title": "Home page",
+              "handle": "frontpage",
+              "updatedAt": "2026-06-30T11:18:48Z",
+              "description": "",
+              "descriptionHtml": "",
+              "image": null,
+              "productsCount": {
+                "count": 1,
+                "precision": "EXACT"
+              },
+              "hasProduct": true,
+              "sortOrder": "BEST_SELLING",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "ruleSet": null,
+              "products": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ==",
+                    "node": {
+                      "id": "gid://shopify/Product/9801098789170",
+                      "title": "The Inventory Not Tracked Snowboard",
+                      "handle": "the-inventory-not-tracked-snowboard",
+                      "vendor": "harry-test-heelo",
+                      "productType": "snowboard",
+                      "tags": ["Accessory", "Sport", "Winter"],
+                      "totalInventory": 0,
+                      "tracksInventory": false
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ==",
+                  "endCursor": "eyJsYXN0X2lkIjo5ODAxMDk4Nzg5MTcwLCJsYXN0X3ZhbHVlIjoiMjIifQ=="
+                }
+              }
+            },
+            "missingCollection": null,
+            "customIdCollection": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1975,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

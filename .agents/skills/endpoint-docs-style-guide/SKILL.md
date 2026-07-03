@@ -81,8 +81,7 @@ Endpoint docs must not contain support-history narratives:
 - no `HAR-### added...`, `HAR-### reviewed...`, or ticket-review headings
 - no `previously`, `formerly`, `now`, `later`, `initially`, or migration-order
   prose unless the word is describing current Shopify API semantics
-- no TypeScript-to-Gleam port notes, dispatcher migration notes, or technology
-  history
+- no implementation-port notes, dispatcher migration notes, or technology history
 - no release-note style lists of what changed in a branch
 - no claims that a partial branch is implemented support
 - no unsupported-root reservations or planned-only parity placeholders
@@ -105,8 +104,6 @@ durable location:
   groups.
 - `docs/parity-runner.md`: parity runner mechanics, cassette format, replay
   behavior, or comparison-contract guidance.
-- `docs/GLEAM_PORT_LOG.md`: historical porting notes only. Do not copy port
-  history back into endpoint docs.
 - Linear issues/workpads: temporary implementation plans, rejected-review
   context, future work, and out-of-scope remediation.
 
@@ -130,7 +127,10 @@ Use this checklist when auditing an existing endpoint doc:
 - [ ] Unsupported boundaries explain caller-visible behavior and do not promise
       future work.
 - [ ] Standalone proof, capture-summary, and command-list sections are absent.
-- [ ] Ticket-review headings, support-history prose, and port/migration notes
+- [ ] Proxy-generated, snapshot, runtime-test, or hand-authored artifacts are not
+      described as captured Shopify parity evidence; endpoint claims separate
+      live capture proof from proxy-only runtime regression tests.
+- [ ] Ticket-review headings, support-history prose, and migration notes
       are removed or moved to the correct internal note location.
 - [ ] The doc does not claim support beyond local lifecycle behavior and
       downstream read-after-write behavior.

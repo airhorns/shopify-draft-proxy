@@ -19,7 +19,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "Live Shopify 2026-04 evidence for companyDelete failed_deletable_check branches: completed B2B order history, open B2B draft order, and outstanding company-location store credit all return FAILED_TO_DELETE and leave the company readable.",
   "comparison": {
     "mode": "strict-json",
