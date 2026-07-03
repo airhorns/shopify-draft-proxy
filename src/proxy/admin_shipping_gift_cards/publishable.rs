@@ -53,10 +53,16 @@ impl DraftProxy {
             if field.name != root_field {
                 continue;
             }
-            let product_id = resolved_string_field(&field.arguments, "id")
-                .unwrap_or_else(|| "gid://shopify/Product/9264105488617".to_string());
+            let Some(product_id) = resolved_string_field(&field.arguments, "id") else {
+                continue;
+            };
             if let Some(response) = publishable_empty_string_publication_error(root_field, &field) {
                 return response;
+            }
+            if self.config.read_mode != ReadMode::Snapshot
+                && !self.store.has_known_publication_catalog()
+            {
+                self.hydrate_publishable_payload_shop(&product_id, request);
             }
             let payload_selection = field.selection.clone();
             if selected_child_selection(&payload_selection, "shop")
@@ -68,6 +74,7 @@ impl DraftProxy {
             let publishable_selection =
                 selected_child_selection(&payload_selection, "publishable").unwrap_or_default();
             let user_errors = publishable_publication_input_errors(
+                self,
                 field.arguments.get("input"),
                 root_field == "publishablePublishToCurrentChannel"
                     || root_field == "publishableUnpublishToCurrentChannel",
@@ -187,6 +194,7 @@ pub(in crate::proxy) fn publishable_input_publication_ids(
 }
 
 pub(in crate::proxy) fn publishable_publication_input_errors(
+    proxy: &DraftProxy,
     input: Option<&ResolvedValue>,
     current_channel_root: bool,
 ) -> Vec<Value> {
@@ -214,7 +222,7 @@ pub(in crate::proxy) fn publishable_publication_input_errors(
                 ));
                 continue;
             }
-            Some("gid://shopify/Publication/999999999999") => {
+            Some(id) if !proxy.store.has_publication_id(id) => {
                 user_errors.push(user_error_omit_code(
                     json!(["input", field_index, "publicationId"]),
                     "Publication does not exist or is not publishable",

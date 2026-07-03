@@ -617,8 +617,11 @@ impl DraftProxy {
                 return None;
             }
             let resource_id = resolved_string_field(&field.arguments, "id")?;
-            let user_errors =
-                publishable_publication_input_errors(field.arguments.get("input"), to_current);
+            let user_errors = publishable_publication_input_errors(
+                self,
+                field.arguments.get("input"),
+                to_current,
+            );
             if user_errors.is_empty() {
                 // Discover the resource's pre-existing publication membership
                 // (e.g. the default Online Store) by reading upstream before

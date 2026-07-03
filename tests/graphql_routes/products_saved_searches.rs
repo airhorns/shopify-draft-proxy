@@ -72,6 +72,29 @@ fn assert_user_error_with_field_and_code(user_errors: &Value, field: Value, code
     );
 }
 
+fn create_publication_for_publishable_test(proxy: &mut DraftProxy) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreatePublishableValidationPublication($input: PublicationCreateInput!) {
+          publicationCreate(input: $input) {
+            publication { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": {} }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["publicationCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["publicationCreate"]["publication"]["id"]
+        .as_str()
+        .expect("publicationCreate should return an id")
+        .to_string()
+}
+
 fn create_product_for_relationship_test(
     proxy: &mut DraftProxy,
     title: &str,
@@ -6008,7 +6031,7 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
             query,
             json!({
                 "id": "gid://shopify/Product/9264105488617",
-                "input": [{ "publicationId": "gid://shopify/Publication/82090459369" }]
+                "input": [{ "publicationId": "gid://shopify/Publication/base-a" }]
             }),
         ));
         assert_eq!(
@@ -6270,7 +6293,7 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
 fn publishable_mutations_validate_publication_input_locally() {
     let mut proxy = snapshot_proxy();
     let product_id = "gid://shopify/Product/10179659858226";
-    let publication_id = "gid://shopify/Publication/268039389490";
+    let publication_id = create_publication_for_publishable_test(&mut proxy);
     let publish = r#"
         mutation PublishableInputValidation($id: ID!, $input: [PublicationInput!]!) {
           publishablePublish(id: $id, input: $input) {
@@ -6330,7 +6353,7 @@ fn publishable_mutations_validate_publication_input_locally() {
 
         let unknown = proxy.process_request(json_graphql_request(
             query,
-            json!({ "id": product_id, "input": [{ "publicationId": "gid://shopify/Publication/999999999999" }] }),
+            json!({ "id": product_id, "input": [{ "publicationId": "gid://shopify/Publication/424242424242" }] }),
         ));
         assert_eq!(
             unknown.body["data"][root]["userErrors"],
@@ -6365,7 +6388,45 @@ fn publishable_mutations_validate_publication_input_locally() {
         headers: Default::default(),
         body: String::new(),
     });
-    assert_eq!(log.body["entries"], json!([]));
+    let publishable_entries = log.body["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|entry| {
+            matches!(
+                entry["interpreted"]["primaryRootField"].as_str(),
+                Some("publishablePublish" | "publishableUnpublish")
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(publishable_entries, Vec::<&Value>::new());
+}
+
+#[test]
+fn publishable_publish_requires_id_argument_instead_of_defaulting_product() {
+    let mut proxy = snapshot_proxy();
+    let publication_id = create_publication_for_publishable_test(&mut proxy);
+
+    let missing_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublishablePublishMissingId($input: [PublicationInput!]!) {
+          publishablePublish(input: $input) {
+            publishable { ... on Product { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": [{ "publicationId": publication_id }] }),
+    ));
+    assert_eq!(
+        missing_id.body["errors"][0]["extensions"]["code"],
+        json!("missingRequiredArguments")
+    );
+    assert_eq!(
+        missing_id.body["errors"][0]["extensions"]["arguments"],
+        json!("id")
+    );
+    assert_eq!(missing_id.body.get("data"), None);
 }
 
 #[test]

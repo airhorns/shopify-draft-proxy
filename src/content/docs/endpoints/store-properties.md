@@ -109,9 +109,14 @@ Generic publishable mutation slices cover Product and Collection publish/unpubli
 behavior where backed by parity specs. Product-scoped `PublicationInput`
 validation locally rejects duplicate publication IDs, blank or empty
 `publicationId`, unknown publication IDs, and pre-1970 `publishDate` values with
-the captured Shopify field paths/messages. Product current-channel helpers
-update publication aggregates such as `shop.publicationCount` for the modeled
-publication catalog. Unsupported publishable target types return local
+the captured Shopify field paths/messages. Unknown publication validation is
+backed by the effective publication catalog: staged or base publication rows are
+accepted, LiveHybrid can hydrate the catalog before validation, and arbitrary
+well-formed `Publication` GIDs are rejected when they remain absent. Missing
+required `id` arguments are rejected by the shared Admin GraphQL argument
+validator before local staging can fabricate a target. Product current-channel
+helpers update publication aggregates such as `shop.publicationCount` for the
+modeled publication catalog. Unsupported publishable target types return local
 userErrors in the documented scenarios instead of being treated as full support
 for every publishable object.
 

@@ -2522,6 +2522,27 @@ fn public_admin_input_schema(api_version: &str) -> Option<&'static AdminInputSch
 
 fn extend_graphql_base_validation_input_schema(schema: &mut AdminInputSchema, api_version: &str) {
     let parsed = public_admin_schema_json(api_version, AdminSchemaKind::Mutation);
+    for name in ["publishablePublish", "publishableUnpublish"] {
+        schema.mutation_fields.insert(
+            name.to_string(),
+            BTreeMap::from([
+                ("id".to_string(), mutation_arg(non_null("ID"))),
+                (
+                    "input".to_string(),
+                    mutation_arg(non_null_list_of_non_null("PublicationInput")),
+                ),
+            ]),
+        );
+    }
+    for name in [
+        "publishablePublishToCurrentChannel",
+        "publishableUnpublishToCurrentChannel",
+    ] {
+        schema.mutation_fields.insert(
+            name.to_string(),
+            BTreeMap::from([("id".to_string(), mutation_arg(non_null("ID")))]),
+        );
+    }
     if let Some((name, arguments)) =
         captured_mutation_arguments(&parsed, "pubSubWebhookSubscriptionCreate")
     {

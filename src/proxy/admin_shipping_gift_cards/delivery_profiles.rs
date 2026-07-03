@@ -1,6 +1,17 @@
 use super::*;
 
 const DELIVERY_PROFILE_VARIANTS_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileVariantsHydrate($ids: [ID!]!) { nodes(ids: $ids) { ... on ProductVariant { id title product { id title handle } } } }";
+const DELIVERY_PROFILE_LOCATIONS_HYDRATE_QUERY_FIRST_2: &str =
+    "query ShippingDeliveryProfileLocationsHydrate {\n    locationsAvailableForDeliveryProfilesConnection(first: 2) {\n      nodes {\n        id\n        name\n        isActive\n        isFulfillmentService\n      }\n    }\n  }";
+const DELIVERY_PROFILE_LOCATIONS_HYDRATE_QUERY_FIRST_3: &str =
+    "query ShippingDeliveryProfileLocationsHydrate {\n    locationsAvailableForDeliveryProfilesConnection(first: 3) {\n      nodes {\n        id\n        name\n        isActive\n        isFulfillmentService\n      }\n    }\n  }";
+const DELIVERY_PROFILE_LOCATIONS_HYDRATE_QUERY_FIRST_1: &str =
+    "query ShippingDeliveryProfileLocationsHydrate {\n    locationsAvailableForDeliveryProfilesConnection(first: 1) {\n      nodes {\n        id\n        name\n        isActive\n        isFulfillmentService\n      }\n    }\n  }";
+const DELIVERY_PROFILE_LOCATIONS_HYDRATE_QUERIES: [&str; 3] = [
+    DELIVERY_PROFILE_LOCATIONS_HYDRATE_QUERY_FIRST_2,
+    DELIVERY_PROFILE_LOCATIONS_HYDRATE_QUERY_FIRST_3,
+    DELIVERY_PROFILE_LOCATIONS_HYDRATE_QUERY_FIRST_1,
+];
 // Must byte-match the recorded `ShippingDeliveryProfileHydrate` upstream call in
 // the same captures. Issued when removing a profile the proxy has not staged
 // locally, to learn whether the target is the shop's default profile (which
@@ -107,7 +118,8 @@ impl DraftProxy {
         request: &Request,
     ) -> (Value, Vec<String>) {
         let profile_input = resolved_object_field(&field.arguments, "profile").unwrap_or_default();
-        let user_errors = delivery_profile_create_user_errors(&profile_input);
+        self.hydrate_delivery_profile_input_locations(&profile_input, request);
+        let user_errors = delivery_profile_create_user_errors(self, &profile_input);
         if !user_errors.is_empty() {
             return (
                 delivery_profile_payload_json(Value::Null, &field.selection, user_errors),
@@ -150,7 +162,8 @@ impl DraftProxy {
         };
 
         let profile_input = resolved_object_field(&field.arguments, "profile").unwrap_or_default();
-        let user_errors = delivery_profile_update_user_errors(&profile_input);
+        self.hydrate_delivery_profile_input_locations(&profile_input, request);
+        let user_errors = delivery_profile_update_user_errors(self, &profile_input);
         if !user_errors.is_empty() {
             return (
                 delivery_profile_payload_json(Value::Null, &field.selection, user_errors),
@@ -172,6 +185,61 @@ impl DraftProxy {
             delivery_profile_payload_json(profile, &field.selection, Vec::new()),
             vec![id],
         )
+    }
+
+    fn hydrate_delivery_profile_input_locations(
+        &mut self,
+        profile_input: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return;
+        }
+        let mut location_ids = BTreeSet::new();
+        for group in resolved_object_list_field(profile_input, "locationGroupsToCreate") {
+            location_ids.extend(list_string_field(&group, "locations"));
+        }
+        for group in resolved_object_list_field(profile_input, "locationGroupsToUpdate") {
+            location_ids.extend(list_string_field(&group, "locationsToAdd"));
+        }
+        self.hydrate_delivery_profile_available_locations(&location_ids, request);
+        for location_id in location_ids {
+            if self.location_for_read(&location_id).is_none() {
+                self.ensure_location_hydrated(&location_id, request);
+            }
+        }
+    }
+
+    fn hydrate_delivery_profile_available_locations(
+        &mut self,
+        location_ids: &BTreeSet<String>,
+        request: &Request,
+    ) {
+        if location_ids.is_empty()
+            || location_ids
+                .iter()
+                .all(|location_id| self.location_for_read(location_id).is_some())
+        {
+            return;
+        }
+        for query in DELIVERY_PROFILE_LOCATIONS_HYDRATE_QUERIES {
+            let response = self.upstream_post(
+                request,
+                json!({
+                    "query": query,
+                    "variables": {}
+                }),
+            );
+            if (200..300).contains(&response.status) {
+                self.observe_delivery_profile_locations_response(&response);
+            }
+            if location_ids
+                .iter()
+                .all(|location_id| self.location_for_read(location_id).is_some())
+            {
+                return;
+            }
+        }
     }
 
     fn delivery_profile_remove_payload(

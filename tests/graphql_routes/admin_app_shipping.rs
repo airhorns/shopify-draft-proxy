@@ -4,6 +4,35 @@ use std::collections::BTreeMap;
 
 const BULK_OPERATION_STORAGE_BYTE_LIMIT: usize = 65_535;
 
+fn create_delivery_profile_location(proxy: &mut DraftProxy, name: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileLocationSeed($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": name,
+                "address": { "countryCode": "US" },
+                "fulfillsOnlineOrders": false
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .expect("locationAdd should return an id")
+        .to_string()
+}
+
 fn padded_bulk_document_for_bytes(body: &str, target_bytes: usize, pad: &str) -> String {
     let fixed_bytes = "#\n".len() + body.len();
     assert!(
@@ -7142,6 +7171,10 @@ fn delivery_profile_location_group_uses_staged_location_record_name() {
 #[test]
 fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
     let mut proxy = snapshot_proxy();
+    let primary_location_id =
+        create_delivery_profile_location(&mut proxy, "Delivery profile primary");
+    let secondary_location_id =
+        create_delivery_profile_location(&mut proxy, "Delivery profile secondary");
     let create_query = r#"
         mutation DeliveryProfileLifecycleCreate($profile: DeliveryProfileInput!) {
           deliveryProfileCreate(profile: $profile) {
@@ -7242,7 +7275,7 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
             "profile": {
                 "name": "Local heavy goods",
                 "locationGroupsToCreate": [{
-                    "locations": ["gid://shopify/Location/106318430514"],
+                    "locations": [primary_location_id],
                     "zonesToCreate": [{
                         "name": "Domestic",
                         "countries": [{ "code": "US", "includeAllProvinces": true }],
@@ -7331,7 +7364,7 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
                 "conditionsToDelete": [condition_id],
                 "locationGroupsToUpdate": [{
                     "id": group_id,
-                    "locationsToAdd": ["gid://shopify/Location/106318463282"],
+                    "locationsToAdd": [secondary_location_id],
                     "zonesToUpdate": [{
                         "id": zone_id,
                         "name": "Domestic updated",
@@ -7400,20 +7433,32 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
     );
 
     let log = log_snapshot(&proxy);
+    let delivery_entries = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|entry| {
+            matches!(
+                entry["interpreted"]["primaryRootField"].as_str(),
+                Some("deliveryProfileCreate" | "deliveryProfileUpdate" | "deliveryProfileRemove")
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(delivery_entries.len(), 3);
     assert_eq!(
-        log["entries"][0]["interpreted"]["primaryRootField"],
+        delivery_entries[0]["interpreted"]["primaryRootField"],
         json!("deliveryProfileCreate")
     );
-    assert_eq!(log["entries"][0]["rawBody"].is_string(), true);
+    assert_eq!(delivery_entries[0]["rawBody"].is_string(), true);
     assert_eq!(
-        log["entries"][1]["interpreted"]["primaryRootField"],
+        delivery_entries[1]["interpreted"]["primaryRootField"],
         json!("deliveryProfileUpdate")
     );
     assert_eq!(
-        log["entries"][2]["interpreted"]["primaryRootField"],
+        delivery_entries[2]["interpreted"]["primaryRootField"],
         json!("deliveryProfileRemove")
     );
-    assert_eq!(log["entries"][2]["status"], json!("staged"));
+    assert_eq!(delivery_entries[2]["status"], json!("staged"));
 }
 
 #[test]
@@ -7513,6 +7558,8 @@ fn delivery_profile_update_hydrates_and_stages_default_profile_name() {
 #[test]
 fn delivery_profile_validations_match_captured_write_subset() {
     let mut proxy = snapshot_proxy();
+    let validation_location_id =
+        create_delivery_profile_location(&mut proxy, "Delivery profile validation");
     let create_query = r#"
         mutation DeliveryProfileCreateValidation($profile: DeliveryProfileInput!) {
           deliveryProfileCreate(profile: $profile) {
@@ -7591,7 +7638,7 @@ fn delivery_profile_validations_match_captured_write_subset() {
         json!({
             "profile": {
                 "name": "Unknown location",
-                "locationGroupsToCreate": [{ "locations": ["gid://shopify/Location/999999999"] }]
+                "locationGroupsToCreate": [{ "locations": ["gid://shopify/Location/404040404040"] }]
             }
         }),
     ));
@@ -7606,7 +7653,7 @@ fn delivery_profile_validations_match_captured_write_subset() {
             "profile": {
                 "name": "Empty countries",
                 "locationGroupsToCreate": [{
-                    "locations": ["gid://shopify/Location/106318430514"],
+                    "locations": [validation_location_id],
                     "zonesToCreate": [{ "name": "Empty", "countries": [] }]
                 }]
             }
@@ -7623,7 +7670,7 @@ fn delivery_profile_validations_match_captured_write_subset() {
             "profile": {
                 "name": "Validation base",
                 "locationGroupsToCreate": [{
-                    "locations": ["gid://shopify/Location/106318430514"],
+                    "locations": [validation_location_id],
                     "zonesToCreate": [{ "name": "Domestic", "countries": [{ "code": "US", "includeAllProvinces": true }] }]
                 }]
             }
@@ -7681,7 +7728,7 @@ fn delivery_profile_validations_match_captured_write_subset() {
         json!({
             "id": id,
             "profile": {
-                "locationGroupsToCreate": [{ "locations": ["gid://shopify/Location/999999999"] }]
+                "locationGroupsToCreate": [{ "locations": ["gid://shopify/Location/505050505050"] }]
             }
         }),
     ));

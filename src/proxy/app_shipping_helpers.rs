@@ -799,6 +799,7 @@ pub(in crate::proxy) fn delivery_profile_user_errors_json(
 }
 
 pub(in crate::proxy) fn delivery_profile_create_user_errors(
+    proxy: &DraftProxy,
     profile: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
     if let Some(error) = delivery_profile_name_user_error(profile) {
@@ -829,16 +830,17 @@ pub(in crate::proxy) fn delivery_profile_create_user_errors(
             }
         }
     }
-    delivery_profile_common_shape_user_errors(profile)
+    delivery_profile_common_shape_user_errors(proxy, profile)
 }
 
 pub(in crate::proxy) fn delivery_profile_update_user_errors(
+    proxy: &DraftProxy,
     profile: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
     if let Some(error) = delivery_profile_name_user_error(profile) {
         return vec![error];
     }
-    delivery_profile_common_shape_user_errors(profile)
+    delivery_profile_common_shape_user_errors(proxy, profile)
 }
 
 const DELIVERY_PROFILE_MAX_NAME_LENGTH: usize = 128;
@@ -865,10 +867,11 @@ fn delivery_profile_name_user_error(profile: &BTreeMap<String, ResolvedValue>) -
 }
 
 fn delivery_profile_common_shape_user_errors(
+    proxy: &DraftProxy,
     profile: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
     for group in resolved_object_list_field(profile, "locationGroupsToCreate") {
-        if delivery_profile_has_unknown_location(&list_string_field(&group, "locations")) {
+        if delivery_profile_has_unknown_location(proxy, &list_string_field(&group, "locations")) {
             return vec![delivery_profile_unknown_location_user_error()];
         }
         for zone in resolved_object_list_field(&group, "zonesToCreate") {
@@ -882,17 +885,20 @@ fn delivery_profile_common_shape_user_errors(
         }
     }
     for group in resolved_object_list_field(profile, "locationGroupsToUpdate") {
-        if delivery_profile_has_unknown_location(&list_string_field(&group, "locationsToAdd")) {
+        if delivery_profile_has_unknown_location(
+            proxy,
+            &list_string_field(&group, "locationsToAdd"),
+        ) {
             return vec![delivery_profile_unknown_location_user_error()];
         }
     }
     Vec::new()
 }
 
-fn delivery_profile_has_unknown_location(location_ids: &[String]) -> bool {
+fn delivery_profile_has_unknown_location(proxy: &DraftProxy, location_ids: &[String]) -> bool {
     location_ids
         .iter()
-        .any(|id| id == "gid://shopify/Location/999999999")
+        .any(|id| proxy.location_for_read(id).is_none())
 }
 
 fn delivery_profile_unknown_location_user_error() -> Value {
