@@ -563,6 +563,14 @@ fn metaobject_definition_create_validation_errors(
                 json!(key),
                 Value::Null,
             ));
+        } else if metafield_definition_type_is_standard_definition_only(&field_type) {
+            errors.push(metaobject_user_error(
+                vec!["definition", "fieldDefinitions", &index_string],
+                metafield_definition_standard_only_type_message(),
+                "INVALID",
+                json!(key),
+                Value::Null,
+            ));
         }
     }
 

@@ -103,6 +103,104 @@ fn metaobject_definition_list_scalar_field_categories_follow_element_type() {
 }
 
 #[test]
+fn metaobject_definition_create_accepts_current_custom_data_field_types() {
+    let mut proxy = snapshot_proxy();
+    let create_definition = r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition {
+              fieldDefinitions { key type { name } }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+
+    for field_type in [
+        "jurisdiction",
+        "list.jurisdiction",
+        "product_taxonomy_disclosure_reference",
+    ] {
+        let key = field_type.replace('.', "_");
+        let response = proxy.process_request(json_graphql_request(
+            create_definition,
+            json!({"definition": {
+                "type": format!("accepted_{}", key),
+                "name": format!("Accepted {field_type}"),
+                "displayNameKey": key,
+                "fieldDefinitions": [{
+                    "key": key,
+                    "name": "Field",
+                    "type": field_type,
+                    "required": false
+                }]
+            }}),
+        ));
+        let payload = &response.body["data"]["metaobjectDefinitionCreate"];
+        assert_eq!(payload["userErrors"], json!([]), "{field_type}");
+        assert_eq!(
+            payload["metaobjectDefinition"]["fieldDefinitions"][0]["type"]["name"],
+            json!(field_type)
+        );
+    }
+
+    for field_type in ["disclosure_reference", "list.disclosure_reference"] {
+        let key = field_type.replace('.', "_");
+        let response = proxy.process_request(json_graphql_request(
+            create_definition,
+            json!({"definition": {
+                "type": format!("standard_only_{}", key),
+                "name": format!("Standard-only {field_type}"),
+                "displayNameKey": key,
+                "fieldDefinitions": [{
+                    "key": key,
+                    "name": "Field",
+                    "type": field_type,
+                    "required": false
+                }]
+            }}),
+        ));
+        assert_eq!(
+            response.body["data"]["metaobjectDefinitionCreate"],
+            json!({
+                "metaobjectDefinition": null,
+                "userErrors": [{
+                    "field": ["definition", "fieldDefinitions", "0"],
+                    "message": "The disclosure_reference type can only be used in standard definitions provided by Shopify.",
+                    "code": "INVALID",
+                    "elementKey": key,
+                    "elementIndex": null
+                }]
+            })
+        );
+    }
+
+    let unknown_type = proxy.process_request(json_graphql_request(
+        create_definition,
+        json!({"definition": {
+            "type": "rejected_unknown_field_type",
+            "name": "Rejected unknown field type",
+            "displayNameKey": "title",
+            "fieldDefinitions": [{
+                "key": "title",
+                "name": "Title",
+                "type": "garbage_type",
+                "required": false
+            }]
+        }}),
+    ));
+    let message = unknown_type.body["data"]["metaobjectDefinitionCreate"]["userErrors"][0]
+        ["message"]
+        .as_str()
+        .expect("unknown type message");
+    assert!(message.contains("jurisdiction"));
+    assert!(message.contains("list.jurisdiction"));
+    assert!(message.contains("product_taxonomy_disclosure_reference"));
+    assert!(message.contains("disclosure_reference"));
+    assert!(message.contains("list.disclosure_reference"));
+}
+
+#[test]
 fn marketing_empty_reads_keep_shopify_connection_shapes() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
