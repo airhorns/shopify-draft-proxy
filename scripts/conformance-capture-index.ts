@@ -2103,7 +2103,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-inventory-transfer-conformance.ts',
     purpose:
-      'inventoryTransferCreate validation and inventory transfer draft-to-ready-to-canceled lifecycle behavior with downstream inventory reservation readback.',
+      'inventoryTransferCreate validation, inventory transfer draft-to-ready-to-canceled lifecycle behavior with downstream inventory reservation readback, and zero-origin inventory readback with real location names.',
     requiredAuthScopes: [
       'read_products',
       'write_products',
@@ -2115,8 +2115,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}inventory-transfer-create-validation.json`,
       `${CAPTURE_ROOT}inventory-transfer-lifecycle-local-staging.json`,
+      `${CAPTURE_ROOT}inventory-transfer-zero-origin-read.json`,
       'config/parity-specs/products/inventory_transfer_create_validation.json',
       'config/parity-specs/products/inventory-transfer-lifecycle-local-staging.json',
+      'config/parity-specs/products/inventory-transfer-zero-origin-read.json',
       'config/parity-requests/products/inventory-transfer-create-validation.graphql',
       'config/parity-requests/products/inventory-transfer-create.graphql',
       'config/parity-requests/products/inventory-transfer-edit.graphql',
@@ -2124,11 +2126,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/inventory-transfer-duplicate.graphql',
       'config/parity-requests/products/inventory-transfer-mark-ready.graphql',
       'config/parity-requests/products/inventory-transfer-inventory-read-all-levels.graphql',
+      'config/parity-requests/products/inventory-transfer-inventory-read-with-location-names.graphql',
       'config/parity-requests/products/inventory-transfer-cancel.graphql',
       'config/parity-requests/products/inventory-transfer-delete.graphql',
     ],
     cleanupBehavior:
-      'Creates two disposable locations and one disposable tracked product, activates inventory at both locations, records validation and lifecycle branches, cancels the ready transfer, attempts the captured non-draft delete guardrail, then deletes the product and locations.',
+      'Creates disposable locations and tracked products, activates inventory at both locations, records validation, lifecycle, and zero-origin readback branches, cancels/deletes transfer records where Shopify permits it, then deletes the products and locations.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
