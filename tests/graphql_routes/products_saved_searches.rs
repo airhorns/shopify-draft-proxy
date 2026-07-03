@@ -3863,7 +3863,7 @@ fn product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log() {
     assert_eq!(product_feedback_enum.status, 200);
     assert!(product_feedback_enum.body["errors"][0]["message"]
         .as_str()
-        .is_some_and(|message| message.contains("Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.")));
+        .is_some_and(|message| message.contains("Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState!'.")));
     assert_eq!(
         product_feedback_enum.body["errors"][0]["extensions"]["code"],
         json!("argumentLiteralsIncompatible")
@@ -3887,7 +3887,7 @@ fn product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log() {
     assert_eq!(shop_feedback_enum.status, 200);
     assert!(shop_feedback_enum.body["errors"][0]["message"]
         .as_str()
-        .is_some_and(|message| message.contains("Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.")));
+        .is_some_and(|message| message.contains("Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState!'.")));
     assert_eq!(
         shop_feedback_enum.body["errors"][0]["extensions"]["code"],
         json!("argumentLiteralsIncompatible")
@@ -8080,7 +8080,7 @@ fn saved_search_required_input_omissions_return_top_level_graphql_errors() {
         json!([
             {
                 "message": "Argument 'name' on InputObject 'SavedSearchCreateInput' is required. Expected type String!",
-                "locations": [{ "line": 2, "column": 28 }],
+                "locations": [{ "line": 3, "column": 36 }],
                 "path": ["mutation SavedSearchCreateMissingName", "savedSearchCreate", "input", "name"],
                 "extensions": {
                     "code": "missingRequiredInputObjectAttribute",
@@ -8091,7 +8091,7 @@ fn saved_search_required_input_omissions_return_top_level_graphql_errors() {
             },
             {
                 "message": "Argument 'query' on InputObject 'SavedSearchCreateInput' is required. Expected type String!",
-                "locations": [{ "line": 2, "column": 28 }],
+                "locations": [{ "line": 3, "column": 36 }],
                 "path": ["mutation SavedSearchCreateMissingName", "savedSearchCreate", "input", "query"],
                 "extensions": {
                     "code": "missingRequiredInputObjectAttribute",
@@ -8119,7 +8119,7 @@ fn saved_search_required_input_omissions_return_top_level_graphql_errors() {
         missing_resource_type.body["errors"][0],
         json!({
             "message": "Argument 'resourceType' on InputObject 'SavedSearchCreateInput' is required. Expected type SearchResultType!",
-            "locations": [{ "line": 2, "column": 28 }],
+            "locations": [{ "line": 3, "column": 36 }],
             "path": ["mutation SavedSearchCreateMissingResourceType", "savedSearchCreate", "input", "resourceType"],
             "extensions": {
                 "code": "missingRequiredInputObjectAttribute",
@@ -8146,7 +8146,7 @@ fn saved_search_required_input_omissions_return_top_level_graphql_errors() {
         missing_id.body["errors"][0],
         json!({
             "message": "Argument 'id' on InputObject 'SavedSearchUpdateInput' is required. Expected type ID!",
-            "locations": [{ "line": 2, "column": 28 }],
+            "locations": [{ "line": 3, "column": 36 }],
             "path": ["mutation SavedSearchUpdateMissingId", "savedSearchUpdate", "input", "id"],
             "extensions": {
                 "code": "missingRequiredInputObjectAttribute",
@@ -8175,7 +8175,7 @@ fn saved_search_required_variable_omissions_return_invalid_variable_errors() {
         missing_resource_type.body["errors"][0],
         json!({
             "message": "Variable $input of type SavedSearchCreateInput! was provided invalid value for resourceType (Expected value to not be null)",
-            "locations": [{ "line": 1, "column": 55 }],
+            "locations": [{ "line": 2, "column": 63 }],
             "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": { "name": "Variable missing resource type ssri-mowc", "query": "tag:variable-required" },
@@ -8197,7 +8197,7 @@ fn saved_search_required_variable_omissions_return_invalid_variable_errors() {
         missing_name.body["errors"][0],
         json!({
             "message": "Variable $input of type SavedSearchCreateInput! was provided invalid value for name (Expected value to not be null)",
-            "locations": [{ "line": 1, "column": 47 }],
+            "locations": [{ "line": 2, "column": 55 }],
             "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": { "resourceType": "PRODUCT", "query": "tag:variable-required" },
@@ -8734,7 +8734,7 @@ fn product_create_rejects_invalid_status_literals_and_variables_without_staging(
     assert_eq!(
         variable.body["errors"][0]["message"],
         json!(
-            "Variable $product of type ProductCreateInput! was provided invalid value for status (Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT)"
+            "Variable $product of type ProductCreateInput! was provided invalid value for status (Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT, UNLISTED)"
         )
     );
     assert_eq!(
@@ -8747,7 +8747,7 @@ fn product_create_rejects_invalid_status_literals_and_variables_without_staging(
             },
             "problems": [{
                 "path": ["status"],
-                "explanation": "Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT"
+                "explanation": "Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT, UNLISTED"
             }]
         })
     );
@@ -8834,7 +8834,7 @@ fn product_change_status_rejects_invalid_status_without_staging() {
             "value": "ENABLED",
             "problems": [{
                 "path": [],
-                "explanation": "Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT"
+                "explanation": "Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT, UNLISTED"
             }]
         })
     );

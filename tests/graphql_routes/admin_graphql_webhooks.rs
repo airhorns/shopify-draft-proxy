@@ -160,6 +160,87 @@ fn admin_graphql_reports_base_validation_errors_before_dispatch() {
 }
 
 #[test]
+fn admin_graphql_rejects_unknown_selection_fields_from_schema_on_non_product_connections() {
+    let mut proxy = snapshot_proxy();
+
+    let unknown_order_field = proxy.process_request(request_with_body(
+        "POST",
+        "/admin/api/2025-01/graphql.json",
+        r#"{"query":"query Repro { orders(first: 1) { nodes { id definitelyNotAnOrderField } } }"}"#,
+    ));
+
+    assert_eq!(unknown_order_field.status, 200);
+    assert_eq!(
+        unknown_order_field.body,
+        json!({
+            "errors": [{
+                "message": "Field 'definitelyNotAnOrderField' doesn't exist on type 'Order'",
+                "locations": [{ "line": 1, "column": 45 }],
+                "path": ["query Repro", "orders", "nodes", "definitelyNotAnOrderField"],
+                "extensions": {
+                    "code": "undefinedField",
+                    "typeName": "Order",
+                    "fieldName": "definitelyNotAnOrderField"
+                }
+            }]
+        })
+    );
+}
+
+#[test]
+fn admin_graphql_rejects_plain_user_error_code_selection_for_any_schema_payload() {
+    let mut proxy = snapshot_proxy();
+
+    let customer_create_user_error_code = proxy.process_request(request_with_body(
+        "POST",
+        "/admin/api/2025-01/graphql.json",
+        r#"{"query":"mutation Repro { customerCreate(input: {}) { userErrors { code message } } }"}"#,
+    ));
+
+    assert_eq!(customer_create_user_error_code.status, 200);
+    assert_eq!(
+        customer_create_user_error_code.body,
+        json!({
+            "errors": [{
+                "message": "Field 'code' doesn't exist on type 'UserError'",
+                "locations": [{ "line": 1, "column": 59 }],
+                "path": ["mutation Repro", "customerCreate", "userErrors", "code"],
+                "extensions": {
+                    "code": "undefinedField",
+                    "typeName": "UserError",
+                    "fieldName": "code"
+                }
+            }]
+        })
+    );
+}
+
+#[test]
+fn admin_graphql_rejects_schema_enum_literals_without_root_specific_allowlists() {
+    let mut proxy = snapshot_proxy();
+
+    let invalid_publication_default_state = proxy.process_request(request_with_body(
+        "POST",
+        "/admin/api/2025-01/graphql.json",
+        r#"{"query":"mutation Repro { publicationCreate(input: { defaultState: NOPE }) { userErrors { field message } } }"}"#,
+    ));
+
+    assert_eq!(invalid_publication_default_state.status, 200);
+    assert_eq!(
+        invalid_publication_default_state.body["errors"][0]["message"],
+        json!("Argument 'defaultState' on InputObject 'PublicationCreateInput' has an invalid value (NOPE). Expected type 'PublicationCreateInputPublicationDefaultState'.")
+    );
+    assert_eq!(
+        invalid_publication_default_state.body["errors"][0]["extensions"],
+        json!({
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "InputObject",
+            "argumentName": "defaultState"
+        })
+    );
+}
+
+#[test]
 fn admin_graphql_routes_by_root_field_not_alias_or_fragment_definition() {
     let mut proxy = snapshot_proxy();
 

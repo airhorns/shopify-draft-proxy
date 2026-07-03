@@ -512,7 +512,7 @@ fn standard_metafield_definition_reenable_preserves_id_and_merges_update_params(
             ownerType: PRODUCT
             namespace: "descriptors"
             key: "subtitle"
-            access: { admin: PUBLIC_READ_WRITE, storefront: PUBLIC_READ }
+            access: { admin: MERCHANT_READ_WRITE, storefront: PUBLIC_READ }
             capabilities: { adminFilterable: { enabled: true } }
           ) {
             createdDefinition {

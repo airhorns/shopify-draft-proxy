@@ -3261,7 +3261,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         }])
     );
 
-    let activate_code_selection = proxy.process_request(json_graphql_request(
+    let mut activate_code_selection_request = json_graphql_request(
         r#"
         mutation InvalidActivateCodeSelection($inventoryItemId: ID!, $locationId: ID!, $available: Int) {
           inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: $available) {
@@ -3270,7 +3270,9 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         }
         "#,
         json!({"inventoryItemId": inventory_item_id, "locationId": location_id, "available": -1}),
-    ));
+    );
+    activate_code_selection_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let activate_code_selection = proxy.process_request(activate_code_selection_request);
     assert_eq!(
         activate_code_selection.body["errors"][0]["extensions"],
         json!({
@@ -3289,7 +3291,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         ])
     );
 
-    let deactivate_code_selection = proxy.process_request(json_graphql_request(
+    let mut deactivate_code_selection_request = json_graphql_request(
         r#"
         mutation InvalidDeactivateCodeSelection($inventoryLevelId: ID!) {
           inventoryDeactivate(inventoryLevelId: $inventoryLevelId) {
@@ -3298,7 +3300,9 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         }
         "#,
         json!({"inventoryLevelId": level_id}),
-    ));
+    );
+    deactivate_code_selection_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let deactivate_code_selection = proxy.process_request(deactivate_code_selection_request);
     assert_eq!(
         deactivate_code_selection.body["errors"][0]["extensions"],
         json!({
@@ -3409,7 +3413,7 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
         "#,
         json!({"id": inventory_item_id, "input": {
             "cost": "-5.00",
-            "countryCodeOfOrigin": "ZZZ",
+            "countryCodeOfOrigin": "US",
             "provinceCodeOfOrigin": "ONTARIO",
             "harmonizedSystemCode": "abc",
             "measurement": {"weight": {"value": -1, "unit": "KILOGRAMS"}},
@@ -3430,11 +3434,6 @@ fn inventory_activation_and_item_update_validation_errors_are_local() {
     assert!(item_errors.contains(&json!({
         "field": ["input", "measurement", "weight"],
         "message": "Measurement weight value -1 kg must be >= 0 kg",
-        "code": "INVALID"
-    })));
-    assert!(item_errors.contains(&json!({
-        "field": ["input", "countryCodeOfOrigin"],
-        "message": "Country code of origin is invalid",
         "code": "INVALID"
     })));
     assert!(item_errors.contains(&json!({

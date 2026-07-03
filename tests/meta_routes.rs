@@ -1355,7 +1355,11 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
         &json!({
             "query": r#"
                 mutation CreateTaggedDraft {
-                  draftOrderCreate(input: { email: "restore-bulk-tags@example.test", tags: ["one"] }) {
+                  draftOrderCreate(input: {
+                    email: "restore-bulk-tags@example.test"
+                    tags: ["one"]
+                    lineItems: [{ title: "Restore bulk tag item", quantity: 1, originalUnitPrice: "1.00" }]
+                  }) {
                     draftOrder { id tags }
                     userErrors { field message }
                   }
@@ -1372,7 +1376,7 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
                 mutation AddDraftTags($ids: [ID!]!, $tags: [String!]!) {
                   draftOrderBulkAddTags(ids: $ids, tags: $tags) {
                     job { id done }
-                    userErrors { field message code }
+                    userErrors { field message }
                   }
                 }
             "#,

@@ -4,12 +4,13 @@
  * bulkOperationRunQuery AdminQuery validator:
  *
  * - field returns a Connection, including the connection node type
- * - field returns a non-connection List, including the element type
+ * - field returns a non-connection List of composite values, including the element type
  * - field returns an object/interface/union, for nested traversal
+ * - field returns a scalar/enum leaf, so generic selection validation can
+ *   distinguish known leaf fields from unknown fields
  *
- * Output: `config/admin-graphql-bulk-query-schema.json`. Regenerate the
- * Gleam mirror with `corepack pnpm tsx scripts/sync-bulk-query-schema.mts`
- * after refreshing it.
+ * Output: `config/admin-graphql-bulk-query-schema.json`, checked in so the
+ * Rust runtime can validate selection sets without runtime schema IO.
  */
 import 'dotenv/config';
 
@@ -40,7 +41,9 @@ type SchemaType = {
 type CapturedFieldKind =
   | { type: 'connection'; nodeType: string }
   | { type: 'list'; elementType: string }
-  | { type: 'object'; typeName: string };
+  | { type: 'object'; typeName: string }
+  | { type: 'scalar'; typeName: string }
+  | { type: 'enum'; typeName: string };
 
 type CapturedField = {
   parentType: string;
@@ -163,12 +166,22 @@ function capturedKind(typesByName: Map<string, SchemaType>, field: SchemaField):
   const unwrapped = unwrapNonNull(field.type);
   if (unwrapped.kind === 'LIST') {
     const elementType = namedLeaf(unwrapped.ofType);
-    return elementType ? { type: 'list', elementType } : null;
+    const elementKind = typeKind(typesByName, elementType);
+    if (elementType && (elementKind === 'OBJECT' || elementKind === 'INTERFACE' || elementKind === 'UNION')) {
+      return { type: 'list', elementType };
+    }
+    if (elementType && (elementKind === 'SCALAR' || elementKind === 'ENUM')) {
+      return { type: elementKind === 'ENUM' ? 'enum' : 'scalar', typeName: elementType };
+    }
+    return null;
   }
 
   const leafKind = typeKind(typesByName, leaf);
   if (leaf && (leafKind === 'OBJECT' || leafKind === 'INTERFACE' || leafKind === 'UNION')) {
     return { type: 'object', typeName: leaf };
+  }
+  if (leaf && (leafKind === 'SCALAR' || leafKind === 'ENUM')) {
+    return { type: leafKind === 'ENUM' ? 'enum' : 'scalar', typeName: leaf };
   }
 
   return null;
@@ -234,6 +247,8 @@ console.log(
       connectionFieldCount: capturedFields.filter((field) => field.kind.type === 'connection').length,
       listFieldCount: capturedFields.filter((field) => field.kind.type === 'list').length,
       objectFieldCount: capturedFields.filter((field) => field.kind.type === 'object').length,
+      scalarFieldCount: capturedFields.filter((field) => field.kind.type === 'scalar').length,
+      enumFieldCount: capturedFields.filter((field) => field.kind.type === 'enum').length,
     },
     null,
     2,

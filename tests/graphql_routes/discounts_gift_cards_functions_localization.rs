@@ -5972,7 +5972,7 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
 fn localization_shop_locale_user_errors_reject_code_selection() {
     let mut proxy = snapshot_proxy();
 
-    let code_selection = proxy.process_request(json_graphql_request(
+    let mut code_selection_request = json_graphql_request(
         r#"mutation ShopLocaleUserErrorNoCode {
           enable: shopLocaleEnable(locale: "tlh") {
             userErrors { field message code }
@@ -5985,7 +5985,9 @@ fn localization_shop_locale_user_errors_reject_code_selection() {
           }
         }"#,
         json!({}),
-    ));
+    );
+    code_selection_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let code_selection = proxy.process_request(code_selection_request);
     assert_eq!(code_selection.status, 200);
     assert!(code_selection.body.get("data").is_none());
     let errors = code_selection.body["errors"].as_array().unwrap();

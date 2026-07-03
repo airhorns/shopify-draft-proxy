@@ -6762,9 +6762,21 @@ fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
         json!({"id": create.body["data"]["orderCreate"]["order"]["id"].clone(), "mandateId": "gid://shopify/PaymentMandate/har-397"}),
     ));
     assert_eq!(
-        missing_mandate_idempotency.body["data"]["orderCreateMandatePayment"]["userErrors"][0]
-            ["field"],
-        json!(["idempotencyKey"])
+        missing_mandate_idempotency.body,
+        json!({
+            "errors": [{
+                "message": "Variable $idempotencyKey of type String was provided invalid value",
+                "locations": [{ "line": 4, "column": 3 }],
+                "extensions": {
+                    "code": "INVALID_VARIABLE",
+                    "value": Value::Null,
+                    "problems": [{
+                        "path": [],
+                        "explanation": "Expected value to not be null"
+                    }]
+                }
+            }]
+        })
     );
 
     let mut void_proxy = snapshot_proxy();
@@ -9985,6 +9997,43 @@ fn customer_payment_methods_remote_create_validation_ports_old_gleam_guards() {
     assert_eq!(stripe_blank.status, 200);
     assert_eq!(
         stripe_blank.body,
+        json!({
+            "errors": [{
+                "message": "Argument 'customerId' on InputObject 'RemoteStripePaymentMethodInput' has an invalid value (null). Expected type 'String!'.",
+                "locations": [{ "line": 4, "column": 45 }],
+                "path": [
+                    "mutation CustomerPaymentMethodRemoteCreateStripeBlank",
+                    "customerPaymentMethodRemoteCreate",
+                    "remoteReference",
+                    "stripePaymentMethod",
+                    "customerId"
+                ],
+                "extensions": {
+                    "code": "argumentLiteralsIncompatible",
+                    "typeName": "InputObject",
+                    "argumentName": "customerId"
+                }
+            }]
+        })
+    );
+
+    let stripe_empty = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentMethodRemoteCreateStripeEmpty {
+          customerPaymentMethodRemoteCreate(
+            customerId: "gid://shopify/Customer/1"
+            remoteReference: { stripePaymentMethod: { customerId: "", paymentMethodId: "pm_x" } }
+          ) {
+            customerPaymentMethod { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(stripe_empty.status, 200);
+    assert_eq!(
+        stripe_empty.body,
         json!({
             "data": {
                 "customerPaymentMethodRemoteCreate": {

@@ -7192,7 +7192,7 @@ fn product_delete_required_id_graphql_errors_match_shopify_shapes() {
         inline_missing.body["errors"][0],
         json!({
             "message": "Argument 'id' on InputObject 'ProductDeleteInput' is required. Expected type ID!",
-            "locations": [{ "line": 3, "column": 26 }],
+            "locations": [{ "line": 3, "column": 24 }],
             "path": ["mutation", "productDelete", "input", "id"],
             "extensions": {
                 "code": "missingRequiredInputObjectAttribute",
@@ -7215,7 +7215,7 @@ fn product_delete_required_id_graphql_errors_match_shopify_shapes() {
         inline_null.body["errors"][0],
         json!({
             "message": "Argument 'id' on InputObject 'ProductDeleteInput' has an invalid value (null). Expected type 'ID!'.",
-            "locations": [{ "line": 3, "column": 26 }],
+            "locations": [{ "line": 3, "column": 24 }],
             "path": ["mutation", "productDelete", "input", "id"],
             "extensions": {
                 "code": "argumentLiteralsIncompatible",
@@ -7237,7 +7237,7 @@ fn product_delete_required_id_graphql_errors_match_shopify_shapes() {
         variable_missing.body["errors"][0],
         json!({
             "message": "Variable $input of type ProductDeleteInput! was provided invalid value for id (Expected value to not be null)",
-            "locations": [{ "line": 2, "column": 37 }],
+            "locations": [{ "line": 2, "column": 35 }],
             "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": {},
@@ -7701,7 +7701,7 @@ fn product_duplicate_respects_new_status_override_and_validates_invalid_status()
             "value": "ENABLED",
             "problems": [{
                 "path": [],
-                "explanation": "Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT"
+                "explanation": "Expected \"ENABLED\" to be one of: ACTIVE, ARCHIVED, DRAFT, UNLISTED"
             }]
         })
     );
