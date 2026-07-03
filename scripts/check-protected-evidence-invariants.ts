@@ -164,6 +164,71 @@ function ticketLikeIdentifierDiffErrors(): string[] {
   return errors;
 }
 
+function originMainText(relativePath: string): string | null {
+  const showResult = spawnSync('git', ['show', `origin/main:${relativePath}`], { encoding: 'utf8' });
+  if (showResult.status !== 0) return null;
+  return showResult.stdout;
+}
+
+function realShopifyConformanceFixturePath(relativePath: string): boolean {
+  const parts = relativePath.split(path.sep).join('/').split('/');
+  return parts[0] === 'fixtures' && parts[1] === 'conformance' && parts[2]?.endsWith('.myshopify.com') === true;
+}
+
+function nonShopifyStandInCaptureRefs(spec: unknown): string[] {
+  if (!isRecord(spec)) return [];
+  return stringArray(spec['liveCaptureFiles']).filter(
+    (captureFile) => captureFile.startsWith('fixtures/conformance/') && !realShopifyConformanceFixturePath(captureFile),
+  );
+}
+
+function newNonShopifyStandInEvidenceErrors(changedPaths: string[]): string[] {
+  const errors: string[] = [];
+
+  for (const changedPath of changedPaths) {
+    if (
+      changedPath.startsWith('fixtures/conformance/') &&
+      !realShopifyConformanceFixturePath(changedPath) &&
+      originMainText(changedPath) === null
+    ) {
+      errors.push(
+        `${changedPath}: new conformance fixtures must be real Shopify captures; use runtime tests for proxy-only output`,
+      );
+    }
+
+    if (!changedPath.startsWith('config/parity-specs/') || !changedPath.endsWith('.json') || !existsSync(changedPath)) {
+      continue;
+    }
+
+    const currentRefs = new Set(nonShopifyStandInCaptureRefs(readJson(changedPath)));
+    if (currentRefs.size === 0) continue;
+
+    const baseText = originMainText(changedPath);
+    const baseRefs = new Set<string>();
+    if (baseText !== null) {
+      try {
+        for (const captureFile of nonShopifyStandInCaptureRefs(JSON.parse(baseText) as unknown)) {
+          baseRefs.add(captureFile);
+        }
+      } catch {
+        // If the base file is unparsable, be conservative and treat all current
+        // non-Shopify capture references as newly introduced.
+      }
+    }
+
+    for (const captureFile of currentRefs) {
+      if (!baseRefs.has(captureFile)) {
+        errors.push(
+          `${changedPath}: new liveCaptureFiles entry is not a real Shopify capture path (${captureFile}); ` +
+            'new parity/conformance evidence must be live Shopify capture-backed',
+        );
+      }
+    }
+  }
+
+  return errors;
+}
+
 function fixtureUpstreamErrors(fixturePath: string): string[] {
   const fixture = readJson(fixturePath);
   if (!isRecord(fixture) || !Array.isArray(fixture['upstreamCalls'])) {
@@ -420,6 +485,7 @@ const protectedEvidenceErrors = [
   ...findUnregisteredProtectedEvidenceChanges(changed),
   ...findProductsProvenanceFailures(),
 ];
+const newNonShopifyStandInErrors = newNonShopifyStandInEvidenceErrors(changed);
 const metafieldDefinitionsErrors = metafieldDefinitionsParityEvidenceErrors();
 const customerErrors = customerParityEvidenceErrors();
 const giftCardErrors = giftCardParityEvidenceErrors();
@@ -434,6 +500,13 @@ if (protectedEvidenceErrors.length > 0) {
   for (const { path: failurePath, message } of protectedEvidenceErrors) {
     process.stderr.write(`- ${failurePath}: ${message}\n`);
   }
+}
+
+if (newNonShopifyStandInErrors.length > 0) {
+  process.stderr.write(
+    'New parity/conformance evidence must be real Shopify capture-backed, not proxy-generated or synthetic. Use runtime tests for proxy-only output.\n',
+  );
+  for (const error of newNonShopifyStandInErrors) process.stderr.write(`- ${error}\n`);
 }
 
 if (metafieldDefinitionsErrors.length > 0) {
@@ -488,6 +561,7 @@ if (ticketLikeIdentifierErrors.length > 0) {
 
 if (
   protectedEvidenceErrors.length > 0 ||
+  newNonShopifyStandInErrors.length > 0 ||
   metafieldDefinitionsErrors.length > 0 ||
   customerErrors.length > 0 ||
   giftCardErrors.length > 0 ||
@@ -501,6 +575,7 @@ if (
 }
 
 process.stdout.write('Protected parity evidence changes are registered and products provenance checks passed.\n');
+process.stdout.write('No new proxy-generated or synthetic parity evidence was introduced.\n');
 process.stdout.write('metafield-definitions parity evidence uses live fixture paths and GraphQL upstream queries.\n');
 process.stdout.write('Customers parity evidence uses live fixture paths and GraphQL upstream cassette queries.\n');
 process.stdout.write('Gift-card parity evidence contains no local-runtime captures or descriptor cassette queries.\n');
