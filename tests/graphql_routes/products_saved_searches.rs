@@ -4413,47 +4413,68 @@ fn product_unpublish_hydrated_aggregate_only_publication_state_does_not_false_er
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let body: Value =
                 serde_json::from_str(&request.body).expect("upstream hydrate request parses");
-            assert_eq!(body["variables"], json!({ "ids": [product_id] }));
             let query = body["query"]
                 .as_str()
                 .expect("upstream hydrate query should be a string");
-            assert!(query.contains("availablePublicationsCount"));
-            assert!(query.contains("resourcePublicationsCount"));
-            assert!(query.contains("publications(first: 10)"));
             captured_requests.lock().unwrap().push(request.body);
+            if query.contains("ProductsHydrateNodes") {
+                assert_eq!(body["variables"], json!({ "ids": [product_id] }));
+                assert!(query.contains("availablePublicationsCount"));
+                assert!(query.contains("resourcePublicationsCount"));
+                assert!(query.contains("publications(first: 10)"));
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "__typename": "Product",
+                                "id": product_id,
+                                "title": "Aggregate-only publication product",
+                                "handle": "aggregate-only-publication-product",
+                                "status": "ACTIVE",
+                                "vendor": "conformance",
+                                "productType": "",
+                                "tags": [],
+                                "totalInventory": 0,
+                                "tracksInventory": false,
+                                "createdAt": "2026-07-02T22:49:10Z",
+                                "updatedAt": "2026-07-02T22:49:10Z",
+                                "publishedAt": Value::Null,
+                                "descriptionHtml": "",
+                                "templateSuffix": Value::Null,
+                                "seo": { "title": Value::Null, "description": Value::Null },
+                                "availablePublicationsCount": { "count": 2, "precision": "EXACT" },
+                                "resourcePublicationsCount": { "count": 2, "precision": "EXACT" },
+                                "resourcePublicationsV2": { "nodes": [] },
+                                "publications": {
+                                    "nodes": [{
+                                        "isPublished": true,
+                                        "publishDate": "2026-07-02T22:49:10Z",
+                                        "product": { "id": product_id }
+                                    }]
+                                }
+                            }]
+                        }
+                    }),
+                };
+            }
+            assert!(query.contains("StorePropertiesPublishableInputValidationHydrate"));
+            assert_eq!(body["variables"], json!({ "id": product_id }));
             Response {
                 status: 200,
                 headers: Default::default(),
                 body: json!({
                     "data": {
-                        "nodes": [{
-                            "__typename": "Product",
+                        "publishable": {
                             "id": product_id,
-                            "title": "Aggregate-only publication product",
-                            "handle": "aggregate-only-publication-product",
-                            "status": "ACTIVE",
-                            "vendor": "conformance",
-                            "productType": "",
-                            "tags": [],
-                            "totalInventory": 0,
-                            "tracksInventory": false,
-                            "createdAt": "2026-07-02T22:49:10Z",
-                            "updatedAt": "2026-07-02T22:49:10Z",
-                            "publishedAt": Value::Null,
-                            "descriptionHtml": "",
-                            "templateSuffix": Value::Null,
-                            "seo": { "title": Value::Null, "description": Value::Null },
-                            "availablePublicationsCount": { "count": 2, "precision": "EXACT" },
-                            "resourcePublicationsCount": { "count": 2, "precision": "EXACT" },
-                            "resourcePublicationsV2": { "nodes": [] },
-                            "publications": {
-                                "nodes": [{
-                                    "isPublished": true,
-                                    "publishDate": "2026-07-02T22:49:10Z",
-                                    "product": { "id": product_id }
-                                }]
-                            }
-                        }]
+                            "publishedOnCurrentPublication": false,
+                            "resourcePublicationsCount": { "count": 2, "precision": "EXACT" }
+                        },
+                        "shop": { "publicationCount": 1 },
+                        "publications": {
+                            "nodes": [{ "id": publication_id, "name": "Aggregate-only publication" }]
+                        }
                     }
                 }),
             }
@@ -4541,10 +4562,25 @@ fn product_unpublish_hydrated_aggregate_only_publication_state_does_not_false_er
             }
         })
     );
+    let requests = upstream_requests.lock().unwrap();
     assert_eq!(
-        upstream_requests.lock().unwrap().len(),
-        1,
-        "downstream read should reuse the staged hydrated product"
+        requests.len(),
+        2,
+        "mutation should hydrate product state and publication catalog once; downstream read should reuse the staged hydrated product"
+    );
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|body| body.contains("ProductsHydrateNodes"))
+            .count(),
+        1
+    );
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|body| body.contains("StorePropertiesPublishableInputValidationHydrate"))
+            .count(),
+        1
     );
 }
 
@@ -4714,6 +4750,46 @@ fn product_publish_live_hybrid_hydrates_publication_catalog_before_validation() 
         .with_base_products(vec![seed_product(product_id)])
         .with_upstream_transport(move |request| {
             captured.lock().unwrap().push(request.clone());
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream hydrate request parses");
+            let query = body["query"]
+                .as_str()
+                .expect("upstream hydrate query should be a string");
+            if query.contains("ProductsHydrateNodes") {
+                assert_eq!(body["variables"], json!({ "ids": [product_id] }));
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "__typename": "Product",
+                                "id": product_id,
+                                "title": "Publication hydrate product",
+                                "handle": "publication-hydrate-product",
+                                "status": "ACTIVE",
+                                "vendor": "conformance",
+                                "productType": "",
+                                "tags": [],
+                                "totalInventory": 0,
+                                "tracksInventory": false,
+                                "createdAt": "2026-07-03T11:24:00Z",
+                                "updatedAt": "2026-07-03T11:24:00Z",
+                                "publishedAt": Value::Null,
+                                "descriptionHtml": "",
+                                "templateSuffix": Value::Null,
+                                "seo": { "title": Value::Null, "description": Value::Null },
+                                "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+                                "resourcePublicationsCount": { "count": 0, "precision": "EXACT" },
+                                "resourcePublicationsV2": { "nodes": [] },
+                                "publications": { "nodes": [] }
+                            }]
+                        }
+                    }),
+                };
+            }
+            assert!(query.contains("StorePropertiesPublishableInputValidationHydrate"));
+            assert_eq!(body["variables"], json!({ "id": product_id }));
             Response {
                 status: 200,
                 headers: Default::default(),
@@ -4759,9 +4835,26 @@ fn product_publish_live_hybrid_hydrates_publication_catalog_before_validation() 
         json!([])
     );
     let requests = forwarded.lock().unwrap();
-    assert_eq!(requests.len(), 1);
-    let hydrate_body: Value =
-        serde_json::from_str(&requests[0].body).expect("upstream hydrate request should parse");
+    assert_eq!(requests.len(), 3);
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|request| request.body.contains("ProductsHydrateNodes"))
+            .count(),
+        2,
+        "the rejected first mutation should not stage the hydrated product"
+    );
+    let shop_hydrates = requests
+        .iter()
+        .filter(|request| {
+            request
+                .body
+                .contains("StorePropertiesPublishableInputValidationHydrate")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(shop_hydrates.len(), 1);
+    let hydrate_body: Value = serde_json::from_str(&shop_hydrates[0].body)
+        .expect("upstream publishable hydrate request should parse");
     assert_eq!(hydrate_body["variables"], json!({ "id": product_id }));
     assert!(hydrate_body["query"]
         .as_str()
