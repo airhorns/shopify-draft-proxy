@@ -206,6 +206,33 @@ class ShopifyDraftProxyStorageTest < Minitest::Test
     proxy&.dispose
   end
 
+  def test_failed_commit_does_not_persist_so_the_session_stays_retryable
+    # A transport that rejects the replay, so commit stops and raises. The staged
+    # log must NOT be persisted as failed — a rehydrated session still sees the
+    # mutation as staged and can retry once the upstream cause is fixed.
+    transport = lambda do |_request|
+      { "status" => 500, "headers" => {}, "body" => { "errors" => [{ "message" => "boom" }] } }
+    end
+    storage = FakeStorage.new
+    proxy = ShopifyDraftProxy.create(
+      read_mode: "snapshot",
+      shopify_admin_origin: "https://shopify.example",
+      storage: storage,
+      transport: transport,
+    )
+
+    stage_saved_search(proxy, "Retryable")
+    saves_before_commit = storage.saves.length
+
+    assert_raises(ShopifyDraftProxy::CommitError) { proxy.commit }
+
+    assert_equal saves_before_commit, storage.saves.length, "a failed commit must not persist"
+    statuses = storage.last.fetch("log").fetch("entries").map { |entry| entry.fetch("status") }
+    assert_equal ["staged"], statuses, "the mutation stays staged for retry"
+  ensure
+    proxy&.dispose
+  end
+
   def test_file_adapter_round_trips_through_disk
     Dir.mktmpdir do |dir|
       path = File.join(dir, "state.json")
