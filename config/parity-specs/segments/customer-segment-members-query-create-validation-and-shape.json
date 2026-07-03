@@ -6,13 +6,13 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/customer-segment-members-query-create-validation-and-shape.json"
   ],
-  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/segments_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/segments/customer-segment-members-query-create-validation-and-shape.graphql",
     "variablesCapturePath": "$.cases[0].request.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-714 live evidence for customerSegmentMembersQueryCreate input validation, async creation shape, and immediate downstream customerSegmentMembersQuery lookup consistency. The configured 2025-01 and 2026-04 live Admin schema rejected CustomerSegmentMembersQuery.status as an undefined field during capture, so executable Gleam runtime tests cover local status projection. The fixture also captures a segmentId-backed success case; runtime tests cover that path with a locally staged segment because the generic parity runner has no segment setup hook for this operation-only scenario.",
+  "notes": "HAR-714 live evidence for customerSegmentMembersQueryCreate input validation, async creation shape, and immediate downstream customerSegmentMembersQuery lookup consistency. The configured 2025-01 and 2026-04 live Admin schema rejected CustomerSegmentMembersQuery.status as an undefined field during capture, so runtime tests cover local status projection. The fixture also captures a segmentId-backed success case; runtime tests cover that path with a locally staged segment because the generic parity runner has no segment setup hook for this operation-only scenario.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

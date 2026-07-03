@@ -45,17 +45,13 @@ that combining adjacent sections is clearer:
 6. `### Boundaries`
    - State what remains unsupported, capture-only, validation-only, or out of
      scope. Explain the practical consequence for a caller.
-7. `### Evidence`
-   - Name checked-in parity specs, runtime tests, conformance fixtures, capture
-     scripts, or other executable evidence that backs current behavior.
-   - Keep evidence references compact. Prefer scenario IDs or paths over long
-     narrative history.
-8. `### Validation`
-   - List the commands that should prove this endpoint group after changes.
 
 For large endpoint groups, split `Local behavior` into domain-specific
 subsections such as `Catalog reads`, `Lifecycle mutations`,
 `Generic Node dispatch`, or `Commit replay`. Keep the top-level flow the same.
+Do not add standalone proof, capture-summary, or command-list sections to
+endpoint pages; keep proof details in workpads, PR descriptions, parity specs,
+fixtures, and test files.
 
 ## Current-State Rules
 
@@ -85,8 +81,7 @@ Endpoint docs must not contain support-history narratives:
 - no `HAR-### added...`, `HAR-### reviewed...`, or ticket-review headings
 - no `previously`, `formerly`, `now`, `later`, `initially`, or migration-order
   prose unless the word is describing current Shopify API semantics
-- no TypeScript-to-Gleam port notes, dispatcher migration notes, or technology
-  history
+- no implementation-port notes, dispatcher migration notes, or technology history
 - no release-note style lists of what changed in a branch
 - no claims that a partial branch is implemented support
 - no unsupported-root reservations or planned-only parity placeholders
@@ -109,8 +104,6 @@ durable location:
   groups.
 - `docs/parity-runner.md`: parity runner mechanics, cassette format, replay
   behavior, or comparison-contract guidance.
-- `docs/GLEAM_PORT_LOG.md`: historical porting notes only. Do not copy port
-  history back into endpoint docs.
 - Linear issues/workpads: temporary implementation plans, rejected-review
   context, future work, and out-of-scope remediation.
 
@@ -119,27 +112,6 @@ in the endpoint doc. Example: write `LiveHybrid reads hydrate the existing
 customer before staging this mutation` in the endpoint doc, and move the
 debugging story that led to that shape to `docs/hard-and-weird-notes.md` if it
 is still useful.
-
-## Evidence Language
-
-Evidence sections should answer: "What can I run or inspect to trust this?"
-
-Good evidence bullets:
-
-- `config/parity-specs/webhooks/webhook-subscription-conformance.json`
-- `test/proxy/webhooks_test.gleam`
-- `fixtures/conformance/.../webhook-subscription-conformance.json`
-- `corepack pnpm parity -- webhook-subscription-conformance`
-
-Avoid evidence bullets that only restate project history:
-
-- `HAR-356 promoted this scenario`
-- `A prior agent added coverage`
-- `This used to be a TypeScript test`
-
-If behavior depends on captured Shopify data, say what the capture proves in
-current terms: `captures unknown-id update/delete userErrors` or `captures
-empty catalog and count behavior`.
 
 ## Audit Checklist
 
@@ -154,9 +126,11 @@ Use this checklist when auditing an existing endpoint doc:
       and commit/meta behavior are covered when relevant.
 - [ ] Unsupported boundaries explain caller-visible behavior and do not promise
       future work.
-- [ ] Evidence references checked-in executable artifacts or concrete captures.
-- [ ] Validation commands are current for the endpoint group.
-- [ ] Ticket-review headings, support-history prose, and port/migration notes
+- [ ] Standalone proof, capture-summary, and command-list sections are absent.
+- [ ] Proxy-generated, snapshot, runtime-test, or hand-authored artifacts are not
+      described as captured Shopify parity evidence; endpoint claims separate
+      live capture proof from proxy-only runtime regression tests.
+- [ ] Ticket-review headings, support-history prose, and migration notes
       are removed or moved to the correct internal note location.
 - [ ] The doc does not claim support beyond local lifecycle behavior and
-      downstream read-after-write evidence.
+      downstream read-after-write behavior.

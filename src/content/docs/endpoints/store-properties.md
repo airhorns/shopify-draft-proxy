@@ -41,9 +41,9 @@ read-after-write effects described below and backed by executable evidence.
 
 ### Local behavior
 
-The Rust runtime has scenario-backed store-properties slices for ported parity
-requests and runtime tests. These slices are not general registry support for
-every store-property document.
+The Rust runtime has scenario-backed store-properties slices for parity requests
+and runtime tests. These slices are not general registry support for every
+store-property document.
 
 Shop reads have a local store-backed slice for selected shop metadata,
 including staged shop policies, publication aggregates, primary domain, and safe
@@ -134,43 +134,3 @@ where captured.
 - Shipping package and local pickup behavior are documented under
   `/endpoints/shipping-fulfillments/` because their caller-visible effects live
   in shipping and delivery settings.
-
-### Evidence
-
-- Runtime coverage: `tests/graphql_routes.rs`
-- Registry status: `src/operation_registry.rs` and
-  `src/operation_registry_data.rs`
-- Shop policy parity specs:
-  `config/parity-specs/store-properties/shop-policy-update-privacy-liquid-validation.json`,
-  `config/parity-specs/store-properties/shop-policy-update-subscription-blank-body.json`,
-  `config/parity-specs/store-properties/shop-policy-update-title-url-and-body-rendering.json`,
-  and
-  `config/parity-specs/store-properties/shop-policy-update-user-error-codes.json`
-- Location parity specs:
-  `config/parity-specs/store-properties/location-add-edit-uniqueness-and-required-fields.json`,
-  `config/parity-specs/store-properties/location-add-resource-limit-reached.json`,
-  `config/parity-specs/store-properties/location-activate-limit-and-control.json`,
-  `config/parity-specs/store-properties/location-edit-fields-and-state-machine.json`,
-  `config/parity-specs/store-properties/location-edit-unknown-id-validation.json`,
-  `config/parity-specs/store-properties/location-activate-non-unique-name.json`,
-  `config/parity-specs/store-properties/location-delete-active-location-validation.json`,
-  `config/parity-specs/store-properties/location-delete-inventory-level-cascade.json`,
-  `config/parity-specs/store-properties/location-delete-primary-location.json`,
-  and
-  `config/parity-specs/store-properties/location-delete-state-and-scope.json`
-- Store-properties fixtures:
-  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/*.json`
-  and
-  `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-properties/*.json`
-- Non-harry shop identity parity:
-  `config/parity-specs/store-properties/shop-baseline-non-harry.json`
-
-### Validation
-
-- `corepack pnpm conformance:fixture-invariants`
-- `corepack pnpm rust:fmt`
-- `corepack pnpm rust:clippy`
-- `corepack pnpm rust:test`
-- `corepack pnpm conformance:check`
-- `corepack pnpm lint`
-- `corepack pnpm parity -- shop-baseline-non-harry`

@@ -1,0 +1,22 @@
+mutation InventoryDefaultLocationItemUpdate($id: ID!, $input: InventoryItemInput!) {
+  inventoryItemUpdate(id: $id, input: $input) {
+    inventoryItem {
+      id
+      tracked
+      requiresShipping
+      variant {
+        id
+        inventoryQuantity
+        product {
+          id
+          title
+          tracksInventory
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

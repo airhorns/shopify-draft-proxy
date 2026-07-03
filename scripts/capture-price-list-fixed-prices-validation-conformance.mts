@@ -44,6 +44,10 @@ const addDocument = await readFile(
   path.join('config', 'parity-requests', 'markets', 'price-list-fixed-prices-add-validation.graphql'),
   'utf8',
 );
+const addShortCircuitDocument = await readFile(
+  path.join('config', 'parity-requests', 'markets', 'price_list_fixed_prices_add_short_circuit.graphql'),
+  'utf8',
+);
 const updateDocument = await readFile(
   path.join('config', 'parity-requests', 'markets', 'price-list-fixed-prices-update-validation.graphql'),
   'utf8',
@@ -280,6 +284,15 @@ try {
       priceListId,
       prices: [{ variantId: missingVariantId, price: matchingPrice }],
     }),
+    addMissingVariantCurrencyMismatchShortCircuit: await captureCase(
+      'priceListFixedPricesAdd',
+      'add missing variant currency mismatch short circuit',
+      addShortCircuitDocument,
+      {
+        priceListId,
+        prices: [{ variantId: missingVariantId, price: mismatchedPrice }],
+      },
+    ),
     addPriceListNotFound: await captureCase('priceListFixedPricesAdd', 'add price list not found', addDocument, {
       priceListId: missingPriceListId,
       prices: [{ variantId, price: matchingPrice }],

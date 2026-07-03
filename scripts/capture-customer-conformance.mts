@@ -2,7 +2,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -20,6 +20,67 @@ const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+const parityRequestDir = path.join('config', 'parity-requests', 'customers');
+const customerByIdentifierReadDocument = await readFile(
+  path.join(parityRequestDir, 'customer-by-identifier-read.graphql'),
+  'utf8',
+);
+const customerDetailReadDocument = await readFile(
+  path.join(parityRequestDir, 'customer-detail-parity-plan.graphql'),
+  'utf8',
+);
+const customerNestedSubresourcesReadDocument = await readFile(
+  path.join(parityRequestDir, 'customer-nested-subresources-read.graphql'),
+  'utf8',
+);
+const customersCatalogReadDocument = await readFile(
+  path.join(parityRequestDir, 'customers-catalog-parity-plan.graphql'),
+  'utf8',
+);
+const customersSearchReadDocument = await readFile(
+  path.join(parityRequestDir, 'customers-search-read.graphql'),
+  'utf8',
+);
+const customersAdvancedSearchReadDocument = await readFile(
+  path.join(parityRequestDir, 'customers-advanced-search-read.graphql'),
+  'utf8',
+);
+const customersSortKeysReadDocument = await readFile(
+  path.join(parityRequestDir, 'customers-sort-keys-read.graphql'),
+  'utf8',
+);
+const customersRelevanceSearchReadDocument = await readFile(
+  path.join(parityRequestDir, 'customers-relevance-search-read.graphql'),
+  'utf8',
+);
+const customersCountReadDocument = await readFile(path.join(parityRequestDir, 'customers-count-read.graphql'), 'utf8');
+
+function upstreamCall({ operationName, query, variables, body }) {
+  return {
+    operationName,
+    variables,
+    query,
+    response: {
+      status: 200,
+      body,
+    },
+  };
+}
+
+function capturedProxyRequest({ operationName, query, variables, body }) {
+  return {
+    proxyVariables: variables,
+    ...body,
+    upstreamCalls: [
+      upstreamCall({
+        operationName,
+        query,
+        variables,
+        body,
+      }),
+    ],
+  };
+}
 
 async function clearBlocker() {
   await rm(blockerPath, { force: true });
@@ -651,22 +712,33 @@ function renderProtectedCustomerDataBlocker({ message, accessScopeHandles, custo
     throw new Error(JSON.stringify(catalogResult, null, 2));
   }
 
-  const catalog = { proxyVariables: catalogVariables, ...catalogResult.payload };
+  const catalog = capturedProxyRequest({
+    operationName: 'CustomersCatalogParityPlan',
+    query: customersCatalogReadDocument,
+    variables: catalogVariables,
+    body: catalogResult.payload,
+  });
   const firstCustomerId = catalog.data?.customers?.edges?.[0]?.node?.id;
   if (typeof firstCustomerId !== 'string' || !firstCustomerId) {
     throw new Error('Customer catalog capture returned no customer ids.');
   }
 
   const detailVariables = { id: firstCustomerId };
-  const detail = {
-    proxyVariables: detailVariables,
-    ...(await runGraphql(customerDetailQuery, detailVariables)),
-  };
+  const detailBody = await runGraphql(customerDetailQuery, detailVariables);
+  const detail = capturedProxyRequest({
+    operationName: 'CustomerDetailParityPlan',
+    query: customerDetailReadDocument,
+    variables: detailVariables,
+    body: detailBody,
+  });
   const nestedSubresourcesVariables = { id: firstCustomerId };
-  const nestedSubresources = {
-    proxyVariables: nestedSubresourcesVariables,
-    ...(await runGraphql(customerNestedSubresourcesQuery, nestedSubresourcesVariables)),
-  };
+  const nestedSubresourcesBody = await runGraphql(customerNestedSubresourcesQuery, nestedSubresourcesVariables);
+  const nestedSubresources = capturedProxyRequest({
+    operationName: 'CustomerNestedSubresourcesRead',
+    query: customerNestedSubresourcesReadDocument,
+    variables: nestedSubresourcesVariables,
+    body: nestedSubresourcesBody,
+  });
   const detailCustomer = detail.data?.customer;
   const firstCustomerEmail = detailCustomer?.email ?? detailCustomer?.defaultEmailAddress?.emailAddress;
   const firstCustomerPhone = detailCustomer?.defaultPhoneNumber?.phoneNumber;
@@ -683,9 +755,10 @@ function renderProtectedCustomerDataBlocker({ message, accessScopeHandles, custo
     phoneIdentifier: { phoneNumber: firstCustomerPhone },
     missingIdentifier: { emailAddress: 'missing-har-150@example.com' },
   };
+  const positiveAndMissing = await runGraphql(customerByIdentifierQuery, customerByIdentifierVariables);
   const customerByIdentifier = {
     proxyVariables: customerByIdentifierVariables,
-    positiveAndMissing: await runGraphql(customerByIdentifierQuery, customerByIdentifierVariables),
+    positiveAndMissing,
     customIdMissing: await runGraphqlResult(customerByCustomIdentifierQuery, {
       identifier: {
         customId: {
@@ -699,39 +772,62 @@ function renderProtectedCustomerDataBlocker({ message, accessScopeHandles, custo
       ...customerByIdentifierVariables,
       idIdentifier: {},
     }),
+    upstreamCalls: [
+      upstreamCall({
+        operationName: 'CustomerByIdentifierConformance',
+        query: customerByIdentifierReadDocument,
+        variables: customerByIdentifierVariables,
+        body: positiveAndMissing,
+      }),
+    ],
   };
   const searchVariables = { first: 2, query: 'state:DISABLED' };
-  const search = {
-    proxyVariables: searchVariables,
-    ...(await runGraphql(customersSearchQuery, searchVariables)),
-  };
+  const searchBody = await runGraphql(customersSearchQuery, searchVariables);
+  const search = capturedProxyRequest({
+    operationName: 'CustomersSearchRead',
+    query: customersSearchReadDocument,
+    variables: searchVariables,
+    body: searchBody,
+  });
   const advancedSearchVariables = {
     prefixQuery: 'How*',
     orQuery: '(tag:VIP OR tag:referral) state:DISABLED',
     groupedQuery: 'state:DISABLED -(tag:VIP OR tag:referral)',
   };
-  const advancedSearch = {
-    proxyVariables: advancedSearchVariables,
-    ...(await runGraphql(customersAdvancedSearchQuery, advancedSearchVariables)),
-  };
+  const advancedSearchBody = await runGraphql(customersAdvancedSearchQuery, advancedSearchVariables);
+  const advancedSearch = capturedProxyRequest({
+    operationName: 'CustomersAdvancedSearchRead',
+    query: customersAdvancedSearchReadDocument,
+    variables: advancedSearchVariables,
+    body: advancedSearchBody,
+  });
   const sortKeysVariables = { first: 5 };
-  const sortKeys = {
-    proxyVariables: sortKeysVariables,
-    ...(await runGraphql(customersSortKeysQuery, sortKeysVariables)),
-  };
+  const sortKeysBody = await runGraphql(customersSortKeysQuery, sortKeysVariables);
+  const sortKeys = capturedProxyRequest({
+    operationName: 'CustomersSortKeysRead',
+    query: customersSortKeysReadDocument,
+    variables: sortKeysVariables,
+    body: sortKeysBody,
+  });
   const relevanceSearchVariables = { first: 5, query: 'egnition' };
-  const relevanceSearch = {
-    proxyVariables: relevanceSearchVariables,
-    ...(await runGraphql(customersRelevanceSearchQuery, relevanceSearchVariables)),
-  };
+  const relevanceSearchBody = await runGraphql(customersRelevanceSearchQuery, relevanceSearchVariables);
+  const relevanceSearch = capturedProxyRequest({
+    operationName: 'CustomersRelevanceSearchRead',
+    query: customersRelevanceSearchReadDocument,
+    variables: relevanceSearchVariables,
+    body: relevanceSearchBody,
+  });
   const countsVariables = {
     query: 'email:grace@example.com',
     disabledQuery: 'state:DISABLED',
   };
-  const counts = {
-    proxyVariables: countsVariables,
-    ...(await runGraphql(customersCountQuery, countsVariables)),
-  };
+  const countsBody = await runGraphql(customersCountQuery, countsVariables);
+  const counts = capturedProxyRequest({
+    operationName: 'CustomersCountRead',
+    query: customersCountReadDocument,
+    variables: countsVariables,
+    body: countsBody,
+  });
 
   await writeFile(path.join(outputDir, 'customers-catalog.json'), `${JSON.stringify(catalog, null, 2)}\n`, 'utf8');
   await writeFile(path.join(outputDir, 'customer-detail.json'), `${JSON.stringify(detail, null, 2)}\n`, 'utf8');

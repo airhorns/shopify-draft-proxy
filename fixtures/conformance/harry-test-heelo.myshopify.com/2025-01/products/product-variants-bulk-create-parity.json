@@ -1,7 +1,7 @@
 {
   "mutation": {
     "variables": {
-      "productId": "gid://shopify/Product/10180320788786",
+      "productId": "gid://shopify/Product/10225392320818",
       "variants": [
         {
           "optionValues": [
@@ -24,7 +24,7 @@
             "referenceUnit": "L"
           },
           "inventoryItem": {
-            "sku": "HERMES-BULK-962361-BLUE",
+            "sku": "HERMES-BULK-896750-BLUE",
             "tracked": true,
             "requiresShipping": false,
             "countryCodeOfOrigin": "US",
@@ -52,15 +52,15 @@
       "data": {
         "productVariantsBulkCreate": {
           "product": {
-            "id": "gid://shopify/Product/10180320788786",
+            "id": "gid://shopify/Product/10225392320818",
             "totalInventory": 0,
             "tracksInventory": true,
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51137398112562",
+                  "id": "gid://shopify/ProductVariant/51396233101618",
                   "title": "Red",
-                  "sku": "HERMES-BULK-962361-RED",
+                  "sku": "HERMES-BULK-896750-RED",
                   "barcode": "1111111111111",
                   "price": "24.00",
                   "compareAtPrice": "30.00",
@@ -83,7 +83,7 @@
                     }
                   ],
                   "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53240636604722",
+                    "id": "gid://shopify/InventoryItem/53501170057522",
                     "tracked": true,
                     "requiresShipping": false,
                     "countryCodeOfOrigin": "US",
@@ -98,9 +98,9 @@
                   }
                 },
                 {
-                  "id": "gid://shopify/ProductVariant/51137398145330",
+                  "id": "gid://shopify/ProductVariant/51396233167154",
                   "title": "Blue",
-                  "sku": "HERMES-BULK-962361-BLUE",
+                  "sku": "HERMES-BULK-896750-BLUE",
                   "barcode": "2222222222222",
                   "price": "26.00",
                   "compareAtPrice": "30.00",
@@ -123,7 +123,7 @@
                     }
                   ],
                   "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53240636637490",
+                    "id": "gid://shopify/InventoryItem/53501170123058",
                     "tracked": true,
                     "requiresShipping": false,
                     "countryCodeOfOrigin": "US",
@@ -142,9 +142,9 @@
           },
           "productVariants": [
             {
-              "id": "gid://shopify/ProductVariant/51137398145330",
+              "id": "gid://shopify/ProductVariant/51396233167154",
               "title": "Blue",
-              "sku": "HERMES-BULK-962361-BLUE",
+              "sku": "HERMES-BULK-896750-BLUE",
               "barcode": "2222222222222",
               "price": "26.00",
               "compareAtPrice": "30.00",
@@ -167,7 +167,7 @@
                 }
               ],
               "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53240636637490",
+                "id": "gid://shopify/InventoryItem/53501170123058",
                 "tracked": true,
                 "requiresShipping": false,
                 "countryCodeOfOrigin": "US",
@@ -200,20 +200,20 @@
   },
   "downstreamRead": {
     "requestVariables": {
-      "id": "gid://shopify/Product/10180320788786",
-      "query": "sku:HERMES-BULK-962361-BLUE"
+      "id": "gid://shopify/Product/10225392320818",
+      "query": "sku:HERMES-BULK-896750-BLUE"
     },
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10180320788786",
+        "id": "gid://shopify/Product/10225392320818",
         "totalInventory": 0,
         "tracksInventory": true,
         "variants": {
           "nodes": [
             {
-              "id": "gid://shopify/ProductVariant/51137398112562",
+              "id": "gid://shopify/ProductVariant/51396233101618",
               "title": "Red",
-              "sku": "HERMES-BULK-962361-RED",
+              "sku": "HERMES-BULK-896750-RED",
               "barcode": "1111111111111",
               "price": "24.00",
               "compareAtPrice": "30.00",
@@ -238,7 +238,7 @@
               ],
               "metafield": null,
               "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53240636604722",
+                "id": "gid://shopify/InventoryItem/53501170057522",
                 "tracked": true,
                 "requiresShipping": false,
                 "countryCodeOfOrigin": "US",
@@ -253,9 +253,9 @@
               }
             },
             {
-              "id": "gid://shopify/ProductVariant/51137398145330",
+              "id": "gid://shopify/ProductVariant/51396233167154",
               "title": "Blue",
-              "sku": "HERMES-BULK-962361-BLUE",
+              "sku": "HERMES-BULK-896750-BLUE",
               "barcode": "2222222222222",
               "price": "26.00",
               "compareAtPrice": "30.00",
@@ -283,7 +283,7 @@
                 "ownerType": "PRODUCTVARIANT"
               },
               "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53240636637490",
+                "id": "gid://shopify/InventoryItem/53501170123058",
                 "tracked": true,
                 "requiresShipping": false,
                 "countryCodeOfOrigin": "US",
@@ -324,9 +324,9 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10180320788786"]
+        "ids": ["gid://shopify/Product/10225392320818"]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "#graphql\n  query ProductsHydrateNodes($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      id\n      ... on Product {\n        title\n        handle\n        status\n        totalInventory\n        tracksInventory\n        variants(first: 250) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            taxCode\n            inventoryPolicy\n            inventoryQuantity\n            position\n            requiresComponents\n            showUnitPrice\n            unitPriceMeasurement { quantityValue quantityUnit referenceValue referenceUnit }\n            selectedOptions { name value }\n            metafields(first: 250) {\n              nodes {\n                id\n                namespace\n                key\n                type\n                value\n                compareDigest\n                jsonValue\n                createdAt\n                updatedAt\n                ownerType\n              }\n            }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n              countryCodeOfOrigin\n              provinceCodeOfOrigin\n              harmonizedSystemCode\n              measurement { weight { unit value } }\n            }\n          }\n        }\n      }\n      ... on ProductVariant {\n        title\n        sku\n        barcode\n        price\n        compareAtPrice\n        taxable\n        taxCode\n        inventoryPolicy\n        inventoryQuantity\n        position\n        requiresComponents\n        showUnitPrice\n        unitPriceMeasurement { quantityValue quantityUnit referenceValue referenceUnit }\n        selectedOptions { name value }\n        metafields(first: 250) {\n          nodes {\n            id\n            namespace\n            key\n            type\n            value\n            compareDigest\n            jsonValue\n            createdAt\n            updatedAt\n            ownerType\n          }\n        }\n        inventoryItem {\n          id\n          tracked\n          requiresShipping\n          countryCodeOfOrigin\n          provinceCodeOfOrigin\n          harmonizedSystemCode\n          measurement { weight { unit value } }\n        }\n        product {\n          id\n          title\n          handle\n          status\n          totalInventory\n          tracksInventory\n          variants(first: 250) {\n            nodes {\n              id\n              title\n              sku\n              barcode\n              price\n              compareAtPrice\n              taxable\n              taxCode\n              inventoryPolicy\n              inventoryQuantity\n              position\n              requiresComponents\n              showUnitPrice\n              unitPriceMeasurement { quantityValue quantityUnit referenceValue referenceUnit }\n              selectedOptions { name value }\n              inventoryItem {\n                id\n                tracked\n                requiresShipping\n                countryCodeOfOrigin\n                provinceCodeOfOrigin\n                harmonizedSystemCode\n                measurement { weight { unit value } }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
@@ -334,18 +334,18 @@
             "nodes": [
               {
                 "__typename": "Product",
-                "id": "gid://shopify/Product/10180320788786",
-                "title": "Hermes Variant Bulk Conformance 1778208962361",
-                "handle": "hermes-variant-bulk-conformance-1778208962361",
+                "id": "gid://shopify/Product/10225392320818",
+                "title": "Hermes Variant Bulk Conformance 1782826896750",
+                "handle": "hermes-variant-bulk-conformance-1782826896750",
                 "status": "DRAFT",
                 "totalInventory": 0,
                 "tracksInventory": true,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51137398112562",
+                      "id": "gid://shopify/ProductVariant/51396233101618",
                       "title": "Red",
-                      "sku": "HERMES-BULK-962361-RED",
+                      "sku": "HERMES-BULK-896750-RED",
                       "barcode": "1111111111111",
                       "price": "24.00",
                       "compareAtPrice": "30.00",
@@ -371,33 +371,33 @@
                       "metafields": {
                         "nodes": [
                           {
-                            "id": "gid://shopify/Metafield/43135719997746",
+                            "id": "gid://shopify/Metafield/44627846070578",
                             "namespace": "global",
                             "key": "harmonized_system_code",
                             "type": "string",
                             "value": "123456",
                             "compareDigest": "7adb787627ad5ee341fa0ba46a956e78fd85c39e195119bb260d5181b4f1e4ba",
                             "jsonValue": "123456",
-                            "createdAt": "2026-05-08T02:56:03Z",
-                            "updatedAt": "2026-05-08T02:56:03Z",
+                            "createdAt": "2026-06-30T13:41:38Z",
+                            "updatedAt": "2026-06-30T13:41:38Z",
                             "ownerType": "PRODUCTVARIANT"
                           },
                           {
-                            "id": "gid://shopify/Metafield/43135720030514",
+                            "id": "gid://shopify/Metafield/44627846103346",
                             "namespace": "specs",
                             "key": "bulkUpdateTier",
                             "type": "single_line_text_field",
                             "value": "premium",
                             "compareDigest": "ac462bd73850bdb414abc9470111fa501fa51f06b93411be2f04292ad911360a",
                             "jsonValue": "premium",
-                            "createdAt": "2026-05-08T02:56:03Z",
-                            "updatedAt": "2026-05-08T02:56:03Z",
+                            "createdAt": "2026-06-30T13:41:38Z",
+                            "updatedAt": "2026-06-30T13:41:38Z",
                             "ownerType": "PRODUCTVARIANT"
                           }
                         ]
                       },
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53240636604722",
+                        "id": "gid://shopify/InventoryItem/53501170057522",
                         "tracked": true,
                         "requiresShipping": false,
                         "countryCodeOfOrigin": "US",
@@ -422,7 +422,7 @@
               "actualQueryCost": 5,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1995,
+                "currentlyAvailable": 1994,
                 "restoreRate": 100
               }
             }

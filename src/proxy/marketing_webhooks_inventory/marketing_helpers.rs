@@ -66,11 +66,30 @@ pub(in crate::proxy) fn marketing_event_missing_error() -> Value {
     })
 }
 
+const MARKETING_EVENT_ID_OFFSET: u64 = 1_000_000;
+
+fn marketing_app_json(api_client_id: Option<&str>) -> Value {
+    let Some(api_client_id) = api_client_id.map(str::trim).filter(|id| !id.is_empty()) else {
+        return json!({ "id": "gid://shopify/App/local", "title": "local" });
+    };
+    let app_id = if api_client_id.starts_with("gid://shopify/App/") {
+        api_client_id.to_string()
+    } else {
+        shopify_gid("App", api_client_id)
+    };
+    json!({ "id": app_id, "title": resource_id_tail(api_client_id) })
+}
+
+fn non_empty_channel_handle(handle: &str) -> bool {
+    !handle.trim().is_empty()
+}
+
 pub(in crate::proxy) fn marketing_activity_from_input(
     id: &str,
     input: BTreeMap<String, ResolvedValue>,
     existing: Option<&Value>,
     api_client_id: Option<String>,
+    new_marketing_event_id: Option<String>,
     timestamp: &str,
 ) -> Value {
     let old = existing.cloned().unwrap_or_else(|| json!({}));
@@ -80,12 +99,8 @@ pub(in crate::proxy) fn marketing_activity_from_input(
             .unwrap_or("Marketing activity")
             .to_string()
     });
-    let remote_id = resolved_string_field(&input, "remoteId").unwrap_or_else(|| {
-        old["remoteId"]
-            .as_str()
-            .unwrap_or("local-remote")
-            .to_string()
-    });
+    let remote_id = resolved_string_field(&input, "remoteId")
+        .or_else(|| old["remoteId"].as_str().map(str::to_string));
     let status = resolved_string_field(&input, "status")
         .unwrap_or_else(|| old["status"].as_str().unwrap_or("UNDEFINED").to_string());
     let tactic = resolved_string_field(&input, "tactic")
@@ -117,35 +132,29 @@ pub(in crate::proxy) fn marketing_activity_from_input(
     let campaign = utm
         .as_ref()
         .and_then(|u| resolved_string_field(u, "campaign"))
-        .unwrap_or_else(|| {
-            old_utm["campaign"]
-                .as_str()
-                .unwrap_or(&remote_id)
-                .to_string()
-        });
+        .or_else(|| old_utm["campaign"].as_str().map(str::to_string));
     let source = utm
         .as_ref()
         .and_then(|u| resolved_string_field(u, "source"))
-        .unwrap_or_else(|| {
-            old_utm["source"]
-                .as_str()
-                .unwrap_or("newsletter")
-                .to_string()
-        });
+        .or_else(|| old_utm["source"].as_str().map(str::to_string));
     let medium = utm
         .as_ref()
         .and_then(|u| resolved_string_field(u, "medium"))
-        .unwrap_or_else(|| old_utm["medium"].as_str().unwrap_or("email").to_string());
+        .or_else(|| old_utm["medium"].as_str().map(str::to_string));
     let source_medium = marketing_source_and_medium(
         &channel_type,
         &tactic,
         resolved_string_field(&input, "referringDomain").as_deref(),
     );
-    let numeric = resource_id_path_tail(id);
+    let remote_id_value = remote_id.map(Value::String).unwrap_or(Value::Null);
+    let campaign_value = campaign.map(Value::String).unwrap_or(Value::Null);
+    let source_value = source.map(Value::String).unwrap_or(Value::Null);
+    let medium_value = medium.map(Value::String).unwrap_or(Value::Null);
     let event_id = old["marketingEvent"]["id"]
         .as_str()
         .map(str::to_string)
-        .unwrap_or_else(|| shopify_gid("MarketingEvent", numeric.parse::<u64>().unwrap_or(1) + 1));
+        .or(new_marketing_event_id)
+        .unwrap_or_else(|| shopify_gid("MarketingEvent", "local"));
     let status_label = marketing_status_label(&status, &tactic, None);
     let budget = resolved_object_field(&input, "budget")
         .map(marketing_budget_json)
@@ -168,12 +177,13 @@ pub(in crate::proxy) fn marketing_activity_from_input(
     let started_at = old["marketingEvent"]["startedAt"]
         .as_str()
         .unwrap_or(timestamp);
+    let app = marketing_app_json(api_client_id.as_deref());
     json!({
         "__typename": "MarketingActivity",
         "id": id,
         "apiClientId": api_client_id,
         "title": title,
-        "remoteId": remote_id,
+        "remoteId": remote_id_value.clone(),
         "createdAt": created_at,
         "updatedAt": timestamp,
         "status": status,
@@ -191,24 +201,28 @@ pub(in crate::proxy) fn marketing_activity_from_input(
         "hierarchyLevel": resolved_string_field(&input, "hierarchyLevel")
             .map(Value::String)
             .unwrap_or_else(|| old.get("hierarchyLevel").cloned().unwrap_or(Value::Null)),
-        "utmParameters": { "campaign": campaign, "source": source, "medium": medium },
+        "utmParameters": {
+            "campaign": campaign_value.clone(),
+            "source": source_value.clone(),
+            "medium": medium_value.clone()
+        },
         "budget": budget,
         "adSpend": ad_spend,
-        "app": { "id": "gid://shopify/App/1", "title": "Draft proxy app" },
+        "app": app,
         "marketingEvent": {
             "__typename": "MarketingEvent",
             "id": event_id,
             "type": tactic,
-            "remoteId": remote_id,
+            "remoteId": remote_id_value,
             "channelHandle": channel_handle,
             "startedAt": started_at,
             "endedAt": if matches!(status.as_str(), "INACTIVE" | "DELETED_EXTERNALLY") { json!(timestamp) } else { Value::Null },
             "scheduledToEndAt": scheduled_to_end_at,
             "manageUrl": remote_url,
             "previewUrl": preview_url,
-            "utmCampaign": campaign,
-            "utmMedium": medium,
-            "utmSource": source,
+            "utmCampaign": campaign_value,
+            "utmMedium": medium_value,
+            "utmSource": source_value,
             "description": title,
             "marketingChannelType": channel_type,
             "sourceAndMedium": source_medium
@@ -235,7 +249,8 @@ pub(in crate::proxy) fn native_marketing_activity_from_input(
                 .and_then(|old| old.get("targetStatus").cloned())
                 .unwrap_or(Value::Null)
         });
-    let mut activity = marketing_activity_from_input(id, input, existing, api_client_id, timestamp);
+    let mut activity =
+        marketing_activity_from_input(id, input, existing, api_client_id, None, timestamp);
     activity["isExternal"] = json!(false);
     activity["inMainWorkflowVersion"] = json!(true);
     activity["targetStatus"] = target_status;
@@ -933,7 +948,7 @@ impl DraftProxy {
         if create_if_missing
             && existing_id.is_none()
             && resolved_string_field(&input, "channelHandle")
-                .is_some_and(|handle| handle != "email")
+                .is_some_and(|handle| !non_empty_channel_handle(&handle))
         {
             return marketing_activity_payload(
                 None,
@@ -987,11 +1002,19 @@ impl DraftProxy {
                 );
             }
         }
-        let id =
-            existing_id.unwrap_or_else(|| shopify_gid("MarketingActivity", self.next_synthetic_id));
-        if !self.store.staged.marketing_activities.contains_key(&id) {
-            self.next_synthetic_id += 2;
-        }
+        let new_marketing_event_id = if existing_id.is_none() {
+            Some(shopify_gid(
+                "MarketingEvent",
+                self.next_synthetic_id + MARKETING_EVENT_ID_OFFSET,
+            ))
+        } else {
+            None
+        };
+        let id = existing_id.unwrap_or_else(|| {
+            let id = shopify_gid("MarketingActivity", self.next_synthetic_id);
+            self.next_synthetic_id += 1;
+            id
+        });
         let existing = self.store.staged.marketing_activities.get(&id).cloned();
         let activity = marketing_activity_from_input(
             &id,
@@ -1001,6 +1024,7 @@ impl DraftProxy {
                 .headers
                 .get("x-shopify-draft-proxy-api-client-id")
                 .cloned(),
+            new_marketing_event_id,
             &self.next_product_timestamp(),
         );
         self.store
@@ -1127,7 +1151,7 @@ impl DraftProxy {
             );
         }
         if let Some(channel) = resolved_string_field(&field.arguments, "channelHandle") {
-            if channel != "email" {
+            if !non_empty_channel_handle(&channel) {
                 return selected_json(
                     &marketing_engagement_payload(
                         None,
@@ -1232,7 +1256,7 @@ impl DraftProxy {
         } else if let Some(channel_handle) =
             resolved_string_field(&field.arguments, "channelHandle")
         {
-            if known_handles.contains(&channel_handle) {
+            if non_empty_channel_handle(&channel_handle) {
                 (
                     json!(format!(
                         "Engagement data associated to channel handle '{channel_handle}' marked for deletion"

@@ -269,19 +269,6 @@ fn catalog_context_type_fields(
     fields
 }
 
-fn catalog_context_driver_from_create_input(
-    context: &BTreeMap<String, ResolvedValue>,
-) -> CatalogContextDriver {
-    resolved_string_field(context, "driverType")
-        .and_then(|driver| CatalogContextDriver::from_type_name(&driver))
-        .or_else(|| {
-            catalog_context_type_fields(context)
-                .first()
-                .map(|(driver, _)| *driver)
-        })
-        .unwrap_or(CatalogContextDriver::Market)
-}
-
 fn company_location_ids_from_context(context: &BTreeMap<String, ResolvedValue>) -> Vec<String> {
     let mut ids = list_string_field(context, "companyLocationIds");
     for id in list_string_field(context, "locationIds") {
@@ -347,8 +334,8 @@ impl DraftProxy {
                     )
                 }
                 "translatableResource" => {
-                    let resource_id = resolved_string_field(&field.arguments, "resourceId")
-                        .unwrap_or_else(|| "gid://shopify/Product/9801098789170".to_string());
+                    let resource_id =
+                        resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
                     if !self.localization_translatable_resource_exists(&resource_id) {
                         Value::Null
                     } else {
@@ -1367,21 +1354,16 @@ impl DraftProxy {
                 "INVALID",
             );
         };
-        if catalog_context_type_fields(&context)
-            .iter()
-            .map(|(driver, _)| *driver)
-            .collect::<BTreeSet<_>>()
-            .len()
-            > 1
-        {
+        let context_type_fields = catalog_context_type_fields(&context);
+        if context_type_fields.len() != 1 {
             return selected_catalog_error(
                 field,
                 vec!["input", "context"],
-                "Must provide exactly one catalog context type.",
+                "Must provide exactly one context type.",
                 "MUST_PROVIDE_EXACTLY_ONE_CONTEXT_TYPE",
             );
         }
-        let driver_type = catalog_context_driver_from_create_input(&context);
+        let driver_type = context_type_fields[0].0;
         let market_ids = list_string_field(&context, "marketIds");
         let company_location_ids = company_location_ids_from_context(&context);
         let country_codes = country_codes_from_context(&context);
@@ -1840,6 +1822,20 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> PriceListFieldOutcome {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let catalog_id = resolved_string_field(&input, "catalogId");
+        if let Some(catalog_id) = catalog_id.as_deref() {
+            if price_list_catalog_id_has_wrong_gid_type(catalog_id) {
+                return PriceListFieldOutcome::resource_not_found(catalog_id, field);
+            }
+            if let Some(error) = self.price_list_catalog_validation_error(catalog_id, None) {
+                return PriceListFieldOutcome::price_list_with_user_errors(
+                    field,
+                    Value::Null,
+                    vec![error],
+                );
+            }
+        }
+
         let name = resolved_string_field(&input, "name").unwrap_or_default();
         if let Some(error) = price_list_name_error(&self.store.staged.price_lists, &name, None) {
             return PriceListFieldOutcome::price_list_error(field, error);
@@ -1865,20 +1861,6 @@ impl DraftProxy {
             return PriceListFieldOutcome::price_list_error(field, error);
         }
         let adjustment_type = resolved_string_field(&adjustment, "type").unwrap_or_default();
-
-        let catalog_id = resolved_string_field(&input, "catalogId");
-        if let Some(catalog_id) = catalog_id.as_deref() {
-            if price_list_catalog_id_has_wrong_gid_type(catalog_id) {
-                return PriceListFieldOutcome::resource_not_found(catalog_id, field);
-            }
-            if let Some(error) = self.price_list_catalog_validation_error(catalog_id, None) {
-                return PriceListFieldOutcome::price_list_with_user_errors(
-                    field,
-                    Value::Null,
-                    vec![error],
-                );
-            }
-        }
 
         let id = self.next_price_list_id();
         let price_list = price_list_record(
@@ -3315,7 +3297,7 @@ impl DraftProxy {
         let keys = resolved_string_list_arg(&field.arguments, "translationKeys");
         let market_ids = resolved_string_list_arg(&field.arguments, "marketIds");
         let locales = resolved_string_list_arg(&field.arguments, "locales");
-        if locales.is_empty() {
+        if keys.is_empty() || locales.is_empty() {
             return selected_json(
                 &json!({ "translations": null, "userErrors": [] }),
                 &field.selection,
@@ -3325,8 +3307,7 @@ impl DraftProxy {
         let mut removed = Vec::new();
         let mut retained = Vec::new();
         for translation in self.store.staged.localization_translations.drain(..) {
-            let key_matches =
-                keys.is_empty() || keys.iter().any(|key| translation["key"] == json!(key));
+            let key_matches = keys.iter().any(|key| translation["key"] == json!(key));
             let locale_matches = locales
                 .iter()
                 .any(|locale| translation["locale"] == json!(locale));
@@ -3396,14 +3377,11 @@ impl DraftProxy {
     ) -> Value {
         let resource_type = resolved_string_field(&field.arguments, "resourceType")
             .unwrap_or_else(|| "PRODUCT".to_string());
-        let mut records = self
+        let records = self
             .localization_translatable_resource_ids()
             .into_iter()
             .filter(|id| localization_resource_type_matches(id, &resource_type))
             .collect::<Vec<_>>();
-        if records.is_empty() {
-            records.push(default_localization_resource_id(&resource_type));
-        }
         selected_typed_connection_with_args(
             &records,
             &field.arguments,
@@ -3570,8 +3548,7 @@ impl DraftProxy {
         }
     }
 
-    /// True when any markets-domain record has been staged. Mirrors Gleam's
-    /// `has_local_markets_query_state` (minus the product check, since the Rust
+    /// True when any markets-domain record has been staged. Tracks local markets query state (minus the product check, since the Rust
     /// markets stores are staged-only with no base layer). Once a lifecycle has
     /// staged a market/catalog/price-list/web-presence, plural reads serve
     /// locally (read-after-write); before that, cold reads forward upstream.
@@ -3582,8 +3559,7 @@ impl DraftProxy {
             || !self.store.staged.web_presences.is_empty()
     }
 
-    /// LiveHybrid cold-read decision for the Markets domain, ported from Gleam
-    /// `should_fetch_upstream_in_live_hybrid` (markets/queries.gleam:111). When
+    /// LiveHybrid cold-read decision for the Markets domain. When
     /// this returns true the dispatcher forwards the original request verbatim
     /// upstream and hydrates the staged store from the response.
     pub(in crate::proxy) fn markets_should_fetch_upstream(
@@ -3623,8 +3599,7 @@ impl DraftProxy {
     }
 
     /// Hydrate the staged markets stores from an upstream GraphQL response body,
-    /// ported from Gleam `hydrate_from_upstream_response` (markets/queries.gleam:644).
-    /// Records are observed as a side effect of a cold read so later targets
+    /// fed by captured upstream response hydration. Records are observed as a side effect of a cold read so later targets
     /// (read-after-write, catalog delete, market localization) resolve locally.
     pub(in crate::proxy) fn hydrate_markets_from_upstream(&mut self, body: &Value) {
         let Some(data) = body.get("data") else {
@@ -3802,8 +3777,7 @@ impl DraftProxy {
     /// product/source-content slice before local translation mutations can
     /// validate resource existence and stage read-after-write effects. Once any
     /// localization/product/collection state exists, stay local so staged locale
-    /// and translation changes are not bypassed by passthrough. Ported from Gleam
-    /// `should_fetch_upstream_in_live_hybrid` (localization/queries.gleam:100).
+    /// and translation changes are not bypassed by passthrough. Modeled from captured LiveHybrid localization behavior.
     pub(in crate::proxy) fn localization_should_fetch_upstream(&self, root_field: &str) -> bool {
         if !matches!(
             root_field,
@@ -3827,8 +3801,7 @@ impl DraftProxy {
     }
 
     /// Hydrate localization base state from an upstream GraphQL response body,
-    /// ported from Gleam `hydrate_from_upstream_response`
-    /// (localization/queries.gleam:234). Shop locales, available locales and
+    /// fed by captured upstream response hydration. Shop locales, available locales and
     /// translatable-resource product ids are observed as a side effect of a cold
     /// read so later targets (locale validation, read-after-write) resolve
     /// locally against real Shopify state.
@@ -4086,7 +4059,7 @@ impl DraftProxy {
     /// so this lets the register path reject stale/incorrect `translatableContentDigest`
     /// inputs exactly like Shopify. Returns `None` for resources whose source content
     /// the proxy hasn't observed (hydrated-only ids), in which case digest validation
-    /// is skipped — mirroring Gleam's "content not found → no digest error".
+    /// is skipped — matching Shopify's captured "content not found -> no digest error" behavior.
     fn localization_source_content_value(&self, resource_id: &str, key: &str) -> Option<String> {
         if resource_id.starts_with("gid://shopify/Product/") {
             let product = self.store.product_staged_or_base(resource_id)?;
@@ -4199,7 +4172,7 @@ impl DraftProxy {
     /// update the association is authoritative, so non-target presences lose the
     /// locale (`replace = true`); enable only adds. The downstream `webPresences`
     /// read is served from `staged.web_presences`, so the staged records are
-    /// mutated in place. Ported from the Gleam localization mutation handlers.
+    /// mutated in place. Modeled from captured localization mutation behavior.
     fn sync_web_presence_locales(&mut self, locale: &str, target_ids: &[String], replace: bool) {
         if locale == "en" {
             return;
@@ -4464,8 +4437,7 @@ fn next_web_presence_numeric_id(web_presences: &BTreeMap<String, Value>) -> u64 
 }
 
 /// A market participates in backup-region coverage when it is enabled, of REGION
-/// type, and not a legacy market. Ported from Gleam
-/// `markets.market_record_is_active_region_non_legacy` (markets.gleam:227).
+/// type, and not a legacy market. Used for captured backup-region coverage decisions.
 fn market_record_is_active_region_non_legacy(market: &Value) -> bool {
     market_record_enabled(market)
         && market_record_region_type(market)
@@ -4560,9 +4532,7 @@ fn market_record_legacy(market: &Value) -> bool {
 }
 
 /// Region country codes declared by a market record, reading from the captured
-/// `conditions.regionsCondition.regions` connection (nodes and/or edges). Ported
-/// from Gleam `serializers.market_country_codes` (markets/serializers.gleam:450)
-/// so both upstream-hydrated and mutation-staged market shapes resolve.
+/// `conditions.regionsCondition.regions` connection (nodes and/or edges). Supports both upstream-hydrated and mutation-staged market shapes.
 fn market_record_country_codes(market: &Value) -> Vec<String> {
     let Some(regions) = market
         .get("conditions")
@@ -4766,13 +4736,4 @@ pub(in crate::proxy) fn localization_resource_type_matches(
         return false;
     };
     gid_type.eq_ignore_ascii_case(&resource_type.replace('_', ""))
-}
-
-pub(in crate::proxy) fn default_localization_resource_id(resource_type: &str) -> String {
-    let gid_type = match resource_type.to_ascii_uppercase().as_str() {
-        "COLLECTION" => "Collection",
-        "ONLINE_STORE_THEME" => "OnlineStoreTheme",
-        _ => "Product",
-    };
-    shopify_gid(gid_type, "9801098789170")
 }
