@@ -18,7 +18,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "HAR-758 live Shopify 2026-04 evidence proves `companyContactDelete` removes every location-side role assignment for the deleted contact. The replay stages a company with Shopify's automatic main-location role assignment, adds an explicit second-location assignment, deletes the contact locally, and compares downstream `companyLocation.roleAssignments` reads for both locations.",
   "comparison": {
     "mode": "strict-json",

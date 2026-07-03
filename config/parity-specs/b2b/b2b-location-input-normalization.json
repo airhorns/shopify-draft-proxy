@@ -12,7 +12,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "Executable parity coverage for B2B company location phone/locale input behavior. The live fixture creates disposable company/location records with nested companyLocation phone in local formatting, records invalid nested phone validation, records Shopify's accepted malformed location locale behavior, records companyLocationCreate normalization/defaulting, records companyLocationCreate invalid phone validation, creates an explicit non-primary-locale location as update setup, records companyLocationUpdate normalization/defaulting with omitted locale, records companyLocationUpdate invalid phone validation, and cleans up created companies.",
   "comparison": {
     "mode": "strict-json",

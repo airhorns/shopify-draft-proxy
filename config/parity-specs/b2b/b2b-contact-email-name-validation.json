@@ -12,7 +12,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "Executable parity coverage for public Admin B2B contact validation branches: malformed email on companyContactCreate, HTML firstName rejection on companyContactCreate, malformed email on companyContactUpdate, and nested companyCreate input.companyContact.email rejection before company creation. Live public Admin 2026-04 exposes BusinessCustomerUserError field/message/code but not a detail field. Live probing also showed emoji names are currently accepted and URL/update-name spam maps to broader customer-association failures, so those branches remain local runtime guardrails rather than captured parity targets in this scenario.",
   "comparison": {
     "mode": "strict-json",

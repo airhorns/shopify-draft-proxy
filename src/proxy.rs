@@ -19,9 +19,6 @@ use crate::operation_registry::{
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
 pub(in crate::proxy) const METAFIELDS_SET_INPUT_LIMIT: usize = 25;
 const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
-const LOCAL_APP_SUBSCRIPTION_ACTIVATION_ID: &str = "gid://shopify/AppSubscription/expected";
-const LOCAL_APP_PURCHASE_ONE_TIME_ID: &str = "gid://shopify/AppPurchaseOneTime/expected";
-const LOCALIZATION_BASELINE_PRODUCT_ID: &str = "gid://shopify/Product/9801098789170";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReadMode {
@@ -266,10 +263,10 @@ type MetafieldDefinitionKey = (String, String, String);
 struct StagedState {
     products: StagedRecords<ProductRecord>,
     product_variants: StagedRecords<ProductVariantRecord>,
+    product_feeds: StagedRecords<Value>,
     selling_plan_groups: StagedRecords<SellingPlanGroupRecord>,
     saved_searches: StagedRecords<SavedSearchRecord>,
     shop_policies: StagedRecords<ShopPolicyRecord>,
-    product_search_tags: BTreeMap<String, BTreeSet<String>>,
     shipping_packages: StagedRecords<Value>,
     customers: StagedRecords<Value>,
     customer_addresses: BTreeMap<String, Value>,
@@ -294,10 +291,11 @@ struct StagedState {
     next_store_credit_transaction_id: u64,
     taggable_resources: BTreeMap<String, Value>,
     carrier_services: StagedRecords<Value>,
+    installed_apps: BTreeMap<String, Value>,
     app_subscriptions: BTreeMap<String, Value>,
     app_one_time_purchases: BTreeMap<String, Value>,
-    revoked_app_access_scopes: BTreeSet<String>,
-    app_uninstalled: bool,
+    revoked_app_access_scopes: BTreeMap<String, BTreeSet<String>>,
+    uninstalled_app_ids: BTreeSet<String>,
     delegate_access_tokens: BTreeMap<String, Value>,
     customer_segment_member_queries: BTreeMap<String, Value>,
     fulfillment_services: StagedRecords<Value>,
@@ -449,6 +447,7 @@ struct StagedState {
     order_edit_existing_calculated_order: Option<Value>,
     order_edit_existing_calculated_order_id: Option<String>,
     order_edit_existing_session_order_id: Option<String>,
+    order_edit_money_bag_calculated_order_ids: BTreeMap<String, String>,
     order_payment_next_transaction_id: u64,
     order_edit_existing_mode: Option<String>,
     /// Catalog of product variants an order-edit `orderEditAddVariant` can
@@ -727,10 +726,10 @@ impl Default for StagedState {
         Self {
             products: StagedRecords::default(),
             product_variants: StagedRecords::default(),
+            product_feeds: StagedRecords::default(),
             selling_plan_groups: StagedRecords::default(),
             saved_searches: StagedRecords::default(),
             shop_policies: StagedRecords::default(),
-            product_search_tags: BTreeMap::new(),
             shipping_packages: StagedRecords::default(),
             customers: StagedRecords::default(),
             customer_addresses: BTreeMap::new(),
@@ -749,10 +748,11 @@ impl Default for StagedState {
             next_store_credit_transaction_id: 1,
             taggable_resources: BTreeMap::new(),
             carrier_services: StagedRecords::default(),
+            installed_apps: BTreeMap::new(),
             app_subscriptions: BTreeMap::new(),
             app_one_time_purchases: BTreeMap::new(),
-            revoked_app_access_scopes: BTreeSet::new(),
-            app_uninstalled: false,
+            revoked_app_access_scopes: BTreeMap::new(),
+            uninstalled_app_ids: BTreeSet::new(),
             delegate_access_tokens: BTreeMap::new(),
             customer_segment_member_queries: BTreeMap::new(),
             fulfillment_services: StagedRecords::default(),
@@ -864,6 +864,7 @@ impl Default for StagedState {
             order_edit_existing_calculated_order: None,
             order_edit_existing_calculated_order_id: None,
             order_edit_existing_session_order_id: None,
+            order_edit_money_bag_calculated_order_ids: BTreeMap::new(),
             order_payment_next_transaction_id: 3,
             order_edit_existing_mode: None,
             order_edit_variant_catalog: Value::Object(serde_json::Map::new()),
@@ -1064,19 +1065,6 @@ fn domain_host_from_url(url: &str) -> Option<String> {
 impl Store {
     fn with_default_baseline() -> Self {
         let mut store = Self::default();
-        store.base.shop = json!({
-            "id": "gid://shopify/Shop/0",
-            "name": "Shopify Draft Proxy",
-            "myshopifyDomain": "shopify-draft-proxy.local",
-            "url": "https://shopify-draft-proxy.local",
-            "primaryDomain": {
-                "id": "gid://shopify/Domain/1000",
-                "host": "shopify-draft-proxy.local",
-                "url": "https://shopify-draft-proxy.local",
-                "sslEnabled": true
-            },
-            "currencyCode": "USD"
-        });
         store.base.available_locales = default_available_locales();
         store.base.shop_locales.insert(
             "en".to_string(),
@@ -1085,16 +1073,9 @@ impl Store {
                 "name": "English",
                 "primary": true,
                 "published": true,
-                "marketWebPresences": [{
-                    "id": "gid://shopify/MarketWebPresence/62842765618",
-                    "subfolderSuffix": null
-                }]
+                "marketWebPresences": []
             }),
         );
-        store
-            .base
-            .localization_product_ids
-            .insert(LOCALIZATION_BASELINE_PRODUCT_ID.to_string());
         store
     }
 
@@ -1130,11 +1111,36 @@ impl Store {
     }
 
     fn has_known_publication_catalog(&self) -> bool {
-        !self.base.publication_ids.is_empty() || !self.staged.publication_ids.is_empty()
+        self.base.publication_count.is_some()
+            || !self.base.publication_ids.is_empty()
+            || !self.staged.publication_ids.is_empty()
+            || !self.staged.publications.is_empty()
     }
 
     fn has_publication_id(&self, id: &str) -> bool {
-        self.base.publication_ids.contains(id) || self.staged.publication_ids.contains(id)
+        self.base.publication_ids.contains(id)
+            || self.staged.publication_ids.contains(id)
+            || self.staged.publications.contains_key(id)
+    }
+
+    fn publication_id_for_channel_id(&self, channel_id: &str) -> Option<String> {
+        self.staged
+            .publications
+            .iter()
+            .find_map(|(id, record)| {
+                let matches = record
+                    .get("channel")
+                    .and_then(|channel| channel.get("id"))
+                    .and_then(Value::as_str)
+                    == Some(channel_id);
+                matches.then(|| id.clone())
+            })
+            .or_else(|| {
+                let suffix = resource_id_path_tail(channel_id);
+                let publication_id = shopify_gid("Publication", suffix);
+                self.has_publication_id(&publication_id)
+                    .then_some(publication_id)
+            })
     }
 
     pub(in crate::proxy) fn effective_shop(&self) -> Value {
@@ -1233,6 +1239,32 @@ impl Store {
 
     fn has_collection_state(&self) -> bool {
         !self.staged.collections.is_empty() || !self.staged.collection_jobs.is_empty()
+    }
+
+    fn product_feed_by_id(&self, id: &str) -> Option<&Value> {
+        self.staged.product_feeds.get(id)
+    }
+
+    fn product_feeds(&self) -> Vec<Value> {
+        self.staged.product_feeds.values().cloned().collect()
+    }
+
+    fn has_product_feed_state(&self) -> bool {
+        !self.staged.product_feeds.is_empty()
+    }
+
+    fn product_feed_is_tombstoned(&self, id: &str) -> bool {
+        self.staged.product_feeds.is_tombstoned(id)
+    }
+
+    fn stage_product_feed(&mut self, feed: Value) {
+        if let Some(id) = feed.get("id").and_then(Value::as_str) {
+            self.staged.product_feeds.stage(id.to_string(), feed);
+        }
+    }
+
+    fn delete_product_feed(&mut self, id: &str) -> bool {
+        self.staged.product_feeds.tombstone_staged(id)
     }
 
     fn has_product(&self, id: &str) -> bool {
@@ -1390,6 +1422,20 @@ impl Store {
 
     fn product_variants(&self) -> Vec<ProductVariantRecord> {
         effective_records(&self.base.product_variants, &self.staged.product_variants)
+    }
+
+    fn has_product_variant_reference_state(&self) -> bool {
+        !self.base.product_variants.records.is_empty()
+            || !self.staged.product_variants.is_empty()
+            || self
+                .products()
+                .iter()
+                .any(|product| !product.variants.is_empty())
+    }
+
+    fn has_product_variant_reference(&self, variant_id: &str) -> bool {
+        self.product_variant_by_id(variant_id).is_some()
+            || self.fixed_price_variant_lookup(variant_id).is_some()
     }
 
     /// Resolve a variant id to its `(variant_json, product)` by scanning the

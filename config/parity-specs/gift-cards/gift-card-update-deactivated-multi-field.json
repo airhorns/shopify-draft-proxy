@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-update-deactivated-multi-field.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/gift-cards/gift-card-update-validation-customer-create.graphql",
     "variablesCapturePath": "$.setup[0].variables"

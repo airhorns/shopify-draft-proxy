@@ -42,6 +42,17 @@ impl DraftProxy {
             return MutationOutcome::response(response);
         }
 
+        let variant_input_errors = product_set_variant_input_errors(&input);
+        if !variant_input_errors.is_empty() {
+            return MutationOutcome::response(self.product_set_user_error_response(
+                &response_key,
+                &payload_selection,
+                &product_selection,
+                None,
+                variant_input_errors,
+            ));
+        }
+
         // Reject input variants whose option-value combination duplicates an earlier
         // input variant. Shopify anchors one userError per later collision (the first
         // occurrence is accepted) and titles it with the variant's option values.
@@ -165,10 +176,10 @@ impl DraftProxy {
                 .unwrap_or_default(),
         };
 
-        if let Some(category) = input.get("category") {
+        if let Some(category_id) = product_category_input_id(&input) {
             product
                 .extra_fields
-                .insert("category".to_string(), resolved_value_json(category));
+                .insert("category".to_string(), product_category_value(&category_id));
         }
         if let Some(requires_selling_plan) = input.get("requiresSellingPlan") {
             product.extra_fields.insert(
@@ -1120,6 +1131,23 @@ fn product_set_shape_error_response(
 fn product_set_option_values_over_limit(option: &BTreeMap<String, ResolvedValue>) -> bool {
     resolved_object_list_field(option, "values").len() > 100
         || resolved_object_list_field(option, "optionValues").len() > 100
+}
+
+fn product_set_variant_input_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    resolved_object_list_field(input, "variants")
+        .iter()
+        .enumerate()
+        .flat_map(|(index, variant)| {
+            product_variant_input_user_errors_with_prefix(
+                variant,
+                &[
+                    "input".to_string(),
+                    "variants".to_string(),
+                    index.to_string(),
+                ],
+            )
+        })
+        .collect()
 }
 
 fn product_set_options_json(

@@ -11,7 +11,7 @@ const TAGGABLE_DRAFT_ORDER_HYDRATE_QUERY: &str =
 const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str =
     include_str!("../../config/parity-requests/customers/taggable-customer-hydrate.graphql");
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
-const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n    }\n  }\n}";
+const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      availablePublicationsCount { count precision }\n      resourcePublicationsCount { count precision }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n      publications(first: 10) { nodes { isPublished publishDate product { id } } }\n    }\n  }\n}";
 const PRODUCT_PAYLOAD_SHOP_HYDRATE_QUERY: &str = r#"#graphql
   query ProductPayloadShopHydrate {
     shop {
@@ -32,6 +32,35 @@ const PRODUCT_PAYLOAD_SHOP_HYDRATE_QUERY: &str = r#"#graphql
 
 const PRODUCT_VARIANTS_BULK_CREATE_INVENTORY_QUANTITIES_LIMIT: usize = 50_000;
 const PRODUCT_VARIANTS_BULK_CREATE_DEFAULT_LOCATION_LIMIT: usize = 200;
+
+fn normalized_sort_string(value: &str) -> StagedSortValue {
+    StagedSortValue::String(value.to_ascii_lowercase())
+}
+
+fn gid_tail_sort_string(id: &str) -> StagedSortValue {
+    let tail = resource_id_tail(id);
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn product_staged_sort_key(product: &ProductRecord, sort_key: Option<&str>) -> StagedSortKey {
+    let primary = match sort_key.unwrap_or("CREATED_AT") {
+        "TITLE" => normalized_sort_string(&product.title),
+        "VENDOR" => normalized_sort_string(&product.vendor),
+        "PRODUCT_TYPE" => normalized_sort_string(&product.product_type),
+        "PUBLISHED_AT" => product
+            .extra_fields
+            .get("publishedAt")
+            .and_then(Value::as_str)
+            .map(|value| StagedSortValue::String(value.to_string()))
+            .unwrap_or(StagedSortValue::Null),
+        "UPDATED_AT" => StagedSortValue::String(product.updated_at.clone()),
+        "ID" => gid_tail_sort_string(&product.id),
+        _ => StagedSortValue::String(product.created_at.clone()),
+    };
+    vec![primary, gid_tail_sort_string(&product.id)]
+}
 
 impl DraftProxy {
     pub(in crate::proxy) fn record_passthrough_log_entry(
@@ -74,7 +103,12 @@ impl DraftProxy {
             "productsCount" => Some(self.products_count_field(field)),
             "productByIdentifier" => Some(self.product_by_identifier_field(field)),
             "productOperation" => Some(self.product_operation_by_id_field(field)),
+            "productFeed" => Some(self.product_tail_feed_read_field(field)),
+            "productFeeds" => Some(self.product_tail_feeds_read_field(field)),
             "productVariant" => Some(self.product_variant_by_id_field(field)),
+            "node" | "nodes" => self
+                .local_node_query_data(std::slice::from_ref(field), true, None)
+                .and_then(|data| data.get(&field.response_key).cloned()),
             "inventoryItem" => {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 self.product_inventory_item_by_id_value(&id, &field.selection)
@@ -283,7 +317,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn has_product_overlay_state(&self) -> bool {
-        self.store.has_product_state()
+        self.store.has_product_state() || self.store.has_product_feed_state()
     }
 
     pub(in crate::proxy) fn products_connection_value(
@@ -291,11 +325,13 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         root_selection: &[SelectedField],
     ) -> Value {
-        let products = self.products_filtered_by_search_query(arguments.get("query"));
-        selected_typed_connection_with_args(
-            &products,
+        let products = self.store.products();
+        selected_staged_connection_with_args(
+            products,
             arguments,
             root_selection,
+            |product, query| self.product_search_decision(product, query),
+            product_staged_sort_key,
             |product, selections| {
                 let variants = self.store.product_variants_for_product(&product.id);
                 let base = product_json_with_variants_and_currency(
@@ -318,8 +354,14 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn products_count_field(&self, field: &RootFieldSelection) -> Value {
         let count = if field.arguments.contains_key("query") {
-            self.products_filtered_by_search_query(field.arguments.get("query"))
-                .len()
+            staged_connection_query(
+                self.store.products(),
+                &field.arguments,
+                |product, query| self.product_search_decision(product, query),
+                product_staged_sort_key,
+                |product| product_cursor(product).to_string(),
+            )
+            .total_count
         } else {
             self.store.product_count()
         };
@@ -335,15 +377,21 @@ impl DraftProxy {
             return products;
         };
         products.retain(|product| {
-            let variants = self.store.product_variants_for_product(&product.id);
-            product_matches_search_query(
-                product,
-                &variants,
-                self.store.staged.product_search_tags.get(&product.id),
-                query,
-            )
+            self.product_search_decision(product, Some(query)) == StagedSearchDecision::Match
         });
         products
+    }
+
+    fn product_search_decision(
+        &self,
+        product: &ProductRecord,
+        query: Option<&str>,
+    ) -> StagedSearchDecision {
+        let Some(query) = query else {
+            return StagedSearchDecision::Match;
+        };
+        let variants = self.store.product_variants_for_product(&product.id);
+        StagedSearchDecision::from_bool(product_matches_search_query(product, &variants, query))
     }
 
     fn product_payload_shop_needs_hydration(&self, shop_selection: &[SelectedField]) -> bool {
@@ -1641,6 +1689,7 @@ impl DraftProxy {
 
         let mut user_errors = Vec::new();
         for (index, input) in variants_input.iter().enumerate() {
+            let error_count_before_variant = user_errors.len();
             user_errors.extend(product_variant_input_user_errors_with_prefix(
                 input,
                 &["variants".to_string(), index.to_string()],
@@ -1648,8 +1697,10 @@ impl DraftProxy {
             user_errors.extend(Self::product_variant_bulk_option_user_errors(
                 input, &product, index, false,
             ));
-            user_errors
-                .extend(self.product_variant_bulk_inventory_location_user_errors(input, index));
+            if user_errors.len() == error_count_before_variant {
+                user_errors
+                    .extend(self.product_variant_bulk_inventory_location_user_errors(input, index));
+            }
         }
         if user_errors.is_empty() {
             user_errors.extend(Self::product_variant_bulk_duplicate_tuple_user_errors(
@@ -2551,13 +2602,7 @@ impl DraftProxy {
     }
 
     fn bulk_variant_location_exists(&self, location_id: &str) -> bool {
-        location_id == "gid://shopify/Location/1"
-            || self.store.staged.locations.contains_key(location_id)
-            || self
-                .store
-                .staged
-                .fulfillment_service_locations
-                .contains_key(location_id)
+        self.location_for_read(location_id).is_some()
     }
 
     fn product_option_names(product: &ProductRecord) -> BTreeSet<String> {
@@ -2879,14 +2924,6 @@ impl DraftProxy {
             ));
         };
 
-        if !self.store.staged.product_search_tags.contains_key(id) {
-            let search_tags = product.tags.iter().cloned().collect();
-            self.store
-                .staged
-                .product_search_tags
-                .insert(id.clone(), search_tags);
-        }
-
         let tags = normalized_taggable_tags_argument(field.arguments.get("tags"));
         match root_field {
             "tagsAdd" => {
@@ -3131,23 +3168,28 @@ impl DraftProxy {
         };
         let product_id = resolved_string_field(&input, "id").unwrap_or_default();
         let local_product = self.store.product_staged_or_base(&product_id);
-        let enforce_known_publication_state = local_product
+        let needs_publication_hydration = local_product
             .as_ref()
-            .is_some_and(product_publication_state_known);
-        let mut product = local_product
-            .or_else(|| self.hydrate_product_for_tags(&product_id, request))
-            .unwrap_or_else(|| {
-                let timestamp = default_product_timestamp();
-                ProductRecord {
-                    id: product_id.clone(),
-                    created_at: timestamp.clone(),
-                    updated_at: timestamp,
-                    status: "ACTIVE".to_string(),
-                    ..ProductRecord::default()
-                }
-            });
+            .is_none_or(|product| !product_publication_state_known(product));
+        let hydrated_product = needs_publication_hydration
+            .then(|| self.hydrate_product_for_tags(&product_id, request))
+            .flatten();
+        let mut product = hydrated_product.or(local_product).unwrap_or_else(|| {
+            let timestamp = default_product_timestamp();
+            ProductRecord {
+                id: product_id.clone(),
+                created_at: timestamp.clone(),
+                updated_at: timestamp,
+                status: "ACTIVE".to_string(),
+                ..ProductRecord::default()
+            }
+        });
+        let enforce_known_publication_state = product_publication_state_known(&product);
 
         let targets = product_publication_input_entries(&input);
+        if !self.store.has_known_publication_catalog() {
+            self.hydrate_publishable_payload_shop(&product_id, request);
+        }
         let user_errors = self.product_publication_user_errors(
             root_field,
             &product,
@@ -3159,7 +3201,9 @@ impl DraftProxy {
             match root_field {
                 "productPublish" => {
                     for target in &targets {
-                        let Some(publication_id) = target.target_id() else {
+                        let Some(publication_id) =
+                            self.product_publication_target_publication_id(target)
+                        else {
                             continue;
                         };
                         if !existing
@@ -3167,7 +3211,7 @@ impl DraftProxy {
                             .any(|entry| entry.publication_id == publication_id)
                         {
                             existing.push(ProductPublicationEntry {
-                                publication_id: publication_id.to_string(),
+                                publication_id,
                                 publish_date: target.publish_date.clone(),
                                 published_at: Some(
                                     target
@@ -3182,9 +3226,9 @@ impl DraftProxy {
                 "productUnpublish" => {
                     let remove_ids = targets
                         .iter()
-                        .filter_map(ProductPublicationInputEntry::target_id)
+                        .filter_map(|target| self.product_publication_target_publication_id(target))
                         .collect::<BTreeSet<_>>();
-                    existing.retain(|entry| !remove_ids.contains(entry.publication_id.as_str()));
+                    existing.retain(|entry| !remove_ids.contains(&entry.publication_id));
                 }
                 _ => {}
             }
@@ -3215,6 +3259,18 @@ impl DraftProxy {
         }
     }
 
+    fn product_publication_target_publication_id(
+        &self,
+        target: &ProductPublicationInputEntry,
+    ) -> Option<String> {
+        target.publication_id.clone().or_else(|| {
+            target
+                .channel_id
+                .as_deref()
+                .and_then(|channel_id| self.store.publication_id_for_channel_id(channel_id))
+        })
+    }
+
     fn product_publication_user_errors(
         &self,
         root_field: &str,
@@ -3226,33 +3282,32 @@ impl DraftProxy {
         let mut errors = Vec::new();
         for target in targets {
             let field_index = target.index.to_string();
-            if let Some(channel_id) = target.channel_id.as_deref() {
-                if channel_id == "gid://shopify/Channel/999999999999" {
-                    errors.push(user_error_omit_code(
-                        json!(["productPublications", field_index, "publicationId"]),
-                        "Channel does not exist or is not publishable",
-                        None,
-                    ));
-                    continue;
+            let target_publication_id = if let Some(publication_id) = target.publication_id.clone()
+            {
+                Some(publication_id)
+            } else if let Some(channel_id) = target.channel_id.as_deref() {
+                match self.store.publication_id_for_channel_id(channel_id) {
+                    Some(publication_id) => Some(publication_id),
+                    None if !channel_id.is_empty() => {
+                        errors.push(user_error_omit_code(
+                            json!(["productPublications", field_index, "publicationId"]),
+                            "Channel does not exist or is not publishable",
+                            None,
+                        ));
+                        continue;
+                    }
+                    None => None,
                 }
-            }
-            match target.target_id() {
+            } else {
+                None
+            };
+            match target_publication_id.as_deref() {
                 Some("") | None => errors.push(user_error_omit_code(
                     json!(["productPublications", field_index, "publicationId"]),
                     "PublicationId cannot be empty",
                     None,
                 )),
-                Some("gid://shopify/Publication/999999999999") => {
-                    errors.push(user_error_omit_code(
-                        json!(["productPublications", field_index, "publicationId"]),
-                        "Publication does not exist or is not publishable",
-                        None,
-                    ))
-                }
-                Some(id)
-                    if self.store.has_known_publication_catalog()
-                        && !self.store.has_publication_id(id) =>
-                {
+                Some(id) if !self.store.has_publication_id(id) => {
                     errors.push(user_error_omit_code(
                         json!(["productPublications", field_index, "publicationId"]),
                         "Publication does not exist or is not publishable",
@@ -3418,14 +3473,6 @@ struct ProductPublicationInputEntry {
     publication_id: Option<String>,
     channel_id: Option<String>,
     publish_date: Option<String>,
-}
-
-impl ProductPublicationInputEntry {
-    fn target_id(&self) -> Option<&str> {
-        self.publication_id
-            .as_deref()
-            .or(self.channel_id.as_deref())
-    }
 }
 
 fn product_publication_input_entries(

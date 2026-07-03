@@ -1,0 +1,143 @@
+{
+  "scenarioId": "inventory-default-location-carrier-connection",
+  "operationNames": [
+    "inventoryItemUpdate",
+    "inventoryItems",
+    "orderCreate",
+    "inventoryItem",
+    "inventoryTransferCreate",
+    "inventoryTransferMarkAsReadyToShip",
+    "inventoryShipmentCreate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "downstream-read-parity",
+    "payload-shape",
+    "inventory-quantity-side-effect",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-default-location-carrier-connection.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-default-location-item-update.graphql",
+    "variablesCapturePath": "$.workflow.inventoryItemUpdate.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "inventory-item-update-data",
+        "capturePath": "$.workflow.inventoryItemUpdate.response.data.inventoryItemUpdate",
+        "proxyPath": "$.data.inventoryItemUpdate"
+      },
+      {
+        "name": "inventory-items-staged-item-connection",
+        "capturePath": "$.workflow.inventoryItemsRead.response.data.inventoryItems",
+        "proxyPath": "$.data.inventoryItems",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-items-by-query.graphql",
+          "variablesCapturePath": "$.workflow.inventoryItemsRead.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "order-create-default-location-user-errors",
+        "capturePath": "$.workflow.orderCreateDefaultLocation.response.data.orderCreate.userErrors",
+        "proxyPath": "$.data.orderCreate.userErrors",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-default-location-order-create.graphql",
+          "variablesCapturePath": "$.workflow.orderCreateDefaultLocation.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "after-order-default-location-inventory-read",
+        "capturePath": "$.workflow.afterOrderInventoryRead.response.data.inventoryItem",
+        "proxyPath": "$.data.inventoryItem",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-default-location-item-read.graphql",
+          "variablesCapturePath": "$.workflow.afterOrderInventoryRead.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "transfer-create-user-errors",
+        "capturePath": "$.workflow.transferCreate.response.data.inventoryTransferCreate.userErrors",
+        "proxyPath": "$.data.inventoryTransferCreate.userErrors",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-create.graphql",
+          "variablesCapturePath": "$.workflow.transferCreate.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "transfer-ready-data",
+        "capturePath": "$.workflow.transferReady.response.data.inventoryTransferMarkAsReadyToShip",
+        "proxyPath": "$.data.inventoryTransferMarkAsReadyToShip",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-mark-ready.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "transfer-create-user-errors",
+              "path": "$.data.inventoryTransferCreate.inventoryTransfer.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "shipment-create-valid-company-outside-old-set",
+        "capturePath": "$.workflow.shipmentCreate.response.data.inventoryShipmentCreate",
+        "proxyPath": "$.data.inventoryShipmentCreate",
+        "preserveProxyState": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-create-carrier.graphql",
+          "variables": {
+            "input": {
+              "movementId": {
+                "fromProxyResponse": "transfer-create-user-errors",
+                "path": "$.data.inventoryTransferCreate.inventoryTransfer.id"
+              },
+              "trackingInput": {
+                "fromCapturePath": "$.workflow.shipmentCreate.variables.input.trackingInput"
+              },
+              "lineItems": {
+                "fromCapturePath": "$.workflow.shipmentCreate.variables.input.lineItems"
+              }
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryShipment.id",
+            "matcher": "shopify-gid:InventoryShipment",
+            "reason": "Live Shopify and the local draft proxy allocate different inventory shipment ids."
+          },
+          {
+            "path": "$.inventoryShipment.name",
+            "matcher": "non-empty-string",
+            "reason": "Live Shopify derives shipment names from transfer numbering; the local proxy uses a deterministic synthetic shipment sequence."
+          },
+          {
+            "path": "$.inventoryShipment.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:InventoryShipmentLineItem",
+            "reason": "Live Shopify and the local draft proxy allocate different inventory shipment line item ids."
+          }
+        ]
+      }
+    ]
+  },
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "notes": "Live 2025-01 capture for inventory item staging, inventoryItems connection readback, explicit order inventory decrement at the real default inventory location, and inventoryShipmentCreate accepting a carrier company label outside the old local allowlist. The scenario uses captured disposable Shopify setup records and cassette-backed hydration; replayed mutations still stage locally without runtime Shopify writes."
+}

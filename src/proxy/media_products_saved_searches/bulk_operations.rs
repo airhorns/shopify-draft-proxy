@@ -2,6 +2,8 @@ use super::*;
 
 const BULK_OPERATION_HYDRATE_QUERY: &str = "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }";
 const BULK_OPERATION_QUERY_STORAGE_BYTE_LIMIT: usize = 65_535;
+const BULK_OPERATION_RUN_MUTATION_MAX_CONNECTIONS: usize = 1;
+const BULK_OPERATION_RUN_MUTATION_MAX_CONNECTION_DEPTH: usize = 1;
 
 // Canonical mutation forwarded to upstream when a schema-valid bulk query root is
 // accepted by the validator but is not one of the locally synthesized roots
@@ -9,6 +11,17 @@ const BULK_OPERATION_QUERY_STORAGE_BYTE_LIMIT: usize = 65_535;
 // `bulkOperationRunQuery` response unchanged. This text must stay byte-identical to
 // the cassette's recorded `query`, since the strict cassette matches query text exactly.
 const BULK_OPERATION_RUN_QUERY_PROXY_FALLBACK_QUERY: &str = "mutation BulkOperationRunQueryProxyFallback($query: String!) { bulkOperationRunQuery(query: $query) { bulkOperation { id status type } userErrors { field message code } } }";
+
+#[derive(Clone, Copy)]
+struct BulkOperationRecordSpec<'a> {
+    id: &'a str,
+    status: &'a str,
+    operation_type: &'a str,
+    query: &'a str,
+    count: &'a str,
+    created_at: &'a str,
+    file_size: &'a str,
+}
 
 impl DraftProxy {
     pub(in crate::proxy) fn bulk_operation_result_jsonl(&self, artifact_id: &str) -> Response {
@@ -26,11 +39,11 @@ impl DraftProxy {
     }
 
     fn bulk_operation_result_artifact_url(&self, id: &str) -> String {
-        format!(
-            "https://localhost:{}{}",
-            self.config.port,
-            bulk_operation_result_artifact_path(id)
-        )
+        bulk_operation_result_artifact_url_for_port(self.config.port, id)
+    }
+
+    fn bulk_operation_record(&self, spec: BulkOperationRecordSpec<'_>) -> Value {
+        bulk_operation_record_value(spec, self.bulk_operation_result_artifact_url(spec.id))
     }
 
     fn stage_bulk_operation_result(&mut self, id: &str, jsonl: String) {
@@ -334,15 +347,15 @@ impl DraftProxy {
         let created_at = self.next_product_timestamp();
         let result_jsonl = self.bulk_operation_run_query_result_jsonl(&query_text);
         let (object_count, file_size) = bulk_operation_result_metadata(&result_jsonl);
-        let mut terminal_operation = bulk_operation_record_with(
-            &id,
-            "COMPLETED",
-            &query_text,
-            &object_count,
-            &created_at,
-            &file_size,
-        );
-        terminal_operation["url"] = json!(self.bulk_operation_result_artifact_url(&id));
+        let terminal_operation = self.bulk_operation_record(BulkOperationRecordSpec {
+            id: &id,
+            status: "COMPLETED",
+            operation_type: "QUERY",
+            query: &query_text,
+            count: &object_count,
+            created_at: &created_at,
+            file_size: &file_size,
+        });
         self.stage_bulk_operation_result(&id, result_jsonl);
         self.store
             .staged
@@ -357,7 +370,15 @@ impl DraftProxy {
         );
 
         let payload = json!({
-            "bulkOperation": bulk_operation_record_with(&id, "CREATED", &query_text, "0", &created_at, "0"),
+            "bulkOperation": self.bulk_operation_record(BulkOperationRecordSpec {
+                id: &id,
+                status: "CREATED",
+                operation_type: "QUERY",
+                query: &query_text,
+                count: "0",
+                created_at: &created_at,
+                file_size: "0",
+            }),
             "userErrors": []
         });
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
@@ -409,7 +430,10 @@ impl DraftProxy {
             resolved_string_field(&arguments, "stagedUploadPath").unwrap_or_default();
         let client_identifier = resolved_string_field(&arguments, "clientIdentifier");
 
-        if let Some(user_errors) = bulk_operation_run_mutation_document_user_errors(&mutation_text)
+        let api_version = admin_graphql_version(&request.path)
+            .unwrap_or_else(|| latest_supported_admin_graphql_version().unwrap_or("2026-04"));
+        if let Some(user_errors) =
+            bulk_operation_run_mutation_document_user_errors(&mutation_text, api_version)
         {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
@@ -443,6 +467,13 @@ impl DraftProxy {
                 )],
             );
         }
+        if staged_upload_file_size.flatten() == Some(0) {
+            return bulk_operation_run_mutation_error_response(
+                &response_key,
+                &payload_selection,
+                vec![bulk_operation_run_mutation_empty_file_user_error()],
+            );
+        }
         if let Some(operation_id) = self.throttled_bulk_operation_id("MUTATION", request) {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
@@ -464,16 +495,15 @@ impl DraftProxy {
 
         let id = self.next_bulk_operation_gid();
         let created_at = self.next_product_timestamp();
-        let mut terminal_operation = bulk_operation_record_with_type(
-            &id,
-            "COMPLETED",
-            "MUTATION",
-            &mutation_text,
-            "0",
-            &created_at,
-            "0",
-        );
-        terminal_operation["url"] = json!(self.bulk_operation_result_artifact_url(&id));
+        let terminal_operation = self.bulk_operation_record(BulkOperationRecordSpec {
+            id: &id,
+            status: "COMPLETED",
+            operation_type: "MUTATION",
+            query: &mutation_text,
+            count: "0",
+            created_at: &created_at,
+            file_size: "0",
+        });
         self.stage_bulk_operation_result(&id, String::new());
         self.store
             .staged
@@ -488,15 +518,15 @@ impl DraftProxy {
         );
 
         let payload = json!({
-            "bulkOperation": bulk_operation_record_with_type(
-                &id,
-                "CREATED",
-                "MUTATION",
-                &mutation_text,
-                "0",
-                &created_at,
-                "0"
-            ),
+            "bulkOperation": self.bulk_operation_record(BulkOperationRecordSpec {
+                id: &id,
+                status: "CREATED",
+                operation_type: "MUTATION",
+                query: &mutation_text,
+                count: "0",
+                created_at: &created_at,
+                file_size: "0",
+            }),
             "userErrors": []
         });
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
@@ -528,9 +558,6 @@ impl DraftProxy {
     }
 
     fn bulk_operation_staged_upload_size(&self, staged_upload_path: &str) -> Option<Option<u64>> {
-        if staged_upload_path == "valid" {
-            return Some(Some(0));
-        }
         self.store
             .staged
             .bulk_operation_staged_uploads
@@ -631,45 +658,26 @@ impl DraftProxy {
     }
 }
 
-pub(in crate::proxy) fn bulk_operation_record_with(
-    id: &str,
-    status: &str,
-    query: &str,
-    count: &str,
-    created_at: &str,
-    file_size: &str,
-) -> Value {
-    bulk_operation_record_with_type(id, status, "QUERY", query, count, created_at, file_size)
-}
-
-pub(in crate::proxy) fn bulk_operation_record_with_type(
-    id: &str,
-    status: &str,
-    operation_type: &str,
-    query: &str,
-    count: &str,
-    created_at: &str,
-    file_size: &str,
-) -> Value {
-    let completed = status == "COMPLETED";
+fn bulk_operation_record_value(spec: BulkOperationRecordSpec<'_>, artifact_url: String) -> Value {
+    let completed = spec.status == "COMPLETED";
     let file_size_value = if completed {
-        json!(file_size)
+        json!(spec.file_size)
     } else {
         Value::Null
     };
     json!({
-        "id": id,
-        "status": status,
-        "type": operation_type,
+        "id": spec.id,
+        "status": spec.status,
+        "type": spec.operation_type,
         "errorCode": null,
-        "createdAt": created_at,
-        "completedAt": if completed { json!(created_at) } else { Value::Null },
-        "objectCount": if completed { count } else { "0" },
-        "rootObjectCount": if completed { count } else { "0" },
+        "createdAt": spec.created_at,
+        "completedAt": if completed { json!(spec.created_at) } else { Value::Null },
+        "objectCount": if completed { spec.count } else { "0" },
+        "rootObjectCount": if completed { spec.count } else { "0" },
         "fileSize": file_size_value,
-        "url": if completed { json!(format!("https://localhost/__meta/bulk-operations/{}/result.jsonl", resource_id_path_tail(id))) } else { Value::Null },
+        "url": if completed { json!(artifact_url) } else { Value::Null },
         "partialDataUrl": null,
-        "query": query
+        "query": spec.query
     })
 }
 
@@ -833,6 +841,31 @@ mod tests {
             9
         );
     }
+
+    #[test]
+    fn completed_bulk_operation_record_uses_configured_artifact_url_builder() {
+        let proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::Snapshot,
+            unsupported_mutation_mode: None,
+            port: 3123,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        });
+        let operation = proxy.bulk_operation_record(BulkOperationRecordSpec {
+            id: "gid://shopify/BulkOperation/123",
+            status: "COMPLETED",
+            operation_type: "QUERY",
+            query: "{ products { edges { node { id } } } }",
+            count: "1",
+            created_at: "2024-01-01T00:00:00Z",
+            file_size: "10",
+        });
+        assert_eq!(
+            operation["url"],
+            json!("https://localhost:3123/__meta/bulk-operations/123/result.jsonl")
+        );
+    }
 }
 
 /// Top-level root field name of a bulk query document (e.g. `products`, `orders`),
@@ -846,6 +879,14 @@ fn bulk_operation_result_artifact_path(id: &str) -> String {
     format!(
         "/__meta/bulk-operations/{}/result.jsonl",
         resource_id_path_tail(id)
+    )
+}
+
+fn bulk_operation_result_artifact_url_for_port(port: u16, id: &str) -> String {
+    format!(
+        "https://localhost:{}{}",
+        port,
+        bulk_operation_result_artifact_path(id)
     )
 }
 
@@ -892,7 +933,10 @@ fn unsupported_bulk_query_root_error(root_name: &str) -> Value {
     )
 }
 
-fn bulk_operation_run_mutation_document_user_errors(mutation_text: &str) -> Option<Vec<Value>> {
+fn bulk_operation_run_mutation_document_user_errors(
+    mutation_text: &str,
+    api_version: &str,
+) -> Option<Vec<Value>> {
     let Some(document) = parsed_document(mutation_text, &BTreeMap::new()) else {
         return Some(vec![user_error(
             Value::Null,
@@ -924,6 +968,17 @@ fn bulk_operation_run_mutation_document_user_errors(mutation_text: &str) -> Opti
             None,
         )]);
     }
+    let analysis = BulkMutationConnectionAnalysis::analyze(&document.root_fields, api_version);
+    if analysis.connection_count > BULK_OPERATION_RUN_MUTATION_MAX_CONNECTIONS {
+        return Some(vec![bulk_operation_run_mutation_user_error(
+            "Bulk mutations cannot contain more than 1 connection.",
+        )]);
+    }
+    if analysis.max_connection_depth > BULK_OPERATION_RUN_MUTATION_MAX_CONNECTION_DEPTH {
+        return Some(vec![bulk_operation_run_mutation_user_error(
+            "Bulk mutations cannot contain connections with a nesting depth greater than 1.",
+        )]);
+    }
     if let Some(user_error) = bulk_operation_query_storage_byte_limit_user_error(
         mutation_text,
         "is too large",
@@ -932,6 +987,10 @@ fn bulk_operation_run_mutation_document_user_errors(mutation_text: &str) -> Opti
         return Some(vec![user_error]);
     }
     None
+}
+
+fn bulk_operation_run_mutation_user_error(message: &str) -> Value {
+    user_error(["mutation"], message, None)
 }
 
 fn bulk_operation_run_mutation_client_identifier_user_errors(
@@ -973,6 +1032,14 @@ fn bulk_operation_run_mutation_file_size_too_large_user_error(max_file_size_byte
     )
 }
 
+fn bulk_operation_run_mutation_empty_file_user_error() -> Value {
+    user_error(
+        Value::Null,
+        "The input file is empty.",
+        Some("INVALID_STAGED_UPLOAD_FILE"),
+    )
+}
+
 fn bulk_operation_run_mutation_error_response(
     response_key: &str,
     payload_selection: &[SelectedField],
@@ -983,6 +1050,60 @@ fn bulk_operation_run_mutation_error_response(
         "userErrors": user_errors
     });
     ok_json(json!({ "data": { response_key: selected_json(&payload, payload_selection) } }))
+}
+
+#[derive(Default)]
+struct BulkMutationConnectionAnalysis {
+    connection_count: usize,
+    max_connection_depth: usize,
+}
+
+impl BulkMutationConnectionAnalysis {
+    fn analyze(fields: &[RootFieldSelection], api_version: &str) -> Self {
+        let mut analysis = Self::default();
+        for field in fields {
+            analyze_bulk_mutation_field(
+                api_version,
+                "Mutation",
+                &field.name,
+                &field.selection,
+                0,
+                &mut analysis,
+            );
+        }
+        analysis
+    }
+}
+
+fn analyze_bulk_mutation_field(
+    api_version: &str,
+    parent_type: &str,
+    field_name: &str,
+    selection: &[SelectedField],
+    connection_depth: usize,
+    analysis: &mut BulkMutationConnectionAnalysis,
+) {
+    let Some(named_type) =
+        public_admin_output_field_named_type(api_version, parent_type, field_name)
+    else {
+        return;
+    };
+    let is_connection = named_type.ends_with("Connection");
+    let next_connection_depth = connection_depth + usize::from(is_connection);
+    if is_connection {
+        analysis.connection_count += 1;
+        analysis.max_connection_depth = analysis.max_connection_depth.max(next_connection_depth);
+    }
+    for child in selection {
+        analyze_bulk_mutation_field(
+            api_version,
+            named_type,
+            &child.name,
+            &child.selection,
+            next_connection_depth,
+            analysis,
+        );
+    }
 }
 
 #[derive(Default)]

@@ -91,7 +91,7 @@ fn metafields_set_namespace_key_validation(
 }
 
 /// Normalize a metafield `value` STRING the way Shopify echoes it back.
-/// Mirrors Gleam `normalize_metafield_value`. Most types pass through
+/// Matches Shopify echo behavior: Most types pass through
 /// unchanged; date_time gains a `+00:00` offset, rating keys are reordered,
 /// and measurement / list-measurement values are reformatted (float-style
 /// number + UPPERCASE unit). Value strings are built manually because key
@@ -116,7 +116,7 @@ pub(in crate::proxy) fn normalize_metafield_value_string(
 }
 
 /// Compute a metafield `jsonValue` from its type + raw value string.
-/// Mirrors Gleam `parse_metafield_json_value`. jsonValue is compared
+/// Matches Shopify jsonValue behavior: jsonValue is compared
 /// structurally, so these can be built with `json!`/serde maps.
 pub(in crate::proxy) fn metafield_json_value(metafield_type: &str, value: &str) -> Value {
     match metafield_type {
@@ -238,7 +238,7 @@ fn json_string_field(fields: &serde_json::Map<String, Value>, key: &str) -> Opti
 }
 
 /// Read a numeric field as a `jsonValue` number: ints stay ints, floats
-/// collapse to ints when whole. Mirrors Gleam `json_number_field`.
+/// collapse to ints when whole.
 fn json_number_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<Value> {
     match fields.get(key) {
         Some(Value::Number(number)) => {
@@ -268,8 +268,7 @@ fn json_number_from_float(value: f64) -> Value {
 }
 
 /// Read a numeric field as a value-STRING component: ints render `n.0`,
-/// floats render through Shopify's decimal text normalization. Mirrors Gleam
-/// `json_number_string_field`.
+/// floats render through Shopify's decimal text normalization.
 fn json_number_string_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
     match fields.get(key) {
         Some(Value::Number(number)) => {
@@ -498,25 +497,70 @@ fn normalize_list_metafield_value_string(type_name: &str, raw: &str) -> String {
     }
 }
 
-/// A reserved app namespace (`app--<apiClientId>--<suffix>`) may only be
-/// written by the app that owns it. The proxy authenticates as api client
-/// 347082227713, so a write targeting any other app's reserved namespace is
-/// rejected with APP_NOT_AUTHORIZED.
-pub(in crate::proxy) fn app_namespace_belongs_to_other_app(namespace: &str) -> bool {
-    let Some(remainder) = namespace.strip_prefix("app--") else {
-        return false;
-    };
-    let app_id = remainder.split("--").next().unwrap_or_default();
-    !app_id.is_empty() && app_id != "347082227713"
+pub(in crate::proxy) const API_CLIENT_ID_HEADER: &str = "x-shopify-draft-proxy-api-client-id";
+pub(in crate::proxy) const APP_NAMESPACE_IDENTITY_REQUIRED_MESSAGE: &str =
+    "API client identity is required to resolve or authorize app-reserved namespaces and types.";
+
+pub(in crate::proxy) fn request_app_namespace_api_client_id(request: &Request) -> Option<String> {
+    request_header(request, API_CLIENT_ID_HEADER).and_then(|value| {
+        let value = value.trim().to_string();
+        (!value.is_empty()).then_some(value)
+    })
 }
 
-pub(in crate::proxy) fn canonical_app_metafield_namespace(namespace: Option<&str>) -> String {
+fn app_namespace_api_client_id(namespace: &str) -> Option<&str> {
+    let remainder = namespace.strip_prefix("app--")?;
+    let app_id = remainder.split("--").next().unwrap_or_default();
+    (!app_id.is_empty()).then_some(app_id)
+}
+
+pub(in crate::proxy) fn app_metafield_namespace_requires_api_client(
+    namespace: Option<&str>,
+) -> bool {
     match namespace {
-        Some(value) if value.starts_with("$app:") => {
-            format!("app--347082227713--{}", value.trim_start_matches("$app:"))
+        None => true,
+        Some(value) => {
+            let value = value.trim();
+            value.is_empty()
+                || value.starts_with("$app:")
+                || app_namespace_api_client_id(value).is_some()
         }
+    }
+}
+
+/// A reserved app namespace (`app--<apiClientId>--<suffix>`) may only be
+/// written by the app that owns it. The caller identity is request-owned; when
+/// it is absent, callers must fail before attempting this ownership check.
+pub(in crate::proxy) fn app_namespace_belongs_to_other_app(
+    namespace: &str,
+    api_client_id: Option<&str>,
+) -> bool {
+    let Some(app_id) = app_namespace_api_client_id(namespace) else {
+        return false;
+    };
+    api_client_id.is_some_and(|request_app_id| app_id != request_app_id)
+}
+
+pub(in crate::proxy) fn canonical_app_metafield_namespace(
+    namespace: Option<&str>,
+    api_client_id: Option<&str>,
+) -> String {
+    match namespace {
+        Some(value) if value.starts_with("$app:") => api_client_id
+            .map(|api_client_id| {
+                format!(
+                    "app--{api_client_id}--{}",
+                    value.trim_start_matches("$app:")
+                )
+            })
+            .unwrap_or_else(|| value.to_string()),
+        Some(value) if value.trim().is_empty() => api_client_id
+            .map(|api_client_id| format!("app--{api_client_id}"))
+            .unwrap_or_default(),
         Some(value) => value.to_string(),
-        None => "app--347082227713".to_string(),
+        None => api_client_id
+            .map(|api_client_id| format!("app--{api_client_id}"))
+            .unwrap_or_default(),
     }
 }
 
@@ -615,12 +659,29 @@ fn metafields_set_input_shape_error(
     index: usize,
     input: &BTreeMap<String, ResolvedValue>,
     has_effective_type: bool,
+    api_client_id: Option<&str>,
 ) -> Option<Value> {
-    let namespace =
-        canonical_app_metafield_namespace(resolved_string_field(input, "namespace").as_deref());
+    let index = index.to_string();
+    let owner_id = resolved_string_field(input, "ownerId").unwrap_or_default();
+    let raw_namespace = resolved_string_field(input, "namespace");
+    if app_metafield_namespace_requires_api_client(raw_namespace.as_deref())
+        && api_client_id.is_none()
+    {
+        return Some(metafields_set_path_user_error(
+            vec!["metafields", &index, "namespace"],
+            "APP_NOT_AUTHORIZED",
+            APP_NAMESPACE_IDENTITY_REQUIRED_MESSAGE,
+        ));
+    }
+    let namespace = canonical_app_metafield_namespace(raw_namespace.as_deref(), api_client_id);
     let key = resolved_string_field(input, "key").unwrap_or_default();
-    if let Some(error) = metafields_set_namespace_key_validation(&namespace, &key) {
-        let index = index.to_string();
+    if shopify_gid_resource_type(&owner_id).is_none() {
+        Some(metafields_set_path_user_error(
+            vec!["metafields", &index, "ownerId"],
+            "INVALID_OWNER",
+            "Owner is invalid",
+        ))
+    } else if let Some(error) = metafields_set_namespace_key_validation(&namespace, &key) {
         Some(metafields_set_path_user_error(
             vec!["metafields", &index, error.0],
             error.1,
@@ -631,19 +692,19 @@ fn metafields_set_input_shape_error(
         "shopify_standard" | "protected" | "shopify-l10n-fields"
     ) {
         Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string(), "namespace"],
+            vec!["metafields", &index, "namespace"],
             "",
             &format!("Namespace {namespace} is a reserved namespace"),
         ))
-    } else if app_namespace_belongs_to_other_app(&namespace) {
+    } else if app_namespace_belongs_to_other_app(&namespace, api_client_id) {
         Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string()],
+            vec!["metafields", &index],
             "APP_NOT_AUTHORIZED",
             "Access to this namespace and key on Metafields for this resource type is not allowed.",
         ))
     } else if !input.contains_key("type") && !has_effective_type {
         Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string(), "type"],
+            vec!["metafields", &index, "type"],
             "BLANK",
             "Type can't be blank",
         ))
@@ -856,11 +917,13 @@ impl DraftProxy {
     pub(in crate::proxy) fn metafields_set_effective_type(
         &self,
         input: &BTreeMap<String, ResolvedValue>,
+        api_client_id: Option<&str>,
     ) -> Option<String> {
         resolved_string_field(input, "type").or_else(|| {
             let owner_id = resolved_string_field(input, "ownerId")?;
             let namespace = canonical_app_metafield_namespace(
                 resolved_string_field(input, "namespace").as_deref(),
+                api_client_id,
             );
             let key = resolved_string_field(input, "key")?;
             let owner_type = owner_type_from_gid(&owner_id);
@@ -872,10 +935,12 @@ impl DraftProxy {
     pub(in crate::proxy) fn metafields_set_reference_values(
         &self,
         inputs: &[BTreeMap<String, ResolvedValue>],
+        api_client_id: Option<&str>,
     ) -> Vec<String> {
         let mut ids = Vec::new();
         for input in inputs {
-            let Some(metafield_type) = self.metafields_set_effective_type(input) else {
+            let Some(metafield_type) = self.metafields_set_effective_type(input, api_client_id)
+            else {
                 continue;
             };
             let value = resolved_string_field(input, "value").unwrap_or_default();
@@ -900,6 +965,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn metafields_set_input_errors<F>(
         &self,
         inputs: &[BTreeMap<String, ResolvedValue>],
+        api_client_id: Option<&str>,
         mut reference_exists: F,
     ) -> Vec<Value>
     where
@@ -917,10 +983,13 @@ impl DraftProxy {
 
         let mut errors = Vec::new();
         for (index, input) in inputs.iter().enumerate() {
-            let metafield_type = self.metafields_set_effective_type(input);
-            if let Some(error) =
-                metafields_set_input_shape_error(index, input, metafield_type.is_some())
-            {
+            let metafield_type = self.metafields_set_effective_type(input, api_client_id);
+            if let Some(error) = metafields_set_input_shape_error(
+                index,
+                input,
+                metafield_type.is_some(),
+                api_client_id,
+            ) {
                 errors.push(error);
                 continue;
             }
@@ -941,12 +1010,14 @@ impl DraftProxy {
     pub(in crate::proxy) fn metafields_set_definition_user_errors(
         &self,
         inputs: &[BTreeMap<String, ResolvedValue>],
+        api_client_id: Option<&str>,
     ) -> Vec<Value> {
         let mut errors = Vec::new();
         for (index, input) in inputs.iter().enumerate() {
             let owner_id = resolved_string_field(input, "ownerId").unwrap_or_default();
             let namespace = canonical_app_metafield_namespace(
                 resolved_string_field(input, "namespace").as_deref(),
+                api_client_id,
             );
             let key = resolved_string_field(input, "key").unwrap_or_default();
             let value = resolved_string_field(input, "value").unwrap_or_default();

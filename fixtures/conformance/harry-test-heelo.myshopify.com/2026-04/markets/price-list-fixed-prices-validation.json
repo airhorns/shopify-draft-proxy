@@ -1,7 +1,7 @@
 {
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "capturedAt": "2026-06-29T20:27:46.694Z",
+  "capturedAt": "2026-07-03T14:59:11.388Z",
   "scope": "Variant-level price-list fixed-price validation parity",
   "setup": {
     "priceListId": "gid://shopify/PriceList/31575376178",
@@ -41,7 +41,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1972,
+              "currentlyAvailable": 1973,
               "restoreRate": 100
             }
           }
@@ -63,7 +63,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1988,
+              "currentlyAvailable": 1985,
               "restoreRate": 100
             }
           }
@@ -102,7 +102,7 @@
             "actualQueryCost": 12,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1988,
+              "currentlyAvailable": 1986,
               "restoreRate": 100
             }
           }
@@ -124,7 +124,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1986,
               "restoreRate": 100
             }
           }
@@ -153,7 +153,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1988,
               "restoreRate": 100
             }
           }
@@ -201,7 +201,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1975,
+                "currentlyAvailable": 1977,
                 "restoreRate": 100
               }
             }
@@ -275,7 +275,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1976,
+                "currentlyAvailable": 1975,
                 "restoreRate": 100
               }
             }
@@ -322,7 +322,54 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1983,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "addMissingVariantCurrencyMismatchShortCircuit": {
+      "name": "add missing variant currency mismatch short circuit",
+      "operation": "priceListFixedPricesAdd",
+      "request": {
+        "variables": {
+          "priceListId": "gid://shopify/PriceList/31575376178",
+          "prices": [
+            {
+              "variantId": "gid://shopify/ProductVariant/999999999999999",
+              "price": {
+                "amount": "712.34",
+                "currencyCode": "USD"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListFixedPricesAdd": {
+              "prices": [],
+              "userErrors": [
+                {
+                  "__typename": "PriceListPriceUserError",
+                  "field": ["prices", "0", "variantId"],
+                  "message": "Product variant ID does not exist.",
+                  "code": "VARIANT_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
                 "restoreRate": 100
               }
             }
@@ -369,7 +416,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1985,
+                "currentlyAvailable": 1982,
                 "restoreRate": 100
               }
             }
@@ -433,7 +480,7 @@
               "actualQueryCost": 12,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1984,
+                "currentlyAvailable": 1980,
                 "restoreRate": 100
               }
             }
@@ -603,7 +650,7 @@
               "actualQueryCost": 12,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1988,
+                "currentlyAvailable": 1986,
                 "restoreRate": 100
               }
             }
@@ -658,7 +705,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -740,7 +787,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1984,
                 "restoreRate": 100
               }
             }
@@ -812,7 +859,7 @@
               "actualQueryCost": 12,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1984,
                 "restoreRate": 100
               }
             }
@@ -929,7 +976,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }
@@ -1009,7 +1056,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1974,
+                "currentlyAvailable": 1972,
                 "restoreRate": 100
               }
             }
@@ -1154,6 +1201,58 @@
               "actualQueryCost": 5,
               "throttleStatus": {
                 "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "priceListId": "gid://shopify/PriceList/31575376178",
+        "prices": [
+          {
+            "variantId": "gid://shopify/ProductVariant/999999999999999",
+            "price": {
+              "amount": "712.34",
+              "currencyCode": "USD"
+            }
+          }
+        ],
+        "variantIds": ["gid://shopify/ProductVariant/999999999999999"]
+      },
+      "query": "query MarketsMutationPreflightHydrate($priceListId: ID!, $variantIds: [ID!]!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productVariants: nodes(ids: $variantIds) { __typename ... on ProductVariant { id title sku price compareAtPrice product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "priceList": {
+              "__typename": "PriceList",
+              "id": "gid://shopify/PriceList/31575376178",
+              "name": "Price List example Buyers",
+              "currency": "CAD",
+              "fixedPricesCount": 0,
+              "prices": {
+                "edges": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            },
+            "productVariants": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 26,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
                 "currentlyAvailable": 1982,
                 "restoreRate": 100
               }
@@ -1217,7 +1316,7 @@
               "actualQueryCost": 7,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1986,
+                "currentlyAvailable": 1983,
                 "restoreRate": 100
               }
             }
@@ -1302,7 +1401,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1985,
+                "currentlyAvailable": 1980,
                 "restoreRate": 100
               }
             }
@@ -1366,7 +1465,7 @@
               "actualQueryCost": 7,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1992,
+                "currentlyAvailable": 1991,
                 "restoreRate": 100
               }
             }
@@ -1419,7 +1518,7 @@
               "actualQueryCost": 5,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1993,
+                "currentlyAvailable": 1992,
                 "restoreRate": 100
               }
             }
@@ -1498,7 +1597,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -1597,7 +1696,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -1711,7 +1810,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1988,
+                "currentlyAvailable": 1985,
                 "restoreRate": 100
               }
             }
@@ -1817,7 +1916,7 @@
               "actualQueryCost": 11,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1985,
                 "restoreRate": 100
               }
             }
@@ -1871,7 +1970,7 @@
               "actualQueryCost": 7,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1993,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }
@@ -1914,7 +2013,7 @@
               "actualQueryCost": 5,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1994,
+                "currentlyAvailable": 1993,
                 "restoreRate": 100
               }
             }
@@ -1983,7 +2082,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }

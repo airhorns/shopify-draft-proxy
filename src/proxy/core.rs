@@ -160,6 +160,9 @@ impl DraftProxy {
                 "productVariants": product_variant_state_map_json(&self.store.staged.product_variants.records),
                 "productVariantOrder": self.store.staged.product_variants.order,
                 "deletedProductVariantIds": self.store.staged.product_variants.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "productFeeds": self.store.staged.product_feeds.records.clone(),
+                "productFeedOrder": self.store.staged.product_feeds.order,
+                "deletedProductFeedIds": self.store.staged.product_feeds.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "collections": self.store.staged.collections.records.clone(),
                 "deletedCollectionIds": self.store.staged.collections.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "collectionJobs": self.store.staged.collection_jobs.clone(),
@@ -171,6 +174,11 @@ impl DraftProxy {
                 "deletedShopPolicyIds": self.store.staged.shop_policies.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "shippingPackages": self.store.staged.shipping_packages.records.clone(),
                 "deletedShippingPackageIds": deleted_shipping_package_ids,
+                "installedApps": self.store.staged.installed_apps.clone(),
+                "revokedAppAccessScopes": self.store.staged.revoked_app_access_scopes.iter().map(|(app_id, scopes)| {
+                    (app_id.clone(), scopes.iter().cloned().collect::<Vec<_>>())
+                }).collect::<BTreeMap<_, _>>(),
+                "uninstalledAppIds": self.store.staged.uninstalled_app_ids.iter().cloned().collect::<Vec<_>>(),
                 "delegatedAccessTokens": self.store.staged.delegate_access_tokens.clone(),
                 "customers": self.store.staged.customers.records.clone(),
                 "deletedCustomerIds": self.store.staged.customers.tombstones.iter().cloned().collect::<Vec<_>>(),
@@ -627,6 +635,18 @@ impl DraftProxy {
         if let Some(session_order_id) = &self.store.staged.order_edit_existing_session_order_id {
             snapshot["stagedState"]["orderEditExistingSessionOrderId"] = json!(session_order_id);
         }
+        if !self
+            .store
+            .staged
+            .order_edit_money_bag_calculated_order_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["orderEditMoneyBagCalculatedOrderIds"] = json!(self
+                .store
+                .staged
+                .order_edit_money_bag_calculated_order_ids
+                .clone());
+        }
         if let Some(mode) = &self.store.staged.order_edit_existing_mode {
             snapshot["stagedState"]["orderEditExistingMode"] = json!(mode);
         }
@@ -745,6 +765,13 @@ impl DraftProxy {
                 .collect(),
         );
         replace_staged_value_records(
+            &mut self.store.staged.product_feeds,
+            &state["stagedState"],
+            "productFeeds",
+            Some("productFeedOrder"),
+            Some("deletedProductFeedIds"),
+        );
+        replace_staged_value_records(
             &mut self.store.staged.collections,
             &state["stagedState"],
             "collections",
@@ -753,6 +780,31 @@ impl DraftProxy {
         );
         self.store.staged.collection_jobs =
             value_map_from_json(state["stagedState"].get("collectionJobs"));
+        self.store.staged.installed_apps =
+            value_map_from_json(state["stagedState"].get("installedApps"));
+        self.store.staged.revoked_app_access_scopes = state["stagedState"]
+            .get("revokedAppAccessScopes")
+            .and_then(Value::as_object)
+            .map(|records| {
+                records
+                    .iter()
+                    .map(|(app_id, scopes)| {
+                        (
+                            app_id.clone(),
+                            string_array_from_json(scopes).into_iter().collect(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.uninstalled_app_ids = state["stagedState"]
+            .get("uninstalledAppIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.delegate_access_tokens =
+            value_map_from_json(state["stagedState"].get("delegatedAccessTokens"));
         self.store.staged.online_store_integrations =
             value_map_from_json(state["stagedState"].get("onlineStoreIntegrations"));
         self.store.staged.online_store_blogs =
@@ -848,9 +900,9 @@ impl DraftProxy {
             .cloned();
         let base_shop = state["baseState"]
             .get("shop")
-            .filter(|shop| shop.is_object())
+            .filter(|shop| shop.is_object() || shop.is_null())
             .cloned()
-            .unwrap_or_else(|| Store::with_default_baseline().base.shop);
+            .unwrap_or(Value::Null);
         let mut base_shop_policies =
             shop_policy_state_map_from_json(&state["baseState"]["shopPolicies"]);
         let mut base_shop_policy_order =
@@ -897,17 +949,14 @@ impl DraftProxy {
                         "name": "English",
                         "primary": true,
                         "published": true,
-                        "marketWebPresences": [{
-                            "id": "gid://shopify/MarketWebPresence/62842765618",
-                            "subfolderSuffix": null
-                        }]
+                        "marketWebPresences": []
                     }),
                 )])
             });
         self.store.base.localization_product_ids = state["baseState"]
             .get("localizationProductIds")
             .map(string_array_from_json)
-            .unwrap_or_else(|| vec![LOCALIZATION_BASELINE_PRODUCT_ID.to_string()])
+            .unwrap_or_default()
             .into_iter()
             .collect();
         self.store.staged.publication_ids =
@@ -1292,6 +1341,8 @@ impl DraftProxy {
             .get("orderEditExistingSessionOrderId")
             .and_then(Value::as_str)
             .map(str::to_string);
+        self.store.staged.order_edit_money_bag_calculated_order_ids =
+            string_map_from_json(state["stagedState"].get("orderEditMoneyBagCalculatedOrderIds"));
         self.store.staged.order_edit_existing_mode = state["stagedState"]
             .get("orderEditExistingMode")
             .and_then(Value::as_str)
@@ -1621,6 +1672,20 @@ fn value_map_from_json(value: Option<&Value>) -> BTreeMap<String, Value> {
             records
                 .iter()
                 .map(|(id, record)| (id.clone(), record.clone()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn string_map_from_json(value: Option<&Value>) -> BTreeMap<String, String> {
+    value
+        .and_then(Value::as_object)
+        .map(|records| {
+            records
+                .iter()
+                .filter_map(|(key, value)| {
+                    value.as_str().map(|value| (key.clone(), value.to_string()))
+                })
                 .collect()
         })
         .unwrap_or_default()

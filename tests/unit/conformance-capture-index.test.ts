@@ -12,6 +12,10 @@ import {
   validateCaptureIndexAgainstScriptFiles,
 } from '../../scripts/conformance-capture-index.js';
 import { isGraphqlDocumentText } from '../../scripts/parity-cassette.js';
+import {
+  findProductsProvenanceFailures,
+  validateProductsParitySpecEvidence,
+} from '../../scripts/protected-evidence-invariants.js';
 
 const repoRoot = new URL('../..', import.meta.url).pathname;
 
@@ -74,6 +78,57 @@ describe('conformance capture index', () => {
       profile.orphanedFixturePaths,
       'every checked-in live Shopify fixture under fixtures/conformance/**/*.json must be declared by a capture index fixtureOutputs entry',
     ).toEqual([]);
+  });
+
+  it('rejects descriptor and local-runtime products evidence in products parity specs', () => {
+    const spec = {
+      scenarioStatus: 'captured',
+      comparisonMode: 'captured-vs-proxy-request',
+      liveCaptureFiles: [
+        'fixtures/conformance/local-runtime/2026-04/products/product-feed-lifecycle-local-runtime.json',
+        'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json',
+      ],
+    };
+
+    const failures = validateProductsParitySpecEvidence('config/parity-specs/products/example.json', spec, () => ({
+      upstreamCalls: [
+        {
+          operationName: 'ProductsHydrateNodes',
+          variables: { ids: ['gid://shopify/Product/1'] },
+          query: 'hand-synthesized from a setup product',
+          response: { status: 200, body: { data: { nodes: [] } } },
+        },
+      ],
+    }));
+
+    expect(failures.map((failure) => failure.message)).toEqual([
+      'products/store-properties parity spec references local-runtime fixture fixtures/conformance/local-runtime/2026-04/products/product-feed-lifecycle-local-runtime.json; remove the synthetic fixture/spec from parity evidence or replace it with live Shopify capture',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json: upstreamCalls[0].query is not a valid GraphQL document: "hand-synthesized from a setup product"',
+    ]);
+  });
+
+  it('rejects local-runtime products evidence even when labeled captured-fixture', () => {
+    const failures = validateProductsParitySpecEvidence(
+      'config/parity-specs/products/example.json',
+      {
+        scenarioStatus: 'captured',
+        comparisonMode: 'captured-fixture',
+        liveCaptureFiles: [
+          'fixtures/conformance/local-runtime/2026-04/products/product-feed-lifecycle-local-runtime.json',
+        ],
+      },
+      () => {
+        throw new Error('fixture loader should not be called for local-runtime products evidence');
+      },
+    );
+
+    expect(failures.map((failure) => failure.message)).toEqual([
+      'products/store-properties parity spec references local-runtime fixture fixtures/conformance/local-runtime/2026-04/products/product-feed-lifecycle-local-runtime.json; remove the synthetic fixture/spec from parity evidence or replace it with live Shopify capture',
+    ]);
+  });
+
+  it('keeps checked-in products strict parity free of local-runtime and descriptor cassettes', () => {
+    expect(findProductsProvenanceFailures(repoRoot)).toEqual([]);
   });
 
   it('keeps retired protected evidence absent from disk', () => {

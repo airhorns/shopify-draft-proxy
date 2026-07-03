@@ -164,7 +164,7 @@
         }
       },
       {
-        "name": "create expired card setup userErrors",
+        "name": "create no-contact customer card setup userErrors",
         "capturePath": "$.setup[7].response.payload.data.giftCardCreate.userErrors",
         "proxyPath": "$.data.giftCardCreate.userErrors",
         "proxyRequest": {
@@ -180,8 +180,33 @@
               "note": {
                 "fromCapturePath": "$.setup[7].variables.input.note"
               },
+              "customerId": {
+                "fromProxyResponse": "create no-contact customer userErrors",
+                "path": "$.data.customerCreate.customer.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "create expired card setup userErrors",
+        "capturePath": "$.setup[8].response.payload.data.giftCardCreate.userErrors",
+        "proxyPath": "$.data.giftCardCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-validation-gift-card-create.graphql",
+          "variables": {
+            "input": {
+              "initialValue": {
+                "fromCapturePath": "$.setup[8].variables.input.initialValue"
+              },
+              "code": {
+                "fromCapturePath": "$.setup[8].variables.input.code"
+              },
+              "note": {
+                "fromCapturePath": "$.setup[8].variables.input.note"
+              },
               "expiresOn": {
-                "fromCapturePath": "$.setup[7].variables.input.expiresOn"
+                "fromCapturePath": "$.setup[8].variables.input.expiresOn"
               },
               "customerId": {
                 "fromProxyResponse": "create contact customer userErrors",
@@ -193,10 +218,10 @@
                   "path": "$.data.customerCreate.customer.id"
                 },
                 "preferredName": {
-                  "fromCapturePath": "$.setup[7].variables.input.recipientAttributes.preferredName"
+                  "fromCapturePath": "$.setup[8].variables.input.recipientAttributes.preferredName"
                 },
                 "message": {
-                  "fromCapturePath": "$.setup[7].variables.input.recipientAttributes.message"
+                  "fromCapturePath": "$.setup[8].variables.input.recipientAttributes.message"
                 }
               }
             }
@@ -243,6 +268,21 @@
           "variables": {
             "id": {
               "fromProxyResponse": "create no-customer card setup userErrors",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "customer notification rejects no-contact customer",
+        "capturePath": "$.operations.customerNoContact.response.payload.data.giftCardSendNotificationToCustomer",
+        "proxyPath": "$.data.giftCardSendNotificationToCustomer",
+        "selectedPaths": ["$.giftCard", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-customer.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create no-contact customer card setup userErrors",
               "path": "$.data.giftCardCreate.giftCard.id"
             }
           }

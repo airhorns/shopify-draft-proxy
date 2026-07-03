@@ -34,6 +34,7 @@ type OperationKey =
   | 'customerDeactivated'
   | 'recipientDeactivated'
   | 'customerNoCustomer'
+  | 'customerNoContact'
   | 'recipientNoRecipient'
   | 'recipientNoContact'
   | 'customerExpired'
@@ -444,11 +445,28 @@ try {
   }
   upstreamCalls.push(await hydrateGiftCard(noContactRecipientCardId));
 
-  const expiredCard = await createGiftCard(
-    'cardEExpiredCreate',
+  const noContactCustomerCard = await createGiftCard(
+    'cardENoContactCustomerCreate',
     {
       initialValue: '5.00',
       code: `GCNVE${String(stamp).slice(-8)}`,
+      note: 'No-contact customer notification validation.',
+      customerId: noContactCustomerId,
+    },
+    setupIds,
+  );
+  setup.push(noContactCustomerCard);
+  const noContactCustomerCardId = readCreatedGiftCardId(noContactCustomerCard);
+  if (noContactCustomerCardId === null) {
+    throw new Error('Unable to create no-contact-customer-branch gift card.');
+  }
+  upstreamCalls.push(await hydrateGiftCard(noContactCustomerCardId));
+
+  const expiredCard = await createGiftCard(
+    'cardFExpiredCreate',
+    {
+      initialValue: '5.00',
+      code: `GCNVF${String(stamp).slice(-8)}`,
       note: 'Expired notification validation.',
       expiresOn: '2026-04-28',
       customerId: contactCustomerId,
@@ -470,6 +488,7 @@ try {
   operations.customerDeactivated = await sendToCustomer('customerDeactivated', deactivatedCardId);
   operations.recipientDeactivated = await sendToRecipient('recipientDeactivated', deactivatedCardId);
   operations.customerNoCustomer = await sendToCustomer('customerNoCustomer', noCustomerCardId);
+  operations.customerNoContact = await sendToCustomer('customerNoContact', noContactCustomerCardId);
   operations.recipientNoRecipient = await sendToRecipient('recipientNoRecipient', noRecipientCardId);
   operations.recipientNoContact = await sendToRecipient('recipientNoContact', noContactRecipientCardId);
   operations.customerExpired = await sendToCustomer('customerExpired', expiredCardId);
@@ -487,6 +506,7 @@ const proxyVariables = {
   customerDeactivated: { id: operations.customerDeactivated?.variables['id'] },
   recipientDeactivated: { id: operations.recipientDeactivated?.variables['id'] },
   customerNoCustomer: { id: operations.customerNoCustomer?.variables['id'] },
+  customerNoContact: { id: operations.customerNoContact?.variables['id'] },
   recipientNoRecipient: { id: operations.recipientNoRecipient?.variables['id'] },
   recipientNoContact: { id: operations.recipientNoContact?.variables['id'] },
   customerExpired: { id: operations.customerExpired?.variables['id'] },
