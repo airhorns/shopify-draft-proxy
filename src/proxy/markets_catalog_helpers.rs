@@ -718,11 +718,13 @@ pub(in crate::proxy) fn price_list_fixed_price_target_errors(
     }
 }
 
-pub(in crate::proxy) fn fixed_price_variant_errors(
+pub(in crate::proxy) fn fixed_price_input_errors(
     store: &Store,
+    price_list: &Value,
     inputs: &[ResolvedValue],
     field_name: &str,
 ) -> Vec<Value> {
+    let expected = price_list_currency(price_list);
     let mut errors = Vec::new();
     for (index, input) in inputs.iter().enumerate() {
         let variant_id = resolved_nonempty_string(input, "variantId").unwrap_or_default();
@@ -732,19 +734,9 @@ pub(in crate::proxy) fn fixed_price_variant_errors(
                 "Product variant ID does not exist.",
                 "VARIANT_NOT_FOUND",
             ));
+            continue;
         }
-    }
-    errors
-}
 
-pub(in crate::proxy) fn fixed_price_currency_errors(
-    price_list: &Value,
-    inputs: &[ResolvedValue],
-    field_name: &str,
-) -> Vec<Value> {
-    let expected = price_list_currency(price_list);
-    let mut errors = Vec::new();
-    for (index, input) in inputs.iter().enumerate() {
         for money_field in ["price", "compareAtPrice"] {
             if let Some(actual) =
                 fixed_price_input_currency(input, money_field).filter(|value| !value.is_empty())
@@ -759,17 +751,6 @@ pub(in crate::proxy) fn fixed_price_currency_errors(
             }
         }
     }
-    errors
-}
-
-pub(in crate::proxy) fn fixed_price_input_errors(
-    store: &Store,
-    price_list: &Value,
-    inputs: &[ResolvedValue],
-    field_name: &str,
-) -> Vec<Value> {
-    let mut errors = fixed_price_variant_errors(store, inputs, field_name);
-    errors.extend(fixed_price_currency_errors(price_list, inputs, field_name));
     errors
 }
 

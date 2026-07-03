@@ -181,15 +181,11 @@ pub(in crate::proxy) fn order_customer_id(order: &Value) -> Option<String> {
 }
 
 pub(in crate::proxy) fn order_mark_as_paid_cannot_mark_error() -> Value {
-    payment_user_error(
-        json!(["id"]),
-        "Order cannot be marked as paid.",
-        Some("INVALID"),
-    )
+    payment_user_error(json!(["id"]), "Order cannot be marked as paid.", None)
 }
 
 pub(in crate::proxy) fn order_mark_as_paid_not_found_error() -> Value {
-    payment_user_error(json!(["id"]), "Order does not exist", Some("NOT_FOUND"))
+    payment_user_error(json!(["id"]), "Order does not exist", None)
 }
 
 pub(in crate::proxy) fn order_read_selects_order_edit_existing_fields(
@@ -210,11 +206,12 @@ pub(in crate::proxy) fn normalize_order_name(name: &str) -> String {
 }
 
 /// Evaluate one `key:value` search term against an order projection. Returns
-/// `None` for terms we do not model so an unknown term never silently drops a
-/// row (callers treat `None` as "not a filter we enforce" → keep the order).
+/// `None` for terms we do not model so the staged connection engine can make
+/// unsupported predicate handling explicit instead of silently keeping rows.
 pub(in crate::proxy) fn order_matches_term(order: &Value, key: &str, value: &str) -> Option<bool> {
     let value = value.trim();
     match key {
+        "id" => Some(order_matches_id(order, value)),
         "tag" => {
             let want = value.to_ascii_lowercase();
             Some(
@@ -258,27 +255,171 @@ pub(in crate::proxy) fn order_matches_term(order: &Value, key: &str, value: &str
                 .and_then(Value::as_str)
                 .is_some_and(|status| status.eq_ignore_ascii_case(value)),
         ),
+        "status" => Some(order_matches_status(order, value)),
+        "created_at" => Some(order_matches_datetime_comparator(
+            order.get("createdAt").and_then(Value::as_str),
+            value,
+        )),
+        "updated_at" => Some(order_matches_datetime_comparator(
+            order.get("updatedAt").and_then(Value::as_str),
+            value,
+        )),
+        "processed_at" => Some(order_matches_datetime_comparator(
+            order.get("processedAt").and_then(Value::as_str),
+            value,
+        )),
         _ => None,
     }
 }
 
-/// Match an order against a Shopify `query:` search string. Terms are
-/// whitespace-separated and ANDed together (Shopify's default). Quoted values
-/// are not modelled here; the catalog scenarios use bare values. An empty query
-/// matches everything.
-pub(in crate::proxy) fn order_matches_query(order: &Value, query: &str) -> bool {
-    let query = query.trim();
-    if query.is_empty() {
+fn order_matches_id(order: &Value, value: &str) -> bool {
+    let value = value.trim_matches('"').trim_matches('\'');
+    order
+        .get("id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| resource_id_tail(id) == value || resource_id_path_tail(id) == value)
+}
+
+fn order_matches_status(order: &Value, value: &str) -> bool {
+    let cancelled = order
+        .get("cancelledAt")
+        .is_some_and(|cancelled_at| !cancelled_at.is_null())
+        || order
+            .get("cancelReason")
+            .is_some_and(|cancel_reason| !cancel_reason.is_null());
+    let closed = order
+        .get("closed")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        || order
+            .get("closedAt")
+            .is_some_and(|closed_at| !closed_at.is_null());
+    match value.to_ascii_lowercase().as_str() {
+        "any" => true,
+        "cancelled" | "canceled" => cancelled,
+        "closed" => closed && !cancelled,
+        "open" => !closed && !cancelled,
+        _ => false,
+    }
+}
+
+fn order_matches_datetime_comparator(actual: Option<&str>, query_value: &str) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    let query_value = query_value.trim_matches('"').trim_matches('\'');
+    if query_value.is_empty() {
+        return false;
+    }
+    let (operator, expected) = order_search_comparator(query_value);
+    if expected.is_empty() {
+        return false;
+    }
+    let actual = order_search_datetime_value(actual, expected);
+    match operator {
+        "<" => actual < expected,
+        "<=" => actual <= expected,
+        ">" => actual > expected,
+        ">=" => actual >= expected,
+        _ => actual.starts_with(expected),
+    }
+}
+
+fn order_search_comparator(value: &str) -> (&str, &str) {
+    for operator in [">=", "<=", ">", "<", "="] {
+        if let Some(rest) = value.strip_prefix(operator) {
+            return (operator, rest);
+        }
+    }
+    ("=", value)
+}
+
+fn order_search_datetime_value<'a>(actual: &'a str, expected: &str) -> &'a str {
+    if expected.contains('T') {
+        actual
+    } else {
+        actual
+            .split_once('T')
+            .map(|(date, _)| date)
+            .unwrap_or(actual)
+    }
+}
+
+fn order_matches_free_text(order: &Value, value: &str) -> bool {
+    let value = value.trim().trim_matches('"').trim_matches('\'');
+    if value.is_empty() {
         return true;
     }
-    query.split_whitespace().all(|term| {
-        match term.split_once(':') {
-            // Terms we model must match; terms we do not model are ignored so an
-            // unrecognized term never spuriously empties the result set.
-            Some((key, value)) => order_matches_term(order, key, value).unwrap_or(true),
-            None => true,
+    order_matches_id(order, value)
+        || order_search_string_matches(order.get("name").and_then(Value::as_str), value)
+        || order_search_string_matches(order.get("email").and_then(Value::as_str), value)
+        || order
+            .get("tags")
+            .and_then(Value::as_array)
+            .is_some_and(|tags| {
+                tags.iter()
+                    .filter_map(Value::as_str)
+                    .any(|tag| order_search_string_matches(Some(tag), value))
+            })
+}
+
+fn order_search_string_matches(actual: Option<&str>, query_value: &str) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    let actual = actual.to_ascii_lowercase();
+    let query_value = query_value
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_ascii_lowercase();
+    if query_value.is_empty() {
+        return true;
+    }
+    if let Some(prefix) = query_value.strip_suffix('*') {
+        return actual
+            .split(|ch: char| !ch.is_ascii_alphanumeric())
+            .any(|part| part.starts_with(prefix));
+    }
+    actual.contains(&query_value)
+}
+
+pub(in crate::proxy) fn order_search_decision(
+    order: &Value,
+    query: Option<&str>,
+) -> StagedSearchDecision {
+    let Some(query) = query else {
+        return StagedSearchDecision::Match;
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+    for term in query.split_whitespace() {
+        if term.eq_ignore_ascii_case("AND") {
+            continue;
         }
-    })
+        if let Some((key, value)) = term.split_once(':') {
+            match order_matches_term(order, key, value) {
+                Some(true) => {}
+                Some(false) => return StagedSearchDecision::NoMatch,
+                None => return StagedSearchDecision::Unsupported,
+            }
+        } else if !order_matches_free_text(order, term) {
+            return StagedSearchDecision::NoMatch;
+        }
+    }
+    StagedSearchDecision::Match
+}
+
+fn order_gid_tail_sort_value(order: &Value) -> StagedSortValue {
+    let tail = order
+        .get("id")
+        .and_then(Value::as_str)
+        .map(resource_id_tail)
+        .unwrap_or_default();
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
 }
 
 /// Sort key for the orders connection: `(timestamp, numeric id)`, both ascending.
@@ -286,8 +427,11 @@ pub(in crate::proxy) fn order_matches_query(order: &Value, query: &str) -> bool 
 /// chronological order; the numeric id is a stable tiebreak (and the sole key
 /// when a projection omits the timestamp, e.g. a status-only node). Callers
 /// reverse the sorted vector for `reverse: true`.
-pub(in crate::proxy) fn order_sort_value(order: &Value, sort_key: &str) -> (String, i64) {
-    let date_field = match sort_key {
+pub(in crate::proxy) fn order_staged_sort_key(
+    order: &Value,
+    sort_key: Option<&str>,
+) -> StagedSortKey {
+    let date_field = match sort_key.unwrap_or("CREATED_AT") {
         "UPDATED_AT" => "updatedAt",
         "PROCESSED_AT" => "processedAt",
         // CREATED_AT (and any sort key we do not specialize) falls back to
@@ -299,17 +443,18 @@ pub(in crate::proxy) fn order_sort_value(order: &Value, sort_key: &str) -> (Stri
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string();
-    let numeric_id = order
-        .get("id")
-        .and_then(Value::as_str)
-        .map(resource_id_tail)
-        .and_then(|tail| tail.parse::<i64>().ok())
-        .unwrap_or(0);
-    (date, numeric_id)
+    vec![
+        StagedSortValue::String(date),
+        order_gid_tail_sort_value(order),
+    ]
 }
 
 pub(in crate::proxy) fn orders_error(field: &[&str], message: &str, code: &str) -> Value {
     user_error(field, message, Some(code))
+}
+
+pub(in crate::proxy) fn orders_plain_error(field: &[&str], message: &str) -> Value {
+    user_error_omit_code(field, message, None)
 }
 
 pub(in crate::proxy) fn order_create_error(field: Vec<Value>, message: &str, code: &str) -> Value {
@@ -688,6 +833,10 @@ pub(in crate::proxy) fn order_create_line_item_record(
         .as_ref()
         .map(|id| json!({ "id": id }))
         .unwrap_or(Value::Null);
+    let selling_plan = resolved_string_field(input, "sellingPlanId")
+        .or_else(|| resolved_string_field(input, "sellingPlanName"))
+        .map(|name| json!({ "name": name }))
+        .unwrap_or(Value::Null);
     let weight = resolved_object_field(input, "weight")
         .map(|weight| {
             json!({
@@ -707,6 +856,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
         "variant": variant,
         "productId": product_id,
         "product": product,
+        "sellingPlan": selling_plan,
         "customAttributes": custom_attributes,
         "requiresShipping": resolved_bool_field(input, "requiresShipping").unwrap_or(true),
         "taxable": resolved_bool_field(input, "taxable").unwrap_or(true),
@@ -1061,6 +1211,19 @@ pub(in crate::proxy) fn normalize_hydrated_order(order: &mut Value) {
 }
 
 impl DraftProxy {
+    fn order_line_inventory_item_id(
+        &self,
+        line_item: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<String> {
+        resolved_string_field(line_item, "inventoryItemId").or_else(|| {
+            let variant_id = resolved_string_field(line_item, "variantId")?;
+            self.store
+                .product_variant_by_id(&variant_id)
+                .map(|variant| variant.inventory_item.id.clone())
+                .or_else(|| Some(shopify_gid("InventoryItem", resource_id_tail(&variant_id))))
+        })
+    }
+
     pub(in crate::proxy) fn order_create_local_data(
         &mut self,
         request: &Request,
@@ -1157,40 +1320,37 @@ impl DraftProxy {
     /// `query:` filter, ordered by `sortKey`/`reverse`. The returned values are
     /// whole orders (not yet selection-projected) so the caller can window them
     /// and then project both `nodes` and `pageInfo` through the field selection.
-    pub(super) fn matching_orders_sorted(
+    pub(super) fn matching_orders_query(
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
-    ) -> Vec<Value> {
-        let query_arg = resolved_string_field(arguments, "query").unwrap_or_default();
-        // Enum arguments resolve to their variant name as a string.
-        let sort_key = resolved_string_field(arguments, "sortKey").unwrap_or_default();
-        let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
-        let mut matched = self
-            .store
-            .staged
-            .orders
-            .values()
-            .filter(|order| order_matches_query(order, &query_arg))
-            .cloned()
-            .collect::<Vec<_>>();
-        matched.sort_by_key(|a| order_sort_value(a, &sort_key));
-        if reverse {
-            matched.reverse();
-        }
-        matched
+    ) -> StagedConnectionResult<Value> {
+        staged_connection_query(
+            self.store
+                .staged
+                .orders
+                .values()
+                .cloned()
+                .collect::<Vec<_>>(),
+            arguments,
+            order_search_decision,
+            order_staged_sort_key,
+            value_id_cursor,
+        )
     }
 
     pub(super) fn staged_orders_connection(&self, field: &RootFieldSelection) -> Value {
-        let matched = self.matching_orders_sorted(&field.arguments);
+        let result = self.matching_orders_query(&field.arguments);
         // Window with the order id as the opaque cursor. The next-page request in
         // the catalog scenario feeds this connection's own `endCursor` back as
         // `after`, so the cursor only needs to round-trip with itself — it is not
         // compared against Shopify's recorded opaque cursors.
-        selected_connection_json_with_args(
-            matched,
-            &field.arguments,
+        selected_json(
+            &connection_json_with_cursor(
+                result.records,
+                |_, order| value_id_cursor(order),
+                result.page_info,
+            ),
             &field.selection,
-            value_id_cursor,
         )
     }
 
@@ -1198,20 +1358,11 @@ impl DraftProxy {
     /// `limit` precision semantics — capped at `limit` and reported `AT_LEAST`
     /// when more matches exist than the limit, otherwise the exact total.
     pub(super) fn staged_orders_count(&self, field: &RootFieldSelection) -> Value {
-        let query_arg = resolved_string_field(&field.arguments, "query").unwrap_or_default();
-        let matched = self
-            .store
-            .staged
-            .orders
-            .values()
-            .filter(|order| order_matches_query(order, &query_arg))
-            .count();
-        let (count, precision) = match resolved_int_field(&field.arguments, "limit") {
-            Some(limit) if limit >= 0 && matched as i64 > limit => (limit as usize, "AT_LEAST"),
-            _ => (matched, "EXACT"),
-        };
         selected_json(
-            &count_object_with_precision(count, precision),
+            &staged_count_with_limit_precision(
+                self.matching_orders_query(&field.arguments).total_count,
+                &field.arguments,
+            ),
             &field.selection,
         )
     }
@@ -1228,7 +1379,7 @@ impl DraftProxy {
             return Some(selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [orders_error(&["input", "staffMemberId"], "Staff member does not exist", "NOT_FOUND")]
+                    "userErrors": [orders_plain_error(&["input", "staffMemberId"], "Staff member does not exist")]
                 }),
                 &field.selection,
             ));
@@ -1256,7 +1407,7 @@ impl DraftProxy {
             return Some(selected_json(
                 &json!({
                     "order": Value::Null,
-                    "userErrors": [orders_error(&["id"], "Order does not exist", "NOT_FOUND")]
+                    "userErrors": [orders_plain_error(&["id"], "Order does not exist")]
                 }),
                 &field.selection,
             ));
@@ -1420,20 +1571,6 @@ impl DraftProxy {
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,
         )
-    }
-
-    fn order_line_inventory_item_id(
-        &self,
-        line_item: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<String> {
-        resolved_string_field(line_item, "inventoryItemId").or_else(|| {
-            resolved_string_field(line_item, "variantId").map(|variant_id| {
-                self.store
-                    .product_variant_by_id(&variant_id)
-                    .map(|variant| variant.inventory_item.id.clone())
-                    .unwrap_or_else(|| shopify_gid("InventoryItem", resource_id_tail(&variant_id)))
-            })
-        })
     }
 
     pub(super) fn stage_order_lifecycle(
@@ -1955,6 +2092,8 @@ impl DraftProxy {
             "cancelReason": Value::Null,
             "createdAt": "2024-01-01T00:00:00.000Z",
             "updatedAt": "2024-01-01T00:00:00.000Z",
+            "processedAt": resolved_string_field(order_input, "processedAt")
+                .unwrap_or_else(|| "2024-01-01T00:00:00.000Z".to_string()),
             "customer": resolved_string_field(order_input, "customerId")
                 .map(|id| {
                     // A locally-staged customer carries the authoritative identity
@@ -2072,7 +2211,7 @@ impl DraftProxy {
             let payload = self.staged_fulfillment_read_payload(field)?;
             return Some(data_response(&field.response_key, payload));
         }
-        if root_field == "fulfillmentCreate" {
+        if root_field == "fulfillmentCreate" || root_field == "fulfillmentCreateV2" {
             let field = field?;
             if let Some(error) = fulfillment_create_invalid_id_error(field) {
                 return Some(error);
@@ -2134,7 +2273,7 @@ impl DraftProxy {
                 selected_json(
                     &json!({
                         "order": Value::Null,
-                        "userErrors": [orders_error(&["input", "staffMemberId"], "Staff member does not exist", "NOT_FOUND")]
+                        "userErrors": [orders_plain_error(&["input", "staffMemberId"], "Staff member does not exist")]
                     }),
                     &field.selection,
                 ),

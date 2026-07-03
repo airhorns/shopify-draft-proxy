@@ -269,19 +269,6 @@ fn catalog_context_type_fields(
     fields
 }
 
-fn catalog_context_driver_from_create_input(
-    context: &BTreeMap<String, ResolvedValue>,
-) -> CatalogContextDriver {
-    resolved_string_field(context, "driverType")
-        .and_then(|driver| CatalogContextDriver::from_type_name(&driver))
-        .or_else(|| {
-            catalog_context_type_fields(context)
-                .first()
-                .map(|(driver, _)| *driver)
-        })
-        .unwrap_or(CatalogContextDriver::Market)
-}
-
 fn company_location_ids_from_context(context: &BTreeMap<String, ResolvedValue>) -> Vec<String> {
     let mut ids = list_string_field(context, "companyLocationIds");
     for id in list_string_field(context, "locationIds") {
@@ -347,8 +334,8 @@ impl DraftProxy {
                     )
                 }
                 "translatableResource" => {
-                    let resource_id = resolved_string_field(&field.arguments, "resourceId")
-                        .unwrap_or_else(|| "gid://shopify/Product/9801098789170".to_string());
+                    let resource_id =
+                        resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
                     if !self.localization_translatable_resource_exists(&resource_id) {
                         Value::Null
                     } else {
@@ -1367,21 +1354,16 @@ impl DraftProxy {
                 "INVALID",
             );
         };
-        if catalog_context_type_fields(&context)
-            .iter()
-            .map(|(driver, _)| *driver)
-            .collect::<BTreeSet<_>>()
-            .len()
-            > 1
-        {
+        let context_type_fields = catalog_context_type_fields(&context);
+        if context_type_fields.len() != 1 {
             return selected_catalog_error(
                 field,
                 vec!["input", "context"],
-                "Must provide exactly one catalog context type.",
+                "Must provide exactly one context type.",
                 "MUST_PROVIDE_EXACTLY_ONE_CONTEXT_TYPE",
             );
         }
-        let driver_type = catalog_context_driver_from_create_input(&context);
+        let driver_type = context_type_fields[0].0;
         let market_ids = list_string_field(&context, "marketIds");
         let company_location_ids = company_location_ids_from_context(&context);
         let country_codes = country_codes_from_context(&context);
@@ -1840,6 +1822,20 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> PriceListFieldOutcome {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let catalog_id = resolved_string_field(&input, "catalogId");
+        if let Some(catalog_id) = catalog_id.as_deref() {
+            if price_list_catalog_id_has_wrong_gid_type(catalog_id) {
+                return PriceListFieldOutcome::resource_not_found(catalog_id, field);
+            }
+            if let Some(error) = self.price_list_catalog_validation_error(catalog_id, None) {
+                return PriceListFieldOutcome::price_list_with_user_errors(
+                    field,
+                    Value::Null,
+                    vec![error],
+                );
+            }
+        }
+
         let name = resolved_string_field(&input, "name").unwrap_or_default();
         if let Some(error) = price_list_name_error(&self.store.staged.price_lists, &name, None) {
             return PriceListFieldOutcome::price_list_error(field, error);
@@ -1865,20 +1861,6 @@ impl DraftProxy {
             return PriceListFieldOutcome::price_list_error(field, error);
         }
         let adjustment_type = resolved_string_field(&adjustment, "type").unwrap_or_default();
-
-        let catalog_id = resolved_string_field(&input, "catalogId");
-        if let Some(catalog_id) = catalog_id.as_deref() {
-            if price_list_catalog_id_has_wrong_gid_type(catalog_id) {
-                return PriceListFieldOutcome::resource_not_found(catalog_id, field);
-            }
-            if let Some(error) = self.price_list_catalog_validation_error(catalog_id, None) {
-                return PriceListFieldOutcome::price_list_with_user_errors(
-                    field,
-                    Value::Null,
-                    vec![error],
-                );
-            }
-        }
 
         let id = self.next_price_list_id();
         let price_list = price_list_record(
@@ -3315,7 +3297,7 @@ impl DraftProxy {
         let keys = resolved_string_list_arg(&field.arguments, "translationKeys");
         let market_ids = resolved_string_list_arg(&field.arguments, "marketIds");
         let locales = resolved_string_list_arg(&field.arguments, "locales");
-        if locales.is_empty() {
+        if keys.is_empty() || locales.is_empty() {
             return selected_json(
                 &json!({ "translations": null, "userErrors": [] }),
                 &field.selection,
@@ -3325,8 +3307,7 @@ impl DraftProxy {
         let mut removed = Vec::new();
         let mut retained = Vec::new();
         for translation in self.store.staged.localization_translations.drain(..) {
-            let key_matches =
-                keys.is_empty() || keys.iter().any(|key| translation["key"] == json!(key));
+            let key_matches = keys.iter().any(|key| translation["key"] == json!(key));
             let locale_matches = locales
                 .iter()
                 .any(|locale| translation["locale"] == json!(locale));
@@ -3396,14 +3377,11 @@ impl DraftProxy {
     ) -> Value {
         let resource_type = resolved_string_field(&field.arguments, "resourceType")
             .unwrap_or_else(|| "PRODUCT".to_string());
-        let mut records = self
+        let records = self
             .localization_translatable_resource_ids()
             .into_iter()
             .filter(|id| localization_resource_type_matches(id, &resource_type))
             .collect::<Vec<_>>();
-        if records.is_empty() {
-            records.push(default_localization_resource_id(&resource_type));
-        }
         selected_typed_connection_with_args(
             &records,
             &field.arguments,
@@ -4758,13 +4736,4 @@ pub(in crate::proxy) fn localization_resource_type_matches(
         return false;
     };
     gid_type.eq_ignore_ascii_case(&resource_type.replace('_', ""))
-}
-
-pub(in crate::proxy) fn default_localization_resource_id(resource_type: &str) -> String {
-    let gid_type = match resource_type.to_ascii_uppercase().as_str() {
-        "COLLECTION" => "Collection",
-        "ONLINE_STORE_THEME" => "OnlineStoreTheme",
-        _ => "Product",
-    };
-    shopify_gid(gid_type, "9801098789170")
 }

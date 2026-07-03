@@ -10,7 +10,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-427 refreshed live capture for `tagsRemove` on harry-test-heelo.myshopify.com, and the staged runtime mirrors Shopify's immediate tag-index lag for hydrated products by preserving the pre-mutation searchable tag set while direct product reads serialize the current tags. This scenario executes strict proxy-vs-Shopify comparison for mutation data and the immediate downstream remaining/removed tag-filtered read.",
+  "notes": "Live capture for `tagsRemove` on harry-test-heelo.myshopify.com compares the mutation payload plus the delayed downstream tag-filtered read after Shopify's search index converges. The staged runtime exposes effective local tags to `product.tags`, `products(query: \"tag:...\")`, and `productsCount(query: \"tag:...\")` immediately, so Rust integration tests cover the draft read-after-write timing while this parity target covers the index-converged Shopify payload/cursor/pageInfo contract.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -21,13 +21,30 @@
         "proxyPath": "$.data"
       },
       {
-        "name": "downstream-read-data",
-        "capturePath": "$.downstreamRead.data",
+        "name": "delayed-downstream-read-data",
+        "capturePath": "$.delayedDownstreamRead.response.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/tagsRemove-downstream-read.graphql",
-          "variablesCapturePath": "$.downstreamReadVariables"
+          "variablesCapturePath": "$.delayedDownstreamRead.variables"
         },
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.remaining.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque search connection cursors; the proxy uses deterministic Product GID cursors for staged local state."
+          },
+          {
+            "path": "$.remaining.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque search connection cursors; the proxy uses deterministic Product GID cursors for staged local state."
+          },
+          {
+            "path": "$.remaining.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque search connection cursors; the proxy uses deterministic Product GID cursors for staged local state."
+          }
+        ]
       }
     ]
   }

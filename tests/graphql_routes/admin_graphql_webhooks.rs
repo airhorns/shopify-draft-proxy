@@ -1293,6 +1293,187 @@ fn webhook_subscription_validation_guards_match_captured_cases() {
 }
 
 #[test]
+fn webhook_subscription_scheme_allowlist_rejects_non_https_and_invalid_https_without_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let assert_create_rejected = |proxy: &mut DraftProxy, uri: &str, expected_error: Value| {
+        let response = proxy.process_request(json_graphql_request(
+            r#"
+            mutation WebhookSubscriptionCreateSchemeAllowlist(
+              $webhookSubscription: WebhookSubscriptionInput!
+            ) {
+              webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: $webhookSubscription) {
+                webhookSubscription {
+                  id
+                  endpoint {
+                    __typename
+                    ... on WebhookHttpEndpoint { callbackUrl }
+                  }
+                }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "webhookSubscription": {
+                    "uri": uri,
+                    "format": "JSON"
+                }
+            }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["webhookSubscriptionCreate"],
+            json!({
+                "webhookSubscription": null,
+                "userErrors": [expected_error]
+            }),
+            "unexpected create rejection payload for {uri}"
+        );
+    };
+
+    assert_create_rejected(
+        &mut proxy,
+        "ftp://webhook-test.example.com/hook",
+        json!({
+            "field": ["webhookSubscription", "callbackUrl"],
+            "message": "Address protocol ftp:// is not supported"
+        }),
+    );
+    assert_create_rejected(
+        &mut proxy,
+        "ws://webhook-test.example.com/hook",
+        json!({
+            "field": ["webhookSubscription", "callbackUrl"],
+            "message": "Address protocol ws:// is not supported"
+        }),
+    );
+    assert_create_rejected(
+        &mut proxy,
+        "https://",
+        json!({
+            "field": ["webhookSubscription", "callbackUrl"],
+            "message": "Address is invalid"
+        }),
+    );
+
+    let eventbridge = proxy.process_request(json_graphql_request(
+        r#"
+        mutation EventBridgeWebhookSubscriptionCreateSchemeAllowlist {
+          eventBridgeWebhookSubscriptionCreate(
+            topic: SHOP_UPDATE
+            webhookSubscription: { arn: "ftp://webhook-test.example.com/hook" }
+          ) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        eventbridge.body["data"]["eventBridgeWebhookSubscriptionCreate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [{
+                "field": ["webhookSubscription", "arn"],
+                "message": "Address protocol ftp:// is not supported"
+            }]
+        })
+    );
+
+    assert_eq!(
+        proxy
+            .process_request(json_graphql_request(
+                "# RustWebhookLocalRuntime\nquery { webhookSubscriptionsCount { count } }",
+                json!({}),
+            ))
+            .body["data"]["webhookSubscriptionsCount"],
+        json!({ "count": 0 }),
+        "rejected creates should not stage webhook subscriptions"
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"],
+        json!([]),
+        "rejected creates should not append mutation log entries"
+    );
+
+    let baseline = proxy.process_request(json_graphql_request(
+        r#"
+        mutation WebhookSubscriptionCreateUpdateBaseline {
+          webhookSubscriptionCreate(
+            topic: SHOP_UPDATE
+            webhookSubscription: { uri: "https://example.com/scheme-allowlist-baseline", format: JSON }
+          ) {
+            webhookSubscription { id uri }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        baseline.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    let baseline_id = baseline.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]
+        ["id"]
+        .as_str()
+        .expect("baseline create should return an id")
+        .to_string();
+    let log_after_baseline = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+
+    let rejected_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation WebhookSubscriptionUpdateSchemeAllowlist(
+          $id: ID!
+          $webhookSubscription: WebhookSubscriptionInput!
+        ) {
+          webhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id uri }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": baseline_id,
+            "webhookSubscription": {
+                "uri": "ftp://webhook-test.example.com/hook",
+                "format": "JSON"
+            }
+        }),
+    ));
+    assert_eq!(
+        rejected_update.body["data"]["webhookSubscriptionUpdate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [{
+                "field": ["webhookSubscription", "callbackUrl"],
+                "message": "Address protocol ftp:// is not supported"
+            }]
+        })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_after_baseline,
+        "rejected update should not append a mutation log entry"
+    );
+
+    let detail = proxy.process_request(json_graphql_request(
+        "query WebhookSubscriptionAfterRejectedSchemeUpdate($id: ID!) { webhookSubscription(id: $id) { id uri } webhookSubscriptionsCount { count } }",
+        json!({ "id": baseline_id }),
+    ));
+    assert_eq!(
+        detail.body["data"]["webhookSubscription"]["uri"],
+        json!("https://example.com/scheme-allowlist-baseline")
+    );
+    assert_eq!(
+        detail.body["data"]["webhookSubscriptionsCount"],
+        json!({ "count": 1 })
+    );
+}
+
+#[test]
 fn webhook_subscription_filter_byte_size_validation_matches_shopify_ordering() {
     let mut proxy = snapshot_proxy();
     let at_limit_filter = format!("id:{}", "1".repeat(65_532));
@@ -1454,6 +1635,141 @@ fn webhook_subscription_filter_byte_size_validation_matches_shopify_ordering() {
     assert_eq!(
         detail_after_rejected_update.body["data"]["webhookSubscription"]["filter"],
         json!("id:1")
+    );
+}
+
+#[test]
+fn webhook_subscription_filter_rejects_mixed_qualified_and_bare_terms_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let create_mutation = r#"
+        mutation WebhookSubscriptionFilterMixedTermCreate(
+          $topic: WebhookSubscriptionTopic!
+          $webhookSubscription: WebhookSubscriptionInput!
+        ) {
+          webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id filter }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let update_mutation = r#"
+        mutation WebhookSubscriptionFilterMixedTermUpdate(
+          $id: ID!
+          $webhookSubscription: WebhookSubscriptionInput!
+        ) {
+          webhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id filter }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let detail_query = r#"
+        query WebhookSubscriptionFilterMixedTermDetail($id: ID!) {
+          webhookSubscription(id: $id) { id filter }
+          webhookSubscriptionsCount { count }
+        }
+    "#;
+    let invalid_filter_error = json!({
+        "webhookSubscription": null,
+        "userErrors": [{
+            "field": ["webhookSubscription"],
+            "message": "The specified filter is invalid, please ensure you specify the field(s) you wish to filter on."
+        }]
+    });
+
+    let mixed_create = proxy.process_request(json_graphql_request(
+        create_mutation,
+        json!({
+            "topic": "CUSTOMERS_UPDATE",
+            "webhookSubscription": {
+                "uri": "https://example.com/filter-mixed-create",
+                "format": "JSON",
+                "filter": "customer_id:123 bareword"
+            }
+        }),
+    ));
+    assert_eq!(
+        mixed_create.body["data"]["webhookSubscriptionCreate"],
+        invalid_filter_error
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"],
+        json!([]),
+        "rejected mixed-filter create must not append a mutation log entry"
+    );
+
+    let count_after_rejected_create = proxy.process_request(json_graphql_request(
+        r#"query { webhookSubscriptionsCount { count } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        count_after_rejected_create.body["data"]["webhookSubscriptionsCount"]["count"],
+        json!(0),
+        "rejected mixed-filter create must not stage a subscription"
+    );
+
+    let accepted_create = proxy.process_request(json_graphql_request(
+        create_mutation,
+        json!({
+            "topic": "CUSTOMERS_UPDATE",
+            "webhookSubscription": {
+                "uri": "https://example.com/filter-qualified-create",
+                "format": "JSON",
+                "filter": "-customer_id:123 AND id:1 OR orders_count:1"
+            }
+        }),
+    ));
+    assert_eq!(
+        accepted_create.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    let webhook_id = accepted_create.body["data"]["webhookSubscriptionCreate"]
+        ["webhookSubscription"]["id"]
+        .as_str()
+        .expect("qualified filter create should stage a subscription")
+        .to_string();
+    assert_eq!(
+        accepted_create.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["filter"],
+        json!("-customer_id:123 AND id:1 OR orders_count:1")
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 1);
+
+    let mixed_update = proxy.process_request(json_graphql_request(
+        update_mutation,
+        json!({
+            "id": webhook_id,
+            "webhookSubscription": {
+                "uri": "https://example.com/filter-qualified-create",
+                "format": "JSON",
+                "filter": "customer_id:123 bareword"
+            }
+        }),
+    ));
+    assert_eq!(
+        mixed_update.body["data"]["webhookSubscriptionUpdate"],
+        invalid_filter_error
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        1,
+        "rejected mixed-filter update must not append a mutation log entry"
+    );
+
+    let detail_after_rejected_update = proxy.process_request(json_graphql_request(
+        detail_query,
+        json!({ "id": webhook_id }),
+    ));
+    assert_eq!(
+        detail_after_rejected_update.body["data"]["webhookSubscription"],
+        json!({
+            "id": webhook_id,
+            "filter": "-customer_id:123 AND id:1 OR orders_count:1"
+        }),
+        "rejected mixed-filter update must leave the existing filter unchanged"
+    );
+    assert_eq!(
+        detail_after_rejected_update.body["data"]["webhookSubscriptionsCount"]["count"],
+        json!(1)
     );
 }
 
@@ -2070,6 +2386,37 @@ fn pubsub_gcp_project_and_topic_char_rules_match_shopify() {
         })
     );
 
+    let dedicated_create_both_invalid = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        mutation {
+          pubSubWebhookSubscriptionCreate(
+            topic: SHOP_UPDATE
+            webhookSubscription: { pubSubProject: "-bad", pubSubTopic: "1topic" }
+          ) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(dedicated_create_both_invalid.status, 200);
+    assert_eq!(
+        dedicated_create_both_invalid.body["data"]["pubSubWebhookSubscriptionCreate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [
+                {
+                    "field": ["webhookSubscription", "pubSubProject"],
+                    "message": "Google Cloud Pub/Sub project ID is not valid"
+                },
+                {
+                    "field": ["webhookSubscription", "pubSubTopic"],
+                    "message": "Google Cloud Pub/Sub topic ID is not valid"
+                }
+            ]
+        })
+    );
+
     let unified_percent_topic = proxy.process_request(json_graphql_request(
         r#"# RustWebhookLocalRuntime
         mutation {
@@ -2110,6 +2457,37 @@ fn pubsub_gcp_project_and_topic_char_rules_match_shopify() {
         })
     );
 
+    let unified_create_both_invalid = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        mutation {
+          webhookSubscriptionCreate(
+            topic: SHOP_UPDATE
+            webhookSubscription: { uri: "pubsub://-bad:1topic", format: JSON }
+          ) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(unified_create_both_invalid.status, 200);
+    assert_eq!(
+        unified_create_both_invalid.body["data"]["webhookSubscriptionCreate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [
+                {
+                    "field": ["webhookSubscription", "callbackUrl"],
+                    "message": "Address is invalid"
+                },
+                {
+                    "field": ["webhookSubscription", "callbackUrl"],
+                    "message": "Address is not a valid GCP project id."
+                }
+            ]
+        })
+    );
+
     let dedicated_update_percent_topic = proxy.process_request(json_graphql_request(
         r#"# RustWebhookLocalRuntime
         mutation($id: ID!) {
@@ -2143,6 +2521,37 @@ fn pubsub_gcp_project_and_topic_char_rules_match_shopify() {
             "__typename": "WebhookPubSubEndpoint",
             "pubSubProject": "123456789012",
             "pubSubTopic": "next%25topic"
+        })
+    );
+
+    let dedicated_update_both_invalid = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        mutation($id: ID!) {
+          pubSubWebhookSubscriptionUpdate(
+            id: $id
+            webhookSubscription: { pubSubProject: "-bad", pubSubTopic: "1topic" }
+          ) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "id": dedicated_id }),
+    ));
+    assert_eq!(dedicated_update_both_invalid.status, 200);
+    assert_eq!(
+        dedicated_update_both_invalid.body["data"]["pubSubWebhookSubscriptionUpdate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [
+                {
+                    "field": ["webhookSubscription", "pubSubProject"],
+                    "message": "Google Cloud Pub/Sub project ID is not valid"
+                },
+                {
+                    "field": ["webhookSubscription", "pubSubTopic"],
+                    "message": "Google Cloud Pub/Sub topic ID is not valid"
+                }
+            ]
         })
     );
 

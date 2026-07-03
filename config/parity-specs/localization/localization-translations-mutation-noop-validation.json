@@ -1,6 +1,12 @@
 {
   "scenarioId": "localization-translations-mutation-noop-validation",
-  "operationNames": ["shopLocaleEnable", "shopLocaleDisable", "translationsRegister", "translationsRemove"],
+  "operationNames": [
+    "shopLocaleEnable",
+    "shopLocaleDisable",
+    "translatableResource",
+    "translationsRegister",
+    "translationsRemove"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": ["user-errors-parity", "validation-branch-parity", "mutation-lifecycle"],
   "liveCaptureFiles": [
@@ -26,6 +32,51 @@
           "documentPath": "config/parity-requests/localization/localization-translations-remove.graphql",
           "apiVersion": "2026-04",
           "variablesCapturePath": "$.unknownKeyRemove.variables"
+        }
+      },
+      {
+        "name": "shop-locale-enable-empty-keys-setup",
+        "capturePath": "$.emptyKeysRemove.localeEnable.response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.shopLocale.locale", "$.shopLocale.primary", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.emptyKeysRemove.localeEnable.variables"
+        }
+      },
+      {
+        "name": "translations-register-empty-keys-setup",
+        "capturePath": "$.emptyKeysRemove.register.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.emptyKeysRemove.register.variables"
+        }
+      },
+      {
+        "name": "translations-remove-empty-keys-noop",
+        "capturePath": "$.emptyKeysRemove.remove.response.data.translationsRemove",
+        "proxyPath": "$.data.translationsRemove",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-remove.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.emptyKeysRemove.remove.variables"
+        }
+      },
+      {
+        "name": "translations-read-after-empty-keys-remove",
+        "capturePath": "$.emptyKeysRemove.readAfter.response.data.translatableResource",
+        "proxyPath": "$.data.translatableResource",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.emptyKeysRemove.readAfter.variables"
         }
       },
       {
@@ -106,5 +157,5 @@
       }
     ]
   },
-  "notes": "Live Admin GraphQL 2026-04 capture proves translationsRemove does not validate unknown translation keys or currently-disabled locales, and translationsRegister rejects both currently-disabled locales and the shop primary locale with TranslationUserError codes. The disabled-locale register target strict-compares Shopify's invalid-locale message text."
+  "notes": "Live Admin GraphQL 2026-04 capture proves translationsRemove does not validate unknown translation keys, treats an empty translationKeys list as a no-op while preserving downstream French title/body translations, and does not validate currently-disabled locales. It also proves translationsRegister rejects both currently-disabled locales and the shop primary locale with TranslationUserError codes. The disabled-locale register target strict-compares Shopify's invalid-locale message text."
 }

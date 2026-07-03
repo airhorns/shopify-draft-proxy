@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI capture script intentionally writes status output. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient, type ConformanceGraphqlPayload } from './conformance-graphql-client.js';
@@ -11,8 +11,11 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 type JsonRecord = Record<string, unknown>;
 
 const scenarioId = 'localization-translations-mutation-noop-validation';
+const emptyKeysLocale = 'fr';
 const disabledLocale = 'it';
 const unknownKeyLocale = 'fr';
+const setupReadDocumentPath =
+  'config/parity-requests/localization/localization-translations-mutation-noop-validation-read.graphql';
 
 const productCreateMutation = `#graphql
   mutation LocalizationTranslationsMutationNoopValidationProductCreate($product: ProductCreateInput!) {
@@ -83,24 +86,11 @@ const shopLocaleDisableMutation = `#graphql
   }
 `;
 
-const setupReadQuery = `#graphql
-  query LocalizationTranslationsMutationNoopValidationRead($resourceId: ID!) {
-    shopLocales {
-      locale
-      name
-      primary
-      published
-    }
+const translationsReadQuery = `#graphql
+  query LocalizationTranslationsRead($resourceId: ID!) {
     translatableResource(resourceId: $resourceId) {
       resourceId
-      translatableContent {
-        key
-        value
-        digest
-        locale
-        type
-      }
-      translations(locale: "it") {
+      translations(locale: "fr") {
         key
         value
         locale
@@ -199,22 +189,23 @@ function primaryLocale(payload: ConformanceGraphqlPayload<unknown>): string {
   return primary['locale'];
 }
 
-function titleDigest(payload: ConformanceGraphqlPayload<unknown>): string {
+function translatableContentDigest(payload: ConformanceGraphqlPayload<unknown>, key: string): string {
   const resource = dataObject(payload)['translatableResource'];
   if (!isRecord(resource) || !Array.isArray(resource['translatableContent'])) {
     throw new Error(`Setup read did not return translatable content: ${JSON.stringify(payload)}`);
   }
-  const title = resource['translatableContent'].find(
-    (entry) => isRecord(entry) && entry['key'] === 'title' && typeof entry['digest'] === 'string',
+  const content = resource['translatableContent'].find(
+    (entry) => isRecord(entry) && entry['key'] === key && typeof entry['digest'] === 'string',
   );
-  if (!isRecord(title) || typeof title['digest'] !== 'string') {
-    throw new Error(`Setup read did not return a title digest: ${JSON.stringify(payload)}`);
+  if (!isRecord(content) || typeof content['digest'] !== 'string') {
+    throw new Error(`Setup read did not return a ${key} digest: ${JSON.stringify(payload)}`);
   }
-  return title['digest'];
+  return content['digest'];
 }
 
 async function main(): Promise<void> {
   const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
+  const setupReadQuery = await readFile(setupReadDocumentPath, 'utf8');
   const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
   const { runGraphqlRequest } = createAdminGraphqlClient({
     adminOrigin,
@@ -236,11 +227,14 @@ async function main(): Promise<void> {
   const productInput = {
     title: `Translation noop validation ${captureToken}`,
     handle: `translation-noop-validation-${captureToken}`,
+    descriptionHtml: `<p>Translation noop validation body ${captureToken}</p>`,
     status: 'DRAFT',
   };
 
   let createdProductId: string | null = null;
   let shouldRestoreItalianLocale = false;
+  let shouldRestoreFrenchLocale = false;
+  let shouldDisableFrenchLocale = false;
   let cleanup: JsonRecord = {};
 
   try {
@@ -257,6 +251,17 @@ async function main(): Promise<void> {
     if (preCaptureDisable) {
       assertNoUserErrors(payloadField(preCaptureDisable, 'shopLocaleDisable'), 'preCapture shopLocaleDisable');
     }
+    const initiallyFrenchEnabled = shopLocaleIsEnabled(initialShopLocales, emptyKeysLocale);
+    shouldRestoreFrenchLocale = initiallyFrenchEnabled;
+    const preCaptureFrenchDisable = initiallyFrenchEnabled
+      ? await runGraphql(shopLocaleDisableMutation, { locale: emptyKeysLocale })
+      : null;
+    if (preCaptureFrenchDisable) {
+      assertNoUserErrors(
+        payloadField(preCaptureFrenchDisable, 'shopLocaleDisable'),
+        'preCapture French shopLocaleDisable',
+      );
+    }
 
     const productCreate = await runGraphql(productCreateMutation, { product: productInput });
     const productCreatePayload = payloadField(productCreate, 'productCreate');
@@ -269,7 +274,8 @@ async function main(): Promise<void> {
 
     const setupReadVariables = { resourceId: createdProductId };
     const setupRead = await runGraphql(setupReadQuery, setupReadVariables);
-    const digest = titleDigest(setupRead);
+    const digest = translatableContentDigest(setupRead, 'title');
+    const bodyDigest = translatableContentDigest(setupRead, 'body_html');
 
     const unknownKeyRemoveVariables = {
       resourceId: createdProductId,
@@ -278,6 +284,43 @@ async function main(): Promise<void> {
     };
     const unknownKeyRemove = await runGraphql(removeMutation, unknownKeyRemoveVariables);
     assertNoUserErrors(payloadField(unknownKeyRemove, 'translationsRemove'), 'unknown-key translationsRemove');
+
+    const emptyKeysLocaleEnableVariables = { locale: emptyKeysLocale };
+    const emptyKeysLocaleEnable = await runGraphql(shopLocaleEnableMutation, emptyKeysLocaleEnableVariables);
+    assertNoUserErrors(payloadField(emptyKeysLocaleEnable, 'shopLocaleEnable'), 'empty-keys shopLocaleEnable');
+    shouldRestoreFrenchLocale = false;
+    shouldDisableFrenchLocale = !initiallyFrenchEnabled;
+
+    const emptyKeysRegisterVariables = {
+      resourceId: createdProductId,
+      translations: [
+        {
+          locale: emptyKeysLocale,
+          key: 'title',
+          value: `Titre ${captureToken}`,
+          translatableContentDigest: digest,
+        },
+        {
+          locale: emptyKeysLocale,
+          key: 'body_html',
+          value: `<p>Description ${captureToken}</p>`,
+          translatableContentDigest: bodyDigest,
+        },
+      ],
+    };
+    const emptyKeysRegister = await runGraphql(registerMutation, emptyKeysRegisterVariables);
+    assertNoUserErrors(payloadField(emptyKeysRegister, 'translationsRegister'), 'empty-keys translationsRegister');
+
+    const emptyKeysRemoveVariables = {
+      resourceId: createdProductId,
+      keys: [],
+      locales: [emptyKeysLocale],
+    };
+    const emptyKeysRemove = await runGraphql(removeMutation, emptyKeysRemoveVariables);
+    assertNoUserErrors(payloadField(emptyKeysRemove, 'translationsRemove'), 'empty-keys translationsRemove');
+
+    const emptyKeysReadAfterVariables = { resourceId: createdProductId };
+    const emptyKeysReadAfter = await runGraphql(translationsReadQuery, emptyKeysReadAfterVariables);
 
     const localeEnableVariables = { locale: disabledLocale };
     const localeEnable = await runGraphql(shopLocaleEnableMutation, localeEnableVariables);
@@ -350,9 +393,17 @@ async function main(): Promise<void> {
       throw new Error(`Expected one primary-locale userError: ${JSON.stringify(primaryLocaleRegister)}`);
     }
 
-    cleanup = await bestEffortCleanup({ runGraphql, createdProductId, shouldRestoreItalianLocale });
+    cleanup = await bestEffortCleanup({
+      runGraphql,
+      createdProductId,
+      shouldRestoreItalianLocale,
+      shouldRestoreFrenchLocale,
+      shouldDisableFrenchLocale,
+    });
     createdProductId = null;
     shouldRestoreItalianLocale = false;
+    shouldRestoreFrenchLocale = false;
+    shouldDisableFrenchLocale = false;
 
     await mkdir(outputDir, { recursive: true });
     await writeFile(
@@ -366,6 +417,7 @@ async function main(): Promise<void> {
           setup: {
             initialShopLocales,
             preCaptureDisable,
+            preCaptureFrenchDisable,
             productCreate: { variables: { product: productInput }, response: productCreate },
           },
           setupRead: {
@@ -375,6 +427,12 @@ async function main(): Promise<void> {
           unknownKeyRemove: {
             variables: unknownKeyRemoveVariables,
             response: unknownKeyRemove,
+          },
+          emptyKeysRemove: {
+            localeEnable: { variables: emptyKeysLocaleEnableVariables, response: emptyKeysLocaleEnable },
+            register: { variables: emptyKeysRegisterVariables, response: emptyKeysRegister },
+            remove: { variables: emptyKeysRemoveVariables, response: emptyKeysRemove },
+            readAfter: { variables: emptyKeysReadAfterVariables, response: emptyKeysReadAfter },
           },
           disabledLocaleRemove: {
             localeEnable: { variables: localeEnableVariables, response: localeEnable },
@@ -410,8 +468,19 @@ async function main(): Promise<void> {
     );
     console.log(`Wrote ${outputPath}`);
   } finally {
-    if (createdProductId !== null || shouldRestoreItalianLocale) {
-      cleanup = await bestEffortCleanup({ runGraphql, createdProductId, shouldRestoreItalianLocale });
+    if (
+      createdProductId !== null ||
+      shouldRestoreItalianLocale ||
+      shouldRestoreFrenchLocale ||
+      shouldDisableFrenchLocale
+    ) {
+      cleanup = await bestEffortCleanup({
+        runGraphql,
+        createdProductId,
+        shouldRestoreItalianLocale,
+        shouldRestoreFrenchLocale,
+        shouldDisableFrenchLocale,
+      });
       console.log(`Cleanup after failure: ${JSON.stringify(cleanup)}`);
     }
   }
@@ -421,6 +490,8 @@ async function bestEffortCleanup(options: {
   runGraphql: (query: string, variables?: JsonRecord) => Promise<ConformanceGraphqlPayload<unknown>>;
   createdProductId: string | null;
   shouldRestoreItalianLocale: boolean;
+  shouldRestoreFrenchLocale: boolean;
+  shouldDisableFrenchLocale: boolean;
 }): Promise<JsonRecord> {
   const cleanup: JsonRecord = {};
   if (options.createdProductId !== null) {
@@ -439,6 +510,24 @@ async function bestEffortCleanup(options: {
       });
     } catch (error: unknown) {
       cleanup['shopLocaleEnableError'] = String(error);
+    }
+  }
+  if (options.shouldDisableFrenchLocale) {
+    try {
+      cleanup['shopLocaleDisableFr'] = await options.runGraphql(shopLocaleDisableMutation, {
+        locale: emptyKeysLocale,
+      });
+    } catch (error: unknown) {
+      cleanup['shopLocaleDisableFrError'] = String(error);
+    }
+  }
+  if (options.shouldRestoreFrenchLocale) {
+    try {
+      cleanup['shopLocaleEnableFr'] = await options.runGraphql(shopLocaleEnableMutation, {
+        locale: emptyKeysLocale,
+      });
+    } catch (error: unknown) {
+      cleanup['shopLocaleEnableFrError'] = String(error);
     }
   }
   return cleanup;

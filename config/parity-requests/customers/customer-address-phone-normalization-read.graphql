@@ -1,0 +1,16 @@
+#graphql
+query CustomerAddressPhoneNormalizationRead($id: ID!) {
+  customer(id: $id) {
+    id
+    defaultAddress {
+      id
+      phone
+    }
+    addressesV2(first: 5) {
+      nodes {
+        id
+        phone
+      }
+    }
+  }
+}

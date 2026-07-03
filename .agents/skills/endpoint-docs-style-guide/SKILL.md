@@ -127,6 +127,9 @@ Use this checklist when auditing an existing endpoint doc:
 - [ ] Unsupported boundaries explain caller-visible behavior and do not promise
       future work.
 - [ ] Standalone proof, capture-summary, and command-list sections are absent.
+- [ ] Proxy-generated, snapshot, runtime-test, or hand-authored artifacts are not
+      described as captured Shopify parity evidence; endpoint claims separate
+      live capture proof from proxy-only runtime regression tests.
 - [ ] Ticket-review headings, support-history prose, and migration notes
       are removed or moved to the correct internal note location.
 - [ ] The doc does not claim support beyond local lifecycle behavior and
