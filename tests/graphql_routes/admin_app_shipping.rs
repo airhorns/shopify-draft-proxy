@@ -7707,9 +7707,78 @@ fn delivery_profile_validations_match_captured_write_subset() {
     );
 }
 
+fn hydrated_shipping_package(
+    id: &str,
+    name: &str,
+    package_type: &str,
+    box_type: &str,
+    is_default: bool,
+    dimensions: Value,
+) -> Value {
+    json!({
+        "__typename": "ShippingPackage",
+        "id": id,
+        "name": name,
+        "type": package_type,
+        "boxType": box_type,
+        "default": is_default,
+        "weight": { "value": 1.0, "unit": "KILOGRAMS" },
+        "dimensions": dimensions,
+        "createdAt": "2026-06-01T00:00:00.000Z",
+        "updatedAt": "2026-06-01T00:00:00.000Z"
+    })
+}
+
+fn live_hybrid_shipping_package_proxy(
+    packages: Vec<Value>,
+) -> (DraftProxy, Arc<Mutex<Vec<Value>>>) {
+    let package_by_id: BTreeMap<String, Value> = packages
+        .into_iter()
+        .filter_map(|package| {
+            let id = package.get("id")?.as_str()?.to_string();
+            Some((id, package))
+        })
+        .collect();
+    let hydrate_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_hydrate_calls = Arc::clone(&hydrate_calls);
+    let proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            captured_hydrate_calls.lock().unwrap().push(body.clone());
+            let id = body["variables"]["id"].as_str().unwrap_or_default();
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "node": package_by_id.get(id).cloned().unwrap_or(Value::Null)
+                    }
+                }),
+            }
+        });
+    (proxy, hydrate_calls)
+}
+
 #[test]
 fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
-    let mut proxy = snapshot_proxy();
+    let (mut proxy, hydrate_calls) = live_hybrid_shipping_package_proxy(vec![
+        hydrated_shipping_package(
+            "gid://shopify/ShippingPackage/1",
+            "Hydrated primary box",
+            "BOX",
+            "CUSTOM",
+            false,
+            json!({ "length": 10, "width": 8, "height": 4, "unit": "CENTIMETERS" }),
+        ),
+        hydrated_shipping_package(
+            "gid://shopify/ShippingPackage/2",
+            "Hydrated backup mailer",
+            "ENVELOPE",
+            "CUSTOM",
+            false,
+            json!({ "length": 8, "width": 6, "height": 1, "unit": "CENTIMETERS" }),
+        ),
+    ]);
     let update_query = r#"
         mutation ShippingPackageUpdateLocalRuntime($id: ID!, $shippingPackage: CustomShippingPackageInput!) {
           shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message } }
@@ -7823,6 +7892,87 @@ fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
         json!("shippingPackageDelete")
     );
     assert_eq!(log["entries"][3]["status"], json!("staged"));
+    assert_eq!(hydrate_calls.lock().unwrap().len(), 2);
+}
+
+#[test]
+fn shipping_package_live_hybrid_hydrates_non_fixture_ids_and_clears_all_defaults() {
+    let (mut proxy, hydrate_calls) = live_hybrid_shipping_package_proxy(vec![
+        hydrated_shipping_package(
+            "gid://shopify/ShippingPackage/1",
+            "Hydrated primary box",
+            "BOX",
+            "CUSTOM",
+            false,
+            json!({ "length": 10, "width": 8, "height": 4, "unit": "CENTIMETERS" }),
+        ),
+        hydrated_shipping_package(
+            "gid://shopify/ShippingPackage/2",
+            "Hydrated backup mailer",
+            "ENVELOPE",
+            "CUSTOM",
+            false,
+            json!({ "length": 8, "width": 6, "height": 1, "unit": "CENTIMETERS" }),
+        ),
+        hydrated_shipping_package(
+            "gid://shopify/ShippingPackage/303",
+            "Hydrated regional tote",
+            "BOX",
+            "CUSTOM",
+            false,
+            json!({ "length": 33, "width": 22, "height": 11, "unit": "INCHES" }),
+        ),
+    ]);
+
+    let update_query = r#"
+        mutation ShippingPackageUpdateHydratedRuntime($id: ID!, $shippingPackage: CustomShippingPackageInput!) {
+          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message code } }
+        }
+    "#;
+
+    for id in [
+        "gid://shopify/ShippingPackage/1",
+        "gid://shopify/ShippingPackage/2",
+        "gid://shopify/ShippingPackage/303",
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            update_query,
+            json!({ "id": id, "shippingPackage": { "default": true } }),
+        ));
+        assert_eq!(
+            response.body["data"]["shippingPackageUpdate"],
+            json!({ "userErrors": [] })
+        );
+    }
+
+    let state = state_snapshot(&proxy);
+    let packages = &state["stagedState"]["shippingPackages"];
+    assert_eq!(
+        packages["gid://shopify/ShippingPackage/1"]["default"],
+        json!(false)
+    );
+    assert_eq!(
+        packages["gid://shopify/ShippingPackage/2"]["default"],
+        json!(false)
+    );
+    assert_eq!(
+        packages["gid://shopify/ShippingPackage/303"]["default"],
+        json!(true)
+    );
+    assert_eq!(
+        packages["gid://shopify/ShippingPackage/303"]["name"],
+        json!("Hydrated regional tote")
+    );
+    assert_eq!(
+        packages["gid://shopify/ShippingPackage/303"]["dimensions"]["length"],
+        json!(33)
+    );
+
+    let calls = hydrate_calls.lock().unwrap();
+    assert_eq!(calls.len(), 3);
+    assert!(calls.iter().all(|body| body["query"]
+        .as_str()
+        .is_some_and(|query| query.contains("ShippingPackageHydrate"))));
 }
 
 #[test]
@@ -8178,8 +8328,16 @@ fn location_local_pickup_live_hybrid_mutations_are_local_and_overlay_observed_re
 }
 
 #[test]
-fn shipping_package_update_rejects_flat_rate_packages_without_staging_state() {
-    let mut proxy = snapshot_proxy();
+fn shipping_package_update_rejects_hydrated_flat_rate_packages_without_staging_state() {
+    let (mut proxy, hydrate_calls) =
+        live_hybrid_shipping_package_proxy(vec![hydrated_shipping_package(
+            "gid://shopify/ShippingPackage/10",
+            "Carrier flat-rate box",
+            "BOX",
+            "FLAT_RATE",
+            false,
+            json!({ "length": 10, "width": 8, "height": 4, "unit": "CENTIMETERS" }),
+        )]);
     let update_query = r#"
         mutation ShippingPackageUpdateFlatRate($id: ID!, $shippingPackage: CustomShippingPackageInput!) {
           shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message code } }
@@ -8210,6 +8368,8 @@ fn shipping_package_update_rejects_flat_rate_packages_without_staging_state() {
         state_snapshot(&proxy)["stagedState"]["shippingPackages"],
         json!({})
     );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(hydrate_calls.lock().unwrap().len(), 1);
 }
 
 #[test]
