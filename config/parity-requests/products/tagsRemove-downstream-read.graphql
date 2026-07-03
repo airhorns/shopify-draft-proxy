@@ -4,15 +4,41 @@ query TagsRemoveDownstreamRead($id: ID!, $remainingQuery: String!, $removedQuery
     tags
   }
   remaining: products(first: 10, query: $remainingQuery) {
+    edges {
+      cursor
+      node {
+        id
+        tags
+      }
+    }
     nodes {
       id
       tags
     }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
   }
   removed: products(first: 10, query: $removedQuery) {
+    edges {
+      cursor
+      node {
+        id
+        tags
+      }
+    }
     nodes {
       id
       tags
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
     }
   }
   remainingCount: productsCount(query: $remainingQuery) {

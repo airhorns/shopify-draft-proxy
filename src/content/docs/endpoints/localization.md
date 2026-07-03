@@ -82,7 +82,9 @@ removed rows. Staged `Translation` rows include a synthetic DateTime-shaped
 `updatedAt` value in the `translationsRegister` echo and in downstream
 `translatableResource(...).translations` reads; re-registering an existing row
 refreshes that timestamp. `translationsRemove` removes every requested
-translation-key/locale/market combination that exists in staged state.
+translation-key/locale/market combination that exists in staged state. An empty
+`translationKeys` list matches no rows and returns Shopify's no-op
+`translations: null, userErrors: []` payload.
 For `translationsRegister` rows that violate multiple rules, captured Shopify
 behavior validates locale and market gates before translation-record value and
 digest validation; the market-scoped value-matches-base-translation check runs
@@ -142,25 +144,3 @@ cleanly.
 - Supported mutation slices stage locally and do not update Shopify at runtime;
   unmatched unsupported mutation documents follow the configured unsupported
   path.
-
-### Evidence
-
-- Registry status: `src/operation_registry.rs`
-- Runtime coverage: `tests/graphql_routes.rs`, including store-backed
-  `availableLocales` / `shopLocales` catalog reads without ported document-name
-  markers
-- Product translatable-content parity:
-  `config/parity-specs/localization/localization-translatable-content-product.json`
-- Shop-locale plain `UserError` parity:
-  `config/parity-specs/localization/localization-shop-locale-usererror-no-code.json`
-- Parity specs: `config/parity-specs/localization/*.json`
-- Market-scoped translation parity:
-  `config/parity-specs/localization/localization-translations-market-scoped.json`
-- Fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/*.json`
-
-### Validation
-
-- `corepack pnpm lint`
-- `corepack pnpm parity -- --spec config/parity-specs/localization/localization-translatable-content-product.json`
-- `corepack pnpm parity -- localization-translations-market-scoped`
-- `corepack pnpm rust:test`

@@ -1,0 +1,41 @@
+query GiftCardLegacySeedHydrationRead($smallBalanceId: ID!) {
+  giftCard(id: $smallBalanceId) {
+    id
+    lastCharacters
+    maskedCode
+    note
+    customer {
+      id
+      email
+      defaultEmailAddress {
+        emailAddress
+      }
+      defaultPhoneNumber {
+        phoneNumber
+      }
+    }
+    recipientAttributes {
+      message
+      preferredName
+      sendNotificationAt
+      recipient {
+        id
+        email
+        defaultEmailAddress {
+          emailAddress
+        }
+        defaultPhoneNumber {
+          phoneNumber
+        }
+      }
+    }
+    initialValue {
+      amount
+      currencyCode
+    }
+    balance {
+      amount
+      currencyCode
+    }
+  }
+}

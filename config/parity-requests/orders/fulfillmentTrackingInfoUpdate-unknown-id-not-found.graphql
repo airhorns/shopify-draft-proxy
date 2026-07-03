@@ -1,0 +1,17 @@
+mutation FulfillmentTrackingInfoUpdateUnknownNotFound(
+  $fulfillmentId: ID!
+  $trackingInfoInput: FulfillmentTrackingInput!
+) {
+  fulfillmentTrackingInfoUpdate(
+    fulfillmentId: $fulfillmentId
+    trackingInfoInput: $trackingInfoInput
+  ) {
+    fulfillment {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

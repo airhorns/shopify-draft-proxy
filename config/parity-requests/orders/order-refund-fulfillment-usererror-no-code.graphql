@@ -1,0 +1,52 @@
+mutation OrdersPlainUserErrorCodeSelectionRejected {
+  refund: refundCreate(input: { orderId: "gid://shopify/Order/999999999" }) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create: fulfillmentCreate(fulfillment: {
+    lineItemsByFulfillmentOrder: [{ fulfillmentOrderId: "gid://shopify/FulfillmentOrder/1" }]
+  }) {
+    userErrors {
+      code
+    }
+  }
+  createV2: fulfillmentCreateV2(fulfillment: {
+    lineItemsByFulfillmentOrder: [{ fulfillmentOrderId: "gid://shopify/FulfillmentOrder/1" }]
+  }) {
+    userErrors {
+      code
+    }
+  }
+  cancel: fulfillmentCancel(id: "gid://shopify/Fulfillment/1") {
+    userErrors {
+      code
+    }
+  }
+  tracking: fulfillmentTrackingInfoUpdate(
+    fulfillmentId: "gid://shopify/Fulfillment/1"
+    trackingInfoInput: { number: "TRACK-1" }
+  ) {
+    userErrors {
+      code
+    }
+  }
+  trackingV2: fulfillmentTrackingInfoUpdateV2(
+    fulfillmentId: "gid://shopify/Fulfillment/1"
+    trackingInfoInput: { number: "TRACK-1" }
+  ) {
+    userErrors {
+      code
+    }
+  }
+  event: fulfillmentEventCreate(fulfillmentEvent: {
+    fulfillmentId: "gid://shopify/Fulfillment/1"
+    status: IN_TRANSIT
+  }) {
+    userErrors {
+      code
+    }
+  }
+}

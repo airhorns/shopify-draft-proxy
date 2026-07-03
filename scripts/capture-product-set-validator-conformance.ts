@@ -181,6 +181,29 @@ function buildInventoryQuantitiesLimitVariables(runId: string, locationId: strin
   };
 }
 
+function buildInventoryItemCostVariables(runId: string): JsonRecord {
+  return {
+    synchronous: true,
+    input: {
+      title: `Hermes ProductSet Inventory Cost ${runId}`,
+      vendor: 'Hermes',
+      productOptions: [{ name: 'Color', values: [{ name: 'Red' }, { name: 'Blue' }] }],
+      variants: [
+        {
+          price: '10.00',
+          optionValues: [{ optionName: 'Color', name: 'Red' }],
+          inventoryItem: { cost: '-1' },
+        },
+        {
+          price: '11.00',
+          optionValues: [{ optionName: 'Color', name: 'Blue' }],
+          inventoryItem: { cost: '1000000000000000000' },
+        },
+      ],
+    },
+  };
+}
+
 function buildUnknownProductVariables(): JsonRecord {
   return {
     synchronous: true,
@@ -257,6 +280,8 @@ const inventoryQuantitiesLimitVariables = buildInventoryQuantitiesLimitVariables
 const inventoryQuantitiesLimitResponse = (
   await runGraphqlRaw(productSetShapeMutation, inventoryQuantitiesLimitVariables)
 ).payload;
+const inventoryItemCostVariables = buildInventoryItemCostVariables(runId);
+const inventoryItemCostResponse = (await runGraphqlRaw(productSetShapeMutation, inventoryItemCostVariables)).payload;
 const unknownProductVariables = buildUnknownProductVariables();
 const unknownProductResponse = (await runGraphqlRaw(productSetShapeMutation, unknownProductVariables)).payload;
 
@@ -332,6 +357,10 @@ await writeFile(
       inventoryQuantitiesLimit: {
         variables: inventoryQuantitiesLimitVariables,
         response: inventoryQuantitiesLimitResponse,
+      },
+      inventoryItemCost: {
+        variables: inventoryItemCostVariables,
+        response: inventoryItemCostResponse,
       },
       unknownProduct: {
         variables: unknownProductVariables,

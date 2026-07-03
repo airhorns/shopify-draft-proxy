@@ -1,0 +1,180 @@
+{
+  "capturedAt": "2026-07-03T01:48:55.410Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "media-file-update-missing-id-coercion",
+  "documents": {
+    "variable": "config/parity-requests/media/file_update_missing_id_coercion.graphql",
+    "inline": "config/parity-requests/media/file_update_missing_id_coercion_inline.graphql"
+  },
+  "cases": {
+    "omittedId": {
+      "variables": {
+        "files": [
+          {
+            "alt": "new alt"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $files of type [FileUpdateInput!]! was provided invalid value for 0.id (Expected value to not be null)",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 43
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": [
+                  {
+                    "alt": "new alt"
+                  }
+                ],
+                "problems": [
+                  {
+                    "path": [0, "id"],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "batchOmittedId": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/MediaImage/999999999996",
+            "alt": "supplied id"
+          },
+          {
+            "alt": "missing id"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $files of type [FileUpdateInput!]! was provided invalid value for 1.id (Expected value to not be null)",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 43
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": [
+                  {
+                    "id": "gid://shopify/MediaImage/999999999996",
+                    "alt": "supplied id"
+                  },
+                  {
+                    "alt": "missing id"
+                  }
+                ],
+                "problems": [
+                  {
+                    "path": [1, "id"],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "inlineOmittedId": {
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'id' on InputObject 'FileUpdateInput' is required. Expected type ID!",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 22
+                }
+              ],
+              "path": ["mutation MediaFileUpdateInlineMissingIdCoercion", "fileUpdate", "files", 0, "id"],
+              "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "id",
+                "argumentType": "ID!",
+                "inputObjectType": "FileUpdateInput"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "suppliedMissingId": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/MediaImage/999999999996",
+            "alt": "supplied missing id"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fileUpdate": {
+              "files": [],
+              "userErrors": [
+                {
+                  "field": ["files"],
+                  "message": "File id [\"gid://shopify/MediaImage/999999999996\"] does not exist.",
+                  "code": "FILE_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "MediaFileUpdateHydrate",
+      "variables": {
+        "fileIds": ["gid://shopify/MediaImage/999999999996"]
+      },
+      "query": "query MediaFileUpdateHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Validation-only capture. Omitted FileUpdateInput.id fails GraphQL input coercion before fileUpdate resolver execution; supplied unknown id remains a resolver-level FILE_DOES_NOT_EXIST userError."
+}

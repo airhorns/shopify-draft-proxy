@@ -30,6 +30,7 @@ const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, api
 const fixtureDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'orders');
 const fixturePath = path.join(fixtureDir, 'fulfillment-create-preconditions.json');
 const requestPath = path.join('config', 'parity-requests', 'orders', 'fulfillmentCreate-preconditions.graphql');
+const v2RequestPath = path.join('config', 'parity-requests', 'orders', 'fulfillmentCreateV2-preconditions.graphql');
 const specPath = path.join('config', 'parity-specs', 'orders', 'fulfillmentCreate-preconditions.json');
 
 const { runGraphqlRequest } = createAdminGraphqlClient({
@@ -64,6 +65,21 @@ function requireNoUserErrors(payload: JsonRecord, pathLabel: string): void {
     .reduce<unknown>((current, segment) => (current as JsonRecord | undefined)?.[segment], payload);
   if (Array.isArray(errors) && errors.length === 0) return;
   throw new Error(`${pathLabel} returned userErrors: ${JSON.stringify(errors, null, 2)}`);
+}
+
+function userErrorsAt(payload: JsonRecord, pathLabel: string): JsonRecord[] {
+  const errors = pathLabel
+    .split('.')
+    .reduce<unknown>((current, segment) => (current as JsonRecord | undefined)?.[segment], payload);
+  return Array.isArray(errors) ? errors : [];
+}
+
+function isTooManyAttempts(errors: JsonRecord[]): boolean {
+  return errors.some((error) => String(error['message'] ?? '').includes('Too many attempts'));
+}
+
+async function delay(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function capture(name: string, query: string, variables: JsonRecord = {}): Promise<GraphqlStep> {
@@ -298,6 +314,37 @@ mutation FulfillmentCreatePreconditions($fulfillment: FulfillmentInput!, $messag
 }
 `;
 
+const fulfillmentCreateV2Mutation = `#graphql
+mutation FulfillmentCreateV2Preconditions($fulfillment: FulfillmentV2Input!, $message: String) {
+  fulfillmentCreateV2(fulfillment: $fulfillment, message: $message) {
+    fulfillment {
+      id
+      status
+      displayStatus
+      trackingInfo {
+        number
+        url
+        company
+      }
+      fulfillmentLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+          lineItem {
+            id
+            title
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
+`;
+
 const orderCancelMutation = `#graphql
 mutation FulfillmentCreatePreconditionsOrderCancel(
   $orderId: ID!
@@ -387,8 +434,20 @@ function orderVariables(stamp: number, label: string): JsonRecord {
 }
 
 async function createOrder(stamp: number, label: string): Promise<OrderSetup> {
-  const create = await capture(`${label}.orderCreate`, orderCreateMutation, orderVariables(stamp, label));
-  requireNoUserErrors(create.response, 'data.orderCreate.userErrors');
+  let create: GraphqlStep | null = null;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    create = await capture(`${label}.orderCreate`, orderCreateMutation, orderVariables(stamp, label));
+    const errors = userErrorsAt(create.response, 'data.orderCreate.userErrors');
+    if (errors.length === 0) break;
+    if (isTooManyAttempts(errors) && attempt < 5) {
+      await delay(30_000 * (attempt + 1));
+      continue;
+    }
+    requireNoUserErrors(create.response, 'data.orderCreate.userErrors');
+  }
+  if (!create) {
+    throw new Error(`${label}.orderCreate did not return a capture`);
+  }
   const order = requirePath(create.response['data']?.['orderCreate']?.['order'], `${label}.order`);
   const fulfillmentOrder = requirePath(order['fulfillmentOrders']?.['nodes']?.[0], `${label}.fulfillmentOrder`);
   const fulfillmentOrderLineItem = requirePath(
@@ -423,6 +482,35 @@ function fulfillmentVariables(
     },
     message,
   };
+}
+
+function missingFulfillmentVariables(fulfillmentOrderId: string, message: string, trackingNumber: string): JsonRecord {
+  return {
+    fulfillment: {
+      notifyCustomer: false,
+      trackingInfo: {
+        number: trackingNumber,
+        url: `https://example.com/track/${trackingNumber}`,
+        company: 'Hermes',
+      },
+      lineItemsByFulfillmentOrder: [
+        {
+          fulfillmentOrderId,
+          fulfillmentOrderLineItems: [
+            {
+              id: `gid://shopify/FulfillmentOrderLineItem/${resourceIdTail(fulfillmentOrderId)}`,
+              quantity: 1,
+            },
+          ],
+        },
+      ],
+    },
+    message,
+  };
+}
+
+function resourceIdTail(id: string): string {
+  return id.split('/').at(-1) ?? id;
 }
 
 async function hydrateFulfillmentOrder(id: string): Promise<GraphqlStep> {
@@ -466,18 +554,19 @@ const orderIds: string[] = [];
 const cleanup: JsonRecord = {};
 
 try {
-  const cancelled = await createOrder(stamp, 'cancelled');
-  const over = await createOrder(stamp, 'over');
-  const closed = await createOrder(stamp, 'closed');
-  const inProgress = await createOrder(stamp, 'in-progress');
-  const happy = await createOrder(stamp, 'happy');
-  orderIds.push(
-    String(cancelled.order['id']),
-    String(over.order['id']),
-    String(closed.order['id']),
-    String(inProgress.order['id']),
-    String(happy.order['id']),
-  );
+  const trackedOrder = async (label: string): Promise<OrderSetup> => {
+    const setup = await createOrder(stamp, label);
+    orderIds.push(String(setup.order['id']));
+    return setup;
+  };
+
+  const cancelled = await trackedOrder('cancelled');
+  const nonPositive = await trackedOrder('non-positive');
+  const nonPositiveV2 = await trackedOrder('non-positive-v2');
+  const over = await trackedOrder('over');
+  const closed = await trackedOrder('closed');
+  const inProgress = await trackedOrder('in-progress');
+  const happy = await trackedOrder('happy');
 
   const cancelledSetup = await capture('cancelled.orderCancel', orderCancelMutation, {
     orderId: cancelled.order['id'],
@@ -498,6 +587,34 @@ try {
     ),
   );
 
+  const nonPositiveHydrate = await hydrateFulfillmentOrder(String(nonPositive.fulfillmentOrder['id']));
+  const nonPositiveShippingHydrate = await captureShippingHydrate(String(nonPositive.fulfillmentOrder['id']));
+  const nonPositiveCreate = await captureAllowingUserErrors(
+    'nonPositive.fulfillmentCreate',
+    fulfillmentCreateMutation,
+    fulfillmentVariables(
+      String(nonPositive.fulfillmentOrder['id']),
+      'fulfillmentCreate non-positive quantity precondition',
+      `FCP-NON-POSITIVE-${stamp}`,
+      nonPositive.fulfillmentOrderLineItem,
+      0,
+    ),
+  );
+
+  const nonPositiveV2Hydrate = await hydrateFulfillmentOrder(String(nonPositiveV2.fulfillmentOrder['id']));
+  const nonPositiveV2ShippingHydrate = await captureShippingHydrate(String(nonPositiveV2.fulfillmentOrder['id']));
+  const nonPositiveV2Create = await captureAllowingUserErrors(
+    'nonPositiveV2.fulfillmentCreateV2',
+    fulfillmentCreateV2Mutation,
+    fulfillmentVariables(
+      String(nonPositiveV2.fulfillmentOrder['id']),
+      'fulfillmentCreateV2 non-positive quantity precondition',
+      `FCP-V2-NON-POSITIVE-${stamp}`,
+      nonPositiveV2.fulfillmentOrderLineItem,
+      0,
+    ),
+  );
+
   const overHydrate = await hydrateFulfillmentOrder(String(over.fulfillmentOrder['id']));
   const overShippingHydrate = await captureShippingHydrate(String(over.fulfillmentOrder['id']));
   const overCreate = await captureAllowingUserErrors(
@@ -509,6 +626,29 @@ try {
       `FCP-OVER-${stamp}`,
       over.fulfillmentOrderLineItem,
       2,
+    ),
+  );
+
+  const missingFulfillmentOrderId = 'gid://shopify/FulfillmentOrder/999999999';
+  const missingV2FulfillmentOrderId = 'gid://shopify/FulfillmentOrder/999999998';
+  const missingShippingHydrate = await captureShippingHydrate(missingFulfillmentOrderId);
+  const missingCreate = await captureAllowingUserErrors(
+    'missing.fulfillmentCreate',
+    fulfillmentCreateMutation,
+    missingFulfillmentVariables(
+      missingFulfillmentOrderId,
+      'fulfillmentCreate missing fulfillment order precondition',
+      `FCP-MISSING-${stamp}`,
+    ),
+  );
+  const missingV2ShippingHydrate = await captureShippingHydrate(missingV2FulfillmentOrderId);
+  const missingV2Create = await captureAllowingUserErrors(
+    'missingV2.fulfillmentCreateV2',
+    fulfillmentCreateV2Mutation,
+    missingFulfillmentVariables(
+      missingV2FulfillmentOrderId,
+      'fulfillmentCreateV2 missing fulfillment order precondition',
+      `FCP-V2-MISSING-${stamp}`,
     ),
   );
 
@@ -582,10 +722,28 @@ try {
         variables: cancelledCreate.variables,
         response: cancelledCreate.response,
       },
+      nonPositiveQuantity: {
+        setup: { orderCreate: nonPositive.create, hydrate: nonPositiveHydrate },
+        variables: nonPositiveCreate.variables,
+        response: nonPositiveCreate.response,
+      },
+      nonPositiveQuantityV2: {
+        setup: { orderCreate: nonPositiveV2.create, hydrate: nonPositiveV2Hydrate },
+        variables: nonPositiveV2Create.variables,
+        response: nonPositiveV2Create.response,
+      },
       overFulfill: {
         setup: { orderCreate: over.create, hydrate: overHydrate },
         variables: overCreate.variables,
         response: overCreate.response,
+      },
+      missingFulfillmentOrder: {
+        variables: missingCreate.variables,
+        response: missingCreate.response,
+      },
+      missingFulfillmentOrderV2: {
+        variables: missingV2Create.variables,
+        response: missingV2Create.response,
       },
       closed: {
         setup: { orderCreate: closed.create, firstFulfillmentCreate: closedSetupCreate, hydrate: closedHydrate },
@@ -605,7 +763,11 @@ try {
     },
     upstreamCalls: [
       cancelledShippingHydrate,
+      nonPositiveShippingHydrate,
+      nonPositiveV2ShippingHydrate,
       overShippingHydrate,
+      missingShippingHydrate,
+      missingV2ShippingHydrate,
       closedShippingHydrate,
       inProgressShippingHydrate,
       happyShippingHydrate,
@@ -623,11 +785,12 @@ try {
 
   await writeJson(fixturePath, capturePayload);
   await writeText(requestPath, `${fulfillmentCreateMutation.replace(/^#graphql\n/u, '').trim()}\n`);
+  await writeText(v2RequestPath, `${fulfillmentCreateV2Mutation.replace(/^#graphql\n/u, '').trim()}\n`);
   await writeJson(specPath, {
     scenarioId: 'fulfillmentCreate-preconditions',
-    operationNames: ['fulfillmentCreate'],
+    operationNames: ['fulfillmentCreate', 'fulfillmentCreateV2'],
     scenarioStatus: 'captured',
-    assertionKinds: ['validation-parity', 'mutation-lifecycle', 'no-upstream-passthrough'],
+    assertionKinds: ['validation-parity', 'user-errors-parity', 'mutation-lifecycle', 'no-upstream-passthrough'],
     liveCaptureFiles: [fixturePath],
     proxyRequest: {
       documentPath: requestPath,
@@ -645,12 +808,52 @@ try {
           proxyPath: '$.data.fulfillmentCreate',
         },
         {
+          name: 'non-positive-line-item-quantity',
+          capturePath: '$.cases.nonPositiveQuantity.response.data.fulfillmentCreate',
+          proxyPath: '$.data.fulfillmentCreate',
+          proxyRequest: {
+            documentPath: requestPath,
+            variables: { fromCapturePath: '$.cases.nonPositiveQuantity.variables' },
+            apiVersion,
+          },
+        },
+        {
+          name: 'non-positive-line-item-quantity-v2',
+          capturePath: '$.cases.nonPositiveQuantityV2.response.data.fulfillmentCreateV2',
+          proxyPath: '$.data.fulfillmentCreateV2',
+          proxyRequest: {
+            documentPath: v2RequestPath,
+            variables: { fromCapturePath: '$.cases.nonPositiveQuantityV2.variables' },
+            apiVersion,
+          },
+        },
+        {
           name: 'over-fulfill-quantity',
           capturePath: '$.cases.overFulfill.response.data.fulfillmentCreate',
           proxyPath: '$.data.fulfillmentCreate',
           proxyRequest: {
             documentPath: requestPath,
             variables: { fromCapturePath: '$.cases.overFulfill.variables' },
+            apiVersion,
+          },
+        },
+        {
+          name: 'missing-fulfillment-order',
+          capturePath: '$.cases.missingFulfillmentOrder.response.data.fulfillmentCreate',
+          proxyPath: '$.data.fulfillmentCreate',
+          proxyRequest: {
+            documentPath: requestPath,
+            variables: { fromCapturePath: '$.cases.missingFulfillmentOrder.variables' },
+            apiVersion,
+          },
+        },
+        {
+          name: 'missing-fulfillment-order-v2',
+          capturePath: '$.cases.missingFulfillmentOrderV2.response.data.fulfillmentCreateV2',
+          proxyPath: '$.data.fulfillmentCreateV2',
+          proxyRequest: {
+            documentPath: v2RequestPath,
+            variables: { fromCapturePath: '$.cases.missingFulfillmentOrderV2.variables' },
             apiVersion,
           },
         },
@@ -703,11 +906,12 @@ try {
       ],
     },
     notes:
-      'Captured public Admin API fulfillmentCreate preconditions. Public userErrors expose field/message only for this root; 2026-04 accepts fulfillmentCreate after fulfillmentOrderReportProgress leaves a fulfillment order IN_PROGRESS, so the scenario records that as the public happy-path contrast rather than treating it as a rejection.',
+      'Captured public Admin API fulfillmentCreate and deprecated fulfillmentCreateV2 preconditions. Public userErrors expose field/message only for these roots; non-positive line-item quantities return an indexed quantity path, missing fulfillment orders return field ["fulfillment"], and Admin 2026-04 accepts fulfillmentCreate after fulfillmentOrderReportProgress leaves the fulfillment order IN_PROGRESS.',
   });
 
   console.log(`Wrote ${fixturePath}`);
   console.log(`Wrote ${requestPath}`);
+  console.log(`Wrote ${v2RequestPath}`);
   console.log(`Wrote ${specPath}`);
 } catch (error) {
   for (const orderId of [...orderIds].reverse()) {

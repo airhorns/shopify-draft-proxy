@@ -31,11 +31,7 @@ type UpstreamCall = {
   query: string;
   response: {
     status: number;
-    body: {
-      data: {
-        nodes: Array<Record<string, unknown> | null>;
-      };
-    };
+    body: unknown;
   };
 };
 
@@ -51,6 +47,30 @@ const { runGraphqlRaw } = createAdminGraphqlClient({
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+
+const productHydrateNodesQuery = `#graphql
+  query ProductsHydrateNodes($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      __typename
+      id
+      ... on Product {
+        title
+        variants(first: 1) {
+          nodes {
+            id
+            title
+          }
+        }
+      }
+      ... on ProductVariant {
+        title
+        product {
+          id
+        }
+      }
+    }
+  }
+`;
 
 const sellingPlanGroupFields = `#graphql
   id
@@ -242,43 +262,19 @@ function productSnapshotFromCreate(captureResult: Capture): ProductSnapshot {
   };
 }
 
-function productHydrationNode(product: ProductSnapshot): Record<string, unknown> {
-  return {
-    __typename: 'Product',
-    id: product.id,
-    title: product.title,
-    variants: {
-      nodes: [
-        {
-          id: product.variantId,
-          title: product.variantTitle,
-        },
-      ],
-    },
-  };
-}
-
-function variantHydrationNode(product: ProductSnapshot): Record<string, unknown> {
-  return {
-    __typename: 'ProductVariant',
-    id: product.variantId,
-    title: product.variantTitle,
-    product: {
-      id: product.id,
-    },
-  };
-}
-
-function upstreamCall(ids: string[], nodes: Array<Record<string, unknown> | null>): UpstreamCall {
+async function upstreamCall(ids: string[]): Promise<UpstreamCall> {
+  const variables = { ids };
+  const response = await runGraphqlRaw(productHydrateNodesQuery, variables);
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`ProductsHydrateNodes failed for ${ids.join(', ')}: ${JSON.stringify(response, null, 2)}`);
+  }
   return {
     operationName: 'ProductsHydrateNodes',
-    variables: { ids },
-    query: 'hand-synthesized from live setup product evidence for mutation hydration',
+    variables,
+    query: productHydrateNodesQuery,
     response: {
-      status: 200,
-      body: {
-        data: { nodes },
-      },
+      status: response.status,
+      body: response.payload,
     },
   };
 }
@@ -445,14 +441,11 @@ if (!memberProduct || !nonMemberProduct) {
 }
 
 const upstreamCalls = [
-  upstreamCall(
-    [memberProduct.id, memberProduct.variantId],
-    [productHydrationNode(memberProduct), variantHydrationNode(memberProduct)],
-  ),
-  upstreamCall([unknownProductId], [null]),
-  upstreamCall([unknownVariantId], [null]),
-  upstreamCall([nonMemberProduct.id], [productHydrationNode(nonMemberProduct)]),
-  upstreamCall([nonMemberProduct.variantId], [variantHydrationNode(nonMemberProduct)]),
+  await upstreamCall([memberProduct.id, memberProduct.variantId]),
+  await upstreamCall([unknownProductId]),
+  await upstreamCall([unknownVariantId]),
+  await upstreamCall([nonMemberProduct.id]),
+  await upstreamCall([nonMemberProduct.variantId]),
 ];
 
 await mkdir(outputDir, { recursive: true });
