@@ -297,5 +297,34 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "BulkOperationHydrate",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/7928759124274"
+      },
+      "query": "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7928759124274",
+              "status": "CREATED",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-06-15T07:01:34Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }"
+            }
+          }
+        }
+      }
+    }
+  ]
 }

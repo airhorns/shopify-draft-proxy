@@ -1,15 +1,21 @@
 {
   "scenarioId": "gift-card-notification-validation",
-  "operationNames": ["giftCardSendNotificationToCustomer", "giftCardSendNotificationToRecipient"],
+  "operationNames": [
+    "customerCreate",
+    "giftCardCreate",
+    "giftCardDeactivate",
+    "giftCardSendNotificationToCustomer",
+    "giftCardSendNotificationToRecipient"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": ["user-errors-parity", "notification-validation-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-notification-validation.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/gift-cards/gift-card-notification-validation.json"
   ],
-  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-customer.graphql",
-    "variablesCapturePath": "$.proxyVariables.customerDeactivated"
+    "documentPath": "config/parity-requests/gift-cards/gift-card-notification-validation-customer-create.graphql",
+    "variablesCapturePath": "$.setup[0].variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -17,10 +23,200 @@
     "expectedDifferences": [],
     "targets": [
       {
+        "name": "create contact customer userErrors",
+        "capturePath": "$.setup[0].response.payload.data.customerCreate.userErrors",
+        "proxyPath": "$.data.customerCreate.userErrors"
+      },
+      {
+        "name": "create no-contact customer userErrors",
+        "capturePath": "$.setup[1].response.payload.data.customerCreate.userErrors",
+        "proxyPath": "$.data.customerCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-validation-customer-create.graphql",
+          "variablesCapturePath": "$.setup[1].variables"
+        }
+      },
+      {
+        "name": "create deactivated card setup userErrors",
+        "capturePath": "$.setup[2].response.payload.data.giftCardCreate.userErrors",
+        "proxyPath": "$.data.giftCardCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-validation-gift-card-create.graphql",
+          "variables": {
+            "input": {
+              "initialValue": {
+                "fromCapturePath": "$.setup[2].variables.input.initialValue"
+              },
+              "code": {
+                "fromCapturePath": "$.setup[2].variables.input.code"
+              },
+              "note": {
+                "fromCapturePath": "$.setup[2].variables.input.note"
+              },
+              "customerId": {
+                "fromProxyResponse": "create contact customer userErrors",
+                "path": "$.data.customerCreate.customer.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "deactivate setup card userErrors",
+        "capturePath": "$.setup[3].response.payload.data.giftCardDeactivate.userErrors",
+        "proxyPath": "$.data.giftCardDeactivate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-validation-deactivate.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create deactivated card setup userErrors",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "create no-customer card setup userErrors",
+        "capturePath": "$.setup[4].response.payload.data.giftCardCreate.userErrors",
+        "proxyPath": "$.data.giftCardCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-validation-gift-card-create.graphql",
+          "variables": {
+            "input": {
+              "initialValue": {
+                "fromCapturePath": "$.setup[4].variables.input.initialValue"
+              },
+              "code": {
+                "fromCapturePath": "$.setup[4].variables.input.code"
+              },
+              "note": {
+                "fromCapturePath": "$.setup[4].variables.input.note"
+              },
+              "recipientAttributes": {
+                "id": {
+                  "fromProxyResponse": "create contact customer userErrors",
+                  "path": "$.data.customerCreate.customer.id"
+                },
+                "preferredName": {
+                  "fromCapturePath": "$.setup[4].variables.input.recipientAttributes.preferredName"
+                },
+                "message": {
+                  "fromCapturePath": "$.setup[4].variables.input.recipientAttributes.message"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "create no-recipient card setup userErrors",
+        "capturePath": "$.setup[5].response.payload.data.giftCardCreate.userErrors",
+        "proxyPath": "$.data.giftCardCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-validation-gift-card-create.graphql",
+          "variables": {
+            "input": {
+              "initialValue": {
+                "fromCapturePath": "$.setup[5].variables.input.initialValue"
+              },
+              "code": {
+                "fromCapturePath": "$.setup[5].variables.input.code"
+              },
+              "note": {
+                "fromCapturePath": "$.setup[5].variables.input.note"
+              },
+              "customerId": {
+                "fromProxyResponse": "create contact customer userErrors",
+                "path": "$.data.customerCreate.customer.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "create no-contact recipient card setup userErrors",
+        "capturePath": "$.setup[6].response.payload.data.giftCardCreate.userErrors",
+        "proxyPath": "$.data.giftCardCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-validation-gift-card-create.graphql",
+          "variables": {
+            "input": {
+              "initialValue": {
+                "fromCapturePath": "$.setup[6].variables.input.initialValue"
+              },
+              "code": {
+                "fromCapturePath": "$.setup[6].variables.input.code"
+              },
+              "note": {
+                "fromCapturePath": "$.setup[6].variables.input.note"
+              },
+              "recipientAttributes": {
+                "id": "gid://shopify/Customer/no-contact-recipient",
+                "preferredName": {
+                  "fromCapturePath": "$.setup[6].variables.input.recipientAttributes.preferredName"
+                },
+                "message": {
+                  "fromCapturePath": "$.setup[6].variables.input.recipientAttributes.message"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "create expired card setup userErrors",
+        "capturePath": "$.setup[7].response.payload.data.giftCardCreate.userErrors",
+        "proxyPath": "$.data.giftCardCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-validation-gift-card-create.graphql",
+          "variables": {
+            "input": {
+              "initialValue": {
+                "fromCapturePath": "$.setup[7].variables.input.initialValue"
+              },
+              "code": {
+                "fromCapturePath": "$.setup[7].variables.input.code"
+              },
+              "note": {
+                "fromCapturePath": "$.setup[7].variables.input.note"
+              },
+              "expiresOn": {
+                "fromCapturePath": "$.setup[7].variables.input.expiresOn"
+              },
+              "customerId": {
+                "fromProxyResponse": "create contact customer userErrors",
+                "path": "$.data.customerCreate.customer.id"
+              },
+              "recipientAttributes": {
+                "id": {
+                  "fromProxyResponse": "create contact customer userErrors",
+                  "path": "$.data.customerCreate.customer.id"
+                },
+                "preferredName": {
+                  "fromCapturePath": "$.setup[7].variables.input.recipientAttributes.preferredName"
+                },
+                "message": {
+                  "fromCapturePath": "$.setup[7].variables.input.recipientAttributes.message"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
         "name": "customer notification rejects deactivated card",
         "capturePath": "$.operations.customerDeactivated.response.payload.data.giftCardSendNotificationToCustomer",
         "proxyPath": "$.data.giftCardSendNotificationToCustomer",
-        "selectedPaths": ["$.giftCard", "$.userErrors"]
+        "selectedPaths": ["$.giftCard", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-customer.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "deactivate setup card userErrors",
+              "path": "$.data.giftCardDeactivate.giftCard.id"
+            }
+          }
+        }
       },
       {
         "name": "recipient notification rejects deactivated card",
@@ -29,7 +225,12 @@
         "selectedPaths": ["$.giftCard", "$.userErrors"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-recipient.graphql",
-          "variablesCapturePath": "$.proxyVariables.recipientDeactivated"
+          "variables": {
+            "id": {
+              "fromProxyResponse": "deactivate setup card userErrors",
+              "path": "$.data.giftCardDeactivate.giftCard.id"
+            }
+          }
         }
       },
       {
@@ -37,17 +238,14 @@
         "capturePath": "$.operations.customerNoCustomer.response.payload.data.giftCardSendNotificationToCustomer",
         "proxyPath": "$.data.giftCardSendNotificationToCustomer",
         "selectedPaths": ["$.giftCard", "$.userErrors"],
-        "expectedDifferences": [
-          {
-            "path": "$.userErrors[0].field",
-            "ignore": true,
-            "regrettable": true,
-            "reason": "The internal validation branch is base-scoped and HAR-688 acceptance requires field [\"base\"], while live Admin GraphQL 2025-01 serializes the same base error as null."
-          }
-        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-customer.graphql",
-          "variablesCapturePath": "$.proxyVariables.customerNoCustomer"
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create no-customer card setup userErrors",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            }
+          }
         }
       },
       {
@@ -55,17 +253,29 @@
         "capturePath": "$.operations.recipientNoContact.response.payload.data.giftCardSendNotificationToRecipient",
         "proxyPath": "$.data.giftCardSendNotificationToRecipient",
         "selectedPaths": ["$.giftCard", "$.userErrors"],
-        "expectedDifferences": [
-          {
-            "path": "$.userErrors[0].field",
-            "ignore": true,
-            "regrettable": true,
-            "reason": "The internal validation branch is base-scoped and HAR-688 acceptance requires field [\"base\"], while live Admin GraphQL 2025-01 serializes the same base error as null."
-          }
-        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-recipient.graphql",
-          "variablesCapturePath": "$.proxyVariables.recipientNoContact"
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create no-contact recipient card setup userErrors",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "recipient notification rejects card with no recipient",
+        "capturePath": "$.operations.recipientNoRecipient.response.payload.data.giftCardSendNotificationToRecipient",
+        "proxyPath": "$.data.giftCardSendNotificationToRecipient",
+        "selectedPaths": ["$.giftCard", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-recipient.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create no-recipient card setup userErrors",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            }
+          }
         }
       },
       {
@@ -75,7 +285,12 @@
         "selectedPaths": ["$.giftCard", "$.userErrors"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-customer.graphql",
-          "variablesCapturePath": "$.proxyVariables.customerExpired"
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create expired card setup userErrors",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            }
+          }
         }
       },
       {
@@ -85,10 +300,15 @@
         "selectedPaths": ["$.giftCard", "$.userErrors"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-recipient.graphql",
-          "variablesCapturePath": "$.proxyVariables.recipientExpired"
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create expired card setup userErrors",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            }
+          }
         }
       }
     ]
   },
-  "notes": "HAR-688 captures validation-failing gift-card notification roots only, so no successful customer-visible notification is sent. Notify-disabled validation is covered by runtime tests because public Admin GraphQL 2025-01 exposes no GiftCard notify field or GiftCardCreate/Update notify input to create that stored branch through the conformance harness."
+  "notes": "Captures validation-failing gift-card notification roots only, so no successful customer-visible notification is sent. Expired notification branches use an ordinary recent-past expiresOn date. Notify-disabled validation is covered by runtime tests because public Admin GraphQL 2026-04 exposes no GiftCard notify field or GiftCardCreate/Update notify input to create that stored branch through the conformance harness."
 }

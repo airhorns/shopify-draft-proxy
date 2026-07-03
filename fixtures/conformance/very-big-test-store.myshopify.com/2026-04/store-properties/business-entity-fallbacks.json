@@ -84,7 +84,7 @@
         "knownId": "gid://shopify/BusinessEntity/MTYzNzU1NDE5ODgx",
         "unknownId": "gid://shopify/BusinessEntity/999999999999999999"
       },
-      "query": "sha:hand-synthesized-StorePropertiesBusinessEntityFallbacks",
+      "query": "query StorePropertiesBusinessEntityFallbacks($knownId: ID!, $unknownId: ID!) {\n  primary: businessEntity {\n    id\n    displayName\n    companyName\n    primary\n    archived\n    address {\n      address1\n      address2\n      city\n      countryCode\n      province\n      zip\n    }\n    shopifyPaymentsAccount {\n      id\n      activated\n      country\n      defaultCurrency\n      onboardable\n    }\n  }\n  known: businessEntity(id: $knownId) {\n    id\n    displayName\n    companyName\n    primary\n    archived\n    address {\n      address1\n      address2\n      city\n      countryCode\n      province\n      zip\n    }\n    shopifyPaymentsAccount {\n      id\n      activated\n      country\n      defaultCurrency\n      onboardable\n    }\n  }\n  unknown: businessEntity(id: $unknownId) {\n    id\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

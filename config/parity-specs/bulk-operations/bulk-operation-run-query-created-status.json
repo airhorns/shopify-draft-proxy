@@ -68,6 +68,16 @@
             "reason": "BulkOperation IDs are shop-generated in Shopify and synthetic in the local proxy."
           },
           {
+            "path": "$.objectCount",
+            "matcher": "non-empty-string",
+            "reason": "Shopify reports counts for the captured shop contents while the proxy reports rows in its generated local JSONL."
+          },
+          {
+            "path": "$.rootObjectCount",
+            "matcher": "non-empty-string",
+            "reason": "Shopify reports counts for the captured shop contents while the proxy reports rows in its generated local JSONL."
+          },
+          {
             "path": "$.fileSize",
             "matcher": "non-empty-string",
             "reason": "Shopify reports the stored artifact size while the proxy reports the byte length of its generated local JSONL."
@@ -76,6 +86,56 @@
             "path": "$.url",
             "matcher": "non-empty-string",
             "reason": "Shopify returns a signed storage URL while the proxy serves an in-memory local result URL."
+          }
+        ]
+      },
+      {
+        "name": "run-query-result-artifact-status",
+        "capturePath": "$.lifecycle.queryExportToTerminal.result.status",
+        "proxyPath": "$.status",
+        "proxyHttpRequest": {
+          "method": "GET",
+          "path": {
+            "fromProxyResponse": "read-after-run-query-terminal-operation",
+            "path": "$.data.bulkOperation.url"
+          }
+        }
+      },
+      {
+        "name": "run-query-result-artifact-content-type",
+        "capturePath": "$.lifecycle.queryExportToTerminal.result.contentType",
+        "proxyPath": "$.headers.content-type",
+        "proxyHttpRequest": {
+          "method": "GET",
+          "path": {
+            "fromProxyResponse": "read-after-run-query-terminal-operation",
+            "path": "$.data.bulkOperation.url"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$",
+            "matcher": "regex:^application/jsonl(?:; charset=utf-8)?$",
+            "reason": "Shopify records a storage response content type while the local proxy serves the in-memory artifact with an explicit charset."
+          }
+        ]
+      },
+      {
+        "name": "run-query-result-artifact-jsonl-body",
+        "capturePath": "$.lifecycle.queryExportToTerminal.result.records",
+        "proxyPath": "$.body",
+        "proxyHttpRequest": {
+          "method": "GET",
+          "path": {
+            "fromProxyResponse": "read-after-run-query-terminal-operation",
+            "path": "$.data.bulkOperation.url"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$",
+            "matcher": "jsonl-string",
+            "reason": "Shopify result bytes are nondeterministic storage artifacts; the proxy must still return a syntactically valid JSONL body from its local artifact route."
           }
         ]
       }

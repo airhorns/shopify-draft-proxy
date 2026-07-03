@@ -1,4 +1,4 @@
-mutation HAR594CollectionCreate($input: CollectionInput!) {
+mutation CollectionMembershipCreate($input: CollectionInput!) {
   collectionCreate(input: $input) {
     collection {
       id

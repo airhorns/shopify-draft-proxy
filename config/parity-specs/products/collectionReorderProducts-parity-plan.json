@@ -4,15 +4,16 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-reorder-products-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/collection-reorder-products-manual-sort.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/collectionReorderProducts-parity-plan.graphql",
+    "apiVersion": "2026-04",
     "variablesPath": "config/parity-requests/products/collectionReorderProducts-parity-plan.variables.json",
-    "variablesCapturePath": "$.mutation.variables"
+    "variablesCapturePath": "$.manualSorted.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables; expected differences are path-scoped to nondeterministic ids or documented captured live-store baseline data outside this mutation's staged effect.",
+  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live 2026-04 fixture variables. The fixture covers a manually sorted custom collection reorder success, the non-manual custom collection rejection `Can't reorder products unless collection is manually sorted`, and the same manual-sort rejection for smart collections.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -25,15 +26,47 @@
     "targets": [
       {
         "name": "mutation-data",
-        "capturePath": "$.mutation.response.data",
+        "capturePath": "$.manualSorted.mutation.response.data",
         "proxyPath": "$.data"
       },
       {
         "name": "downstream-read-data",
-        "capturePath": "$.downstreamRead.data",
+        "capturePath": "$.manualSorted.downstreamRead.data",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/products/collectionReorderProducts-downstream-read.graphql",
-          "variablesCapturePath": "$.downstreamReadVariables"
+          "documentPath": "config/parity-requests/products/collectionReorderProducts-order-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.manualSorted.downstreamReadVariables"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "non-manual-sort-user-errors",
+        "capturePath": "$.nonManualSorted.mutation.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionReorderProducts-parity-plan.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.nonManualSorted.mutation.variables"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "non-manual-sort-read-after-reject",
+        "capturePath": "$.nonManualSorted.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionReorderProducts-order-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.nonManualSorted.downstreamReadVariables"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "smart-collection-manual-sort-user-errors",
+        "capturePath": "$.smartCollection.mutation.response.data",
+        "isolatedProxy": true,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionReorderProducts-parity-plan.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.smartCollection.mutation.variables"
         },
         "proxyPath": "$.data"
       }

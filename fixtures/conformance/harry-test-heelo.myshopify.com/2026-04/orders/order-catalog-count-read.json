@@ -1,0 +1,405 @@
+{
+  "capturedAt": "2026-06-22T23:17:33.328Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "variables": {
+    "tagQuery": "tag:merchant-realistic",
+    "nameQuery": "name:1494",
+    "statusQuery": "financial_status:paid fulfillment_status:unfulfilled",
+    "pageSize": 1,
+    "seedSize": 2,
+    "countLimit": 1,
+    "unlimited": null
+  },
+  "response": {
+    "data": {
+      "seedCatalog": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Order/8837991727410",
+            "name": "#1494",
+            "createdAt": "2026-06-22T22:34:00Z",
+            "updatedAt": "2026-06-22T22:34:02Z",
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED",
+            "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+            "email": "hermes-draft-order-complete-20260622223358@example.com",
+            "currentTotalPriceSet": {
+              "shopMoney": {
+                "amount": "55.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          {
+            "id": "gid://shopify/Order/8837986943282",
+            "name": "#1492",
+            "createdAt": "2026-06-22T22:29:28Z",
+            "updatedAt": "2026-06-22T22:29:29Z",
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED",
+            "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+            "email": "hermes-draft-order-complete-20260622222925@example.com",
+            "currentTotalPriceSet": {
+              "shopMoney": {
+                "amount": "55.0",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        ]
+      },
+      "recent": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Order/8837991727410",
+            "name": "#1494",
+            "createdAt": "2026-06-22T22:34:00Z",
+            "updatedAt": "2026-06-22T22:34:02Z",
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED",
+            "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+            "email": "hermes-draft-order-complete-20260622223358@example.com"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ==",
+          "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
+        }
+      },
+      "oldest": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Order/8837986943282",
+            "name": "#1492",
+            "createdAt": "2026-06-22T22:29:28Z",
+            "updatedAt": "2026-06-22T22:29:29Z",
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED",
+            "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+            "email": "hermes-draft-order-complete-20260622222925@example.com"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo4ODM3OTg2OTQzMjgyLCJsYXN0X3ZhbHVlIjoxNzgyMTY3MzY4MDAwfQ==",
+          "endCursor": "eyJsYXN0X2lkIjo4ODM3OTg2OTQzMjgyLCJsYXN0X3ZhbHVlIjoxNzgyMTY3MzY4MDAwfQ=="
+        }
+      },
+      "byName": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Order/8837991727410",
+            "name": "#1494",
+            "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"]
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ==",
+          "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
+        }
+      },
+      "byStatus": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Order/8838031900978",
+            "name": "#1501",
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED"
+          },
+          {
+            "id": "gid://shopify/Order/8838022168882",
+            "name": "#1497",
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED"
+          },
+          {
+            "id": "gid://shopify/Order/8837991727410",
+            "name": "#1494",
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": true,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjo4ODM4MDMxOTAwOTc4LCJsYXN0X3ZhbHVlIjoxNzgyMTY5ODAzMDAwfQ==",
+          "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
+        }
+      },
+      "limitedTaggedCount": {
+        "count": 1,
+        "precision": "AT_LEAST"
+      },
+      "exactTaggedCount": {
+        "count": 2,
+        "precision": "EXACT"
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 37,
+        "actualQueryCost": 36,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1964,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "nextPage": {
+    "variables": {
+      "tagQuery": "tag:merchant-realistic",
+      "pageSize": 1,
+      "after": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
+    },
+    "response": {
+      "data": {
+        "nextPage": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Order/8837986943282",
+              "name": "#1492",
+              "createdAt": "2026-06-22T22:29:28Z",
+              "updatedAt": "2026-06-22T22:29:29Z",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+              "email": "hermes-draft-order-complete-20260622222925@example.com"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": "eyJsYXN0X2lkIjo4ODM3OTg2OTQzMjgyLCJsYXN0X3ZhbHVlIjoxNzgyMTY3MzY4MDAwfQ==",
+            "endCursor": "eyJsYXN0X2lkIjo4ODM3OTg2OTQzMjgyLCJsYXN0X3ZhbHVlIjoxNzgyMTY3MzY4MDAwfQ=="
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1992,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrderCatalogCountRead",
+      "variables": {
+        "tagQuery": "tag:merchant-realistic",
+        "nameQuery": "name:1494",
+        "statusQuery": "financial_status:paid fulfillment_status:unfulfilled",
+        "pageSize": 1,
+        "seedSize": 2,
+        "countLimit": 1,
+        "unlimited": null
+      },
+      "query": "query OrderCatalogCountRead(\n  $tagQuery: String!\n  $nameQuery: String!\n  $statusQuery: String!\n  $pageSize: Int!\n  $seedSize: Int!\n  $countLimit: Int\n  $unlimited: Int\n) {\n  seedCatalog: orders(first: $seedSize, query: $tagQuery, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      name\n      createdAt\n      updatedAt\n      displayFinancialStatus\n      displayFulfillmentStatus\n      tags\n      email\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n  recent: orders(first: $pageSize, query: $tagQuery, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      name\n      createdAt\n      updatedAt\n      displayFinancialStatus\n      displayFulfillmentStatus\n      tags\n      email\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  oldest: orders(first: $pageSize, query: $tagQuery, sortKey: CREATED_AT, reverse: false) {\n    nodes {\n      id\n      name\n      createdAt\n      updatedAt\n      displayFinancialStatus\n      displayFulfillmentStatus\n      tags\n      email\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  byName: orders(first: 3, query: $nameQuery, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      name\n      tags\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  byStatus: orders(first: 3, query: $statusQuery, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      name\n      displayFinancialStatus\n      displayFulfillmentStatus\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  limitedTaggedCount: ordersCount(query: $tagQuery, limit: $countLimit) {\n    count\n    precision\n  }\n  exactTaggedCount: ordersCount(query: $tagQuery, limit: $unlimited) {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "seedCatalog": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Order/8837991727410",
+                  "name": "#1494",
+                  "createdAt": "2026-06-22T22:34:00Z",
+                  "updatedAt": "2026-06-22T22:34:02Z",
+                  "displayFinancialStatus": "PAID",
+                  "displayFulfillmentStatus": "UNFULFILLED",
+                  "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+                  "email": "hermes-draft-order-complete-20260622223358@example.com",
+                  "currentTotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "55.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Order/8837986943282",
+                  "name": "#1492",
+                  "createdAt": "2026-06-22T22:29:28Z",
+                  "updatedAt": "2026-06-22T22:29:29Z",
+                  "displayFinancialStatus": "PAID",
+                  "displayFulfillmentStatus": "UNFULFILLED",
+                  "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+                  "email": "hermes-draft-order-complete-20260622222925@example.com",
+                  "currentTotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "55.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "recent": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Order/8837991727410",
+                  "name": "#1494",
+                  "createdAt": "2026-06-22T22:34:00Z",
+                  "updatedAt": "2026-06-22T22:34:02Z",
+                  "displayFinancialStatus": "PAID",
+                  "displayFulfillmentStatus": "UNFULFILLED",
+                  "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+                  "email": "hermes-draft-order-complete-20260622223358@example.com"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
+              }
+            },
+            "oldest": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Order/8837986943282",
+                  "name": "#1492",
+                  "createdAt": "2026-06-22T22:29:28Z",
+                  "updatedAt": "2026-06-22T22:29:29Z",
+                  "displayFinancialStatus": "PAID",
+                  "displayFulfillmentStatus": "UNFULFILLED",
+                  "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+                  "email": "hermes-draft-order-complete-20260622222925@example.com"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo4ODM3OTg2OTQzMjgyLCJsYXN0X3ZhbHVlIjoxNzgyMTY3MzY4MDAwfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4ODM3OTg2OTQzMjgyLCJsYXN0X3ZhbHVlIjoxNzgyMTY3MzY4MDAwfQ=="
+              }
+            },
+            "byName": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Order/8837991727410",
+                  "name": "#1494",
+                  "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"]
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
+              }
+            },
+            "byStatus": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Order/8838031900978",
+                  "name": "#1501",
+                  "displayFinancialStatus": "PAID",
+                  "displayFulfillmentStatus": "UNFULFILLED"
+                },
+                {
+                  "id": "gid://shopify/Order/8838022168882",
+                  "name": "#1497",
+                  "displayFinancialStatus": "PAID",
+                  "displayFulfillmentStatus": "UNFULFILLED"
+                },
+                {
+                  "id": "gid://shopify/Order/8837991727410",
+                  "name": "#1494",
+                  "displayFinancialStatus": "PAID",
+                  "displayFulfillmentStatus": "UNFULFILLED"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo4ODM4MDMxOTAwOTc4LCJsYXN0X3ZhbHVlIjoxNzgyMTY5ODAzMDAwfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
+              }
+            },
+            "limitedTaggedCount": {
+              "count": 1,
+              "precision": "AT_LEAST"
+            },
+            "exactTaggedCount": {
+              "count": 2,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 37,
+              "actualQueryCost": 36,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1964,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrderCatalogNextPage",
+      "variables": {
+        "tagQuery": "tag:merchant-realistic",
+        "pageSize": 1,
+        "after": "eyJsYXN0X2lkIjo4ODM3OTkxNzI3NDEwLCJsYXN0X3ZhbHVlIjoxNzgyMTY3NjQwMDAwfQ=="
+      },
+      "query": "query OrderCatalogNextPage($tagQuery: String!, $pageSize: Int!, $after: String) {\n  nextPage: orders(first: $pageSize, after: $after, query: $tagQuery, sortKey: CREATED_AT, reverse: true) {\n    nodes {\n      id\n      name\n      createdAt\n      updatedAt\n      displayFinancialStatus\n      displayFulfillmentStatus\n      tags\n      email\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nextPage": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Order/8837986943282",
+                  "name": "#1492",
+                  "createdAt": "2026-06-22T22:29:28Z",
+                  "updatedAt": "2026-06-22T22:29:29Z",
+                  "displayFinancialStatus": "PAID",
+                  "displayFulfillmentStatus": "UNFULFILLED",
+                  "tags": ["draft-order-complete", "merchant-realistic", "parity-probe"],
+                  "email": "hermes-draft-order-complete-20260622222925@example.com"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "eyJsYXN0X2lkIjo4ODM3OTg2OTQzMjgyLCJsYXN0X3ZhbHVlIjoxNzgyMTY3MzY4MDAwfQ==",
+                "endCursor": "eyJsYXN0X2lkIjo4ODM3OTg2OTQzMjgyLCJsYXN0X3ZhbHVlIjoxNzgyMTY3MzY4MDAwfQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

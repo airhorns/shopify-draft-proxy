@@ -30,7 +30,7 @@
           },
           {
             "path": "$.company.locations.nodes[0].id",
-            "matcher": "exact-string:gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic",
+            "matcher": "exact-string:gid://shopify/CompanyLocation/3?shopify-draft-proxy=synthetic",
             "reason": "The proxy allocates a deterministic local default company location ID."
           }
         ]
@@ -56,7 +56,7 @@
         "expectedDifferences": [
           {
             "path": "$.addresses[0].id",
-            "matcher": "exact-string:gid://shopify/CompanyAddress/6?shopify-draft-proxy=synthetic",
+            "matcher": "exact-string:gid://shopify/CompanyAddress/4?shopify-draft-proxy=synthetic",
             "reason": "The proxy creates exactly one local billing address ID for the previously empty billing side."
           }
         ]
@@ -82,7 +82,7 @@
         "expectedDifferences": [
           {
             "path": "$.addresses[0].id",
-            "matcher": "exact-string:gid://shopify/CompanyAddress/6?shopify-draft-proxy=synthetic",
+            "matcher": "exact-string:gid://shopify/CompanyAddress/4?shopify-draft-proxy=synthetic",
             "reason": "The proxy must reuse the local billing address ID created by the first assignment."
           }
         ]
@@ -105,17 +105,17 @@
         "expectedDifferences": [
           {
             "path": "$.companyLocation.id",
-            "matcher": "exact-string:gid://shopify/CompanyLocation/9?shopify-draft-proxy=synthetic",
+            "matcher": "exact-string:gid://shopify/CompanyLocation/5?shopify-draft-proxy=synthetic",
             "reason": "The proxy allocates a deterministic local second location ID after the first assignment."
           },
           {
             "path": "$.companyLocation.billingAddress.id",
-            "matcher": "exact-string:gid://shopify/CompanyAddress/10?shopify-draft-proxy=synthetic",
+            "matcher": "exact-string:gid://shopify/CompanyAddress/7?shopify-draft-proxy=synthetic",
             "reason": "The proxy allocates a deterministic local billing address ID for the dual-address setup location."
           },
           {
             "path": "$.companyLocation.shippingAddress.id",
-            "matcher": "exact-string:gid://shopify/CompanyAddress/11?shopify-draft-proxy=synthetic",
+            "matcher": "exact-string:gid://shopify/CompanyAddress/6?shopify-draft-proxy=synthetic",
             "reason": "The proxy allocates a deterministic local shipping address ID for the dual-address setup location."
           },
           {
@@ -147,13 +147,13 @@
         "expectedDifferences": [
           {
             "path": "$.addresses[0].id",
-            "matcher": "exact-string:gid://shopify/CompanyAddress/10?shopify-draft-proxy=synthetic",
-            "reason": "The proxy must preserve the dual location's existing billing address ID."
+            "matcher": "exact-string:gid://shopify/CompanyAddress/6?shopify-draft-proxy=synthetic",
+            "reason": "The proxy must preserve the dual location's existing shipping address ID (returned first, matching the captured response order)."
           },
           {
             "path": "$.addresses[1].id",
-            "matcher": "exact-string:gid://shopify/CompanyAddress/11?shopify-draft-proxy=synthetic",
-            "reason": "The proxy must preserve the dual location's existing shipping address ID."
+            "matcher": "exact-string:gid://shopify/CompanyAddress/7?shopify-draft-proxy=synthetic",
+            "reason": "The proxy must preserve the dual location's existing billing address ID (returned second, matching the captured response order)."
           }
         ]
       },
@@ -173,17 +173,17 @@
         "expectedDifferences": [
           {
             "path": "$.companyLocation.id",
-            "matcher": "exact-string:gid://shopify/CompanyLocation/9?shopify-draft-proxy=synthetic",
+            "matcher": "exact-string:gid://shopify/CompanyLocation/5?shopify-draft-proxy=synthetic",
             "reason": "The proxy read targets the local dual-address location."
           },
           {
             "path": "$.companyLocation.billingAddress.id",
-            "matcher": "exact-string:gid://shopify/CompanyAddress/10?shopify-draft-proxy=synthetic",
+            "matcher": "exact-string:gid://shopify/CompanyAddress/7?shopify-draft-proxy=synthetic",
             "reason": "The downstream read must expose the preserved billing address ID."
           },
           {
             "path": "$.companyLocation.shippingAddress.id",
-            "matcher": "exact-string:gid://shopify/CompanyAddress/11?shopify-draft-proxy=synthetic",
+            "matcher": "exact-string:gid://shopify/CompanyAddress/6?shopify-draft-proxy=synthetic",
             "reason": "The downstream read must expose the preserved shipping address ID."
           }
         ]

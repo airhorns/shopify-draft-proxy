@@ -1,0 +1,81 @@
+{
+  "scenarioId": "catalog-create-fresh-publication-relation",
+  "operationNames": ["publicationCreate", "catalogCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "local-staging", "relation-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-relation-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-relation-markets-read.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2026-04 capture creates a disposable publication and immediately uses that id in catalogCreate. The proxy replay creates the publication through the public GraphQL mutation before catalogCreate, proving catalog publication relations resolve from staged publication state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "publication-create-setup",
+        "capturePath": "$.cases[7].response.payload.data.publicationCreate",
+        "proxyPath": "$.data.publicationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-relation-publication-create.graphql",
+          "variablesCapturePath": "$.cases[7].variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.publication.id",
+            "matcher": "shopify-gid:Publication",
+            "reason": "The local proxy creates a deterministic synthetic Publication id while the capture stores Shopify's disposable live id."
+          }
+        ]
+      },
+      {
+        "name": "catalog-create-fresh-publication",
+        "capturePath": "$.cases[8].response.payload.data.catalogCreate",
+        "proxyPath": "$.data.catalogCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-create-publication-relation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "title": {
+                "fromCapturePath": "$.cases[8].variables.input.title"
+              },
+              "status": {
+                "fromCapturePath": "$.cases[8].variables.input.status"
+              },
+              "context": {
+                "marketIds": [
+                  {
+                    "fromPrimaryProxyPath": "$.data.markets.nodes[0].id"
+                  }
+                ]
+              },
+              "publicationId": {
+                "fromProxyResponse": "publication-create-setup",
+                "path": "$.data.publicationCreate.publication.id"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The local proxy creates a deterministic synthetic MarketCatalog id while the capture stores Shopify's disposable live id."
+          },
+          {
+            "path": "$.catalog.publication.id",
+            "matcher": "shopify-gid:Publication",
+            "reason": "The local catalog references the synthetic publication created earlier in the replay."
+          }
+        ]
+      }
+    ]
+  }
+}

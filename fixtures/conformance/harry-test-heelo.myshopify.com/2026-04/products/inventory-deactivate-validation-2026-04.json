@@ -1,57 +1,36 @@
 {
-  "capturedAt": "2026-05-05T15:22:35.030Z",
+  "capturedAt": "2026-06-24T05:29:00.033Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "locations": [
-    {
-      "id": "gid://shopify/Location/112829759794",
-      "name": "HAR-571 transfer destination 20260505000619",
-      "isActive": true
-    },
-    {
-      "id": "gid://shopify/Location/112829956402",
-      "name": "HAR-571 transfer destination 20260505000856",
-      "isActive": true
-    },
-    {
-      "id": "gid://shopify/Location/112833036594",
-      "name": "HAR-654 Main 20260505044352",
-      "isActive": true
-    },
-    {
-      "id": "gid://shopify/Location/112833069362",
-      "name": "HAR-654 Sub 20260505044352",
-      "isActive": true
-    },
-    {
-      "id": "gid://shopify/Location/112831103282",
-      "name": "HAR-658 lifecycle 20260505013332",
-      "isActive": true
-    },
-    {
-      "id": "gid://shopify/Location/106318463282",
-      "name": "My Custom Location",
-      "isActive": true
-    },
-    {
+  "notes": [
+    "Creates disposable tracked products and uses only-location / already-active inventory states to capture inventoryActivate and inventoryDeactivate userErrors.",
+    "The code-selection probes intentionally select userErrors { code } for inventoryActivate and inventoryDeactivate to preserve Shopify schema validation errors for these generic UserError roots."
+  ],
+  "locations": {
+    "primary": {
       "id": "gid://shopify/Location/106318430514",
       "name": "Shop location",
       "isActive": true
+    },
+    "secondary": {
+      "id": "gid://shopify/Location/106318463282",
+      "name": "My Custom Location",
+      "isActive": true
     }
-  ],
+  },
   "setup": {
     "committed": {
       "productCreate": {
-        "id": "gid://shopify/Product/10177385857330",
-        "title": "hermes-har-591-committed-1777994544943",
-        "handle": "hermes-har-591-committed-1777994544943",
+        "id": "gid://shopify/Product/10220362531122",
+        "title": "hermes-inv-deactivate-validation-committed-1782278929980",
+        "handle": "hermes-inv-deactivate-validation-committed-1782278929980",
         "status": "ACTIVE",
         "totalInventory": 0,
         "tracksInventory": false,
         "variants": {
           "nodes": [
             {
-              "id": "gid://shopify/ProductVariant/51127056957746",
+              "id": "gid://shopify/ProductVariant/51359526551858",
               "title": "Default Title",
               "inventoryQuantity": 0,
               "selectedOptions": [
@@ -61,13 +40,13 @@
                 }
               ],
               "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53230172668210",
+                "id": "gid://shopify/InventoryItem/53464353407282",
                 "tracked": false,
                 "requiresShipping": true,
                 "inventoryLevels": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230172668210",
+                      "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464353407282",
                       "isActive": true,
                       "location": {
                         "id": "gid://shopify/Location/106318430514",
@@ -77,7 +56,7 @@
                         {
                           "name": "available",
                           "quantity": 0,
-                          "updatedAt": "2026-05-05T15:22:25Z"
+                          "updatedAt": "2026-06-24T05:28:50Z"
                         },
                         {
                           "name": "on_hand",
@@ -110,10 +89,10 @@
       },
       "trackInventory": {
         "variables": {
-          "productId": "gid://shopify/Product/10177385857330",
+          "productId": "gid://shopify/Product/10220362531122",
           "variants": [
             {
-              "id": "gid://shopify/ProductVariant/51127056957746",
+              "id": "gid://shopify/ProductVariant/51359526551858",
               "inventoryItem": {
                 "tracked": true,
                 "requiresShipping": true
@@ -125,16 +104,16 @@
           "data": {
             "productVariantsBulkUpdate": {
               "product": {
-                "id": "gid://shopify/Product/10177385857330",
+                "id": "gid://shopify/Product/10220362531122",
                 "totalInventory": 0,
                 "tracksInventory": true
               },
               "productVariants": [
                 {
-                  "id": "gid://shopify/ProductVariant/51127056957746",
+                  "id": "gid://shopify/ProductVariant/51359526551858",
                   "inventoryQuantity": 0,
                   "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53230172668210",
+                    "id": "gid://shopify/InventoryItem/53464353407282",
                     "tracked": true,
                     "requiresShipping": true
                   }
@@ -161,30 +140,30 @@
           "input": {
             "name": "available",
             "reason": "correction",
-            "referenceDocumentUri": "logistics://har-591/committed/primary/1777994544943",
+            "referenceDocumentUri": "logistics://inv-deactivate-validation/committed/primary/1782278929980",
             "quantities": [
               {
-                "inventoryItemId": "gid://shopify/InventoryItem/53230172668210",
+                "inventoryItemId": "gid://shopify/InventoryItem/53464353407282",
                 "locationId": "gid://shopify/Location/106318430514",
                 "quantity": 5,
                 "changeFromQuantity": 0
               }
             ]
           },
-          "idempotencyKey": "har-591-committed-primary-1777994544943"
+          "idempotencyKey": "inv-deactivate-validation-committed-primary-1782278929980"
         },
         "response": {
           "data": {
             "inventorySetQuantities": {
               "inventoryAdjustmentGroup": {
-                "id": "gid://shopify/InventoryAdjustmentGroup/53935073984818",
+                "id": "gid://shopify/InventoryAdjustmentGroup/54629243912498",
                 "changes": [
                   {
                     "name": "available",
                     "delta": 5,
                     "quantityAfterChange": null,
                     "item": {
-                      "id": "gid://shopify/InventoryItem/53230172668210"
+                      "id": "gid://shopify/InventoryItem/53464353407282"
                     },
                     "location": {
                       "id": "gid://shopify/Location/106318430514",
@@ -196,7 +175,7 @@
                     "delta": 5,
                     "quantityAfterChange": null,
                     "item": {
-                      "id": "gid://shopify/InventoryItem/53230172668210"
+                      "id": "gid://shopify/InventoryItem/53464353407282"
                     },
                     "location": {
                       "id": "gid://shopify/Location/106318430514",
@@ -223,23 +202,23 @@
       },
       "inventoryActivateSecondaryLocation": {
         "variables": {
-          "inventoryItemId": "gid://shopify/InventoryItem/53230172668210",
+          "inventoryItemId": "gid://shopify/InventoryItem/53464353407282",
           "locationId": "gid://shopify/Location/106318463282",
           "available": 0,
-          "idempotencyKey": "har-591-committed-activate-secondary-1777994544943"
+          "idempotencyKey": "inv-deactivate-validation-committed-activate-secondary-1782278929980"
         },
         "response": {
           "data": {
             "inventoryActivate": {
               "inventoryLevel": {
-                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53230172668210",
+                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53464353407282",
                 "isActive": true,
                 "location": {
                   "id": "gid://shopify/Location/106318463282",
                   "name": "My Custom Location"
                 },
                 "item": {
-                  "id": "gid://shopify/InventoryItem/53230172668210"
+                  "id": "gid://shopify/InventoryItem/53464353407282"
                 }
               },
               "userErrors": []
@@ -263,30 +242,30 @@
           "input": {
             "name": "available",
             "reason": "correction",
-            "referenceDocumentUri": "logistics://har-591/committed/secondary/1777994544943",
+            "referenceDocumentUri": "logistics://inv-deactivate-validation/committed/secondary/1782278929980",
             "quantities": [
               {
-                "inventoryItemId": "gid://shopify/InventoryItem/53230172668210",
+                "inventoryItemId": "gid://shopify/InventoryItem/53464353407282",
                 "locationId": "gid://shopify/Location/106318463282",
                 "quantity": 3,
                 "changeFromQuantity": 0
               }
             ]
           },
-          "idempotencyKey": "har-591-committed-secondary-1777994544943"
+          "idempotencyKey": "inv-deactivate-validation-committed-secondary-1782278929980"
         },
         "response": {
           "data": {
             "inventorySetQuantities": {
               "inventoryAdjustmentGroup": {
-                "id": "gid://shopify/InventoryAdjustmentGroup/53935074017586",
+                "id": "gid://shopify/InventoryAdjustmentGroup/54629244076338",
                 "changes": [
                   {
                     "name": "available",
                     "delta": 3,
                     "quantityAfterChange": null,
                     "item": {
-                      "id": "gid://shopify/InventoryItem/53230172668210"
+                      "id": "gid://shopify/InventoryItem/53464353407282"
                     },
                     "location": {
                       "id": "gid://shopify/Location/106318463282",
@@ -298,7 +277,7 @@
                     "delta": 3,
                     "quantityAfterChange": null,
                     "item": {
-                      "id": "gid://shopify/InventoryItem/53230172668210"
+                      "id": "gid://shopify/InventoryItem/53464353407282"
                     },
                     "location": {
                       "id": "gid://shopify/Location/106318463282",
@@ -326,16 +305,16 @@
       "productRead": {
         "data": {
           "product": {
-            "id": "gid://shopify/Product/10177385857330",
-            "title": "hermes-har-591-committed-1777994544943",
-            "handle": "hermes-har-591-committed-1777994544943",
+            "id": "gid://shopify/Product/10220362531122",
+            "title": "hermes-inv-deactivate-validation-committed-1782278929980",
+            "handle": "hermes-inv-deactivate-validation-committed-1782278929980",
             "status": "ACTIVE",
             "totalInventory": 0,
             "tracksInventory": true,
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51127056957746",
+                  "id": "gid://shopify/ProductVariant/51359526551858",
                   "title": "Default Title",
                   "inventoryQuantity": 8,
                   "selectedOptions": [
@@ -345,13 +324,13 @@
                     }
                   ],
                   "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53230172668210",
+                    "id": "gid://shopify/InventoryItem/53464353407282",
                     "tracked": true,
                     "requiresShipping": true,
                     "inventoryLevels": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230172668210",
+                          "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464353407282",
                           "isActive": true,
                           "location": {
                             "id": "gid://shopify/Location/106318430514",
@@ -361,7 +340,7 @@
                             {
                               "name": "available",
                               "quantity": 5,
-                              "updatedAt": "2026-05-05T15:22:26Z"
+                              "updatedAt": "2026-06-24T05:28:51Z"
                             },
                             {
                               "name": "on_hand",
@@ -386,7 +365,7 @@
                           ]
                         },
                         {
-                          "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53230172668210",
+                          "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53464353407282",
                           "isActive": true,
                           "location": {
                             "id": "gid://shopify/Location/106318463282",
@@ -396,7 +375,7 @@
                             {
                               "name": "available",
                               "quantity": 3,
-                              "updatedAt": "2026-05-05T15:22:26Z"
+                              "updatedAt": "2026-06-24T05:28:51Z"
                             },
                             {
                               "name": "on_hand",
@@ -443,16 +422,16 @@
     },
     "incomingReserved": {
       "productCreate": {
-        "id": "gid://shopify/Product/10177385988402",
-        "title": "hermes-har-591-incoming-reserved-1777994544943",
-        "handle": "hermes-har-591-incoming-reserved-1777994544943",
+        "id": "gid://shopify/Product/10220362596658",
+        "title": "hermes-inv-deactivate-validation-incoming-reserved-1782278929980",
+        "handle": "hermes-inv-deactivate-validation-incoming-reserved-1782278929980",
         "status": "ACTIVE",
         "totalInventory": 0,
         "tracksInventory": false,
         "variants": {
           "nodes": [
             {
-              "id": "gid://shopify/ProductVariant/51127057088818",
+              "id": "gid://shopify/ProductVariant/51359526617394",
               "title": "Default Title",
               "inventoryQuantity": 0,
               "selectedOptions": [
@@ -462,13 +441,13 @@
                 }
               ],
               "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53230172799282",
+                "id": "gid://shopify/InventoryItem/53464353472818",
                 "tracked": false,
                 "requiresShipping": true,
                 "inventoryLevels": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230172799282",
+                      "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464353472818",
                       "isActive": true,
                       "location": {
                         "id": "gid://shopify/Location/106318430514",
@@ -478,7 +457,7 @@
                         {
                           "name": "available",
                           "quantity": 0,
-                          "updatedAt": "2026-05-05T15:22:28Z"
+                          "updatedAt": "2026-06-24T05:28:53Z"
                         },
                         {
                           "name": "on_hand",
@@ -511,10 +490,10 @@
       },
       "trackInventory": {
         "variables": {
-          "productId": "gid://shopify/Product/10177385988402",
+          "productId": "gid://shopify/Product/10220362596658",
           "variants": [
             {
-              "id": "gid://shopify/ProductVariant/51127057088818",
+              "id": "gid://shopify/ProductVariant/51359526617394",
               "inventoryItem": {
                 "tracked": true,
                 "requiresShipping": true
@@ -526,16 +505,16 @@
           "data": {
             "productVariantsBulkUpdate": {
               "product": {
-                "id": "gid://shopify/Product/10177385988402",
+                "id": "gid://shopify/Product/10220362596658",
                 "totalInventory": 0,
                 "tracksInventory": true
               },
               "productVariants": [
                 {
-                  "id": "gid://shopify/ProductVariant/51127057088818",
+                  "id": "gid://shopify/ProductVariant/51359526617394",
                   "inventoryQuantity": 0,
                   "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53230172799282",
+                    "id": "gid://shopify/InventoryItem/53464353472818",
                     "tracked": true,
                     "requiresShipping": true
                   }
@@ -562,30 +541,30 @@
           "input": {
             "name": "available",
             "reason": "correction",
-            "referenceDocumentUri": "logistics://har-591/incoming-reserved/primary/1777994544943",
+            "referenceDocumentUri": "logistics://inv-deactivate-validation/incoming-reserved/primary/1782278929980",
             "quantities": [
               {
-                "inventoryItemId": "gid://shopify/InventoryItem/53230172799282",
+                "inventoryItemId": "gid://shopify/InventoryItem/53464353472818",
                 "locationId": "gid://shopify/Location/106318430514",
                 "quantity": 5,
                 "changeFromQuantity": 0
               }
             ]
           },
-          "idempotencyKey": "har-591-incoming-reserved-primary-1777994544943"
+          "idempotencyKey": "inv-deactivate-validation-incoming-reserved-primary-1782278929980"
         },
         "response": {
           "data": {
             "inventorySetQuantities": {
               "inventoryAdjustmentGroup": {
-                "id": "gid://shopify/InventoryAdjustmentGroup/53935074246962",
+                "id": "gid://shopify/InventoryAdjustmentGroup/54629244371250",
                 "changes": [
                   {
                     "name": "available",
                     "delta": 5,
                     "quantityAfterChange": null,
                     "item": {
-                      "id": "gid://shopify/InventoryItem/53230172799282"
+                      "id": "gid://shopify/InventoryItem/53464353472818"
                     },
                     "location": {
                       "id": "gid://shopify/Location/106318430514",
@@ -597,7 +576,7 @@
                     "delta": 5,
                     "quantityAfterChange": null,
                     "item": {
-                      "id": "gid://shopify/InventoryItem/53230172799282"
+                      "id": "gid://shopify/InventoryItem/53464353472818"
                     },
                     "location": {
                       "id": "gid://shopify/Location/106318430514",
@@ -624,23 +603,23 @@
       },
       "inventoryActivateSecondaryLocation": {
         "variables": {
-          "inventoryItemId": "gid://shopify/InventoryItem/53230172799282",
+          "inventoryItemId": "gid://shopify/InventoryItem/53464353472818",
           "locationId": "gid://shopify/Location/106318463282",
           "available": 0,
-          "idempotencyKey": "har-591-incoming-reserved-activate-secondary-1777994544943"
+          "idempotencyKey": "inv-deactivate-validation-incoming-reserved-activate-secondary-1782278929980"
         },
         "response": {
           "data": {
             "inventoryActivate": {
               "inventoryLevel": {
-                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53230172799282",
+                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53464353472818",
                 "isActive": true,
                 "location": {
                   "id": "gid://shopify/Location/106318463282",
                   "name": "My Custom Location"
                 },
                 "item": {
-                  "id": "gid://shopify/InventoryItem/53230172799282"
+                  "id": "gid://shopify/InventoryItem/53464353472818"
                 }
               },
               "userErrors": []
@@ -664,30 +643,30 @@
           "input": {
             "name": "available",
             "reason": "correction",
-            "referenceDocumentUri": "logistics://har-591/incoming-reserved/secondary/1777994544943",
+            "referenceDocumentUri": "logistics://inv-deactivate-validation/incoming-reserved/secondary/1782278929980",
             "quantities": [
               {
-                "inventoryItemId": "gid://shopify/InventoryItem/53230172799282",
+                "inventoryItemId": "gid://shopify/InventoryItem/53464353472818",
                 "locationId": "gid://shopify/Location/106318463282",
                 "quantity": 3,
                 "changeFromQuantity": 0
               }
             ]
           },
-          "idempotencyKey": "har-591-incoming-reserved-secondary-1777994544943"
+          "idempotencyKey": "inv-deactivate-validation-incoming-reserved-secondary-1782278929980"
         },
         "response": {
           "data": {
             "inventorySetQuantities": {
               "inventoryAdjustmentGroup": {
-                "id": "gid://shopify/InventoryAdjustmentGroup/53935074312498",
+                "id": "gid://shopify/InventoryAdjustmentGroup/54629244436786",
                 "changes": [
                   {
                     "name": "available",
                     "delta": 3,
                     "quantityAfterChange": null,
                     "item": {
-                      "id": "gid://shopify/InventoryItem/53230172799282"
+                      "id": "gid://shopify/InventoryItem/53464353472818"
                     },
                     "location": {
                       "id": "gid://shopify/Location/106318463282",
@@ -699,7 +678,7 @@
                     "delta": 3,
                     "quantityAfterChange": null,
                     "item": {
-                      "id": "gid://shopify/InventoryItem/53230172799282"
+                      "id": "gid://shopify/InventoryItem/53464353472818"
                     },
                     "location": {
                       "id": "gid://shopify/Location/106318463282",
@@ -727,16 +706,16 @@
       "productRead": {
         "data": {
           "product": {
-            "id": "gid://shopify/Product/10177385988402",
-            "title": "hermes-har-591-incoming-reserved-1777994544943",
-            "handle": "hermes-har-591-incoming-reserved-1777994544943",
+            "id": "gid://shopify/Product/10220362596658",
+            "title": "hermes-inv-deactivate-validation-incoming-reserved-1782278929980",
+            "handle": "hermes-inv-deactivate-validation-incoming-reserved-1782278929980",
             "status": "ACTIVE",
             "totalInventory": 0,
             "tracksInventory": true,
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51127057088818",
+                  "id": "gid://shopify/ProductVariant/51359526617394",
                   "title": "Default Title",
                   "inventoryQuantity": 8,
                   "selectedOptions": [
@@ -746,13 +725,13 @@
                     }
                   ],
                   "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53230172799282",
+                    "id": "gid://shopify/InventoryItem/53464353472818",
                     "tracked": true,
                     "requiresShipping": true,
                     "inventoryLevels": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230172799282",
+                          "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464353472818",
                           "isActive": true,
                           "location": {
                             "id": "gid://shopify/Location/106318430514",
@@ -762,7 +741,7 @@
                             {
                               "name": "available",
                               "quantity": 5,
-                              "updatedAt": "2026-05-05T15:22:28Z"
+                              "updatedAt": "2026-06-24T05:28:54Z"
                             },
                             {
                               "name": "on_hand",
@@ -787,7 +766,7 @@
                           ]
                         },
                         {
-                          "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53230172799282",
+                          "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53464353472818",
                           "isActive": true,
                           "location": {
                             "id": "gid://shopify/Location/106318463282",
@@ -797,7 +776,7 @@
                             {
                               "name": "available",
                               "quantity": 3,
-                              "updatedAt": "2026-05-05T15:22:29Z"
+                              "updatedAt": "2026-06-24T05:28:54Z"
                             },
                             {
                               "name": "on_hand",
@@ -844,16 +823,16 @@
     },
     "onlyLocation": {
       "productCreate": {
-        "id": "gid://shopify/Product/10177386152242",
-        "title": "hermes-har-591-only-location-1777994544943",
-        "handle": "hermes-har-591-only-location-1777994544943",
+        "id": "gid://shopify/Product/10220362629426",
+        "title": "hermes-inv-deactivate-validation-only-location-1782278929980",
+        "handle": "hermes-inv-deactivate-validation-only-location-1782278929980",
         "status": "ACTIVE",
         "totalInventory": 0,
         "tracksInventory": false,
         "variants": {
           "nodes": [
             {
-              "id": "gid://shopify/ProductVariant/51127057318194",
+              "id": "gid://shopify/ProductVariant/51359527829810",
               "title": "Default Title",
               "inventoryQuantity": 0,
               "selectedOptions": [
@@ -863,13 +842,13 @@
                 }
               ],
               "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53230173028658",
+                "id": "gid://shopify/InventoryItem/53464354685234",
                 "tracked": false,
                 "requiresShipping": true,
                 "inventoryLevels": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230173028658",
+                      "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464354685234",
                       "isActive": true,
                       "location": {
                         "id": "gid://shopify/Location/106318430514",
@@ -879,7 +858,7 @@
                         {
                           "name": "available",
                           "quantity": 0,
-                          "updatedAt": "2026-05-05T15:22:31Z"
+                          "updatedAt": "2026-06-24T05:28:56Z"
                         },
                         {
                           "name": "on_hand",
@@ -912,10 +891,10 @@
       },
       "trackInventory": {
         "variables": {
-          "productId": "gid://shopify/Product/10177386152242",
+          "productId": "gid://shopify/Product/10220362629426",
           "variants": [
             {
-              "id": "gid://shopify/ProductVariant/51127057318194",
+              "id": "gid://shopify/ProductVariant/51359527829810",
               "inventoryItem": {
                 "tracked": true,
                 "requiresShipping": true
@@ -927,16 +906,16 @@
           "data": {
             "productVariantsBulkUpdate": {
               "product": {
-                "id": "gid://shopify/Product/10177386152242",
+                "id": "gid://shopify/Product/10220362629426",
                 "totalInventory": 0,
                 "tracksInventory": true
               },
               "productVariants": [
                 {
-                  "id": "gid://shopify/ProductVariant/51127057318194",
+                  "id": "gid://shopify/ProductVariant/51359527829810",
                   "inventoryQuantity": 0,
                   "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53230173028658",
+                    "id": "gid://shopify/InventoryItem/53464354685234",
                     "tracked": true,
                     "requiresShipping": true
                   }
@@ -963,30 +942,30 @@
           "input": {
             "name": "available",
             "reason": "correction",
-            "referenceDocumentUri": "logistics://har-591/only-location/primary/1777994544943",
+            "referenceDocumentUri": "logistics://inv-deactivate-validation/only-location/primary/1782278929980",
             "quantities": [
               {
-                "inventoryItemId": "gid://shopify/InventoryItem/53230173028658",
+                "inventoryItemId": "gid://shopify/InventoryItem/53464354685234",
                 "locationId": "gid://shopify/Location/106318430514",
                 "quantity": 5,
                 "changeFromQuantity": 0
               }
             ]
           },
-          "idempotencyKey": "har-591-only-location-primary-1777994544943"
+          "idempotencyKey": "inv-deactivate-validation-only-location-primary-1782278929980"
         },
         "response": {
           "data": {
             "inventorySetQuantities": {
               "inventoryAdjustmentGroup": {
-                "id": "gid://shopify/InventoryAdjustmentGroup/53935074967858",
+                "id": "gid://shopify/InventoryAdjustmentGroup/54629244928306",
                 "changes": [
                   {
                     "name": "available",
                     "delta": 5,
                     "quantityAfterChange": null,
                     "item": {
-                      "id": "gid://shopify/InventoryItem/53230173028658"
+                      "id": "gid://shopify/InventoryItem/53464354685234"
                     },
                     "location": {
                       "id": "gid://shopify/Location/106318430514",
@@ -998,7 +977,7 @@
                     "delta": 5,
                     "quantityAfterChange": null,
                     "item": {
-                      "id": "gid://shopify/InventoryItem/53230173028658"
+                      "id": "gid://shopify/InventoryItem/53464354685234"
                     },
                     "location": {
                       "id": "gid://shopify/Location/106318430514",
@@ -1028,16 +1007,16 @@
       "productRead": {
         "data": {
           "product": {
-            "id": "gid://shopify/Product/10177386152242",
-            "title": "hermes-har-591-only-location-1777994544943",
-            "handle": "hermes-har-591-only-location-1777994544943",
+            "id": "gid://shopify/Product/10220362629426",
+            "title": "hermes-inv-deactivate-validation-only-location-1782278929980",
+            "handle": "hermes-inv-deactivate-validation-only-location-1782278929980",
             "status": "ACTIVE",
             "totalInventory": 0,
             "tracksInventory": true,
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51127057318194",
+                  "id": "gid://shopify/ProductVariant/51359527829810",
                   "title": "Default Title",
                   "inventoryQuantity": 5,
                   "selectedOptions": [
@@ -1047,13 +1026,13 @@
                     }
                   ],
                   "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53230173028658",
+                    "id": "gid://shopify/InventoryItem/53464354685234",
                     "tracked": true,
                     "requiresShipping": true,
                     "inventoryLevels": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230173028658",
+                          "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464354685234",
                           "isActive": true,
                           "location": {
                             "id": "gid://shopify/Location/106318430514",
@@ -1063,7 +1042,7 @@
                             {
                               "name": "available",
                               "quantity": 5,
-                              "updatedAt": "2026-05-05T15:22:32Z"
+                              "updatedAt": "2026-06-24T05:28:57Z"
                             },
                             {
                               "name": "on_hand",
@@ -1110,16 +1089,16 @@
     },
     "reactivate": {
       "productCreate": {
-        "id": "gid://shopify/Product/10177386250546",
-        "title": "hermes-har-591-reactivate-1777994544943",
-        "handle": "hermes-har-591-reactivate-1777994544943",
+        "id": "gid://shopify/Product/10220362662194",
+        "title": "hermes-inv-deactivate-validation-reactivate-1782278929980",
+        "handle": "hermes-inv-deactivate-validation-reactivate-1782278929980",
         "status": "ACTIVE",
         "totalInventory": 0,
         "tracksInventory": false,
         "variants": {
           "nodes": [
             {
-              "id": "gid://shopify/ProductVariant/51127057416498",
+              "id": "gid://shopify/ProductVariant/51359527862578",
               "title": "Default Title",
               "inventoryQuantity": 0,
               "selectedOptions": [
@@ -1129,13 +1108,13 @@
                 }
               ],
               "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53230173126962",
+                "id": "gid://shopify/InventoryItem/53464354718002",
                 "tracked": false,
                 "requiresShipping": true,
                 "inventoryLevels": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230173126962",
+                      "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464354718002",
                       "isActive": true,
                       "location": {
                         "id": "gid://shopify/Location/106318430514",
@@ -1145,7 +1124,7 @@
                         {
                           "name": "available",
                           "quantity": 0,
-                          "updatedAt": "2026-05-05T15:22:33Z"
+                          "updatedAt": "2026-06-24T05:28:58Z"
                         },
                         {
                           "name": "on_hand",
@@ -1178,10 +1157,10 @@
       },
       "trackInventory": {
         "variables": {
-          "productId": "gid://shopify/Product/10177386250546",
+          "productId": "gid://shopify/Product/10220362662194",
           "variants": [
             {
-              "id": "gid://shopify/ProductVariant/51127057416498",
+              "id": "gid://shopify/ProductVariant/51359527862578",
               "inventoryItem": {
                 "tracked": true,
                 "requiresShipping": true
@@ -1193,16 +1172,16 @@
           "data": {
             "productVariantsBulkUpdate": {
               "product": {
-                "id": "gid://shopify/Product/10177386250546",
+                "id": "gid://shopify/Product/10220362662194",
                 "totalInventory": 0,
                 "tracksInventory": true
               },
               "productVariants": [
                 {
-                  "id": "gid://shopify/ProductVariant/51127057416498",
+                  "id": "gid://shopify/ProductVariant/51359527862578",
                   "inventoryQuantity": 0,
                   "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53230173126962",
+                    "id": "gid://shopify/InventoryItem/53464354718002",
                     "tracked": true,
                     "requiresShipping": true
                   }
@@ -1229,30 +1208,30 @@
           "input": {
             "name": "available",
             "reason": "correction",
-            "referenceDocumentUri": "logistics://har-591/reactivate/primary/1777994544943",
+            "referenceDocumentUri": "logistics://inv-deactivate-validation/reactivate/primary/1782278929980",
             "quantities": [
               {
-                "inventoryItemId": "gid://shopify/InventoryItem/53230173126962",
+                "inventoryItemId": "gid://shopify/InventoryItem/53464354718002",
                 "locationId": "gid://shopify/Location/106318430514",
                 "quantity": 5,
                 "changeFromQuantity": 0
               }
             ]
           },
-          "idempotencyKey": "har-591-reactivate-primary-1777994544943"
+          "idempotencyKey": "inv-deactivate-validation-reactivate-primary-1782278929980"
         },
         "response": {
           "data": {
             "inventorySetQuantities": {
               "inventoryAdjustmentGroup": {
-                "id": "gid://shopify/InventoryAdjustmentGroup/53935075524914",
+                "id": "gid://shopify/InventoryAdjustmentGroup/54629245255986",
                 "changes": [
                   {
                     "name": "available",
                     "delta": 5,
                     "quantityAfterChange": null,
                     "item": {
-                      "id": "gid://shopify/InventoryItem/53230173126962"
+                      "id": "gid://shopify/InventoryItem/53464354718002"
                     },
                     "location": {
                       "id": "gid://shopify/Location/106318430514",
@@ -1264,7 +1243,7 @@
                     "delta": 5,
                     "quantityAfterChange": null,
                     "item": {
-                      "id": "gid://shopify/InventoryItem/53230173126962"
+                      "id": "gid://shopify/InventoryItem/53464354718002"
                     },
                     "location": {
                       "id": "gid://shopify/Location/106318430514",
@@ -1291,23 +1270,23 @@
       },
       "inventoryActivateSecondaryLocation": {
         "variables": {
-          "inventoryItemId": "gid://shopify/InventoryItem/53230173126962",
+          "inventoryItemId": "gid://shopify/InventoryItem/53464354718002",
           "locationId": "gid://shopify/Location/106318463282",
           "available": 0,
-          "idempotencyKey": "har-591-reactivate-activate-secondary-1777994544943"
+          "idempotencyKey": "inv-deactivate-validation-reactivate-activate-secondary-1782278929980"
         },
         "response": {
           "data": {
             "inventoryActivate": {
               "inventoryLevel": {
-                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53230173126962",
+                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53464354718002",
                 "isActive": true,
                 "location": {
                   "id": "gid://shopify/Location/106318463282",
                   "name": "My Custom Location"
                 },
                 "item": {
-                  "id": "gid://shopify/InventoryItem/53230173126962"
+                  "id": "gid://shopify/InventoryItem/53464354718002"
                 }
               },
               "userErrors": []
@@ -1331,30 +1310,30 @@
           "input": {
             "name": "available",
             "reason": "correction",
-            "referenceDocumentUri": "logistics://har-591/reactivate/secondary/1777994544943",
+            "referenceDocumentUri": "logistics://inv-deactivate-validation/reactivate/secondary/1782278929980",
             "quantities": [
               {
-                "inventoryItemId": "gid://shopify/InventoryItem/53230173126962",
+                "inventoryItemId": "gid://shopify/InventoryItem/53464354718002",
                 "locationId": "gid://shopify/Location/106318463282",
                 "quantity": 3,
                 "changeFromQuantity": 0
               }
             ]
           },
-          "idempotencyKey": "har-591-reactivate-secondary-1777994544943"
+          "idempotencyKey": "inv-deactivate-validation-reactivate-secondary-1782278929980"
         },
         "response": {
           "data": {
             "inventorySetQuantities": {
               "inventoryAdjustmentGroup": {
-                "id": "gid://shopify/InventoryAdjustmentGroup/53935075557682",
+                "id": "gid://shopify/InventoryAdjustmentGroup/54629245354290",
                 "changes": [
                   {
                     "name": "available",
                     "delta": 3,
                     "quantityAfterChange": null,
                     "item": {
-                      "id": "gid://shopify/InventoryItem/53230173126962"
+                      "id": "gid://shopify/InventoryItem/53464354718002"
                     },
                     "location": {
                       "id": "gid://shopify/Location/106318463282",
@@ -1366,7 +1345,7 @@
                     "delta": 3,
                     "quantityAfterChange": null,
                     "item": {
-                      "id": "gid://shopify/InventoryItem/53230173126962"
+                      "id": "gid://shopify/InventoryItem/53464354718002"
                     },
                     "location": {
                       "id": "gid://shopify/Location/106318463282",
@@ -1394,16 +1373,16 @@
       "productRead": {
         "data": {
           "product": {
-            "id": "gid://shopify/Product/10177386250546",
-            "title": "hermes-har-591-reactivate-1777994544943",
-            "handle": "hermes-har-591-reactivate-1777994544943",
+            "id": "gid://shopify/Product/10220362662194",
+            "title": "hermes-inv-deactivate-validation-reactivate-1782278929980",
+            "handle": "hermes-inv-deactivate-validation-reactivate-1782278929980",
             "status": "ACTIVE",
             "totalInventory": 0,
             "tracksInventory": true,
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51127057416498",
+                  "id": "gid://shopify/ProductVariant/51359527862578",
                   "title": "Default Title",
                   "inventoryQuantity": 8,
                   "selectedOptions": [
@@ -1413,13 +1392,13 @@
                     }
                   ],
                   "inventoryItem": {
-                    "id": "gid://shopify/InventoryItem/53230173126962",
+                    "id": "gid://shopify/InventoryItem/53464354718002",
                     "tracked": true,
                     "requiresShipping": true,
                     "inventoryLevels": {
                       "nodes": [
                         {
-                          "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230173126962",
+                          "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464354718002",
                           "isActive": true,
                           "location": {
                             "id": "gid://shopify/Location/106318430514",
@@ -1429,7 +1408,7 @@
                             {
                               "name": "available",
                               "quantity": 5,
-                              "updatedAt": "2026-05-05T15:22:34Z"
+                              "updatedAt": "2026-06-24T05:28:59Z"
                             },
                             {
                               "name": "on_hand",
@@ -1454,7 +1433,7 @@
                           ]
                         },
                         {
-                          "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53230173126962",
+                          "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53464354718002",
                           "isActive": true,
                           "location": {
                             "id": "gid://shopify/Location/106318463282",
@@ -1464,7 +1443,7 @@
                             {
                               "name": "available",
                               "quantity": 3,
-                              "updatedAt": "2026-05-05T15:22:34Z"
+                              "updatedAt": "2026-06-24T05:28:59Z"
                             },
                             {
                               "name": "on_hand",
@@ -1514,14 +1493,14 @@
     "committedOrder": {
       "variables": {
         "order": {
-          "email": "har-591-committed-1777994544943@example.com",
+          "email": "inv-deactivate-validation-committed-1782278929980@example.com",
           "test": true,
           "currency": "CAD",
           "lineItems": [
             {
-              "variantId": "gid://shopify/ProductVariant/51127056957746",
+              "variantId": "gid://shopify/ProductVariant/51359526551858",
               "quantity": 2,
-              "title": "HAR-591 committed",
+              "title": "Inventory deactivate validation committed",
               "priceSet": {
                 "shopMoney": {
                   "amount": "1.00",
@@ -1555,15 +1534,15 @@
         "data": {
           "orderCreate": {
             "order": {
-              "id": "gid://shopify/Order/8730600112434",
-              "name": "#1138",
+              "id": "gid://shopify/Order/8840205992242",
+              "name": "#1547",
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/LineItem/19303429308722",
+                    "id": "gid://shopify/LineItem/19499280695602",
                     "quantity": 2,
                     "variant": {
-                      "id": "gid://shopify/ProductVariant/51127056957746"
+                      "id": "gid://shopify/ProductVariant/51359526551858"
                     }
                   }
                 ]
@@ -1590,29 +1569,29 @@
         "input": {
           "originLocationId": "gid://shopify/Location/106318430514",
           "destinationLocationId": "gid://shopify/Location/106318463282",
-          "referenceName": "HAR-591-incoming-reserved-1777994544943",
-          "note": "HAR-591 incoming-reserved",
-          "tags": ["har-591", "incoming-reserved"],
+          "referenceName": "Inventory deactivate validation-incoming-reserved-1782278929980",
+          "note": "Inventory deactivate validation incoming-reserved",
+          "tags": ["inv-deactivate-validation", "incoming-reserved"],
           "lineItems": [
             {
-              "inventoryItemId": "gid://shopify/InventoryItem/53230172799282",
+              "inventoryItemId": "gid://shopify/InventoryItem/53464353472818",
               "quantity": 2
             }
           ]
         },
-        "idempotencyKey": "har-591-transfer-incoming-reserved-1777994544943"
+        "idempotencyKey": "inv-deactivate-validation-transfer-incoming-reserved-1782278929980"
       },
       "response": {
         "data": {
           "inventoryTransferCreateAsReadyToShip": {
             "inventoryTransfer": {
-              "id": "gid://shopify/InventoryTransfer/4554522930",
+              "id": "gid://shopify/InventoryTransfer/5815959858",
               "status": "READY_TO_SHIP",
               "totalQuantity": 2,
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/InventoryTransferLineItem/20461027634",
+                    "id": "gid://shopify/InventoryTransferLineItem/30722818354",
                     "totalQuantity": 2,
                     "shippableQuantity": 2,
                     "shippedQuantity": 0,
@@ -1643,29 +1622,29 @@
         "input": {
           "originLocationId": "gid://shopify/Location/106318463282",
           "destinationLocationId": "gid://shopify/Location/106318430514",
-          "referenceName": "HAR-591-incoming-reserved-reverse-1777994544943",
-          "note": "HAR-591 incoming-reserved-reverse",
-          "tags": ["har-591", "incoming-reserved-reverse"],
+          "referenceName": "Inventory deactivate validation-incoming-reserved-reverse-1782278929980",
+          "note": "Inventory deactivate validation incoming-reserved-reverse",
+          "tags": ["inv-deactivate-validation", "incoming-reserved-reverse"],
           "lineItems": [
             {
-              "inventoryItemId": "gid://shopify/InventoryItem/53230172799282",
+              "inventoryItemId": "gid://shopify/InventoryItem/53464353472818",
               "quantity": 1
             }
           ]
         },
-        "idempotencyKey": "har-591-transfer-incoming-reserved-reverse-1777994544943"
+        "idempotencyKey": "inv-deactivate-validation-transfer-incoming-reserved-reverse-1782278929980"
       },
       "response": {
         "data": {
           "inventoryTransferCreateAsReadyToShip": {
             "inventoryTransfer": {
-              "id": "gid://shopify/InventoryTransfer/4554555698",
+              "id": "gid://shopify/InventoryTransfer/5815992626",
               "status": "READY_TO_SHIP",
               "totalQuantity": 1,
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/InventoryTransferLineItem/20461060402",
+                    "id": "gid://shopify/InventoryTransferLineItem/30722851122",
                     "totalQuantity": 1,
                     "shippableQuantity": 1,
                     "shippedQuantity": 0,
@@ -1694,28 +1673,28 @@
     "incomingShipment": {
       "variables": {
         "input": {
-          "movementId": "gid://shopify/InventoryTransfer/4554555698",
+          "movementId": "gid://shopify/InventoryTransfer/5815992626",
           "trackingInput": {
-            "trackingNumber": "HAR5911777994544943",
+            "trackingNumber": "INVDEACT1782278929980",
             "company": "Hermes",
-            "trackingUrl": "https://example.test/har-591",
+            "trackingUrl": "https://example.test/inv-deactivate-validation",
             "arrivesAt": "2026-06-01T00:00:00.000Z"
           },
           "lineItems": [
             {
-              "inventoryItemId": "gid://shopify/InventoryItem/53230172799282",
+              "inventoryItemId": "gid://shopify/InventoryItem/53464353472818",
               "quantity": 1
             }
           ]
         },
-        "idempotencyKey": "har-591-shipment-incoming-reserved-1777994544943"
+        "idempotencyKey": "inv-deactivate-validation-shipment-incoming-reserved-1782278929980"
       },
       "response": {
         "data": {
           "inventoryShipmentCreateInTransit": {
             "inventoryShipment": {
-              "id": "gid://shopify/InventoryShipment/1586889010",
-              "name": "#T0010-1",
+              "id": "gid://shopify/InventoryShipment/2843148594",
+              "name": "#T0028-1",
               "status": "IN_TRANSIT",
               "lineItemTotalQuantity": 1,
               "totalAcceptedQuantity": 0,
@@ -1724,11 +1703,11 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/InventoryShipmentLineItem/19427393842",
+                    "id": "gid://shopify/InventoryShipmentLineItem/30459298098",
                     "quantity": 1,
                     "unreceivedQuantity": 1,
                     "inventoryItem": {
-                      "id": "gid://shopify/InventoryItem/53230172799282",
+                      "id": "gid://shopify/InventoryItem/53464353472818",
                       "tracked": true
                     }
                   }
@@ -1756,16 +1735,16 @@
     "committedAfterAdjust": {
       "data": {
         "product": {
-          "id": "gid://shopify/Product/10177385857330",
-          "title": "hermes-har-591-committed-1777994544943",
-          "handle": "hermes-har-591-committed-1777994544943",
+          "id": "gid://shopify/Product/10220362531122",
+          "title": "hermes-inv-deactivate-validation-committed-1782278929980",
+          "handle": "hermes-inv-deactivate-validation-committed-1782278929980",
           "status": "ACTIVE",
           "totalInventory": 0,
           "tracksInventory": true,
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51127056957746",
+                "id": "gid://shopify/ProductVariant/51359526551858",
                 "title": "Default Title",
                 "inventoryQuantity": 6,
                 "selectedOptions": [
@@ -1775,13 +1754,13 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53230172668210",
+                  "id": "gid://shopify/InventoryItem/53464353407282",
                   "tracked": true,
                   "requiresShipping": true,
                   "inventoryLevels": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230172668210",
+                        "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464353407282",
                         "isActive": true,
                         "location": {
                           "id": "gid://shopify/Location/106318430514",
@@ -1791,7 +1770,7 @@
                           {
                             "name": "available",
                             "quantity": 3,
-                            "updatedAt": "2026-05-05T15:22:27Z"
+                            "updatedAt": "2026-06-24T05:28:52Z"
                           },
                           {
                             "name": "on_hand",
@@ -1801,7 +1780,7 @@
                           {
                             "name": "committed",
                             "quantity": 2,
-                            "updatedAt": "2026-05-05T15:22:27Z"
+                            "updatedAt": "2026-06-24T05:28:52Z"
                           },
                           {
                             "name": "incoming",
@@ -1816,7 +1795,7 @@
                         ]
                       },
                       {
-                        "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53230172668210",
+                        "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53464353407282",
                         "isActive": true,
                         "location": {
                           "id": "gid://shopify/Location/106318463282",
@@ -1826,7 +1805,7 @@
                           {
                             "name": "available",
                             "quantity": 3,
-                            "updatedAt": "2026-05-05T15:22:26Z"
+                            "updatedAt": "2026-06-24T05:28:51Z"
                           },
                           {
                             "name": "on_hand",
@@ -1873,16 +1852,16 @@
     "incomingReservedAfterAdjust": {
       "data": {
         "product": {
-          "id": "gid://shopify/Product/10177385988402",
-          "title": "hermes-har-591-incoming-reserved-1777994544943",
-          "handle": "hermes-har-591-incoming-reserved-1777994544943",
+          "id": "gid://shopify/Product/10220362596658",
+          "title": "hermes-inv-deactivate-validation-incoming-reserved-1782278929980",
+          "handle": "hermes-inv-deactivate-validation-incoming-reserved-1782278929980",
           "status": "ACTIVE",
           "totalInventory": 0,
           "tracksInventory": true,
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51127057088818",
+                "id": "gid://shopify/ProductVariant/51359526617394",
                 "title": "Default Title",
                 "inventoryQuantity": 5,
                 "selectedOptions": [
@@ -1892,13 +1871,13 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53230172799282",
+                  "id": "gid://shopify/InventoryItem/53464353472818",
                   "tracked": true,
                   "requiresShipping": true,
                   "inventoryLevels": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230172799282",
+                        "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464353472818",
                         "isActive": true,
                         "location": {
                           "id": "gid://shopify/Location/106318430514",
@@ -1908,7 +1887,7 @@
                           {
                             "name": "available",
                             "quantity": 3,
-                            "updatedAt": "2026-05-05T15:22:29Z"
+                            "updatedAt": "2026-06-24T05:28:54Z"
                           },
                           {
                             "name": "on_hand",
@@ -1923,17 +1902,17 @@
                           {
                             "name": "incoming",
                             "quantity": 1,
-                            "updatedAt": "2026-05-05T15:22:30Z"
+                            "updatedAt": "2026-06-24T05:28:55Z"
                           },
                           {
                             "name": "reserved",
                             "quantity": 2,
-                            "updatedAt": "2026-05-05T15:22:29Z"
+                            "updatedAt": "2026-06-24T05:28:54Z"
                           }
                         ]
                       },
                       {
-                        "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53230172799282",
+                        "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53464353472818",
                         "isActive": true,
                         "location": {
                           "id": "gid://shopify/Location/106318463282",
@@ -1943,7 +1922,7 @@
                           {
                             "name": "available",
                             "quantity": 2,
-                            "updatedAt": "2026-05-05T15:22:30Z"
+                            "updatedAt": "2026-06-24T05:28:55Z"
                           },
                           {
                             "name": "on_hand",
@@ -1963,7 +1942,7 @@
                           {
                             "name": "reserved",
                             "quantity": 0,
-                            "updatedAt": "2026-05-05T15:22:30Z"
+                            "updatedAt": "2026-06-24T05:28:55Z"
                           }
                         ]
                       }
@@ -1990,8 +1969,8 @@
   },
   "inventoryDeactivateCommitted": {
     "variables": {
-      "inventoryLevelId": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230172668210",
-      "idempotencyKey": "har-591-deactivate-committed-1777994544943"
+      "inventoryLevelId": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464353407282",
+      "idempotencyKey": "inv-deactivate-validation-deactivate-committed-1782278929980"
     },
     "response": {
       "data": {
@@ -2014,8 +1993,8 @@
   },
   "inventoryDeactivateIncomingReserved": {
     "variables": {
-      "inventoryLevelId": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230172799282",
-      "idempotencyKey": "har-591-deactivate-incoming-reserved-1777994544943"
+      "inventoryLevelId": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464353472818",
+      "idempotencyKey": "inv-deactivate-validation-deactivate-incoming-reserved-1782278929980"
     },
     "response": {
       "data": {
@@ -2038,8 +2017,8 @@
   },
   "inventoryDeactivateOnlyLocation": {
     "variables": {
-      "inventoryLevelId": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230173028658",
-      "idempotencyKey": "har-591-deactivate-only-location-1777994544943"
+      "inventoryLevelId": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464354685234",
+      "idempotencyKey": "inv-deactivate-validation-deactivate-only-location-1782278929980"
     },
     "response": {
       "data": {
@@ -2068,7 +2047,7 @@
   "inventoryDeactivateMissingLevel": {
     "variables": {
       "inventoryLevelId": "gid://shopify/InventoryLevel/999999999999?inventory_item_id=999999999998",
-      "idempotencyKey": "har-591-deactivate-missing-1777994544943"
+      "idempotencyKey": "inv-deactivate-validation-deactivate-missing-1782278929980"
     },
     "response": {
       "data": {
@@ -2096,8 +2075,8 @@
   },
   "inventoryDeactivateDeletedLocation": {
     "variables": {
-      "inventoryLevelId": "gid://shopify/InventoryLevel/999999999999?inventory_item_id=53230172668210",
-      "idempotencyKey": "har-591-deactivate-deleted-location-1777994544943"
+      "inventoryLevelId": "gid://shopify/InventoryLevel/999999999999?inventory_item_id=53464353407282",
+      "idempotencyKey": "inv-deactivate-validation-deactivate-deleted-location-1782278929980"
     },
     "response": {
       "data": {
@@ -2116,7 +2095,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1989,
             "restoreRate": 100
           }
         }
@@ -2125,23 +2104,23 @@
   },
   "inventoryActivateActiveAvailable": {
     "variables": {
-      "inventoryItemId": "gid://shopify/InventoryItem/53230173028658",
+      "inventoryItemId": "gid://shopify/InventoryItem/53464354685234",
       "locationId": "gid://shopify/Location/106318430514",
       "available": 7,
-      "idempotencyKey": "har-591-activate-active-available-1777994544943"
+      "idempotencyKey": "inv-deactivate-validation-activate-active-available-1782278929980"
     },
     "response": {
       "data": {
         "inventoryActivate": {
           "inventoryLevel": {
-            "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230173028658",
+            "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464354685234",
             "isActive": true,
             "location": {
               "id": "gid://shopify/Location/106318430514",
               "name": "Shop location"
             },
             "item": {
-              "id": "gid://shopify/InventoryItem/53230173028658"
+              "id": "gid://shopify/InventoryItem/53464354685234"
             }
           },
           "userErrors": [
@@ -2165,10 +2144,78 @@
       }
     }
   },
+  "inventoryActivateCodeSelection": {
+    "variables": {
+      "inventoryItemId": "gid://shopify/InventoryItem/53464354685234",
+      "locationId": "gid://shopify/Location/106318430514",
+      "available": 7,
+      "idempotencyKey": "inv-deactivate-validation-activate-code-selection-1782278929980"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Field 'code' doesn't exist on type 'UserError'",
+            "locations": [
+              {
+                "line": 4,
+                "column": 34
+              }
+            ],
+            "path": [
+              "mutation InventoryDeactivateValidationActivateCodeSelection",
+              "inventoryActivate",
+              "userErrors",
+              "code"
+            ],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "UserError",
+              "fieldName": "code"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "inventoryDeactivateCodeSelection": {
+    "variables": {
+      "inventoryLevelId": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464354685234",
+      "idempotencyKey": "inv-deactivate-validation-deactivate-code-selection-1782278929980"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Field 'code' doesn't exist on type 'UserError'",
+            "locations": [
+              {
+                "line": 4,
+                "column": 34
+              }
+            ],
+            "path": [
+              "mutation InventoryDeactivateValidationDeactivateCodeSelection",
+              "inventoryDeactivate",
+              "userErrors",
+              "code"
+            ],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "UserError",
+              "fieldName": "code"
+            }
+          }
+        ]
+      }
+    }
+  },
   "inventoryDeactivateBeforeReactivate": {
     "variables": {
-      "inventoryLevelId": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53230173126962",
-      "idempotencyKey": "har-591-deactivate-before-reactivate-1777994544943"
+      "inventoryLevelId": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53464354718002",
+      "idempotencyKey": "inv-deactivate-validation-deactivate-before-reactivate-1782278929980"
     },
     "response": {
       "data": {
@@ -2191,23 +2238,23 @@
   },
   "inventoryActivateInactiveAvailable": {
     "variables": {
-      "inventoryItemId": "gid://shopify/InventoryItem/53230173126962",
+      "inventoryItemId": "gid://shopify/InventoryItem/53464354718002",
       "locationId": "gid://shopify/Location/106318463282",
       "available": 7,
-      "idempotencyKey": "har-591-reactivate-inactive-available-1777994544943"
+      "idempotencyKey": "inv-deactivate-validation-reactivate-inactive-available-1782278929980"
     },
     "response": {
       "data": {
         "inventoryActivate": {
           "inventoryLevel": {
-            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53230173126962",
+            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53464354718002",
             "isActive": true,
             "location": {
               "id": "gid://shopify/Location/106318463282",
               "name": "My Custom Location"
             },
             "item": {
-              "id": "gid://shopify/InventoryItem/53230173126962"
+              "id": "gid://shopify/InventoryItem/53464354718002"
             }
           },
           "userErrors": []
@@ -2231,16 +2278,16 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230172668210"]
+        "ids": ["gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464353407282"]
       },
-      "query": "hand-synthesized from HAR-591 live inventoryDeactivate validation capture",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230172668210",
+                "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464353407282",
                 "isActive": true,
                 "location": {
                   "id": "gid://shopify/Location/106318430514",
@@ -2250,7 +2297,7 @@
                   {
                     "name": "available",
                     "quantity": 3,
-                    "updatedAt": "2026-05-05T15:22:27Z"
+                    "updatedAt": "2026-06-24T05:28:52Z"
                   },
                   {
                     "name": "on_hand",
@@ -2260,7 +2307,7 @@
                   {
                     "name": "committed",
                     "quantity": 2,
-                    "updatedAt": "2026-05-05T15:22:27Z"
+                    "updatedAt": "2026-06-24T05:28:52Z"
                   },
                   {
                     "name": "incoming",
@@ -2274,32 +2321,13 @@
                   }
                 ],
                 "item": {
-                  "id": "gid://shopify/InventoryItem/53230172668210",
+                  "id": "gid://shopify/InventoryItem/53464353407282",
                   "tracked": true,
                   "requiresShipping": true,
-                  "variant": {
-                    "id": "gid://shopify/ProductVariant/51127056957746",
-                    "title": "Default Title",
-                    "inventoryQuantity": 6,
-                    "selectedOptions": [
-                      {
-                        "name": "Title",
-                        "value": "Default Title"
-                      }
-                    ],
-                    "product": {
-                      "id": "gid://shopify/Product/10177385857330",
-                      "title": "hermes-har-591-committed-1777994544943",
-                      "handle": "hermes-har-591-committed-1777994544943",
-                      "status": "ACTIVE",
-                      "totalInventory": 0,
-                      "tracksInventory": true
-                    }
-                  },
                   "inventoryLevels": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230172668210",
+                        "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464353407282",
                         "isActive": true,
                         "location": {
                           "id": "gid://shopify/Location/106318430514",
@@ -2308,8 +2336,8 @@
                         "quantities": [
                           {
                             "name": "available",
-                            "quantity": 5,
-                            "updatedAt": "2026-05-05T15:22:26Z"
+                            "quantity": 3,
+                            "updatedAt": "2026-06-24T05:28:52Z"
                           },
                           {
                             "name": "on_hand",
@@ -2318,8 +2346,8 @@
                           },
                           {
                             "name": "committed",
-                            "quantity": 0,
-                            "updatedAt": null
+                            "quantity": 2,
+                            "updatedAt": "2026-06-24T05:28:52Z"
                           },
                           {
                             "name": "incoming",
@@ -2334,7 +2362,7 @@
                         ]
                       },
                       {
-                        "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53230172668210",
+                        "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53464353407282",
                         "isActive": true,
                         "location": {
                           "id": "gid://shopify/Location/106318463282",
@@ -2344,7 +2372,7 @@
                           {
                             "name": "available",
                             "quantity": 3,
-                            "updatedAt": "2026-05-05T15:22:26Z"
+                            "updatedAt": "2026-06-24T05:28:51Z"
                           },
                           {
                             "name": "on_hand",
@@ -2369,6 +2397,25 @@
                         ]
                       }
                     ]
+                  },
+                  "variant": {
+                    "id": "gid://shopify/ProductVariant/51359526551858",
+                    "title": "Default Title",
+                    "inventoryQuantity": 6,
+                    "selectedOptions": [
+                      {
+                        "name": "Title",
+                        "value": "Default Title"
+                      }
+                    ],
+                    "product": {
+                      "id": "gid://shopify/Product/10220362531122",
+                      "title": "hermes-inv-deactivate-validation-committed-1782278929980",
+                      "handle": "hermes-inv-deactivate-validation-committed-1782278929980",
+                      "status": "ACTIVE",
+                      "totalInventory": 0,
+                      "tracksInventory": true
+                    }
                   }
                 }
               }
@@ -2380,16 +2427,16 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230172799282"]
+        "ids": ["gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464353472818"]
       },
-      "query": "hand-synthesized from HAR-591 live inventoryDeactivate validation capture",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230172799282",
+                "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464353472818",
                 "isActive": true,
                 "location": {
                   "id": "gid://shopify/Location/106318430514",
@@ -2399,7 +2446,7 @@
                   {
                     "name": "available",
                     "quantity": 3,
-                    "updatedAt": "2026-05-05T15:22:29Z"
+                    "updatedAt": "2026-06-24T05:28:54Z"
                   },
                   {
                     "name": "on_hand",
@@ -2414,20 +2461,94 @@
                   {
                     "name": "incoming",
                     "quantity": 1,
-                    "updatedAt": "2026-05-05T15:22:30Z"
+                    "updatedAt": "2026-06-24T05:28:55Z"
                   },
                   {
                     "name": "reserved",
                     "quantity": 2,
-                    "updatedAt": "2026-05-05T15:22:29Z"
+                    "updatedAt": "2026-06-24T05:28:54Z"
                   }
                 ],
                 "item": {
-                  "id": "gid://shopify/InventoryItem/53230172799282",
+                  "id": "gid://shopify/InventoryItem/53464353472818",
                   "tracked": true,
                   "requiresShipping": true,
+                  "inventoryLevels": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464353472818",
+                        "isActive": true,
+                        "location": {
+                          "id": "gid://shopify/Location/106318430514",
+                          "name": "Shop location"
+                        },
+                        "quantities": [
+                          {
+                            "name": "available",
+                            "quantity": 3,
+                            "updatedAt": "2026-06-24T05:28:54Z"
+                          },
+                          {
+                            "name": "on_hand",
+                            "quantity": 5,
+                            "updatedAt": null
+                          },
+                          {
+                            "name": "committed",
+                            "quantity": 0,
+                            "updatedAt": null
+                          },
+                          {
+                            "name": "incoming",
+                            "quantity": 1,
+                            "updatedAt": "2026-06-24T05:28:55Z"
+                          },
+                          {
+                            "name": "reserved",
+                            "quantity": 2,
+                            "updatedAt": "2026-06-24T05:28:54Z"
+                          }
+                        ]
+                      },
+                      {
+                        "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53464353472818",
+                        "isActive": true,
+                        "location": {
+                          "id": "gid://shopify/Location/106318463282",
+                          "name": "My Custom Location"
+                        },
+                        "quantities": [
+                          {
+                            "name": "available",
+                            "quantity": 2,
+                            "updatedAt": "2026-06-24T05:28:55Z"
+                          },
+                          {
+                            "name": "on_hand",
+                            "quantity": 2,
+                            "updatedAt": null
+                          },
+                          {
+                            "name": "committed",
+                            "quantity": 0,
+                            "updatedAt": null
+                          },
+                          {
+                            "name": "incoming",
+                            "quantity": 0,
+                            "updatedAt": null
+                          },
+                          {
+                            "name": "reserved",
+                            "quantity": 0,
+                            "updatedAt": "2026-06-24T05:28:55Z"
+                          }
+                        ]
+                      }
+                    ]
+                  },
                   "variant": {
-                    "id": "gid://shopify/ProductVariant/51127057088818",
+                    "id": "gid://shopify/ProductVariant/51359526617394",
                     "title": "Default Title",
                     "inventoryQuantity": 5,
                     "selectedOptions": [
@@ -2437,87 +2558,13 @@
                       }
                     ],
                     "product": {
-                      "id": "gid://shopify/Product/10177385988402",
-                      "title": "hermes-har-591-incoming-reserved-1777994544943",
-                      "handle": "hermes-har-591-incoming-reserved-1777994544943",
+                      "id": "gid://shopify/Product/10220362596658",
+                      "title": "hermes-inv-deactivate-validation-incoming-reserved-1782278929980",
+                      "handle": "hermes-inv-deactivate-validation-incoming-reserved-1782278929980",
                       "status": "ACTIVE",
                       "totalInventory": 0,
                       "tracksInventory": true
                     }
-                  },
-                  "inventoryLevels": {
-                    "nodes": [
-                      {
-                        "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230172799282",
-                        "isActive": true,
-                        "location": {
-                          "id": "gid://shopify/Location/106318430514",
-                          "name": "Shop location"
-                        },
-                        "quantities": [
-                          {
-                            "name": "available",
-                            "quantity": 5,
-                            "updatedAt": "2026-05-05T15:22:28Z"
-                          },
-                          {
-                            "name": "on_hand",
-                            "quantity": 5,
-                            "updatedAt": null
-                          },
-                          {
-                            "name": "committed",
-                            "quantity": 0,
-                            "updatedAt": null
-                          },
-                          {
-                            "name": "incoming",
-                            "quantity": 0,
-                            "updatedAt": null
-                          },
-                          {
-                            "name": "reserved",
-                            "quantity": 0,
-                            "updatedAt": null
-                          }
-                        ]
-                      },
-                      {
-                        "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53230172799282",
-                        "isActive": true,
-                        "location": {
-                          "id": "gid://shopify/Location/106318463282",
-                          "name": "My Custom Location"
-                        },
-                        "quantities": [
-                          {
-                            "name": "available",
-                            "quantity": 3,
-                            "updatedAt": "2026-05-05T15:22:29Z"
-                          },
-                          {
-                            "name": "on_hand",
-                            "quantity": 3,
-                            "updatedAt": null
-                          },
-                          {
-                            "name": "committed",
-                            "quantity": 0,
-                            "updatedAt": null
-                          },
-                          {
-                            "name": "incoming",
-                            "quantity": 0,
-                            "updatedAt": null
-                          },
-                          {
-                            "name": "reserved",
-                            "quantity": 0,
-                            "updatedAt": null
-                          }
-                        ]
-                      }
-                    ]
                   }
                 }
               }
@@ -2529,16 +2576,16 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230173028658"]
+        "ids": ["gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464354685234"]
       },
-      "query": "hand-synthesized from HAR-591 live inventoryDeactivate validation capture",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230173028658",
+                "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464354685234",
                 "isActive": true,
                 "location": {
                   "id": "gid://shopify/Location/106318430514",
@@ -2548,7 +2595,7 @@
                   {
                     "name": "available",
                     "quantity": 5,
-                    "updatedAt": "2026-05-05T15:22:32Z"
+                    "updatedAt": "2026-06-24T05:28:57Z"
                   },
                   {
                     "name": "on_hand",
@@ -2572,32 +2619,13 @@
                   }
                 ],
                 "item": {
-                  "id": "gid://shopify/InventoryItem/53230173028658",
+                  "id": "gid://shopify/InventoryItem/53464354685234",
                   "tracked": true,
                   "requiresShipping": true,
-                  "variant": {
-                    "id": "gid://shopify/ProductVariant/51127057318194",
-                    "title": "Default Title",
-                    "inventoryQuantity": 5,
-                    "selectedOptions": [
-                      {
-                        "name": "Title",
-                        "value": "Default Title"
-                      }
-                    ],
-                    "product": {
-                      "id": "gid://shopify/Product/10177386152242",
-                      "title": "hermes-har-591-only-location-1777994544943",
-                      "handle": "hermes-har-591-only-location-1777994544943",
-                      "status": "ACTIVE",
-                      "totalInventory": 0,
-                      "tracksInventory": true
-                    }
-                  },
                   "inventoryLevels": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230173028658",
+                        "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464354685234",
                         "isActive": true,
                         "location": {
                           "id": "gid://shopify/Location/106318430514",
@@ -2606,12 +2634,12 @@
                         "quantities": [
                           {
                             "name": "available",
-                            "quantity": 0,
-                            "updatedAt": "2026-05-05T15:22:31Z"
+                            "quantity": 5,
+                            "updatedAt": "2026-06-24T05:28:57Z"
                           },
                           {
                             "name": "on_hand",
-                            "quantity": 0,
+                            "quantity": 5,
                             "updatedAt": null
                           },
                           {
@@ -2632,6 +2660,25 @@
                         ]
                       }
                     ]
+                  },
+                  "variant": {
+                    "id": "gid://shopify/ProductVariant/51359527829810",
+                    "title": "Default Title",
+                    "inventoryQuantity": 5,
+                    "selectedOptions": [
+                      {
+                        "name": "Title",
+                        "value": "Default Title"
+                      }
+                    ],
+                    "product": {
+                      "id": "gid://shopify/Product/10220362629426",
+                      "title": "hermes-inv-deactivate-validation-only-location-1782278929980",
+                      "handle": "hermes-inv-deactivate-validation-only-location-1782278929980",
+                      "status": "ACTIVE",
+                      "totalInventory": 0,
+                      "tracksInventory": true
+                    }
                   }
                 }
               }
@@ -2645,7 +2692,7 @@
       "variables": {
         "ids": ["gid://shopify/InventoryLevel/999999999999?inventory_item_id=999999999998"]
       },
-      "query": "hand-synthesized from HAR-591 fabricated inventoryLevelId capture",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -2658,9 +2705,9 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/InventoryLevel/999999999999?inventory_item_id=53230172668210"]
+        "ids": ["gid://shopify/InventoryLevel/999999999999?inventory_item_id=53464353407282"]
       },
-      "query": "hand-synthesized from HAR-591 fabricated inventoryLevelId capture",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -2673,22 +2720,22 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/InventoryItem/53230173028658"]
+        "ids": ["gid://shopify/InventoryItem/53464354685234"]
       },
-      "query": "hand-synthesized from HAR-591 live inventoryActivate validation capture",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/InventoryItem/53230173028658",
+                "id": "gid://shopify/InventoryItem/53464354685234",
                 "tracked": true,
                 "requiresShipping": true,
                 "inventoryLevels": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230173028658",
+                      "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464354685234",
                       "isActive": true,
                       "location": {
                         "id": "gid://shopify/Location/106318430514",
@@ -2698,7 +2745,7 @@
                         {
                           "name": "available",
                           "quantity": 5,
-                          "updatedAt": "2026-05-05T15:22:32Z"
+                          "updatedAt": "2026-06-24T05:28:57Z"
                         },
                         {
                           "name": "on_hand",
@@ -2725,7 +2772,7 @@
                   ]
                 },
                 "variant": {
-                  "id": "gid://shopify/ProductVariant/51127057318194",
+                  "id": "gid://shopify/ProductVariant/51359527829810",
                   "title": "Default Title",
                   "inventoryQuantity": 5,
                   "selectedOptions": [
@@ -2735,9 +2782,9 @@
                     }
                   ],
                   "product": {
-                    "id": "gid://shopify/Product/10177386152242",
-                    "title": "hermes-har-591-only-location-1777994544943",
-                    "handle": "hermes-har-591-only-location-1777994544943",
+                    "id": "gid://shopify/Product/10220362629426",
+                    "title": "hermes-inv-deactivate-validation-only-location-1782278929980",
+                    "handle": "hermes-inv-deactivate-validation-only-location-1782278929980",
                     "status": "ACTIVE",
                     "totalInventory": 0,
                     "tracksInventory": true
@@ -2752,16 +2799,16 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/InventoryLevel/143273034034?inventory_item_id=53230173126962"]
+        "ids": ["gid://shopify/InventoryLevel/143273034034?inventory_item_id=53464354718002"]
       },
-      "query": "hand-synthesized from HAR-591 live inventoryDeactivate validation capture",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53230173126962",
+                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53464354718002",
                 "isActive": true,
                 "location": {
                   "id": "gid://shopify/Location/106318463282",
@@ -2771,7 +2818,7 @@
                   {
                     "name": "available",
                     "quantity": 3,
-                    "updatedAt": "2026-05-05T15:22:34Z"
+                    "updatedAt": "2026-06-24T05:28:59Z"
                   },
                   {
                     "name": "on_hand",
@@ -2795,32 +2842,13 @@
                   }
                 ],
                 "item": {
-                  "id": "gid://shopify/InventoryItem/53230173126962",
+                  "id": "gid://shopify/InventoryItem/53464354718002",
                   "tracked": true,
                   "requiresShipping": true,
-                  "variant": {
-                    "id": "gid://shopify/ProductVariant/51127057416498",
-                    "title": "Default Title",
-                    "inventoryQuantity": 8,
-                    "selectedOptions": [
-                      {
-                        "name": "Title",
-                        "value": "Default Title"
-                      }
-                    ],
-                    "product": {
-                      "id": "gid://shopify/Product/10177386250546",
-                      "title": "hermes-har-591-reactivate-1777994544943",
-                      "handle": "hermes-har-591-reactivate-1777994544943",
-                      "status": "ACTIVE",
-                      "totalInventory": 0,
-                      "tracksInventory": true
-                    }
-                  },
                   "inventoryLevels": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53230173126962",
+                        "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53464354718002",
                         "isActive": true,
                         "location": {
                           "id": "gid://shopify/Location/106318430514",
@@ -2830,7 +2858,7 @@
                           {
                             "name": "available",
                             "quantity": 5,
-                            "updatedAt": "2026-05-05T15:22:34Z"
+                            "updatedAt": "2026-06-24T05:28:59Z"
                           },
                           {
                             "name": "on_hand",
@@ -2855,7 +2883,7 @@
                         ]
                       },
                       {
-                        "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53230173126962",
+                        "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53464354718002",
                         "isActive": true,
                         "location": {
                           "id": "gid://shopify/Location/106318463282",
@@ -2865,7 +2893,7 @@
                           {
                             "name": "available",
                             "quantity": 3,
-                            "updatedAt": "2026-05-05T15:22:34Z"
+                            "updatedAt": "2026-06-24T05:28:59Z"
                           },
                           {
                             "name": "on_hand",
@@ -2890,6 +2918,25 @@
                         ]
                       }
                     ]
+                  },
+                  "variant": {
+                    "id": "gid://shopify/ProductVariant/51359527862578",
+                    "title": "Default Title",
+                    "inventoryQuantity": 8,
+                    "selectedOptions": [
+                      {
+                        "name": "Title",
+                        "value": "Default Title"
+                      }
+                    ],
+                    "product": {
+                      "id": "gid://shopify/Product/10220362662194",
+                      "title": "hermes-inv-deactivate-validation-reactivate-1782278929980",
+                      "handle": "hermes-inv-deactivate-validation-reactivate-1782278929980",
+                      "status": "ACTIVE",
+                      "totalInventory": 0,
+                      "tracksInventory": true
+                    }
                   }
                 }
               }

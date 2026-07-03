@@ -34,6 +34,7 @@ const schemaProbeDocument = `#graphql
   query B2BNoInputSchema {
     companyInput: __type(name: "CompanyInput") { inputFields { name } }
     contactInput: __type(name: "CompanyContactInput") { inputFields { name } }
+    locationInput: __type(name: "CompanyLocationInput") { inputFields { name } }
     locationUpdateInput: __type(name: "CompanyLocationUpdateInput") { inputFields { name } }
   }
 `;
@@ -107,6 +108,22 @@ const contactCreateDocument = `#graphql
         company {
           id
         }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const locationCreateDocument = `#graphql
+  mutation B2BNoInputLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {
+    companyLocationCreate(companyId: $companyId, input: $input) {
+      companyLocation {
+        id
+        name
       }
       userErrors {
         field
@@ -355,6 +372,20 @@ try {
     'companyContactCreate',
     'B2B no-input contact create null-only input',
   );
+  const locationCreateAddressOnlyInput = await runValidationMutation(
+    locationCreateDocument,
+    {
+      companyId,
+      input: {
+        shippingAddress: {
+          address1: 'B2B no-input address only',
+          countryCode: 'US',
+        },
+      },
+    },
+    'companyLocationCreate',
+    'B2B no-input location create address-only input',
+  );
   const companyUpdateEmptyInput = await runValidationMutation(
     companyUpdateDocument,
     { companyId, input: {} },
@@ -430,13 +461,14 @@ try {
     storeDomain,
     apiVersion,
     intent: {
-      plan: 'Create a disposable B2B company with contact/location, record Shopify NO_INPUT validation for empty and null-only B2B update/contact-create inputs, verify readback remains unchanged, and clean up the company.',
+      plan: 'Create a disposable B2B company with contact/location, record Shopify NO_INPUT validation for empty and null-only B2B update/contact-create inputs plus address-only location create, verify readback remains unchanged, and clean up the company.',
     },
     schemaProbe,
     setupCompany,
     baselineRead,
     contactCreateEmptyInput,
     contactCreateNullOnlyInput,
+    locationCreateAddressOnlyInput,
     companyUpdateEmptyInput,
     companyUpdateNullOnlyInput,
     contactUpdateEmptyInput,

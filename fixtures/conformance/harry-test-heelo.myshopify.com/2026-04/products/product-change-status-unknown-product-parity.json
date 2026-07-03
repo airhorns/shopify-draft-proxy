@@ -1,0 +1,41 @@
+{
+  "capturedAt": "2026-06-29T20:24:57.784Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "mutation": {
+    "query": "mutation ProductChangeStatusParityPlan($productId: ID!, $status: ProductStatus!) {\n  productChangeStatus(productId: $productId, status: $status) {\n    product {\n      id\n      status\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "productId": "gid://shopify/Product/999999999999999",
+      "status": "ARCHIVED"
+    },
+    "response": {
+      "data": {
+        "productChangeStatus": {
+          "product": null,
+          "userErrors": [
+            {
+              "field": ["productId"],
+              "message": "Product does not exist",
+              "code": "PRODUCT_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [],
+  "notes": [
+    "Captured against real Shopify Admin GraphQL. Unknown productChangeStatus product ids return a resolver-level Product does not exist userError with code PRODUCT_NOT_FOUND and no product payload."
+  ]
+}

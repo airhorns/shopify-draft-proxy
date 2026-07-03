@@ -3,8 +3,10 @@
   "operationNames": ["orderCreate", "paymentTermsCreate", "paymentTermsUpdate", "paymentTermsDelete"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
-  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json"],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-create-on-order.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "comparisonMode": "captured-vs-proxy-request",
   "proxyRequest": {
     "documentPath": "config/parity-requests/payments/payment-terms-create-on-order-create.graphql",
@@ -16,13 +18,42 @@
     "targets": [
       {
         "name": "order-create-setup",
-        "capturePath": "$.paymentTermsCreateOnOrder.expected.orderCreate",
-        "proxyPath": "$"
+        "capturePath": "$.paymentTermsCreateOnOrder.expected.orderCreate.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.order.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "Shopify and the local proxy generate independent order IDs."
+          }
+        ]
       },
       {
         "name": "create-payment-terms-on-order",
-        "capturePath": "$.paymentTermsCreateOnOrder.expected.create",
-        "proxyPath": "$",
+        "capturePath": "$.paymentTermsCreateOnOrder.expected.create.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.paymentTerms.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy generate independent payment terms IDs."
+          },
+          {
+            "path": "$.paymentTerms.paymentSchedules.nodes[0].id",
+            "matcher": "shopify-gid:PaymentSchedule",
+            "reason": "Shopify and the local proxy generate independent payment schedule IDs."
+          },
+          {
+            "path": "$.paymentTerms.paymentSchedules.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
+          },
+          {
+            "path": "$.paymentTerms.paymentSchedules.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-create.graphql",
           "variables": {
@@ -37,8 +68,8 @@
       },
       {
         "name": "multiple-schedules-create-error",
-        "capturePath": "$.paymentTermsCreateOnOrder.expected.multiple",
-        "proxyPath": "$",
+        "capturePath": "$.paymentTermsCreateOnOrder.expected.multiple.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-terms-create-on-order-multiple.graphql",
           "variables": {
@@ -53,8 +84,8 @@
       },
       {
         "name": "missing-update-error-code",
-        "capturePath": "$.paymentTermsCreateOnOrder.expected.update",
-        "proxyPath": "$",
+        "capturePath": "$.paymentTermsCreateOnOrder.expected.update.data.paymentTermsUpdate",
+        "proxyPath": "$.data.paymentTermsUpdate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-update.graphql",
           "variablesCapturePath": "$.paymentTermsCreateOnOrder.missingUpdate.variables"
@@ -62,8 +93,8 @@
       },
       {
         "name": "missing-delete-error-code",
-        "capturePath": "$.paymentTermsCreateOnOrder.expected.delete",
-        "proxyPath": "$",
+        "capturePath": "$.paymentTermsCreateOnOrder.expected.delete.data.paymentTermsDelete",
+        "proxyPath": "$.data.paymentTermsDelete",
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-delete.graphql",
           "variablesCapturePath": "$.paymentTermsCreateOnOrder.missingDelete.variables"
@@ -71,5 +102,5 @@
       }
     ]
   },
-  "notes": "Executable local-runtime parity for HAR-637: an in-memory order is created with CAD presentment money, paymentTermsCreate stages terms on the Order owner without upstream passthrough, and sibling requests assert Shopify-like multiple-schedule plus missing update/delete error codes."
+  "notes": "Live 2026-04 Shopify capture for paymentTermsCreate on a disposable Order plus multiple-schedule, missing-update, and missing-delete validation branches. The recorder cancels the disposable order after capture."
 }

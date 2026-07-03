@@ -34,7 +34,7 @@
       "variables": {
         "missingProductFeedId": "gid://shopify/ProductFeed/999999999999999"
       },
-      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 product read passthrough",
+      "query": "query ProductFeedsEmptyRead($missingProductFeedId: ID!) {\n  missingProductFeed: productFeed(id: $missingProductFeedId) {\n    id\n    country\n    language\n    status\n  }\n  productFeeds(first: 10) {\n    nodes {\n      id\n      country\n      language\n      status\n    }\n    edges {\n      cursor\n      node {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

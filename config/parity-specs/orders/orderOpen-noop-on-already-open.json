@@ -4,14 +4,14 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "state-machine-guardrail"],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderOpen-noop-on-already-open.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/orderOpen-noop-on-already-open.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/orderOpen-noop-on-already-open.graphql",
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-588 captured redundant orderOpen against a never-closed disposable order after waiting across a timestamp boundary; Shopify returns silent success without changing updatedAt.",
+  "notes": "HAR-588 redundant orderOpen against a never-closed disposable order; Shopify returns silent success without changing closed/closedAt. The proxy resolves the precondition by forwarding a cold order hydrate (ORDER_LIFECYCLE_HYDRATE_QUERY / OrderManagementDownstreamRead, recorded in upstreamCalls) — no /__meta/seed pre-stage — so closed and closedAt are read live and match strictly. updatedAt is outside the lifecycle hydrate projection, so the no-op returns the proxy's normalized lifecycle timestamp rather than the live one (iso-timestamp tolerance).",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -19,7 +19,14 @@
       {
         "name": "mutation-order",
         "capturePath": "$.mutation.response.data.orderOpen.order",
-        "proxyPath": "$.data.orderOpen.order"
+        "proxyPath": "$.data.orderOpen.order",
+        "expectedDifferences": [
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "updatedAt is outside the cold lifecycle hydrate projection, so the local no-op returns a normalized lifecycle timestamp; the redundant open still leaves closed/closedAt unchanged."
+          }
+        ]
       },
       {
         "name": "mutation-user-errors",

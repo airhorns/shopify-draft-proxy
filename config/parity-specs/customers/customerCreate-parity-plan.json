@@ -4,12 +4,13 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers/customer-create-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-create-parity.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/customerCreate-parity-plan.graphql",
     "variablesPath": "config/parity-requests/customers/customerCreate-parity-plan.variables.json",
-    "variablesCapturePath": "$.mutation.variables"
+    "variablesCapturePath": "$.mutation.variables",
+    "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Strict comparison targets cover the staged `customerCreate` mutation payload, immediate downstream `customer`, `customers`, and `customersCount` visibility, and the captured empty-input validation branch. Expected differences are limited to locally generated customer IDs and timestamps.",
@@ -65,7 +66,8 @@
             },
             "query": "__customer_parity_no_match__",
             "first": 5
-          }
+          },
+          "apiVersion": "2025-01"
         }
       },
       {
@@ -74,7 +76,8 @@
         "proxyPath": "$.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customerCreate-parity-plan.graphql",
-          "variablesCapturePath": "$.validation.variables"
+          "variablesCapturePath": "$.validation.variables",
+          "apiVersion": "2025-01"
         }
       }
     ]

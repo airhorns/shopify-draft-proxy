@@ -528,7 +528,7 @@
       "variables": {
         "id": "gid://shopify/Customer/6157654556905"
       },
-      "query": "hand-synthesized from checked-in draftOrderCreate mutation customer for HAR-538 draft order customer hydration",
+      "query": "query OrdersDraftOrderCustomerHydrate($id: ID!) {\n  customer(id: $id) { id email displayName firstName lastName }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -547,7 +547,7 @@
       "variables": {
         "id": "gid://shopify/ProductVariant/48540157378793"
       },
-      "query": "hand-synthesized from checked-in draftOrderCreate mutation line item for HAR-538 variant catalog hydration",
+      "query": "query OrdersDraftOrderVariantHydrate($id: ID!) {\n  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n}\n",
       "response": {
         "status": 200,
         "body": {

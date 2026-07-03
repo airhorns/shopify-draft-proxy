@@ -75,6 +75,25 @@ query ReadSellingPlanGroup($id: ID!, $productId: ID!, $variantId: ID!) {
               ... on SellingPlanPricingPolicyPercentageValue {
                 percentage
               }
+              ... on MoneyV2 {
+                amount
+                currencyCode
+              }
+            }
+          }
+          ... on SellingPlanRecurringPricingPolicy {
+            afterCycle
+            createdAt
+            adjustmentType
+            adjustmentValue {
+              __typename
+              ... on SellingPlanPricingPolicyPercentageValue {
+                percentage
+              }
+              ... on MoneyV2 {
+                amount
+                currencyCode
+              }
             }
           }
         }

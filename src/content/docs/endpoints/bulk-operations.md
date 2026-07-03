@@ -37,16 +37,18 @@ Read behavior:
 
 Query export behavior:
 
-- `bulkOperationRunQuery(query:, groupObjects:)` dispatches by the root field and arguments, independent of the client's GraphQL operation name, and validates submitted bulk query documents against captured Admin GraphQL schema rules before staging.
+- `bulkOperationRunQuery(query:, groupObjects:)` dispatches by the root field and arguments, independent of the client's GraphQL operation name, and validates submitted bulk query documents against captured Admin GraphQL schema rules before staging, including connection `nodes` selections whose userError example names the offending connection field.
+- Submitted bulk query text is measured after Shopify-style single-quoted newline escaping and rejects escaped UTF-8 byte sizes above 65,535 with `field: ["query"]`, message `Query is too large (<bytes> bytes; maximum is 65535 bytes)`, `code: INVALID`, `bulkOperation: null`, and no staged job.
 - Supported local JSONL synthesis roots are `products` and `productVariants`, including supported product/variant scalar selections and nested product variants with `__parentId`.
-- Supported export requests complete locally against effective state, write generated JSONL results, expose a synthetic result URL under `/__meta/bulk-operations/<encoded-id>/result.jsonl`, and never proxy supported export mutations upstream at runtime.
+- Supported export requests complete locally against effective state, write generated JSONL results, expose a synthetic absolute `https://localhost:<proxy-port>/__meta/bulk-operations/<encoded-id>/result.jsonl` result URL, and never proxy supported export mutations upstream at runtime.
 - Immediate mutation responses return Shopify's created job shape with `status: CREATED`, `completedAt: null`, zero counters, no file/result URL, and the original query. Later reads expose a terminal completed job with counters, file size, result URL, and original query.
 - `groupObjects: true`, `groupObjects: false`, and omitted `groupObjects` all stage the same local export shape; grouped JSONL ordering is not modeled as a separate result mode.
-- Same-type in-progress operations return `OPERATION_IN_PROGRESS` without staging a second job. Valid nonblank `clientIdentifier` values scope that check locally; omitted identifiers keep broad app/shop collision behavior.
+- Same-type in-progress operations return `OPERATION_IN_PROGRESS` without staging a second job once the version-specific concurrency limit is reached. Admin API versions before 2026-01 allow one non-terminal operation per type; 2026-01 and newer allow five non-terminal query operations and five non-terminal mutation operations before the sixth same-type run throttles. Valid nonblank `clientIdentifier` values scope that check locally; omitted identifiers keep broad app/shop collision behavior.
 
 Mutation import behavior:
 
 - `bulkOperationRunMutation(mutation:, stagedUploadPath:, clientIdentifier:, groupObjects:)` dispatches by the root field and arguments, independent of the client's GraphQL operation name, and accepts any single inner mutation root except `bulkOperationRunMutation` and `bulkOperationRunQuery`, matching Shopify's top-level analyzer.
+- Submitted inner mutation text is measured with the same escaped UTF-8 storage limit. Sizes above 65,535 bytes return `field: ["query"]`, message `is too large (<bytes> bytes; maximum is 65535 bytes)`, `code: INVALID_MUTATION`, `bulkOperation: null`, and no staged job.
 - A fully local import requires a proxy staged upload, a valid single-root mutation, an implemented Admin API mutation root with `stage-locally` execution, and a matching local mutation handler.
 - For locally executable roots, each JSONL line is parsed as variables, stages through the same domain handler used by normal GraphQL mutations, and writes one result JSONL row.
 - Accepted roots without a local executor still create an observable local BulkOperation job, but each JSONL line is sent upstream through the unsupported-mutation passthrough escape hatch and logged as `Proxied`. Those lines are Shopify-side effects and do not create local downstream read-after-write state.
@@ -55,10 +57,11 @@ Mutation import behavior:
 
 Cancel behavior:
 
-- `bulkOperationCancel(id:)` stages non-terminal local jobs as `CANCELING` and returns selected job payloads with empty userErrors.
-- LiveHybrid can hydrate a cold known job before staging a local cancellation overlay.
-- Unknown IDs return `bulkOperation: null` with `field: ["id"]` userErrors. Terminal jobs return the existing job plus a `field: null` userError.
-- Cancel attempts append original raw mutation bodies and staged BulkOperation IDs to the mutation log for observability.
+- `bulkOperationCancel(id:)` looks up the target job from effective BulkOperation state before deciding the response.
+- Unknown valid BulkOperation GIDs return `bulkOperation: null` with `field: ["id"]` userErrors and do not stage a record or append a mutation-log entry.
+- Terminal jobs (`COMPLETED`, `CANCELED`, `FAILED`, and `EXPIRED`) return the existing job unchanged plus a `field: null` userError and do not append a mutation-log entry.
+- Non-terminal jobs stage a status-only `CANCELING` overlay, preserving the stored job's counters, artifact fields, timestamps, query, and type, then return selected job payloads with empty `userErrors` and append the original raw mutation body plus the staged BulkOperation ID to the mutation log for commit replay and observability.
+- LiveHybrid can hydrate a cold known job before applying the same stored-status cancel decision locally.
 
 Meta API behavior:
 
@@ -82,6 +85,7 @@ Meta API behavior:
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-schema-roots.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-validators.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-user-error-codes.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-storage-byte-limit.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-group-objects.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-name-independent-run-roots.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operations-read-arg-validation.json`
@@ -90,13 +94,17 @@ Meta API behavior:
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-allowed-roots.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-created-status.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-client-identifier-validation.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-concurrency-limit.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-concurrency-limit.json`
 - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
 - `config/parity-specs/bulk-operations/bulk-operation-status-catalog-cancel.json`
+- `config/parity-specs/bulk-operations/bulk-operation-cancel-status-branches.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-query-created-status.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-query-schema-roots.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-query-validators.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-query-operation-type-and-list-validators.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-query-user-error-codes.json`
+- `config/parity-specs/bulk-operations/bulk-operation-storage-byte-limit.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-query-group-objects.json`
 - `config/parity-specs/bulk-operations/bulk-operation-name-independent-run-roots.json`
 - `config/parity-specs/bulk-operations/bulk-operations-read-arg-validation.json`
@@ -105,13 +113,19 @@ Meta API behavior:
 - `config/parity-specs/bulk-operations/run-mutation-allowed-roots.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-created-status.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-client-identifier-validation.json`
+- `config/parity-specs/bulk-operations/bulk-operation-run-query-concurrency-limit.json`
+- `config/parity-specs/bulk-operations/bulk-operation-run-mutation-concurrency-limit.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-operation-in-progress.json`
 
 ### Validation
 
 - `corepack pnpm parity -- bulk-operation-status-catalog-cancel`
+- `corepack pnpm parity -- bulk-operation-cancel-status-branches`
 - `corepack pnpm parity -- bulk-operation-run-query-schema-roots`
+- `corepack pnpm parity -- bulk-operation-storage-byte-limit`
 - `corepack pnpm parity -- bulk-operation-name-independent-run-roots`
 - `corepack pnpm parity -- bulk-operation-run-mutation-user-errors`
+- `corepack pnpm parity -- bulk-operation-run-query-concurrency-limit`
+- `corepack pnpm parity -- bulk-operation-run-mutation-concurrency-limit`
 - `corepack pnpm parity -- bulk-operations-read-arg-validation`
 - `corepack pnpm conformance:check`

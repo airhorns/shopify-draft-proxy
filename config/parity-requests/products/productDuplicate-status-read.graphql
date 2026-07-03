@@ -1,0 +1,7 @@
+query ProductDuplicateStatusRead($id: ID!) {
+  product(id: $id) {
+    id
+    title
+    status
+  }
+}

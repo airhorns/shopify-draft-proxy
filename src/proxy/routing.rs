@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::proxy) enum Route {
     Health,
     MetaConfig,
@@ -10,6 +10,7 @@ pub(in crate::proxy) enum Route {
     MetaDump,
     MetaRestore,
     MetaCommit,
+    BulkOperationResult { artifact_id: String },
     Graphql,
     NotFound,
     MethodNotAllowed,
@@ -26,11 +27,26 @@ pub(in crate::proxy) fn route(request: &Request) -> Route {
         "/__meta/dump" => only_method("POST", &method, Route::MetaDump),
         "/__meta/restore" => only_method("POST", &method, Route::MetaRestore),
         "/__meta/commit" => only_method("POST", &method, Route::MetaCommit),
+        path if path.starts_with("/__meta/bulk-operations/") && path.ends_with("/result.jsonl") => {
+            only_method(
+                "GET",
+                &method,
+                Route::BulkOperationResult {
+                    artifact_id: bulk_operation_result_artifact_id(path),
+                },
+            )
+        }
         path if admin_graphql_version(path).is_some() => {
             only_method("POST", &method, Route::Graphql)
         }
         _ => Route::NotFound,
     }
+}
+
+fn bulk_operation_result_artifact_id(path: &str) -> String {
+    path.trim_start_matches("/__meta/bulk-operations/")
+        .trim_end_matches("/result.jsonl")
+        .to_string()
 }
 
 pub(in crate::proxy) fn only_method(expected: &str, actual: &str, route: Route) -> Route {
@@ -56,6 +72,22 @@ pub(in crate::proxy) fn admin_graphql_version(path: &str) -> Option<&str> {
         }
         _ => None,
     }
+}
+
+pub(in crate::proxy) fn version_at_least(
+    version: &str,
+    minimum_year: u16,
+    minimum_month: u8,
+) -> bool {
+    let Some((year, month)) = parse_year_month_version(version) else {
+        return false;
+    };
+    (year, month) >= (minimum_year, minimum_month)
+}
+
+fn parse_year_month_version(version: &str) -> Option<(u16, u8)> {
+    let (year, month) = version.split_once('-')?;
+    Some((year.parse().ok()?, month.parse().ok()?))
 }
 
 pub(in crate::proxy) fn request_header(request: &Request, header_name: &str) -> Option<String> {

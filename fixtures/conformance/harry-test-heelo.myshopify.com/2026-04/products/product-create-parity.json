@@ -1,0 +1,338 @@
+{
+  "mutation": {
+    "variables": {
+      "product": {
+        "title": "Hermes Product Conformance 1782713572062",
+        "status": "DRAFT",
+        "vendor": "HERMES",
+        "productType": "ACCESSORIES",
+        "tags": ["conformance", "product-mutation", "1782713572062"],
+        "descriptionHtml": "<p>Hermes product mutation conformance 1782713572062</p>",
+        "templateSuffix": "product-mutation-parity",
+        "seo": {
+          "title": "Hermes Product 1782713572062",
+          "description": "Hermes product mutation conformance 1782713572062"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10224196223282",
+            "title": "Hermes Product Conformance 1782713572062",
+            "handle": "hermes-product-conformance-1782713572062",
+            "status": "DRAFT",
+            "vendor": "HERMES",
+            "productType": "ACCESSORIES",
+            "tags": ["1782713572062", "conformance", "product-mutation"],
+            "descriptionHtml": "<p>Hermes product mutation conformance 1782713572062</p>",
+            "templateSuffix": "product-mutation-parity",
+            "seo": {
+              "title": "Hermes Product 1782713572062",
+              "description": "Hermes product mutation conformance 1782713572062"
+            }
+          },
+          "shop": {
+            "id": "gid://shopify/Shop/92891250994",
+            "name": "harry-test-heelo",
+            "myshopifyDomain": "harry-test-heelo.myshopify.com"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "variables": {
+      "product": {
+        "title": ""
+      }
+    },
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": null,
+          "shop": {
+            "id": "gid://shopify/Shop/92891250994",
+            "name": "harry-test-heelo",
+            "myshopifyDomain": "harry-test-heelo.myshopify.com"
+          },
+          "userErrors": [
+            {
+              "field": ["title"],
+              "message": "Title can't be blank"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "handleValidation": {
+    "createNormalization": {
+      "variables": {
+        "product": {
+          "title": "Normalized Handle Probe 1782713572062",
+          "handle": "  Weird Handle / 100%  "
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10224196256050",
+              "title": "Normalized Handle Probe 1782713572062",
+              "handle": "weird-handle-100",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": "",
+              "tags": [],
+              "descriptionHtml": "",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              }
+            },
+            "shop": {
+              "id": "gid://shopify/Shop/92891250994",
+              "name": "harry-test-heelo",
+              "myshopifyDomain": "harry-test-heelo.myshopify.com"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "createWhitespaceNormalization": {
+      "variables": {
+        "product": {
+          "title": "Whitespace Handle Probe 1782713572062",
+          "handle": "   "
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10224196288818",
+              "title": "Whitespace Handle Probe 1782713572062",
+              "handle": "whitespace-handle-probe-1782713572062",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": "",
+              "tags": [],
+              "descriptionHtml": "",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              }
+            },
+            "shop": {
+              "id": "gid://shopify/Shop/92891250994",
+              "name": "harry-test-heelo",
+              "myshopifyDomain": "harry-test-heelo.myshopify.com"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "createPunctuationNormalization": {
+      "variables": {
+        "product": {
+          "title": "Hermes Product Handle Punctuation 1782713572062",
+          "handle": "%%%"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10224196321586",
+              "title": "Hermes Product Handle Punctuation 1782713572062",
+              "handle": "product",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": "",
+              "tags": [],
+              "descriptionHtml": "",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              }
+            },
+            "shop": {
+              "id": "gid://shopify/Shop/92891250994",
+              "name": "harry-test-heelo",
+              "myshopifyDomain": "harry-test-heelo.myshopify.com"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "createCollision": {
+      "variables": {
+        "product": {
+          "title": "Hermes Product Handle Collision 1782713572062",
+          "handle": "hermes-product-conformance-1782713572062"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": null,
+            "shop": {
+              "id": "gid://shopify/Shop/92891250994",
+              "name": "harry-test-heelo",
+              "myshopifyDomain": "harry-test-heelo.myshopify.com"
+            },
+            "userErrors": [
+              {
+                "field": ["input", "handle"],
+                "message": "Handle 'hermes-product-conformance-1782713572062' already in use. Please provide a new handle."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10224196223282",
+        "title": "Hermes Product Conformance 1782713572062",
+        "handle": "hermes-product-conformance-1782713572062",
+        "status": "DRAFT",
+        "vendor": "HERMES",
+        "productType": "ACCESSORIES",
+        "tags": ["1782713572062", "conformance", "product-mutation"],
+        "descriptionHtml": "<p>Hermes product mutation conformance 1782713572062</p>",
+        "templateSuffix": "product-mutation-parity",
+        "seo": {
+          "title": "Hermes Product 1782713572062",
+          "description": "Hermes product mutation conformance 1782713572062"
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 2,
+        "actualQueryCost": 2,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1998,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductPayloadShopHydrate",
+      "variables": {},
+      "query": "#graphql\n  query ProductPayloadShopHydrate {\n    shop {\n      id\n      name\n      myshopifyDomain\n      url\n      currencyCode\n      primaryDomain {\n        id\n        host\n        url\n        sslEnabled\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "id": "gid://shopify/Shop/92891250994",
+              "name": "harry-test-heelo",
+              "myshopifyDomain": "harry-test-heelo.myshopify.com",
+              "url": "https://harry-test-heelo.myshopify.com",
+              "currencyCode": "CAD",
+              "primaryDomain": {
+                "id": "gid://shopify/Domain/157391388978",
+                "host": "harry-test-heelo.myshopify.com",
+                "url": "https://harry-test-heelo.myshopify.com",
+                "sslEnabled": true
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

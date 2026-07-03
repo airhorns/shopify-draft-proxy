@@ -4,7 +4,7 @@ pub(super) use std::sync::{Arc, Mutex};
 pub(super) use serde_json::{json, Value};
 pub(super) use shopify_draft_proxy::graphql::OperationType;
 pub(super) use shopify_draft_proxy::operation_registry::{
-    CapabilityDomain, CapabilityExecution, OperationRegistryEntry,
+    CapabilityDomain, OperationRegistryEntry,
 };
 pub(super) use shopify_draft_proxy::proxy::{
     Config, DraftProxy, ProductRecord, ReadMode, Request, Response,
@@ -45,11 +45,48 @@ pub(super) fn graphql_request(method: &str, body: &str) -> Request {
     }
 }
 
+pub(super) fn request_with_body(method: &str, path: &str, body: &str) -> Request {
+    Request {
+        method: method.to_string(),
+        path: path.to_string(),
+        headers: Default::default(),
+        body: body.to_string(),
+    }
+}
+
+pub(super) fn log_snapshot(proxy: &DraftProxy) -> Value {
+    meta_snapshot(proxy, "/__meta/log")
+}
+
+pub(super) fn state_snapshot(proxy: &DraftProxy) -> Value {
+    meta_snapshot(proxy, "/__meta/state")
+}
+
+fn meta_snapshot(proxy: &DraftProxy, path: &str) -> Value {
+    let mut proxy = proxy.clone();
+    let response = proxy.process_request(request_with_body("GET", path, ""));
+    assert_eq!(response.status, 200);
+    response.body
+}
+
 pub(super) fn json_graphql_request(query: &str, variables: serde_json::Value) -> Request {
     graphql_request(
         "POST",
         &json!({ "query": query, "variables": variables }).to_string(),
     )
+}
+
+pub(super) fn restore_shop_currency(proxy: &mut DraftProxy, currency_code: &str) {
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    restored["state"]["baseState"]["shop"]["currencyCode"] = json!(currency_code);
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
 }
 
 pub(super) fn product_fixture(path: &str) -> Value {
@@ -91,17 +128,14 @@ pub(super) fn create_legacy_variant(
 pub(super) fn registry_entry(
     name: &str,
     operation_type: OperationType,
-    execution: CapabilityExecution,
     implemented: bool,
 ) -> OperationRegistryEntry {
     OperationRegistryEntry {
         name: name.to_string(),
         operation_type,
         domain: CapabilityDomain::Products,
-        execution,
         implemented,
         match_names: vec![name.to_string()],
         runtime_tests: vec!["tests/graphql_routes.rs".to_string()],
-        support_notes: None,
     }
 }

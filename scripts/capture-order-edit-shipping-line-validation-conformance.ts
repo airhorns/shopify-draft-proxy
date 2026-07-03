@@ -179,15 +179,6 @@ const orderCreateMutation = `#graphql
   }
 `;
 
-const orderReadQuery = `#graphql
-  ${orderFields}
-  query OrderEditShippingLineValidationHydrate($id: ID!) {
-    order(id: $id) {
-      ...OrderEditShippingLineValidationOrderFields
-    }
-  }
-`;
-
 const orderCancelMutation = `#graphql
   mutation OrderEditShippingLineValidationCancel(
     $orderId: ID!
@@ -307,6 +298,26 @@ function assertHasUserErrors(label: string, captureResult: GraphqlCapture, rootN
   }
 }
 
+function assertCalculatedOrderInvalidUserError(label: string, captureResult: GraphqlCapture, rootName: string): void {
+  assertNoTopLevelErrors(label, captureResult);
+  const payload = mutationPayload(captureResult, rootName);
+  if (payload['calculatedOrder'] !== null) {
+    throw new Error(`${label} expected null calculatedOrder: ${JSON.stringify(payload, null, 2)}`);
+  }
+  const errors = readArray(payload['userErrors']);
+  const firstError = readRecord(errors[0]);
+  const field = readArray(firstError?.['field']);
+  if (
+    errors.length !== 1 ||
+    field.length !== 1 ||
+    field[0] !== 'id' ||
+    firstError?.['message'] !== 'The calculated order does not exist.' ||
+    firstError?.['code'] !== 'INVALID'
+  ) {
+    throw new Error(`${label} expected INVALID calculated-order userError: ${JSON.stringify(errors, null, 2)}`);
+  }
+}
+
 function orderCreateVariables(stamp: string): JsonRecord {
   return {
     order: {
@@ -348,11 +359,19 @@ function orderCreateVariables(stamp: string): JsonRecord {
   };
 }
 
+// The exact order hydrate query the proxy forwards on a cold order-edit begin, byte-identical to
+// ORDER_EDIT_HYDRATE_QUERY (`include_str!` of order-edit-hydrate.graphql) so the recorded cassette
+// replays verbatim. The de-seeded begin resolves the precondition order this way instead of a seed.
+const orderEditHydrateQuery = await readRequest('order-edit-hydrate.graphql');
 const beginDocument = await readRequest('orderEdit-shipping-line-validation-begin.graphql');
 const addMissingPriceDocument = await readRequest('orderEdit-shipping-line-validation-add-missing-price.graphql');
 const addDocument = await readRequest('orderEdit-shipping-line-validation-add.graphql');
 const updateDocument = await readRequest('orderEdit-shipping-line-validation-update.graphql');
 const removeDocument = await readRequest('orderEdit-shipping-line-validation-remove.graphql');
+const addLineItemDiscountDocument = await readRequest(
+  'orderEdit-shipping-line-validation-add-line-item-discount.graphql',
+);
+const removeDiscountDocument = await readRequest('orderEdit-shipping-line-validation-remove-discount.graphql');
 const discountMissingCurrencyDocument = await readRequest(
   'orderEdit-shipping-line-validation-discount-missing-currency.graphql',
 );
@@ -372,11 +391,12 @@ try {
   const createdOrder = orderFromCreate(orderCreate);
   createdOrderId = requireString(createdOrder['id'], 'created order id');
 
-  const orderReadBeforeEdit = await capture(orderReadQuery, { id: createdOrderId });
-  assertNoTopLevelErrors('pre-edit order read', orderReadBeforeEdit);
-  const seedOrder = readRecord(responseData(orderReadBeforeEdit)['order']);
-  if (!seedOrder) {
-    throw new Error(`Expected pre-edit order read: ${JSON.stringify(orderReadBeforeEdit.response.payload, null, 2)}`);
+  // Resolve the precondition the de-seeded way: forward the exact cold ORDER_EDIT_HYDRATE_QUERY the
+  // proxy emits on begin and record its response verbatim as the single upstreamCall. No seed/setup.
+  const orderEditHydrate = await capture(orderEditHydrateQuery, { id: createdOrderId });
+  assertNoTopLevelErrors('order-edit hydrate', orderEditHydrate);
+  if (!readRecord(responseData(orderEditHydrate)['order'])) {
+    throw new Error(`Expected order-edit hydrate read: ${JSON.stringify(orderEditHydrate.response.payload, null, 2)}`);
   }
 
   const begin = await capture(beginDocument, { id: createdOrderId });
@@ -384,6 +404,7 @@ try {
   assertEmptyUserErrors('orderEditBegin', begin, 'orderEditBegin');
   const calculatedOrderIdValue = calculatedOrderId(begin);
   const lineItemId = firstCalculatedLineItemId(begin);
+  const unknownCalculatedOrderId = 'gid://shopify/CalculatedOrder/999999999999';
   const unknownShippingLineId = 'gid://shopify/CalculatedShippingLine/999999999999';
 
   const addMissingPrice = await capture(addMissingPriceDocument, { id: calculatedOrderIdValue });
@@ -420,6 +441,88 @@ try {
   });
   assertHasUserErrors('remove unknown shipping line', removeUnknown, 'orderEditRemoveShippingLine');
 
+  const addLineItemDiscountForRemoveDiscountId = await capture(addLineItemDiscountDocument, {
+    id: calculatedOrderIdValue,
+    lineItemId,
+    discount: {
+      description: 'Shipping-line validation discount',
+      fixedValue: {
+        amount: '1.00',
+        currencyCode: 'CAD',
+      },
+    },
+  });
+  assertEmptyUserErrors(
+    'add line item discount for removeDiscount id',
+    addLineItemDiscountForRemoveDiscountId,
+    'orderEditAddLineItemDiscount',
+  );
+  const addLineItemDiscountRoot = mutationPayload(
+    addLineItemDiscountForRemoveDiscountId,
+    'orderEditAddLineItemDiscount',
+  );
+  const discountApplicationId = requireString(
+    readRecord(
+      readRecord(
+        readArray(readRecord(addLineItemDiscountRoot['calculatedLineItem'])?.['calculatedDiscountAllocations'])[0],
+      )?.['discountApplication'],
+    )?.['id'],
+    'discount application id',
+  );
+
+  const addUnknownCalculatedOrder = await capture(addDocument, {
+    id: unknownCalculatedOrderId,
+    shippingLine: {
+      title: 'Unknown calculated order shipping',
+      price: {
+        amount: '9.99',
+        currencyCode: 'CAD',
+      },
+    },
+  });
+  assertCalculatedOrderInvalidUserError(
+    'add shipping unknown calculated order',
+    addUnknownCalculatedOrder,
+    'orderEditAddShippingLine',
+  );
+
+  const updateUnknownCalculatedOrder = await capture(updateDocument, {
+    id: unknownCalculatedOrderId,
+    shippingLineId: unknownShippingLineId,
+    shippingLine: {
+      title: 'Unknown calculated order update',
+      price: {
+        amount: '19.99',
+        currencyCode: 'CAD',
+      },
+    },
+  });
+  assertCalculatedOrderInvalidUserError(
+    'update shipping unknown calculated order',
+    updateUnknownCalculatedOrder,
+    'orderEditUpdateShippingLine',
+  );
+
+  const removeUnknownCalculatedOrder = await capture(removeDocument, {
+    id: unknownCalculatedOrderId,
+    shippingLineId: unknownShippingLineId,
+  });
+  assertCalculatedOrderInvalidUserError(
+    'remove shipping unknown calculated order',
+    removeUnknownCalculatedOrder,
+    'orderEditRemoveShippingLine',
+  );
+
+  const removeDiscountUnknownCalculatedOrder = await capture(removeDiscountDocument, {
+    id: unknownCalculatedOrderId,
+    discountApplicationId,
+  });
+  assertCalculatedOrderInvalidUserError(
+    'remove discount unknown calculated order',
+    removeDiscountUnknownCalculatedOrder,
+    'orderEditRemoveDiscount',
+  );
+
   const discountMissingCurrency = await capture(discountMissingCurrencyDocument, {
     id: calculatedOrderIdValue,
     lineItemId,
@@ -440,32 +543,29 @@ try {
     storeDomain,
     source: 'live-shopify-admin-graphql',
     notes:
-      'Live orderEdit shipping-line validation capture against one disposable CAD order-edit session. Invalid branches do not stage shipping lines or discounts; the source order is cancelled in cleanup.',
-    setup: {
-      orderCreate,
-      orderReadBeforeEdit,
-    },
+      'Live orderEdit shipping-line validation capture against one disposable CAD order-edit session. The precondition order is resolved via a real cold OrdersOrderEditHydrate forward (single upstreamCall) rather than a seed/setup block. Invalid branches do not stage shipping lines or discounts; unknown calculated-order probes use a known-bad CalculatedOrder GID, with removeDiscount carrying a real captured discount application ID; the source order is cancelled in cleanup.',
     begin,
     cases: {
       addMissingPrice,
       addCurrencyMismatch,
       updateUnknown,
       removeUnknown,
+      addLineItemDiscountForRemoveDiscountId,
+      addUnknownCalculatedOrder,
+      updateUnknownCalculatedOrder,
+      removeUnknownCalculatedOrder,
+      removeDiscountUnknownCalculatedOrder,
       discountMissingCurrency,
     },
     cleanup,
     upstreamCalls: [
       {
-        operationName: 'OrdersOrderHydrate',
+        operationName: 'OrdersOrderEditHydrate',
         variables: { id: createdOrderId },
-        query: 'hand-synthesized from live setup order read for orderEdit shipping-line validation replay',
+        query: orderEditHydrateQuery,
         response: {
-          status: 200,
-          body: {
-            data: {
-              order: seedOrder,
-            },
-          },
+          status: orderEditHydrate.response.status,
+          body: orderEditHydrate.response.payload,
         },
       },
     ],

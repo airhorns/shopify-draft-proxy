@@ -231,7 +231,7 @@
       "variables": {
         "resourceId": "gid://shopify/Product/10213687198002"
       },
-      "query": "#graphql\n  query LocalizationTranslationsValidationOrderSetupRead($resourceId: ID!) {\n    shopLocales {\n      locale\n      name\n      primary\n      published\n    }\n    translatableResource(resourceId: $resourceId) {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n    }\n  }\n",
+      "query": "query LocalizationTranslationsValidationOrderSetupRead($resourceId: ID!) {\n  shopLocales {\n    locale\n    name\n    primary\n    published\n  }\n  translatableResource(resourceId: $resourceId) {\n    resourceId\n    translatableContent {\n      key\n      value\n      digest\n      locale\n      type\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {

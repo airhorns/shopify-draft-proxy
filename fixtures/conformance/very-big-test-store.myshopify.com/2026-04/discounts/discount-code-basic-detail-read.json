@@ -12,7 +12,7 @@
             "__typename": "DiscountCodeBasic",
             "title": "HAR-192 detail code 1777130925428",
             "status": "ACTIVE",
-            "summary": "10% off entire order • Minimum purchase of $1.00",
+            "summary": "10% off entire order \u2022 Minimum purchase of $1.00",
             "startsAt": "2026-04-25T00:00:00Z",
             "endsAt": null,
             "createdAt": "2026-04-25T15:28:45Z",
@@ -87,7 +87,7 @@
           "__typename": "DiscountCodeBasic",
           "title": "HAR-192 detail code 1777130925428",
           "status": "ACTIVE",
-          "summary": "10% off entire order • Minimum purchase of $1.00",
+          "summary": "10% off entire order \u2022 Minimum purchase of $1.00",
           "startsAt": "2026-04-25T00:00:00Z",
           "endsAt": null,
           "createdAt": "2026-04-25T15:28:45Z",
@@ -189,7 +189,7 @@
           "__typename": "DiscountCodeBasic",
           "title": "HAR-192 detail code 1777130925428",
           "status": "ACTIVE",
-          "summary": "10% off entire order • Minimum purchase of $1.00",
+          "summary": "10% off entire order \u2022 Minimum purchase of $1.00",
           "startsAt": "2026-04-25T00:00:00Z",
           "endsAt": null,
           "createdAt": "2026-04-25T15:28:45Z",
@@ -277,7 +277,7 @@
                 "__typename": "DiscountCodeBasic",
                 "title": "HAR-192 detail code 1777130925428",
                 "status": "ACTIVE",
-                "summary": "10% off entire order • Minimum purchase of $1.00",
+                "summary": "10% off entire order \u2022 Minimum purchase of $1.00",
                 "startsAt": "2026-04-25T00:00:00Z",
                 "endsAt": null,
                 "createdAt": "2026-04-25T15:28:45Z",
@@ -379,7 +379,7 @@
                 "__typename": "DiscountCodeBasic",
                 "title": "HAR-192 detail code 1777130925428",
                 "status": "ACTIVE",
-                "summary": "10% off entire order • Minimum purchase of $1.00",
+                "summary": "10% off entire order \u2022 Minimum purchase of $1.00",
                 "startsAt": "2026-04-25T00:00:00Z",
                 "endsAt": null,
                 "createdAt": "2026-04-25T15:28:45Z",
@@ -428,7 +428,8 @@
             }
           }
         }
-      }
+      },
+      "query": "query DiscountCodeDetailRead($id: ID!, $code: String!) {\n  discountNode(id: $id) {\n    id\n    discount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        codes(first: 2) {\n          nodes {\n            id\n            code\n            asyncUsageCount\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        customerGets {\n          value {\n            __typename\n            ... on DiscountPercentage {\n              percentage\n            }\n            ... on DiscountAmount {\n              amount {\n                amount\n                currencyCode\n              }\n              appliesOnEachItem\n            }\n          }\n          items {\n            __typename\n            ... on AllDiscountItems {\n              allItems\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n      }\n    }\n    metafield(namespace: \"custom\", key: \"har192_missing\") {\n      id\n    }\n    metafields(first: 2) {\n      nodes {\n        id\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    events(first: 2) {\n      edges {\n        cursor\n        node {\n          __typename\n          ... on BasicEvent {\n            id\n            action\n            message\n            createdAt\n            subjectId\n            subjectType\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  codeDiscountNode(id: $id) {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        codes(first: 2) {\n          nodes {\n            id\n            code\n            asyncUsageCount\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n    }\n  }\n  codeDiscountNodeByCode(code: $code) {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n      }\n    }\n  }\n}\n"
     }
   ]
 }

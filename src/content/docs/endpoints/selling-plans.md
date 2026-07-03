@@ -3,19 +3,19 @@ title: 'Selling Plans'
 description: 'Coverage notes and fidelity boundaries for Selling Plans.'
 ---
 
-The selling-plans group covers the Shopify Admin GraphQL selling-plan group
-roots that product subscription flows need.
+The selling-plans group tracks the Shopify Admin GraphQL selling-plan group
+roots used by product subscription flows.
 
 ## Current support and limitations
 
-### Supported roots
+### Implemented roots
 
-Supported reads:
+Reads:
 
 - `sellingPlanGroup(id:)`
 - `sellingPlanGroups(...)`
 
-Supported mutations:
+Mutations:
 
 - `sellingPlanGroupCreate(input:, resources:)`
 - `sellingPlanGroupUpdate(id:, input:)`
@@ -29,57 +29,118 @@ Supported mutations:
 - `productVariantJoinSellingPlanGroups(id:, sellingPlanGroupIds:)`
 - `productVariantLeaveSellingPlanGroups(id:, sellingPlanGroupIds:)`
 
-Selling-plan group state is normalized in memory with group scalar fields, nested selling-plan payload data, product membership IDs, and product-variant membership IDs. Supported mutations stage locally and are retained in the mutation log with the original raw GraphQL request for commit replay; they do not write to Shopify at runtime.
+### Local Behavior
 
-The current Shopify Admin docs and public examples continue to present these roots as product/purchase-option-scoped
-Admin operations: group-centric add/remove roots take a selling-plan-group ID plus product or product-variant IDs,
-while product-centric join/leave roots take a product or variant ID plus selling-plan-group IDs. The local model mirrors
-that bidirectional association surface with one normalized group record rather than response-only patching.
+The Rust runtime models staged selling-plan group lifecycle behavior for groups
+created inside the current proxy session. Successful `sellingPlanGroupCreate`,
+`sellingPlanGroupUpdate`, and `sellingPlanGroupDelete` calls stage local group
+records and nested `SellingPlan` records without runtime Shopify writes, while
+retaining the original raw mutations for commit replay.
 
-Generic Admin `node(id:)` / `nodes(ids:)` dispatch resolves nested `SellingPlan` IDs by scanning effective selling-plan groups and projecting the stored selling-plan payload through the requested selection set. Missing selling-plan IDs return `null`, and adjacent product subscription Node families such as quantity price breaks remain unsupported until their own local lifecycle/read models have executable Node evidence.
+`sellingPlanGroupCreate` persists nullable `input.appId` on the staged group,
+and `sellingPlanGroupUpdate` changes or clears `appId` when the input includes
+the field. Subsequent `sellingPlanGroup(id:)` reads return the staged `appId`
+value from local state.
 
-### Runtime behavior
+`sellingPlanGroupCreate` validates the captured model-backed create guardrails
+after the shared input validator passes. Blank or absent group `name`, zero or
+absent `sellingPlansToCreate`, more than 31 submitted plans, and per-plan
+missing `billingPolicy` / `deliveryPolicy` return captured `userErrors`, return
+`sellingPlanGroup: null`, and do not stage a group. `sellingPlanGroupUpdate`
+does not apply the create-only lower-bound to an empty
+`sellingPlansToCreate: []` list, but it rejects updates that would delete every
+existing selling plan without creating a replacement. That update-only guard
+returns `SELLING_PLAN_COUNT_LOWER_BOUND` at
+`["input", "sellingPlansToDelete"]`, returns `sellingPlanGroup: null`, leaves
+the group unchanged on subsequent reads, and records the raw mutation as a
+failed local mutation for observability.
 
-`sellingPlanGroupCreate` creates a synthetic `SellingPlanGroup` and synthetic nested `SellingPlan` IDs. `resources.productIds` and `resources.productVariantIds` seed the initial memberships. `sellingPlanGroupUpdate` updates group scalar fields, stages nested selling-plan create/update/delete inputs, and returns `deletedSellingPlanIds` for locally known removed plans. Delete marks the group absent from subsequent detail, catalog, product, and variant reads.
+For nested selling-plan `pricingPolicies`, create and update validation rejects
+lists that contain recurring pricing policies without a fixed pricing policy.
+The local response matches Shopify's captured
+`SELLING_PLAN_PRICING_POLICIES_MUST_CONTAIN_A_FIXED_PRICING_POLICY` userError
+field/message/code shape for both `sellingPlansToCreate` and
+`sellingPlansToUpdate`. Valid fixed+recurring policy lists stage locally, and
+subsequent selling-plan reads return both `SellingPlanFixedPricingPolicy` and
+`SellingPlanRecurringPricingPolicy` entries from staged state.
 
-Create/update inputs reject Shopify-captured selling-plan guardrails before staging: group `options` lists are limited to three entries, group and nested plan `position` values must fit signed int32, nested plan `options` lists are limited to three entries, nested plan `pricingPolicies` lists are limited to two entries, and every `sellingPlansToUpdate` entry must include an `id`. Billing and delivery policy kinds must remain compatible; create requests with recurring billing plus fixed delivery return `BILLING_AND_DELIVERY_POLICY_TYPES_MUST_BE_THE_SAME`, while update requests that replace only the delivery policy kind on an existing recurring plan return Shopify's `ONLY_ONE_OF_FIXED_OR_RECURRING_DELIVERY` guardrail. Recurring billing and delivery policy `intervalCount` values must be greater than zero, and recurring billing/delivery anchor schedules must match before the mutation stages.
+`SellingPlanGroup.summary` is computed from staged selling plans, not from the
+group option labels. The local summary uses the selling-plan count,
+singular/plural `frequency` wording, percentage min/max ranges across all
+pricing policies, fixed-value min/max ranges using Shopify's whole-currency
+summary display, and joins mixed percentage/fixed pieces with `·`.
 
-Product membership and product-variant membership are tracked independently, matching the captured Shopify behavior where creating a group with `resources.productIds` applies to the product but does not automatically make `appliesToProductVariant` or `ProductVariant.sellingPlanGroupsCount` true for the product's default variant. `ProductVariant.sellingPlanGroups` still includes product-level group memberships visible through the variant, and direct product-variant add/remove mutations update the variant count and `appliesToProductVariant` fields.
+Staged selling plans retain mixed fixed and recurring pricing policies in
+`SellingPlan.pricingPolicies`. Fixed entries read back as
+`SellingPlanFixedPricingPolicy`; recurring entries read back as
+`SellingPlanRecurringPricingPolicy` with `afterCycle`, `createdAt`,
+`adjustmentType`, and `adjustmentValue`. The 2026-04 lifecycle capture shows
+Shopify rejects a pricing-policy list that contains only recurring policies and
+no fixed policy; that validation branch is tracked separately from the mixed
+policy read-back support described here.
 
-The product-centric membership roots `productJoinSellingPlanGroups` / `productLeaveSellingPlanGroups` mutate the selected groups' `productIds` membership lists and return the selected `Product` payload. `productVariantJoinSellingPlanGroups` / `productVariantLeaveSellingPlanGroups` mutate `productVariantIds` and return the selected `ProductVariant` payload. These roots share the same normalized membership model as the group-centric add/remove mutations, so downstream product, variant, and selling-plan group reads stay consistent without runtime Shopify writes.
+Staged `sellingPlanGroupAddProducts`,
+`sellingPlanGroupRemoveProducts`, `sellingPlanGroupAddProductVariants`,
+`sellingPlanGroupRemoveProductVariants`, `productJoinSellingPlanGroups`,
+`productLeaveSellingPlanGroups`, `productVariantJoinSellingPlanGroups`, and
+`productVariantLeaveSellingPlanGroups` update membership edges for local
+products, variants, and selling-plan groups. Downstream
+`Product.sellingPlanGroups`, `Product.sellingPlanGroupsCount`,
+`ProductVariant.sellingPlanGroups`, and `ProductVariant.sellingPlanGroupsCount`
+read from the staged membership graph.
 
-Product-centric and variant-centric join/leave roots reject validation failures before staging any membership changes. Empty `sellingPlanGroupIds` returns a `BLANK` userError, duplicate IDs within one request return `DUPLICATE`, join requests that would leave a product or variant in more than 31 distinct selling-plan groups return `SELLING_PLAN_GROUPS_TOO_MANY`, and leave requests for a known group the product or variant is not directly a member of return `NOT_A_MEMBER`. Group-centric add roots share the same per-resource cap and reject already-attached product or variant memberships with `TAKEN`; unknown add resources follow the captured Shopify field paths (`["productIds"]` / `["productVariantIds"]`). Rejected requests are retained in the mutation log as failed entries with the original raw mutation for observability, but commit replay skips them.
+Snapshot reads over an empty local selling-plan store return Shopify-like no-data
+shapes: `sellingPlanGroup(id:)` is `null` and `sellingPlanGroups(...)` is an
+empty connection. In LiveHybrid, mutation roots that target live-store groups,
+products, or variants not present in local state are forwarded upstream instead
+of fabricating local not-found errors from empty state.
 
-Unknown group IDs for update/delete/add/remove return Shopify-like `GROUP_DOES_NOT_EXIST` userErrors with `field: ["id"]`; remove payloads return `removedProductIds: null` or `removedProductVariantIds: null` on that branch. Local runtime coverage verifies that unknown product, unknown product variant, and unknown selling-plan group association attempts stay side-effect free, return local userErrors, and never runtime-proxy to Shopify.
+### Boundaries
 
-Shopify's Admin docs describe selling-plan groups as app-scoped purchase options that can be associated directly with products or product variants. The local model keeps those association lists explicit instead of deriving variant membership from product membership, because the captured 2026-04 lifecycle showed those read paths diverging.
+Support is scoped to local staged groups and locally known product/variant
+resources. The proxy does not hydrate arbitrary live-store selling-plan groups
+into local state, does not claim full upstream parity for every
+`SellingPlanGroupInput` field or selling-plan policy variant, and still relies
+on existing product/variant state to expose downstream membership overlays.
 
-### Unsupported and boundary behavior
-
-The checked-in 2026-04 captures cover lifecycle, group-centric association updates, product-centric association
-updates, variant-centric association updates, unknown-group validation branches, and downstream read-after-write
-behavior for staged products and variants. Broader Shopify
-validation semantics are not yet exhaustively modeled: app ownership
-or permission failures outside the captured option/pricing-policy/position/policy-kind/schedule guardrails, and
-`sellingPlanGroups(query:, sortKey:, reverse:)` filtering/sorting beyond the staged
-catalog shape should be treated as unsupported fidelity gaps until live conformance evidence is added. Do not expand
-the supported contract for those branches without a capture or a focused runtime test that models the downstream
-behavior.
+Generic `node(id:)` / `nodes(ids:)` readback for selling-plan group and nested
+selling-plan IDs is covered by the admin-platform endpoint group. Broader
+Shopify selling-plan behavior outside the staged lifecycle and membership
+surface remains unsupported until backed by runtime behavior and captured
+parity evidence.
 
 ### Evidence
 
-`fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-lifecycle.json` captures the live 2026-04 lifecycle against a disposable product and selling-plan group, including cleanup. The capture records create/update/delete payloads, product and variant membership add/remove payloads, unknown-id userErrors, and downstream read-after-write effects.
-
-`fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/selling-plan-group-input-validation.json` captures live 2025-01 create/update input validation branches for group option/position limits, nested plan option/pricing-policy/position limits, required update IDs, policy kind guardrails, recurring interval counts, and recurring anchor schedule compatibility. The parity replay creates one local seed group through the primary request, then replays strict invalid create/update targets without pre-seeding state.
-
-### Validation
-
-- `corepack pnpm conformance:capture -- --run selling-plan-groups`
-- `corepack pnpm conformance:capture -- --run selling-plan-group-input-validation`
-- `config/parity-specs/admin-platform/admin-platform-selling-plan-node-reads.json`
+- `tests/graphql_routes/selling_plans.rs`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-summary.json`
+- `config/parity-specs/selling-plans/sellingPlanGroup-summary.json`
+- `config/parity-requests/selling-plans/sellingPlanGroupCreate-summary.graphql`
+- `config/parity-requests/selling-plans/sellingPlanGroupSummary-read.graphql`
+- `scripts/capture-selling-plan-group-summary-conformance.ts`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-create-active-model-validation.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plans/selling-plan-group-app-id-readback.json`
+- `config/parity-specs/selling-plans/sellingPlanGroupCreate-active-model-validation.json`
+- `config/parity-specs/selling-plans/sellingPlanGroup-app-id-readback.json`
+- `config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql`
+- `config/parity-requests/selling-plans/sellingPlanGroupUpdate-empty-create-list.graphql`
+- `config/parity-requests/selling-plans/sellingPlanGroupCreate-app-id-readback.graphql`
+- `config/parity-requests/selling-plans/sellingPlanGroupRead-app-id-readback.graphql`
+- `config/parity-requests/selling-plans/sellingPlanGroupUpdate-app-id-readback.graphql`
+- `scripts/capture-selling-plan-group-create-active-model-validation-conformance.ts`
+- `scripts/capture-selling-plan-group-app-id-readback-conformance.ts`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-lifecycle.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-input-validation.json`
 - `config/parity-specs/products/sellingPlanGroupCreate-input-validation.json`
 - `config/parity-specs/products/productJoinLeaveSellingPlanGroups-validation.json`
 - `config/parity-specs/products/selling-plan-product-variant-associations.json`
 - `config/parity-specs/products/selling-plan-group-lifecycle.json`
+
+### Validation
+
+- `corepack pnpm parity -- sellingPlanGroup-summary`
+- `corepack pnpm parity -- sellingPlanGroupCreate-active-model-validation`
+- `corepack pnpm parity -- sellingPlanGroup-app-id-readback`
+- `corepack pnpm parity -- selling-plan-group-lifecycle`
+- `corepack pnpm parity -- sellingPlanGroupCreate-input-validation`
 - `corepack pnpm conformance:check`
-- `corepack pnpm conformance:parity`
+- `corepack pnpm rust:test`

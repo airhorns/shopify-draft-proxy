@@ -1,0 +1,1071 @@
+{
+  "capturedAt": "2026-06-23T00:05:25.736Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "source": "live-shopify-admin-graphql",
+  "notes": "Live return/reverse-fulfillment disposal validation capture for empty inputs, unknown RFO line item, excessive quantity, custom-line RESTOCKED, multiple reverse fulfillment orders, valid NOT_RESTOCKED disposal, and downstream reads.",
+  "locations": {
+    "query": "query ReturnDisposeValidationLocations($first: Int!) {\n    locations(first: $first) {\n      nodes {\n        id\n        name\n        isActive\n      }\n    }\n  }",
+    "variables": {
+      "first": 10
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "locations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Location/112829759794",
+                "name": "HAR-571 transfer destination 20260505000619",
+                "isActive": true
+              },
+              {
+                "id": "gid://shopify/Location/112829956402",
+                "name": "HAR-571 transfer destination 20260505000856",
+                "isActive": true
+              },
+              {
+                "id": "gid://shopify/Location/112833036594",
+                "name": "HAR-654 Main 20260505044352",
+                "isActive": true
+              },
+              {
+                "id": "gid://shopify/Location/112833069362",
+                "name": "HAR-654 Sub 20260505044352",
+                "isActive": true
+              },
+              {
+                "id": "gid://shopify/Location/112831103282",
+                "name": "HAR-658 lifecycle 20260505013332",
+                "isActive": true
+              },
+              {
+                "id": "gid://shopify/Location/112864788786",
+                "name": "Inventory transfer conformance destination 1778105212772",
+                "isActive": true
+              },
+              {
+                "id": "gid://shopify/Location/112864919858",
+                "name": "Inventory transfer conformance destination 1778105301908",
+                "isActive": true
+              },
+              {
+                "id": "gid://shopify/Location/112864985394",
+                "name": "Inventory transfer conformance destination 1778105349016",
+                "isActive": true
+              },
+              {
+                "id": "gid://shopify/Location/112865149234",
+                "name": "Inventory transfer conformance destination 1778105966307",
+                "isActive": true
+              },
+              {
+                "id": "gid://shopify/Location/113491640626",
+                "name": "Inventory transfer conformance destination 1781556548951",
+                "isActive": true
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "setup": {
+    "orderCreate": {
+      "query": "#graphql\n  fragment ReturnDisposeValidationOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    totalRefundedSet { shopMoney { amount currencyCode } }\n    tags\n    lineItems(first: 5) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n      }\n    }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n            variant {\n              id\n            }\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        assignedLocation {\n          name\n          location {\n            id\n          }\n        }\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n              variant {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n      }\n    }\n  }\n\n  mutation ReturnDisposeValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        ...ReturnDisposeValidationOrderFields\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "return-dispose-validation-20260623000520@example.com",
+          "note": "Return dispose validation capture 20260623000520",
+          "tags": ["return-dispose-validation", "20260623000520"],
+          "test": true,
+          "currency": "USD",
+          "shippingAddress": {
+            "firstName": "Return",
+            "lastName": "Dispose",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9"
+          },
+          "lineItems": [
+            {
+              "title": "Return dispose custom line 20260623000520",
+              "quantity": 3,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8838089376050",
+                "name": "#1504",
+                "createdAt": "2026-06-23T00:05:20Z",
+                "updatedAt": "2026-06-23T00:05:20Z",
+                "displayFinancialStatus": null,
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "60.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "60.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "totalRefundedSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "tags": ["20260623000520", "return-dispose-validation"],
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/LineItem/19495323369778",
+                      "title": "Return dispose custom line 20260623000520",
+                      "quantity": 3,
+                      "currentQuantity": 3
+                    }
+                  ]
+                },
+                "fulfillments": [],
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9774440677682",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "assignedLocation": {
+                        "name": "HAR-654 Main 20260505044352",
+                        "location": {
+                          "id": "gid://shopify/Location/112833036594"
+                        }
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19663732638002",
+                            "totalQuantity": 3,
+                            "remainingQuantity": 3,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19495323369778",
+                              "title": "Return dispose custom line 20260623000520",
+                              "variant": null
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "returns": {
+                  "nodes": []
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 76,
+              "actualQueryCost": 26,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1974,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfillmentCreate": {
+      "query": "mutation ReturnDisposeValidationFulfillmentCreate($fulfillment: FulfillmentInput!, $message: String) {\n    fulfillmentCreate(fulfillment: $fulfillment, message: $message) {\n      fulfillment {\n        id\n        status\n        displayStatus\n        fulfillmentLineItems(first: 5) {\n          nodes {\n            id\n            quantity\n            lineItem {\n              id\n              title\n              variant {\n                id\n              }\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "RETURN-DISPOSE-FULFILL-20260623000520",
+            "url": "https://example.com/track/RETURN-DISPOSE-FULFILL-20260623000520",
+            "company": "Hermes Carrier"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9774440677682",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/19663732638002",
+                  "quantity": 3
+                }
+              ]
+            }
+          ]
+        },
+        "message": "Return dispose validation fulfillment 20260623000520"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentCreate": {
+              "fulfillment": {
+                "id": "gid://shopify/Fulfillment/7987126993202",
+                "status": "SUCCESS",
+                "displayStatus": "FULFILLED",
+                "fulfillmentLineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentLineItem/17274208223538",
+                      "quantity": 3,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19495323369778",
+                        "title": "Return dispose custom line 20260623000520",
+                        "variant": null
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "orderReadAfterFulfillment": {
+      "query": "#graphql\n  fragment ReturnDisposeValidationOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    totalRefundedSet { shopMoney { amount currencyCode } }\n    tags\n    lineItems(first: 5) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n      }\n    }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n            variant {\n              id\n            }\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        assignedLocation {\n          name\n          location {\n            id\n          }\n        }\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n              variant {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n      }\n    }\n  }\n\n  query ReturnDisposeValidationOrderRead($id: ID!) {\n    order(id: $id) {\n      ...ReturnDisposeValidationOrderFields\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Order/8838089376050"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8838089376050",
+              "name": "#1504",
+              "createdAt": "2026-06-23T00:05:20Z",
+              "updatedAt": "2026-06-23T00:05:22Z",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "FULFILLED",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "60.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "60.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "tags": ["20260623000520", "return-dispose-validation"],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19495323369778",
+                    "title": "Return dispose custom line 20260623000520",
+                    "quantity": 3,
+                    "currentQuantity": 3
+                  }
+                ]
+              },
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/7987126993202",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-06-23T00:05:21Z",
+                  "updatedAt": "2026-06-23T00:05:21Z",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17274208223538",
+                        "quantity": 3,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19495323369778",
+                          "title": "Return dispose custom line 20260623000520",
+                          "variant": null
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9774440677682",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "HAR-654 Main 20260505044352",
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19663732638002",
+                          "totalQuantity": 3,
+                          "remainingQuantity": 0,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19495323369778",
+                            "title": "Return dispose custom line 20260623000520",
+                            "variant": null
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "returns": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 67,
+              "actualQueryCost": 22,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "firstReturnRequest": {
+    "query": "mutation ReturnRequestRecorded($input: ReturnRequestInput!) {\n  returnRequest(input: $input) {\n    return {\n      id\n      name\n      status\n      totalQuantity\n      returnLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          processedQuantity\n          unprocessedQuantity\n        }\n      }\n      reverseFulfillmentOrders(first: 5) {\n        nodes {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "input": {
+        "orderId": "gid://shopify/Order/8838089376050",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17274208223538",
+            "quantity": 1,
+            "returnReason": "OTHER"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnRequest": {
+            "return": {
+              "id": "gid://shopify/Return/14726496562",
+              "name": "#1504-R1",
+              "status": "REQUESTED",
+              "totalQuantity": 1,
+              "returnLineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ReturnLineItem/22473343282",
+                    "quantity": 1,
+                    "processedQuantity": 0,
+                    "unprocessedQuantity": 1
+                  }
+                ]
+              },
+              "reverseFulfillmentOrders": {
+                "nodes": []
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "firstReturnApproveRequest": {
+    "query": "mutation ReturnApproveRequestRecorded($input: ReturnApproveRequestInput!) {\n  returnApproveRequest(input: $input) {\n    return {\n      id\n      name\n      status\n      totalQuantity\n      returnLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          processedQuantity\n          unprocessedQuantity\n        }\n      }\n      reverseFulfillmentOrders(first: 5) {\n        nodes {\n          id\n          status\n          lineItems(first: 5) {\n            nodes {\n              id\n              totalQuantity\n              fulfillmentLineItem {\n                id\n                lineItem {\n                  id\n                  title\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Return/14726496562"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnApproveRequest": {
+            "return": {
+              "id": "gid://shopify/Return/14726496562",
+              "name": "#1504-R1",
+              "status": "OPEN",
+              "totalQuantity": 1,
+              "returnLineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ReturnLineItem/22473343282",
+                    "quantity": 1,
+                    "processedQuantity": 0,
+                    "unprocessedQuantity": 1
+                  }
+                ]
+              },
+              "reverseFulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ReverseFulfillmentOrder/14333772082",
+                    "status": "OPEN",
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ReverseFulfillmentOrderLineItem/21697855794",
+                          "totalQuantity": 1,
+                          "fulfillmentLineItem": {
+                            "id": "gid://shopify/FulfillmentLineItem/17274208223538",
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19495323369778",
+                              "title": "Return dispose custom line 20260623000520"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 53,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "secondReturnRequest": {
+    "query": "mutation ReturnRequestRecorded($input: ReturnRequestInput!) {\n  returnRequest(input: $input) {\n    return {\n      id\n      name\n      status\n      totalQuantity\n      returnLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          processedQuantity\n          unprocessedQuantity\n        }\n      }\n      reverseFulfillmentOrders(first: 5) {\n        nodes {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "input": {
+        "orderId": "gid://shopify/Order/8838089376050",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17274208223538",
+            "quantity": 1,
+            "returnReason": "OTHER"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnRequest": {
+            "return": {
+              "id": "gid://shopify/Return/14726529330",
+              "name": "#1504-R2",
+              "status": "REQUESTED",
+              "totalQuantity": 1,
+              "returnLineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ReturnLineItem/22473376050",
+                    "quantity": 1,
+                    "processedQuantity": 0,
+                    "unprocessedQuantity": 1
+                  }
+                ]
+              },
+              "reverseFulfillmentOrders": {
+                "nodes": []
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "secondReturnApproveRequest": {
+    "query": "mutation ReturnApproveRequestRecorded($input: ReturnApproveRequestInput!) {\n  returnApproveRequest(input: $input) {\n    return {\n      id\n      name\n      status\n      totalQuantity\n      returnLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          processedQuantity\n          unprocessedQuantity\n        }\n      }\n      reverseFulfillmentOrders(first: 5) {\n        nodes {\n          id\n          status\n          lineItems(first: 5) {\n            nodes {\n              id\n              totalQuantity\n              fulfillmentLineItem {\n                id\n                lineItem {\n                  id\n                  title\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Return/14726529330"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnApproveRequest": {
+            "return": {
+              "id": "gid://shopify/Return/14726529330",
+              "name": "#1504-R2",
+              "status": "OPEN",
+              "totalQuantity": 1,
+              "returnLineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ReturnLineItem/22473376050",
+                    "quantity": 1,
+                    "processedQuantity": 0,
+                    "unprocessedQuantity": 1
+                  }
+                ]
+              },
+              "reverseFulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ReverseFulfillmentOrder/14333804850",
+                    "status": "OPEN",
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ReverseFulfillmentOrderLineItem/21697888562",
+                          "totalQuantity": 1,
+                          "fulfillmentLineItem": {
+                            "id": "gid://shopify/FulfillmentLineItem/17274208223538",
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19495323369778",
+                              "title": "Return dispose custom line 20260623000520"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 53,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "disposeValidation": {
+    "empty": {
+      "query": "mutation ReverseFulfillmentOrderDisposeValidation($dispositionInputs: [ReverseFulfillmentOrderDisposeInput!]!) {\n  reverseFulfillmentOrderDispose(dispositionInputs: $dispositionInputs) {\n    reverseFulfillmentOrderLineItems {\n      id\n      totalQuantity\n      dispositions {\n        type\n        quantity\n        location {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "dispositionInputs": []
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "reverseFulfillmentOrderDispose": {
+              "reverseFulfillmentOrderLineItems": null,
+              "userErrors": [
+                {
+                  "field": ["dispositionInputs"],
+                  "message": "The array cannot be empty.",
+                  "code": "BLANK"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownLine": {
+      "query": "mutation ReverseFulfillmentOrderDisposeValidation($dispositionInputs: [ReverseFulfillmentOrderDisposeInput!]!) {\n  reverseFulfillmentOrderDispose(dispositionInputs: $dispositionInputs) {\n    reverseFulfillmentOrderLineItems {\n      id\n      totalQuantity\n      dispositions {\n        type\n        quantity\n        location {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "dispositionInputs": [
+          {
+            "reverseFulfillmentOrderLineItemId": "gid://shopify/ReverseFulfillmentOrderLineItem/0",
+            "quantity": 1,
+            "dispositionType": "NOT_RESTOCKED",
+            "locationId": "gid://shopify/Location/112833036594"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "reverseFulfillmentOrderDispose": {
+              "reverseFulfillmentOrderLineItems": null,
+              "userErrors": [
+                {
+                  "field": ["dispositionInputs"],
+                  "message": "Cannot dispose items from more than one reverse fulfillment order.",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "customRestocked": {
+      "query": "mutation ReverseFulfillmentOrderDisposeValidation($dispositionInputs: [ReverseFulfillmentOrderDisposeInput!]!) {\n  reverseFulfillmentOrderDispose(dispositionInputs: $dispositionInputs) {\n    reverseFulfillmentOrderLineItems {\n      id\n      totalQuantity\n      dispositions {\n        type\n        quantity\n        location {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "dispositionInputs": [
+          {
+            "reverseFulfillmentOrderLineItemId": "gid://shopify/ReverseFulfillmentOrderLineItem/21697855794",
+            "quantity": 1,
+            "dispositionType": "RESTOCKED",
+            "locationId": "gid://shopify/Location/112833036594"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "reverseFulfillmentOrderDispose": {
+              "reverseFulfillmentOrderLineItems": null,
+              "userErrors": [
+                {
+                  "field": ["dispositionInputs", "0", "dispositionType"],
+                  "message": "RESTOCKED is an invalid disposition type for a custom line item.",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "multipleReverseFulfillmentOrders": {
+      "query": "mutation ReverseFulfillmentOrderDisposeValidation($dispositionInputs: [ReverseFulfillmentOrderDisposeInput!]!) {\n  reverseFulfillmentOrderDispose(dispositionInputs: $dispositionInputs) {\n    reverseFulfillmentOrderLineItems {\n      id\n      totalQuantity\n      dispositions {\n        type\n        quantity\n        location {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "dispositionInputs": [
+          {
+            "reverseFulfillmentOrderLineItemId": "gid://shopify/ReverseFulfillmentOrderLineItem/21697855794",
+            "quantity": 1,
+            "dispositionType": "NOT_RESTOCKED",
+            "locationId": "gid://shopify/Location/112833036594"
+          },
+          {
+            "reverseFulfillmentOrderLineItemId": "gid://shopify/ReverseFulfillmentOrderLineItem/21697888562",
+            "quantity": 1,
+            "dispositionType": "NOT_RESTOCKED",
+            "locationId": "gid://shopify/Location/112833036594"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "reverseFulfillmentOrderDispose": {
+              "reverseFulfillmentOrderLineItems": null,
+              "userErrors": [
+                {
+                  "field": ["dispositionInputs"],
+                  "message": "Cannot dispose items from more than one reverse fulfillment order.",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "validNotRestocked": {
+      "query": "mutation ReverseFulfillmentOrderDisposeValidation($dispositionInputs: [ReverseFulfillmentOrderDisposeInput!]!) {\n  reverseFulfillmentOrderDispose(dispositionInputs: $dispositionInputs) {\n    reverseFulfillmentOrderLineItems {\n      id\n      totalQuantity\n      dispositions {\n        type\n        quantity\n        location {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "dispositionInputs": [
+          {
+            "reverseFulfillmentOrderLineItemId": "gid://shopify/ReverseFulfillmentOrderLineItem/21697855794",
+            "quantity": 1,
+            "dispositionType": "NOT_RESTOCKED",
+            "locationId": "gid://shopify/Location/112833036594"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "reverseFulfillmentOrderDispose": {
+              "reverseFulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/ReverseFulfillmentOrderLineItem/21697855794",
+                  "totalQuantity": 1,
+                  "dispositions": [
+                    {
+                      "type": "NOT_RESTOCKED",
+                      "quantity": 1,
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "query": "query ReturnReverseFulfillmentDisposeValidationRead(\n  $firstReturnId: ID!\n  $secondReturnId: ID!\n  $orderId: ID!\n  $firstReverseFulfillmentOrderId: ID!\n  $secondReverseFulfillmentOrderId: ID!\n) {\n  firstReturn: return(id: $firstReturnId) {\n    id\n    name\n    status\n    totalQuantity\n  }\n  secondReturn: return(id: $secondReturnId) {\n    id\n    name\n    status\n    totalQuantity\n  }\n  order(id: $orderId) {\n    id\n    name\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n      }\n    }\n  }\n  firstReverseFulfillmentOrder: reverseFulfillmentOrder(id: $firstReverseFulfillmentOrderId) {\n    id\n    status\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        dispositions {\n          type\n          quantity\n          location {\n            id\n          }\n        }\n      }\n    }\n  }\n  secondReverseFulfillmentOrder: reverseFulfillmentOrder(id: $secondReverseFulfillmentOrderId) {\n    id\n    status\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        dispositions {\n          type\n          quantity\n          location {\n            id\n          }\n        }\n      }\n    }\n  }\n}",
+    "variables": {
+      "firstReturnId": "gid://shopify/Return/14726496562",
+      "secondReturnId": "gid://shopify/Return/14726529330",
+      "orderId": "gid://shopify/Order/8838089376050",
+      "firstReverseFulfillmentOrderId": "gid://shopify/ReverseFulfillmentOrder/14333772082",
+      "secondReverseFulfillmentOrderId": "gid://shopify/ReverseFulfillmentOrder/14333804850"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "firstReturn": {
+            "id": "gid://shopify/Return/14726496562",
+            "name": "#1504-R1",
+            "status": "OPEN",
+            "totalQuantity": 1
+          },
+          "secondReturn": {
+            "id": "gid://shopify/Return/14726529330",
+            "name": "#1504-R2",
+            "status": "OPEN",
+            "totalQuantity": 1
+          },
+          "order": {
+            "id": "gid://shopify/Order/8838089376050",
+            "name": "#1504",
+            "returns": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Return/14726496562",
+                  "name": "#1504-R1",
+                  "status": "OPEN",
+                  "totalQuantity": 1
+                },
+                {
+                  "id": "gid://shopify/Return/14726529330",
+                  "name": "#1504-R2",
+                  "status": "OPEN",
+                  "totalQuantity": 1
+                }
+              ]
+            }
+          },
+          "firstReverseFulfillmentOrder": {
+            "id": "gid://shopify/ReverseFulfillmentOrder/14333772082",
+            "status": "OPEN",
+            "lineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ReverseFulfillmentOrderLineItem/21697855794",
+                  "totalQuantity": 1,
+                  "dispositions": [
+                    {
+                      "type": "NOT_RESTOCKED",
+                      "quantity": 1,
+                      "location": {
+                        "id": "gid://shopify/Location/112833036594"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "secondReverseFulfillmentOrder": {
+            "id": "gid://shopify/ReverseFulfillmentOrder/14333804850",
+            "status": "OPEN",
+            "lineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ReverseFulfillmentOrderLineItem/21697888562",
+                  "totalQuantity": 1,
+                  "dispositions": []
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 32,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "query": "mutation ReturnDisposeValidationOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+    "variables": {
+      "orderId": "gid://shopify/Order/8838089376050",
+      "reason": "OTHER",
+      "notifyCustomer": false,
+      "restock": true
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/91975278-cf40-4031-9cc4-b111922e33e7"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersReturnOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8838089376050"
+      },
+      "query": "query OrdersReturnOrderHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    totalRefundedSet { shopMoney { amount currencyCode } }\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n      }\n    }\n    fulfillments(first: 50) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 50) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n            variant {\n              id\n            }\n          }\n        }\n      }\n    }\n    returns(first: 50) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnLineItems(first: 50) {\n          nodes {\n            ... on ReturnLineItem {\n              id\n              quantity\n              fulfillmentLineItem {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8838089376050",
+              "name": "#1504",
+              "createdAt": "2026-06-23T00:05:20Z",
+              "updatedAt": "2026-06-23T00:05:22Z",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "FULFILLED",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "60.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "60.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19495323369778",
+                    "title": "Return dispose custom line 20260623000520",
+                    "quantity": 3
+                  }
+                ]
+              },
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/7987126993202",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-06-23T00:05:21Z",
+                  "updatedAt": "2026-06-23T00:05:21Z",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17274208223538",
+                        "quantity": 3,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19495323369778",
+                          "title": "Return dispose custom line 20260623000520",
+                          "variant": null
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "returns": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 155,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -14,6 +14,31 @@ pub(in crate::proxy) fn connection_page_info(
     })
 }
 
+pub(in crate::proxy) fn empty_page_info() -> Value {
+    connection_page_info(false, false, None, None)
+}
+
+pub(in crate::proxy) fn count_object(count: impl serde::Serialize) -> Value {
+    count_object_with_precision(count, "EXACT")
+}
+
+pub(in crate::proxy) fn selected_count_json(
+    count: impl serde::Serialize,
+    selections: &[SelectedField],
+) -> Value {
+    selected_json(&count_object(count), selections)
+}
+
+pub(in crate::proxy) fn count_object_with_precision(
+    count: impl serde::Serialize,
+    precision: &str,
+) -> Value {
+    json!({
+        "count": count,
+        "precision": precision
+    })
+}
+
 pub(in crate::proxy) fn connection_window<T, F>(
     records: &[T],
     arguments: &BTreeMap<String, ResolvedValue>,
@@ -61,6 +86,32 @@ where
     (nodes, page_info)
 }
 
+/// Project a seeded, already-shaped connection value (`{ edges, [nodes,] pageInfo }`)
+/// through a requested selection, defensively truncating `edges`/`nodes` to the
+/// `first` argument when the seed carries more than was asked for. The seed already
+/// reflects the recorded page (cursors + pageInfo), so its `pageInfo` is preserved
+/// verbatim — this is for catalog roots whose cursors cannot be re-derived locally.
+pub(in crate::proxy) fn project_seeded_connection(
+    connection: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selections: &[SelectedField],
+) -> Value {
+    let mut connection = connection.clone();
+    if let Some(ResolvedValue::Int(first)) = arguments.get("first") {
+        if *first >= 0 {
+            let first = *first as usize;
+            for key in ["edges", "nodes"] {
+                if let Some(items) = connection.get_mut(key).and_then(Value::as_array_mut) {
+                    if items.len() > first {
+                        items.truncate(first);
+                    }
+                }
+            }
+        }
+    }
+    selected_json(&connection, selections)
+}
+
 pub(in crate::proxy) fn value_id_cursor(record: &Value) -> String {
     record
         .get("id")
@@ -69,23 +120,8 @@ pub(in crate::proxy) fn value_id_cursor(record: &Value) -> String {
         .to_string()
 }
 
-pub(in crate::proxy) fn connection_edges_with_cursor<F>(
-    nodes: &[Value],
-    cursor_for: F,
-) -> Vec<Value>
-where
-    F: Fn(usize, &Value) -> String,
-{
-    nodes
-        .iter()
-        .enumerate()
-        .map(|(index, node)| {
-            json!({
-                "cursor": cursor_for(index, node),
-                "node": node
-            })
-        })
-        .collect()
+pub(in crate::proxy) fn connection_nodes(connection: &Value) -> Vec<Value> {
+    connection["nodes"].as_array().cloned().unwrap_or_default()
 }
 
 pub(in crate::proxy) fn connection_json_with_cursor<F>(

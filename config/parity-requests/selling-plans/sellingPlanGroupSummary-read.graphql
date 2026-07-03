@@ -1,0 +1,27 @@
+query SellingPlanGroupSummaryRead($id: ID!) {
+  sellingPlanGroup(id: $id) {
+    id
+    summary
+    sellingPlans(first: 10) {
+      nodes {
+        id
+        pricingPolicies {
+          __typename
+          ... on SellingPlanFixedPricingPolicy {
+            adjustmentType
+            adjustmentValue {
+              __typename
+              ... on MoneyV2 {
+                amount
+                currencyCode
+              }
+              ... on SellingPlanPricingPolicyPercentageValue {
+                percentage
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

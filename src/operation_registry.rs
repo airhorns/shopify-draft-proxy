@@ -1,5 +1,6 @@
 use crate::graphql::OperationType;
 use serde_json::{json, Map, Value};
+use std::sync::OnceLock;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CapabilityDomain {
@@ -86,48 +87,27 @@ pub struct OperationRegistryEntry {
     pub name: String,
     pub operation_type: OperationType,
     pub domain: CapabilityDomain,
-    pub execution: CapabilityExecution,
     pub implemented: bool,
     pub match_names: Vec<String>,
     pub runtime_tests: Vec<String>,
-    pub support_notes: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LocalDispatchRoot {
-    pub name: &'static str,
-    pub operation_type: OperationType,
-    pub domain: CapabilityDomain,
-    pub execution: CapabilityExecution,
+impl OperationRegistryEntry {
+    pub fn execution(&self) -> CapabilityExecution {
+        execution_for_operation_type(self.operation_type)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OperationCapability {
     pub domain: CapabilityDomain,
     pub execution: CapabilityExecution,
-    pub operation_name: Option<String>,
-}
-
-pub fn local_dispatch_roots() -> &'static [LocalDispatchRoot] {
-    LOCAL_DISPATCH_ROOTS
-}
-
-pub fn local_dispatch_root(
-    operation_type: OperationType,
-    domain: CapabilityDomain,
-    execution: CapabilityExecution,
-    root_field: &str,
-) -> Option<&'static LocalDispatchRoot> {
-    LOCAL_DISPATCH_ROOTS.iter().find(|root| {
-        root.operation_type == operation_type
-            && root.domain == domain
-            && root.execution == execution
-            && root.name == root_field
-    })
 }
 
 pub fn default_registry() -> Vec<OperationRegistryEntry> {
-    crate::operation_registry_data::default_registry_entries()
+    let registry = crate::operation_registry_data::default_registry_entries();
+    debug_assert_default_registry_local_routing_contract(&registry);
+    registry
 }
 
 pub fn default_registry_json_value() -> Value {
@@ -142,20 +122,12 @@ pub fn implemented_entries(registry: &[OperationRegistryEntry]) -> Vec<&Operatio
     registry.iter().filter(|entry| entry.implemented).collect()
 }
 
-pub fn find_entry<'a>(
-    registry: &'a [OperationRegistryEntry],
-    operation_type: OperationType,
-    names: &[Option<&str>],
-) -> Option<&'a OperationRegistryEntry> {
-    names
-        .iter()
-        .filter_map(|name| name.and_then(nonempty))
-        .find_map(|candidate| {
-            registry.iter().find(|entry| {
-                entry.operation_type == operation_type
-                    && entry.match_names.iter().any(|name| name == candidate)
-            })
-        })
+pub fn execution_for_operation_type(operation_type: OperationType) -> CapabilityExecution {
+    match operation_type {
+        OperationType::Query => CapabilityExecution::OverlayRead,
+        OperationType::Mutation => CapabilityExecution::StageLocally,
+        OperationType::Subscription => CapabilityExecution::Passthrough,
+    }
 }
 
 pub fn operation_capability(
@@ -163,35 +135,27 @@ pub fn operation_capability(
     operation_type: OperationType,
     root_field: Option<&str>,
 ) -> OperationCapability {
-    let names = [root_field];
-    // Capability routing keys on whether a concrete local dispatch root exists for the
-    // resolved registry entry, NOT on `entry.implemented`. The `implemented` flag describes
-    // the much larger set of operations the proxy handles locally (including the document-gated
-    // special-case handlers earlier in dispatch), while only `LOCAL_DISPATCH_ROOTS` reach the
-    // uniform table dispatch below. Keeping these separate means broadening `implemented` can
-    // never route an operation into the table-dispatch `501` arms: anything without a dispatch
-    // root falls through to Unknown/Passthrough (and thus to upstream passthrough), never an error.
-    let dispatch_root = root_field
-        .filter(|name| !name.is_empty())
-        .and_then(|field| {
-            find_entry(registry, operation_type, &names).and_then(|entry| {
-                local_dispatch_root(operation_type, entry.domain, entry.execution, field)
-            })
-        });
-    match dispatch_root {
-        Some(root) => OperationCapability {
-            domain: root.domain,
-            execution: root.execution,
-            operation_name: root_field
-                .filter(|name| !name.is_empty())
-                .map(str::to_string),
+    let Some(field) = root_field.filter(|name| !name.is_empty()) else {
+        return OperationCapability {
+            domain: CapabilityDomain::Unknown,
+            execution: CapabilityExecution::Passthrough,
+        };
+    };
+    let local_entry = registry.iter().find(|entry| {
+        entry.implemented
+            && entry.operation_type == operation_type
+            && entry.name == field
+            && entry.match_names.iter().any(|name| name == field)
+    });
+
+    match local_entry {
+        Some(entry) => OperationCapability {
+            domain: entry.domain,
+            execution: entry.execution(),
         },
         None => OperationCapability {
             domain: CapabilityDomain::Unknown,
             execution: CapabilityExecution::Passthrough,
-            operation_name: root_field
-                .filter(|name| !name.is_empty())
-                .map(str::to_string),
         },
     }
 }
@@ -199,277 +163,41 @@ pub fn operation_capability(
 fn registry_entry_json_value(entry: &OperationRegistryEntry) -> Value {
     let mut object = Map::new();
     object.insert("name".to_string(), json!(entry.name));
-    object.insert(
-        "type".to_string(),
-        json!(operation_type_registry_name(entry.operation_type)),
-    );
+    object.insert("type".to_string(), json!(entry.operation_type.keyword()));
     object.insert("domain".to_string(), json!(entry.domain.registry_name()));
     object.insert(
         "execution".to_string(),
-        json!(entry.execution.registry_name()),
+        json!(entry.execution().registry_name()),
     );
     object.insert("implemented".to_string(), json!(entry.implemented));
     object.insert("matchNames".to_string(), json!(entry.match_names));
     object.insert("runtimeTests".to_string(), json!(entry.runtime_tests));
-    if let Some(support_notes) = &entry.support_notes {
-        object.insert("supportNotes".to_string(), json!(support_notes));
-    }
     Value::Object(object)
 }
 
-const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
-    local_query("product", CapabilityDomain::Products),
-    local_query("products", CapabilityDomain::Products),
-    local_query("productsCount", CapabilityDomain::Products),
-    local_query("productByIdentifier", CapabilityDomain::Products),
-    local_query("productVariant", CapabilityDomain::Products),
-    local_query("inventoryItem", CapabilityDomain::Products),
-    local_query("inventoryItems", CapabilityDomain::Products),
-    local_query("inventoryLevel", CapabilityDomain::Products),
-    local_query("inventoryProperties", CapabilityDomain::Products),
-    local_query("inventoryTransfer", CapabilityDomain::Products),
-    local_query("inventoryTransfers", CapabilityDomain::Products),
-    local_query("inventoryShipment", CapabilityDomain::Products),
-    local_mutation("productCreate", CapabilityDomain::Products),
-    local_mutation("productUpdate", CapabilityDomain::Products),
-    local_mutation("productDelete", CapabilityDomain::Products),
-    local_mutation("productChangeStatus", CapabilityDomain::Products),
-    local_mutation("collectionCreate", CapabilityDomain::Products),
-    local_mutation("collectionUpdate", CapabilityDomain::Products),
-    local_mutation("collectionDelete", CapabilityDomain::Products),
-    local_mutation("collectionAddProducts", CapabilityDomain::Products),
-    local_mutation("collectionAddProductsV2", CapabilityDomain::Products),
-    local_mutation("collectionRemoveProducts", CapabilityDomain::Products),
-    local_mutation("collectionReorderProducts", CapabilityDomain::Products),
-    local_mutation("productOptionsCreate", CapabilityDomain::Products),
-    local_mutation("productOptionUpdate", CapabilityDomain::Products),
-    local_mutation("productOptionsDelete", CapabilityDomain::Products),
-    local_mutation("productOptionsReorder", CapabilityDomain::Products),
-    local_mutation("productVariantCreate", CapabilityDomain::Products),
-    local_mutation("productVariantUpdate", CapabilityDomain::Products),
-    local_mutation("productVariantDelete", CapabilityDomain::Products),
-    local_mutation("tagsAdd", CapabilityDomain::Products),
-    local_mutation("tagsRemove", CapabilityDomain::Products),
-    local_mutation("metafieldsSet", CapabilityDomain::Products),
-    local_mutation("metafieldsDelete", CapabilityDomain::Products),
-    local_mutation("inventoryAdjustQuantities", CapabilityDomain::Products),
-    local_mutation("inventorySetQuantities", CapabilityDomain::Products),
-    local_mutation("inventoryMoveQuantities", CapabilityDomain::Products),
-    local_mutation("inventoryTransferCreate", CapabilityDomain::Products),
-    local_mutation(
-        "inventoryTransferCreateAsReadyToShip",
-        CapabilityDomain::Products,
-    ),
-    local_mutation(
-        "inventoryTransferMarkAsReadyToShip",
-        CapabilityDomain::Products,
-    ),
-    local_mutation("inventoryTransferSetItems", CapabilityDomain::Products),
-    local_mutation("inventoryTransferRemoveItems", CapabilityDomain::Products),
-    local_mutation("inventoryTransferCancel", CapabilityDomain::Products),
-    local_mutation("inventoryTransferDelete", CapabilityDomain::Products),
-    local_mutation("inventoryShipmentCreate", CapabilityDomain::Products),
-    local_mutation(
-        "inventoryShipmentCreateInTransit",
-        CapabilityDomain::Products,
-    ),
-    local_mutation("inventoryShipmentAddItems", CapabilityDomain::Products),
-    local_mutation("inventoryShipmentRemoveItems", CapabilityDomain::Products),
-    local_mutation(
-        "inventoryShipmentUpdateItemQuantities",
-        CapabilityDomain::Products,
-    ),
-    local_mutation("inventoryShipmentSetTracking", CapabilityDomain::Products),
-    local_mutation("inventoryShipmentMarkInTransit", CapabilityDomain::Products),
-    local_mutation("inventoryShipmentReceive", CapabilityDomain::Products),
-    local_mutation("inventoryShipmentDelete", CapabilityDomain::Products),
-    local_query(
-        "automaticDiscountSavedSearches",
-        CapabilityDomain::SavedSearches,
-    ),
-    local_query("codeDiscountSavedSearches", CapabilityDomain::SavedSearches),
-    local_query("collectionSavedSearches", CapabilityDomain::SavedSearches),
-    local_query("customerSavedSearches", CapabilityDomain::SavedSearches),
-    local_query(
-        "discountRedeemCodeSavedSearches",
-        CapabilityDomain::SavedSearches,
-    ),
-    local_query("draftOrderSavedSearches", CapabilityDomain::SavedSearches),
-    local_query("fileSavedSearches", CapabilityDomain::SavedSearches),
-    local_query("orderSavedSearches", CapabilityDomain::SavedSearches),
-    local_query("productSavedSearches", CapabilityDomain::SavedSearches),
-    local_mutation("savedSearchCreate", CapabilityDomain::SavedSearches),
-    local_query("bulkOperation", CapabilityDomain::BulkOperations),
-    local_query("bulkOperations", CapabilityDomain::BulkOperations),
-    local_query("currentBulkOperation", CapabilityDomain::BulkOperations),
-    local_query("files", CapabilityDomain::Media),
-    local_mutation("stagedUploadsCreate", CapabilityDomain::Media),
-    local_mutation("fileAcknowledgeUpdateFailed", CapabilityDomain::Media),
-    local_mutation("fileCreate", CapabilityDomain::Media),
-    local_mutation("fileUpdate", CapabilityDomain::Media),
-    local_mutation("fileDelete", CapabilityDomain::Media),
-    local_query("discountNode", CapabilityDomain::Discounts),
-    local_query("discountNodes", CapabilityDomain::Discounts),
-    local_query("discountNodesCount", CapabilityDomain::Discounts),
-    local_query("codeDiscountNode", CapabilityDomain::Discounts),
-    local_query("codeDiscountNodeByCode", CapabilityDomain::Discounts),
-    local_query("automaticDiscountNode", CapabilityDomain::Discounts),
-    local_mutation("discountCodeBasicCreate", CapabilityDomain::Discounts),
-    local_mutation("discountCodeBasicUpdate", CapabilityDomain::Discounts),
-    local_mutation("discountCodeBxgyCreate", CapabilityDomain::Discounts),
-    local_mutation("discountCodeBxgyUpdate", CapabilityDomain::Discounts),
-    local_mutation(
-        "discountCodeFreeShippingCreate",
-        CapabilityDomain::Discounts,
-    ),
-    local_mutation(
-        "discountCodeFreeShippingUpdate",
-        CapabilityDomain::Discounts,
-    ),
-    local_mutation("discountCodeAppCreate", CapabilityDomain::Discounts),
-    local_mutation("discountCodeAppUpdate", CapabilityDomain::Discounts),
-    local_mutation("discountCodeActivate", CapabilityDomain::Discounts),
-    local_mutation("discountCodeDeactivate", CapabilityDomain::Discounts),
-    local_mutation("discountCodeDelete", CapabilityDomain::Discounts),
-    local_mutation("discountCodeBulkActivate", CapabilityDomain::Discounts),
-    local_mutation("discountCodeBulkDeactivate", CapabilityDomain::Discounts),
-    local_mutation("discountCodeBulkDelete", CapabilityDomain::Discounts),
-    local_mutation("discountRedeemCodeBulkAdd", CapabilityDomain::Discounts),
-    local_mutation(
-        "discountCodeRedeemCodeBulkDelete",
-        CapabilityDomain::Discounts,
-    ),
-    local_query(
-        "discountRedeemCodeBulkCreation",
-        CapabilityDomain::Discounts,
-    ),
-    local_mutation("discountAutomaticBasicCreate", CapabilityDomain::Discounts),
-    local_mutation("discountAutomaticBasicUpdate", CapabilityDomain::Discounts),
-    local_mutation("discountAutomaticBxgyCreate", CapabilityDomain::Discounts),
-    local_mutation("discountAutomaticBxgyUpdate", CapabilityDomain::Discounts),
-    local_mutation(
-        "discountAutomaticFreeShippingCreate",
-        CapabilityDomain::Discounts,
-    ),
-    local_mutation(
-        "discountAutomaticFreeShippingUpdate",
-        CapabilityDomain::Discounts,
-    ),
-    local_mutation("discountAutomaticAppCreate", CapabilityDomain::Discounts),
-    local_mutation("discountAutomaticAppUpdate", CapabilityDomain::Discounts),
-    local_mutation("discountAutomaticActivate", CapabilityDomain::Discounts),
-    local_mutation("discountAutomaticDeactivate", CapabilityDomain::Discounts),
-    local_mutation("discountAutomaticDelete", CapabilityDomain::Discounts),
-    local_mutation("discountAutomaticBulkDelete", CapabilityDomain::Discounts),
-    local_query("metaobject", CapabilityDomain::Metaobjects),
-    local_query("metaobjectByHandle", CapabilityDomain::Metaobjects),
-    local_query("metaobjects", CapabilityDomain::Metaobjects),
-    local_query("metaobjectDefinition", CapabilityDomain::Metaobjects),
-    local_query("metaobjectDefinitionByType", CapabilityDomain::Metaobjects),
-    local_query("metaobjectDefinitions", CapabilityDomain::Metaobjects),
-    local_mutation("metaobjectCreate", CapabilityDomain::Metaobjects),
-    local_mutation("metaobjectDelete", CapabilityDomain::Metaobjects),
-    local_mutation("metaobjectDefinitionCreate", CapabilityDomain::Metaobjects),
-    local_mutation("metaobjectDefinitionUpdate", CapabilityDomain::Metaobjects),
-    local_mutation("metaobjectDefinitionDelete", CapabilityDomain::Metaobjects),
-    local_mutation(
-        "standardMetaobjectDefinitionEnable",
-        CapabilityDomain::Metaobjects,
-    ),
-    local_mutation("metafieldDefinitionCreate", CapabilityDomain::Metafields),
-    local_mutation("metafieldDefinitionUpdate", CapabilityDomain::Metafields),
-    local_mutation("metafieldDefinitionDelete", CapabilityDomain::Metafields),
-    local_mutation(
-        "standardMetafieldDefinitionEnable",
-        CapabilityDomain::Metafields,
-    ),
-    local_query("giftCard", CapabilityDomain::GiftCards),
-    local_query("giftCards", CapabilityDomain::GiftCards),
-    local_query("giftCardsCount", CapabilityDomain::GiftCards),
-    local_query("giftCardConfiguration", CapabilityDomain::GiftCards),
-    local_mutation("giftCardCreate", CapabilityDomain::GiftCards),
-    local_mutation("giftCardUpdate", CapabilityDomain::GiftCards),
-    local_mutation("giftCardCredit", CapabilityDomain::GiftCards),
-    local_mutation("giftCardDebit", CapabilityDomain::GiftCards),
-    local_mutation("giftCardDeactivate", CapabilityDomain::GiftCards),
-    local_mutation(
-        "giftCardSendNotificationToCustomer",
-        CapabilityDomain::GiftCards,
-    ),
-    local_mutation(
-        "giftCardSendNotificationToRecipient",
-        CapabilityDomain::GiftCards,
-    ),
-    local_query(
-        "locationsAvailableForDeliveryProfilesConnection",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "locationLocalPickupDisable",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "locationLocalPickupEnable",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation("locationAdd", CapabilityDomain::StoreProperties),
-    local_mutation("locationActivate", CapabilityDomain::StoreProperties),
-    local_query("company", CapabilityDomain::B2b),
-    local_query("companyContact", CapabilityDomain::B2b),
-    local_query("companyContactRole", CapabilityDomain::B2b),
-    local_query("companyLocation", CapabilityDomain::B2b),
-    local_mutation("companyCreate", CapabilityDomain::B2b),
-    local_mutation("companyUpdate", CapabilityDomain::B2b),
-    local_mutation("companyLocationCreate", CapabilityDomain::B2b),
-    local_mutation("companyLocationAssignRoles", CapabilityDomain::B2b),
-    local_mutation("companyLocationRevokeRoles", CapabilityDomain::B2b),
-    local_mutation("companyLocationUpdate", CapabilityDomain::B2b),
-    local_mutation("companyLocationAssignAddress", CapabilityDomain::B2b),
-    local_mutation("companyAddressDelete", CapabilityDomain::B2b),
-    local_mutation("companyAssignCustomerAsContact", CapabilityDomain::B2b),
-    local_mutation("companyAssignMainContact", CapabilityDomain::B2b),
-    local_mutation("companyContactAssignRole", CapabilityDomain::B2b),
-    local_mutation("companyContactAssignRoles", CapabilityDomain::B2b),
-    local_mutation("companyContactCreate", CapabilityDomain::B2b),
-    local_mutation("companyContactDelete", CapabilityDomain::B2b),
-    local_mutation("companyContactRemoveFromCompany", CapabilityDomain::B2b),
-    local_mutation("companyContactRevokeRole", CapabilityDomain::B2b),
-    local_mutation("companyContactRevokeRoles", CapabilityDomain::B2b),
-    local_mutation("companyContactsDelete", CapabilityDomain::B2b),
-    local_mutation("companyContactUpdate", CapabilityDomain::B2b),
-    local_mutation("companyRevokeMainContact", CapabilityDomain::B2b),
-];
-
-const fn local_query(name: &'static str, domain: CapabilityDomain) -> LocalDispatchRoot {
-    LocalDispatchRoot {
-        name,
-        operation_type: OperationType::Query,
-        domain,
-        execution: CapabilityExecution::OverlayRead,
-    }
-}
-
-const fn local_mutation(name: &'static str, domain: CapabilityDomain) -> LocalDispatchRoot {
-    LocalDispatchRoot {
-        name,
-        operation_type: OperationType::Mutation,
-        domain,
-        execution: CapabilityExecution::StageLocally,
-    }
-}
-
-fn nonempty(value: &str) -> Option<&str> {
-    if value.is_empty() {
-        None
-    } else {
-        Some(value)
-    }
-}
-
-fn operation_type_registry_name(operation_type: OperationType) -> &'static str {
-    match operation_type {
-        OperationType::Query => "query",
-        OperationType::Mutation => "mutation",
-        OperationType::Subscription => "subscription",
-    }
+fn debug_assert_default_registry_local_routing_contract(registry: &[OperationRegistryEntry]) {
+    static CHECKED: OnceLock<()> = OnceLock::new();
+    CHECKED.get_or_init(|| {
+        for entry in implemented_entries(registry) {
+            let capability =
+                operation_capability(registry, entry.operation_type, Some(entry.name.as_str()));
+            debug_assert_eq!(
+                capability.domain, entry.domain,
+                "{} must classify through its canonical local registry root",
+                entry.name
+            );
+            debug_assert_eq!(
+                capability.execution,
+                entry.execution(),
+                "{} must derive local execution from operation type",
+                entry.name
+            );
+            debug_assert_ne!(
+                capability.execution,
+                CapabilityExecution::Passthrough,
+                "{} is implemented and must dispatch locally",
+                entry.name
+            );
+        }
+    });
 }

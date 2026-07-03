@@ -1,0 +1,247 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-06-29T20:19:24.005Z",
+  "namespace": "type_from_definition_mqznvdr6",
+  "key": "specs",
+  "metafieldType": "multi_line_text_field",
+  "metafieldValue": "hello world",
+  "productCreate": {
+    "request": {
+      "query": "#graphql\nmutation MetafieldsSetTypeFromDefinitionProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product { id title }\n    userErrors { field message }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "metafieldsSet type from definition mqznvdr6"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10224665035058",
+            "title": "metafieldsSet type from definition mqznvdr6"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "createDefinition": {
+    "request": {
+      "documentPath": "config/parity-requests/metafields/metafield-definition-lifecycle-create.graphql",
+      "variables": {
+        "definition": {
+          "name": "Type From Definition",
+          "namespace": "type_from_definition_mqznvdr6",
+          "key": "specs",
+          "ownerType": "PRODUCT",
+          "type": "multi_line_text_field",
+          "description": "Temporary conformance definition for metafieldsSet omitted type capture"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinitionCreate": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/221893198130",
+            "name": "Type From Definition",
+            "namespace": "type_from_definition_mqznvdr6",
+            "key": "specs",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "multi_line_text_field",
+              "category": "TEXT"
+            },
+            "description": "Temporary conformance definition for metafieldsSet omitted type capture",
+            "validations": [],
+            "pinnedPosition": null,
+            "validationStatus": "ALL_VALID"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "setWithoutType": {
+    "request": {
+      "documentPath": "config/parity-requests/metafields/metafieldsSet-type-from-definition.graphql",
+      "variables": {
+        "metafields": [
+          {
+            "ownerId": "gid://shopify/Product/10224665035058",
+            "namespace": "type_from_definition_mqznvdr6",
+            "key": "specs",
+            "value": "hello world"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [
+            {
+              "id": "gid://shopify/Metafield/44621468598578",
+              "namespace": "type_from_definition_mqznvdr6",
+              "key": "specs",
+              "type": "multi_line_text_field",
+              "value": "hello world",
+              "definition": {
+                "id": "gid://shopify/MetafieldDefinition/221893198130",
+                "namespace": "type_from_definition_mqznvdr6",
+                "key": "specs",
+                "type": {
+                  "name": "multi_line_text_field"
+                }
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterSet": {
+    "request": {
+      "documentPath": "config/parity-requests/metafields/metafieldsSet-type-from-definition-read.graphql",
+      "variables": {
+        "id": "gid://shopify/Product/10224665035058",
+        "namespace": "type_from_definition_mqznvdr6",
+        "key": "specs"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10224665035058",
+          "metafield": {
+            "id": "gid://shopify/Metafield/44621468598578",
+            "namespace": "type_from_definition_mqznvdr6",
+            "key": "specs",
+            "type": "multi_line_text_field",
+            "value": "hello world",
+            "definition": {
+              "id": "gid://shopify/MetafieldDefinition/221893198130",
+              "namespace": "type_from_definition_mqznvdr6",
+              "key": "specs",
+              "type": {
+                "name": "multi_line_text_field"
+              }
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetTypeFromDefinitionDefinitionDelete($id: ID!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n    deletedDefinitionId\n    userErrors { field message code }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/221893198130"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/221893198130",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\nmutation MetafieldsSetTypeFromDefinitionProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors { field message }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10224665035058"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10224665035058",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

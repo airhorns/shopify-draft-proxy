@@ -87,7 +87,7 @@
       "variables": {
         "first": 3
       },
-      "query": "hand-synthesized from checked-in capture",
+      "query": "query PriceListsRead($first: Int!) {\n  priceLists(first: $first) {\n    edges {\n      cursor\n      node {\n        __typename\n        id\n        name\n        currency\n        fixedPricesCount\n        parent {\n          adjustment {\n            type\n            value\n          }\n        }\n        catalog {\n          id\n          title\n          status\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

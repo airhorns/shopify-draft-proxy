@@ -1,0 +1,17 @@
+mutation ProductDuplicateStatusNewStatus(
+  $productId: ID!
+  $newTitle: String!
+  $newStatus: ProductStatus
+) {
+  productDuplicate(productId: $productId, newTitle: $newTitle, newStatus: $newStatus) {
+    newProduct {
+      id
+      title
+      status
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

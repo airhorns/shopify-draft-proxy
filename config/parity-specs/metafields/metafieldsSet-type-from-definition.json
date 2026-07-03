@@ -1,0 +1,74 @@
+{
+  "scenarioId": "metafieldsSet-type-from-definition",
+  "operationNames": ["metafieldDefinitionCreate", "metafieldsSet", "product"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "definition-type-resolution", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafieldsSet-type-from-definition.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafield_definitions.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-lifecycle-create.graphql",
+    "variablesCapturePath": "$.createDefinition.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.metafieldDefinitionCreate.createdDefinition.id",
+        "matcher": "shopify-gid:MetafieldDefinition",
+        "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+      },
+      {
+        "path": "$.metafieldsSet.metafields[0].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "The proxy stages a deterministic synthetic metafield ID while Shopify returned the live-store metafield ID."
+      },
+      {
+        "path": "$.metafieldsSet.metafields[0].definition.id",
+        "matcher": "shopify-gid:MetafieldDefinition",
+        "reason": "The proxy links to its staged synthetic definition ID while Shopify returned the live-store definition ID."
+      },
+      {
+        "path": "$.product.metafield.id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "The downstream local read returns the staged synthetic metafield ID."
+      },
+      {
+        "path": "$.product.metafield.definition.id",
+        "matcher": "shopify-gid:MetafieldDefinition",
+        "reason": "The downstream local read links to the staged synthetic definition ID."
+      }
+    ],
+    "targets": [
+      {
+        "name": "create-definition",
+        "capturePath": "$.createDefinition.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "metafields-set-omitted-type-derived-from-definition",
+        "capturePath": "$.setWithoutType.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafieldsSet-type-from-definition.graphql",
+          "variablesCapturePath": "$.setWithoutType.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "read-after-set-derived-type",
+        "capturePath": "$.readAfterSet.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafieldsSet-type-from-definition-read.graphql",
+          "variablesCapturePath": "$.readAfterSet.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  },
+  "notes": "Live 2026-04 evidence that product-owned metafieldsSet may omit input type when a matching PRODUCT metafield definition exists. Shopify derives the returned metafield type from the definition, returns empty userErrors, and downstream product metafield reads expose the derived type/value. The variables for the set target intentionally omit the MetafieldsSetInput.type field."
+}

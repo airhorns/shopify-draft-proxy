@@ -108,6 +108,26 @@
         }
       },
       {
+        "name": "setup-primary-customer",
+        "capturePath": "$.preconditions.primary.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputValidation-create.graphql",
+          "variablesCapturePath": "$.preconditions.primary.variables"
+        },
+        "selectedPaths": ["$.customerCreate.userErrors"]
+      },
+      {
+        "name": "setup-duplicate-target-customer",
+        "capturePath": "$.preconditions.duplicateTarget.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputValidation-create.graphql",
+          "variablesCapturePath": "$.preconditions.duplicateTarget.variables"
+        },
+        "selectedPaths": ["$.customerCreate.userErrors"]
+      },
+      {
         "name": "create-duplicate-email",
         "capturePath": "$.createScenarios.duplicateEmail.response.data",
         "proxyPath": "$.data",

@@ -43,7 +43,7 @@ External activity lifecycle:
 
 - External create/update/upsert/delete roots stage `MarketingActivity` and nested `MarketingEvent` records locally from remote ID and UTM attribution evidence.
 - External create/update/upsert preserve activity-level `adSpend`, schedule input, and `referringDomain` values in staged activity state when supplied. Updates that omit those fields keep the previous staged values; the public 2026-04 schema exposes read-back for `MarketingActivity.adSpend` and nested `MarketingEvent.scheduledToEndAt`, while the currently captured public `MarketingActivity` type does not expose scheduled or referring-domain output fields directly.
-- Selector resolution by `remoteId`, `marketingActivityId`, and UTM is app-scoped when `x-shopify-draft-proxy-api-client-id` is present. Legacy unowned fixture records remain visible to all callers.
+- Selector resolution by `remoteId`, `marketingActivityId`, and UTM is app-scoped when `x-shopify-draft-proxy-api-client-id` is present. Legacy unowned fixture records remain visible to all callers. This proxy-owned request header is not Shopify parity evidence: a 2026-04 live probe with the conformance app showed Shopify scopes ownership to the OAuth app/token and ignores that custom header, so cross-app local scoping is covered by Rust integration tests rather than a parity spec until a two-installed-app capture harness exists.
 - Multiple selectors must resolve to the same effective activity before validation or staging. Conflicts return `MARKETING_ACTIVITY_DOES_NOT_EXIST` with no local mutation.
 - Upsert creates or updates by `remoteId`; delete can resolve by activity ID or remote ID and applies the same selector consistency rule.
 - `marketingActivitiesDeleteAllExternal` records an in-flight local job and immediately removes the calling app's external activities and events from downstream reads. While the app-scoped in-flight flag exists, that app's external create/update/upsert calls return `DELETE_JOB_ENQUEUED`.
@@ -70,6 +70,7 @@ Engagement behavior:
 - `marketingEngagementCreate` accepts activity-level selectors by `marketingActivityId` or external activity `remoteId`, validates selector count, and stages engagement records in meta state for supported branches.
 - Channel-handle engagement succeeds only when the handle is known from hydrated marketing event data. Unknown handles return `INVALID_CHANNEL_HANDLE`.
 - Currency validation follows captured order: selector-count checks first, channel-handle checks before currency on channel paths, and input currency checks before missing activity lookup on activity/remote paths.
+- On Admin API 2026-04, `MarketingEngagementInput.occurredOn`, `utcOffset`, and `isCumulative` are required schema fields. Omitting any of them returns top-level GraphQL coercion errors before the local handler stages an engagement; successful responses echo the supplied literals without synthesized defaults.
 - Activity-level duplicate same-day writes are accepted locally with latest metric values replacing the local engagement record.
 - Immediate downstream `marketingActivity.adSpend` reads remain `null` after captured activity-level engagement writes, so the proxy does not invent aggregate attribution.
 - `marketingEngagementsDelete` validates the selector guard before deletion: exactly one of `channelHandle` or `deleteEngagementsForAllChannels: true` must be supplied.
@@ -102,7 +103,6 @@ Engagement behavior:
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-engagement-currency-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-engagement-create-validation-order.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-engagement-create-response-shape.json`
-- `fixtures/conformance/local-runtime/2026-04/marketing/marketing-activity-per-app-scoping.json`
 - `config/parity-specs/marketing/marketing-activity-lifecycle.json`
 - `config/parity-specs/marketing/marketing-activity-source-and-medium.json`
 - `config/parity-specs/marketing/marketing-activity-status-label.json`
@@ -118,7 +118,6 @@ Engagement behavior:
 - `config/parity-specs/marketing/marketing-engagement-currency-validation.json`
 - `config/parity-specs/marketing/marketing-engagement-create-validation-order.json`
 - `config/parity-specs/marketing/marketing-engagement-create-response-shape.json`
-- `config/parity-specs/marketing/marketing-activity-per-app-scoping.json`
 
 ### Validation
 
@@ -127,5 +126,4 @@ Engagement behavior:
 - `corepack pnpm parity -- marketing-activity-create-external-read-after-write`
 - `corepack pnpm parity -- marketing-activity-upsert-external-validation`
 - `corepack pnpm parity -- marketing-engagement-lifecycle`
-- `corepack pnpm parity -- marketing-activity-per-app-scoping`
 - `corepack pnpm conformance:check`

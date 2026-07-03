@@ -18,7 +18,7 @@ type Scenario = {
 };
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
-  defaultApiVersion: '2025-01',
+  defaultApiVersion: '2026-04',
   exitOnMissing: true,
 });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
@@ -289,6 +289,22 @@ try {
     },
     true,
   );
+  scenarios['planCreateRecurringOnlyPricingPolicies'] = await capture(
+    'planCreateRecurringOnlyPricingPolicies',
+    createMutation,
+    {
+      input: validGroupInput({
+        name: 'Recurring-only pricing policies',
+        sellingPlansToCreate: [
+          validSellingPlanInput({
+            pricingPolicies: [recurringPricingPolicy(2)],
+          }),
+        ],
+      }),
+      resources: {},
+    },
+    true,
+  );
   scenarios['planCreatePositionInvalid'] = await capture(
     'planCreatePositionInvalid',
     createMutation,
@@ -325,6 +341,42 @@ try {
             deliveryPolicy: recurringDeliveryPolicy({ intervalCount: 0 }),
           }),
         ],
+      }),
+      resources: {},
+    },
+    true,
+  );
+  scenarios['planCreateBillingMinCyclesInvalid'] = await capture(
+    'planCreateBillingMinCyclesInvalid',
+    createMutation,
+    {
+      input: validGroupInput({
+        name: 'Bad min cycles',
+        sellingPlansToCreate: [validSellingPlanInput({ billingPolicy: recurringBillingPolicy({ minCycles: 0 }) })],
+      }),
+      resources: {},
+    },
+    true,
+  );
+  scenarios['planCreateBillingMaxCyclesInvalid'] = await capture(
+    'planCreateBillingMaxCyclesInvalid',
+    createMutation,
+    {
+      input: validGroupInput({
+        name: 'Bad max cycles',
+        sellingPlansToCreate: [validSellingPlanInput({ billingPolicy: recurringBillingPolicy({ maxCycles: 0 }) })],
+      }),
+      resources: {},
+    },
+    true,
+  );
+  scenarios['planCreateDeliveryCutoffInvalid'] = await capture(
+    'planCreateDeliveryCutoffInvalid',
+    createMutation,
+    {
+      input: validGroupInput({
+        name: 'Bad delivery cutoff',
+        sellingPlansToCreate: [validSellingPlanInput({ deliveryPolicy: recurringDeliveryPolicy({ cutoff: -1 }) })],
       }),
       resources: {},
     },
@@ -397,6 +449,17 @@ try {
     },
     true,
   );
+  scenarios['planUpdateRecurringOnlyPricingPolicies'] = await capture(
+    'planUpdateRecurringOnlyPricingPolicies',
+    updateMutation,
+    {
+      id: groupId,
+      input: {
+        sellingPlansToUpdate: [{ id: planId, pricingPolicies: [recurringPricingPolicy(2)] }],
+      },
+    },
+    true,
+  );
   scenarios['planUpdatePositionInvalid'] = await capture(
     'planUpdatePositionInvalid',
     updateMutation,
@@ -434,6 +497,39 @@ try {
             deliveryPolicy: recurringDeliveryPolicy({ intervalCount: 0 }),
           },
         ],
+      },
+    },
+    true,
+  );
+  scenarios['planUpdateBillingMinCyclesInvalid'] = await capture(
+    'planUpdateBillingMinCyclesInvalid',
+    updateMutation,
+    {
+      id: groupId,
+      input: {
+        sellingPlansToUpdate: [{ id: planId, billingPolicy: recurringBillingPolicy({ minCycles: 0 }) }],
+      },
+    },
+    true,
+  );
+  scenarios['planUpdateBillingMaxCyclesInvalid'] = await capture(
+    'planUpdateBillingMaxCyclesInvalid',
+    updateMutation,
+    {
+      id: groupId,
+      input: {
+        sellingPlansToUpdate: [{ id: planId, billingPolicy: recurringBillingPolicy({ maxCycles: 0 }) }],
+      },
+    },
+    true,
+  );
+  scenarios['planUpdateDeliveryCutoffInvalid'] = await capture(
+    'planUpdateDeliveryCutoffInvalid',
+    updateMutation,
+    {
+      id: groupId,
+      input: {
+        sellingPlansToUpdate: [{ id: planId, deliveryPolicy: recurringDeliveryPolicy({ cutoff: -1 }) }],
       },
     },
     true,
@@ -480,7 +576,7 @@ await writeFile(
       apiVersion,
       storeDomain,
       notes: [
-        'Captures selling-plan group input validation userErrors for group options, positions, nested selling plan limits, required update ids, policy kind compatibility, recurring interval counts, and recurring anchor schedule compatibility.',
+        'Captures selling-plan group input validation userErrors for group options, positions, nested selling plan limits, pricing-policy fixed-policy requirements, required update ids, policy kind compatibility, recurring interval counts, recurring billing min/max-cycle ranges, recurring delivery cutoff ranges, and recurring anchor schedule compatibility.',
         'The script creates one disposable selling-plan group so update validation branches can target an existing group and deletes it during cleanup.',
       ],
       groupId,

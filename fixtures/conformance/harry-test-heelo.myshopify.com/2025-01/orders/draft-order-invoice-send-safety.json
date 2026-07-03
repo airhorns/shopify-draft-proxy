@@ -1,0 +1,433 @@
+{
+  "scenarioId": "draft-order-invoice-send-safety",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "recordedAt": "2026-06-22T22:33:57.797Z",
+  "source": "live-shopify-admin-graphql",
+  "safetyPolicy": "All captured invoice-send branches avoid sending customer-visible email: validation uses unknown/deleted draft ids, and every live draft order is created without a recipient, so each live draftOrderInvoiceSend returns a userError instead of dispatching mail. The proxy resolves each branch by forwarding a cold draft-order hydrate (recorded below), never via /__meta/seed.",
+  "validation": {
+    "unknownDraftOrder": {
+      "variables": {
+        "id": "gid://shopify/DraftOrder/999999999999999",
+        "email": {
+          "to": "draft-order-invoice-safety@example.com",
+          "subject": "HAR-275 unknown draft order safety probe",
+          "customMessage": "Unknown-id validation should not send an invoice email."
+        }
+      },
+      "response": {
+        "data": {
+          "draftOrderInvoiceSend": {
+            "draftOrder": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Draft order not found"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "recipient": {
+    "openNoRecipient": {
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1269664448818"
+      },
+      "mutation": {
+        "response": {
+          "data": {
+            "draftOrderInvoiceSend": {
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1269664448818",
+                "status": "OPEN",
+                "email": null,
+                "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/814f56b74e13301acd6757f45f637a67"
+              },
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "To can't be blank"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "lifecycle": {
+    "deletedDraftOrder": {
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1269664481586"
+      },
+      "mutation": {
+        "response": {
+          "data": {
+            "draftOrderInvoiceSend": {
+              "draftOrder": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Draft order not found"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "completedNoRecipient": {
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1269664514354"
+      },
+      "mutation": {
+        "response": {
+          "data": {
+            "draftOrderInvoiceSend": {
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1269664514354",
+                "status": "COMPLETED",
+                "email": null,
+                "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/270f9c3afc0fdf294c8437a0b2e72889"
+              },
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "To can't be blank"
+                },
+                {
+                  "field": null,
+                  "message": "Draft order Invoice can't be sent. This draft order is already paid."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersDraftOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/999999999999999"
+      },
+      "query": "\n    query OrdersDraftOrderHydrate($id: ID!) {\n      draftOrder(id: $id) {\n        id\n        name\n        status\n        ready\n        note: note2\n        email\n        customer { id email displayName }\n        taxExempt\n        taxesIncluded\n        reserveInventoryUntil\n        paymentTerms {\n          id\n          overdue\n          dueInDays\n          paymentTermsName\n          paymentTermsType\n          translatedName\n        }\n        tags\n        invoiceUrl\n        customAttributes { key value }\n        appliedDiscount {\n          title\n          description\n          value\n          valueType\n          amountSet { shopMoney { amount currencyCode } }\n        }\n        billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingLine {\n          title\n          code\n          custom\n          originalPriceSet { shopMoney { amount currencyCode } }\n          discountedPriceSet { shopMoney { amount currencyCode } }\n        }\n        subtotalPriceSet { shopMoney { amount currencyCode } }\n        totalDiscountsSet { shopMoney { amount currencyCode } }\n        totalShippingPriceSet { shopMoney { amount currencyCode } }\n        totalPriceSet { shopMoney { amount currencyCode } }\n        totalQuantityOfLineItems\n        lineItems(first: 10) {\n          nodes {\n            id\n            title\n            name\n            quantity\n            sku\n            variantTitle\n            custom\n            requiresShipping\n            taxable\n            customAttributes { key value }\n            appliedDiscount {\n              title\n              description\n              value\n              valueType\n              amountSet { shopMoney { amount currencyCode } }\n            }\n            originalUnitPriceSet { shopMoney { amount currencyCode } }\n            originalTotalSet { shopMoney { amount currencyCode } }\n            discountedTotalSet { shopMoney { amount currencyCode } }\n            totalDiscountSet { shopMoney { amount currencyCode } }\n            variant { id title sku }\n          }\n        }\n      }\n    }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrder": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 26,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersDraftOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1269664448818"
+      },
+      "query": "\n    query OrdersDraftOrderHydrate($id: ID!) {\n      draftOrder(id: $id) {\n        id\n        name\n        status\n        ready\n        note: note2\n        email\n        customer { id email displayName }\n        taxExempt\n        taxesIncluded\n        reserveInventoryUntil\n        paymentTerms {\n          id\n          overdue\n          dueInDays\n          paymentTermsName\n          paymentTermsType\n          translatedName\n        }\n        tags\n        invoiceUrl\n        customAttributes { key value }\n        appliedDiscount {\n          title\n          description\n          value\n          valueType\n          amountSet { shopMoney { amount currencyCode } }\n        }\n        billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingLine {\n          title\n          code\n          custom\n          originalPriceSet { shopMoney { amount currencyCode } }\n          discountedPriceSet { shopMoney { amount currencyCode } }\n        }\n        subtotalPriceSet { shopMoney { amount currencyCode } }\n        totalDiscountsSet { shopMoney { amount currencyCode } }\n        totalShippingPriceSet { shopMoney { amount currencyCode } }\n        totalPriceSet { shopMoney { amount currencyCode } }\n        totalQuantityOfLineItems\n        lineItems(first: 10) {\n          nodes {\n            id\n            title\n            name\n            quantity\n            sku\n            variantTitle\n            custom\n            requiresShipping\n            taxable\n            customAttributes { key value }\n            appliedDiscount {\n              title\n              description\n              value\n              valueType\n              amountSet { shopMoney { amount currencyCode } }\n            }\n            originalUnitPriceSet { shopMoney { amount currencyCode } }\n            originalTotalSet { shopMoney { amount currencyCode } }\n            discountedTotalSet { shopMoney { amount currencyCode } }\n            totalDiscountSet { shopMoney { amount currencyCode } }\n            variant { id title sku }\n          }\n        }\n      }\n    }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1269664448818",
+              "name": "#D219",
+              "status": "OPEN",
+              "ready": true,
+              "note": "HAR-275 draft order invoice safety open-no-recipient",
+              "email": null,
+              "customer": null,
+              "taxExempt": false,
+              "taxesIncluded": false,
+              "reserveInventoryUntil": null,
+              "paymentTerms": null,
+              "tags": ["draft-order-family", "invoice-safety", "open-no-recipient", "parity-capture"],
+              "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/814f56b74e13301acd6757f45f637a67",
+              "customAttributes": [],
+              "appliedDiscount": null,
+              "billingAddress": null,
+              "shippingAddress": null,
+              "shippingLine": null,
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "1.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalDiscountsSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalShippingPriceSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "1.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalQuantityOfLineItems": 1,
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/DraftOrderLineItem/58619479949618",
+                    "title": "HAR-275 invoice safety item open-no-recipient",
+                    "name": "HAR-275 invoice safety item open-no-recipient",
+                    "quantity": 1,
+                    "sku": null,
+                    "variantTitle": null,
+                    "custom": true,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [],
+                    "appliedDiscount": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "discountedTotalSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "totalDiscountSet": {
+                      "shopMoney": {
+                        "amount": "0.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "variant": null
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 26,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersDraftOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1269664481586"
+      },
+      "query": "\n    query OrdersDraftOrderHydrate($id: ID!) {\n      draftOrder(id: $id) {\n        id\n        name\n        status\n        ready\n        note: note2\n        email\n        customer { id email displayName }\n        taxExempt\n        taxesIncluded\n        reserveInventoryUntil\n        paymentTerms {\n          id\n          overdue\n          dueInDays\n          paymentTermsName\n          paymentTermsType\n          translatedName\n        }\n        tags\n        invoiceUrl\n        customAttributes { key value }\n        appliedDiscount {\n          title\n          description\n          value\n          valueType\n          amountSet { shopMoney { amount currencyCode } }\n        }\n        billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingLine {\n          title\n          code\n          custom\n          originalPriceSet { shopMoney { amount currencyCode } }\n          discountedPriceSet { shopMoney { amount currencyCode } }\n        }\n        subtotalPriceSet { shopMoney { amount currencyCode } }\n        totalDiscountsSet { shopMoney { amount currencyCode } }\n        totalShippingPriceSet { shopMoney { amount currencyCode } }\n        totalPriceSet { shopMoney { amount currencyCode } }\n        totalQuantityOfLineItems\n        lineItems(first: 10) {\n          nodes {\n            id\n            title\n            name\n            quantity\n            sku\n            variantTitle\n            custom\n            requiresShipping\n            taxable\n            customAttributes { key value }\n            appliedDiscount {\n              title\n              description\n              value\n              valueType\n              amountSet { shopMoney { amount currencyCode } }\n            }\n            originalUnitPriceSet { shopMoney { amount currencyCode } }\n            originalTotalSet { shopMoney { amount currencyCode } }\n            discountedTotalSet { shopMoney { amount currencyCode } }\n            totalDiscountSet { shopMoney { amount currencyCode } }\n            variant { id title sku }\n          }\n        }\n      }\n    }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrder": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 26,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersDraftOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1269664514354"
+      },
+      "query": "\n    query OrdersDraftOrderHydrate($id: ID!) {\n      draftOrder(id: $id) {\n        id\n        name\n        status\n        ready\n        note: note2\n        email\n        customer { id email displayName }\n        taxExempt\n        taxesIncluded\n        reserveInventoryUntil\n        paymentTerms {\n          id\n          overdue\n          dueInDays\n          paymentTermsName\n          paymentTermsType\n          translatedName\n        }\n        tags\n        invoiceUrl\n        customAttributes { key value }\n        appliedDiscount {\n          title\n          description\n          value\n          valueType\n          amountSet { shopMoney { amount currencyCode } }\n        }\n        billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingLine {\n          title\n          code\n          custom\n          originalPriceSet { shopMoney { amount currencyCode } }\n          discountedPriceSet { shopMoney { amount currencyCode } }\n        }\n        subtotalPriceSet { shopMoney { amount currencyCode } }\n        totalDiscountsSet { shopMoney { amount currencyCode } }\n        totalShippingPriceSet { shopMoney { amount currencyCode } }\n        totalPriceSet { shopMoney { amount currencyCode } }\n        totalQuantityOfLineItems\n        lineItems(first: 10) {\n          nodes {\n            id\n            title\n            name\n            quantity\n            sku\n            variantTitle\n            custom\n            requiresShipping\n            taxable\n            customAttributes { key value }\n            appliedDiscount {\n              title\n              description\n              value\n              valueType\n              amountSet { shopMoney { amount currencyCode } }\n            }\n            originalUnitPriceSet { shopMoney { amount currencyCode } }\n            originalTotalSet { shopMoney { amount currencyCode } }\n            discountedTotalSet { shopMoney { amount currencyCode } }\n            totalDiscountSet { shopMoney { amount currencyCode } }\n            variant { id title sku }\n          }\n        }\n      }\n    }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1269664514354",
+              "name": "#D221",
+              "status": "COMPLETED",
+              "ready": true,
+              "note": "HAR-275 draft order invoice safety completed-no-recipient",
+              "email": null,
+              "customer": null,
+              "taxExempt": false,
+              "taxesIncluded": false,
+              "reserveInventoryUntil": null,
+              "paymentTerms": null,
+              "tags": ["completed-no-recipient", "draft-order-family", "invoice-safety", "parity-capture"],
+              "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/270f9c3afc0fdf294c8437a0b2e72889",
+              "customAttributes": [],
+              "appliedDiscount": null,
+              "billingAddress": null,
+              "shippingAddress": null,
+              "shippingLine": null,
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "1.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalDiscountsSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalShippingPriceSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "1.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalQuantityOfLineItems": 1,
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/DraftOrderLineItem/58619480015154",
+                    "title": "HAR-275 invoice safety item completed-no-recipient",
+                    "name": "HAR-275 invoice safety item completed-no-recipient",
+                    "quantity": 1,
+                    "sku": null,
+                    "variantTitle": null,
+                    "custom": true,
+                    "requiresShipping": false,
+                    "taxable": false,
+                    "customAttributes": [],
+                    "appliedDiscount": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "originalTotalSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "discountedTotalSet": {
+                      "shopMoney": {
+                        "amount": "1.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "totalDiscountSet": {
+                      "shopMoney": {
+                        "amount": "0.0",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "variant": null
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 26,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

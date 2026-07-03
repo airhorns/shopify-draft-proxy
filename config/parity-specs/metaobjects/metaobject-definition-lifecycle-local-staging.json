@@ -11,48 +11,13 @@
   ],
   "scenarioStatus": "captured",
   "assertionKinds": ["runtime-staging", "payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/metaobjects/metaobject-definition-draft-flow.json"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-definition-draft-flow.json"
+  ],
   "runtimeTestFiles": ["tests/integration/metaobject-definition-draft-flow.test.ts"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metaobjects/metaobject-definition-lifecycle-create.graphql",
-    "variables": {
-      "definition": {
-        "type": "codex_stage_definition",
-        "name": "Codex Stage Definition",
-        "description": "A locally staged metaobject definition.",
-        "capabilities": {
-          "publishable": {
-            "enabled": true
-          },
-          "translatable": {
-            "enabled": false
-          }
-        },
-        "displayNameKey": "title",
-        "fieldDefinitions": [
-          {
-            "key": "title",
-            "name": "Title",
-            "description": "Title field.",
-            "type": "single_line_text_field",
-            "required": true
-          },
-          {
-            "key": "body",
-            "name": "Body",
-            "description": "Body field.",
-            "type": "multi_line_text_field",
-            "required": false,
-            "validations": [
-              {
-                "name": "max",
-                "value": "500"
-              }
-            ]
-          }
-        ]
-      }
-    }
+    "variablesCapturePath": "$.create.request.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -63,7 +28,14 @@
         "name": "create-definition-payload",
         "capturePath": "$.create.response.data.metaobjectDefinitionCreate",
         "proxyPath": "$.data.metaobjectDefinitionCreate",
-        "upstreamCapturePath": null
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy stages a synthetic definition ID while Shopify returns the live definition ID."
+          }
+        ]
       },
       {
         "name": "update-definition-payload",
@@ -77,54 +49,17 @@
               "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
             },
             "definition": {
-              "name": "Codex Updated Definition",
-              "description": "Updated locally.",
-              "displayNameKey": "body",
-              "resetFieldOrder": true,
-              "access": {
-                "storefront": "PUBLIC_READ"
-              },
-              "capabilities": {
-                "translatable": {
-                  "enabled": true
-                },
-                "renderable": {
-                  "enabled": true
-                }
-              },
-              "fieldDefinitions": [
-                {
-                  "update": {
-                    "key": "body",
-                    "name": "Body Copy",
-                    "description": "Updated body.",
-                    "required": true,
-                    "validations": [
-                      {
-                        "name": "max",
-                        "value": "250"
-                      }
-                    ]
-                  }
-                },
-                {
-                  "create": {
-                    "key": "summary",
-                    "name": "Summary",
-                    "description": "Summary field.",
-                    "type": "single_line_text_field",
-                    "required": false
-                  }
-                },
-                {
-                  "delete": {
-                    "key": "title"
-                  }
-                }
-              ]
+              "fromCapturePath": "$.update.request.variables.definition"
             }
           }
-        }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy keeps its synthetic definition ID while Shopify returns the live definition ID."
+          }
+        ]
       },
       {
         "name": "read-after-update",
@@ -137,9 +72,28 @@
             "id": {
               "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
             },
-            "type": "codex_stage_definition"
+            "type": {
+              "fromCapturePath": "$.create.request.variables.definition.type"
+            }
           }
-        }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.byId.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy keeps its synthetic definition ID while Shopify returns the live definition ID."
+          },
+          {
+            "path": "$.byType.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy keeps its synthetic definition ID while Shopify returns the live definition ID."
+          },
+          {
+            "path": "$.catalog.nodes[*].id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy keeps its synthetic definition ID while Shopify returns the live definition ID."
+          }
+        ]
       },
       {
         "name": "delete-definition-payload",
@@ -153,7 +107,14 @@
               "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
             }
           }
-        }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedId",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy deletes its synthetic definition ID while Shopify deletes the live definition ID."
+          }
+        ]
       },
       {
         "name": "read-after-delete",
@@ -166,7 +127,9 @@
             "id": {
               "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
             },
-            "type": "codex_stage_definition"
+            "type": {
+              "fromCapturePath": "$.create.request.variables.definition.type"
+            }
           }
         }
       },
@@ -178,9 +141,18 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/metaobjects/metaobject-definition-standard-enable.graphql",
           "variables": {
-            "type": "shopify--qa-pair"
+            "type": {
+              "fromCapturePath": "$.standardEnable.request.variables.type"
+            }
           }
-        }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy stages a synthetic standard definition ID while Shopify returns the live standard definition ID."
+          }
+        ]
       },
       {
         "name": "standard-enable-unknown-template",
@@ -190,11 +162,13 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/metaobjects/metaobject-definition-standard-enable-unknown.graphql",
           "variables": {
-            "type": "shopify--unknown-template"
+            "type": {
+              "fromCapturePath": "$.standardEnableUnknown.request.variables.type"
+            }
           }
         }
       }
     ]
   },
-  "notes": "Runtime evidence for HAR-242 local metaobject definition lifecycle staging. The convention-driven parity runner now executes the create/update/delete/read-after-write and bounded standard-enable flow against the local proxy harness with strict JSON comparison targets; the integration test continues to cover meta API log/state visibility, no runtime Shopify writes, and the captured merchant-owned access.admin guardrail. HAR-675 adds associated-entry cascade coverage in the dedicated metaobject-definition-delete-cascade scenario."
+  "notes": "Live 2026-04 parity for metaobject definition lifecycle staging. The convention-driven parity runner executes create/update/delete/read-after-write and bounded standard-enable flow against the local proxy harness with strict JSON comparison targets; the integration test continues to cover meta API log/state visibility, no runtime Shopify writes, and unsupported associated-entry delete cascades remain covered separately."
 }

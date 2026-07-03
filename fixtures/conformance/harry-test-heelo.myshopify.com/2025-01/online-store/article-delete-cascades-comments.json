@@ -2,14 +2,14 @@
   "scenarioId": "article-delete-cascades-comments",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "capturedAt": "2026-05-06T12:27:40.428Z",
+  "capturedAt": "2026-06-21T23:46:28.289Z",
   "setup": {
     "blogCreate": {
       "request": {
         "query": "#graphql\n  mutation OnlineStoreDeleteCascadeBlogCreate($blog: BlogCreateInput!) {\n    blogCreate(blog: $blog) {\n      blog { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
           "blog": {
-            "title": "Article Delete Cascade Blog 20260506122739",
+            "title": "Article Delete Cascade Blog 20260621234627",
             "commentPolicy": "MODERATED"
           }
         }
@@ -19,9 +19,9 @@
         "data": {
           "blogCreate": {
             "blog": {
-              "id": "gid://shopify/Blog/120985256242",
-              "title": "Article Delete Cascade Blog 20260506122739",
-              "handle": "article-delete-cascade-blog-20260506122739"
+              "id": "gid://shopify/Blog/121560662322",
+              "title": "Article Delete Cascade Blog 20260621234627",
+              "handle": "article-delete-cascade-blog-20260621234627"
             },
             "userErrors": []
           }
@@ -44,9 +44,9 @@
         "query": "#graphql\n  mutation OnlineStoreDeleteCascadeArticleCreate($article: ArticleCreateInput!) {\n    articleCreate(article: $article) {\n      article { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
           "article": {
-            "title": "Article Delete Cascade 20260506122739",
-            "body": "<p>Article Delete Cascade 20260506122739</p>",
-            "blogId": "gid://shopify/Blog/120985256242",
+            "title": "Article Delete Cascade 20260621234627",
+            "body": "<p>Article Delete Cascade 20260621234627</p>",
+            "blogId": "gid://shopify/Blog/121560662322",
             "author": {
               "name": "Delete Cascade Author"
             },
@@ -59,9 +59,9 @@
         "data": {
           "articleCreate": {
             "article": {
-              "id": "gid://shopify/Article/683154080050",
-              "title": "Article Delete Cascade 20260506122739",
-              "handle": "article-delete-cascade-20260506122739"
+              "id": "gid://shopify/Article/684248170802",
+              "title": "Article Delete Cascade 20260621234627",
+              "handle": "article-delete-cascade-20260621234627"
             },
             "userErrors": []
           }
@@ -81,16 +81,16 @@
     },
     "restComments": [
       {
-        "id": 134990004530,
-        "body": "article delete cascade comment 20260506122739",
-        "body_html": "<p>article delete cascade comment 20260506122739</p>",
+        "id": 135015498034,
+        "body": "article delete cascade comment 20260621234627",
+        "body_html": "<p>article delete cascade comment 20260621234627</p>",
         "author": "Delete Cascade Fixture",
         "email": "delete-cascade@example.com",
         "status": "pending",
-        "article_id": 683154080050,
-        "blog_id": 120985256242,
-        "created_at": "2026-05-06T08:27:39-04:00",
-        "updated_at": "2026-05-06T08:27:39-04:00",
+        "article_id": 684248170802,
+        "blog_id": 121560662322,
+        "created_at": "2026-06-21T19:46:27-04:00",
+        "updated_at": "2026-06-21T19:46:27-04:00",
         "ip": "127.0.0.1",
         "user_agent": null,
         "published_at": null
@@ -101,14 +101,14 @@
     "request": {
       "query": "#graphql\n  mutation ArticleDeleteCascadesComments($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Article/683154080050"
+        "id": "gid://shopify/Article/684248170802"
       }
     },
     "status": 200,
     "response": {
       "data": {
         "articleDelete": {
-          "deletedArticleId": "gid://shopify/Article/683154080050",
+          "deletedArticleId": "gid://shopify/Article/684248170802",
           "userErrors": []
         }
       },
@@ -129,8 +129,8 @@
     "request": {
       "query": "#graphql\n  query ArticleDeleteCascadesCommentsRead($articleId: ID!, $commentQuery: String!) {\n    article(id: $articleId) { id }\n    comments(first: 10, query: $commentQuery) {\n      nodes { id article { id } }\n    }\n  }\n",
       "variables": {
-        "articleId": "gid://shopify/Article/683154080050",
-        "commentQuery": "\"article delete cascade comment 20260506122739\""
+        "articleId": "gid://shopify/Article/684248170802",
+        "commentQuery": "\"article delete cascade comment 20260621234627\""
       }
     },
     "status": 200,
@@ -159,36 +159,37 @@
     {
       "operationName": "OnlineStoreArticleDeleteCascadeHydrate",
       "variables": {
-        "id": "gid://shopify/Article/683154080050"
+        "id": "gid://shopify/Article/684248170802"
       },
+      "query": "query OnlineStoreArticleDeleteCascadeHydrate($id: ID!) { article(id: $id) { __typename id title handle createdAt updatedAt blog { id } comments(first: 50) { nodes { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } } } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "article": {
               "__typename": "Article",
-              "id": "gid://shopify/Article/683154080050",
-              "title": "Article Delete Cascade 20260506122739",
-              "handle": "article-delete-cascade-20260506122739",
-              "createdAt": "2026-05-06T12:27:39Z",
-              "updatedAt": "2026-05-06T12:27:39Z",
+              "id": "gid://shopify/Article/684248170802",
+              "title": "Article Delete Cascade 20260621234627",
+              "handle": "article-delete-cascade-20260621234627",
+              "createdAt": "2026-06-21T23:46:27Z",
+              "updatedAt": "2026-06-21T23:46:27Z",
               "blog": {
-                "id": "gid://shopify/Blog/120985256242"
+                "id": "gid://shopify/Blog/121560662322"
               },
               "comments": {
                 "nodes": [
                   {
                     "__typename": "Comment",
-                    "id": "gid://shopify/Comment/134990004530",
+                    "id": "gid://shopify/Comment/135015498034",
                     "status": "UNAPPROVED",
-                    "body": "article delete cascade comment 20260506122739",
-                    "bodyHtml": "<p>article delete cascade comment 20260506122739</p>",
+                    "body": "article delete cascade comment 20260621234627",
+                    "bodyHtml": "<p>article delete cascade comment 20260621234627</p>",
                     "isPublished": false,
                     "publishedAt": null,
-                    "createdAt": "2026-05-06T12:27:39Z",
-                    "updatedAt": "2026-05-06T12:27:40Z",
+                    "createdAt": "2026-06-21T23:46:27Z",
+                    "updatedAt": "2026-06-21T23:46:27Z",
                     "article": {
-                      "id": "gid://shopify/Article/683154080050"
+                      "id": "gid://shopify/Article/684248170802"
                     }
                   }
                 ]

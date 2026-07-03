@@ -93,10 +93,12 @@ proxy.getState();
 const dump = proxy.dumpState();
 proxy.restoreState(dump);
 
+proxy.getBulkOperationResultJsonl('gid://shopify/BulkOperation/1');
 proxy.reset();
 ```
 
 State dumps include the normalized store and synthetic identity cursor so a test can persist and restore an isolated proxy session.
+`getBulkOperationResultJsonl()` accepts either a BulkOperation GID or the advertised absolute artifact URL and returns the generated JSONL body when the runtime has staged that artifact.
 
 ## Commit Replay
 

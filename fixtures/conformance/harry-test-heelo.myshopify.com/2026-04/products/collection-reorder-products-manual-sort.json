@@ -1,0 +1,1002 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/9899726471474",
+      "title": "Test Product - 8088",
+      "handle": "test-product-8088",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "gid://shopify/Product/9899719688498",
+      "title": "Test Product - 7040",
+      "handle": "test-product-7040",
+      "status": "ACTIVE"
+    }
+  ],
+  "manualSorted": {
+    "create": {
+      "variables": {
+        "input": {
+          "title": "Hermes Reorder MANUAL 1782722309754",
+          "sortOrder": "MANUAL"
+        }
+      },
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": {
+              "id": "gid://shopify/Collection/513948942642",
+              "title": "Hermes Reorder MANUAL 1782722309754",
+              "handle": "hermes-reorder-manual-1782722309754",
+              "sortOrder": "MANUAL"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "id": "gid://shopify/Collection/513948942642"
+    },
+    "add": {
+      "variables": {
+        "id": "gid://shopify/Collection/513948942642",
+        "productIds": ["gid://shopify/Product/9899726471474", "gid://shopify/Product/9899719688498"]
+      },
+      "response": {
+        "data": {
+          "collectionAddProducts": {
+            "collection": {
+              "id": "gid://shopify/Collection/513948942642",
+              "title": "Hermes Reorder MANUAL 1782722309754",
+              "handle": "hermes-reorder-manual-1782722309754",
+              "sortOrder": "MANUAL",
+              "products": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/9899726471474",
+                    "title": "Test Product - 8088",
+                    "handle": "test-product-8088"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9899719688498",
+                    "title": "Test Product - 7040",
+                    "handle": "test-product-7040"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "mutation": {
+      "variables": {
+        "id": "gid://shopify/Collection/513948942642",
+        "moves": [
+          {
+            "id": "gid://shopify/Product/9899719688498",
+            "newPosition": "0"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "collectionReorderProducts": {
+            "job": {
+              "id": "gid://shopify/Job/77a10a12-09eb-4551-b297-7e95dd81f42a",
+              "done": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "jobRead": {
+      "data": {
+        "job": {
+          "id": "gid://shopify/Job/77a10a12-09eb-4551-b297-7e95dd81f42a",
+          "done": true
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "downstreamReadVariables": {
+      "collectionId": "gid://shopify/Collection/513948942642"
+    },
+    "downstreamRead": {
+      "data": {
+        "collection": {
+          "id": "gid://shopify/Collection/513948942642",
+          "title": "Hermes Reorder MANUAL 1782722309754",
+          "handle": "hermes-reorder-manual-1782722309754",
+          "sortOrder": "MANUAL",
+          "manualProducts": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/9899719688498",
+                "title": "Test Product - 7040",
+                "handle": "test-product-7040"
+              },
+              {
+                "id": "gid://shopify/Product/9899726471474",
+                "title": "Test Product - 8088",
+                "handle": "test-product-8088"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 7,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "nonManualSorted": {
+    "create": {
+      "variables": {
+        "input": {
+          "title": "Hermes Reorder BEST_SELLING 1782722309754",
+          "sortOrder": "BEST_SELLING"
+        }
+      },
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": {
+              "id": "gid://shopify/Collection/513948975410",
+              "title": "Hermes Reorder BEST_SELLING 1782722309754",
+              "handle": "hermes-reorder-best_selling-1782722309754",
+              "sortOrder": "BEST_SELLING"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "id": "gid://shopify/Collection/513948975410"
+    },
+    "add": {
+      "variables": {
+        "id": "gid://shopify/Collection/513948975410",
+        "productIds": ["gid://shopify/Product/9899726471474", "gid://shopify/Product/9899719688498"]
+      },
+      "response": {
+        "data": {
+          "collectionAddProducts": {
+            "collection": {
+              "id": "gid://shopify/Collection/513948975410",
+              "title": "Hermes Reorder BEST_SELLING 1782722309754",
+              "handle": "hermes-reorder-best_selling-1782722309754",
+              "sortOrder": "BEST_SELLING",
+              "products": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/9899726471474",
+                    "title": "Test Product - 8088",
+                    "handle": "test-product-8088"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9899719688498",
+                    "title": "Test Product - 7040",
+                    "handle": "test-product-7040"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 14,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "mutation": {
+      "variables": {
+        "id": "gid://shopify/Collection/513948975410",
+        "moves": [
+          {
+            "id": "gid://shopify/Product/9899719688498",
+            "newPosition": "0"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "collectionReorderProducts": {
+            "job": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Can't reorder products unless collection is manually sorted"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "downstreamReadVariables": {
+      "collectionId": "gid://shopify/Collection/513948975410"
+    },
+    "downstreamRead": {
+      "data": {
+        "collection": {
+          "id": "gid://shopify/Collection/513948975410",
+          "title": "Hermes Reorder BEST_SELLING 1782722309754",
+          "handle": "hermes-reorder-best_selling-1782722309754",
+          "sortOrder": "BEST_SELLING",
+          "manualProducts": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/9899726471474",
+                "title": "Test Product - 8088",
+                "handle": "test-product-8088"
+              },
+              {
+                "id": "gid://shopify/Product/9899719688498",
+                "title": "Test Product - 7040",
+                "handle": "test-product-7040"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 7,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1992,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "smartCollection": {
+    "create": {
+      "variables": {
+        "input": {
+          "title": "Hermes Reorder Smart 1782722309754",
+          "ruleSet": {
+            "appliedDisjunctively": false,
+            "rules": [
+              {
+                "column": "TITLE",
+                "relation": "CONTAINS",
+                "condition": "reorder-smart-1782722309754"
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": {
+              "id": "gid://shopify/Collection/513949008178",
+              "title": "Hermes Reorder Smart 1782722309754",
+              "handle": "hermes-reorder-smart-1782722309754",
+              "sortOrder": "BEST_SELLING"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "id": "gid://shopify/Collection/513949008178"
+    },
+    "mutation": {
+      "variables": {
+        "id": "gid://shopify/Collection/513949008178",
+        "moves": [
+          {
+            "id": "gid://shopify/Product/9899726471474",
+            "newPosition": "0"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "collectionReorderProducts": {
+            "job": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Can't reorder products unless collection is manually sorted"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Collection/513948942642", "gid://shopify/Product/9899719688498"]
+      },
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/513948942642",
+                "title": "Hermes Reorder MANUAL 1782722309754",
+                "handle": "hermes-reorder-manual-1782722309754",
+                "products": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Product/9899726471474",
+                      "title": "Test Product - 8088",
+                      "handle": "test-product-8088"
+                    },
+                    {
+                      "id": "gid://shopify/Product/9899719688498",
+                      "title": "Test Product - 7040",
+                      "handle": "test-product-7040"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                },
+                "defaultProducts": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Product/9899726471474",
+                      "title": "Test Product - 8088",
+                      "handle": "test-product-8088"
+                    },
+                    {
+                      "id": "gid://shopify/Product/9899719688498",
+                      "title": "Test Product - 7040",
+                      "handle": "test-product-7040"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                },
+                "manualProducts": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Product/9899726471474",
+                      "title": "Test Product - 8088",
+                      "handle": "test-product-8088"
+                    },
+                    {
+                      "id": "gid://shopify/Product/9899719688498",
+                      "title": "Test Product - 7040",
+                      "handle": "test-product-7040"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              {
+                "id": "gid://shopify/Product/9899719688498",
+                "title": "Test Product - 7040",
+                "handle": "test-product-7040",
+                "status": "ACTIVE",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/50173005791538",
+                      "title": "Red / Medium / Vintage",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Red"
+                        },
+                        {
+                          "name": "Size",
+                          "value": "Medium"
+                        },
+                        {
+                          "name": "Style",
+                          "value": "Vintage"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/52227547889970",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                },
+                "collections": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Collection/513948942642",
+                      "title": "Hermes Reorder MANUAL 1782722309754",
+                      "handle": "hermes-reorder-manual-1782722309754"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CollectionReorderProductsCollectionHydrate",
+      "variables": {
+        "id": "gid://shopify/Collection/513948942642"
+      },
+      "query": "query CollectionReorderProductsCollectionHydrate($id: ID!) {\n  collection(id: $id) {\n    id\n    title\n    handle\n    sortOrder\n    products(first: 10) {\n      nodes {\n        id\n        title\n        handle\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "collection": {
+              "id": "gid://shopify/Collection/513948942642",
+              "title": "Hermes Reorder MANUAL 1782722309754",
+              "handle": "hermes-reorder-manual-1782722309754",
+              "sortOrder": "MANUAL",
+              "products": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/9899726471474",
+                    "title": "Test Product - 8088",
+                    "handle": "test-product-8088"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9899719688498",
+                    "title": "Test Product - 7040",
+                    "handle": "test-product-7040"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CollectionReorderProductsOrderRead",
+      "variables": {
+        "collectionId": "gid://shopify/Collection/513948942642"
+      },
+      "query": "query CollectionReorderProductsOrderRead($collectionId: ID!) {\n  collection(id: $collectionId) {\n    id\n    title\n    handle\n    sortOrder\n    manualProducts: products(first: 10, sortKey: MANUAL) {\n      nodes {\n        id\n        title\n        handle\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "collection": {
+              "id": "gid://shopify/Collection/513948942642",
+              "title": "Hermes Reorder MANUAL 1782722309754",
+              "handle": "hermes-reorder-manual-1782722309754",
+              "sortOrder": "MANUAL",
+              "manualProducts": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/9899719688498",
+                    "title": "Test Product - 7040",
+                    "handle": "test-product-7040"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9899726471474",
+                    "title": "Test Product - 8088",
+                    "handle": "test-product-8088"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Collection/513948975410"]
+      },
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/513948975410",
+                "title": "Hermes Reorder BEST_SELLING 1782722309754",
+                "handle": "hermes-reorder-best_selling-1782722309754",
+                "products": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Product/9899726471474",
+                      "title": "Test Product - 8088",
+                      "handle": "test-product-8088"
+                    },
+                    {
+                      "id": "gid://shopify/Product/9899719688498",
+                      "title": "Test Product - 7040",
+                      "handle": "test-product-7040"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                },
+                "defaultProducts": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Product/9899726471474",
+                      "title": "Test Product - 8088",
+                      "handle": "test-product-8088"
+                    },
+                    {
+                      "id": "gid://shopify/Product/9899719688498",
+                      "title": "Test Product - 7040",
+                      "handle": "test-product-7040"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                },
+                "manualProducts": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Product/9899726471474",
+                      "title": "Test Product - 8088",
+                      "handle": "test-product-8088"
+                    },
+                    {
+                      "id": "gid://shopify/Product/9899719688498",
+                      "title": "Test Product - 7040",
+                      "handle": "test-product-7040"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CollectionReorderProductsCollectionHydrate",
+      "variables": {
+        "id": "gid://shopify/Collection/513948975410"
+      },
+      "query": "query CollectionReorderProductsCollectionHydrate($id: ID!) {\n  collection(id: $id) {\n    id\n    title\n    handle\n    sortOrder\n    products(first: 10) {\n      nodes {\n        id\n        title\n        handle\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "collection": {
+              "id": "gid://shopify/Collection/513948975410",
+              "title": "Hermes Reorder BEST_SELLING 1782722309754",
+              "handle": "hermes-reorder-best_selling-1782722309754",
+              "sortOrder": "BEST_SELLING",
+              "products": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/9899726471474",
+                    "title": "Test Product - 8088",
+                    "handle": "test-product-8088"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9899719688498",
+                    "title": "Test Product - 7040",
+                    "handle": "test-product-7040"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CollectionReorderProductsOrderRead",
+      "variables": {
+        "collectionId": "gid://shopify/Collection/513948975410"
+      },
+      "query": "query CollectionReorderProductsOrderRead($collectionId: ID!) {\n  collection(id: $collectionId) {\n    id\n    title\n    handle\n    sortOrder\n    manualProducts: products(first: 10, sortKey: MANUAL) {\n      nodes {\n        id\n        title\n        handle\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "collection": {
+              "id": "gid://shopify/Collection/513948975410",
+              "title": "Hermes Reorder BEST_SELLING 1782722309754",
+              "handle": "hermes-reorder-best_selling-1782722309754",
+              "sortOrder": "BEST_SELLING",
+              "manualProducts": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Product/9899726471474",
+                    "title": "Test Product - 8088",
+                    "handle": "test-product-8088"
+                  },
+                  {
+                    "id": "gid://shopify/Product/9899719688498",
+                    "title": "Test Product - 7040",
+                    "handle": "test-product-7040"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Collection/513949008178", "gid://shopify/Product/9899726471474"]
+      },
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/513949008178",
+                "title": "Hermes Reorder Smart 1782722309754",
+                "handle": "hermes-reorder-smart-1782722309754",
+                "products": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                },
+                "defaultProducts": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                },
+                "manualProducts": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              {
+                "id": "gid://shopify/Product/9899726471474",
+                "title": "Test Product - 8088",
+                "handle": "test-product-8088",
+                "status": "ACTIVE",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/50173018079538",
+                      "title": "Default Title",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/52227560145202",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                },
+                "collections": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Collection/513948942642",
+                      "title": "Hermes Reorder MANUAL 1782722309754",
+                      "handle": "hermes-reorder-manual-1782722309754"
+                    },
+                    {
+                      "id": "gid://shopify/Collection/513948975410",
+                      "title": "Hermes Reorder BEST_SELLING 1782722309754",
+                      "handle": "hermes-reorder-best_selling-1782722309754"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 21,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CollectionReorderProductsCollectionHydrate",
+      "variables": {
+        "id": "gid://shopify/Collection/513949008178"
+      },
+      "query": "query CollectionReorderProductsCollectionHydrate($id: ID!) {\n  collection(id: $id) {\n    id\n    title\n    handle\n    sortOrder\n    products(first: 10) {\n      nodes {\n        id\n        title\n        handle\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "collection": {
+              "id": "gid://shopify/Collection/513949008178",
+              "title": "Hermes Reorder Smart 1782722309754",
+              "handle": "hermes-reorder-smart-1782722309754",
+              "sortOrder": "BEST_SELLING",
+              "products": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

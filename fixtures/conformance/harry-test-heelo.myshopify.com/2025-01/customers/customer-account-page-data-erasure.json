@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-04-27T18:35:34.082Z",
+  "capturedAt": "2026-06-30T16:03:17.921Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "reads": {
@@ -61,23 +61,23 @@
       "query": "#graphql\n  mutation CreateCustomerForDataErasure($input: CustomerInput!) {\n    customerCreate(input: $input) {\n      customer {\n        #graphql\n  id\n  email\n  firstName\n  lastName\n  tags\n  defaultEmailAddress {\n    emailAddress\n  }\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "input": {
-          "email": "hermes-data-erasure-1777314932891@example.com",
+          "email": "hermes-data-erasure-1782835396716@example.com",
           "firstName": "Hermes",
           "lastName": "DataErasure",
-          "tags": ["parity", "data-erasure-1777314932891"]
+          "tags": ["parity", "data-erasure-1782835396716"]
         }
       },
       "response": {
         "data": {
           "customerCreate": {
             "customer": {
-              "id": "gid://shopify/Customer/10547408830770",
-              "email": "hermes-data-erasure-1777314932891@example.com",
+              "id": "gid://shopify/Customer/10870504227122",
+              "email": "hermes-data-erasure-1782835396716@example.com",
               "firstName": "Hermes",
               "lastName": "DataErasure",
-              "tags": ["data-erasure-1777314932891", "parity"],
+              "tags": ["data-erasure-1782835396716", "parity"],
               "defaultEmailAddress": {
-                "emailAddress": "hermes-data-erasure-1777314932891@example.com"
+                "emailAddress": "hermes-data-erasure-1782835396716@example.com"
               }
             },
             "userErrors": []
@@ -101,12 +101,12 @@
     "operationName": "CustomerRequestDataErasure",
     "query": "#graphql\n  mutation CustomerRequestDataErasure($customerId: ID!) {\n    customerRequestDataErasure(customerId: $customerId) {\n      customerId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
     "variables": {
-      "customerId": "gid://shopify/Customer/10547408830770"
+      "customerId": "gid://shopify/Customer/10870504227122"
     },
     "response": {
       "data": {
         "customerRequestDataErasure": {
-          "customerId": "gid://shopify/Customer/10547408830770",
+          "customerId": "gid://shopify/Customer/10870504227122",
           "userErrors": []
         }
       },
@@ -128,12 +128,12 @@
       "operationName": "CustomerRequestDataErasure",
       "query": "#graphql\n  mutation CustomerRequestDataErasure($customerId: ID!) {\n    customerRequestDataErasure(customerId: $customerId) {\n      customerId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "customerId": "gid://shopify/Customer/10547408830770"
+        "customerId": "gid://shopify/Customer/10870504227122"
       },
       "response": {
         "data": {
           "customerRequestDataErasure": {
-            "customerId": "gid://shopify/Customer/10547408830770",
+            "customerId": "gid://shopify/Customer/10870504227122",
             "userErrors": []
           }
         },
@@ -153,18 +153,18 @@
         "operationName": "CustomerDataErasureCustomerRead",
         "query": "#graphql\n  query CustomerDataErasureCustomerRead($id: ID!) {\n    customer(id: $id) {\n      #graphql\n  id\n  email\n  firstName\n  lastName\n  tags\n  defaultEmailAddress {\n    emailAddress\n  }\n\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Customer/10547408830770"
+          "id": "gid://shopify/Customer/10870504227122"
         },
         "response": {
           "data": {
             "customer": {
-              "id": "gid://shopify/Customer/10547408830770",
-              "email": "hermes-data-erasure-1777314932891@example.com",
+              "id": "gid://shopify/Customer/10870504227122",
+              "email": "hermes-data-erasure-1782835396716@example.com",
               "firstName": "Hermes",
               "lastName": "DataErasure",
-              "tags": ["data-erasure-1777314932891", "parity"],
+              "tags": ["data-erasure-1782835396716", "parity"],
               "defaultEmailAddress": {
-                "emailAddress": "hermes-data-erasure-1777314932891@example.com"
+                "emailAddress": "hermes-data-erasure-1782835396716@example.com"
               }
             }
           },
@@ -186,12 +186,12 @@
       "operationName": "CustomerCancelDataErasure",
       "query": "#graphql\n  mutation CustomerCancelDataErasure($customerId: ID!) {\n    customerCancelDataErasure(customerId: $customerId) {\n      customerId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "customerId": "gid://shopify/Customer/10547408830770"
+        "customerId": "gid://shopify/Customer/10870504227122"
       },
       "response": {
         "data": {
           "customerCancelDataErasure": {
-            "customerId": "gid://shopify/Customer/10547408830770",
+            "customerId": "gid://shopify/Customer/10870504227122",
             "userErrors": []
           }
         },
@@ -211,18 +211,18 @@
         "operationName": "CustomerDataErasureCustomerRead",
         "query": "#graphql\n  query CustomerDataErasureCustomerRead($id: ID!) {\n    customer(id: $id) {\n      #graphql\n  id\n  email\n  firstName\n  lastName\n  tags\n  defaultEmailAddress {\n    emailAddress\n  }\n\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Customer/10547408830770"
+          "id": "gid://shopify/Customer/10870504227122"
         },
         "response": {
           "data": {
             "customer": {
-              "id": "gid://shopify/Customer/10547408830770",
-              "email": "hermes-data-erasure-1777314932891@example.com",
+              "id": "gid://shopify/Customer/10870504227122",
+              "email": "hermes-data-erasure-1782835396716@example.com",
               "firstName": "Hermes",
               "lastName": "DataErasure",
-              "tags": ["data-erasure-1777314932891", "parity"],
+              "tags": ["data-erasure-1782835396716", "parity"],
               "defaultEmailAddress": {
-                "emailAddress": "hermes-data-erasure-1777314932891@example.com"
+                "emailAddress": "hermes-data-erasure-1782835396716@example.com"
               }
             }
           },
@@ -322,7 +322,7 @@
       "operationName": "CustomerCancelDataErasure",
       "query": "#graphql\n  mutation CustomerCancelDataErasure($customerId: ID!) {\n    customerCancelDataErasure(customerId: $customerId) {\n      customerId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "customerId": "gid://shopify/Customer/10547408830770"
+        "customerId": "gid://shopify/Customer/10870504227122"
       },
       "response": {
         "data": {
@@ -343,7 +343,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1986,
+              "currentlyAvailable": 1989,
               "restoreRate": 100
             }
           }
@@ -355,13 +355,13 @@
       "query": "#graphql\n  mutation DeleteCustomerForDataErasure($input: CustomerDeleteInput!) {\n    customerDelete(input: $input) {\n      deletedCustomerId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "input": {
-          "id": "gid://shopify/Customer/10547408830770"
+          "id": "gid://shopify/Customer/10870504227122"
         }
       },
       "response": {
         "data": {
           "customerDelete": {
-            "deletedCustomerId": "gid://shopify/Customer/10547408830770",
+            "deletedCustomerId": "gid://shopify/Customer/10870504227122",
             "userErrors": []
           }
         },
@@ -371,7 +371,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1986,
+              "currentlyAvailable": 1989,
               "restoreRate": 100
             }
           }
@@ -383,20 +383,32 @@
     {
       "operationName": "CustomerDataErasureCustomerRead",
       "variables": {
-        "id": "gid://shopify/Customer/10547408830770"
+        "id": "gid://shopify/Customer/10870504227122"
       },
+      "query": "#graphql\n  query CustomerDataErasureCustomerRead($id: ID!) {\n    customer(id: $id) {\n      #graphql\n  id\n  email\n  firstName\n  lastName\n  tags\n  defaultEmailAddress {\n    emailAddress\n  }\n\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "customer": {
-              "id": "gid://shopify/Customer/10547408830770",
-              "email": "hermes-data-erasure-1777314932891@example.com",
+              "id": "gid://shopify/Customer/10870504227122",
+              "email": "hermes-data-erasure-1782835396716@example.com",
               "firstName": "Hermes",
               "lastName": "DataErasure",
-              "tags": ["data-erasure-1777314932891", "parity"],
+              "tags": ["data-erasure-1782835396716", "parity"],
               "defaultEmailAddress": {
-                "emailAddress": "hermes-data-erasure-1777314932891@example.com"
+                "emailAddress": "hermes-data-erasure-1782835396716@example.com"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
               }
             }
           }
@@ -405,8 +417,10 @@
     },
     {
       "operationName": "CustomerAccountPagesHydrate",
-      "variables": {},
-      "query": "hand-synthesized from checked-in customer parity capture",
+      "variables": {
+        "unknownId": "gid://shopify/CustomerAccountPage/999999999999999"
+      },
+      "query": "#graphql\n  query CustomerAccountPages($unknownId: ID!) {\n    customerAccountPages(first: 10) {\n      nodes {\n        id\n        title\n        handle\n        defaultCursor\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    missing: customerAccountPage(id: $unknownId) {\n      id\n      title\n      handle\n      defaultCursor\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
@@ -440,6 +454,17 @@
               }
             },
             "missing": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -447,21 +472,32 @@
     {
       "operationName": "CustomerHydrate",
       "variables": {
-        "id": "gid://shopify/Customer/10547408830770"
+        "id": "gid://shopify/Customer/10870504227122"
       },
-      "query": "hand-synthesized from checked-in customer parity capture",
+      "query": "#graphql\n  query CustomerDataErasureCustomerRead($id: ID!) {\n    customer(id: $id) {\n      #graphql\n  id\n  email\n  firstName\n  lastName\n  tags\n  defaultEmailAddress {\n    emailAddress\n  }\n\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "customer": {
-              "id": "gid://shopify/Customer/10547408830770",
-              "email": "hermes-data-erasure-1777314932891@example.com",
+              "id": "gid://shopify/Customer/10870504227122",
+              "email": "hermes-data-erasure-1782835396716@example.com",
               "firstName": "Hermes",
               "lastName": "DataErasure",
-              "tags": ["data-erasure-1777314932891", "parity"],
+              "tags": ["data-erasure-1782835396716", "parity"],
               "defaultEmailAddress": {
-                "emailAddress": "hermes-data-erasure-1777314932891@example.com"
+                "emailAddress": "hermes-data-erasure-1782835396716@example.com"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
               }
             }
           }

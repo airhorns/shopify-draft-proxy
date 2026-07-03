@@ -454,7 +454,7 @@ try {
           {
             operationName: 'ShippingDeliveryProfileLocationsHydrate',
             variables: {},
-            query: 'sha:hand-synthesized',
+            query: trimGraphql(locationsHydrateQuery),
             response: {
               status: locationsHydrate.status,
               body: locationsHydrate.payload,
@@ -463,7 +463,7 @@ try {
           {
             operationName: 'ShippingDeliveryProfileVariantsHydrate',
             variables: { ids: variantIds },
-            query: 'sha:hand-synthesized',
+            query: trimGraphql(variantsHydrateQuery),
             response: {
               status: variantsHydrate.status,
               body: variantsHydrate.payload,

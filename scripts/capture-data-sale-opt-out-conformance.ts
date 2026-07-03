@@ -2,7 +2,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -18,9 +18,55 @@ const { runGraphqlRequest: runGraphql } = createAdminGraphqlClient({
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
 
+// dataSaleOptOut resolves a pre-existing customer by email the real way: the proxy forwards
+// this exact DataSaleOptOutCustomerLookup query (include_str! of the same file in privacy.rs)
+// and observes the result. Recording the live forward here lets the cassette byte-match the
+// proxy's request, so no seeded customer is required.
+const customerLookupDocument = await readFile(
+  'config/parity-requests/privacy/data-sale-opt-out-customer-lookup.graphql',
+  'utf8',
+);
+
+// When re-recording the 2025-01 privacy captures to de-seed data-sale-opt-out-parity, skip the
+// new-customer-defaults capture (it lives at 2026-04 and depends on a slow tag-search indexing
+// poll), so this run regenerates only the missing-email / parity / whitespace 2025-01 fixtures.
+const skipNewCustomerDefaults = process.env.SHOPIFY_CONFORMANCE_CAPTURE_DATA_SALE_OPT_OUT_SKIP_NEW_DEFAULTS === 'true';
+const invalidFormatOnly = process.env.SHOPIFY_CONFORMANCE_CAPTURE_DATA_SALE_OPT_OUT_INVALID_FORMAT_ONLY === 'true';
+
+async function captureCustomerLookup(emailAddress, context) {
+  const result = await runGraphql(customerLookupDocument, { identifier: { emailAddress } });
+  assertNoTopLevelErrors(result, context);
+  return result.payload;
+}
+
+function customerLookupUpstreamCall(emailAddress, payload) {
+  return {
+    operationName: 'DataSaleOptOutCustomerLookup',
+    variables: { identifier: { emailAddress } },
+    query: customerLookupDocument,
+    response: { status: 200, body: payload },
+  };
+}
+
 function assertNoTopLevelErrors(result, context) {
   if (result.status < 200 || result.status >= 300 || result.payload?.errors) {
     throw new Error(`${context} failed: ${JSON.stringify(result, null, 2)}`);
+  }
+}
+
+function assertDataSaleOptOutFailed(payload, context) {
+  const expected = {
+    customerId: null,
+    userErrors: [
+      {
+        field: null,
+        message: 'Data sale opt out failed.',
+        code: 'FAILED',
+      },
+    ],
+  };
+  if (JSON.stringify(payload) !== JSON.stringify(expected)) {
+    throw new Error(`${context} did not return FAILED payload: ${JSON.stringify(payload, null, 2)}`);
   }
 }
 
@@ -175,8 +221,120 @@ const deleteMutation = `#graphql
   }
 `;
 
+const invalidFormatCases = [
+  {
+    name: 'leadingDotLocal',
+    variables: { email: '.me@example.com' },
+  },
+  {
+    name: 'trailingDotLocal',
+    variables: { email: 'me.@example.com' },
+  },
+  {
+    name: 'consecutiveDotLocal',
+    variables: { email: 'me..example@example.com' },
+  },
+  {
+    name: 'consecutiveDotDomain',
+    variables: { email: 'me@example..com' },
+  },
+  {
+    name: 'leadingDashDomainLabel',
+    variables: { email: 'me@-example.com' },
+  },
+  {
+    name: 'trailingDashDomainLabel',
+    variables: { email: 'me@example-.com' },
+  },
+  {
+    name: 'ipv4LiteralDomain',
+    variables: { email: 'me@8.8.8.8' },
+  },
+  {
+    name: 'emojiLocal',
+    variables: { email: '💩💩💩@example.com' },
+  },
+  {
+    name: 'invalidDomainChars',
+    variables: { email: '#@%^%#.com' },
+  },
+  {
+    name: 'displayNameComment',
+    variables: { email: 'me@example.com (First Name)' },
+  },
+  {
+    name: 'over255Length',
+    variables: { email: `${'a'.repeat(244)}@example.com` },
+  },
+];
+
+async function captureInvalidFormatCases() {
+  const invalidFormats = {};
+  const accidentalCustomerIds = [];
+  try {
+    for (const testCase of invalidFormatCases) {
+      const result = await runGraphql(dataSaleOptOutMutation, testCase.variables);
+      assertNoTopLevelErrors(result, `dataSaleOptOut invalid format ${testCase.name}`);
+      const payload = result.payload?.data?.dataSaleOptOut;
+      const customerId = payload?.customerId;
+      if (typeof customerId === 'string' && customerId) {
+        accidentalCustomerIds.push(customerId);
+      }
+      assertDataSaleOptOutFailed(payload, `dataSaleOptOut invalid format ${testCase.name}`);
+      invalidFormats[testCase.name] = {
+        variables: testCase.variables,
+        response: result.payload,
+      };
+    }
+  } finally {
+    for (const customerId of accidentalCustomerIds) {
+      await runGraphql(deleteMutation, { input: { id: customerId } });
+    }
+  }
+  return {
+    setup: {
+      seededCustomers: false,
+      note: 'Format-validation-only capture; Core rejects before creating or updating a customer.',
+    },
+    mutation: invalidFormats.leadingDotLocal,
+    validation: {
+      invalidFormats,
+    },
+    cleanup: {
+      accidentalCustomerIds,
+    },
+    upstreamCalls: [],
+  };
+}
+
+async function writeInvalidFormatCapture() {
+  const invalidFormatCapture = await captureInvalidFormatCases();
+  await writeFile(
+    path.join(outputDir, 'data-sale-opt-out-invalid-format.json'),
+    `${JSON.stringify(invalidFormatCapture, null, 2)}\n`,
+    'utf8',
+  );
+  return invalidFormatCapture;
+}
+
 async function main() {
   await mkdir(outputDir, { recursive: true });
+
+  if (invalidFormatOnly) {
+    await writeInvalidFormatCapture();
+    console.log(
+      JSON.stringify(
+        {
+          ok: true,
+          outputDir,
+          files: ['data-sale-opt-out-invalid-format.json'],
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
 
   const missingEmailResult = await runGraphql(dataSaleOptOutMissingEmailMutation);
   if (
@@ -215,6 +373,7 @@ async function main() {
     );
     return;
   }
+  await writeInvalidFormatCapture();
 
   const stamp = Date.now();
   const emailAddress = `hermes-data-sale-${stamp}@example.com`;
@@ -241,6 +400,10 @@ async function main() {
   let whitespaceCustomerId = null;
   let newDefaultsCustomerId = null;
   try {
+    // Capture the live customerByIdentifier lookup the proxy forwards to resolve this existing
+    // customer (pre-opt-out state) so the recorded cassette byte-matches the proxy's request.
+    const existingLookupPayload = await captureCustomerLookup(emailAddress, 'dataSaleOptOut existing customer lookup');
+
     const mutationVariables = { email: emailAddress };
     const mutationResult = await runGraphql(dataSaleOptOutMutation, mutationVariables);
     assertNoTopLevelErrors(mutationResult, 'dataSaleOptOut existing customer');
@@ -280,6 +443,14 @@ async function main() {
     const unknownDownstreamReadResult = await runGraphql(downstreamReadQuery, unknownDownstreamReadVariables);
     assertNoTopLevelErrors(unknownDownstreamReadResult, 'dataSaleOptOut unknown email downstream read');
 
+    // The proxy forwards the lookup with the *sanitized* email; capture it before the whitespace
+    // opt-out creates the customer upstream, so the recorded lookup returns null (no pre-existing
+    // customer) and the proxy stages a new synthetic customer to match Shopify's create-new path.
+    const whitespaceLookupPayload = await captureCustomerLookup(
+      whitespaceSanitizedEmailAddress,
+      'dataSaleOptOut whitespace email lookup',
+    );
+
     const whitespaceEmailVariables = { email: whitespaceEmailAddress };
     const whitespaceEmailResult = await runGraphql(dataSaleOptOutMutation, whitespaceEmailVariables);
     assertNoTopLevelErrors(whitespaceEmailResult, 'dataSaleOptOut whitespace email');
@@ -311,39 +482,71 @@ async function main() {
     const cleanupWhitespace = await runGraphql(deleteMutation, { input: { id: whitespaceCustomerId } });
     assertNoTopLevelErrors(cleanupWhitespace, 'dataSaleOptOut whitespace customer cleanup');
 
-    const newDefaultsEmailAddress = `hermes-data-sale-defaults-${stamp}@example.com`;
-    const newDefaultsMutationVariables = { email: newDefaultsEmailAddress };
-    const newDefaultsMutationResult = await runGraphql(dataSaleOptOutMutation, newDefaultsMutationVariables);
-    assertNoTopLevelErrors(newDefaultsMutationResult, 'dataSaleOptOut new customer defaults mutation');
-    newDefaultsCustomerId = newDefaultsMutationResult.payload?.data?.dataSaleOptOut?.customerId;
-    if (typeof newDefaultsCustomerId !== 'string' || !newDefaultsCustomerId) {
-      throw new Error(
-        `dataSaleOptOut new customer defaults did not return a customer id: ${JSON.stringify(
-          newDefaultsMutationResult.payload,
-          null,
-          2,
-        )}`,
+    // The new-customer-defaults fixture lives at 2026-04 and depends on a slow tag-search indexing
+    // poll; skip it when re-recording the 2025-01 privacy captures to de-seed parity.
+    let newCustomerDefaultsCapture = null;
+    if (!skipNewCustomerDefaults) {
+      const newDefaultsEmailAddress = `hermes-data-sale-defaults-${stamp}@example.com`;
+      const newDefaultsMutationVariables = { email: newDefaultsEmailAddress };
+      // The proxy forwards the lookup with this fresh email before creating the customer, so the
+      // recorded lookup returns null and the proxy stages a new synthetic customer to match.
+      const newDefaultsLookupPayload = await captureCustomerLookup(
+        newDefaultsEmailAddress,
+        'dataSaleOptOut new customer defaults lookup',
       );
+      const newDefaultsMutationResult = await runGraphql(dataSaleOptOutMutation, newDefaultsMutationVariables);
+      assertNoTopLevelErrors(newDefaultsMutationResult, 'dataSaleOptOut new customer defaults mutation');
+      newDefaultsCustomerId = newDefaultsMutationResult.payload?.data?.dataSaleOptOut?.customerId;
+      if (typeof newDefaultsCustomerId !== 'string' || !newDefaultsCustomerId) {
+        throw new Error(
+          `dataSaleOptOut new customer defaults did not return a customer id: ${JSON.stringify(
+            newDefaultsMutationResult.payload,
+            null,
+            2,
+          )}`,
+        );
+      }
+
+      const newDefaultsDownstreamReadVariables = { id: newDefaultsCustomerId };
+      const newDefaultsDownstreamReadResult = await runGraphql(
+        newCustomerDefaultsReadQuery,
+        newDefaultsDownstreamReadVariables,
+      );
+      assertNoTopLevelErrors(newDefaultsDownstreamReadResult, 'dataSaleOptOut new customer defaults downstream read');
+
+      const newDefaultsTagSearchVariables = {
+        query: 'tag:created-by-dns-form',
+        first: 5,
+      };
+      const newDefaultsTagSearchResult = await runDnsTagSearchUntilCustomer(
+        newDefaultsCustomerId,
+        newDefaultsTagSearchVariables,
+      );
+
+      const cleanupNewDefaults = await runGraphql(deleteMutation, { input: { id: newDefaultsCustomerId } });
+      assertNoTopLevelErrors(cleanupNewDefaults, 'dataSaleOptOut new customer defaults cleanup');
+
+      newCustomerDefaultsCapture = {
+        mutation: {
+          variables: newDefaultsMutationVariables,
+          response: newDefaultsMutationResult.payload,
+        },
+        downstreamRead: {
+          variables: newDefaultsDownstreamReadVariables,
+          response: newDefaultsDownstreamReadResult.payload,
+        },
+        tagSearchRead: {
+          variables: newDefaultsTagSearchVariables,
+          response: newDefaultsTagSearchResult.payload,
+        },
+        cleanup: {
+          unknownEmailCustomer: {
+            response: cleanupNewDefaults.payload,
+          },
+        },
+        upstreamCalls: [customerLookupUpstreamCall(newDefaultsEmailAddress, newDefaultsLookupPayload)],
+      };
     }
-
-    const newDefaultsDownstreamReadVariables = { id: newDefaultsCustomerId };
-    const newDefaultsDownstreamReadResult = await runGraphql(
-      newCustomerDefaultsReadQuery,
-      newDefaultsDownstreamReadVariables,
-    );
-    assertNoTopLevelErrors(newDefaultsDownstreamReadResult, 'dataSaleOptOut new customer defaults downstream read');
-
-    const newDefaultsTagSearchVariables = {
-      query: 'tag:created-by-dns-form',
-      first: 5,
-    };
-    const newDefaultsTagSearchResult = await runDnsTagSearchUntilCustomer(
-      newDefaultsCustomerId,
-      newDefaultsTagSearchVariables,
-    );
-
-    const cleanupNewDefaults = await runGraphql(deleteMutation, { input: { id: newDefaultsCustomerId } });
-    assertNoTopLevelErrors(cleanupNewDefaults, 'dataSaleOptOut new customer defaults cleanup');
 
     const capture = {
       precondition: {
@@ -384,32 +587,7 @@ async function main() {
           response: cleanupUnknown.payload,
         },
       },
-      upstreamCalls: [
-        {
-          operationName: 'DataSaleOptOutCustomerLookup',
-          variables: {
-            identifier: {
-              emailAddress,
-            },
-          },
-          query: 'sha:hand-synthesized-from-precondition',
-          response: {
-            status: 200,
-            body: {
-              data: {
-                customerByIdentifier: {
-                  id: customerId,
-                  email: emailAddress,
-                  dataSaleOptOut: false,
-                  defaultEmailAddress: {
-                    emailAddress,
-                  },
-                },
-              },
-            },
-          },
-        },
-      ],
+      upstreamCalls: [customerLookupUpstreamCall(emailAddress, existingLookupPayload)],
     };
 
     const whitespaceCapture = {
@@ -426,64 +604,7 @@ async function main() {
           response: cleanupWhitespace.payload,
         },
       },
-      upstreamCalls: [
-        {
-          operationName: 'DataSaleOptOutCustomerLookup',
-          variables: {
-            identifier: {
-              emailAddress: whitespaceSanitizedEmailAddress,
-            },
-          },
-          query: 'sha:hand-synthesized-from-data-sale-opt-out-whitespace-email',
-          response: {
-            status: 200,
-            body: {
-              data: {
-                customerByIdentifier: null,
-              },
-            },
-          },
-        },
-      ],
-    };
-
-    const newCustomerDefaultsCapture = {
-      mutation: {
-        variables: newDefaultsMutationVariables,
-        response: newDefaultsMutationResult.payload,
-      },
-      downstreamRead: {
-        variables: newDefaultsDownstreamReadVariables,
-        response: newDefaultsDownstreamReadResult.payload,
-      },
-      tagSearchRead: {
-        variables: newDefaultsTagSearchVariables,
-        response: newDefaultsTagSearchResult.payload,
-      },
-      cleanup: {
-        unknownEmailCustomer: {
-          response: cleanupNewDefaults.payload,
-        },
-      },
-      upstreamCalls: [
-        {
-          operationName: 'DataSaleOptOutCustomerLookup',
-          variables: {
-            identifier: {
-              emailAddress: newDefaultsEmailAddress,
-            },
-          },
-          query: 'sha:hand-synthesized-from-data-sale-opt-out-new-customer-defaults',
-          response: {
-            status: 200,
-            body: {
-              data: {
-                customerByIdentifier: null,
-              },
-            },
-          },
-        },
-      ],
+      upstreamCalls: [customerLookupUpstreamCall(whitespaceSanitizedEmailAddress, whitespaceLookupPayload)],
     };
 
     await writeFile(
@@ -498,11 +619,13 @@ async function main() {
       'utf8',
     );
 
-    await writeFile(
-      path.join(outputDir, 'data-sale-opt-out-new-customer-defaults.json'),
-      `${JSON.stringify(newCustomerDefaultsCapture, null, 2)}\n`,
-      'utf8',
-    );
+    if (newCustomerDefaultsCapture) {
+      await writeFile(
+        path.join(outputDir, 'data-sale-opt-out-new-customer-defaults.json'),
+        `${JSON.stringify(newCustomerDefaultsCapture, null, 2)}\n`,
+        'utf8',
+      );
+    }
 
     console.log(
       JSON.stringify(
@@ -510,9 +633,10 @@ async function main() {
           ok: true,
           outputDir,
           files: [
+            'data-sale-opt-out-invalid-format.json',
             'data-sale-opt-out-parity.json',
             'data-sale-opt-out-whitespace-email.json',
-            'data-sale-opt-out-new-customer-defaults.json',
+            ...(newCustomerDefaultsCapture ? ['data-sale-opt-out-new-customer-defaults.json'] : []),
           ],
           customerId,
           unknownCustomerId,

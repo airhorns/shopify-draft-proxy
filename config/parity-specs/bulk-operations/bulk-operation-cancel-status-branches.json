@@ -1,0 +1,53 @@
+{
+  "scenarioId": "bulk-operation-cancel-status-branches",
+  "operationNames": ["bulkOperation", "bulkOperationCancel"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "lifecycle-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-status-catalog-cancel.json"
+  ],
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Focused replay of the captured bulkOperationCancel status branches. The proxy starts cold in LiveHybrid, hydrates captured terminal and non-terminal BulkOperation records through recorded bulkOperation(id:) reads, then proves cancel branches are derived from stored existence/status instead of fixed IDs.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "not-found-cancel-user-error",
+        "capturePath": "$.validations.bulkOperationCancelUnknownId.response.data.bulkOperationCancel",
+        "proxyPath": "$.data.bulkOperationCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-cancel-parity.graphql",
+          "variablesCapturePath": "$.validations.bulkOperationCancelUnknownId.variables"
+        }
+      },
+      {
+        "name": "terminal-cancel-user-error",
+        "capturePath": "$.lifecycle.queryExportToTerminal.terminalCancelAttempt.response.data.bulkOperationCancel",
+        "proxyPath": "$.data.bulkOperationCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-cancel-parity.graphql",
+          "variablesCapturePath": "$.lifecycle.queryExportToTerminal.terminalCancelAttempt.variables"
+        }
+      },
+      {
+        "name": "non-terminal-cancel-stages-canceling",
+        "capturePath": "$.lifecycle.queryExportImmediateCancel.cancelAttempt.response.data.bulkOperationCancel",
+        "proxyPath": "$.data.bulkOperationCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-cancel-parity.graphql",
+          "variablesCapturePath": "$.lifecycle.queryExportImmediateCancel.cancelAttempt.variables"
+        }
+      },
+      {
+        "name": "read-after-non-terminal-cancel",
+        "capturePath": "$.lifecycle.queryExportImmediateCancel.cancelAttempt.response.data.bulkOperationCancel.bulkOperation",
+        "proxyPath": "$.data.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-by-id-parity.graphql",
+          "variablesCapturePath": "$.lifecycle.queryExportImmediateCancel.cancelAttempt.variables"
+        }
+      }
+    ]
+  }
+}

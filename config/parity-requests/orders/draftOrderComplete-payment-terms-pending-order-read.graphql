@@ -1,0 +1,12 @@
+query DraftOrderCompletePaymentTermsPendingOrderRead($id: ID!) {
+  order(id: $id) {
+    id
+    displayFinancialStatus
+    paymentGatewayNames
+    transactions {
+      kind
+      status
+      gateway
+    }
+  }
+}

@@ -1,0 +1,155 @@
+{
+  "scenarioId": "eventbridge-cloud-format-json-only",
+  "operationNames": [
+    "eventBridgeWebhookSubscriptionCreate",
+    "eventBridgeWebhookSubscriptionUpdate",
+    "webhookSubscriptionCreate",
+    "webhookSubscriptionUpdate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/eventbridge-cloud-format-json-only.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_graphql_webhooks.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/webhooks/eventBridgeWebhookSubscriptionCreate-parity.graphql",
+    "variablesCapturePath": "$.setup.dedicatedUpdateSetup.variables",
+    "apiVersion": "2026-04",
+    "headers": {
+      "x-shopify-draft-proxy-api-client-id": "347082227713"
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity for the EventBridge ARN cloud-delivery JSON-only format rule across dedicated EventBridge and unified webhook subscription create/update roots. The JSON setup creates are replayed locally only to obtain IDs for update rejection checks.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "dedicated-update-setup-json-succeeds",
+        "capturePath": "$.setup.dedicatedUpdateSetup.response.payload.data.eventBridgeWebhookSubscriptionCreate",
+        "proxyPath": "$.data.eventBridgeWebhookSubscriptionCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.webhookSubscription.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The proxy creates a stable synthetic webhook subscription ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.webhookSubscription.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          },
+          {
+            "path": "$.webhookSubscription.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          },
+          {
+            "path": "$.webhookSubscription.callbackUrl",
+            "matcher": "exact-string:https://eventbridge.arn",
+            "reason": "Current parity requests include the deprecated top-level callbackUrl projection; the proxy intentionally exposes Shopify's EventBridge placeholder while the older capture did not select that field."
+          }
+        ]
+      },
+      {
+        "name": "dedicated-create-arn-xml-rejected",
+        "capturePath": "$.validation.dedicatedCreateXmlRejected.response.payload.data.eventBridgeWebhookSubscriptionCreate",
+        "proxyPath": "$.data.eventBridgeWebhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/eventBridgeWebhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.validation.dedicatedCreateXmlRejected.variables",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        }
+      },
+      {
+        "name": "dedicated-update-arn-xml-rejected",
+        "capturePath": "$.validation.dedicatedUpdateXmlRejected.response.payload.data.eventBridgeWebhookSubscriptionUpdate",
+        "proxyPath": "$.data.eventBridgeWebhookSubscriptionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/eventBridgeWebhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.eventBridgeWebhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.validation.dedicatedUpdateXmlRejected.variables.webhookSubscription"
+            }
+          },
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        }
+      },
+      {
+        "name": "unified-update-setup-json-succeeds",
+        "capturePath": "$.setup.unifiedUpdateSetup.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.setup.unifiedUpdateSetup.variables",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.webhookSubscription.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The proxy creates a stable synthetic webhook subscription ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.webhookSubscription.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          },
+          {
+            "path": "$.webhookSubscription.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          }
+        ]
+      },
+      {
+        "name": "unified-create-arn-xml-rejected",
+        "capturePath": "$.validation.unifiedCreateXmlRejected.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.validation.unifiedCreateXmlRejected.variables",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        }
+      },
+      {
+        "name": "unified-update-arn-xml-rejected",
+        "capturePath": "$.validation.unifiedUpdateXmlRejected.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "unified-update-setup-json-succeeds",
+              "path": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.validation.unifiedUpdateXmlRejected.variables.webhookSubscription"
+            }
+          },
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        }
+      }
+    ]
+  }
+}

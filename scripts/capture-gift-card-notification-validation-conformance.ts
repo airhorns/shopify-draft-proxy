@@ -34,12 +34,13 @@ type OperationKey =
   | 'customerDeactivated'
   | 'recipientDeactivated'
   | 'customerNoCustomer'
+  | 'recipientNoRecipient'
   | 'recipientNoContact'
   | 'customerExpired'
   | 'recipientExpired';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
-  defaultApiVersion: '2025-01',
+  defaultApiVersion: '2026-04',
   exitOnMissing: true,
 });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
@@ -340,10 +341,10 @@ try {
   const contactCustomer = await createCustomer(
     'contactCustomerCreate',
     {
-      email: `har688-contact-${stamp}@example.com`,
-      firstName: 'HAR688',
+      email: `gift-card-notification-contact-${stamp}@example.com`,
+      firstName: 'GiftCardNotification',
       lastName: 'Notification Contact',
-      note: 'Disposable HAR-688 gift-card notification validation customer.',
+      note: 'Disposable gift-card notification validation customer.',
     },
     setupIds,
   );
@@ -353,9 +354,9 @@ try {
   const noContactCustomer = await createCustomer(
     'noContactCustomerCreate',
     {
-      firstName: 'HAR688',
+      firstName: 'GiftCardNotification',
       lastName: 'Notification No Contact',
-      note: 'Disposable HAR-688 no-contact recipient validation customer.',
+      note: 'Disposable no-contact recipient validation customer.',
     },
     setupIds,
   );
@@ -370,8 +371,8 @@ try {
     'cardADeactivatedCreate',
     {
       initialValue: '5.00',
-      code: `HAR688A${String(stamp).slice(-8)}`,
-      note: 'HAR-688 deactivated notification validation.',
+      code: `GCNVA${String(stamp).slice(-8)}`,
+      note: 'Deactivated notification validation.',
       customerId: contactCustomerId,
     },
     setupIds,
@@ -388,11 +389,11 @@ try {
     'cardBNoCustomerCreate',
     {
       initialValue: '5.00',
-      code: `HAR688B${String(stamp).slice(-8)}`,
-      note: 'HAR-688 no-customer notification validation.',
+      code: `GCNVB${String(stamp).slice(-8)}`,
+      note: 'No-customer notification validation.',
       recipientAttributes: {
         id: contactCustomerId,
-        preferredName: 'HAR-688 recipient',
+        preferredName: 'Notification recipient',
         message: 'Validation-only notification branch.',
       },
     },
@@ -405,15 +406,32 @@ try {
   }
   upstreamCalls.push(await hydrateGiftCard(noCustomerCardId));
 
-  const noContactRecipientCard = await createGiftCard(
-    'cardCNoContactRecipientCreate',
+  const noRecipientCard = await createGiftCard(
+    'cardCNoRecipientCreate',
     {
       initialValue: '5.00',
-      code: `HAR688C${String(stamp).slice(-8)}`,
-      note: 'HAR-688 no-contact recipient notification validation.',
+      code: `GCNVC${String(stamp).slice(-8)}`,
+      note: 'No-recipient notification validation.',
+      customerId: contactCustomerId,
+    },
+    setupIds,
+  );
+  setup.push(noRecipientCard);
+  const noRecipientCardId = readCreatedGiftCardId(noRecipientCard);
+  if (noRecipientCardId === null) {
+    throw new Error('Unable to create no-recipient-branch gift card.');
+  }
+  upstreamCalls.push(await hydrateGiftCard(noRecipientCardId));
+
+  const noContactRecipientCard = await createGiftCard(
+    'cardDNoContactRecipientCreate',
+    {
+      initialValue: '5.00',
+      code: `GCNVD${String(stamp).slice(-8)}`,
+      note: 'No-contact recipient notification validation.',
       recipientAttributes: {
         id: noContactCustomerId,
-        preferredName: 'HAR-688 no-contact recipient',
+        preferredName: 'No-contact notification recipient',
         message: 'Validation-only notification branch.',
       },
     },
@@ -430,13 +448,13 @@ try {
     'cardEExpiredCreate',
     {
       initialValue: '5.00',
-      code: `HAR688E${String(stamp).slice(-8)}`,
-      note: 'HAR-688 expired notification validation.',
-      expiresOn: '2000-01-01',
+      code: `GCNVE${String(stamp).slice(-8)}`,
+      note: 'Expired notification validation.',
+      expiresOn: '2026-04-28',
       customerId: contactCustomerId,
       recipientAttributes: {
         id: contactCustomerId,
-        preferredName: 'HAR-688 expired recipient',
+        preferredName: 'Expired notification recipient',
         message: 'Validation-only notification branch.',
       },
     },
@@ -452,6 +470,7 @@ try {
   operations.customerDeactivated = await sendToCustomer('customerDeactivated', deactivatedCardId);
   operations.recipientDeactivated = await sendToRecipient('recipientDeactivated', deactivatedCardId);
   operations.customerNoCustomer = await sendToCustomer('customerNoCustomer', noCustomerCardId);
+  operations.recipientNoRecipient = await sendToRecipient('recipientNoRecipient', noRecipientCardId);
   operations.recipientNoContact = await sendToRecipient('recipientNoContact', noContactRecipientCardId);
   operations.customerExpired = await sendToCustomer('customerExpired', expiredCardId);
   operations.recipientExpired = await sendToRecipient('recipientExpired', expiredCardId);
@@ -468,6 +487,7 @@ const proxyVariables = {
   customerDeactivated: { id: operations.customerDeactivated?.variables['id'] },
   recipientDeactivated: { id: operations.recipientDeactivated?.variables['id'] },
   customerNoCustomer: { id: operations.customerNoCustomer?.variables['id'] },
+  recipientNoRecipient: { id: operations.recipientNoRecipient?.variables['id'] },
   recipientNoContact: { id: operations.recipientNoContact?.variables['id'] },
   customerExpired: { id: operations.customerExpired?.variables['id'] },
   recipientExpired: { id: operations.recipientExpired?.variables['id'] },
@@ -483,9 +503,10 @@ await writeFile(
       apiVersion,
       scenarioId: 'gift-card-notification-validation',
       notes: [
-        'HAR-688 captures validation-failing gift-card notification roots only, avoiding successful customer-visible notification dispatch.',
-        'Live Admin GraphQL 2025-01 serializes base-scoped notification userErrors with field: null; runtime tests keep the HAR-688 requested local field ["base"] contract for those branches.',
-        'Public Admin GraphQL 2025-01 does not expose a GiftCard notify field or GiftCardCreate/Update notify input, so notify-disabled validation remains covered by local runtime tests rather than live setup.',
+        'Captures validation-failing gift-card notification roots only, avoiding successful customer-visible notification dispatch.',
+        'The expired notification branches use an ordinary recent-past expiresOn date instead of a fixture-coupled sentinel year.',
+        `Live Admin GraphQL ${apiVersion} serializes base-scoped notification userErrors with field: null, and the local runtime matches that public Admin GraphQL shape.`,
+        `Public Admin GraphQL ${apiVersion} does not expose a GiftCard notify field or GiftCardCreate/Update notify input, so notify-disabled validation remains covered by local runtime tests rather than live setup.`,
       ],
       proxyVariables,
       setup,

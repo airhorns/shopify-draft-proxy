@@ -1,0 +1,12 @@
+mutation CollectionCreateRejectsId($input: CollectionInput!) {
+  collectionCreate(input: $input) {
+    collection {
+      id
+      title
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

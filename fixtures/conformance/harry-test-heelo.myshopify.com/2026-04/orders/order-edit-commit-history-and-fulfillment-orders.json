@@ -1,352 +1,13 @@
 {
-  "capturedAt": "2026-05-06T06:05:25.264Z",
+  "capturedAt": "2026-06-22T21:37:29.186Z",
   "apiVersion": "2026-04",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "source": "live-shopify-admin-graphql",
-  "notes": "Live order edit commit capture covering a disposable order with one existing shippable line item decremented from 3 to 1, one variant line item added at quantity 2, the edited order event, current totals/tax lines, and fulfillment-order remaining quantities.",
-  "setupReferences": {
-    "selectedLocationId": "gid://shopify/Location/112829759794",
-    "selectedVariant": {
-      "id": "gid://shopify/ProductVariant/49875425296690",
-      "title": "Default Title",
-      "sku": "sku-untracked-1",
-      "price": "949.95",
-      "product": {
-        "id": "gid://shopify/Product/9801098789170",
-        "title": "The Inventory Not Tracked Snowboard"
-      }
-    }
-  },
-  "setup": {
-    "orderCreate": {
-      "query": "#graphql\n  fragment OrderEditCommitHistoryFulfillmentOrderFields on Order {\n    id\n    name\n    email\n    phone\n    poNumber\n    createdAt\n    updatedAt\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    displayFulfillmentStatus\n    presentmentCurrencyCode\n    note\n    tags\n    customAttributes {\n      key\n      value\n    }\n    currentSubtotalLineItemsQuantity\n    currentSubtotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalTaxSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTaxLines {\n      title\n      rate\n      priceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    totalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        title\n        name\n        quantity\n        currentQuantity\n        sku\n        variantTitle\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n        originalTotalSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n        variant {\n          id\n          title\n          sku\n        }\n      }\n    }\n    fulfillmentOrders(first: 10) {\n      nodes {\n        id\n        status\n        requestStatus\n        lineItems(first: 10) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n              quantity\n              fulfillableQuantity\n            }\n          }\n        }\n      }\n    }\n  }\n\n  mutation OrderEditCommitHistoryFulfillmentCreate(\n    $order: OrderCreateOrderInput!\n    $options: OrderCreateOptionsInput\n  ) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        ...OrderEditCommitHistoryFulfillmentOrderFields\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
-      "variables": {
-        "order": {
-          "email": "order-edit-commit-20260506060521@example.com",
-          "note": "order edit commit history fulfillment capture 20260506060521",
-          "tags": ["order-edit-commit-history-fulfillment", "20260506060521"],
-          "test": true,
-          "currency": "CAD",
-          "shippingAddress": {
-            "firstName": "Conformance",
-            "lastName": "OrderEdit",
-            "address1": "123 Queen St W",
-            "city": "Toronto",
-            "provinceCode": "ON",
-            "countryCode": "CA",
-            "zip": "M5H 2M9"
-          },
-          "lineItems": [
-            {
-              "title": "Order edit source item 20260506060521",
-              "quantity": 3,
-              "priceSet": {
-                "shopMoney": {
-                  "amount": "10.00",
-                  "currencyCode": "CAD"
-                }
-              },
-              "requiresShipping": true,
-              "taxable": true,
-              "sku": "order-edit-source-20260506060521"
-            }
-          ]
-        },
-        "options": {
-          "inventoryBehaviour": "BYPASS",
-          "sendReceipt": false,
-          "sendFulfillmentReceipt": false
-        }
-      },
-      "response": {
-        "status": 200,
-        "payload": {
-          "data": {
-            "orderCreate": {
-              "order": {
-                "id": "gid://shopify/Order/8731795030322",
-                "name": "#1215",
-                "email": "order-edit-commit-20260506060521@example.com",
-                "phone": null,
-                "poNumber": null,
-                "createdAt": "2026-05-06T06:05:21Z",
-                "updatedAt": "2026-05-06T06:05:21Z",
-                "closed": false,
-                "closedAt": null,
-                "cancelledAt": null,
-                "cancelReason": null,
-                "displayFinancialStatus": null,
-                "displayFulfillmentStatus": "UNFULFILLED",
-                "presentmentCurrencyCode": "CAD",
-                "note": "order edit commit history fulfillment capture 20260506060521",
-                "tags": ["20260506060521", "order-edit-commit-history-fulfillment"],
-                "customAttributes": [],
-                "currentSubtotalLineItemsQuantity": 3,
-                "currentSubtotalPriceSet": {
-                  "shopMoney": {
-                    "amount": "30.0",
-                    "currencyCode": "CAD"
-                  },
-                  "presentmentMoney": {
-                    "amount": "30.0",
-                    "currencyCode": "CAD"
-                  }
-                },
-                "currentTotalPriceSet": {
-                  "shopMoney": {
-                    "amount": "30.0",
-                    "currencyCode": "CAD"
-                  },
-                  "presentmentMoney": {
-                    "amount": "30.0",
-                    "currencyCode": "CAD"
-                  }
-                },
-                "currentTotalTaxSet": {
-                  "shopMoney": {
-                    "amount": "0.0",
-                    "currencyCode": "CAD"
-                  },
-                  "presentmentMoney": {
-                    "amount": "0.0",
-                    "currencyCode": "CAD"
-                  }
-                },
-                "currentTaxLines": [],
-                "totalPriceSet": {
-                  "shopMoney": {
-                    "amount": "30.0",
-                    "currencyCode": "CAD"
-                  },
-                  "presentmentMoney": {
-                    "amount": "30.0",
-                    "currencyCode": "CAD"
-                  }
-                },
-                "lineItems": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/LineItem/19305710682418",
-                      "title": "Order edit source item 20260506060521",
-                      "name": "Order edit source item 20260506060521",
-                      "quantity": 3,
-                      "currentQuantity": 3,
-                      "sku": "order-edit-source-20260506060521",
-                      "variantTitle": null,
-                      "originalUnitPriceSet": {
-                        "shopMoney": {
-                          "amount": "10.0",
-                          "currencyCode": "CAD"
-                        },
-                        "presentmentMoney": {
-                          "amount": "10.0",
-                          "currencyCode": "CAD"
-                        }
-                      },
-                      "originalTotalSet": {
-                        "shopMoney": {
-                          "amount": "30.0",
-                          "currencyCode": "CAD"
-                        },
-                        "presentmentMoney": {
-                          "amount": "30.0",
-                          "currencyCode": "CAD"
-                        }
-                      },
-                      "variant": null
-                    }
-                  ]
-                },
-                "fulfillmentOrders": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/FulfillmentOrder/9655223648562",
-                      "status": "OPEN",
-                      "requestStatus": "UNSUBMITTED",
-                      "lineItems": {
-                        "nodes": [
-                          {
-                            "id": "gid://shopify/FulfillmentOrderLineItem/19454914363698",
-                            "totalQuantity": 3,
-                            "remainingQuantity": 3,
-                            "lineItem": {
-                              "id": "gid://shopify/LineItem/19305710682418",
-                              "title": "Order edit source item 20260506060521",
-                              "quantity": 3,
-                              "fulfillableQuantity": 3
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  ]
-                }
-              },
-              "userErrors": []
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 68,
-              "actualQueryCost": 20,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1957,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    "orderReadBeforeEdit": {
-      "query": "#graphql\n  fragment OrderEditCommitHistoryFulfillmentOrderFields on Order {\n    id\n    name\n    email\n    phone\n    poNumber\n    createdAt\n    updatedAt\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    displayFulfillmentStatus\n    presentmentCurrencyCode\n    note\n    tags\n    customAttributes {\n      key\n      value\n    }\n    currentSubtotalLineItemsQuantity\n    currentSubtotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalTaxSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTaxLines {\n      title\n      rate\n      priceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    totalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n      presentmentMoney {\n        amount\n        currencyCode\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        title\n        name\n        quantity\n        currentQuantity\n        sku\n        variantTitle\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n        originalTotalSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n        variant {\n          id\n          title\n          sku\n        }\n      }\n    }\n    fulfillmentOrders(first: 10) {\n      nodes {\n        id\n        status\n        requestStatus\n        lineItems(first: 10) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n              quantity\n              fulfillableQuantity\n            }\n          }\n        }\n      }\n    }\n  }\n\n  query OrderEditCommitHistoryFulfillmentHydrate($id: ID!) {\n    order(id: $id) {\n      ...OrderEditCommitHistoryFulfillmentOrderFields\n    }\n  }",
-      "variables": {
-        "id": "gid://shopify/Order/8731795030322"
-      },
-      "response": {
-        "status": 200,
-        "payload": {
-          "data": {
-            "order": {
-              "id": "gid://shopify/Order/8731795030322",
-              "name": "#1215",
-              "email": "order-edit-commit-20260506060521@example.com",
-              "phone": null,
-              "poNumber": null,
-              "createdAt": "2026-05-06T06:05:21Z",
-              "updatedAt": "2026-05-06T06:05:21Z",
-              "closed": false,
-              "closedAt": null,
-              "cancelledAt": null,
-              "cancelReason": null,
-              "displayFinancialStatus": null,
-              "displayFulfillmentStatus": "UNFULFILLED",
-              "presentmentCurrencyCode": "CAD",
-              "note": "order edit commit history fulfillment capture 20260506060521",
-              "tags": ["20260506060521", "order-edit-commit-history-fulfillment"],
-              "customAttributes": [],
-              "currentSubtotalLineItemsQuantity": 3,
-              "currentSubtotalPriceSet": {
-                "shopMoney": {
-                  "amount": "30.0",
-                  "currencyCode": "CAD"
-                },
-                "presentmentMoney": {
-                  "amount": "30.0",
-                  "currencyCode": "CAD"
-                }
-              },
-              "currentTotalPriceSet": {
-                "shopMoney": {
-                  "amount": "30.0",
-                  "currencyCode": "CAD"
-                },
-                "presentmentMoney": {
-                  "amount": "30.0",
-                  "currencyCode": "CAD"
-                }
-              },
-              "currentTotalTaxSet": {
-                "shopMoney": {
-                  "amount": "0.0",
-                  "currencyCode": "CAD"
-                },
-                "presentmentMoney": {
-                  "amount": "0.0",
-                  "currencyCode": "CAD"
-                }
-              },
-              "currentTaxLines": [],
-              "totalPriceSet": {
-                "shopMoney": {
-                  "amount": "30.0",
-                  "currencyCode": "CAD"
-                },
-                "presentmentMoney": {
-                  "amount": "30.0",
-                  "currencyCode": "CAD"
-                }
-              },
-              "lineItems": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/LineItem/19305710682418",
-                    "title": "Order edit source item 20260506060521",
-                    "name": "Order edit source item 20260506060521",
-                    "quantity": 3,
-                    "currentQuantity": 3,
-                    "sku": "order-edit-source-20260506060521",
-                    "variantTitle": null,
-                    "originalUnitPriceSet": {
-                      "shopMoney": {
-                        "amount": "10.0",
-                        "currencyCode": "CAD"
-                      },
-                      "presentmentMoney": {
-                        "amount": "10.0",
-                        "currencyCode": "CAD"
-                      }
-                    },
-                    "originalTotalSet": {
-                      "shopMoney": {
-                        "amount": "30.0",
-                        "currencyCode": "CAD"
-                      },
-                      "presentmentMoney": {
-                        "amount": "30.0",
-                        "currencyCode": "CAD"
-                      }
-                    },
-                    "variant": null
-                  }
-                ]
-              },
-              "fulfillmentOrders": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/FulfillmentOrder/9655223648562",
-                    "status": "OPEN",
-                    "requestStatus": "UNSUBMITTED",
-                    "lineItems": {
-                      "nodes": [
-                        {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19454914363698",
-                          "totalQuantity": 3,
-                          "remainingQuantity": 3,
-                          "lineItem": {
-                            "id": "gid://shopify/LineItem/19305710682418",
-                            "title": "Order edit source item 20260506060521",
-                            "quantity": 3,
-                            "fulfillableQuantity": 3
-                          }
-                        }
-                      ]
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 59,
-              "actualQueryCost": 11,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    }
-  },
+  "notes": "Live order edit commit capture covering a disposable order with one existing shippable line item decremented from 3 to 1, one variant line item added at quantity 2, the edited order event, current totals/tax lines, and fulfillment-order remaining quantities. The precondition order and added variant are resolved via real cold OrdersOrderEditHydrate + OrdersDraftOrderVariantHydrate forwards (the two upstreamCalls) rather than seed/setup blocks. The edited-order event \"<author> edited this order.\" message is excluded from the comparison: its author (\"example.com\" on this store) is opaque app-attribution text Shopify renders server-side and exposes via no queryable field (not even the event's own appTitle), so a non-seeding proxy cannot reproduce it — the proxy emits the event with action \"edited\" and a null message.",
   "begin": {
     "query": "mutation OrderEditCommitHistoryFulfillmentBegin($id: ID!) {\n  orderEditBegin(id: $id) {\n    calculatedOrder {\n      id\n      originalOrder {\n        id\n        name\n      }\n      lineItems(first: 10) {\n        nodes {\n          id\n          title\n          quantity\n          sku\n          variant {\n            id\n          }\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n    orderEditSession {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
     "variables": {
-      "id": "gid://shopify/Order/8731795030322"
+      "id": "gid://shopify/Order/8837930516786"
     },
     "response": {
       "status": 200,
@@ -354,18 +15,18 @@
         "data": {
           "orderEditBegin": {
             "calculatedOrder": {
-              "id": "gid://shopify/CalculatedOrder/106656825650",
+              "id": "gid://shopify/CalculatedOrder/112470688050",
               "originalOrder": {
-                "id": "gid://shopify/Order/8731795030322",
-                "name": "#1215"
+                "id": "gid://shopify/Order/8837930516786",
+                "name": "#1491"
               },
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/CalculatedLineItem/19305710682418",
-                    "title": "Order edit source item 20260506060521",
+                    "id": "gid://shopify/CalculatedLineItem/19495020790066",
+                    "title": "Order edit source item 20260622213724",
                     "quantity": 3,
-                    "sku": "order-edit-source-20260506060521",
+                    "sku": "order-edit-source-20260622213724",
                     "variant": null,
                     "originalUnitPriceSet": {
                       "shopMoney": {
@@ -378,7 +39,7 @@
               }
             },
             "orderEditSession": {
-              "id": "gid://shopify/OrderEditSession/106656825650"
+              "id": "gid://shopify/OrderEditSession/112470688050"
             },
             "userErrors": []
           }
@@ -398,10 +59,10 @@
     }
   },
   "setQuantity": {
-    "query": "mutation OrderEditCommitHistoryFulfillmentSetQuantity(\n  $id: ID!\n  $lineItemId: ID!\n  $quantity: Int!\n  $restock: Boolean\n) {\n  orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity, restock: $restock) {\n    calculatedOrder {\n      id\n      lineItems(first: 10) {\n        nodes {\n          id\n          title\n          quantity\n          sku\n          variant {\n            id\n          }\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n    calculatedLineItem {\n      id\n      title\n      quantity\n      sku\n      variant {\n        id\n      }\n      originalUnitPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "query": "mutation OrderEditCommitHistoryFulfillmentSetQuantity($id: ID!, $lineItemId: ID!, $quantity: Int!, $restock: Boolean) {\n  orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity, restock: $restock) {\n    calculatedOrder {\n      id\n      lineItems(first: 10) {\n        nodes {\n          id\n          title\n          quantity\n          sku\n          variant {\n            id\n          }\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n    calculatedLineItem {\n      id\n      title\n      quantity\n      sku\n      variant {\n        id\n      }\n      originalUnitPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
     "variables": {
-      "id": "gid://shopify/CalculatedOrder/106656825650",
-      "lineItemId": "gid://shopify/CalculatedLineItem/19305710682418",
+      "id": "gid://shopify/CalculatedOrder/112470688050",
+      "lineItemId": "gid://shopify/CalculatedLineItem/19495020790066",
       "quantity": 1,
       "restock": false
     },
@@ -411,14 +72,14 @@
         "data": {
           "orderEditSetQuantity": {
             "calculatedOrder": {
-              "id": "gid://shopify/CalculatedOrder/106656825650",
+              "id": "gid://shopify/CalculatedOrder/112470688050",
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/CalculatedLineItem/19305710682418",
-                    "title": "Order edit source item 20260506060521",
+                    "id": "gid://shopify/CalculatedLineItem/19495020790066",
+                    "title": "Order edit source item 20260622213724",
                     "quantity": 1,
-                    "sku": "order-edit-source-20260506060521",
+                    "sku": "order-edit-source-20260622213724",
                     "variant": null,
                     "originalUnitPriceSet": {
                       "shopMoney": {
@@ -431,10 +92,10 @@
               }
             },
             "calculatedLineItem": {
-              "id": "gid://shopify/CalculatedLineItem/19305710682418",
-              "title": "Order edit source item 20260506060521",
+              "id": "gid://shopify/CalculatedLineItem/19495020790066",
+              "title": "Order edit source item 20260622213724",
               "quantity": 1,
-              "sku": "order-edit-source-20260506060521",
+              "sku": "order-edit-source-20260622213724",
               "variant": null,
               "originalUnitPriceSet": {
                 "shopMoney": {
@@ -463,7 +124,7 @@
   "addVariant": {
     "query": "mutation OrderEditCommitHistoryFulfillmentAddVariant(\n  $id: ID!\n  $variantId: ID!\n  $quantity: Int!\n  $locationId: ID\n  $allowDuplicates: Boolean\n) {\n  orderEditAddVariant(\n    id: $id\n    variantId: $variantId\n    quantity: $quantity\n    locationId: $locationId\n    allowDuplicates: $allowDuplicates\n  ) {\n    calculatedOrder {\n      id\n      lineItems(first: 10) {\n        nodes {\n          id\n          title\n          quantity\n          sku\n          variant {\n            id\n          }\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      addedLineItems(first: 10) {\n        nodes {\n          id\n          title\n          quantity\n          sku\n          variant {\n            id\n          }\n        }\n      }\n    }\n    calculatedLineItem {\n      id\n      title\n      quantity\n      sku\n      variant {\n        id\n      }\n      originalUnitPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
     "variables": {
-      "id": "gid://shopify/CalculatedOrder/106656825650",
+      "id": "gid://shopify/CalculatedOrder/112470688050",
       "variantId": "gid://shopify/ProductVariant/49875425296690",
       "quantity": 2,
       "allowDuplicates": true
@@ -474,14 +135,14 @@
         "data": {
           "orderEditAddVariant": {
             "calculatedOrder": {
-              "id": "gid://shopify/CalculatedOrder/106656825650",
+              "id": "gid://shopify/CalculatedOrder/112470688050",
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/CalculatedLineItem/19305710682418",
-                    "title": "Order edit source item 20260506060521",
+                    "id": "gid://shopify/CalculatedLineItem/19495020790066",
+                    "title": "Order edit source item 20260622213724",
                     "quantity": 1,
-                    "sku": "order-edit-source-20260506060521",
+                    "sku": "order-edit-source-20260622213724",
                     "variant": null,
                     "originalUnitPriceSet": {
                       "shopMoney": {
@@ -495,7 +156,7 @@
               "addedLineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/CalculatedLineItem/332fb380-fa4b-4d2d-b40b-105dd28f993d",
+                    "id": "gid://shopify/CalculatedLineItem/2ae850e4-8ca6-4e41-a4b9-3d6a4425b881",
                     "title": "The Inventory Not Tracked Snowboard",
                     "quantity": 2,
                     "sku": "sku-untracked-1",
@@ -507,7 +168,7 @@
               }
             },
             "calculatedLineItem": {
-              "id": "gid://shopify/CalculatedLineItem/332fb380-fa4b-4d2d-b40b-105dd28f993d",
+              "id": "gid://shopify/CalculatedLineItem/2ae850e4-8ca6-4e41-a4b9-3d6a4425b881",
               "title": "The Inventory Not Tracked Snowboard",
               "quantity": 2,
               "sku": "sku-untracked-1",
@@ -541,7 +202,7 @@
   "commit": {
     "query": "mutation OrderEditCommitHistoryFulfillmentCommit($id: ID!, $notifyCustomer: Boolean, $staffNote: String) {\n  orderEditCommit(id: $id, notifyCustomer: $notifyCustomer, staffNote: $staffNote) {\n    order {\n      id\n      name\n    }\n    successMessages\n    userErrors {\n      field\n      message\n    }\n  }\n}",
     "variables": {
-      "id": "gid://shopify/CalculatedOrder/106656825650",
+      "id": "gid://shopify/CalculatedOrder/112470688050",
       "notifyCustomer": false,
       "staffNote": "order edit commit history fulfillment capture"
     },
@@ -551,8 +212,8 @@
         "data": {
           "orderEditCommit": {
             "order": {
-              "id": "gid://shopify/Order/8731795030322",
-              "name": "#1215"
+              "id": "gid://shopify/Order/8837930516786",
+              "name": "#1491"
             },
             "successMessages": ["Order updated"],
             "userErrors": []
@@ -575,16 +236,16 @@
   "downstreamRead": {
     "query": "query OrderEditCommitHistoryFulfillmentRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    updatedAt\n    currentSubtotalLineItemsQuantity\n    currentSubtotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTaxLines {\n      title\n      rate\n      priceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n        sku\n        variant {\n          id\n        }\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    events(first: 10, query: \"action:edited\") {\n      nodes {\n        id\n        action\n        message\n        createdAt\n      }\n    }\n    fulfillmentOrders(first: 10) {\n      nodes {\n        id\n        status\n        lineItems(first: 10) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n              quantity\n              currentQuantity\n              fulfillableQuantity\n            }\n          }\n        }\n      }\n    }\n  }\n}",
     "variables": {
-      "id": "gid://shopify/Order/8731795030322"
+      "id": "gid://shopify/Order/8837930516786"
     },
     "response": {
       "status": 200,
       "payload": {
         "data": {
           "order": {
-            "id": "gid://shopify/Order/8731795030322",
-            "name": "#1215",
-            "updatedAt": "2026-05-06T06:05:24Z",
+            "id": "gid://shopify/Order/8837930516786",
+            "name": "#1491",
+            "updatedAt": "2026-06-22T21:37:28Z",
             "currentSubtotalLineItemsQuantity": 3,
             "currentSubtotalPriceSet": {
               "shopMoney": {
@@ -602,11 +263,11 @@
             "lineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/LineItem/19305710682418",
-                  "title": "Order edit source item 20260506060521",
+                  "id": "gid://shopify/LineItem/19495020790066",
+                  "title": "Order edit source item 20260622213724",
                   "quantity": 3,
                   "currentQuantity": 1,
-                  "sku": "order-edit-source-20260506060521",
+                  "sku": "order-edit-source-20260622213724",
                   "variant": null,
                   "originalUnitPriceSet": {
                     "shopMoney": {
@@ -616,7 +277,7 @@
                   }
                 },
                 {
-                  "id": "gid://shopify/LineItem/19305710747954",
+                  "id": "gid://shopify/LineItem/19495020921138",
                   "title": "The Inventory Not Tracked Snowboard",
                   "quantity": 2,
                   "currentQuantity": 2,
@@ -636,27 +297,27 @@
             "events": {
               "nodes": [
                 {
-                  "id": "gid://shopify/BasicEvent/177047163830578",
+                  "id": "gid://shopify/BasicEvent/180767744590130",
                   "action": "edited",
                   "message": "example.com edited this order.",
-                  "createdAt": "2026-05-06T06:05:24Z"
+                  "createdAt": "2026-06-22T21:37:28Z"
                 }
               ]
             },
             "fulfillmentOrders": {
               "nodes": [
                 {
-                  "id": "gid://shopify/FulfillmentOrder/9655223648562",
+                  "id": "gid://shopify/FulfillmentOrder/9774262550834",
                   "status": "OPEN",
                   "lineItems": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentOrderLineItem/19454914363698",
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19663430156594",
                         "totalQuantity": 1,
                         "remainingQuantity": 1,
                         "lineItem": {
-                          "id": "gid://shopify/LineItem/19305710682418",
-                          "title": "Order edit source item 20260506060521",
+                          "id": "gid://shopify/LineItem/19495020790066",
+                          "title": "Order edit source item 20260622213724",
                           "quantity": 3,
                           "currentQuantity": 1,
                           "fulfillableQuantity": 1
@@ -666,16 +327,16 @@
                   }
                 },
                 {
-                  "id": "gid://shopify/FulfillmentOrder/9655223714098",
+                  "id": "gid://shopify/FulfillmentOrder/9774262681906",
                   "status": "OPEN",
                   "lineItems": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/FulfillmentOrderLineItem/19454914429234",
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19663430484274",
                         "totalQuantity": 2,
                         "remainingQuantity": 2,
                         "lineItem": {
-                          "id": "gid://shopify/LineItem/19305710747954",
+                          "id": "gid://shopify/LineItem/19495020921138",
                           "title": "The Inventory Not Tracked Snowboard",
                           "quantity": 2,
                           "currentQuantity": 2,
@@ -706,7 +367,7 @@
   "cleanup": {
     "query": "mutation OrderEditCommitHistoryFulfillmentCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
     "variables": {
-      "orderId": "gid://shopify/Order/8731795030322",
+      "orderId": "gid://shopify/Order/8837930516786",
       "reason": "OTHER",
       "notifyCustomer": false,
       "restock": true
@@ -717,7 +378,7 @@
         "data": {
           "orderCancel": {
             "job": {
-              "id": "gid://shopify/Job/3c7e5b38-7a63-44f4-830e-9cb7ce7a1bad"
+              "id": "gid://shopify/Job/67c8b6e7-8f30-44c9-a514-67126c5830f4"
             },
             "userErrors": []
           }
@@ -738,132 +399,50 @@
   },
   "upstreamCalls": [
     {
-      "operationName": "OrdersOrderHydrate",
+      "operationName": "OrdersOrderEditHydrate",
       "variables": {
-        "id": "gid://shopify/Order/8731795030322"
+        "id": "gid://shopify/Order/8837930516786"
       },
-      "query": "hand-synthesized from live setup order read for orderEditCommit history and fulfillment-order replay",
+      "query": "query OrdersOrderEditHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    merchantEditable\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n        sku\n        variant {\n          id\n          title\n          sku\n        }\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "order": {
-              "id": "gid://shopify/Order/8731795030322",
-              "name": "#1215",
-              "email": "order-edit-commit-20260506060521@example.com",
-              "phone": null,
-              "poNumber": null,
-              "createdAt": "2026-05-06T06:05:21Z",
-              "updatedAt": "2026-05-06T06:05:21Z",
-              "closed": false,
-              "closedAt": null,
+              "id": "gid://shopify/Order/8837930516786",
+              "name": "#1491",
+              "merchantEditable": true,
               "cancelledAt": null,
               "cancelReason": null,
               "displayFinancialStatus": null,
-              "displayFulfillmentStatus": "UNFULFILLED",
-              "presentmentCurrencyCode": "CAD",
-              "note": "order edit commit history fulfillment capture 20260506060521",
-              "tags": ["20260506060521", "order-edit-commit-history-fulfillment"],
-              "customAttributes": [],
-              "currentSubtotalLineItemsQuantity": 3,
-              "currentSubtotalPriceSet": {
-                "shopMoney": {
-                  "amount": "30.0",
-                  "currencyCode": "CAD"
-                },
-                "presentmentMoney": {
-                  "amount": "30.0",
-                  "currencyCode": "CAD"
-                }
-              },
-              "currentTotalPriceSet": {
-                "shopMoney": {
-                  "amount": "30.0",
-                  "currencyCode": "CAD"
-                },
-                "presentmentMoney": {
-                  "amount": "30.0",
-                  "currencyCode": "CAD"
-                }
-              },
-              "currentTotalTaxSet": {
-                "shopMoney": {
-                  "amount": "0.0",
-                  "currencyCode": "CAD"
-                },
-                "presentmentMoney": {
-                  "amount": "0.0",
-                  "currencyCode": "CAD"
-                }
-              },
-              "currentTaxLines": [],
-              "totalPriceSet": {
-                "shopMoney": {
-                  "amount": "30.0",
-                  "currencyCode": "CAD"
-                },
-                "presentmentMoney": {
-                  "amount": "30.0",
-                  "currencyCode": "CAD"
-                }
-              },
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/LineItem/19305710682418",
-                    "title": "Order edit source item 20260506060521",
-                    "name": "Order edit source item 20260506060521",
+                    "id": "gid://shopify/LineItem/19495020790066",
+                    "title": "Order edit source item 20260622213724",
                     "quantity": 3,
                     "currentQuantity": 3,
-                    "sku": "order-edit-source-20260506060521",
-                    "variantTitle": null,
+                    "sku": "order-edit-source-20260622213724",
+                    "variant": null,
                     "originalUnitPriceSet": {
                       "shopMoney": {
                         "amount": "10.0",
                         "currencyCode": "CAD"
-                      },
-                      "presentmentMoney": {
-                        "amount": "10.0",
-                        "currencyCode": "CAD"
                       }
-                    },
-                    "originalTotalSet": {
-                      "shopMoney": {
-                        "amount": "30.0",
-                        "currencyCode": "CAD"
-                      },
-                      "presentmentMoney": {
-                        "amount": "30.0",
-                        "currencyCode": "CAD"
-                      }
-                    },
-                    "variant": null
-                  }
-                ]
-              },
-              "fulfillmentOrders": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/FulfillmentOrder/9655223648562",
-                    "status": "OPEN",
-                    "requestStatus": "UNSUBMITTED",
-                    "lineItems": {
-                      "nodes": [
-                        {
-                          "id": "gid://shopify/FulfillmentOrderLineItem/19454914363698",
-                          "totalQuantity": 3,
-                          "remainingQuantity": 3,
-                          "lineItem": {
-                            "id": "gid://shopify/LineItem/19305710682418",
-                            "title": "Order edit source item 20260506060521",
-                            "quantity": 3,
-                            "fulfillableQuantity": 3
-                          }
-                        }
-                      ]
                     }
                   }
                 ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
               }
             }
           }
@@ -871,11 +450,11 @@
       }
     },
     {
-      "operationName": "OrdersProductVariantHydrate",
+      "operationName": "OrdersDraftOrderVariantHydrate",
       "variables": {
         "id": "gid://shopify/ProductVariant/49875425296690"
       },
-      "query": "hand-synthesized from live product variant seed for orderEditAddVariant replay",
+      "query": "query OrdersDraftOrderVariantHydrate($id: ID!) {\n  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -884,10 +463,24 @@
               "id": "gid://shopify/ProductVariant/49875425296690",
               "title": "Default Title",
               "sku": "sku-untracked-1",
+              "taxable": true,
               "price": "949.95",
+              "inventoryItem": {
+                "requiresShipping": true
+              },
               "product": {
-                "id": "gid://shopify/Product/9801098789170",
                 "title": "The Inventory Not Tracked Snowboard"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
               }
             }
           }

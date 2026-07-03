@@ -19,7 +19,6 @@ mutation OrderEditExistingWorkflowAddVariant(
           id
           title
           quantity
-          currentQuantity
           sku
           variant {
             id
@@ -47,7 +46,6 @@ mutation OrderEditExistingWorkflowAddVariant(
     calculatedLineItem {
       title
       quantity
-      currentQuantity
       sku
       variant {
         id

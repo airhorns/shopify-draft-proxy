@@ -1,0 +1,27 @@
+mutation NeutralOnlineStoreIntegrationDispatch {
+  createdTheme: themeCreate(source: "https://example.com/neutral-theme.zip", name: "Neutral theme", role: UNPUBLISHED) {
+    theme {
+      id
+      name
+      role
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createdScript: scriptTagCreate(input: { src: "https://cdn.example.test/neutral.js" }) {
+    scriptTag {
+      id
+      src
+      event
+      cache
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

@@ -26,11 +26,15 @@ The implemented mutation roots are:
 - `carrierServiceCreate`
 - `carrierServiceDelete`
 - `carrierServiceUpdate`
+- `fulfillmentEventCreate`
 - `fulfillmentServiceCreate`
 - `fulfillmentServiceDelete`
 - `fulfillmentServiceUpdate`
 - `locationLocalPickupDisable`
 - `locationLocalPickupEnable`
+- `deliveryProfileCreate`
+- `deliveryProfileRemove`
+- `deliveryProfileUpdate`
 - `shippingPackageDelete`
 - `shippingPackageMakeDefault`
 - `shippingPackageUpdate`
@@ -56,39 +60,23 @@ The registry-only read roots are:
 - `deliverySettings`
 - `deliveryProfile`
 - `deliveryProfiles`
-- `fulfillmentConstraintRules`
 
 The registry-only mutation roots are:
 
 - `fulfillmentCreate`
-- `fulfillmentEventCreate`
 - `fulfillmentTrackingInfoUpdate`
 - `fulfillmentCancel`
-- `fulfillmentOrderAcceptCancellationRequest`
-- `fulfillmentOrderAcceptFulfillmentRequest`
 - `fulfillmentOrderCancel`
 - `fulfillmentOrderClose`
 - `fulfillmentOrderHold`
 - `fulfillmentOrderLineItemsPreparedForPickup`
-- `fulfillmentOrderMerge`
 - `fulfillmentOrderMove`
 - `fulfillmentOrderOpen`
-- `fulfillmentOrderRejectCancellationRequest`
-- `fulfillmentOrderRejectFulfillmentRequest`
 - `fulfillmentOrderReleaseHold`
 - `fulfillmentOrderReportProgress`
 - `fulfillmentOrderReschedule`
 - `fulfillmentOrdersReroute`
 - `fulfillmentOrdersSetFulfillmentDeadline`
-- `fulfillmentOrderSplit`
-- `fulfillmentOrderSubmitCancellationRequest`
-- `fulfillmentOrderSubmitFulfillmentRequest`
-- `fulfillmentConstraintRuleCreate`
-- `fulfillmentConstraintRuleDelete`
-- `fulfillmentConstraintRuleUpdate`
-- `deliveryProfileCreate`
-- `deliveryProfileRemove`
-- `deliveryProfileUpdate`
 - `deliveryCustomizationActivation`
 - `deliveryCustomizationCreate`
 - `deliveryCustomizationDelete`
@@ -116,53 +104,105 @@ removed public arguments, and delete inventory-action validation. Creation
 creates a service-managed location in local state, update preserves service and
 location identity, and delete applies the captured local location disposition
 for the scenario. Successful service mutations keep original raw GraphQL input
-for commit replay.
+for commit replay. For `requiresShippingMethod`, the local model follows the
+captured public GraphQL default: an omitted argument stages `true` on both
+create and update, while an explicit `false` value remains observable through
+the mutation payload and downstream `fulfillmentService(id:)` reads.
+Callback URL validation allows `mock.shop` hosts and the configured
+`.myshopify.com` Admin origin host when one is present; cold/default proxy
+configuration does not synthesize a `shopify-draft-proxy.local` allowed host.
 The captured 2026-04 public schema does not expose `permitsSkuSharing`,
 `inventorySyncEnabled`, or `fulfillmentOrdersOptIn` on
 `fulfillmentServiceCreate`; those arguments return top-level
 `argumentNotAccepted` GraphQL errors before resolver execution and do not stage
 or log a service mutation.
 
+Reverse-logistics shipping slices stage `reverseDeliveryCreateWithShipping`
+from the return domain's reverse fulfillment order state. Explicit
+`reverseDeliveryLineItems` inputs preserve one staged delivery line per input
+with the requested quantity and line item; empty inputs expand to all reverse
+fulfillment order lines at their total quantities. The recorded order/return
+parity fixture uses one two-line return for empty expansion and a second
+two-line return for explicit multi-line delivery creation.
+
 Carrier-service slices cover create, update, delete, downstream
 `carrierService(id:)`, `carrierServices(...)`, active filters, unknown-id
 validation, blank create and update names, duplicate active app carriers,
-callback URL validation, selected typed `userErrors.code` branches, and
-after-delete absence. Rejected blank-name updates do not stage a replacement
-name or append a mutation-log entry; omitted update names preserve the existing
-local name while applying other staged fields. The local model stores service
-name, formatted name, callback URL, active flag, service-discovery flag, and
-stable synthetic IDs for parity replay.
+callback URL validation, required-field GraphQL coercion for create-time
+`active` and `supportsServiceDiscovery`, selected typed `userErrors.code`
+branches, and after-delete absence. Rejected create validation and coercion
+branches do not stage a carrier service or append a mutation-log entry.
+Rejected blank-name updates do not stage a replacement name or append a
+mutation-log entry; omitted update names preserve the existing local name while
+applying other staged fields. The local model stores service name, formatted
+name, callback URL, active flag, service-discovery flag, and stable synthetic
+IDs for parity replay.
 
 Fulfillment and fulfillment-order slices cover fixture-backed top-level reads,
 detail/event reads, hold/release, move, open/report-progress, close,
-reschedule guardrails, request/cancellation request transitions, split, merge,
-deadline setting, assigned-order filtering, and selected validation branches.
-These slices operate on local order-backed fulfillment records and are not a
-general fulfillment-service execution engine.
+reschedule guardrails, deadline setting, assigned-order filtering, and selected
+validation branches. Captured public 2026-04 behavior allows
+`fulfillmentOrderOpen` to mark an `IN_PROGRESS` fulfillment order `OPEN`, but a
+second open attempt on an already-`OPEN` fulfillment order returns a base
+`userErrors` entry (`field: null`) and leaves the local fulfillment-order
+status, supported actions, and timestamp unchanged; this public `UserError`
+shape exposes `field` / `message` only. Fulfillment holds expose Shopify-like
+localized `displayReason` strings for the public hold reason set, including
+`AWAITING_RETURN_ITEMS` as `Exchange items awaiting return delivery`, and
+unknown or non-visible reasons fall back to `Other`. Store-backed local staging
+now covers
+`fulfillmentCreate` payload `Fulfillment.name` reference numbers as
+`<orderName>-F<n>` for order-backed fulfillment sequences, plus
+`fulfillmentOrderSubmitFulfillmentRequest`,
+`fulfillmentOrderAcceptFulfillmentRequest`,
+`fulfillmentOrderRejectFulfillmentRequest`,
+`fulfillmentOrderSubmitCancellationRequest`,
+`fulfillmentOrderAcceptCancellationRequest`,
+`fulfillmentOrderRejectCancellationRequest`, `fulfillmentOrderSplit`, and
+`fulfillmentOrderMerge` against fulfillment orders present on staged or
+hydrated local orders. Request-status transitions, merchant request records,
+split-off remaining fulfillment orders, and merged line-item quantities are
+written into the local order graph and are visible through `fulfillmentOrder`,
+`fulfillmentOrders`, `assignedFulfillmentOrders`, and nested
+`Order.fulfillmentOrders` reads. These slices operate on local order-backed
+fulfillment records and are not a general fulfillment-service execution engine.
 
 Delivery settings and delivery promise settings are read-only in the captured
 empty/no-feature branch. Delivery profiles have fixture-backed read and bounded
-custom-profile write slices for create/update/remove, validation, variant
-dissociation, async removal payloads, and downstream null reads after removal.
+write slices for create/update/remove, validation, variant dissociation, async
+removal payloads, and downstream null reads after removal. Custom profiles are
+fully staged from create/update inputs covered by the delivery-profile parity
+requests. In LiveHybrid mode, `deliveryProfileUpdate` can hydrate an existing
+default profile and stage proxy-modelable updates without writing to Shopify at
+runtime. Captured Admin GraphQL 2026-04 behavior accepts a default-profile name
+input with empty `userErrors` while preserving the public default display name
+and incrementing `version`; unsupported side effects such as rate recalculation
+remain outside this slice. Delivery profile name validation accepts exactly 128
+characters and rejects 129-character names on both create and update with a
+public `UserError` payload containing `field` and `message`; `code` is not
+selectable on the captured Admin GraphQL 2026-04 `UserError` type.
 
 Local pickup mutations stage settings on active local locations and retain the
 original raw GraphQL request for commit replay. `locationLocalPickupEnable`
 accepts captured standard pickup times, rejects non-standard values with
 `CUSTOM_PICKUP_TIME_NOT_ALLOWED`, and rejects unknown or inactive locations with
 `ACTIVE_LOCATION_NOT_FOUND`. `locationLocalPickupDisable` clears the staged
-settings. Pickup changes are visible through `Location.localPickupSettingsV2`
-and `locationsAvailableForDeliveryProfilesConnection` in snapshot mode and
-after LiveHybrid reads hydrate the existing shipping locations.
+settings on active locations and rejects unknown or inactive locations with
+`ACTIVE_LOCATION_NOT_FOUND` on `locationId`; failed disable payloads return
+`locationId: null`. Pickup changes are visible through
+`Location.localPickupSettingsV2` and
+`locationsAvailableForDeliveryProfilesConnection` in snapshot mode and after
+LiveHybrid reads hydrate the existing shipping locations.
 
 Shipping package slices stage changes on known package records and retain the
 original raw GraphQL request for commit replay. Shipping packages have no direct
 Admin GraphQL package read root in the captured schema, so successful staging is
 verified through local state/log behavior and targeted validation.
 
-Reverse delivery and order-edit shipping-line roots are modeled through the
-orders and returns local graph when covered by their parity specs. Their
-caller-visible order and return effects should be read with
-`/endpoints/orders/` and `/endpoints/returns/`.
+Reverse delivery, reverse fulfillment disposal, and order-edit shipping-line
+roots are modeled through the orders and returns local graph when covered by
+their parity specs. Their caller-visible order and return effects should be read
+with `/endpoints/orders/` and `/endpoints/returns/`.
 
 ### Boundaries
 
@@ -172,8 +212,8 @@ caller-visible order and return effects should be read with
   Function-backed or provider-backed and remain unsupported until function
   ownership, activation eligibility, metafields, provider state, validation,
   cleanup, and downstream reads are modeled locally.
-- Fulfillment constraint rules remain registry-only because current evidence is
-  access-scope blocker evidence, not success/read-after-write behavior.
+- Fulfillment constraint rule metadata roots are covered by the Functions
+  endpoint group, not by the shipping/fulfillments local slices.
 - Validation-only shipping and fulfillment specs prove guardrail payloads and
   no-stage behavior for those inputs only. They do not make the corresponding
   mutation roots generally supported.
@@ -190,7 +230,7 @@ caller-visible order and return effects should be read with
 - Runtime coverage: `tests/graphql_routes.rs`
 - Shipping/fulfillment parity specs: `config/parity-specs/shipping-fulfillments/*.json`
 - Shipping/fulfillment fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-fulfillments/*.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/*.json`
-- Related order/return shipping specs: `config/parity-specs/orders/return-reverse-logistics-local-staging.json`, `config/parity-specs/orders/return-reverse-logistics-recorded.json`, and the order-edit shipping-line specs under `config/parity-specs/orders/`
+- Related order/return shipping specs: `config/parity-specs/orders/fulfillment-state-preconditions.json`, `config/parity-specs/orders/return-reverse-logistics-local-staging.json`, `config/parity-specs/orders/return-reverse-logistics-recorded.json`, `config/parity-specs/orders/return-reverse-logistics-dispose-validation.json`, and the order-edit shipping-line specs under `config/parity-specs/orders/`
 
 ### Validation
 

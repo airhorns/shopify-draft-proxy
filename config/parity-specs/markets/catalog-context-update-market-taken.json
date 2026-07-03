@@ -1,6 +1,6 @@
 {
   "scenarioId": "catalog-context-update-market-taken",
-  "operationNames": ["marketCreate", "catalogCreate", "catalogContextUpdate", "catalog"],
+  "operationNames": ["marketCreate", "catalogCreate", "catalogContextUpdate", "catalog", "catalogsCount"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "local-staging"],
   "liveCaptureFiles": [

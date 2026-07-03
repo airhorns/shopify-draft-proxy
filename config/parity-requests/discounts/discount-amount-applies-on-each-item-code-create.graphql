@@ -1,0 +1,31 @@
+mutation DiscountAmountAppliesOnEachItemCodeCreate($input: DiscountCodeBasicInput!) {
+  discountCodeBasicCreate(basicCodeDiscount: $input) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          customerGets {
+            value {
+              __typename
+              ... on DiscountAmount {
+                amount {
+                  amount
+                  currencyCode
+                }
+                appliesOnEachItem
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

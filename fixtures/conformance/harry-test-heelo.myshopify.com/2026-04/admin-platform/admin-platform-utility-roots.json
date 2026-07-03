@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-05T01:58:36.108Z",
+  "capturedAt": "2026-06-30T13:35:15.123Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "introspection": {
@@ -635,10 +635,6 @@
         "typeName": "Article"
       },
       {
-        "name": "automaticDiscountNode",
-        "typeName": "DiscountAutomaticNode"
-      },
-      {
         "name": "blog",
         "typeName": "Blog"
       },
@@ -669,10 +665,6 @@
       {
         "name": "checkoutAndAccountsConfiguration",
         "typeName": "CheckoutAndAccountsConfiguration"
-      },
-      {
-        "name": "codeDiscountNode",
-        "typeName": "DiscountCodeNode"
       },
       {
         "name": "collection",
@@ -1336,6 +1328,54 @@
         }
       }
     },
+    "nodeMalformedMissingId": {
+      "query": "#graphql\n  query AdminPlatformNodeMalformedGid {\n    node(id: \"gid://shopify/Product\") {\n      __typename\n      id\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid global id 'gid://shopify/Product'",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "path": ["query AdminPlatformNodeMalformedGid", "node", "id"],
+              "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "CoercionError"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "nodesMalformedMixed": {
+      "query": "#graphql\n  query AdminPlatformNodesMalformedGid {\n    nodes(ids: [\"gid://shopify/Product/0\", \"gid://shopify/Product\", \"gid://shopify/UnknownType/123\"]) {\n      __typename\n      id\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid global id 'gid://shopify/Product'",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "path": ["query AdminPlatformNodesMalformedGid", "nodes", "ids"],
+              "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "CoercionError"
+              }
+            }
+          ]
+        }
+      }
+    },
     "jobDomainNoData": {
       "query": "#graphql\n  query JobDomainNoDataRead($domainId: ID!, $jobId: ID!) {\n    domain(id: $domainId) {\n      id\n      host\n      url\n      sslEnabled\n    }\n    job(id: $jobId) {\n      id\n      done\n      query {\n        __typename\n      }\n    }\n  }\n",
       "variables": {
@@ -1377,9 +1417,600 @@
           "data": {
             "backupRegion": {
               "__typename": "MarketRegionCountry",
-              "id": "gid://shopify/MarketRegionCountry/4062110417202",
-              "name": "Canada",
-              "code": "CA"
+              "id": "gid://shopify/MarketRegionCountry/4062110482738",
+              "name": "United Arab Emirates",
+              "code": "AE"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "backupRegionAccessScopesHydrate": {
+      "query": "query BackupRegionAccessScopes { currentAppInstallation { accessScopes { handle } } }",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "currentAppInstallation": {
+              "accessScopes": [
+                {
+                  "handle": "read_assigned_fulfillment_orders"
+                },
+                {
+                  "handle": "read_content"
+                },
+                {
+                  "handle": "read_customer_merge"
+                },
+                {
+                  "handle": "read_customers"
+                },
+                {
+                  "handle": "read_discounts"
+                },
+                {
+                  "handle": "read_draft_orders"
+                },
+                {
+                  "handle": "read_files"
+                },
+                {
+                  "handle": "read_fulfillments"
+                },
+                {
+                  "handle": "read_inventory"
+                },
+                {
+                  "handle": "read_legal_policies"
+                },
+                {
+                  "handle": "read_locales"
+                },
+                {
+                  "handle": "read_locations"
+                },
+                {
+                  "handle": "read_marketing_events"
+                },
+                {
+                  "handle": "read_markets"
+                },
+                {
+                  "handle": "read_merchant_managed_fulfillment_orders"
+                },
+                {
+                  "handle": "read_metaobject_definitions"
+                },
+                {
+                  "handle": "read_metaobjects"
+                },
+                {
+                  "handle": "read_online_store_navigation"
+                },
+                {
+                  "handle": "read_order_edits"
+                },
+                {
+                  "handle": "read_orders"
+                },
+                {
+                  "handle": "read_payment_customizations"
+                },
+                {
+                  "handle": "read_payment_terms"
+                },
+                {
+                  "handle": "read_privacy_settings"
+                },
+                {
+                  "handle": "read_product_listings"
+                },
+                {
+                  "handle": "read_products"
+                },
+                {
+                  "handle": "read_publications"
+                },
+                {
+                  "handle": "read_returns"
+                },
+                {
+                  "handle": "read_shipping"
+                },
+                {
+                  "handle": "read_shopify_payments_disputes"
+                },
+                {
+                  "handle": "read_shopify_payments_payouts"
+                },
+                {
+                  "handle": "read_store_credit_account_transactions"
+                },
+                {
+                  "handle": "read_store_credit_accounts"
+                },
+                {
+                  "handle": "read_themes"
+                },
+                {
+                  "handle": "read_third_party_fulfillment_orders"
+                },
+                {
+                  "handle": "read_translations"
+                },
+                {
+                  "handle": "write_assigned_fulfillment_orders"
+                },
+                {
+                  "handle": "write_cart_transforms"
+                },
+                {
+                  "handle": "write_cash_tracking"
+                },
+                {
+                  "handle": "write_content"
+                },
+                {
+                  "handle": "write_customer_data_erasure"
+                },
+                {
+                  "handle": "write_customer_merge"
+                },
+                {
+                  "handle": "write_customers"
+                },
+                {
+                  "handle": "write_delivery_customizations"
+                },
+                {
+                  "handle": "write_discounts"
+                },
+                {
+                  "handle": "write_draft_orders"
+                },
+                {
+                  "handle": "write_files"
+                },
+                {
+                  "handle": "write_fulfillment_constraint_rules"
+                },
+                {
+                  "handle": "write_fulfillments"
+                },
+                {
+                  "handle": "write_gift_card_transactions"
+                },
+                {
+                  "handle": "write_gift_cards"
+                },
+                {
+                  "handle": "write_inventory"
+                },
+                {
+                  "handle": "write_inventory_shipments"
+                },
+                {
+                  "handle": "write_inventory_transfers"
+                },
+                {
+                  "handle": "write_legal_policies"
+                },
+                {
+                  "handle": "write_locales"
+                },
+                {
+                  "handle": "write_locations"
+                },
+                {
+                  "handle": "write_marketing_events"
+                },
+                {
+                  "handle": "write_markets"
+                },
+                {
+                  "handle": "write_merchant_managed_fulfillment_orders"
+                },
+                {
+                  "handle": "write_metaobject_definitions"
+                },
+                {
+                  "handle": "write_metaobjects"
+                },
+                {
+                  "handle": "write_online_store_navigation"
+                },
+                {
+                  "handle": "write_order_edits"
+                },
+                {
+                  "handle": "write_orders"
+                },
+                {
+                  "handle": "write_payment_customizations"
+                },
+                {
+                  "handle": "write_payment_terms"
+                },
+                {
+                  "handle": "write_privacy_settings"
+                },
+                {
+                  "handle": "write_products"
+                },
+                {
+                  "handle": "write_publications"
+                },
+                {
+                  "handle": "write_purchase_options"
+                },
+                {
+                  "handle": "write_returns"
+                },
+                {
+                  "handle": "write_shipping"
+                },
+                {
+                  "handle": "write_store_credit_account_transactions"
+                },
+                {
+                  "handle": "write_third_party_fulfillment_orders"
+                },
+                {
+                  "handle": "write_translations"
+                },
+                {
+                  "handle": "write_validations"
+                },
+                {
+                  "handle": "read_cart_transforms"
+                },
+                {
+                  "handle": "read_cash_tracking"
+                },
+                {
+                  "handle": "read_customer_data_erasure"
+                },
+                {
+                  "handle": "read_delivery_customizations"
+                },
+                {
+                  "handle": "read_fulfillment_constraint_rules"
+                },
+                {
+                  "handle": "read_gift_card_transactions"
+                },
+                {
+                  "handle": "read_gift_cards"
+                },
+                {
+                  "handle": "read_inventory_shipments"
+                },
+                {
+                  "handle": "read_inventory_transfers"
+                },
+                {
+                  "handle": "read_purchase_options"
+                },
+                {
+                  "handle": "read_validations"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "backupRegionMarketsHydrate": {
+      "query": "query BackupRegionMarketsHydrate($first: Int!, $regionsFirst: Int!) {\n  markets(first: $first) {\n    nodes {\n      id\n      name\n      handle\n      status\n      type\n      conditions {\n        conditionTypes\n        regionsCondition {\n          regions(first: $regionsFirst) {\n            nodes {\n              __typename\n              id\n              name\n              ... on MarketRegionCountry {\n                code\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
+      "variables": {
+        "first": 250,
+        "regionsFirst": 250
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/97997685042",
+                  "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164352-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/97997816114",
+                  "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164435-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/97997947186",
+                  "name": "Draft Proxy Currency Settings 20260507164530 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164530-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/98515026226",
+                  "name": "Draft Proxy Currency Settings 20260613200520 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260613200520-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/98667069746",
+                  "name": "Draft Proxy Currency Settings 20260626001542 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260626001542-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION",
+                  "conditions": {
+                    "conditionTypes": ["REGION"],
+                    "regionsCondition": {
+                      "regions": {
+                        "nodes": [
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110482738",
+                            "name": "United Arab Emirates",
+                            "code": "AE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110548274",
+                            "name": "Australia",
+                            "code": "AU"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110581042",
+                            "name": "Belgium",
+                            "code": "BE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110613810",
+                            "name": "Switzerland",
+                            "code": "CH"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110646578",
+                            "name": "Czechia",
+                            "code": "CZ"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110679346",
+                            "name": "Germany",
+                            "code": "DE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110712114",
+                            "name": "Denmark",
+                            "code": "DK"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110744882",
+                            "name": "Spain",
+                            "code": "ES"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110777650",
+                            "name": "Finland",
+                            "code": "FI"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110810418",
+                            "name": "France",
+                            "code": "FR"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110843186",
+                            "name": "United Kingdom",
+                            "code": "GB"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110875954",
+                            "name": "Hong Kong SAR",
+                            "code": "HK"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110908722",
+                            "name": "Ireland",
+                            "code": "IE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110941490",
+                            "name": "Israel",
+                            "code": "IL"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110974258",
+                            "name": "Italy",
+                            "code": "IT"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111007026",
+                            "name": "Japan",
+                            "code": "JP"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111039794",
+                            "name": "South Korea",
+                            "code": "KR"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111072562",
+                            "name": "Malaysia",
+                            "code": "MY"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111105330",
+                            "name": "Netherlands",
+                            "code": "NL"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111138098",
+                            "name": "Norway",
+                            "code": "NO"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111170866",
+                            "name": "New Zealand",
+                            "code": "NZ"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111203634",
+                            "name": "Poland",
+                            "code": "PL"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111236402",
+                            "name": "Portugal",
+                            "code": "PT"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111269170",
+                            "name": "Sweden",
+                            "code": "SE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111301938",
+                            "name": "Singapore",
+                            "code": "SG"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110515506",
+                            "name": "Austria",
+                            "code": "AT"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/92276818226",
+                  "name": "Mexico",
+                  "handle": "mexico",
+                  "status": "ACTIVE",
+                  "type": "REGION",
+                  "conditions": {
+                    "conditionTypes": ["REGION"],
+                    "regionsCondition": {
+                      "regions": {
+                        "nodes": [
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111334706",
+                            "name": "Mexico",
+                            "code": "MX"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 178,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "backupRegionCurrentHydrate": {
+      "query": "query BackupRegionCurrentHydrate {\n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n}",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "backupRegion": {
+              "__typename": "MarketRegionCountry",
+              "id": "gid://shopify/MarketRegionCountry/4062110482738",
+              "name": "United Arab Emirates",
+              "code": "AE"
             }
           },
           "extensions": {
@@ -1558,7 +2189,7 @@
               "actualQueryCost": 7,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1988,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }
@@ -1775,7 +2406,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-6-1",
                       "gid://shopify/TaxonomyCategory/ap-2-6-2",
@@ -1806,15 +2437,18 @@
                     "level": 4,
                     "parentId": "gid://shopify/TaxonomyCategory/sg-4-5",
                     "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/sg-4-5",
+                      "gid://shopify/TaxonomyCategory/sg",
                       "gid://shopify/TaxonomyCategory/sg-4",
-                      "gid://shopify/TaxonomyCategory/sg"
+                      "gid://shopify/TaxonomyCategory/sg-4-5"
                     ],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/sg-4-5-5-1",
                       "gid://shopify/TaxonomyCategory/sg-4-5-5-2",
                       "gid://shopify/TaxonomyCategory/sg-4-5-5-3",
-                      "gid://shopify/TaxonomyCategory/sg-4-5-5-4"
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-4",
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-5",
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-6",
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-7"
                     ],
                     "isArchived": false
                   },
@@ -1826,7 +2460,7 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [],
                     "isArchived": false
                   }
@@ -1922,7 +2556,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-6-1",
                       "gid://shopify/TaxonomyCategory/ap-2-6-2",
@@ -1953,15 +2587,18 @@
                     "level": 4,
                     "parentId": "gid://shopify/TaxonomyCategory/sg-4-5",
                     "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/sg-4-5",
+                      "gid://shopify/TaxonomyCategory/sg",
                       "gid://shopify/TaxonomyCategory/sg-4",
-                      "gid://shopify/TaxonomyCategory/sg"
+                      "gid://shopify/TaxonomyCategory/sg-4-5"
                     ],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/sg-4-5-5-1",
                       "gid://shopify/TaxonomyCategory/sg-4-5-5-2",
                       "gid://shopify/TaxonomyCategory/sg-4-5-5-3",
-                      "gid://shopify/TaxonomyCategory/sg-4-5-5-4"
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-4",
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-5",
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-6",
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-7"
                     ],
                     "isArchived": false
                   },
@@ -1973,7 +2610,7 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [],
                     "isArchived": false
                   },
@@ -1986,9 +2623,9 @@
                     "level": 4,
                     "parentId": "gid://shopify/TaxonomyCategory/sg-4-4",
                     "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/sg-4-4",
+                      "gid://shopify/TaxonomyCategory/sg",
                       "gid://shopify/TaxonomyCategory/sg-4",
-                      "gid://shopify/TaxonomyCategory/sg"
+                      "gid://shopify/TaxonomyCategory/sg-4-4"
                     ],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/sg-4-4-4-1",
@@ -1998,7 +2635,16 @@
                       "gid://shopify/TaxonomyCategory/sg-4-4-4-5",
                       "gid://shopify/TaxonomyCategory/sg-4-4-4-6",
                       "gid://shopify/TaxonomyCategory/sg-4-4-4-7",
-                      "gid://shopify/TaxonomyCategory/sg-4-4-4-8"
+                      "gid://shopify/TaxonomyCategory/sg-4-4-4-8",
+                      "gid://shopify/TaxonomyCategory/sg-4-4-4-9",
+                      "gid://shopify/TaxonomyCategory/sg-4-4-4-10",
+                      "gid://shopify/TaxonomyCategory/sg-4-4-4-11",
+                      "gid://shopify/TaxonomyCategory/sg-4-4-4-12",
+                      "gid://shopify/TaxonomyCategory/sg-4-4-4-13",
+                      "gid://shopify/TaxonomyCategory/sg-4-4-4-14",
+                      "gid://shopify/TaxonomyCategory/sg-4-4-4-15",
+                      "gid://shopify/TaxonomyCategory/sg-4-4-4-16",
+                      "gid://shopify/TaxonomyCategory/sg-4-4-4-17"
                     ],
                     "isArchived": false
                   }
@@ -2080,7 +2726,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-1-1",
                       "gid://shopify/TaxonomyCategory/ap-2-1-2",
@@ -2093,59 +2739,94 @@
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-10",
-                    "name": "Pet Bells & Charms",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bells & Charms",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-2",
+                    "name": "Cat Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Cat Supplies",
                     "isRoot": false,
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-10-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-10-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-10-3"
+                      "gid://shopify/TaxonomyCategory/ap-2-2-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-6"
                     ],
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-11",
-                    "name": "Pet Biometric Monitors",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Biometric Monitors",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-3",
+                    "name": "Dog Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Dog Supplies",
                     "isRoot": false,
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-11-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-11-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-11-3"
+                      "gid://shopify/TaxonomyCategory/ap-2-3-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-8",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-9"
                     ],
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-12",
-                    "name": "Pet Bowl Mats",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bowl Mats",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-4",
+                    "name": "Fish & Aquatic Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Fish & Aquatic Supplies",
                     "isRoot": false,
-                    "isLeaf": true,
+                    "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-4-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-8",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-9",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-10",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-11",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-12",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-13",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-14",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-15",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-16"
+                    ],
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-13",
-                    "name": "Pet Bowl Stands",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bowl Stands",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-5",
+                    "name": "Pet Agility Equipment",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Agility Equipment",
                     "isRoot": false,
-                    "isLeaf": true,
+                    "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-5-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-8"
+                    ],
                     "isArchived": false
                   }
                 ],
@@ -2158,31 +2839,31 @@
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6NjJ9",
+                    "cursor": "eyJpZCI6MTR9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-10",
-                      "name": "Pet Bells & Charms"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-2",
+                      "name": "Cat Supplies"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6NjN9",
+                    "cursor": "eyJpZCI6Mjh9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-11",
-                      "name": "Pet Biometric Monitors"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-3",
+                      "name": "Dog Supplies"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6Njd9",
+                    "cursor": "eyJpZCI6NDJ9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-12",
-                      "name": "Pet Bowl Mats"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-4",
+                      "name": "Fish & Aquatic Supplies"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6Njh9",
+                    "cursor": "eyJpZCI6NTl9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-13",
-                      "name": "Pet Bowl Stands"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-5",
+                      "name": "Pet Agility Equipment"
                     }
                   }
                 ],
@@ -2190,7 +2871,7 @@
                   "hasNextPage": true,
                   "hasPreviousPage": false,
                   "startCursor": "eyJpZCI6NH0=",
-                  "endCursor": "eyJpZCI6Njh9"
+                  "endCursor": "eyJpZCI6NTl9"
                 }
               },
               "descendants": {
@@ -2275,7 +2956,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-1-1",
                       "gid://shopify/TaxonomyCategory/ap-2-1-2",
@@ -2288,39 +2969,35 @@
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-1-1",
-                    "name": "Bird Cage Accessories",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Bird Supplies > Bird Cage Accessories",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-10",
+                    "name": "Pet Bells & Charms",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bells & Charms",
                     "isRoot": false,
                     "isLeaf": false,
-                    "level": 4,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2-1",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-1",
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
-                    ],
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-1-1-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-1-2"
+                      "gid://shopify/TaxonomyCategory/ap-2-10-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-10-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-10-3"
                     ],
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-1-1-1",
-                    "name": "Bird Cage Bird Baths",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Bird Supplies > Bird Cage Accessories > Bird Cage Bird Baths",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-11",
+                    "name": "Pet Biometric Monitors",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Biometric Monitors",
                     "isRoot": false,
-                    "isLeaf": true,
-                    "level": 5,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2-1-1",
-                    "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-1-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-1",
-                      "gid://shopify/TaxonomyCategory/ap-2",
-                      "gid://shopify/TaxonomyCategory/ap"
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-11-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-11-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-11-3"
                     ],
-                    "childrenIds": [],
                     "isArchived": false
                   }
                 ],
@@ -2347,115 +3024,6 @@
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6NX0=",
-                    "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-1-1",
-                      "name": "Bird Cage Accessories"
-                    }
-                  },
-                  {
-                    "cursor": "eyJpZCI6Nn0=",
-                    "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-1-1-1",
-                      "name": "Bird Cage Bird Baths"
-                    }
-                  }
-                ],
-                "pageInfo": {
-                  "hasNextPage": true,
-                  "hasPreviousPage": false,
-                  "startCursor": "eyJpZCI6Mn0=",
-                  "endCursor": "eyJpZCI6Nn0="
-                }
-              },
-              "siblings": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-1",
-                    "name": "Bird Supplies",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Bird Supplies",
-                    "isRoot": false,
-                    "isLeaf": false,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-1-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-3",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-4",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-5",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-6",
-                      "gid://shopify/TaxonomyCategory/ap-2-1-7"
-                    ],
-                    "isArchived": false
-                  },
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-10",
-                    "name": "Pet Bells & Charms",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bells & Charms",
-                    "isRoot": false,
-                    "isLeaf": false,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-10-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-10-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-10-3"
-                    ],
-                    "isArchived": false
-                  },
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-11",
-                    "name": "Pet Biometric Monitors",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Biometric Monitors",
-                    "isRoot": false,
-                    "isLeaf": false,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-11-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-11-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-11-3"
-                    ],
-                    "isArchived": false
-                  },
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-12",
-                    "name": "Pet Bowl Mats",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bowl Mats",
-                    "isRoot": false,
-                    "isLeaf": true,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [],
-                    "isArchived": false
-                  },
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-13",
-                    "name": "Pet Bowl Stands",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bowl Stands",
-                    "isRoot": false,
-                    "isLeaf": true,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [],
-                    "isArchived": false
-                  }
-                ],
-                "edges": [
-                  {
-                    "cursor": "eyJpZCI6NH0=",
-                    "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-1",
-                      "name": "Bird Supplies"
-                    }
-                  },
-                  {
                     "cursor": "eyJpZCI6NjJ9",
                     "node": {
                       "id": "gid://shopify/TaxonomyCategory/ap-2-10",
@@ -2468,19 +3036,163 @@
                       "id": "gid://shopify/TaxonomyCategory/ap-2-11",
                       "name": "Pet Biometric Monitors"
                     }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJpZCI6Mn0=",
+                  "endCursor": "eyJpZCI6NjN9"
+                }
+              },
+              "siblings": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-1",
+                    "name": "Bird Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Bird Supplies",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-1-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-1-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-1-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-1-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-1-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-1-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-1-7"
+                    ],
+                    "isArchived": false
                   },
                   {
-                    "cursor": "eyJpZCI6Njd9",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-2",
+                    "name": "Cat Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Cat Supplies",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-2-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-6"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-3",
+                    "name": "Dog Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Dog Supplies",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-3-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-8",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-9"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-4",
+                    "name": "Fish & Aquatic Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Fish & Aquatic Supplies",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-4-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-8",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-9",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-10",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-11",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-12",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-13",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-14",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-15",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-16"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-5",
+                    "name": "Pet Agility Equipment",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Agility Equipment",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-5-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-8"
+                    ],
+                    "isArchived": false
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJpZCI6NH0=",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-12",
-                      "name": "Pet Bowl Mats"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-1",
+                      "name": "Bird Supplies"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6Njh9",
+                    "cursor": "eyJpZCI6MTR9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-13",
-                      "name": "Pet Bowl Stands"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-2",
+                      "name": "Cat Supplies"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6Mjh9",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-3",
+                      "name": "Dog Supplies"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6NDJ9",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-4",
+                      "name": "Fish & Aquatic Supplies"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6NTl9",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-5",
+                      "name": "Pet Agility Equipment"
                     }
                   }
                 ],
@@ -2488,7 +3200,7 @@
                   "hasNextPage": true,
                   "hasPreviousPage": false,
                   "startCursor": "eyJpZCI6NH0=",
-                  "endCursor": "eyJpZCI6Njh9"
+                  "endCursor": "eyJpZCI6NTl9"
                 }
               },
               "missingChildren": {
@@ -2534,7 +3246,7 @@
                 "isLeaf": false,
                 "level": 3,
                 "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                 "childrenIds": [
                   "gid://shopify/TaxonomyCategory/ap-2-6-1",
                   "gid://shopify/TaxonomyCategory/ap-2-6-2",
@@ -2590,7 +3302,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-1-1",
                       "gid://shopify/TaxonomyCategory/ap-2-1-2",
@@ -2603,80 +3315,106 @@
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-10",
-                    "name": "Pet Bells & Charms",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bells & Charms",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-2",
+                    "name": "Cat Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Cat Supplies",
                     "isRoot": false,
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-10-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-10-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-10-3"
+                      "gid://shopify/TaxonomyCategory/ap-2-2-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-2-6"
                     ],
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-11",
-                    "name": "Pet Biometric Monitors",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Biometric Monitors",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-3",
+                    "name": "Dog Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Dog Supplies",
                     "isRoot": false,
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-11-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-11-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-11-3"
+                      "gid://shopify/TaxonomyCategory/ap-2-3-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-8",
+                      "gid://shopify/TaxonomyCategory/ap-2-3-9"
                     ],
                     "isArchived": false
                   },
                   {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-12",
-                    "name": "Pet Bowl Mats",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bowl Mats",
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-4",
+                    "name": "Fish & Aquatic Supplies",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Fish & Aquatic Supplies",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-4-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-8",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-9",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-10",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-11",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-12",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-13",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-14",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-15",
+                      "gid://shopify/TaxonomyCategory/ap-2-4-16"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-5",
+                    "name": "Pet Agility Equipment",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Agility Equipment",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-5-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-5-8"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-7",
+                    "name": "Pet Apparel Hangers",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Apparel Hangers",
                     "isRoot": false,
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [],
-                    "isArchived": false
-                  },
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-13",
-                    "name": "Pet Bowl Stands",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bowl Stands",
-                    "isRoot": false,
-                    "isLeaf": true,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [],
-                    "isArchived": false
-                  },
-                  {
-                    "id": "gid://shopify/TaxonomyCategory/ap-2-14",
-                    "name": "Pet Bowls, Feeders & Waterers",
-                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Bowls, Feeders & Waterers",
-                    "isRoot": false,
-                    "isLeaf": false,
-                    "level": 3,
-                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
-                    "childrenIds": [
-                      "gid://shopify/TaxonomyCategory/ap-2-14-1",
-                      "gid://shopify/TaxonomyCategory/ap-2-14-2",
-                      "gid://shopify/TaxonomyCategory/ap-2-14-3",
-                      "gid://shopify/TaxonomyCategory/ap-2-14-4",
-                      "gid://shopify/TaxonomyCategory/ap-2-14-5",
-                      "gid://shopify/TaxonomyCategory/ap-2-14-6",
-                      "gid://shopify/TaxonomyCategory/ap-2-14-7",
-                      "gid://shopify/TaxonomyCategory/ap-2-14-8"
-                    ],
                     "isArchived": false
                   }
                 ],
@@ -2689,38 +3427,38 @@
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6NjJ9",
+                    "cursor": "eyJpZCI6MTR9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-10",
-                      "name": "Pet Bells & Charms"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-2",
+                      "name": "Cat Supplies"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6NjN9",
+                    "cursor": "eyJpZCI6Mjh9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-11",
-                      "name": "Pet Biometric Monitors"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-3",
+                      "name": "Dog Supplies"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6Njd9",
+                    "cursor": "eyJpZCI6NDJ9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-12",
-                      "name": "Pet Bowl Mats"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-4",
+                      "name": "Fish & Aquatic Supplies"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6Njh9",
+                    "cursor": "eyJpZCI6NTl9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-13",
-                      "name": "Pet Bowl Stands"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-5",
+                      "name": "Pet Agility Equipment"
                     }
                   },
                   {
-                    "cursor": "eyJpZCI6Njl9",
+                    "cursor": "eyJpZCI6NjB9",
                     "node": {
-                      "id": "gid://shopify/TaxonomyCategory/ap-2-14",
-                      "name": "Pet Bowls, Feeders & Waterers"
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-7",
+                      "name": "Pet Apparel Hangers"
                     }
                   }
                 ],
@@ -2728,7 +3466,7 @@
                   "hasNextPage": true,
                   "hasPreviousPage": false,
                   "startCursor": "eyJpZCI6NH0=",
-                  "endCursor": "eyJpZCI6Njl9"
+                  "endCursor": "eyJpZCI6NjB9"
                 }
               }
             }
@@ -2739,7 +3477,7 @@
               "actualQueryCost": 9,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1980,
+                "currentlyAvailable": 1991,
                 "restoreRate": 100
               }
             }
@@ -2796,7 +3534,7 @@
               "actualQueryCost": 12,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1984,
+                "currentlyAvailable": 1985,
                 "restoreRate": 100
               }
             }
@@ -2805,7 +3543,7 @@
       }
     },
     "supportedNodes": {
-      "query": "#graphql\n  query SupportedNodeRead($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      ... on Node {\n        id\n      }\n      ... on Product {\n        title\n        handle\n      }\n      ... on Collection {\n        title\n        handle\n      }\n      ... on Customer {\n        displayName\n        email\n      }\n      ... on Location {\n        name\n        isActive\n      }\n    }\n  }\n",
+      "query": "query SupportedNodeRead($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    ... on Node {\n      id\n    }\n    ... on Product {\n      title\n      handle\n    }\n    ... on Collection {\n      title\n      handle\n    }\n    ... on Customer {\n      displayName\n      email\n    }\n    ... on Location {\n      name\n      isActive\n    }\n  }\n}\n",
       "variables": {
         "ids": [
           "gid://shopify/Product/9801098789170",
@@ -2851,7 +3589,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1995,
+                "currentlyAvailable": 1999,
                 "restoreRate": 100
               }
             }
@@ -3217,7 +3955,7 @@
       }
     },
     "backupRegionUpdateIdempotent": {
-      "query": "#graphql\n  mutation BackupRegionUpdateIdempotent {\n    backupRegionUpdate(region: { countryCode: CA }) {\n      backupRegion {\n        __typename\n        id\n        name\n        ... on MarketRegionCountry {\n          code\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "mutation BackupRegionUpdateIdempotent {\n  backupRegionUpdate(region: { countryCode: AE }) {\n    backupRegion {\n      __typename\n      id\n      name\n      ... on MarketRegionCountry {\n        code\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "result": {
         "status": 200,
         "payload": {
@@ -3225,9 +3963,9 @@
             "backupRegionUpdate": {
               "backupRegion": {
                 "__typename": "MarketRegionCountry",
-                "id": "gid://shopify/MarketRegionCountry/4062110417202",
-                "name": "Canada",
-                "code": "CA"
+                "id": "gid://shopify/MarketRegionCountry/4062110482738",
+                "name": "United Arab Emirates",
+                "code": "AE"
               },
               "userErrors": []
             }
@@ -3254,9 +3992,9 @@
           "data": {
             "backupRegion": {
               "__typename": "MarketRegionCountry",
-              "id": "gid://shopify/MarketRegionCountry/4062110417202",
-              "name": "Canada",
-              "code": "CA"
+              "id": "gid://shopify/MarketRegionCountry/4062110482738",
+              "name": "United Arab Emirates",
+              "code": "AE"
             }
           },
           "extensions": {
@@ -3303,66 +4041,18 @@
           }
         }
       }
-    }
-  },
-  "upstreamCalls": [
-    {
-      "operationName": "SupportedNodeRead",
-      "variables": {
-        "ids": [
-          "gid://shopify/Product/9801098789170",
-          "gid://shopify/Collection/494967390514",
-          "gid://shopify/Customer/9522206933298",
-          "gid://shopify/Location/112829759794"
-        ]
-      },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "nodes": [
-              {
-                "__typename": "Product",
-                "id": "gid://shopify/Product/9801098789170",
-                "title": "The Inventory Not Tracked Snowboard",
-                "handle": "the-inventory-not-tracked-snowboard"
-              },
-              {
-                "__typename": "Collection",
-                "id": "gid://shopify/Collection/494967390514",
-                "title": "Home page",
-                "handle": "frontpage"
-              },
-              {
-                "__typename": "Customer",
-                "id": "gid://shopify/Customer/9522206933298",
-                "displayName": "Karine Ruby",
-                "email": "karine.ruby@example.com"
-              },
-              {
-                "__typename": "Location",
-                "id": "gid://shopify/Location/112829759794",
-                "name": "HAR-571 transfer destination 20260505000619",
-                "isActive": true
-              }
-            ]
-          }
-        }
-      }
     },
-    {
-      "operationName": "AdminPlatformUtilityReads",
+    "adminPlatformUtilityReads": {
+      "query": "query AdminPlatformUtilityReads($ids: [ID!]!, $domainId: ID!, $jobId: ID!, $taxonomyAfter: String!) {\n  publicApiVersions {\n    handle\n    displayName\n    supported\n  }\n  node(id: \"gid://shopify/Product/0\") {\n    __typename\n    id\n  }\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n  domain(id: $domainId) {\n    id\n    host\n    url\n    sslEnabled\n  }\n  job(id: $jobId) {\n    id\n    done\n    query {\n      __typename\n    }\n  }\n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n  taxonomy {\n    emptySearch: categories(first: 2, search: \"zzzzzz-no-match-har-315\") {\n      nodes {\n        id\n        name\n        fullName\n        isRoot\n        isLeaf\n        level\n        parentId\n        ancestorIds\n        childrenIds\n        isArchived\n      }\n      edges {\n        cursor\n        node {\n          id\n          name\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    catalogFirstPage: categories(first: 4) {\n      nodes {\n        id\n        name\n        fullName\n        isRoot\n        isLeaf\n        level\n        parentId\n        ancestorIds\n        childrenIds\n        isArchived\n      }\n      edges {\n        cursor\n        node {\n          id\n          name\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    catalogNextPage: categories(first: 4, after: $taxonomyAfter) {\n      nodes {\n        id\n        name\n        fullName\n        isRoot\n        isLeaf\n        level\n        parentId\n        ancestorIds\n        childrenIds\n        isArchived\n      }\n      edges {\n        cursor\n        node {\n          id\n          name\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    apparelSearch: categories(first: 4, search: \"apparel\") {\n      nodes {\n        id\n        name\n        fullName\n        isRoot\n        isLeaf\n        level\n        parentId\n        ancestorIds\n        childrenIds\n        isArchived\n      }\n      edges {\n        cursor\n        node {\n          id\n          name\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
       "variables": {
         "ids": ["gid://shopify/Product/0", "gid://shopify/Job/0", "gid://shopify/Domain/0"],
         "domainId": "gid://shopify/Domain/0",
         "jobId": "gid://shopify/Job/0",
         "taxonomyAfter": "eyJpZCI6ODUyfQ=="
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
-      "response": {
+      "result": {
         "status": 200,
-        "body": {
+        "payload": {
           "data": {
             "publicApiVersions": [
               {
@@ -3408,9 +4098,9 @@
             },
             "backupRegion": {
               "__typename": "MarketRegionCountry",
-              "id": "gid://shopify/MarketRegionCountry/4062110417202",
-              "name": "Canada",
-              "code": "CA"
+              "id": "gid://shopify/MarketRegionCountry/4062110482738",
+              "name": "United Arab Emirates",
+              "code": "AE"
             },
             "taxonomy": {
               "emptySearch": {
@@ -3713,7 +4403,7 @@
                     "isLeaf": false,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/ap-2-6-1",
                       "gid://shopify/TaxonomyCategory/ap-2-6-2",
@@ -3744,15 +4434,18 @@
                     "level": 4,
                     "parentId": "gid://shopify/TaxonomyCategory/sg-4-5",
                     "ancestorIds": [
-                      "gid://shopify/TaxonomyCategory/sg-4-5",
+                      "gid://shopify/TaxonomyCategory/sg",
                       "gid://shopify/TaxonomyCategory/sg-4",
-                      "gid://shopify/TaxonomyCategory/sg"
+                      "gid://shopify/TaxonomyCategory/sg-4-5"
                     ],
                     "childrenIds": [
                       "gid://shopify/TaxonomyCategory/sg-4-5-5-1",
                       "gid://shopify/TaxonomyCategory/sg-4-5-5-2",
                       "gid://shopify/TaxonomyCategory/sg-4-5-5-3",
-                      "gid://shopify/TaxonomyCategory/sg-4-5-5-4"
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-4",
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-5",
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-6",
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-7"
                     ],
                     "isArchived": false
                   },
@@ -3764,7 +4457,7 @@
                     "isLeaf": true,
                     "level": 3,
                     "parentId": "gid://shopify/TaxonomyCategory/ap-2",
-                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap-2", "gid://shopify/TaxonomyCategory/ap"],
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
                     "childrenIds": [],
                     "isArchived": false
                   }
@@ -3805,6 +4498,1134 @@
                   "startCursor": "eyJpZCI6MTI2fQ==",
                   "endCursor": "eyJpZCI6NjB9"
                 }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 29,
+              "actualQueryCost": 29,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1971,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "BackupRegionAccessScopes",
+      "variables": {},
+      "query": "query BackupRegionAccessScopes { currentAppInstallation { accessScopes { handle } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "currentAppInstallation": {
+              "accessScopes": [
+                {
+                  "handle": "read_assigned_fulfillment_orders"
+                },
+                {
+                  "handle": "read_content"
+                },
+                {
+                  "handle": "read_customer_merge"
+                },
+                {
+                  "handle": "read_customers"
+                },
+                {
+                  "handle": "read_discounts"
+                },
+                {
+                  "handle": "read_draft_orders"
+                },
+                {
+                  "handle": "read_files"
+                },
+                {
+                  "handle": "read_fulfillments"
+                },
+                {
+                  "handle": "read_inventory"
+                },
+                {
+                  "handle": "read_legal_policies"
+                },
+                {
+                  "handle": "read_locales"
+                },
+                {
+                  "handle": "read_locations"
+                },
+                {
+                  "handle": "read_marketing_events"
+                },
+                {
+                  "handle": "read_markets"
+                },
+                {
+                  "handle": "read_merchant_managed_fulfillment_orders"
+                },
+                {
+                  "handle": "read_metaobject_definitions"
+                },
+                {
+                  "handle": "read_metaobjects"
+                },
+                {
+                  "handle": "read_online_store_navigation"
+                },
+                {
+                  "handle": "read_order_edits"
+                },
+                {
+                  "handle": "read_orders"
+                },
+                {
+                  "handle": "read_payment_customizations"
+                },
+                {
+                  "handle": "read_payment_terms"
+                },
+                {
+                  "handle": "read_privacy_settings"
+                },
+                {
+                  "handle": "read_product_listings"
+                },
+                {
+                  "handle": "read_products"
+                },
+                {
+                  "handle": "read_publications"
+                },
+                {
+                  "handle": "read_returns"
+                },
+                {
+                  "handle": "read_shipping"
+                },
+                {
+                  "handle": "read_shopify_payments_disputes"
+                },
+                {
+                  "handle": "read_shopify_payments_payouts"
+                },
+                {
+                  "handle": "read_store_credit_account_transactions"
+                },
+                {
+                  "handle": "read_store_credit_accounts"
+                },
+                {
+                  "handle": "read_themes"
+                },
+                {
+                  "handle": "read_third_party_fulfillment_orders"
+                },
+                {
+                  "handle": "read_translations"
+                },
+                {
+                  "handle": "write_assigned_fulfillment_orders"
+                },
+                {
+                  "handle": "write_cart_transforms"
+                },
+                {
+                  "handle": "write_cash_tracking"
+                },
+                {
+                  "handle": "write_content"
+                },
+                {
+                  "handle": "write_customer_data_erasure"
+                },
+                {
+                  "handle": "write_customer_merge"
+                },
+                {
+                  "handle": "write_customers"
+                },
+                {
+                  "handle": "write_delivery_customizations"
+                },
+                {
+                  "handle": "write_discounts"
+                },
+                {
+                  "handle": "write_draft_orders"
+                },
+                {
+                  "handle": "write_files"
+                },
+                {
+                  "handle": "write_fulfillment_constraint_rules"
+                },
+                {
+                  "handle": "write_fulfillments"
+                },
+                {
+                  "handle": "write_gift_card_transactions"
+                },
+                {
+                  "handle": "write_gift_cards"
+                },
+                {
+                  "handle": "write_inventory"
+                },
+                {
+                  "handle": "write_inventory_shipments"
+                },
+                {
+                  "handle": "write_inventory_transfers"
+                },
+                {
+                  "handle": "write_legal_policies"
+                },
+                {
+                  "handle": "write_locales"
+                },
+                {
+                  "handle": "write_locations"
+                },
+                {
+                  "handle": "write_marketing_events"
+                },
+                {
+                  "handle": "write_markets"
+                },
+                {
+                  "handle": "write_merchant_managed_fulfillment_orders"
+                },
+                {
+                  "handle": "write_metaobject_definitions"
+                },
+                {
+                  "handle": "write_metaobjects"
+                },
+                {
+                  "handle": "write_online_store_navigation"
+                },
+                {
+                  "handle": "write_order_edits"
+                },
+                {
+                  "handle": "write_orders"
+                },
+                {
+                  "handle": "write_payment_customizations"
+                },
+                {
+                  "handle": "write_payment_terms"
+                },
+                {
+                  "handle": "write_privacy_settings"
+                },
+                {
+                  "handle": "write_products"
+                },
+                {
+                  "handle": "write_publications"
+                },
+                {
+                  "handle": "write_purchase_options"
+                },
+                {
+                  "handle": "write_returns"
+                },
+                {
+                  "handle": "write_shipping"
+                },
+                {
+                  "handle": "write_store_credit_account_transactions"
+                },
+                {
+                  "handle": "write_third_party_fulfillment_orders"
+                },
+                {
+                  "handle": "write_translations"
+                },
+                {
+                  "handle": "write_validations"
+                },
+                {
+                  "handle": "read_cart_transforms"
+                },
+                {
+                  "handle": "read_cash_tracking"
+                },
+                {
+                  "handle": "read_customer_data_erasure"
+                },
+                {
+                  "handle": "read_delivery_customizations"
+                },
+                {
+                  "handle": "read_fulfillment_constraint_rules"
+                },
+                {
+                  "handle": "read_gift_card_transactions"
+                },
+                {
+                  "handle": "read_gift_cards"
+                },
+                {
+                  "handle": "read_inventory_shipments"
+                },
+                {
+                  "handle": "read_inventory_transfers"
+                },
+                {
+                  "handle": "read_purchase_options"
+                },
+                {
+                  "handle": "read_validations"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BackupRegionMarketsHydrate",
+      "variables": {
+        "first": 250,
+        "regionsFirst": 250
+      },
+      "query": "query BackupRegionMarketsHydrate($first: Int!, $regionsFirst: Int!) {\n  markets(first: $first) {\n    nodes {\n      id\n      name\n      handle\n      status\n      type\n      conditions {\n        conditionTypes\n        regionsCondition {\n          regions(first: $regionsFirst) {\n            nodes {\n              __typename\n              id\n              name\n              ... on MarketRegionCountry {\n                code\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/97997685042",
+                  "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164352-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/97997816114",
+                  "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164435-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/97997947186",
+                  "name": "Draft Proxy Currency Settings 20260507164530 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260507164530-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/98515026226",
+                  "name": "Draft Proxy Currency Settings 20260613200520 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260613200520-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/98667069746",
+                  "name": "Draft Proxy Currency Settings 20260626001542 Manual Rate",
+                  "handle": "draft-proxy-currency-settings-20260626001542-manual-rate",
+                  "status": "DRAFT",
+                  "type": "NONE",
+                  "conditions": {
+                    "conditionTypes": [],
+                    "regionsCondition": null
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION",
+                  "conditions": {
+                    "conditionTypes": ["REGION"],
+                    "regionsCondition": {
+                      "regions": {
+                        "nodes": [
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110482738",
+                            "name": "United Arab Emirates",
+                            "code": "AE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110548274",
+                            "name": "Australia",
+                            "code": "AU"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110581042",
+                            "name": "Belgium",
+                            "code": "BE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110613810",
+                            "name": "Switzerland",
+                            "code": "CH"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110646578",
+                            "name": "Czechia",
+                            "code": "CZ"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110679346",
+                            "name": "Germany",
+                            "code": "DE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110712114",
+                            "name": "Denmark",
+                            "code": "DK"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110744882",
+                            "name": "Spain",
+                            "code": "ES"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110777650",
+                            "name": "Finland",
+                            "code": "FI"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110810418",
+                            "name": "France",
+                            "code": "FR"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110843186",
+                            "name": "United Kingdom",
+                            "code": "GB"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110875954",
+                            "name": "Hong Kong SAR",
+                            "code": "HK"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110908722",
+                            "name": "Ireland",
+                            "code": "IE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110941490",
+                            "name": "Israel",
+                            "code": "IL"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110974258",
+                            "name": "Italy",
+                            "code": "IT"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111007026",
+                            "name": "Japan",
+                            "code": "JP"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111039794",
+                            "name": "South Korea",
+                            "code": "KR"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111072562",
+                            "name": "Malaysia",
+                            "code": "MY"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111105330",
+                            "name": "Netherlands",
+                            "code": "NL"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111138098",
+                            "name": "Norway",
+                            "code": "NO"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111170866",
+                            "name": "New Zealand",
+                            "code": "NZ"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111203634",
+                            "name": "Poland",
+                            "code": "PL"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111236402",
+                            "name": "Portugal",
+                            "code": "PT"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111269170",
+                            "name": "Sweden",
+                            "code": "SE"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111301938",
+                            "name": "Singapore",
+                            "code": "SG"
+                          },
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062110515506",
+                            "name": "Austria",
+                            "code": "AT"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/92276818226",
+                  "name": "Mexico",
+                  "handle": "mexico",
+                  "status": "ACTIVE",
+                  "type": "REGION",
+                  "conditions": {
+                    "conditionTypes": ["REGION"],
+                    "regionsCondition": {
+                      "regions": {
+                        "nodes": [
+                          {
+                            "__typename": "MarketRegionCountry",
+                            "id": "gid://shopify/MarketRegionCountry/4062111334706",
+                            "name": "Mexico",
+                            "code": "MX"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 178,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BackupRegionCurrentHydrate",
+      "variables": {},
+      "query": "query BackupRegionCurrentHydrate {\n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "backupRegion": {
+              "__typename": "MarketRegionCountry",
+              "id": "gid://shopify/MarketRegionCountry/4062110482738",
+              "name": "United Arab Emirates",
+              "code": "AE"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "SupportedNodeRead",
+      "variables": {
+        "ids": [
+          "gid://shopify/Product/9801098789170",
+          "gid://shopify/Collection/494967390514",
+          "gid://shopify/Customer/9522206933298",
+          "gid://shopify/Location/112829759794"
+        ]
+      },
+      "query": "query SupportedNodeRead($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    ... on Node {\n      id\n    }\n    ... on Product {\n      title\n      handle\n    }\n    ... on Collection {\n      title\n      handle\n    }\n    ... on Customer {\n      displayName\n      email\n    }\n    ... on Location {\n      name\n      isActive\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/9801098789170",
+                "title": "The Inventory Not Tracked Snowboard",
+                "handle": "the-inventory-not-tracked-snowboard"
+              },
+              {
+                "__typename": "Collection",
+                "id": "gid://shopify/Collection/494967390514",
+                "title": "Home page",
+                "handle": "frontpage"
+              },
+              {
+                "__typename": "Customer",
+                "id": "gid://shopify/Customer/9522206933298",
+                "displayName": "Karine Ruby",
+                "email": "karine.ruby@example.com"
+              },
+              {
+                "__typename": "Location",
+                "id": "gid://shopify/Location/112829759794",
+                "name": "HAR-571 transfer destination 20260505000619",
+                "isActive": true
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "AdminPlatformUtilityReads",
+      "variables": {
+        "ids": ["gid://shopify/Product/0", "gid://shopify/Job/0", "gid://shopify/Domain/0"],
+        "domainId": "gid://shopify/Domain/0",
+        "jobId": "gid://shopify/Job/0",
+        "taxonomyAfter": "eyJpZCI6ODUyfQ=="
+      },
+      "query": "query AdminPlatformUtilityReads($ids: [ID!]!, $domainId: ID!, $jobId: ID!, $taxonomyAfter: String!) {\n  publicApiVersions {\n    handle\n    displayName\n    supported\n  }\n  node(id: \"gid://shopify/Product/0\") {\n    __typename\n    id\n  }\n  nodes(ids: $ids) {\n    __typename\n    id\n  }\n  domain(id: $domainId) {\n    id\n    host\n    url\n    sslEnabled\n  }\n  job(id: $jobId) {\n    id\n    done\n    query {\n      __typename\n    }\n  }\n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n  taxonomy {\n    emptySearch: categories(first: 2, search: \"zzzzzz-no-match-har-315\") {\n      nodes {\n        id\n        name\n        fullName\n        isRoot\n        isLeaf\n        level\n        parentId\n        ancestorIds\n        childrenIds\n        isArchived\n      }\n      edges {\n        cursor\n        node {\n          id\n          name\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    catalogFirstPage: categories(first: 4) {\n      nodes {\n        id\n        name\n        fullName\n        isRoot\n        isLeaf\n        level\n        parentId\n        ancestorIds\n        childrenIds\n        isArchived\n      }\n      edges {\n        cursor\n        node {\n          id\n          name\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    catalogNextPage: categories(first: 4, after: $taxonomyAfter) {\n      nodes {\n        id\n        name\n        fullName\n        isRoot\n        isLeaf\n        level\n        parentId\n        ancestorIds\n        childrenIds\n        isArchived\n      }\n      edges {\n        cursor\n        node {\n          id\n          name\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    apparelSearch: categories(first: 4, search: \"apparel\") {\n      nodes {\n        id\n        name\n        fullName\n        isRoot\n        isLeaf\n        level\n        parentId\n        ancestorIds\n        childrenIds\n        isArchived\n      }\n      edges {\n        cursor\n        node {\n          id\n          name\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "publicApiVersions": [
+              {
+                "handle": "2025-07",
+                "displayName": "2025-07",
+                "supported": true
+              },
+              {
+                "handle": "2025-10",
+                "displayName": "2025-10",
+                "supported": true
+              },
+              {
+                "handle": "2026-01",
+                "displayName": "2026-01",
+                "supported": true
+              },
+              {
+                "handle": "2026-04",
+                "displayName": "2026-04 (Latest)",
+                "supported": true
+              },
+              {
+                "handle": "2026-07",
+                "displayName": "2026-07 (Release candidate)",
+                "supported": false
+              },
+              {
+                "handle": "unstable",
+                "displayName": "unstable",
+                "supported": false
+              }
+            ],
+            "node": null,
+            "nodes": [null, null, null],
+            "domain": null,
+            "job": {
+              "id": "gid://shopify/Job/0",
+              "done": true,
+              "query": {
+                "__typename": "QueryRoot"
+              }
+            },
+            "backupRegion": {
+              "__typename": "MarketRegionCountry",
+              "id": "gid://shopify/MarketRegionCountry/4062110482738",
+              "name": "United Arab Emirates",
+              "code": "AE"
+            },
+            "taxonomy": {
+              "emptySearch": {
+                "nodes": [],
+                "edges": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "catalogFirstPage": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap",
+                    "name": "Animals & Pet Supplies",
+                    "fullName": "Animals & Pet Supplies",
+                    "isRoot": true,
+                    "isLeaf": false,
+                    "level": 1,
+                    "parentId": null,
+                    "ancestorIds": [],
+                    "childrenIds": ["gid://shopify/TaxonomyCategory/ap-1", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/aa",
+                    "name": "Apparel & Accessories",
+                    "fullName": "Apparel & Accessories",
+                    "isRoot": true,
+                    "isLeaf": false,
+                    "level": 1,
+                    "parentId": null,
+                    "ancestorIds": [],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/aa-1",
+                      "gid://shopify/TaxonomyCategory/aa-2",
+                      "gid://shopify/TaxonomyCategory/aa-3",
+                      "gid://shopify/TaxonomyCategory/aa-4",
+                      "gid://shopify/TaxonomyCategory/aa-5",
+                      "gid://shopify/TaxonomyCategory/aa-6",
+                      "gid://shopify/TaxonomyCategory/aa-7",
+                      "gid://shopify/TaxonomyCategory/aa-8"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ae",
+                    "name": "Arts & Entertainment",
+                    "fullName": "Arts & Entertainment",
+                    "isRoot": true,
+                    "isLeaf": false,
+                    "level": 1,
+                    "parentId": null,
+                    "ancestorIds": [],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ae-1",
+                      "gid://shopify/TaxonomyCategory/ae-2",
+                      "gid://shopify/TaxonomyCategory/ae-3"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/bt",
+                    "name": "Baby & Toddler",
+                    "fullName": "Baby & Toddler",
+                    "isRoot": true,
+                    "isLeaf": false,
+                    "level": 1,
+                    "parentId": null,
+                    "ancestorIds": [],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/bt-1",
+                      "gid://shopify/TaxonomyCategory/bt-2",
+                      "gid://shopify/TaxonomyCategory/bt-3",
+                      "gid://shopify/TaxonomyCategory/bt-4",
+                      "gid://shopify/TaxonomyCategory/bt-5",
+                      "gid://shopify/TaxonomyCategory/bt-6",
+                      "gid://shopify/TaxonomyCategory/bt-7",
+                      "gid://shopify/TaxonomyCategory/bt-9",
+                      "gid://shopify/TaxonomyCategory/bt-10",
+                      "gid://shopify/TaxonomyCategory/bt-11",
+                      "gid://shopify/TaxonomyCategory/bt-12",
+                      "gid://shopify/TaxonomyCategory/bt-8"
+                    ],
+                    "isArchived": false
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJpZCI6MX0=",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/ap",
+                      "name": "Animals & Pet Supplies"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6MTI2fQ==",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/aa",
+                      "name": "Apparel & Accessories"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6MzUzfQ==",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/ae",
+                      "name": "Arts & Entertainment"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6ODUyfQ==",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/bt",
+                      "name": "Baby & Toddler"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJpZCI6MX0=",
+                  "endCursor": "eyJpZCI6ODUyfQ=="
+                }
+              },
+              "catalogNextPage": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/bi",
+                    "name": "Business & Industrial",
+                    "fullName": "Business & Industrial",
+                    "isRoot": true,
+                    "isLeaf": false,
+                    "level": 1,
+                    "parentId": null,
+                    "ancestorIds": [],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/bi-1",
+                      "gid://shopify/TaxonomyCategory/bi-2",
+                      "gid://shopify/TaxonomyCategory/bi-3",
+                      "gid://shopify/TaxonomyCategory/bi-4",
+                      "gid://shopify/TaxonomyCategory/bi-5",
+                      "gid://shopify/TaxonomyCategory/bi-6",
+                      "gid://shopify/TaxonomyCategory/bi-7",
+                      "gid://shopify/TaxonomyCategory/bi-8",
+                      "gid://shopify/TaxonomyCategory/bi-9",
+                      "gid://shopify/TaxonomyCategory/bi-10",
+                      "gid://shopify/TaxonomyCategory/bi-11",
+                      "gid://shopify/TaxonomyCategory/bi-12",
+                      "gid://shopify/TaxonomyCategory/bi-13",
+                      "gid://shopify/TaxonomyCategory/bi-14",
+                      "gid://shopify/TaxonomyCategory/bi-15",
+                      "gid://shopify/TaxonomyCategory/bi-16",
+                      "gid://shopify/TaxonomyCategory/bi-17",
+                      "gid://shopify/TaxonomyCategory/bi-18",
+                      "gid://shopify/TaxonomyCategory/bi-19",
+                      "gid://shopify/TaxonomyCategory/bi-20",
+                      "gid://shopify/TaxonomyCategory/bi-21",
+                      "gid://shopify/TaxonomyCategory/bi-22",
+                      "gid://shopify/TaxonomyCategory/bi-23",
+                      "gid://shopify/TaxonomyCategory/bi-24",
+                      "gid://shopify/TaxonomyCategory/bi-25"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/co",
+                    "name": "Cameras & Optics",
+                    "fullName": "Cameras & Optics",
+                    "isRoot": true,
+                    "isLeaf": false,
+                    "level": 1,
+                    "parentId": null,
+                    "ancestorIds": [],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/co-1",
+                      "gid://shopify/TaxonomyCategory/co-2",
+                      "gid://shopify/TaxonomyCategory/co-3",
+                      "gid://shopify/TaxonomyCategory/co-4"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/el",
+                    "name": "Electronics",
+                    "fullName": "Electronics",
+                    "isRoot": true,
+                    "isLeaf": false,
+                    "level": 1,
+                    "parentId": null,
+                    "ancestorIds": [],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/el-1",
+                      "gid://shopify/TaxonomyCategory/el-2",
+                      "gid://shopify/TaxonomyCategory/el-3",
+                      "gid://shopify/TaxonomyCategory/el-4",
+                      "gid://shopify/TaxonomyCategory/el-5",
+                      "gid://shopify/TaxonomyCategory/el-6",
+                      "gid://shopify/TaxonomyCategory/el-7",
+                      "gid://shopify/TaxonomyCategory/el-8",
+                      "gid://shopify/TaxonomyCategory/el-9",
+                      "gid://shopify/TaxonomyCategory/el-10",
+                      "gid://shopify/TaxonomyCategory/el-11",
+                      "gid://shopify/TaxonomyCategory/el-12",
+                      "gid://shopify/TaxonomyCategory/el-13",
+                      "gid://shopify/TaxonomyCategory/el-14",
+                      "gid://shopify/TaxonomyCategory/el-15",
+                      "gid://shopify/TaxonomyCategory/el-16",
+                      "gid://shopify/TaxonomyCategory/el-17",
+                      "gid://shopify/TaxonomyCategory/el-18",
+                      "gid://shopify/TaxonomyCategory/el-19",
+                      "gid://shopify/TaxonomyCategory/el-20"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/fb",
+                    "name": "Food, Beverages & Tobacco",
+                    "fullName": "Food, Beverages & Tobacco",
+                    "isRoot": true,
+                    "isLeaf": false,
+                    "level": 1,
+                    "parentId": null,
+                    "ancestorIds": [],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/fb-1",
+                      "gid://shopify/TaxonomyCategory/fb-2",
+                      "gid://shopify/TaxonomyCategory/fb-3",
+                      "gid://shopify/TaxonomyCategory/fb-4"
+                    ],
+                    "isArchived": false
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJpZCI6OTM5fQ==",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/bi",
+                      "name": "Business & Industrial"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6MTE2M30=",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/co",
+                      "name": "Cameras & Optics"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6MTI2N30=",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/el",
+                      "name": "Electronics"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6MTY4NX0=",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/fb",
+                      "name": "Food, Beverages & Tobacco"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJpZCI6OTM5fQ==",
+                  "endCursor": "eyJpZCI6MTY4NX0="
+                }
+              },
+              "apparelSearch": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/aa",
+                    "name": "Apparel & Accessories",
+                    "fullName": "Apparel & Accessories",
+                    "isRoot": true,
+                    "isLeaf": false,
+                    "level": 1,
+                    "parentId": null,
+                    "ancestorIds": [],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/aa-1",
+                      "gid://shopify/TaxonomyCategory/aa-2",
+                      "gid://shopify/TaxonomyCategory/aa-3",
+                      "gid://shopify/TaxonomyCategory/aa-4",
+                      "gid://shopify/TaxonomyCategory/aa-5",
+                      "gid://shopify/TaxonomyCategory/aa-6",
+                      "gid://shopify/TaxonomyCategory/aa-7",
+                      "gid://shopify/TaxonomyCategory/aa-8"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-6",
+                    "name": "Pet Apparel",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Apparel",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/ap-2-6-1",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-2",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-3",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-4",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-5",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-6",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-7",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-8",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-9",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-10",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-11",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-12",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-13",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-14",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-15",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-16",
+                      "gid://shopify/TaxonomyCategory/ap-2-6-17"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/sg-4-5-5",
+                    "name": "Riding Apparel & Accessories",
+                    "fullName": "Sporting Goods > Outdoor Recreation > Equestrian > Riding Apparel & Accessories",
+                    "isRoot": false,
+                    "isLeaf": false,
+                    "level": 4,
+                    "parentId": "gid://shopify/TaxonomyCategory/sg-4-5",
+                    "ancestorIds": [
+                      "gid://shopify/TaxonomyCategory/sg",
+                      "gid://shopify/TaxonomyCategory/sg-4",
+                      "gid://shopify/TaxonomyCategory/sg-4-5"
+                    ],
+                    "childrenIds": [
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-1",
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-2",
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-3",
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-4",
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-5",
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-6",
+                      "gid://shopify/TaxonomyCategory/sg-4-5-5-7"
+                    ],
+                    "isArchived": false
+                  },
+                  {
+                    "id": "gid://shopify/TaxonomyCategory/ap-2-7",
+                    "name": "Pet Apparel Hangers",
+                    "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Apparel Hangers",
+                    "isRoot": false,
+                    "isLeaf": true,
+                    "level": 3,
+                    "parentId": "gid://shopify/TaxonomyCategory/ap-2",
+                    "ancestorIds": ["gid://shopify/TaxonomyCategory/ap", "gid://shopify/TaxonomyCategory/ap-2"],
+                    "childrenIds": [],
+                    "isArchived": false
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJpZCI6MTI2fQ==",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/aa",
+                      "name": "Apparel & Accessories"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6MTE2MjJ9",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-6",
+                      "name": "Pet Apparel"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6NDk4MX0=",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/sg-4-5-5",
+                      "name": "Riding Apparel & Accessories"
+                    }
+                  },
+                  {
+                    "cursor": "eyJpZCI6NjB9",
+                    "node": {
+                      "id": "gid://shopify/TaxonomyCategory/ap-2-7",
+                      "name": "Pet Apparel Hangers"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJpZCI6MTI2fQ==",
+                  "endCursor": "eyJpZCI6NjB9"
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 29,
+              "actualQueryCost": 29,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1971,
+                "restoreRate": 100
               }
             }
           }

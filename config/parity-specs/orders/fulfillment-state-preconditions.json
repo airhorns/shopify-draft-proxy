@@ -1,19 +1,22 @@
 {
   "scenarioId": "fulfillment-state-preconditions",
-  "operationNames": ["fulfillmentCancel", "fulfillmentTrackingInfoUpdate"],
+  "operationNames": ["fulfillmentCancel", "fulfillmentTrackingInfoUpdate", "fulfillmentEventCreate"],
   "scenarioStatus": "captured",
   "assertionKinds": [
+    "payload-shape",
     "user-errors-parity",
     "mutation-lifecycle",
     "runtime-staging",
-    "no-upstream-passthrough",
-    "local-runtime-backed"
+    "no-upstream-passthrough"
   ],
-  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2025-01/orders/fulfillment-state-preconditions.json"],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/fulfillment-state-preconditions.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/orders/fulfillment-state-preconditions-cancel.graphql",
-    "variablesCapturePath": "$.cancelAlreadyCancelled.variables"
+    "documentCapturePath": "$.setup.orderCreate.query",
+    "variablesCapturePath": "$.setup.orderCreate.variables",
+    "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -21,44 +24,280 @@
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "cancel-already-cancelled-user-error",
+        "name": "cancelled-order-create-fulfillment-order-readiness",
+        "capturePath": "$.setup.orderCreate.response.data.orderCreate.order",
+        "proxyPath": "$.data.orderCreate.order",
+        "selectedPaths": [
+          "$.displayFulfillmentStatus",
+          "$.fulfillmentOrders.nodes[0].status",
+          "$.fulfillmentOrders.nodes[0].requestStatus",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].remainingQuantity",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].lineItem.title"
+        ]
+      },
+      {
+        "name": "cancelled-fulfillment-create",
+        "capturePath": "$.setup.fulfillmentCreate.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "proxyRequest": {
+          "documentCapturePath": "$.setup.fulfillmentCreate.query",
+          "variables": {
+            "fulfillment": {
+              "notifyCustomer": {
+                "fromCapturePath": "$.setup.fulfillmentCreate.variables.fulfillment.notifyCustomer"
+              },
+              "trackingInfo": {
+                "fromCapturePath": "$.setup.fulfillmentCreate.variables.fulfillment.trackingInfo"
+              },
+              "lineItemsByFulfillmentOrder": [
+                {
+                  "fulfillmentOrderId": {
+                    "fromPrimaryProxyPath": "$.data.orderCreate.order.fulfillmentOrders.nodes[0].id"
+                  }
+                }
+              ]
+            },
+            "message": {
+              "fromCapturePath": "$.setup.fulfillmentCreate.variables.message"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillment.id",
+            "matcher": "shopify-gid:Fulfillment",
+            "reason": "The proxy creates a stable synthetic Fulfillment ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "initial-cancel-success",
+        "capturePath": "$.initialCancel.response.data.fulfillmentCancel",
+        "proxyPath": "$.data.fulfillmentCancel",
+        "proxyRequest": {
+          "documentCapturePath": "$.initialCancel.query",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "cancelled-fulfillment-create",
+              "path": "$.data.fulfillmentCreate.fulfillment.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillment.id",
+            "matcher": "shopify-gid:Fulfillment",
+            "reason": "The proxy keeps the staged synthetic Fulfillment ID while Shopify returns the live ID."
+          }
+        ]
+      },
+      {
+        "name": "cancel-already-cancelled-idempotent-success",
         "capturePath": "$.cancelAlreadyCancelled.response.data.fulfillmentCancel",
-        "proxyPath": "$.data.fulfillmentCancel"
+        "proxyPath": "$.data.fulfillmentCancel",
+        "proxyRequest": {
+          "documentCapturePath": "$.cancelAlreadyCancelled.query",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "cancelled-fulfillment-create",
+              "path": "$.data.fulfillmentCreate.fulfillment.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillment.id",
+            "matcher": "shopify-gid:Fulfillment",
+            "reason": "The proxy keeps the staged synthetic Fulfillment ID while Shopify returns the live ID."
+          }
+        ]
       },
       {
-        "name": "cancel-already-cancelled-does-not-log",
-        "capturePath": "$.cancelAlreadyCancelled.log",
-        "proxyLogPath": "$",
-        "selectedPaths": ["$.entries"]
-      },
-      {
-        "name": "tracking-cancelled-user-error",
+        "name": "tracking-cancelled-accepted",
         "capturePath": "$.trackingAlreadyCancelled.response.data.fulfillmentTrackingInfoUpdate",
         "proxyPath": "$.data.fulfillmentTrackingInfoUpdate",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/fulfillment-state-preconditions-tracking.graphql",
-          "variablesCapturePath": "$.trackingAlreadyCancelled.variables"
-        }
+          "documentCapturePath": "$.trackingAlreadyCancelled.query",
+          "variables": {
+            "fulfillmentId": {
+              "fromProxyResponse": "cancelled-fulfillment-create",
+              "path": "$.data.fulfillmentCreate.fulfillment.id"
+            },
+            "trackingInfoInput": {
+              "fromCapturePath": "$.trackingAlreadyCancelled.variables.trackingInfoInput"
+            },
+            "notifyCustomer": {
+              "fromCapturePath": "$.trackingAlreadyCancelled.variables.notifyCustomer"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillment.id",
+            "matcher": "shopify-gid:Fulfillment",
+            "reason": "The proxy keeps the staged synthetic Fulfillment ID while Shopify returns the live ID."
+          }
+        ]
       },
       {
-        "name": "cancel-delivered-user-error",
+        "name": "event-cancelled-accepted",
+        "capturePath": "$.eventOnCancelled.response.data.fulfillmentEventCreate",
+        "proxyPath": "$.data.fulfillmentEventCreate",
+        "proxyRequest": {
+          "documentCapturePath": "$.eventOnCancelled.query",
+          "variables": {
+            "fulfillmentEvent": {
+              "fulfillmentId": {
+                "fromProxyResponse": "cancelled-fulfillment-create",
+                "path": "$.data.fulfillmentCreate.fulfillment.id"
+              },
+              "status": {
+                "fromCapturePath": "$.eventOnCancelled.variables.fulfillmentEvent.status"
+              },
+              "message": {
+                "fromCapturePath": "$.eventOnCancelled.variables.fulfillmentEvent.message"
+              },
+              "happenedAt": {
+                "fromCapturePath": "$.eventOnCancelled.variables.fulfillmentEvent.happenedAt"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentEvent.id",
+            "matcher": "shopify-gid:FulfillmentEvent",
+            "reason": "The proxy creates a stable synthetic FulfillmentEvent ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.fulfillmentEvent.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy emits a deterministic local createdAt timestamp for staged fulfillment events."
+          }
+        ]
+      },
+      {
+        "name": "delivered-order-create-fulfillment-order-readiness",
+        "capturePath": "$.deliveredSetup.orderCreate.response.data.orderCreate.order",
+        "proxyPath": "$.data.orderCreate.order",
+        "proxyRequest": {
+          "documentCapturePath": "$.deliveredSetup.orderCreate.query",
+          "variablesCapturePath": "$.deliveredSetup.orderCreate.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.displayFulfillmentStatus",
+          "$.fulfillmentOrders.nodes[0].status",
+          "$.fulfillmentOrders.nodes[0].requestStatus",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].remainingQuantity",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].lineItem.title"
+        ]
+      },
+      {
+        "name": "delivered-fulfillment-create",
+        "capturePath": "$.deliveredSetup.fulfillmentCreate.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "proxyRequest": {
+          "documentCapturePath": "$.deliveredSetup.fulfillmentCreate.query",
+          "variables": {
+            "fulfillment": {
+              "notifyCustomer": {
+                "fromCapturePath": "$.deliveredSetup.fulfillmentCreate.variables.fulfillment.notifyCustomer"
+              },
+              "trackingInfo": {
+                "fromCapturePath": "$.deliveredSetup.fulfillmentCreate.variables.fulfillment.trackingInfo"
+              },
+              "lineItemsByFulfillmentOrder": [
+                {
+                  "fulfillmentOrderId": {
+                    "fromProxyResponse": "delivered-order-create-fulfillment-order-readiness",
+                    "path": "$.data.orderCreate.order.fulfillmentOrders.nodes[0].id"
+                  }
+                }
+              ]
+            },
+            "message": {
+              "fromCapturePath": "$.deliveredSetup.fulfillmentCreate.variables.message"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillment.id",
+            "matcher": "shopify-gid:Fulfillment",
+            "reason": "The proxy creates a stable synthetic Fulfillment ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "delivered-event-create",
+        "capturePath": "$.deliveredEventCreate.response.data.fulfillmentEventCreate",
+        "proxyPath": "$.data.fulfillmentEventCreate",
+        "proxyRequest": {
+          "documentCapturePath": "$.deliveredEventCreate.query",
+          "variables": {
+            "fulfillmentEvent": {
+              "fulfillmentId": {
+                "fromProxyResponse": "delivered-fulfillment-create",
+                "path": "$.data.fulfillmentCreate.fulfillment.id"
+              },
+              "status": {
+                "fromCapturePath": "$.deliveredEventCreate.variables.fulfillmentEvent.status"
+              },
+              "message": {
+                "fromCapturePath": "$.deliveredEventCreate.variables.fulfillmentEvent.message"
+              },
+              "happenedAt": {
+                "fromCapturePath": "$.deliveredEventCreate.variables.fulfillmentEvent.happenedAt"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentEvent.id",
+            "matcher": "shopify-gid:FulfillmentEvent",
+            "reason": "The proxy creates a stable synthetic FulfillmentEvent ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.fulfillmentEvent.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy emits a deterministic local createdAt timestamp for staged fulfillment events."
+          }
+        ]
+      },
+      {
+        "name": "cancel-delivered-success",
         "capturePath": "$.cancelDelivered.response.data.fulfillmentCancel",
         "proxyPath": "$.data.fulfillmentCancel",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/fulfillment-state-preconditions-cancel.graphql",
-          "variablesCapturePath": "$.cancelDelivered.variables"
-        }
-      },
-      {
-        "name": "tracking-happy-path-contrast",
-        "capturePath": "$.trackingHappyPath.response.data.fulfillmentTrackingInfoUpdate",
-        "proxyPath": "$.data.fulfillmentTrackingInfoUpdate",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/fulfillment-state-preconditions-tracking.graphql",
-          "variablesCapturePath": "$.trackingHappyPath.variables"
-        }
+          "documentCapturePath": "$.cancelDelivered.query",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "delivered-fulfillment-create",
+              "path": "$.data.fulfillmentCreate.fulfillment.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillment.id",
+            "matcher": "shopify-gid:Fulfillment",
+            "reason": "The proxy keeps the staged synthetic Fulfillment ID while Shopify returns the live ID."
+          }
+        ]
       }
     ]
   },
-  "notes": "Executable local-runtime parity for fulfillment state-machine preconditions. Public Admin API probes for these branches returned behavior that differed from the ticketed contract, so the scenario uses cassette-backed fulfillment hydration and the focused runtime test file as the source of executable local evidence without pre-seeding proxy state."
+  "notes": "Captured Admin GraphQL 2026-04 public behavior for fulfillment state branches that were previously backed only by local-runtime evidence: already-cancelled fulfillmentCancel is idempotent success, fulfillmentTrackingInfoUpdate accepts cancelled fulfillments, fulfillmentEventCreate accepts cancelled fulfillments, and fulfillmentCancel after a DELIVERED event succeeds without a delivered-state userError."
 }

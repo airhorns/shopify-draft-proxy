@@ -1,0 +1,21 @@
+mutation PaymentTermsDueStateCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {
+  paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {
+    paymentTerms {
+      id
+      due
+      overdue
+      paymentSchedules(first: 10) {
+        nodes {
+          dueAt
+          completedAt
+          due
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

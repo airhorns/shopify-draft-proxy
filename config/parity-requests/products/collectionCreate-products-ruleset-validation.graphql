@@ -1,0 +1,25 @@
+mutation CollectionCreateProductsRuleSetValidation($input: CollectionInput!) {
+  collectionCreate(input: $input) {
+    collection {
+      id
+      title
+      products(first: 10) {
+        nodes {
+          id
+        }
+      }
+      ruleSet {
+        appliedDisjunctively
+        rules {
+          column
+          relation
+          condition
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

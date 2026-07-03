@@ -21,10 +21,23 @@
     }
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Strict parity for deprecated dedicated Pub/Sub and EventBridge webhook subscription roots. The replay proves typed input normalization into the shared webhook subscription model, downstream detail reads, and captured dedicated validation field paths without runtime Shopify writes.",
+  "notes": "Strict parity for deprecated dedicated Pub/Sub and EventBridge webhook subscription roots. The replay proves typed input normalization into the shared webhook subscription model, downstream detail reads, and captured dedicated validation field paths without runtime Shopify writes. The older capture records Shopify's former top-level cloud callbackUrl placeholder; newer 2026-04 cloud webhook captures omit that field, so this spec carves out only the stale top-level callbackUrl while continuing to compare uri and endpoint strictly.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
+    "expectedDifferences": [
+      {
+        "path": "$.webhookSubscription.callbackUrl",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "This older capture contains Shopify's former cloud callbackUrl placeholder, while newer 2026-04 EventBridge and Pub/Sub captures omit the top-level callbackUrl field."
+      },
+      {
+        "path": "$.callbackUrl",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "This older capture contains Shopify's former cloud callbackUrl placeholder, while newer 2026-04 EventBridge and Pub/Sub detail-read captures omit the top-level callbackUrl field."
+      }
+    ],
     "targets": [
       {
         "name": "pubsub-create-payload",

@@ -1,70 +1,8 @@
 {
-  "capturedAt": "2026-05-07T18:20:24.858Z",
+  "capturedAt": "2026-06-25T01:47:26.587Z",
   "source": "local-runtime-capture-script",
   "apiVersion": "2026-04",
-  "notes": "Executable local-runtime parity fixture for the supported order-backed return lifecycle. Live no-side-effect schema evidence remains in fixtures/conformance/harry-test-heelo.myshopify.com/<api-version>/orders/return-reverse-logistics-introspection.json; return decline validation public-schema evidence is recorded by scripts/capture-return-decline-request-validation-conformance.ts. This fixture supplies the fulfilled order graph needed to replay local return lifecycle and validation branches without runtime Shopify writes.",
-  "seedOrder": {
-    "id": "gid://shopify/Order/return-flow",
-    "name": "#RETURN-FLOW",
-    "createdAt": "2026-04-25T00:00:00.000Z",
-    "updatedAt": "2026-04-25T00:00:00.000Z",
-    "displayFinancialStatus": "PAID",
-    "displayFulfillmentStatus": "FULFILLED",
-    "subtotalPriceSet": {
-      "shopMoney": {
-        "amount": "20.0",
-        "currencyCode": "CAD"
-      }
-    },
-    "currentTotalPriceSet": {
-      "shopMoney": {
-        "amount": "20.0",
-        "currencyCode": "CAD"
-      }
-    },
-    "totalPriceSet": {
-      "shopMoney": {
-        "amount": "20.0",
-        "currencyCode": "CAD"
-      }
-    },
-    "totalRefundedSet": {
-      "shopMoney": {
-        "amount": "0.0",
-        "currencyCode": "CAD"
-      }
-    },
-    "lineItems": {
-      "nodes": [
-        {
-          "id": "gid://shopify/LineItem/return-flow",
-          "title": "Return flow item",
-          "quantity": 2
-        }
-      ]
-    },
-    "fulfillments": [
-      {
-        "id": "gid://shopify/Fulfillment/return-flow",
-        "status": "SUCCESS",
-        "displayStatus": "FULFILLED",
-        "createdAt": "2026-04-25T01:00:00.000Z",
-        "updatedAt": "2026-04-25T01:00:00.000Z",
-        "fulfillmentLineItems": {
-          "nodes": [
-            {
-              "id": "gid://shopify/FulfillmentLineItem/return-flow",
-              "quantity": 2,
-              "lineItem": {
-                "id": "gid://shopify/LineItem/return-flow",
-                "title": "Return flow item"
-              }
-            }
-          ]
-        }
-      }
-    ]
-  },
+  "notes": "Executable local-runtime parity fixture for the supported order-backed return lifecycle. Live Shopify evidence for returnApproveRequest/returnDeclineRequest invalid-state and not-found userError shapes is recorded in fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnApprove-decline-state-preconditions.json; return decline validation public-schema evidence is recorded by scripts/capture-return-decline-request-validation-conformance.ts. This fixture supplies the fulfilled order graph needed to replay local return lifecycle and validation branches without runtime Shopify writes.",
   "returnCreate": {
     "variables": {
       "returnInput": {
@@ -102,7 +40,7 @@
           {
             "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/missing",
             "quantity": 1,
-            "returnReason": "OTHER"
+            "returnReason": "UNWANTED"
           }
         ]
       }
@@ -248,7 +186,7 @@
         "returnRequest": {
           "return": {
             "status": "REQUESTED",
-            "id": "gid://shopify/Return/10"
+            "id": "gid://shopify/Return/6"
           },
           "userErrors": []
         }
@@ -311,12 +249,12 @@
             "reverseFulfillmentOrders": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ReverseFulfillmentOrder/5",
+                  "id": "gid://shopify/ReverseFulfillmentOrder/4",
                   "status": "OPEN",
                   "lineItems": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/ReverseFulfillmentOrderLineItem/4",
+                        "id": "gid://shopify/ReverseFulfillmentOrderLineItem/3",
                         "totalQuantity": 1,
                         "remainingQuantity": 1,
                         "returnLineItem": {
@@ -337,17 +275,17 @@
       "data": {
         "reverseDeliveryCreateWithShipping": {
           "reverseDelivery": {
-            "id": "gid://shopify/ReverseDelivery/8",
+            "id": "gid://shopify/ReverseDelivery/5",
             "reverseFulfillmentOrder": {
-              "id": "gid://shopify/ReverseFulfillmentOrder/5"
+              "id": "gid://shopify/ReverseFulfillmentOrder/4"
             },
             "reverseDeliveryLineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ReverseDeliveryLineItem/7",
+                  "id": "gid://shopify/ReverseDeliveryLineItem/6",
                   "quantity": 1,
                   "reverseFulfillmentOrderLineItem": {
-                    "id": "gid://shopify/ReverseFulfillmentOrderLineItem/4",
+                    "id": "gid://shopify/ReverseFulfillmentOrderLineItem/3",
                     "remainingQuantity": 1
                   }
                 }
@@ -373,7 +311,7 @@
       "data": {
         "reverseDeliveryShippingUpdate": {
           "reverseDelivery": {
-            "id": "gid://shopify/ReverseDelivery/8",
+            "id": "gid://shopify/ReverseDelivery/5",
             "deliverable": {
               "__typename": "ReverseDeliveryShippingDeliverable",
               "tracking": {
@@ -392,7 +330,7 @@
         "reverseFulfillmentOrderDispose": {
           "reverseFulfillmentOrderLineItems": [
             {
-              "id": "gid://shopify/ReverseFulfillmentOrderLineItem/4",
+              "id": "gid://shopify/ReverseFulfillmentOrderLineItem/3",
               "remainingQuantity": 0,
               "dispositionType": "RESTOCKED"
             }
@@ -420,12 +358,12 @@
             "reverseFulfillmentOrders": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ReverseFulfillmentOrder/5",
+                  "id": "gid://shopify/ReverseFulfillmentOrder/4",
                   "status": "OPEN",
                   "lineItems": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/ReverseFulfillmentOrderLineItem/4",
+                        "id": "gid://shopify/ReverseFulfillmentOrderLineItem/3",
                         "remainingQuantity": 0,
                         "dispositionType": "RESTOCKED"
                       }
@@ -459,7 +397,7 @@
           }
         },
         "reverseDelivery": {
-          "id": "gid://shopify/ReverseDelivery/8",
+          "id": "gid://shopify/ReverseDelivery/5",
           "deliverable": {
             "__typename": "ReverseDeliveryShippingDeliverable",
             "tracking": {
@@ -468,12 +406,12 @@
           }
         },
         "reverseFulfillmentOrder": {
-          "id": "gid://shopify/ReverseFulfillmentOrder/5",
+          "id": "gid://shopify/ReverseFulfillmentOrder/4",
           "status": "OPEN",
           "lineItems": {
             "nodes": [
               {
-                "id": "gid://shopify/ReverseFulfillmentOrderLineItem/4",
+                "id": "gid://shopify/ReverseFulfillmentOrderLineItem/3",
                 "remainingQuantity": 0,
                 "dispositionType": "RESTOCKED"
               }
@@ -482,7 +420,7 @@
           "reverseDeliveries": {
             "nodes": [
               {
-                "id": "gid://shopify/ReverseDelivery/8"
+                "id": "gid://shopify/ReverseDelivery/5"
               }
             ]
           }
@@ -539,9 +477,9 @@
             "return": null,
             "userErrors": [
               {
-                "field": ["id"],
-                "message": "return_request_status_invalid",
-                "code": "INVALID"
+                "field": ["input", "id"],
+                "message": "Return is not approvable. Only returns with status REQUESTED can be approved.",
+                "code": "INVALID_STATE"
               }
             ]
           }
@@ -553,9 +491,9 @@
             "return": null,
             "userErrors": [
               {
-                "field": ["id"],
-                "message": "return_request_status_invalid",
-                "code": "INVALID"
+                "field": ["input", "id"],
+                "message": "Return is not declinable. Only non-refunded returns with status REQUESTED can be declined.",
+                "code": "INVALID_STATE"
               }
             ]
           }
@@ -567,9 +505,9 @@
             "return": null,
             "userErrors": [
               {
-                "field": ["id"],
-                "message": "return_request_status_invalid",
-                "code": "INVALID"
+                "field": ["input", "id"],
+                "message": "Return is not approvable. Only returns with status REQUESTED can be approved.",
+                "code": "INVALID_STATE"
               }
             ]
           }
@@ -581,9 +519,9 @@
             "return": null,
             "userErrors": [
               {
-                "field": ["id"],
-                "message": "return_request_status_invalid",
-                "code": "INVALID"
+                "field": ["input", "id"],
+                "message": "Return is not declinable. Only non-refunded returns with status REQUESTED can be declined.",
+                "code": "INVALID_STATE"
               }
             ]
           }
@@ -595,9 +533,9 @@
             "return": null,
             "userErrors": [
               {
-                "field": ["id"],
-                "message": "return_request_status_invalid",
-                "code": "INVALID"
+                "field": ["input", "id"],
+                "message": "Return is not approvable. Only returns with status REQUESTED can be approved.",
+                "code": "INVALID_STATE"
               }
             ]
           }
@@ -609,9 +547,9 @@
             "return": null,
             "userErrors": [
               {
-                "field": ["id"],
-                "message": "return_request_status_invalid",
-                "code": "INVALID"
+                "field": ["input", "id"],
+                "message": "The return is already declined.",
+                "code": "INVALID_STATE"
               }
             ]
           }
@@ -623,9 +561,9 @@
             "return": null,
             "userErrors": [
               {
-                "field": ["id"],
-                "message": "return_request_status_invalid",
-                "code": "INVALID"
+                "field": ["input", "id"],
+                "message": "Return is not approvable. Only returns with status REQUESTED can be approved.",
+                "code": "INVALID_STATE"
               }
             ]
           }
@@ -637,9 +575,9 @@
             "return": null,
             "userErrors": [
               {
-                "field": ["id"],
-                "message": "return_request_status_invalid",
-                "code": "INVALID"
+                "field": ["input", "id"],
+                "message": "Return is not declinable. Only non-refunded returns with status REQUESTED can be declined.",
+                "code": "INVALID_STATE"
               }
             ]
           }
@@ -742,11 +680,11 @@
   },
   "upstreamCalls": [
     {
-      "operationName": "OrdersOrderHydrate",
+      "operationName": "OrdersReturnOrderHydrate",
       "variables": {
         "id": "gid://shopify/Order/return-flow"
       },
-      "query": "generated by scripts/capture-return-decline-request-local-runtime.ts from the checked-in seedOrder for return lifecycle Pattern 2 order hydration",
+      "query": "query OrdersReturnOrderHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    totalRefundedSet { shopMoney { amount currencyCode } }\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n      }\n    }\n    fulfillments(first: 50) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 50) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n            variant {\n              id\n            }\n          }\n        }\n      }\n    }\n    returns(first: 50) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnLineItems(first: 50) {\n          nodes {\n            ... on ReturnLineItem {\n              id\n              quantity\n              fulfillmentLineItem {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -805,7 +743,10 @@
                         "quantity": 2,
                         "lineItem": {
                           "id": "gid://shopify/LineItem/return-flow",
-                          "title": "Return flow item"
+                          "title": "Return flow item",
+                          "variant": {
+                            "id": "gid://shopify/ProductVariant/return-flow"
+                          }
                         }
                       }
                     ]

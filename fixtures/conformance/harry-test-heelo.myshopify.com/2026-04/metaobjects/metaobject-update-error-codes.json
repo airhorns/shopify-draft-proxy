@@ -1,7 +1,7 @@
 {
   "apiVersion": "2026-04",
   "storeDomain": "harry-test-heelo.myshopify.com",
-  "capturedAt": "2026-05-06T04:13:01.941Z",
+  "capturedAt": "2026-06-30T15:18:27.677Z",
   "scenarioId": "metaobject-update-error-codes",
   "notes": "Captured live 2026-04 evidence for metaobjectUpdate bad-id RECORD_NOT_FOUND, duplicate fields[] key validation, and non-display-field update displayName preservation.",
   "setup": {
@@ -11,8 +11,8 @@
         "query": "#graphql\n  mutation MetaobjectUpdateErrorCodesDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n    metaobjectDefinitionCreate(definition: $definition) {\n      metaobjectDefinition {\n        id\n        type\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
           "definition": {
-            "type": "codex_update_errors_1778040780683",
-            "name": "Update errors 1778040780683",
+            "type": "codex_update_errors_1782832706205",
+            "name": "Update errors 1782832706205",
             "displayNameKey": "title",
             "fieldDefinitions": [
               {
@@ -36,8 +36,8 @@
         "data": {
           "metaobjectDefinitionCreate": {
             "metaobjectDefinition": {
-              "id": "gid://shopify/MetaobjectDefinition/17884184882",
-              "type": "codex_update_errors_1778040780683"
+              "id": "gid://shopify/MetaobjectDefinition/19482607922",
+              "type": "codex_update_errors_1782832706205"
             },
             "userErrors": []
           }
@@ -61,16 +61,16 @@
         "query": "#graphql\n  mutation MetaobjectUpdateErrorCodesSetupCreate($metaobject: MetaobjectCreateInput!) {\n    metaobjectCreate(metaobject: $metaobject) {\n      metaobject {\n        id\n        handle\n        displayName\n        updatedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
           "metaobject": {
-            "type": "codex_update_errors_1778040780683",
-            "handle": "update-errors-display-1778040780683",
+            "type": "codex_update_errors_1782832706205",
+            "handle": "update-errors-display-1782832706205",
             "fields": [
               {
                 "key": "title",
-                "value": "Display 1778040780683"
+                "value": "Display 1782832706205"
               },
               {
                 "key": "body",
-                "value": "Body 1778040780683"
+                "value": "Body 1782832706205"
               }
             ]
           }
@@ -81,10 +81,10 @@
         "data": {
           "metaobjectCreate": {
             "metaobject": {
-              "id": "gid://shopify/Metaobject/188166603058",
-              "handle": "update-errors-display-1778040780683",
-              "displayName": "Display 1778040780683",
-              "updatedAt": "2026-05-06T04:13:01Z"
+              "id": "gid://shopify/Metaobject/203136270642",
+              "handle": "update-errors-display-1782832706205",
+              "displayName": "Display 1782832706205",
+              "updatedAt": "2026-06-30T15:18:26Z"
             },
             "userErrors": []
           }
@@ -109,7 +109,7 @@
       "request": {
         "query": "mutation MetaobjectUpdateErrorCodesBadId($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/9999991778040780683",
+          "id": "gid://shopify/Metaobject/9999991782832706205",
           "metaobject": {
             "fields": [
               {
@@ -142,7 +142,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1984,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -155,15 +155,15 @@
         "query": "mutation MetaobjectUpdateErrorCodesDuplicateCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      displayName\n      fields {\n        key\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
           "metaobject": {
-            "type": "codex_update_errors_1778040780683",
+            "type": "codex_update_errors_1782832706205",
             "fields": [
               {
                 "key": "title",
-                "value": "First 1778040780683"
+                "value": "First 1782832706205"
               },
               {
                 "key": "title",
-                "value": "Second 1778040780683"
+                "value": "Second 1782832706205"
               }
             ]
           }
@@ -198,7 +198,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1984,
+              "currentlyAvailable": 1989,
               "restoreRate": 100
             }
           }
@@ -210,12 +210,12 @@
       "request": {
         "query": "mutation MetaobjectUpdateErrorCodesDisplayUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      displayName\n      updatedAt\n      fields {\n        key\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
         "variables": {
-          "id": "gid://shopify/Metaobject/188166603058",
+          "id": "gid://shopify/Metaobject/203136270642",
           "metaobject": {
             "fields": [
               {
                 "key": "body",
-                "value": "Changed body 1778040780683"
+                "value": "Changed body 1782832706205"
               }
             ]
           }
@@ -226,18 +226,18 @@
         "data": {
           "metaobjectUpdate": {
             "metaobject": {
-              "id": "gid://shopify/Metaobject/188166603058",
-              "handle": "update-errors-display-1778040780683",
-              "displayName": "Display 1778040780683",
-              "updatedAt": "2026-05-06T04:13:01Z",
+              "id": "gid://shopify/Metaobject/203136270642",
+              "handle": "update-errors-display-1782832706205",
+              "displayName": "Display 1782832706205",
+              "updatedAt": "2026-06-30T15:18:27Z",
               "fields": [
                 {
                   "key": "title",
-                  "value": "Display 1778040780683"
+                  "value": "Display 1782832706205"
                 },
                 {
                   "key": "body",
-                  "value": "Changed body 1778040780683"
+                  "value": "Changed body 1782832706205"
                 }
               ]
             },
@@ -250,7 +250,7 @@
             "actualQueryCost": 11,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1985,
+              "currentlyAvailable": 1989,
               "restoreRate": 100
             }
           }
@@ -262,9 +262,9 @@
     {
       "operationName": "MetaobjectHydrateById",
       "variables": {
-        "id": "gid://shopify/Metaobject/9999991778040780683"
+        "id": "gid://shopify/Metaobject/9999991782832706205"
       },
-      "query": "sha:captured-by-script",
+      "query": "query MetaobjectHydrateById($id: ID!) { metaobject(id: $id) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } definition { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }",
       "response": {
         "status": 200,
         "body": {
@@ -288,17 +288,17 @@
     {
       "operationName": "MetaobjectDefinitionHydrateByType",
       "variables": {
-        "type": "codex_update_errors_1778040780683"
+        "type": "codex_update_errors_1782832706205"
       },
-      "query": "sha:captured-by-script",
+      "query": "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "metaobjectDefinitionByType": {
-              "id": "gid://shopify/MetaobjectDefinition/17884184882",
-              "type": "codex_update_errors_1778040780683",
-              "name": "Update errors 1778040780683",
+              "id": "gid://shopify/MetaobjectDefinition/19482607922",
+              "type": "codex_update_errors_1782832706205",
+              "name": "Update errors 1782832706205",
               "description": null,
               "displayNameKey": "title",
               "access": {
@@ -346,8 +346,8 @@
               "hasThumbnailField": false,
               "metaobjectsCount": 1,
               "standardTemplate": null,
-              "createdAt": "2026-05-06T04:13:00Z",
-              "updatedAt": "2026-05-06T04:13:00Z"
+              "createdAt": "2026-06-30T15:18:26Z",
+              "updatedAt": "2026-06-30T15:18:26Z"
             }
           },
           "extensions": {
@@ -367,20 +367,20 @@
     {
       "operationName": "MetaobjectHydrateById",
       "variables": {
-        "id": "gid://shopify/Metaobject/188166603058"
+        "id": "gid://shopify/Metaobject/203136270642"
       },
-      "query": "sha:captured-by-script",
+      "query": "query MetaobjectHydrateById($id: ID!) { metaobject(id: $id) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } definition { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "metaobject": {
-              "id": "gid://shopify/Metaobject/188166603058",
-              "handle": "update-errors-display-1778040780683",
-              "type": "codex_update_errors_1778040780683",
-              "displayName": "Display 1778040780683",
-              "createdAt": "2026-05-06T04:13:01Z",
-              "updatedAt": "2026-05-06T04:13:01Z",
+              "id": "gid://shopify/Metaobject/203136270642",
+              "handle": "update-errors-display-1782832706205",
+              "type": "codex_update_errors_1782832706205",
+              "displayName": "Display 1782832706205",
+              "createdAt": "2026-06-30T15:18:26Z",
+              "updatedAt": "2026-06-30T15:18:26Z",
               "capabilities": {
                 "publishable": null,
                 "onlineStore": null
@@ -389,8 +389,8 @@
                 {
                   "key": "title",
                   "type": "single_line_text_field",
-                  "value": "Display 1778040780683",
-                  "jsonValue": "Display 1778040780683",
+                  "value": "Display 1782832706205",
+                  "jsonValue": "Display 1782832706205",
                   "definition": {
                     "key": "title",
                     "name": "Title",
@@ -404,8 +404,8 @@
                 {
                   "key": "body",
                   "type": "multi_line_text_field",
-                  "value": "Body 1778040780683",
-                  "jsonValue": "Body 1778040780683",
+                  "value": "Body 1782832706205",
+                  "jsonValue": "Body 1782832706205",
                   "definition": {
                     "key": "body",
                     "name": "Body",
@@ -418,9 +418,9 @@
                 }
               ],
               "definition": {
-                "id": "gid://shopify/MetaobjectDefinition/17884184882",
-                "type": "codex_update_errors_1778040780683",
-                "name": "Update errors 1778040780683",
+                "id": "gid://shopify/MetaobjectDefinition/19482607922",
+                "type": "codex_update_errors_1782832706205",
+                "name": "Update errors 1782832706205",
                 "description": null,
                 "displayNameKey": "title",
                 "access": {
@@ -468,8 +468,8 @@
                 "hasThumbnailField": false,
                 "metaobjectsCount": 1,
                 "standardTemplate": null,
-                "createdAt": "2026-05-06T04:13:00Z",
-                "updatedAt": "2026-05-06T04:13:00Z"
+                "createdAt": "2026-06-30T15:18:26Z",
+                "updatedAt": "2026-06-30T15:18:26Z"
               }
             }
           },

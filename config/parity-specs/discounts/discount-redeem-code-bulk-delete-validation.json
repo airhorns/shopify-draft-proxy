@@ -12,7 +12,7 @@
     "variables": {
       "input": {
         "title": "Redeem code bulk delete validation parity",
-        "code": "HAR785BASE1778020602881",
+        "code": "SDPDELBASE20260630150102",
         "startsAt": "2026-05-07T00:00:00Z",
         "combinesWith": {
           "productDiscounts": false,
@@ -84,5 +84,5 @@
       }
     ]
   },
-  "notes": "HAR-785 live Shopify 2026-04 evidence for discountCodeRedeemCodeBulkDelete selector validation. The disposable code discount was created with one redeem code, validation captured missing selector, too-many selectors, unknown discount, empty ids, blank search, and unknown savedSearchId, then the happy-path id delete was captured and the discount was cleaned up. Proxy replay first stages an equivalent local discount through discountCodeBasicCreate, then uses generic BulkDelete operation names with the generated local DiscountCodeNode and DiscountRedeemCode GIDs so the comparison exercises root-field/argument dispatch rather than any operation-name-gated path. Shopify serializes base selector errors with field: null, not [\"base\"], and returns the empty-ids generic error with code: null."
+  "notes": "Live Shopify 2026-04 evidence for discountCodeRedeemCodeBulkDelete selector validation. The disposable code discount was created with one redeem code, validation captured missing selector, too-many selectors, unknown discount, empty ids, blank search, and unknown savedSearchId, then the happy-path id delete was captured and the discount was cleaned up. Proxy replay first stages an equivalent local discount through discountCodeBasicCreate, then uses generic BulkDelete operation names with the generated local DiscountCodeNode and DiscountRedeemCode GIDs so the comparison exercises root-field/argument dispatch rather than any operation-name-gated path. Shopify serializes base selector errors with field: null, not [\"base\"], and returns the empty-ids generic error with code: null."
 }

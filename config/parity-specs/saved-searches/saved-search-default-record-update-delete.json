@@ -6,14 +6,14 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-default-record-update-delete.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/saved-searches/saved-search-default-records-read.graphql",
     "variablesCapturePath": "$.readBefore.variables",
     "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture for persisted ORDER and DRAFT_ORDER default saved-search records. The generic parity runner verifies the proxy can read seeded defaults, update an ORDER default, reflect the update through orderSavedSearches, delete a DRAFT_ORDER default, and suppress it from draftOrderSavedSearches without runtime Shopify writes.",
+  "notes": "Live capture for persisted ORDER and DRAFT_ORDER default saved-search records. The generic parity runner verifies the proxy can read seeded defaults, update an ORDER default, reflect the update through orderSavedSearches, delete a DRAFT_ORDER default, and suppress it from draftOrderSavedSearches without runtime Shopify writes. Proxy replay uses stable synthetic default ids and maps follow-up update/delete variables from the first proxy read instead of keying runtime behavior to captured per-shop GIDs.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -22,7 +22,29 @@
         "name": "default-saved-searches-read-before",
         "capturePath": "$.readBefore.response.data",
         "proxyPath": "$.data",
-        "upstreamCapturePath": null
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.orderSavedSearches.nodes[*].id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy uses stable synthetic ids for built-in ORDER default saved searches instead of captured per-shop GIDs."
+          },
+          {
+            "path": "$.orderSavedSearches.nodes[*].legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives legacy ids from stable synthetic ORDER default saved-search ids."
+          },
+          {
+            "path": "$.draftOrderSavedSearches.nodes[*].id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy uses stable synthetic ids for built-in DRAFT_ORDER default saved searches instead of captured per-shop GIDs."
+          },
+          {
+            "path": "$.draftOrderSavedSearches.nodes[*].legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives legacy ids from stable synthetic DRAFT_ORDER default saved-search ids."
+          }
+        ]
       },
       {
         "name": "order-default-update-payload",
@@ -31,9 +53,33 @@
         "upstreamCapturePath": null,
         "proxyRequest": {
           "documentPath": "config/parity-requests/saved-searches/saved-search-default-record-update-order.graphql",
-          "variablesCapturePath": "$.updateOrderDefault.variables",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderSavedSearches.nodes[0].id"
+              },
+              "name": {
+                "fromCapturePath": "$.updateOrderDefault.variables.input.name"
+              },
+              "query": {
+                "fromCapturePath": "$.updateOrderDefault.variables.input.query"
+              }
+            }
+          },
           "apiVersion": "2025-01"
-        }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy updates the matching stable synthetic ORDER default saved-search id instead of Shopify's captured per-shop id."
+          },
+          {
+            "path": "$.savedSearch.legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives the legacy id from its stable synthetic ORDER default saved-search id."
+          }
+        ]
       },
       {
         "name": "order-default-read-after-update",
@@ -44,7 +90,19 @@
           "documentPath": "config/parity-requests/saved-searches/saved-search-default-record-read-updated-order.graphql",
           "variablesCapturePath": "$.readOrderAfterUpdate.variables",
           "apiVersion": "2025-01"
-        }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.orderSavedSearches.nodes[*].id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy uses stable synthetic ids for built-in ORDER default saved searches instead of captured per-shop GIDs."
+          },
+          {
+            "path": "$.orderSavedSearches.nodes[*].legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives legacy ids from stable synthetic ORDER default saved-search ids."
+          }
+        ]
       },
       {
         "name": "draft-order-default-delete-payload",
@@ -53,9 +111,22 @@
         "upstreamCapturePath": null,
         "proxyRequest": {
           "documentPath": "config/parity-requests/saved-searches/saved-search-default-record-delete-draft-order.graphql",
-          "variablesCapturePath": "$.deleteDraftOrderDefault.variables",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.draftOrderSavedSearches.nodes[0].id"
+              }
+            }
+          },
           "apiVersion": "2025-01"
-        }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedSavedSearchId",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy deletes the matching stable synthetic DRAFT_ORDER default saved-search id instead of Shopify's captured per-shop id."
+          }
+        ]
       },
       {
         "name": "draft-order-default-read-after-delete",
@@ -66,7 +137,19 @@
           "documentPath": "config/parity-requests/saved-searches/saved-search-default-record-read-deleted-draft-order.graphql",
           "variablesCapturePath": "$.readDraftAfterDelete.variables",
           "apiVersion": "2025-01"
-        }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.draftOrderSavedSearches.nodes[*].id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy uses stable synthetic ids for remaining DRAFT_ORDER default saved searches instead of captured per-shop GIDs."
+          },
+          {
+            "path": "$.draftOrderSavedSearches.nodes[*].legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives legacy ids from stable synthetic DRAFT_ORDER default saved-search ids."
+          }
+        ]
       }
     ]
   }

@@ -1,0 +1,74 @@
+{
+  "capturedAt": "2026-06-27T00:48:50.089Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "rootAvailability": {
+    "mutations": ["shopLocaleDisable", "shopLocaleEnable", "shopLocaleUpdate"]
+  },
+  "codeSelection": {
+    "query": "#graphql\n  mutation LocalizationShopLocaleUserErrorNoCode(\n    $enableLocale: String!\n    $updateLocale: String!\n    $updateInput: ShopLocaleInput!\n    $disableLocale: String!\n  ) {\n    enable: shopLocaleEnable(locale: $enableLocale) {\n      shopLocale {\n        locale\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n    update: shopLocaleUpdate(locale: $updateLocale, shopLocale: $updateInput) {\n      shopLocale {\n        locale\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n    disable: shopLocaleDisable(locale: $disableLocale) {\n      locale\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+    "request": {
+      "variables": {
+        "enableLocale": "en",
+        "updateLocale": "fr",
+        "updateInput": {
+          "published": false
+        },
+        "disableLocale": "en"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Field 'code' doesn't exist on type 'UserError'",
+            "locations": [
+              {
+                "line": 15,
+                "column": 9
+              }
+            ],
+            "path": ["mutation LocalizationShopLocaleUserErrorNoCode", "enable", "userErrors", "code"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "UserError",
+              "fieldName": "code"
+            }
+          },
+          {
+            "message": "Field 'code' doesn't exist on type 'UserError'",
+            "locations": [
+              {
+                "line": 25,
+                "column": 9
+              }
+            ],
+            "path": ["mutation LocalizationShopLocaleUserErrorNoCode", "update", "userErrors", "code"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "UserError",
+              "fieldName": "code"
+            }
+          },
+          {
+            "message": "Field 'code' doesn't exist on type 'UserError'",
+            "locations": [
+              {
+                "line": 33,
+                "column": 9
+              }
+            ],
+            "path": ["mutation LocalizationShopLocaleUserErrorNoCode", "disable", "userErrors", "code"],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "UserError",
+              "fieldName": "code"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "upstreamCalls": []
+}

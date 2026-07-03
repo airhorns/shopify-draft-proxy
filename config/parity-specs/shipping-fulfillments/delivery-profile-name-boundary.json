@@ -1,0 +1,89 @@
+{
+  "scenarioId": "delivery-profile-name-boundary",
+  "operationNames": ["deliveryProfileCreate", "deliveryProfileUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-name-boundary.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-create-validation.graphql",
+    "variablesCapturePath": "$.mutations.createAccepted.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 deliveryProfileCreate and deliveryProfileUpdate name-length boundary evidence. A 128-character name is accepted for create and update, while a 129-character name returns one profile.name userError and null profile for both roots. Public delivery profile userErrors expose field/message only as generic UserError; the capture records a code-selection schema probe separately, and parity compares the public payload strictly.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-128-character-name-accepted",
+        "capturePath": "$.mutations.createAccepted.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.deliveryProfileCreate.profile.id",
+            "matcher": "shopify-gid:DeliveryProfile",
+            "reason": "The proxy creates a stable synthetic delivery profile ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "update-128-character-name-accepted",
+        "capturePath": "$.mutations.updateAccepted.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-update-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.deliveryProfileCreate.profile.id"
+            },
+            "profile": {
+              "fromCapturePath": "$.mutations.updateAccepted.variables.profile"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deliveryProfileUpdate.profile.id",
+            "matcher": "shopify-gid:DeliveryProfile",
+            "reason": "The update runs against the proxy-created synthetic delivery profile ID."
+          }
+        ]
+      },
+      {
+        "name": "update-129-character-name-rejected",
+        "capturePath": "$.mutations.updateRejected.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-update-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.deliveryProfileCreate.profile.id"
+            },
+            "profile": {
+              "fromCapturePath": "$.mutations.updateRejected.variables.profile"
+            }
+          }
+        }
+      },
+      {
+        "name": "create-129-character-name-rejected",
+        "capturePath": "$.mutations.createRejected.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-create-validation.graphql",
+          "variablesCapturePath": "$.mutations.createRejected.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

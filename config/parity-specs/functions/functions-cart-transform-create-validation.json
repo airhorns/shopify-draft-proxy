@@ -13,8 +13,8 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-validation.json"
   ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-setup.graphql",
-    "variablesCapturePath": "$.cartTransformCreateSetup.variables",
+    "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-unknown-id.graphql",
+    "variablesCapturePath": "$.cartTransformCreateUnknownId.variables",
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
@@ -23,9 +23,49 @@
     "expectedDifferences": [],
     "targets": [
       {
+        "name": "cart-transform-create-unknown-function-id",
+        "capturePath": "$.cartTransformCreateUnknownId.response.payload.data.cartTransformCreate",
+        "proxyPath": "$.data.cartTransformCreate"
+      },
+      {
+        "name": "cart-transforms-after-unknown-function-id",
+        "capturePath": "$.cartTransformsAfterUnknownId.response.payload.data.cartTransforms",
+        "proxyPath": "$.data.cartTransforms",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-read.graphql",
+          "variablesCapturePath": "$.cartTransformsAfterUnknownId.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-transform-create-unknown-function-handle",
+        "capturePath": "$.cartTransformCreateUnknownHandle.response.payload.data.cartTransformCreate",
+        "proxyPath": "$.data.cartTransformCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-unknown-handle.graphql",
+          "variablesCapturePath": "$.cartTransformCreateUnknownHandle.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-transforms-after-unknown-function-handle",
+        "capturePath": "$.cartTransformsAfterUnknownHandle.response.payload.data.cartTransforms",
+        "proxyPath": "$.data.cartTransforms",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-read.graphql",
+          "variablesCapturePath": "$.cartTransformsAfterUnknownHandle.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
         "name": "cart-transform-create-setup",
         "capturePath": "$.cartTransformCreateSetup.response.payload.data.cartTransformCreate",
         "proxyPath": "$.data.cartTransformCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-setup.graphql",
+          "variablesCapturePath": "$.cartTransformCreateSetup.variables",
+          "apiVersion": "2026-04"
+        },
         "expectedDifferences": [
           {
             "path": "$.cartTransform.id",
@@ -73,5 +113,5 @@
       }
     ]
   },
-  "notes": "Executable parity for cartTransformCreate Function identifier validation. The scenario request documents retain the ticket-specified GraphQL operation names CartTransformCreateConflict, CartTransformCreateBoth, and CartTransforms, while this operationNames list uses registry root names required by conformance discovery. Duplicate payloads are grounded in prior live functions capture; the exact both-identifiers payload was freshly captured live on 2026-05-05. API-mismatched Function identifier coverage moved to functions-cart-transform-create-api-mismatch-by-identifier so the functionId and functionHandle branches can be compared against fresh live Shopify evidence and a downstream empty cartTransforms read."
+  "notes": "Executable parity for cartTransformCreate Function identifier validation. The unresolved functionId and functionHandle branches were captured live before setup so their downstream cartTransforms reads prove no CartTransform is created. Duplicate and both-identifiers branches remain in this scenario; API-mismatched Function identifier coverage lives in functions-cart-transform-create-api-mismatch-by-identifier."
 }

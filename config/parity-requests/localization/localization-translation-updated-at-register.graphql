@@ -1,0 +1,19 @@
+mutation LocalizationTranslationUpdatedAtRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+  translationsRegister(resourceId: $resourceId, translations: $translations) {
+    translations {
+      key
+      value
+      locale
+      outdated
+      updatedAt
+      market {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

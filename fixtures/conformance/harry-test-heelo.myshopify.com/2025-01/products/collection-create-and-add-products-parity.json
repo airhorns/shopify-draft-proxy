@@ -2,10 +2,10 @@
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "seedProduct": {
-    "id": "gid://shopify/Product/10170561036594",
-    "title": "Hermes Variant Search Conformance 1777150673975",
-    "handle": "hermes-variant-search-conformance-1777150673975",
-    "status": "DRAFT"
+    "id": "gid://shopify/Product/9801098789170",
+    "title": "The Inventory Not Tracked Snowboard",
+    "handle": "the-inventory-not-tracked-snowboard",
+    "status": "ACTIVE"
   },
   "longTitle": {
     "variables": {
@@ -41,16 +41,16 @@
   "reservedLike": {
     "variables": {
       "input": {
-        "title": "Frontpage HAR-594 1777981514748"
+        "title": "Frontpage collection membership 1782282454240"
       }
     },
     "response": {
       "data": {
         "collectionCreate": {
           "collection": {
-            "id": "gid://shopify/Collection/512421429554",
-            "title": "Frontpage HAR-594 1777981514748",
-            "handle": "frontpage-har-594-1777981514748",
+            "id": "gid://shopify/Collection/513795490098",
+            "title": "Frontpage collection membership 1782282454240",
+            "handle": "frontpage-collection-membership-1782282454240",
             "sortOrder": "BEST_SELLING",
             "ruleSet": null,
             "productsCount": {
@@ -77,7 +77,7 @@
   "invalidSort": {
     "variables": {
       "input": {
-        "title": "HAR-594 invalid sort 1777981514748",
+        "title": "Collection membership invalid sort 1782282454240",
         "sortOrder": "INVALID_VALUE"
       }
     },
@@ -88,13 +88,13 @@
           "locations": [
             {
               "line": 1,
-              "column": 33
+              "column": 37
             }
           ],
           "extensions": {
             "code": "INVALID_VARIABLE",
             "value": {
-              "title": "HAR-594 invalid sort 1777981514748",
+              "title": "Collection membership invalid sort 1782282454240",
               "sortOrder": "INVALID_VALUE"
             },
             "problems": [
@@ -111,14 +111,14 @@
   "smartCreate": {
     "variables": {
       "input": {
-        "title": "HAR-594 Smart 1777981514748",
+        "title": "Collection membership Smart 1782282454240",
         "ruleSet": {
           "appliedDisjunctively": false,
           "rules": [
             {
               "column": "TITLE",
               "relation": "CONTAINS",
-              "condition": "HAR-594"
+              "condition": "Collection membership"
             }
           ]
         }
@@ -128,9 +128,9 @@
       "data": {
         "collectionCreate": {
           "collection": {
-            "id": "gid://shopify/Collection/512421462322",
-            "title": "HAR-594 Smart 1777981514748",
-            "handle": "har-594-smart-1777981514748",
+            "id": "gid://shopify/Collection/513795522866",
+            "title": "Collection membership Smart 1782282454240",
+            "handle": "collection-membership-smart-1782282454240",
             "sortOrder": "BEST_SELLING",
             "ruleSet": {
               "appliedDisjunctively": false,
@@ -138,7 +138,7 @@
                 {
                   "column": "TITLE",
                   "relation": "CONTAINS",
-                  "condition": "HAR-594"
+                  "condition": "Collection membership"
                 }
               ]
             },
@@ -165,8 +165,8 @@
   },
   "smartAdd": {
     "variables": {
-      "id": "gid://shopify/Collection/512421462322",
-      "productIds": ["gid://shopify/Product/10170561036594"]
+      "id": "gid://shopify/Collection/513795522866",
+      "productIds": ["gid://shopify/Product/9801098789170"]
     },
     "response": {
       "data": {
@@ -195,8 +195,8 @@
   },
   "smartRemove": {
     "variables": {
-      "id": "gid://shopify/Collection/512421462322",
-      "productIds": ["gid://shopify/Product/10170561036594"]
+      "id": "gid://shopify/Collection/513795522866",
+      "productIds": ["gid://shopify/Product/9801098789170"]
     },
     "response": {
       "data": {
@@ -226,16 +226,16 @@
   "customCreate": {
     "variables": {
       "input": {
-        "title": "HAR-594 Custom 1777981514748"
+        "title": "Collection membership Custom 1782282454240"
       }
     },
     "response": {
       "data": {
         "collectionCreate": {
           "collection": {
-            "id": "gid://shopify/Collection/512421495090",
-            "title": "HAR-594 Custom 1777981514748",
-            "handle": "har-594-custom-1777981514748",
+            "id": "gid://shopify/Collection/513795555634",
+            "title": "Collection membership Custom 1782282454240",
+            "handle": "collection-membership-custom-1782282454240",
             "sortOrder": "BEST_SELLING",
             "ruleSet": null,
             "productsCount": {
@@ -252,7 +252,7 @@
           "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1989,
+            "currentlyAvailable": 1988,
             "restoreRate": 100
           }
         }
@@ -261,20 +261,56 @@
   },
   "customAdd": {
     "variables": {
-      "id": "gid://shopify/Collection/512421495090",
-      "productIds": ["gid://shopify/Product/10170561036594"]
+      "id": "gid://shopify/Collection/513795555634",
+      "productIds": ["gid://shopify/Product/9801098789170"]
     },
     "response": {
       "data": {
         "collectionAddProducts": {
           "collection": {
-            "id": "gid://shopify/Collection/512421495090",
+            "id": "gid://shopify/Collection/513795555634",
             "products": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Product/10170561036594",
-                  "title": "Hermes Variant Search Conformance 1777150673975",
-                  "handle": "hermes-variant-search-conformance-1777150673975"
+                  "id": "gid://shopify/Product/9801098789170",
+                  "title": "The Inventory Not Tracked Snowboard",
+                  "handle": "the-inventory-not-tracked-snowboard"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "customDuplicateAdd": {
+    "variables": {
+      "id": "gid://shopify/Collection/513795555634",
+      "productIds": ["gid://shopify/Product/9801098789170"]
+    },
+    "response": {
+      "data": {
+        "collectionAddProducts": {
+          "collection": {
+            "id": "gid://shopify/Collection/513795555634",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/9801098789170",
+                  "title": "The Inventory Not Tracked Snowboard",
+                  "handle": "the-inventory-not-tracked-snowboard"
                 }
               ]
             }
@@ -297,12 +333,12 @@
   },
   "customRead": {
     "variables": {
-      "id": "gid://shopify/Collection/512421495090"
+      "id": "gid://shopify/Collection/513795555634"
     },
     "response": {
       "data": {
         "collection": {
-          "id": "gid://shopify/Collection/512421495090",
+          "id": "gid://shopify/Collection/513795555634",
           "productsCount": {
             "count": 1,
             "precision": "EXACT"
@@ -310,9 +346,9 @@
           "products": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10170561036594",
-                "title": "Hermes Variant Search Conformance 1777150673975",
-                "handle": "hermes-variant-search-conformance-1777150673975"
+                "id": "gid://shopify/Product/9801098789170",
+                "title": "The Inventory Not Tracked Snowboard",
+                "handle": "the-inventory-not-tracked-snowboard"
               }
             ]
           }
@@ -324,7 +360,7 @@
           "actualQueryCost": 5,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1995,
+            "currentlyAvailable": 1994,
             "restoreRate": 100
           }
         }
@@ -335,19 +371,19 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10170561036594"]
+        "ids": ["gid://shopify/Product/9801098789170"]
       },
-      "query": "hand-synthesized from HAR-594 live seed product for mutation hydration",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10170561036594",
-                "title": "Hermes Variant Search Conformance 1777150673975",
-                "handle": "hermes-variant-search-conformance-1777150673975",
-                "status": "DRAFT",
+                "id": "gid://shopify/Product/9801098789170",
+                "title": "The Inventory Not Tracked Snowboard",
+                "handle": "the-inventory-not-tracked-snowboard",
+                "status": "ACTIVE",
                 "collections": {
                   "nodes": [],
                   "pageInfo": {

@@ -2,13 +2,13 @@
   "mutation": {
     "variables": {
       "input": {
-        "id": "gid://shopify/Customer/10570166370610"
+        "id": "gid://shopify/Customer/10820208558386"
       }
     },
     "response": {
       "data": {
         "customerDelete": {
-          "deletedCustomerId": "gid://shopify/Customer/10570166370610",
+          "deletedCustomerId": "gid://shopify/Customer/10820208558386",
           "shop": {
             "id": "gid://shopify/Shop/92891250994"
           },
@@ -39,7 +39,7 @@
         }
       },
       "customersCount": {
-        "count": 70,
+        "count": 948,
         "precision": "EXACT"
       }
     },
@@ -82,7 +82,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1989,
             "restoreRate": 100
           }
         }
@@ -91,27 +91,96 @@
   },
   "upstreamCalls": [
     {
-      "operationName": "CustomerMutationDownstream",
+      "operationName": "CustomerHydrate",
       "variables": {
-        "id": "gid://shopify/Customer/10570166370610",
-        "query": "__customer_parity_no_match__",
-        "first": 5
+        "id": "gid://shopify/Customer/10820208558386"
       },
+      "query": "\nquery CustomerHydrate($id: ID!) {\n  customer(id: $id) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    phone\n    locale\n    note\n    canDelete\n    verifiedEmail\n    dataSaleOptOut\n    taxExempt\n    taxExemptions\n    state\n    tags\n    createdAt\n    updatedAt\n    defaultEmailAddress { emailAddress }\n    defaultPhoneNumber { phoneNumber }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "customer": null,
-            "customers": {
-              "nodes": [],
-              "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false
+            "customer": {
+              "id": "gid://shopify/Customer/10820208558386",
+              "firstName": "Hermes",
+              "lastName": "Updated",
+              "displayName": "Hermes Updated",
+              "email": "hermes-customer-create-1782104718715@example.com",
+              "phone": "+14155558715",
+              "locale": "en",
+              "note": "customer update parity probe",
+              "canDelete": true,
+              "verifiedEmail": true,
+              "dataSaleOptOut": false,
+              "taxExempt": false,
+              "taxExemptions": ["CA_BC_RESELLER_EXEMPTION"],
+              "state": "DISABLED",
+              "tags": ["parity", "updated"],
+              "createdAt": "2026-06-22T05:05:19Z",
+              "updatedAt": "2026-06-22T05:05:20Z",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-customer-create-1782104718715@example.com"
+              },
+              "defaultPhoneNumber": {
+                "phoneNumber": "+14155558715"
+              },
+              "defaultAddress": null,
+              "addressesV2": {
+                "nodes": []
               }
-            },
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerCountHydrate",
+      "variables": {},
+      "query": "query CustomerCountHydrate { customersCount { count precision } }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
             "customersCount": {
-              "count": 70,
+              "count": 949,
               "precision": "EXACT"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerHydrate",
+      "variables": {
+        "id": "gid://shopify/Customer/999999999999999"
+      },
+      "query": "\nquery CustomerHydrate($id: ID!) {\n  customer(id: $id) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    phone\n    locale\n    note\n    canDelete\n    verifiedEmail\n    dataSaleOptOut\n    taxExempt\n    taxExemptions\n    state\n    tags\n    createdAt\n    updatedAt\n    defaultEmailAddress { emailAddress }\n    defaultPhoneNumber { phoneNumber }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customer": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
             }
           }
         }

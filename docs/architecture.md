@@ -47,6 +47,7 @@ App/test harness
        │    ├─ health/config/log/state/reset/dump/restore
        │    └─ commit replay
        └─ Admin GraphQL route
+            ├─ run version-scoped public Admin GraphQL base validation before domain dispatch
             ├─ parse document/root fields/arguments/selections
             ├─ apply captured Shopify schema input-object validation for covered local roots
             ├─ classify root through operation registry
@@ -69,6 +70,7 @@ App/test harness
 - expose `process_request(...)` as the central route boundary
 - implement meta routes: health, config, log, state, reset, dump, and restore
 - keep Shopify-like Admin GraphQL route classification and request-body parsing separate from domain handlers
+- run version-scoped base GraphQL validation for captured parse, schema, variable, selection, and argument errors before local domain dispatch
 - run reusable captured-schema input validation before local mutation dispatch when a covered public Admin input object has recorded introspection evidence
 - preserve `with_upstream_transport(...)` and `with_commit_transport(...)` test seams so behavior stays deterministic
 
@@ -99,10 +101,10 @@ App/test harness
 
 - typed registry of operation capability metadata
 - classifies roots by domain and execution kind
-- the `implemented` flag marks roots the proxy handles locally (instead of 501-ing) — it spans every locally-handled root field, including the document-gated special-case handlers in `dispatch.rs`, and is broader than the uniform table-dispatch set. It is a "we answer this locally" fact, not a fidelity claim
-- capability routing is decoupled from the flag: `operation_capability` resolves a non-passthrough capability only when a `LOCAL_DISPATCH_ROOT` exists, so anything else falls through to passthrough rather than a table-dispatch 501. Broadening `implemented` therefore cannot make an operation 501
-- keeps passthrough/unknown roots explicit so metadata alone does not imply runtime support
-- exposes the local dispatch root inventory used by runtime gates and tests so executable handlers, registry metadata, and the checked-in TypeScript registry snapshot stay auditable together
+- the `implemented` flag marks roots the proxy handles locally (instead of 501-ing). Canonical implemented registry entries are the local-routing inventory. It is a "we answer this locally" fact, not a fidelity claim
+- capability routing resolves a non-passthrough capability only when the root field matches an implemented registry entry's canonical name; anything else falls through to passthrough
+- keeps passthrough/unknown roots explicit so non-implemented metadata does not imply runtime support
+- exposes one registry source used by runtime gates and tests so executable handlers, registry metadata, and the checked-in TypeScript registry snapshot stay auditable together
 
 ### `src/upstream.rs`
 
@@ -159,7 +161,7 @@ The Python package is not a second proxy implementation and does not spawn the R
 
 The runtime should use normalized state rather than raw GraphQL blobs.
 
-`DraftProxy` owns a typed Rust `Store` for runtime resource state. Products and saved searches use normalized records with shared effective-read helpers, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary.
+`DraftProxy` owns a typed Rust `Store` for runtime resource state. Products and saved searches use normalized records with shared effective-read helpers, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary. Gift-card LiveHybrid hydration also stores known base gift-card records and gift-card configuration in `BaseState` so supported local mutations can overlay real upstream reads without runtime Shopify writes.
 
 The normalized product and saved-search portions currently include:
 
@@ -198,7 +200,7 @@ Keep Shopify-like versioned Admin API paths even when tests use local/snapshot m
 ## Development rules
 
 - Route GraphQL behavior by actual root fields, not operation names.
-- Never compute a response by sniffing the GraphQL document name (`query.contains("ScenarioName")`, `is_*_document`, `*_fixture_data`) and returning a hardcoded/`include_str!` payload. Runtime handlers must derive responses from the store model; canned scenario-keyed replies are cheating and are being eliminated.
+- Never compute a response by sniffing the GraphQL document name (`query.contains("ScenarioName")`, `is_*_document`, `*_fixture_data`) and returning a hardcoded/`include_str!` payload. Runtime handlers must derive responses from the store model; canned scenario-keyed replies are cheating and must not be reintroduced.
 - Preserve aliases in response keys for every root that can be selected with an alias.
 - Keep unsupported passthrough explicit in logs and docs.
 - Marking a root `implemented` only states that the proxy answers it locally; do not call an operation **supported** until its local lifecycle and downstream read-after-write effects are modeled from the store (tracked by runtime tests and conformance coverage).

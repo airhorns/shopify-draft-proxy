@@ -37,7 +37,7 @@
     "targets": [
       {
         "name": "filtered empty giftCard read returns null",
-        "capturePath": "$.operations.emptyRead.response.payload.data.giftCard",
+        "capturePath": "$.operations.readEvidence.response.payload.data.missingGiftCard",
         "proxyPath": "$.data.missingGiftCard",
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-read-evidence.graphql",
@@ -46,7 +46,7 @@
       },
       {
         "name": "filtered empty giftCards connection matches",
-        "capturePath": "$.operations.filteredEmptyRead.response.payload.data.giftCards",
+        "capturePath": "$.operations.readEvidence.response.payload.data.filteredEmptyGiftCards",
         "proxyPath": "$.data.filteredEmptyGiftCards",
         "selectedPaths": ["$.nodes", "$.pageInfo.hasNextPage", "$.pageInfo.hasPreviousPage"],
         "proxyRequest": {
@@ -56,7 +56,7 @@
       },
       {
         "name": "filtered empty giftCardsCount matches",
-        "capturePath": "$.operations.filteredEmptyRead.response.payload.data.giftCardsCount",
+        "capturePath": "$.operations.readEvidence.response.payload.data.filteredEmptyGiftCardsCount",
         "proxyPath": "$.data.filteredEmptyGiftCardsCount",
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-read-evidence.graphql",
@@ -65,7 +65,7 @@
       },
       {
         "name": "giftCardConfiguration matches",
-        "capturePath": "$.operations.configurationRead.response.payload.data.giftCardConfiguration",
+        "capturePath": "$.operations.readEvidence.response.payload.data.giftCardConfiguration",
         "proxyPath": "$.data.giftCardConfiguration",
         "proxyRequest": {
           "documentPath": "config/parity-requests/gift-cards/gift-card-read-evidence.graphql",

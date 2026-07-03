@@ -97,9 +97,18 @@ export const parityProxyUploadSpecSchema = z.strictObject({
 });
 export type ProxyUploadSpec = z.infer<typeof parityProxyUploadSpecSchema>;
 
+export const parityProxyHttpRequestSpecSchema = z.strictObject({
+  method: z.string().min(1).optional(),
+  path: jsonValueSchema,
+  body: jsonValueSchema.optional(),
+  headers: z.record(z.string(), z.string()).optional(),
+});
+export type ProxyHttpRequestSpec = z.infer<typeof parityProxyHttpRequestSpecSchema>;
+
 export const matcherSchema = z.union([
   z.literal('any-string'),
   z.literal('non-empty-string'),
+  z.literal('jsonl-string'),
   z.literal('any-number'),
   z.literal('iso-timestamp'),
   z.literal('storefront-access-token'),
@@ -128,10 +137,12 @@ export const comparisonTargetSchema = z.strictObject({
   upstreamCapturePath: z.string().nullable().optional(),
   proxyRequest: parityProxyRequestSpecSchema.optional(),
   proxyUpload: parityProxyUploadSpecSchema.optional(),
+  proxyHttpRequest: parityProxyHttpRequestSpecSchema.optional(),
   isolatedProxy: z.boolean().optional(),
   selectedPaths: z.array(z.string()).optional(),
   excludedPaths: z.array(z.string()).optional(),
   expectedDifferences: z.array(expectedDifferenceSchema).optional(),
+  preserveProxyState: z.boolean().optional(),
 });
 export type ComparisonTarget = z.infer<typeof comparisonTargetSchema>;
 
@@ -150,6 +161,11 @@ export const parityComparisonModeSchema = z.enum([
 ]);
 export type ParityComparisonMode = z.infer<typeof parityComparisonModeSchema>;
 
+export const parityProxyConfigSchema = z.strictObject({
+  readMode: z.enum(['snapshot', 'live-hybrid', 'passthrough']).optional(),
+});
+export type ParityProxyConfig = z.infer<typeof parityProxyConfigSchema>;
+
 export const paritySpecSchema = z
   .strictObject({
     scenarioId: z.string().optional(),
@@ -157,6 +173,7 @@ export const paritySpecSchema = z
     scenarioStatus: z.string().optional(),
     assertionKinds: z.array(z.string()).optional(),
     comparisonMode: parityComparisonModeSchema.optional(),
+    proxyConfig: parityProxyConfigSchema.optional(),
     proxyRequest: parityProxyRequestSpecSchema.optional(),
     comparison: comparisonContractSchema.optional(),
     liveCaptureFiles: z.array(z.string()).optional(),
@@ -167,6 +184,18 @@ export const paritySpecSchema = z
   .superRefine((spec, ctx) => {
     if (spec.scenarioStatus !== 'captured') {
       return;
+    }
+
+    const localRuntimeOnlineStoreCapture = spec.liveCaptureFiles?.find(
+      (captureFile) =>
+        captureFile.startsWith('fixtures/conformance/local-runtime/') && captureFile.includes('/online-store/'),
+    );
+    if (localRuntimeOnlineStoreCapture) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['liveCaptureFiles'],
+        message: `Online-store parity specs must not use local-runtime fixtures as capture evidence: ${localRuntimeOnlineStoreCapture}`,
+      });
     }
 
     if (!spec.comparisonMode) {

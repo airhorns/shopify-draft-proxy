@@ -78,6 +78,14 @@ function responseHeaders(headers: Headers): Record<string, string> | undefined {
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
+function bulkOperationResultPath(operationIdOrUrl: string): string {
+  if (operationIdOrUrl.startsWith('http://') || operationIdOrUrl.startsWith('https://')) {
+    return new URL(operationIdOrUrl).pathname;
+  }
+  const tail = operationIdOrUrl.split('/').pop()?.split('?')[0] ?? operationIdOrUrl;
+  return `/__meta/bulk-operations/${encodeURIComponent(tail)}/result.jsonl`;
+}
+
 async function fetchJson(origin: string, request: DraftProxyRequest): Promise<DraftProxyHttpResponse> {
   const headers = normalizeHeaders(request.headers);
   const body = bodyToString(request.body);
@@ -102,9 +110,22 @@ async function fetchJson(origin: string, request: DraftProxyRequest): Promise<Dr
   return out;
 }
 
-function fetchJsonSync(origin: string, request: DraftProxyRequest, timeoutMs = 10_000): DraftProxyHttpResponse {
+function syncFetchTimeoutMs(defaultMs = 10_000): number {
+  const configured = Number(process.env['DRAFT_PROXY_FETCH_TIMEOUT_MS']);
+  return Number.isFinite(configured) && configured > 0 ? configured : defaultMs;
+}
+
+function fetchJsonSync(
+  origin: string,
+  request: DraftProxyRequest,
+  timeoutMs = syncFetchTimeoutMs(),
+): DraftProxyHttpResponse {
+  // Pass the request via stdin rather than an environment variable to avoid
+  // E2BIG failures when the body is large (e.g. dumpState/restoreState with
+  // hundreds of staged variants).
   const script = `
-    const request = JSON.parse(process.env.DRAFT_PROXY_REQUEST);
+    const fs = require('node:fs');
+    const request = JSON.parse(fs.readFileSync(0, 'utf8'));
     const timeoutMs = Number(process.env.DRAFT_PROXY_FETCH_TIMEOUT_MS || 10000);
     const signal = AbortSignal.timeout(timeoutMs);
     fetch(process.env.DRAFT_PROXY_URL + request.path, {
@@ -121,28 +142,49 @@ function fetchJsonSync(origin: string, request: DraftProxyRequest, timeoutMs = 1
       console.log(JSON.stringify({ status: response.status, headers: Object.fromEntries(response.headers.entries()), body }));
     }).catch((error) => {
       console.error(error && error.stack ? error.stack : String(error));
+      if (error && error.cause) {
+        console.error(JSON.stringify({
+          cause: {
+            name: error.cause.name,
+            message: error.cause.message,
+            code: error.cause.code,
+            errno: error.cause.errno,
+            syscall: error.cause.syscall,
+          },
+        }));
+      }
       process.exit(1);
     });
   `;
-  const result = spawnSync(process.execPath, ['-e', script], {
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      DRAFT_PROXY_URL: origin,
-      DRAFT_PROXY_FETCH_TIMEOUT_MS: String(timeoutMs),
-      DRAFT_PROXY_REQUEST: JSON.stringify({
-        method: request.method,
-        path: request.path,
-        headers: normalizeHeaders(request.headers),
-        body: bodyToString(request.body),
-      }),
-    },
-    timeout: 10_000,
+  const input = JSON.stringify({
+    method: request.method,
+    path: request.path,
+    headers: normalizeHeaders(request.headers),
+    body: bodyToString(request.body),
   });
-  if (result.status !== 0) {
-    throw new Error(`Rust DraftProxy sync request failed: ${result.stderr || result.stdout}`);
+  let lastError = '';
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const result = spawnSync(process.execPath, ['-e', script], {
+      input,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        DRAFT_PROXY_URL: origin,
+        DRAFT_PROXY_FETCH_TIMEOUT_MS: String(timeoutMs),
+      },
+      maxBuffer: 128 * 1024 * 1024,
+      timeout: timeoutMs + 5_000,
+    });
+    if (result.status === 0) {
+      return JSON.parse(result.stdout) as DraftProxyHttpResponse;
+    }
+    lastError = result.error?.message || result.stderr || result.stdout;
+    if (!lastError.includes('fetch failed')) {
+      break;
+    }
+    sleepSync(50 * (attempt + 1));
   }
-  return JSON.parse(result.stdout) as DraftProxyHttpResponse;
+  throw new Error(`Rust DraftProxy sync request failed: ${lastError}`);
 }
 
 function waitForRustServer(child: ChildProcessWithoutNullStreams, origin: string, output: () => string): void {
@@ -185,7 +227,7 @@ export class DraftProxy {
     const port = allocatePort();
     this.#origin = `http://127.0.0.1:${port}`;
     registerCleanup();
-    this.#child = spawn('cargo', ['run', '--bin', 'shopify-draft-proxy-server', '--quiet'], {
+    this.#child = spawn('./target/release/shopify-draft-proxy-server', [], {
       cwd: repoRoot,
       env: envForConfig(options, port),
     });
@@ -196,9 +238,15 @@ export class DraftProxy {
     let output = '';
     this.#child.stdout.on('data', (chunk: Buffer) => {
       output += chunk.toString();
+      if (process.env['DRAFT_PROXY_DEBUG_STDERR'] === '1') {
+        process.stderr.write(chunk);
+      }
     });
     this.#child.stderr.on('data', (chunk: Buffer) => {
       output += chunk.toString();
+      if (process.env['DRAFT_PROXY_DEBUG_STDERR'] === '1') {
+        process.stderr.write(chunk);
+      }
     });
     waitForRustServer(this.#child, this.#origin, () => output);
 
@@ -229,7 +277,16 @@ export class DraftProxy {
   }
 
   getBulkOperationResultJsonl(_operationId: string): string | null {
-    return null;
+    const response = fetchJsonSync(this.#origin, {
+      method: 'GET',
+      path: bulkOperationResultPath(_operationId),
+    });
+    if (response.status === 404) return null;
+    if (response.status !== 200) {
+      throw new Error(`DraftProxy.getBulkOperationResultJsonl failed with status ${response.status}`);
+    }
+    if (typeof response.body === 'string') return response.body;
+    return JSON.stringify(response.body);
   }
 
   async processGraphQLRequest(

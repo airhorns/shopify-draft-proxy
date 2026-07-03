@@ -11,146 +11,189 @@ company-location tax settings, and B2B address behavior.
 
 ### Implemented local roots
 
-The Rust runtime locally stages the company-contact and contact-role assignment
-family. Supported mutations append replay-ready log entries with the original
-raw GraphQL request and compute responses from staged B2B company, contact,
-customer-reference, main-contact, location, role, and role-assignment state.
+The implemented read roots are:
 
-The local read roots for staged B2B contact state are:
-
+- `companies`
 - `company`
 - `companyContact`
-- `companyContactRole`
 - `companyLocation`
-- `node(id:)` for staged B2B contact, contact-role, location, address, and
-  role-assignment IDs
+- `companyLocations`
 
-The supported local mutation roots for staged contact and role-assignment
-lifecycle behavior are:
+The implemented mutation roots are:
 
+- `companyAddressDelete`
 - `companyAssignCustomerAsContact`
 - `companyAssignMainContact`
+- `companiesDelete`
+- `companyCreate`
 - `companyContactAssignRole`
 - `companyContactAssignRoles`
 - `companyContactCreate`
 - `companyContactDelete`
 - `companyContactRemoveFromCompany`
-- `companyContactRevokeRole`
 - `companyContactRevokeRoles`
 - `companyContactsDelete`
 - `companyContactUpdate`
-- `companyRevokeMainContact`
-
-Additional local B2B setup and support slices are implemented for captured
-company-contact parity flows:
-
-- `companyCreate`
-- `companyUpdate`
-- `companyLocationCreate`
-- `companyLocationUpdate`
-- `companyLocationAssignAddress`
-- `companyAddressDelete`
-- `companyLocationAssignRoles`
-- `companyLocationRevokeRoles`
-- `companyLocationTaxSettingsUpdate`
-
-The registry-only read roots are:
-
-- `companies`
-- `companiesCount`
-- `companyLocations`
-
-The registry-only mutation roots are:
-
-- `companiesDelete`
-- `companyContactSendWelcomeEmail`
 - `companyDelete`
+- `companyLocationAssignAddress`
+- `companyLocationAssignRoles`
 - `companyLocationAssignStaffMembers`
+- `companyLocationCreate`
 - `companyLocationDelete`
 - `companyLocationRemoveStaffMembers`
+- `companyLocationRevokeRoles`
 - `companyLocationsDelete`
+- `companyLocationTaxSettingsUpdate`
+- `companyLocationUpdate`
+- `companyRevokeMainContact`
+- `companyUpdate`
+
+Tracked but unimplemented B2B roots remain registry-only until they have their
+own local lifecycle and downstream read-after-write model. This includes
+`companiesCount`, `companyContactRole`, and `companyContactSendWelcomeEmail`.
 
 ### Local behavior
 
-The Rust runtime keeps selected B2B behavior as staged local slices backed by
-parity and runtime coverage. The company-contact and contact-role assignment
-family is root-field dispatched and not gated to a specific parity document.
-Other B2B company/location roots remain narrower local slices or registry-only
-coverage-map entries until their full lifecycle behavior is modeled.
+Supported B2B mutations stage locally and retain the original raw mutation body
+for `POST /__meta/commit` replay. Failed local validations are recorded in the
+mutation log as failed and do not stage resource IDs.
 
-`companyCreate` and `companyUpdate` have a local slice for company identity
-fields. That slice stages synthetic company records, preserves
-read-after-write through `company(id:)` for staged IDs, validates blank and
-overlong names, strips HTML from accepted names, validates `externalId`
-character set, length, and duplicate values, rejects HTML/overlong notes, and
-rejects `companyUpdate(input.customerSince)` without changing the staged
-company. Company creation also seeds the default contact role used by staged
-contact-role assignment mutations. Successful staged mutations append
-replay-ready log entries with the original raw GraphQL request.
+The local B2B graph stores staged companies, company locations, company
+addresses embedded on locations, company contacts, contact roles,
+location-role assignments, and location-staff assignments. `company(id:)`,
+`companyLocation(id:)`, and `companyLocations` expand that staged graph for
+read-after-write, including nested `locations`, `contacts`, `contactRoles`,
+`roleAssignments`, and `staffMemberAssignments` connections. LiveHybrid reads
+that do not target staged B2B IDs continue to use the existing upstream or
+fixture-backed read path.
+
+`companyCreate` and `companyUpdate` stage company identity fields, validate
+company name length, strip HTML from accepted names, validate `externalId`
+character set, length, and duplicates, reject HTML or overlong notes, and
+reject `companyUpdate(input.customerSince)` without mutating the staged company.
+`companyCreate` can also stage nested company location, contact, and contact
+role setup when those input objects are present. Its nested
+`input.companyLocation` name follows Shopify's create-time fallback of
+`companyLocation.name` -> company name, without using
+`shippingAddress.address1`.
 
 `companyContactCreate`, `companyContactUpdate`, `companyContactDelete`,
-`companyContactsDelete`, `companyAssignCustomerAsContact`,
-`companyContactRemoveFromCompany`, `companyAssignMainContact`,
-`companyRevokeMainContact`, `companyContactAssignRole`,
-`companyContactAssignRoles`, `companyContactRevokeRole`, and
-`companyContactRevokeRoles` stage a local contact graph. Staged contacts are
-readable through `companyContact(id:)`; `Company.mainContact` and
-`Company.contacts` reflect assign/revoke/delete changes; role assignments are
-readable from staged contacts and company locations. Contact title/name
-validation rejects HTML with `CONTAINS_HTML_TAGS` and >255-character free-text
-values with `TOO_LONG`. Bulk contact delete, role assign, and role revoke
-payloads preserve Shopify-style per-index user-error field paths.
+`companyContactsDelete`, and `companyContactRemoveFromCompany` stage the
+company-contact lifecycle and keep company `contactIds`, contact customer data,
+role assignments, and downstream contact reads in sync. Deleting or removing
+the current main contact clears the company's `mainContact`. `companyContactCreate`
+requires an email-backed customer reference; omitting `input.email` returns
+`INVALID` at `["input"]` without staging a contact or customer. The nested
+`companyCreate(input.companyContact)` path applies the same requirement at
+`["input", "companyContact"]` before staging any company, location, role, contact,
+or assignment rows.
 
-`companyLocationTaxSettingsUpdate` has a local tax-settings slice for required
-and nullable input handling, invalid `TaxExemption` enum coercion, assignment
-and removal of exemptions, `taxRegistrationId`, `taxExempt`, and downstream
-payload projection. Validation failures return B2B `userErrors` and mark the
-log entry as failed when no state is staged; invalid `TaxExemption` values are
-rejected as top-level GraphQL coercion errors before staging.
+`companyAssignMainContact` and `companyRevokeMainContact` stage the company's
+single `mainContactId` pointer and derive each contact's `isMainContact` from
+that pointer. Assigning an unknown contact returns `RESOURCE_NOT_FOUND`;
+assigning a contact that exists on another staged company returns
+`INVALID_INPUT` at `["companyContactId"]` without mutating the target company.
 
-`companyLocationCreate`, `companyLocationUpdate`,
-`companyLocationAssignAddress`, `companyAddressDelete`,
-`companyLocationAssignRoles`, and `companyLocationRevokeRoles` stage the
-location-side state needed by captured contact/location parity flows.
-Location updates preserve name and buyer-experience fields that are covered by
-runtime tests; address assignment/delete updates staged billing-address reads;
-location role assign/revoke shares the same local role-assignment graph as
-contact-side assignment roots.
+`companyContactRevokeRole` and `companyContactRevokeRoles` validate the parent
+contact before revoking assignments. Bulk contact revocation rejects empty
+`roleAssignmentIds` when `revokeAll` is false, emits indexed
+`RESOURCE_NOT_FOUND` errors at `["roleAssignmentIds", i]` for assignments that
+are missing or belong to another contact, and still revokes valid siblings.
 
-Fixture-backed read helpers cover stable B2B read shapes used as evidence,
-including `company.customerSince`,
-`CompanyContactRoleAssignment.companyContact`, and
-`CompanyContactRoleAssignment.companyLocation`. These helpers are evidence for
-the selected payloads, not a broad local B2B catalog implementation.
+`companyLocationCreate`, `companyLocationUpdate`, `companyLocationDelete`, and
+`companyLocationsDelete` stage the company-location lifecycle. Location create
+rejects standalone address-only input with Shopify-like `NO_INPUT` and no staged
+location. When standalone create includes a non-address location attribute, the
+name fallback remains `input.name` -> `shippingAddress.address1` -> company name.
+The nested `companyCreate(input.companyLocation)` default location does not use
+`shippingAddress.address1` as the name fallback; it falls back from `input.name`
+to the company name. A present blank `companyLocationUpdate(input.name)` returns
+a `BLANK` user error without mutating the staged location. Bulk deletion returns
+per-index `RESOURCE_NOT_FOUND` errors at `["companyLocationIds", i]` while still
+deleting valid staged IDs.
 
-Parity specs also describe richer B2B lifecycle behavior captured from Shopify,
-including deletion blockers beyond the currently modeled contact graph, staff
-assignment, and staff-assignment guardrails. Endpoint consumers should treat
-those remaining roots as captured evidence rather than current local support
-until their own lifecycle behavior is modeled.
+`companyLocationAssignAddress` updates the requested address slots locally,
+rejects duplicate `addressTypes` with `INVALID_INPUT`, and preserves the
+existing `CompanyAddress` GID when reassigning the same address type.
+`companyAddressDelete` clears any staged location slot that references the
+deleted address; when billing and shipping share the same address it clears both
+slots and resets `billingSameAsShipping` to `false`.
+
+`companyLocationAssignStaffMembers` and
+`companyLocationRemoveStaffMembers` stage staff assignment rows. Assignment
+dedups already-assigned staff, enforces a maximum of 10 observed staff members
+per location, and returns indexed `RESOURCE_NOT_FOUND` errors at
+`["staffMemberIds", i]` for staff IDs that are not present in already observed
+staff-assignment state. Removal returns indexed `RESOURCE_NOT_FOUND` errors at
+`["companyLocationStaffMemberAssignmentIds", i]` for unknown assignment IDs.
+
+`companyLocationAssignRoles` and `companyLocationRevokeRoles` stage
+company-contact role assignments for locations. Assignment validates that the
+staged contact and role exist and returns indexed `RESOURCE_NOT_FOUND` errors at
+`["rolesToAssign", i]`. Bulk role assignment also enforces Shopify's one
+role-per-contact-per-location rule: an entry whose contact already holds any
+role at the target location returns indexed `LIMIT_REACHED` at
+`["rolesToAssign", i]`, while valid sibling entries in the same request still
+stage and return in `roleAssignments`. Revoke validates the parent location,
+returns `RESOURCE_NOT_FOUND` at `["companyLocationId"]` when it is missing, and
+returns indexed `RESOURCE_NOT_FOUND` errors at `["rolesToRevoke", i]` for
+assignments that are missing or belong to another location.
+
+`companyLocationTaxSettingsUpdate` stages `taxExempt`, `taxRegistrationId`, and
+tax-exemption assignment/removal under `CompanyLocation.taxSettings`. Exemption
+updates apply against the current staged location set by removing
+`exemptionsToRemove` and then appending new `exemptionsToAssign` values without
+inventing defaults. Omitting `taxExempt` or `taxRegistrationId` preserves the
+current staged value; literal `taxExempt: null` and variable `taxExempt: null`
+return `INVALID_INPUT`, while an unbound optional `$taxExempt` variable is
+treated as omitted. Supplying no tax-setting knobs is a successful no-op that
+returns the unchanged company location.
+`companyLocationUpdate` also stages buyer-experience configuration fields for
+the covered request shape, including `editableShippingAddress`,
+`checkoutToDraft`, `paymentTermsTemplate`, and `deposit`.
 
 ### Boundaries
 
 - `companyContactSendWelcomeEmail` remains unsupported because it is an outbound
   customer-visible email side effect. The proxy has no no-send model for it.
-- Staff assignment does not synthesize a staff catalog. Unknown staff and
-  assignment IDs are covered by validation evidence, while authorized
-  staff-catalog reads remain access-scope dependent.
+- Staff assignment does not synthesize a full staff catalog, accept arbitrary
+  numeric StaffMember GIDs, or support staff catalog reads. The current
+  conformance token receives `Access denied for staffMembers field`, so local
+  assignment validity is limited to staff IDs already observed through staged
+  assignment state; unknown staff or assignment IDs return Shopify-like
+  per-index errors.
 - Validation-only B2B parity specs prove guardrail payloads and no-stage
-  behavior for those inputs only. For B2B roots outside the contact/role family,
-  they do not make the corresponding mutation roots generally supported.
-- Generic `node(id:)` dispatch for B2B-only IDs is limited to the staged B2B IDs
-  named above. `nodes(ids:)` and staff/catalog Node hydration remain outside the
-  current B2B support surface.
-- B2B roots outside the implemented contact/role family still use visible
-  passthrough or reject behavior according to runtime configuration unless a
-  request matches a documented local runtime slice.
+  behavior for those inputs only. They do not make the corresponding mutation
+  roots generally supported.
+- Generic `node(id:)` / `nodes(ids:)` dispatch for B2B-only IDs is limited to
+  fixture-backed or tail-helper evidence. Do not infer complete Node support for
+  companies, contacts, locations, addresses, staff assignments, or catalogs.
+- Unsupported B2B roots still use the configured unsupported mutation behavior
+  and must remain visible as passthrough or reject events.
 
 ### Evidence
 
 - Registry status: `src/operation_registry.rs`
 - Runtime coverage: `tests/graphql_routes/b2b.rs`
-- Read and lifecycle parity specs: `config/parity-specs/b2b/*.json`
+- Company contact and main-contact lifecycle parity:
+  `config/parity-specs/b2b/b2b-company-contact-main-delete.json`
+- Contact missing-email validation parity:
+  `config/parity-specs/b2b/b2b-contact-missing-email-validation.json`
+- Address lifecycle parity: `config/parity-specs/b2b/b2b-location-address-management.json`
+  and `config/parity-specs/b2b/location_assign_address_preserves_id.json`
+- Staff validation parity:
+  `config/parity-specs/b2b/staff_assign_unknown_user.json`,
+  `config/parity-specs/b2b/staff_remove_unknown_assignment.json`, and
+  `config/parity-specs/b2b/b2b-bulk-mutation-field-paths.json`
+- Contact/location-role parity:
+  `config/parity-specs/b2b/b2b-contact-location-assignments-tax.json` and
+  `config/parity-specs/b2b/b2b-revoke-role-scope-preconditions.json`.
+  Focused revoke-role scope regression branches are covered by
+  `config/parity-specs/b2b/b2b-revoke-role-scope-regression-branches.json`
+- Company-location tax-settings parity:
+  `config/parity-specs/b2b/b2b-company-location-tax-settings-sequential.json`
+- Bulk duplicate role-assignment parity:
+  `config/parity-specs/b2b/b2b-bulk-role-assign-duplicates.json`
 - Read and lifecycle fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b/*.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/*.json`
 - Root inventory fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
 
@@ -158,3 +201,4 @@ until their own lifecycle behavior is modeled.
 
 - `corepack pnpm lint`
 - `corepack pnpm rust:test`
+- `corepack pnpm parity -- --spec config/parity-specs/b2b/b2b-company-location-tax-settings-sequential.json`

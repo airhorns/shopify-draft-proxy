@@ -1,0 +1,18 @@
+mutation GiftCardTransactionValidationGiftCardCreate($input: GiftCardCreateInput!) {
+  giftCardCreate(input: $input) {
+    giftCard {
+      id
+      enabled
+      expiresOn
+      balance {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

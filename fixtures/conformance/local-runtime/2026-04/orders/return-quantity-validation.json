@@ -11,7 +11,7 @@
           {
             "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/return-quantity-cap",
             "quantity": 4,
-            "returnReason": "OTHER"
+            "returnReason": "UNWANTED"
           }
         ]
       }
@@ -25,7 +25,7 @@
           {
             "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/return-quantity-cap",
             "quantity": 4,
-            "returnReason": "OTHER"
+            "returnReason": "UNWANTED"
           }
         ]
       }
@@ -106,11 +106,11 @@
   },
   "upstreamCalls": [
     {
-      "operationName": "OrdersOrderHydrate",
+      "operationName": "OrdersReturnOrderHydrate",
       "variables": {
         "id": "gid://shopify/Order/return-quantity-cap"
       },
-      "query": "hand-synthesized from checked-in HAR-589 return quantity validation seed order",
+      "query": "query OrdersReturnOrderHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    totalRefundedSet { shopMoney { amount currencyCode } }\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n      }\n    }\n    fulfillments(first: 50) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 50) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n            variant {\n              id\n            }\n          }\n        }\n      }\n    }\n    returns(first: 50) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnLineItems(first: 50) {\n          nodes {\n            ... on ReturnLineItem {\n              id\n              quantity\n              fulfillmentLineItem {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -197,11 +197,11 @@
       }
     },
     {
-      "operationName": "OrdersOrderHydrate",
+      "operationName": "OrdersReturnOrderHydrate",
       "variables": {
         "id": "gid://shopify/Order/return-removal-validation"
       },
-      "query": "hand-synthesized from checked-in HAR-589 removeFromReturn validation seed order",
+      "query": "query OrdersReturnOrderHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    totalRefundedSet { shopMoney { amount currencyCode } }\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n      }\n    }\n    fulfillments(first: 50) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 50) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n            variant {\n              id\n            }\n          }\n        }\n      }\n    }\n    returns(first: 50) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnLineItems(first: 50) {\n          nodes {\n            ... on ReturnLineItem {\n              id\n              quantity\n              fulfillmentLineItem {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

@@ -11,7 +11,7 @@
             "__typename": "DiscountAutomaticBasic",
             "title": "HAR-192 detail automatic 1777130925428",
             "status": "ACTIVE",
-            "summary": "15% off entire order • Minimum quantity of 2",
+            "summary": "15% off entire order \u2022 Minimum quantity of 2",
             "startsAt": "2026-04-25T00:00:00Z",
             "endsAt": null,
             "createdAt": "2026-04-25T15:28:46Z",
@@ -68,7 +68,7 @@
           "__typename": "DiscountAutomaticBasic",
           "title": "HAR-192 detail automatic 1777130925428",
           "status": "ACTIVE",
-          "summary": "15% off entire order • Minimum quantity of 2",
+          "summary": "15% off entire order \u2022 Minimum quantity of 2",
           "startsAt": "2026-04-25T00:00:00Z",
           "endsAt": null,
           "createdAt": "2026-04-25T15:28:46Z",
@@ -108,7 +108,7 @@
           "__typename": "DiscountAutomaticBasic",
           "title": "HAR-192 detail automatic 1777130925428",
           "status": "ACTIVE",
-          "summary": "15% off entire order • Minimum quantity of 2",
+          "summary": "15% off entire order \u2022 Minimum quantity of 2",
           "startsAt": "2026-04-25T00:00:00Z",
           "endsAt": null,
           "asyncUsageCount": 0,
@@ -212,7 +212,7 @@
                 "__typename": "DiscountAutomaticBasic",
                 "title": "HAR-192 detail automatic 1777130925428",
                 "status": "ACTIVE",
-                "summary": "15% off entire order • Minimum quantity of 2",
+                "summary": "15% off entire order \u2022 Minimum quantity of 2",
                 "startsAt": "2026-04-25T00:00:00Z",
                 "endsAt": null,
                 "createdAt": "2026-04-25T15:28:46Z",
@@ -252,7 +252,7 @@
                 "__typename": "DiscountAutomaticBasic",
                 "title": "HAR-192 detail automatic 1777130925428",
                 "status": "ACTIVE",
-                "summary": "15% off entire order • Minimum quantity of 2",
+                "summary": "15% off entire order \u2022 Minimum quantity of 2",
                 "startsAt": "2026-04-25T00:00:00Z",
                 "endsAt": null,
                 "asyncUsageCount": 0,
@@ -318,7 +318,8 @@
             }
           }
         }
-      }
+      },
+      "query": "query DiscountAutomaticDetailRead($id: ID!) {\n  discountNode(id: $id) {\n    id\n    discount {\n      __typename\n      ... on DiscountAutomaticBasic {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        customerGets {\n          value {\n            __typename\n            ... on DiscountPercentage {\n              percentage\n            }\n          }\n          items {\n            __typename\n            ... on AllDiscountItems {\n              allItems\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n  }\n  automaticDiscountNode(id: $id) {\n    id\n    automaticDiscount {\n      __typename\n      ... on DiscountAutomaticBasic {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        customerGets {\n          value {\n            __typename\n            ... on DiscountPercentage {\n              percentage\n            }\n          }\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n      }\n    }\n    metafields(first: 2) {\n      edges {\n        cursor\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    events(first: 2) {\n      edges {\n        cursor\n        node {\n          __typename\n          ... on BasicEvent {\n            id\n            action\n            message\n            createdAt\n            subjectId\n            subjectType\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n"
     }
   ]
 }

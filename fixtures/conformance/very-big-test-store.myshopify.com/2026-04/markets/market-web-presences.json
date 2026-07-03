@@ -74,7 +74,7 @@
       "variables": {
         "first": 3
       },
-      "query": "hand-synthesized from checked-in capture",
+      "query": "fragment MarketWebPresenceReadFields on MarketWebPresence {\n  id\n  subfolderSuffix\n  domain {\n    id\n    host\n    url\n    sslEnabled\n  }\n  rootUrls {\n    locale\n    url\n  }\n  defaultLocale {\n    locale\n    name\n    primary\n    published\n  }\n  alternateLocales {\n    locale\n    name\n    primary\n    published\n  }\n  markets(first: 5) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        handle\n        status\n        type\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n\nquery MarketWebPresencesRead($first: Int!) {\n  webPresences(first: $first) {\n    edges {\n      cursor\n      node {\n        ...MarketWebPresenceReadFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -155,7 +155,7 @@
       "variables": {
         "ids": ["gid://shopify/MarketWebPresence/33131921641"]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformMarketWebPresenceNodeRead($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Node {\n      id\n    }\n    ... on MarketWebPresence {\n      subfolderSuffix\n      domain {\n        id\n        host\n        url\n        sslEnabled\n      }\n      rootUrls {\n        locale\n        url\n      }\n      defaultLocale {\n        locale\n        name\n        primary\n        published\n      }\n      alternateLocales {\n        locale\n        name\n        primary\n        published\n      }\n      markets(first: 5) {\n        edges {\n          cursor\n          node {\n            id\n            name\n            handle\n            status\n            type\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

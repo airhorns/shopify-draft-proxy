@@ -1,0 +1,124 @@
+mutation DraftOrderAppliedDiscountValueTypeRequired(
+  $id: ID!
+  $createOrderMissingValueType: DraftOrderInput!
+  $createLineMissingValueType: DraftOrderInput!
+  $updateOrderMissingValueType: DraftOrderInput!
+  $updateLineMissingValueType: DraftOrderInput!
+  $calculateOrderMissingValueType: DraftOrderInput!
+  $calculateLineMissingValueType: DraftOrderInput!
+  $createOrderInvalidValueType: DraftOrderInput!
+  $createLineInvalidValueType: DraftOrderInput!
+  $updateOrderInvalidValueType: DraftOrderInput!
+  $updateLineInvalidValueType: DraftOrderInput!
+  $calculateOrderInvalidValueType: DraftOrderInput!
+  $calculateLineInvalidValueType: DraftOrderInput!
+) {
+  createOrderMissingValueType: draftOrderCreate(input: $createOrderMissingValueType) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  createLineMissingValueType: draftOrderCreate(input: $createLineMissingValueType) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  updateOrderMissingValueType: draftOrderUpdate(id: $id, input: $updateOrderMissingValueType) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  updateLineMissingValueType: draftOrderUpdate(id: $id, input: $updateLineMissingValueType) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  calculateOrderMissingValueType: draftOrderCalculate(input: $calculateOrderMissingValueType) {
+    calculatedDraftOrder {
+      currencyCode
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  calculateLineMissingValueType: draftOrderCalculate(input: $calculateLineMissingValueType) {
+    calculatedDraftOrder {
+      currencyCode
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  createOrderInvalidValueType: draftOrderCreate(input: $createOrderInvalidValueType) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  createLineInvalidValueType: draftOrderCreate(input: $createLineInvalidValueType) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  updateOrderInvalidValueType: draftOrderUpdate(id: $id, input: $updateOrderInvalidValueType) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  updateLineInvalidValueType: draftOrderUpdate(id: $id, input: $updateLineInvalidValueType) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  calculateOrderInvalidValueType: draftOrderCalculate(input: $calculateOrderInvalidValueType) {
+    calculatedDraftOrder {
+      currencyCode
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  calculateLineInvalidValueType: draftOrderCalculate(input: $calculateLineInvalidValueType) {
+    calculatedDraftOrder {
+      currencyCode
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

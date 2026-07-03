@@ -1,0 +1,940 @@
+{
+  "scenarioId": "bulk-operation-cancel-preserves-fields",
+  "capturedAt": "2026-06-23T22:57:05.439Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "pollConfig": {
+    "progressPollIntervalMs": 500,
+    "progressMaxPolls": 120
+  },
+  "lifecycle": {
+    "run": {
+      "operationName": "BulkOperationRunQueryCapture",
+      "query": "#graphql\n  mutation BulkOperationRunQueryCapture($query: String!) {\n    bulkOperationRunQuery(query: $query) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunQuery": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "CREATED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "id": "gid://shopify/BulkOperation/7964079784242",
+    "userErrors": [],
+    "progressPolls": [
+      {
+        "operationName": "BulkOperationProgressPoll1",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "CREATED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll2",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll3",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll4",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll5",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll6",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll7",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll8",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll9",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll10",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll11",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll12",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll13",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll14",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll15",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll16",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll17",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll18",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll19",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "operationName": "BulkOperationProgressPoll20",
+        "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/BulkOperation/7964079784242"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "5033",
+              "rootObjectCount": "1456",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ],
+    "preCancelObservation": {
+      "operationName": "BulkOperationProgressPoll20",
+      "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/7964079784242"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperation": {
+            "id": "gid://shopify/BulkOperation/7964079784242",
+            "status": "RUNNING",
+            "type": "QUERY",
+            "errorCode": null,
+            "createdAt": "2026-06-23T22:56:53Z",
+            "completedAt": null,
+            "objectCount": "5033",
+            "rootObjectCount": "1456",
+            "fileSize": null,
+            "url": null,
+            "partialDataUrl": null,
+            "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "cancelAttempt": {
+      "operationName": "BulkOperationCancelCapture",
+      "query": "#graphql\n  mutation BulkOperationCancelCapture($id: ID!) {\n    bulkOperationCancel(id: $id) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/7964079784242"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationCancel": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "CANCELING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "5033",
+              "rootObjectCount": "1456",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readAfterCancel": {
+      "operationName": "BulkOperationByIdCapture",
+      "query": "#graphql\n  query BulkOperationByIdCapture($id: ID!) {\n    bulkOperation(id: $id) {\n      \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/7964079784242"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperation": {
+            "id": "gid://shopify/BulkOperation/7964079784242",
+            "status": "CANCELING",
+            "type": "QUERY",
+            "errorCode": null,
+            "createdAt": "2026-06-23T22:56:53Z",
+            "completedAt": null,
+            "objectCount": "5033",
+            "rootObjectCount": "1456",
+            "fileSize": null,
+            "url": null,
+            "partialDataUrl": null,
+            "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "BulkOperationHydrate",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/7964079784242"
+      },
+      "query": "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7964079784242",
+              "status": "RUNNING",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-06-23T22:56:53Z",
+              "completedAt": null,
+              "objectCount": "5033",
+              "rootObjectCount": "1456",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

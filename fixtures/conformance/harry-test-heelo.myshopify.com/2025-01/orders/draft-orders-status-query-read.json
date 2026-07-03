@@ -1,0 +1,131 @@
+{
+  "scenarioId": "draft-orders-status-query-read",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "recordedAt": "2026-06-26T06:42:20.418Z",
+  "source": "live-shopify-admin-graphql",
+  "notes": "Live draftOrders/draftOrdersCount query evidence for a valid status:open search filter. The fixture records the cold read as an upstream cassette so the proxy replay compares the Shopify response without local setup seeding.",
+  "variables": {
+    "first": 5,
+    "query": "status:open"
+  },
+  "response": {
+    "data": {
+      "draftOrders": {
+        "nodes": [
+          {
+            "id": "gid://shopify/DraftOrder/1249077756210",
+            "name": "#D25",
+            "status": "OPEN",
+            "ready": true
+          },
+          {
+            "id": "gid://shopify/DraftOrder/1249077788978",
+            "name": "#D26",
+            "status": "OPEN",
+            "ready": true
+          },
+          {
+            "id": "gid://shopify/DraftOrder/1249077887282",
+            "name": "#D29",
+            "status": "OPEN",
+            "ready": true
+          },
+          {
+            "id": "gid://shopify/DraftOrder/1249078149426",
+            "name": "#D30",
+            "status": "OPEN",
+            "ready": true
+          },
+          {
+            "id": "gid://shopify/DraftOrder/1249078182194",
+            "name": "#D31",
+            "status": "OPEN",
+            "ready": true
+          }
+        ]
+      },
+      "draftOrdersCount": {
+        "count": 67,
+        "precision": "EXACT"
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 15,
+        "actualQueryCost": 15,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1985,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "DraftOrdersStatusQueryRead",
+      "variables": {
+        "first": 5,
+        "query": "status:open"
+      },
+      "query": "query DraftOrdersStatusQueryRead($first: Int!, $query: String!) {\n  draftOrders(first: $first, query: $query) {\n    nodes {\n      id\n      name\n      status\n      ready\n    }\n  }\n  draftOrdersCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "draftOrders": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/DraftOrder/1249077756210",
+                  "name": "#D25",
+                  "status": "OPEN",
+                  "ready": true
+                },
+                {
+                  "id": "gid://shopify/DraftOrder/1249077788978",
+                  "name": "#D26",
+                  "status": "OPEN",
+                  "ready": true
+                },
+                {
+                  "id": "gid://shopify/DraftOrder/1249077887282",
+                  "name": "#D29",
+                  "status": "OPEN",
+                  "ready": true
+                },
+                {
+                  "id": "gid://shopify/DraftOrder/1249078149426",
+                  "name": "#D30",
+                  "status": "OPEN",
+                  "ready": true
+                },
+                {
+                  "id": "gid://shopify/DraftOrder/1249078182194",
+                  "name": "#D31",
+                  "status": "OPEN",
+                  "ready": true
+                }
+              ]
+            },
+            "draftOrdersCount": {
+              "count": 67,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

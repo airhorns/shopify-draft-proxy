@@ -1,0 +1,37 @@
+query ProductPublishUnpublishDownstreamRead($id: ID!, $publicationId: ID!) {
+  product(id: $id) {
+    id
+    publishedAt
+    publishedOnCurrentPublication
+    publishedOnPublication(publicationId: $publicationId)
+    availablePublicationsCount {
+      count
+      precision
+    }
+    resourcePublicationsCount {
+      count
+      precision
+    }
+    resourcePublicationsV2(first: 10) {
+      nodes {
+        publication {
+          id
+        }
+        publishable {
+          ... on Product {
+            id
+          }
+        }
+      }
+    }
+    publications(first: 10) {
+      nodes {
+        isPublished
+        publishDate
+        product {
+          id
+        }
+      }
+    }
+  }
+}

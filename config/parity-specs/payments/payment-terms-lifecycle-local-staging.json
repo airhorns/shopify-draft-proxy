@@ -18,7 +18,7 @@
   "proxyRequest": {
     "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-create.graphql",
     "variables": {
-      "referenceId": { "fromCapturePath": "$.seedDraftOrder.id" },
+      "referenceId": { "fromCapturePath": "$.draftOrderId" },
       "attrs": {
         "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
         "paymentSchedules": [
@@ -90,7 +90,7 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-draft-read.graphql",
           "variables": {
-            "id": { "fromCapturePath": "$.seedDraftOrder.id" }
+            "id": { "fromCapturePath": "$.draftOrderId" }
           }
         }
       },
@@ -146,7 +146,7 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-draft-read.graphql",
           "variables": {
-            "id": { "fromCapturePath": "$.seedDraftOrder.id" }
+            "id": { "fromCapturePath": "$.draftOrderId" }
           }
         }
       },
@@ -177,7 +177,7 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-draft-read.graphql",
           "variables": {
-            "id": { "fromCapturePath": "$.seedDraftOrder.id" }
+            "id": { "fromCapturePath": "$.draftOrderId" }
           }
         }
       }

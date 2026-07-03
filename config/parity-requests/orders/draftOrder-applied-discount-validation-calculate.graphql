@@ -1,0 +1,116 @@
+mutation DraftOrderAppliedDiscountValidationCalculate(
+  $orderPercentageAboveMax: DraftOrderInput!
+  $orderPercentageNegative: DraftOrderInput!
+  $orderValueTooPrecise: DraftOrderInput!
+  $linePercentageAboveMax: DraftOrderInput!
+  $linePercentageNegative: DraftOrderInput!
+  $lineValueTooPrecise: DraftOrderInput!
+  $validOrderPercentage: DraftOrderInput!
+  $validLinePercentage: DraftOrderInput!
+) {
+  orderPercentageAboveMax: draftOrderCalculate(input: $orderPercentageAboveMax) {
+    calculatedDraftOrder {
+      totalDiscountsSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  orderPercentageNegative: draftOrderCalculate(input: $orderPercentageNegative) {
+    calculatedDraftOrder {
+      currencyCode
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  orderValueTooPrecise: draftOrderCalculate(input: $orderValueTooPrecise) {
+    calculatedDraftOrder {
+      currencyCode
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  linePercentageAboveMax: draftOrderCalculate(input: $linePercentageAboveMax) {
+    calculatedDraftOrder {
+      currencyCode
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  linePercentageNegative: draftOrderCalculate(input: $linePercentageNegative) {
+    calculatedDraftOrder {
+      currencyCode
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  lineValueTooPrecise: draftOrderCalculate(input: $lineValueTooPrecise) {
+    calculatedDraftOrder {
+      currencyCode
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  validOrderPercentage: draftOrderCalculate(input: $validOrderPercentage) {
+    calculatedDraftOrder {
+      totalDiscountsSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  validLinePercentage: draftOrderCalculate(input: $validLinePercentage) {
+    calculatedDraftOrder {
+      totalDiscountsSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      lineItems {
+        appliedDiscount {
+          value
+          valueType
+          amountSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        totalDiscountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

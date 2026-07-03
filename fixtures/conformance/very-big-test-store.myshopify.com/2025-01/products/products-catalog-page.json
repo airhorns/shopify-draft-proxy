@@ -81,7 +81,7 @@
       "variables": {
         "first": 3
       },
-      "query": "hand-synthesized from checked-in capture response",
+      "query": "query ProductsCatalogRead($first: Int!) {\n  productsCount {\n    count\n    precision\n  }\n  products(first: $first, sortKey: UPDATED_AT, reverse: true) {\n    edges {\n      cursor\n      node {\n        id\n        legacyResourceId\n        title\n        handle\n        status\n        vendor\n        productType\n        tags\n        totalInventory\n        tracksInventory\n        createdAt\n        updatedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

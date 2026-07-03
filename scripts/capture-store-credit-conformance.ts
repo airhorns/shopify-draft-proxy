@@ -139,6 +139,8 @@ const DELETE_CUSTOMER_MUTATION = `#graphql
   }
 `;
 
+const NEVER_CREATED_STORE_CREDIT_ACCOUNT_ID = 'gid://shopify/StoreCreditAccount/999999999999999';
+
 function readResponseData(result: ConformanceGraphqlResult): Record<string, unknown> | null {
   return result.payload.data && typeof result.payload.data === 'object'
     ? (result.payload.data as Record<string, unknown>)
@@ -252,6 +254,61 @@ try {
     );
   }
 
+  const missingAccountZeroCreditVariables = {
+    id: NEVER_CREATED_STORE_CREDIT_ACCOUNT_ID,
+    creditInput: {
+      creditAmount: {
+        amount: '0.00',
+        currencyCode: 'USD',
+      },
+    },
+  };
+  const missingAccountZeroCredit = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+    missingAccountZeroCreditVariables,
+  );
+  assertNoGraphqlFailure(
+    missingAccountZeroCredit,
+    'storeCreditAccountCredit missing account plus zero amount validation',
+  );
+
+  const missingAccountZeroDebitVariables = {
+    id: NEVER_CREATED_STORE_CREDIT_ACCOUNT_ID,
+    debitInput: {
+      debitAmount: {
+        amount: '0.00',
+        currencyCode: 'USD',
+      },
+    },
+  };
+  const missingAccountZeroDebit = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_DEBIT_MUTATION,
+    missingAccountZeroDebitVariables,
+  );
+  assertNoGraphqlFailure(
+    missingAccountZeroDebit,
+    'storeCreditAccountDebit missing account plus zero amount validation',
+  );
+
+  const pastExpiryNegativeCreditVariables = {
+    id: accountId,
+    creditInput: {
+      creditAmount: {
+        amount: '-5.00',
+        currencyCode: 'USD',
+      },
+      expiresAt: '2000-01-01T00:00:00Z',
+    },
+  };
+  const pastExpiryNegativeCredit = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+    pastExpiryNegativeCreditVariables,
+  );
+  assertNoGraphqlFailure(
+    pastExpiryNegativeCredit,
+    'storeCreditAccountCredit past expiresAt plus negative amount validation',
+  );
+
   const accountCurrencyMismatchVariables = {
     id: accountId,
     creditInput: {
@@ -266,6 +323,21 @@ try {
     accountCurrencyMismatchVariables,
   );
   assertNoGraphqlFailure(accountCurrencyMismatch, 'storeCreditAccountCredit account-id currency mismatch');
+
+  const unsupportedDebitCurrencyVariables = {
+    id: accountId,
+    debitInput: {
+      debitAmount: {
+        amount: '1.00',
+        currencyCode: 'CHF',
+      },
+    },
+  };
+  const unsupportedDebitCurrency = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_DEBIT_MUTATION,
+    unsupportedDebitCurrencyVariables,
+  );
+  assertNoGraphqlFailure(unsupportedDebitCurrency, 'storeCreditAccountDebit unsupported currency validation');
 
   const pastExpiryVariables = {
     id: customerId,
@@ -321,7 +393,7 @@ try {
     creditInput: {
       creditAmount: {
         amount: '2.00',
-        currencyCode: 'CAD',
+        currencyCode: 'CHF',
       },
     },
   };
@@ -349,6 +421,52 @@ try {
       'balanceAfterTransaction',
       'amount',
     ]) ?? secondaryCleanupDebitAmount;
+
+  const resultOnlyUsdcCreditVariables = {
+    id: customerId,
+    creditInput: {
+      creditAmount: {
+        amount: '1.00',
+        currencyCode: 'USDC',
+      },
+    },
+  };
+  const resultOnlyUsdcCredit = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+    resultOnlyUsdcCreditVariables,
+  );
+  if (!resultOnlyUsdcCredit.payload.errors) {
+    throw new Error(
+      `storeCreditAccountCredit USDC validation unexpectedly succeeded: ${JSON.stringify(
+        resultOnlyUsdcCredit.payload,
+        null,
+        2,
+      )}`,
+    );
+  }
+
+  const resultOnlyXxxCreditVariables = {
+    id: customerId,
+    creditInput: {
+      creditAmount: {
+        amount: '1.00',
+        currencyCode: 'XXX',
+      },
+    },
+  };
+  const resultOnlyXxxCredit = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+    resultOnlyXxxCreditVariables,
+  );
+  if (!resultOnlyXxxCredit.payload.errors) {
+    throw new Error(
+      `storeCreditAccountCredit XXX validation unexpectedly succeeded: ${JSON.stringify(
+        resultOnlyXxxCredit.payload,
+        null,
+        2,
+      )}`,
+    );
+  }
 
   const overLimitDebitVariables = {
     id: customerId,
@@ -465,7 +583,7 @@ try {
     storeDomain,
     apiVersion,
     notes: [
-      'HAR-317 store-credit success-path capture creates a disposable customer, uses storeCreditAccountCredit with the customer id to create the store credit account, then replays account-id credit/debit mutations and downstream reads.',
+      'Store-credit success-path capture creates a disposable customer, uses storeCreditAccountCredit with the customer id to create the store credit account, then replays account-id credit/debit mutations and downstream reads.',
       'Cleanup debits the remaining captured balance back to zero and deletes the disposable customer. Store credit account identifiers may remain visible in Shopify audit/history even after balance neutralization.',
     ],
     setup: {
@@ -473,10 +591,30 @@ try {
       createAccountCredit: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, setupCreditVariables, setupCredit),
     },
     validations: {
+      missingAccountZeroCredit: record(
+        STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+        missingAccountZeroCreditVariables,
+        missingAccountZeroCredit,
+      ),
+      missingAccountZeroDebit: record(
+        STORE_CREDIT_ACCOUNT_DEBIT_MUTATION,
+        missingAccountZeroDebitVariables,
+        missingAccountZeroDebit,
+      ),
+      pastExpiryNegativeCredit: record(
+        STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+        pastExpiryNegativeCreditVariables,
+        pastExpiryNegativeCredit,
+      ),
       accountCurrencyMismatch: record(
         STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
         accountCurrencyMismatchVariables,
         accountCurrencyMismatch,
+      ),
+      unsupportedDebitCurrency: record(
+        STORE_CREDIT_ACCOUNT_DEBIT_MUTATION,
+        unsupportedDebitCurrencyVariables,
+        unsupportedDebitCurrency,
       ),
       pastExpiry: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, pastExpiryVariables, pastExpiry),
       zeroCredit: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, zeroCreditVariables, zeroCredit),
@@ -486,6 +624,16 @@ try {
         STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
         ownerSecondCurrencyCreditVariables,
         ownerSecondCurrencyCredit,
+      ),
+      resultOnlyUsdcCredit: record(
+        STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+        resultOnlyUsdcCreditVariables,
+        resultOnlyUsdcCredit,
+      ),
+      resultOnlyXxxCredit: record(
+        STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
+        resultOnlyXxxCreditVariables,
+        resultOnlyXxxCredit,
       ),
       overLimitDebit: record(STORE_CREDIT_ACCOUNT_DEBIT_MUTATION, overLimitDebitVariables, overLimitDebit),
       overLimitCredit: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, overLimitCreditVariables, overLimitCredit),
@@ -511,7 +659,7 @@ try {
       debitInput: {
         debitAmount: {
           amount: secondaryCleanupDebitAmount,
-          currencyCode: 'CAD',
+          currencyCode: 'CHF',
         },
       },
     };

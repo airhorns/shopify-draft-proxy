@@ -2,64 +2,64 @@
   "scenarioId": "publication-create-validation",
   "operationNames": ["publicationCreate"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "graphql-validation-parity", "no-upstream-passthrough"],
-  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/products/publication-create-validation.json"],
-  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "assertionKinds": ["schema-validation-parity", "payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/publication-mutation-contract.json"
+  ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/publicationCreate-validation.graphql",
-    "variablesCapturePath": "$.scenarios.bothTargets.variables",
+    "variablesCapturePath": "$.cases.createOmittedCatalog.variables",
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable local-runtime publicationCreate validation proof for mutual exclusion, missing target, unknown catalog/channel, and defaultState enum coercion. Live 2026-04 probing in this workspace showed Shopify's public schema has drifted from the ticket text for channelId and missing-target behavior, so this scenario pins the ticket acceptance contract while the runtime remains local-only with an empty upstream cassette.",
+  "notes": "Live Admin GraphQL 2026-04 capture for PublicationCreateInput. Omitted catalogId succeeds; unknown catalogId returns CATALOG_NOT_FOUND with an id-specific message; unsupported name/channelId fields and invalid defaultState are schema-level INVALID_VARIABLE errors.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "both-catalog-and-channel-invalid",
-        "capturePath": "$.scenarios.bothTargets.response.data.publicationCreate",
-        "proxyPath": "$.data.publicationCreate"
-      },
-      {
-        "name": "missing-target-blank",
-        "capturePath": "$.scenarios.missingTarget.response.data.publicationCreate",
+        "name": "omitted-catalog-create-succeeds",
+        "capturePath": "$.cases.createOmittedCatalog.response.payload.data.publicationCreate",
         "proxyPath": "$.data.publicationCreate",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/products/publicationCreate-validation.graphql",
-          "variablesCapturePath": "$.scenarios.missingTarget.variables",
-          "apiVersion": "2026-04"
-        }
+        "expectedDifferences": [
+          {
+            "path": "$.publication.id",
+            "matcher": "shopify-gid:Publication",
+            "reason": "Publication ids are generated independently by Shopify and the local synthetic allocator."
+          }
+        ]
       },
       {
         "name": "unknown-catalog-not-found",
-        "capturePath": "$.scenarios.unknownCatalog.response.data.publicationCreate",
+        "capturePath": "$.cases.createUnknownCatalog.response.payload.data.publicationCreate",
         "proxyPath": "$.data.publicationCreate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/publicationCreate-validation.graphql",
-          "variablesCapturePath": "$.scenarios.unknownCatalog.variables",
+          "variablesCapturePath": "$.cases.createUnknownCatalog.variables",
           "apiVersion": "2026-04"
         }
       },
       {
-        "name": "unknown-channel-not-found",
-        "capturePath": "$.scenarios.unknownChannel.response.data.publicationCreate",
-        "proxyPath": "$.data.publicationCreate",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/products/publicationCreate-validation.graphql",
-          "variablesCapturePath": "$.scenarios.unknownChannel.variables",
-          "apiVersion": "2026-04"
-        }
-      },
-      {
-        "name": "invalid-default-state-enum",
-        "capturePath": "$.scenarios.invalidDefaultState.response.errors",
+        "name": "invalid-default-state-variable",
+        "capturePath": "$.cases.createInvalidDefaultState.response.payload.errors",
         "proxyPath": "$.errors",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/publicationCreate-validation.graphql",
-          "variablesCapturePath": "$.scenarios.invalidDefaultState.variables",
+          "variablesCapturePath": "$.cases.createInvalidDefaultState.variables",
           "apiVersion": "2026-04"
-        }
+        },
+        "selectedPaths": ["$[0].extensions.code"]
+      },
+      {
+        "name": "unsupported-name-channel-fields",
+        "capturePath": "$.cases.createUnknownInputFields.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/publicationCreate-validation.graphql",
+          "variablesCapturePath": "$.cases.createUnknownInputFields.variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": ["$[0].extensions.code"]
       }
     ]
   }

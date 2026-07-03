@@ -68,7 +68,7 @@
         "nikeQuery": "vendor:NIKE",
         "inventoryQuery": "inventory_total:<=0"
       },
-      "query": "hand-synthesized from checked-in capture response",
+      "query": "query ProductsSearchRead($nikeQuery: String!, $inventoryQuery: String!) {\n  total: productsCount {\n    count\n    precision\n  }\n  nike: products(first: 2, query: $nikeQuery) {\n    edges {\n      node {\n        id\n        title\n        vendor\n        status\n        totalInventory\n      }\n    }\n    pageInfo {\n      hasNextPage\n    }\n  }\n  lowInventory: products(first: 2, query: $inventoryQuery) {\n    edges {\n      node {\n        id\n        title\n        vendor\n        totalInventory\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

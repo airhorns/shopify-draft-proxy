@@ -2,7 +2,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -20,6 +20,17 @@ const { runGraphqlRequest: runGraphql } = createAdminGraphqlClient({
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
+
+// The consent mutations resolve the pre-existing customer the real way: on an overlay
+// miss `customer_marketing_consent_update_field` forwards TAGGABLE_CUSTOMER_HYDRATE_QUERY
+// upstream (via `taggable_resource_staged_or_hydrated`) and observes the result. This is
+// the same constant the runtime emits (include_str! of the file below), so the recorded
+// cassette entries byte-match what the proxy forwards. No seeding required.
+const taggableHydrateDocument = await readFile(
+  'config/parity-requests/customers/taggable-customer-hydrate.graphql',
+  'utf8',
+);
+const UNKNOWN_CUSTOMER_GID = 'gid://shopify/Customer/999999999999999';
 
 function assertNoTopLevelErrors(result, context) {
   if (result.status < 200 || result.status >= 300 || result.payload?.errors) {
@@ -137,19 +148,21 @@ async function runCaptureCase(name, query, variables) {
   };
 }
 
-function customerHydrateCall(customer) {
+// Forward the TAGGABLE_CUSTOMER_HYDRATE_QUERY upstream and capture the live response
+// for the customer at its current state. A null customer (the unknown gid) is a valid
+// hydrate result, not an error.
+async function captureHydrate(id, context) {
+  const result = await runGraphql(taggableHydrateDocument, { id });
+  assertNoTopLevelErrors(result, context);
+  return result.payload;
+}
+
+function hydrateUpstreamCall(id, payload) {
   return {
     operationName: 'CustomerHydrate',
-    variables: { id: customer.id },
-    query: 'hand-synthesized from checked-in customer parity capture',
-    response: {
-      status: 200,
-      body: {
-        data: {
-          customer,
-        },
-      },
-    },
+    variables: { id },
+    query: taggableHydrateDocument,
+    response: { status: 200, body: payload },
   };
 }
 
@@ -163,6 +176,8 @@ async function main() {
   const transitionPhoneNumber = `+1415666${String(stamp).slice(-4).padStart(4, '0')}`;
   const emailOnlyAddress = `hermes-consent-email-only-${stamp}@example.com`;
   const phoneOnlyNumber = `+1415777${String(stamp).slice(-4).padStart(4, '0')}`;
+  const missingLevelEmailAddress = `hermes-consent-missing-level-${stamp}@example.com`;
+  const missingLevelPhoneNumber = `+1415888${String(stamp).slice(-4).padStart(4, '0')}`;
   const createVariables = {
     input: {
       email: emailAddress,
@@ -179,6 +194,13 @@ async function main() {
   if (typeof customerId !== 'string' || !customerId) {
     throw new Error(`customerCreate did not return a customer id: ${JSON.stringify(createResult.payload, null, 2)}`);
   }
+
+  // Email fixture: the customerEmailMarketingConsentUpdate primary forwards a
+  // CustomerHydrate for the precondition customer at its freshly-created (NOT_SUBSCRIBED)
+  // state, before applying the SUBSCRIBED transition.
+  const emailHydratePayload = await captureHydrate(customerId, 'main customer hydrate (pre-email-consent)');
+  // The unknown-customer validation branch forwards a hydrate that resolves to null.
+  const unknownHydratePayload = await captureHydrate(UNKNOWN_CUSTOMER_GID, 'unknown customer hydrate');
 
   const transitionCreateResult = await runGraphql(createMutation, {
     input: {
@@ -229,6 +251,23 @@ async function main() {
     );
   }
 
+  const missingLevelCreateResult = await runGraphql(createMutation, {
+    input: {
+      email: missingLevelEmailAddress,
+      firstName: 'Hermes',
+      lastName: 'ConsentMissingLevel',
+      phone: missingLevelPhoneNumber,
+      tags: ['parity', `consent-missing-level-${stamp}`],
+    },
+  });
+  assertNoTopLevelErrors(missingLevelCreateResult, 'customerCreate for consent missing-level matrix');
+  const missingLevelCustomerId = missingLevelCreateResult.payload?.data?.customerCreate?.customer?.id;
+  if (typeof missingLevelCustomerId !== 'string' || !missingLevelCustomerId) {
+    throw new Error(
+      `missing-level customerCreate did not return a customer id: ${JSON.stringify(missingLevelCreateResult.payload, null, 2)}`,
+    );
+  }
+
   const emailConsentVariables = {
     input: {
       customerId,
@@ -241,6 +280,11 @@ async function main() {
   };
   const emailConsentResult = await runGraphql(emailConsentMutation, emailConsentVariables);
   assertNoTopLevelErrors(emailConsentResult, 'customerEmailMarketingConsentUpdate');
+
+  // SMS fixture: its precondition is the post-email-consent customer, so the
+  // customerSmsMarketingConsentUpdate primary forwards a CustomerHydrate for the customer
+  // at that state (email SUBSCRIBED, sms still NOT_SUBSCRIBED) before applying SMS consent.
+  const smsHydratePayload = await captureHydrate(customerId, 'main customer hydrate (post-email, pre-sms-consent)');
 
   const emailDownstreamReadVariables = {
     id: customerId,
@@ -437,6 +481,14 @@ async function main() {
         },
       },
     }),
+    await runCaptureCase('subscribed missing opt-in level', emailConsentMutation, {
+      input: {
+        customerId: missingLevelCustomerId,
+        emailMarketingConsent: {
+          marketingState: 'SUBSCRIBED',
+        },
+      },
+    }),
   ];
 
   const smsValidationMatrix = [
@@ -589,7 +641,17 @@ async function main() {
         },
       },
     }),
+    await runCaptureCase('subscribed missing opt-in level', smsConsentMutation, {
+      input: {
+        customerId: missingLevelCustomerId,
+        smsMarketingConsent: {
+          marketingState: 'SUBSCRIBED',
+        },
+      },
+    }),
   ];
+  const emailMissingOptInLevelCase = emailValidationMatrix.at(-1);
+  const smsMissingOptInLevelCase = smsValidationMatrix.at(-1);
 
   const deleteResult = await runGraphql(deleteMutation, { input: { id: customerId } });
   assertNoTopLevelErrors(deleteResult, 'customerDelete cleanup for consent parity');
@@ -599,6 +661,8 @@ async function main() {
   assertNoTopLevelErrors(emailOnlyDeleteResult, 'customerDelete cleanup for consent email-only matrix');
   const phoneOnlyDeleteResult = await runGraphql(deleteMutation, { input: { id: phoneOnlyCustomerId } });
   assertNoTopLevelErrors(phoneOnlyDeleteResult, 'customerDelete cleanup for consent phone-only matrix');
+  const missingLevelDeleteResult = await runGraphql(deleteMutation, { input: { id: missingLevelCustomerId } });
+  assertNoTopLevelErrors(missingLevelDeleteResult, 'customerDelete cleanup for consent missing-level matrix');
 
   const emailCapture = {
     precondition: {
@@ -620,10 +684,15 @@ async function main() {
       matrixPreconditions: {
         transitionCustomer: transitionCreateResult.payload,
         phoneOnlyCustomer: phoneOnlyCreateResult.payload,
+        missingLevelCustomer: missingLevelCreateResult.payload,
       },
+      missingOptInLevel: emailMissingOptInLevelCase,
       matrix: emailValidationMatrix,
     },
-    upstreamCalls: [customerHydrateCall(createResult.payload.data.customerCreate.customer)],
+    upstreamCalls: [
+      hydrateUpstreamCall(customerId, emailHydratePayload),
+      hydrateUpstreamCall(UNKNOWN_CUSTOMER_GID, unknownHydratePayload),
+    ],
   };
 
   const smsCapture = {
@@ -646,7 +715,9 @@ async function main() {
       matrixPreconditions: {
         transitionCustomer: transitionCreateResult.payload,
         emailOnlyCustomer: emailOnlyCreateResult.payload,
+        missingLevelCustomer: missingLevelCreateResult.payload,
       },
+      missingOptInLevel: smsMissingOptInLevelCase,
       matrix: smsValidationMatrix,
     },
     cleanup: {
@@ -654,8 +725,12 @@ async function main() {
       transitionCustomerResponse: transitionDeleteResult.payload,
       emailOnlyCustomerResponse: emailOnlyDeleteResult.payload,
       phoneOnlyCustomerResponse: phoneOnlyDeleteResult.payload,
+      missingLevelCustomerResponse: missingLevelDeleteResult.payload,
     },
-    upstreamCalls: [customerHydrateCall(emailConsentResult.payload.data.customerEmailMarketingConsentUpdate.customer)],
+    upstreamCalls: [
+      hydrateUpstreamCall(customerId, smsHydratePayload),
+      hydrateUpstreamCall(UNKNOWN_CUSTOMER_GID, unknownHydratePayload),
+    ],
   };
 
   await writeFile(

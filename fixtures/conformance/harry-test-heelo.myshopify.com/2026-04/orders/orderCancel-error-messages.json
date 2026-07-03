@@ -1,0 +1,401 @@
+{
+  "scenarioId": "orderCancel-error-messages",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "recordedAt": "2026-06-29T20:32:53.065Z",
+  "source": "live-shopify-admin-graphql",
+  "setup": {
+    "freshOrderCreate": {
+      "query": "mutation OrderCancelErrorMessagesOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "order": {
+          "email": "order-cancel-error-messages-fresh-20260629203250@example.com",
+          "note": "orderCancel error messages fresh 20260629203250",
+          "tags": ["order-cancel-error-messages", "fresh", "20260629203250"],
+          "test": true,
+          "currency": "USD",
+          "lineItems": [
+            {
+              "title": "Order cancel error messages fresh",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8881237983538"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cancelledOrderCreate": {
+      "query": "mutation OrderCancelErrorMessagesOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+      "variables": {
+        "order": {
+          "email": "order-cancel-error-messages-already-cancelled-20260629203250@example.com",
+          "note": "orderCancel error messages already-cancelled 20260629203250",
+          "tags": ["order-cancel-error-messages", "already-cancelled", "20260629203250"],
+          "test": true,
+          "currency": "USD",
+          "lineItems": [
+            {
+              "title": "Order cancel error messages already-cancelled",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8881238016306"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "setupCancel": {
+      "query": "mutation OrderCancelErrorMessagesSetupCancel($orderId: ID!, $restock: Boolean!, $reason: OrderCancelReason!) {\n  orderCancel(orderId: $orderId, restock: $restock, reason: $reason) {\n    job {\n      id\n      done\n    }\n    orderCancelUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "orderId": "gid://shopify/Order/8881238016306",
+        "restock": false,
+        "reason": "OTHER"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/810c0b1a-d0fe-4ce1-9be0-2c3c781a9787",
+                "done": false
+              },
+              "orderCancelUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cancelledOrderRead": {
+      "query": "query OrderCancelErrorMessagesRead($id: ID!) {\n    order(id: $id) {\n      id\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Order/8881238016306"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8881238016306",
+              "closed": true,
+              "closedAt": "2026-06-29T20:32:52Z",
+              "cancelledAt": "2026-06-29T20:32:52Z",
+              "cancelReason": "OTHER"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "taggedCancelledOrderSearch": null,
+    "existingCancelledOrderSearch": null
+  },
+  "expected": {
+    "staffNoteTooLong": {
+      "query": "mutation OrderCancelErrorMessages(\n  $orderId: ID!\n  $restock: Boolean!\n  $reason: OrderCancelReason!\n  $refund: Boolean\n  $refundMethod: OrderCancelRefundMethodInput\n  $staffNote: String\n) {\n  orderCancel(\n    orderId: $orderId\n    restock: $restock\n    reason: $reason\n    refund: $refund\n    refundMethod: $refundMethod\n    staffNote: $staffNote\n  ) {\n    job {\n      id\n      done\n    }\n    orderCancelUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "orderId": "gid://shopify/Order/8881237983538",
+        "restock": false,
+        "reason": "OTHER",
+        "staffNote": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": null,
+              "orderCancelUserErrors": [
+                {
+                  "field": ["staffNote"],
+                  "message": "Staff note is too long. Maximum length is 255 characters.",
+                  "code": "INVALID"
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["staffNote"],
+                  "message": "Staff note is too long. Maximum length is 255 characters."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "refundTrueAndRefundMethodConflict": {
+      "query": "mutation OrderCancelErrorMessages(\n  $orderId: ID!\n  $restock: Boolean!\n  $reason: OrderCancelReason!\n  $refund: Boolean\n  $refundMethod: OrderCancelRefundMethodInput\n  $staffNote: String\n) {\n  orderCancel(\n    orderId: $orderId\n    restock: $restock\n    reason: $reason\n    refund: $refund\n    refundMethod: $refundMethod\n    staffNote: $staffNote\n  ) {\n    job {\n      id\n      done\n    }\n    orderCancelUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "orderId": "gid://shopify/Order/8881237983538",
+        "restock": false,
+        "reason": "OTHER",
+        "refund": true,
+        "refundMethod": {
+          "originalPaymentMethodsRefund": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": null,
+              "orderCancelUserErrors": [
+                {
+                  "field": ["refund"],
+                  "message": "Only one of the arguments `refund` or `refund_method` is allowed.",
+                  "code": "INVALID"
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["refund"],
+                  "message": "Only one of the arguments `refund` or `refund_method` is allowed."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "refundFalseAndRefundMethodConflict": {
+      "query": "mutation OrderCancelErrorMessages(\n  $orderId: ID!\n  $restock: Boolean!\n  $reason: OrderCancelReason!\n  $refund: Boolean\n  $refundMethod: OrderCancelRefundMethodInput\n  $staffNote: String\n) {\n  orderCancel(\n    orderId: $orderId\n    restock: $restock\n    reason: $reason\n    refund: $refund\n    refundMethod: $refundMethod\n    staffNote: $staffNote\n  ) {\n    job {\n      id\n      done\n    }\n    orderCancelUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "orderId": "gid://shopify/Order/8881237983538",
+        "restock": false,
+        "reason": "OTHER",
+        "refund": false,
+        "refundMethod": {
+          "originalPaymentMethodsRefund": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": null,
+              "orderCancelUserErrors": [
+                {
+                  "field": ["refund"],
+                  "message": "Only one of the arguments `refund` or `refund_method` is allowed.",
+                  "code": "INVALID"
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["refund"],
+                  "message": "Only one of the arguments `refund` or `refund_method` is allowed."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "alreadyCancelled": {
+      "query": "mutation OrderCancelErrorMessages(\n  $orderId: ID!\n  $restock: Boolean!\n  $reason: OrderCancelReason!\n  $refund: Boolean\n  $refundMethod: OrderCancelRefundMethodInput\n  $staffNote: String\n) {\n  orderCancel(\n    orderId: $orderId\n    restock: $restock\n    reason: $reason\n    refund: $refund\n    refundMethod: $refundMethod\n    staffNote: $staffNote\n  ) {\n    job {\n      id\n      done\n    }\n    orderCancelUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "orderId": "gid://shopify/Order/8881238016306",
+        "restock": false,
+        "reason": "OTHER"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": null,
+              "orderCancelUserErrors": [
+                {
+                  "field": ["orderId"],
+                  "message": "Cannot cancel an order that has already been canceled",
+                  "code": "INVALID"
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["orderId"],
+                  "message": "Cannot cancel an order that has already been canceled"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "freshOrderCancel": {
+      "query": "mutation OrderCancelErrorMessagesSetupCancel($orderId: ID!, $restock: Boolean!, $reason: OrderCancelReason!) {\n  orderCancel(orderId: $orderId, restock: $restock, reason: $reason) {\n    job {\n      id\n      done\n    }\n    orderCancelUserErrors {\n      field\n      message\n      code\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "variables": {
+        "orderId": "gid://shopify/Order/8881237983538",
+        "restock": false,
+        "reason": "OTHER"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/d5e12b0e-d2b0-442b-b6ef-8ee42bf526d5",
+                "done": false
+              },
+              "orderCancelUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

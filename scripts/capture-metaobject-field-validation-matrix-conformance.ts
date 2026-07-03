@@ -24,6 +24,7 @@ type ValidationCase = {
   type: string;
   value: string;
   definitionValidations?: Array<{ name: string; value: string | null }>;
+  includeList?: boolean;
   note?: string;
 };
 
@@ -78,6 +79,58 @@ const metaobjectDefinitionDeleteMutation = `#graphql
         elementKey
         elementIndex
       }
+    }
+  }
+`;
+
+const definitionHydrateByTypeQuery = `#graphql
+  query MetaobjectDefinitionHydrateByType($type: String!) {
+    metaobjectDefinitionByType(type: $type) {
+      id
+      type
+      name
+      description
+      displayNameKey
+      access {
+        admin
+        storefront
+      }
+      capabilities {
+        publishable {
+          enabled
+        }
+        translatable {
+          enabled
+        }
+        renderable {
+          enabled
+        }
+        onlineStore {
+          enabled
+        }
+      }
+      fieldDefinitions {
+        key
+        name
+        description
+        required
+        type {
+          name
+          category
+        }
+        validations {
+          name
+          value
+        }
+      }
+      hasThumbnailField
+      metaobjectsCount
+      standardTemplate {
+        type
+        name
+      }
+      createdAt
+      updatedAt
     }
   }
 `;
@@ -193,6 +246,15 @@ function validationCases(metaobjectDefinitionId: string): ValidationCase[] {
     },
     { name: 'color-invalid', key: 'color', type: 'color', value: 'red' },
     { name: 'url-invalid', key: 'url', type: 'url', value: 'hello' },
+    { name: 'money-invalid', key: 'money', type: 'money', value: 'not-money', includeList: false },
+    {
+      name: 'link-invalid',
+      key: 'link',
+      type: 'link',
+      value: jsonString({ text: 'Docs', url: 'ftp://nope' }),
+      includeList: false,
+    },
+    { name: 'power-invalid', key: 'power', type: 'power', value: '10', includeList: false },
     {
       name: 'product-reference-invalid',
       key: 'product_reference',
@@ -224,11 +286,26 @@ function validationCases(metaobjectDefinitionId: string): ValidationCase[] {
       value: 'gid://shopify/Product/1',
     },
     {
+      name: 'file-reference-invalid',
+      key: 'file_reference',
+      type: 'file_reference',
+      value: 'gid://shopify/Product/1',
+      includeList: false,
+    },
+    {
       name: 'metaobject-reference-invalid',
       key: 'metaobject_reference',
       type: 'metaobject_reference',
       value: 'gid://shopify/Product/1',
       definitionValidations: [{ name: 'metaobject_definition_id', value: metaobjectDefinitionId }],
+    },
+    {
+      name: 'mixed-reference-invalid',
+      key: 'mixed_reference',
+      type: 'mixed_reference',
+      value: 'gid://shopify/Product/1',
+      definitionValidations: [{ name: 'metaobject_definition_ids', value: jsonString([metaobjectDefinitionId]) }],
+      includeList: false,
     },
     {
       name: 'single-line-text-max',
@@ -240,7 +317,10 @@ function validationCases(metaobjectDefinitionId: string): ValidationCase[] {
   ];
 
   const listCases = scalarCases
-    .filter((typeCase) => typeCase.type !== 'boolean' && typeCase.type !== 'single_line_text_field')
+    .filter(
+      (typeCase) =>
+        typeCase.includeList !== false && typeCase.type !== 'boolean' && typeCase.type !== 'single_line_text_field',
+    )
     .map((typeCase) => {
       const listItemValue = typeCase.type === 'number_integer' ? 'hello' : typeCase.value;
       const definitionValidations = caseListDefinitionValidations(typeCase);
@@ -487,6 +567,9 @@ try {
     );
   }
 
+  const definitionHydrate = await runGraphqlRaw(definitionHydrateByTypeQuery, { type: matrixType });
+  assertGraphqlOk(definitionHydrate, 'definition hydrate by type');
+
   await cleanup(createdMetaobjectIds, definitionIds, cleanupCaptures);
   definitionIds.splice(0, definitionIds.length);
 
@@ -525,14 +608,10 @@ try {
           {
             operationName: 'MetaobjectDefinitionHydrateByType',
             variables: { type: matrixType },
-            query: 'sha:hand-synthesized-from-capture',
+            query: definitionHydrateByTypeQuery,
             response: {
-              status: 200,
-              body: {
-                data: {
-                  metaobjectDefinitionByType: null,
-                },
-              },
+              status: definitionHydrate.status,
+              body: definitionHydrate.payload,
             },
           },
         ],

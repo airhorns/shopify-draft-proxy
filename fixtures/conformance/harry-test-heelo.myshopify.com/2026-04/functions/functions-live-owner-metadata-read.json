@@ -903,7 +903,7 @@
         "validationFunctionId": "019dd44b-127f-7061-a930-422cbd4a751f",
         "cartFunctionId": "019dd44b-127f-724b-a49c-70fc98ff4d72"
       },
-      "query": "hand-synthesized from functionOwnershipRead.response.payload",
+      "query": "query ReadLiveFunctionOwnerMetadata($validationFunctionId: String!, $cartFunctionId: String!) {\n  shopifyFunctions(first: 20) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  validationFunction: shopifyFunction(id: $validationFunctionId) {\n    id\n    title\n    handle\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      handle\n      apiKey\n    }\n  }\n  cartFunction: shopifyFunction(id: $cartFunctionId) {\n    id\n    title\n    handle\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      handle\n      apiKey\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

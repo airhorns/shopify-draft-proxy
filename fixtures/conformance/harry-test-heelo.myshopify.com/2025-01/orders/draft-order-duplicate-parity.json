@@ -1,546 +1,23 @@
 {
-  "setup": {
-    "draftOrderCreate": {
-      "id": "gid://shopify/DraftOrder/1249078214962",
-      "variables": {
-        "input": {
-          "purchasingEntity": {
-            "customerId": "gid://shopify/Customer/9522206933298"
-          },
-          "email": "hermes-draft-order-duplicate-1777156988943@example.com",
-          "note": "draft order duplicate setup",
-          "taxExempt": true,
-          "reserveInventoryUntil": "2026-05-23T12:00:00Z",
-          "tags": ["parity-capture", "draft-order-family", "duplicate"],
-          "customAttributes": [
-            {
-              "key": "source",
-              "value": "phone-order"
-            },
-            {
-              "key": "purchase-order",
-              "value": "PO-117"
-            }
-          ],
-          "appliedDiscount": {
-            "title": "Loyalty credit",
-            "description": "merchant order-level discount",
-            "value": 5,
-            "amount": 5,
-            "valueType": "FIXED_AMOUNT"
-          },
-          "billingAddress": {
-            "firstName": "Hermes",
-            "lastName": "Buyer",
-            "address1": "123 Queen St W",
-            "city": "Toronto",
-            "provinceCode": "ON",
-            "countryCode": "CA",
-            "zip": "M5H 2M9",
-            "phone": "+14165550101"
-          },
-          "shippingAddress": {
-            "firstName": "Hermes",
-            "lastName": "Buyer",
-            "address1": "500 King St W",
-            "city": "Toronto",
-            "provinceCode": "ON",
-            "countryCode": "CA",
-            "zip": "M5V 1L9",
-            "phone": "+14165550102"
-          },
-          "shippingLine": {
-            "title": "Merchant Courier",
-            "priceWithCurrency": {
-              "amount": "7.25",
-              "currencyCode": "CAD"
-            }
-          },
-          "lineItems": [
-            {
-              "title": "Custom installation service",
-              "quantity": 2,
-              "originalUnitPrice": "20.00",
-              "requiresShipping": false,
-              "taxable": false,
-              "sku": "CUSTOM-INSTALL",
-              "appliedDiscount": {
-                "title": "Service discount",
-                "description": "10 percent off service",
-                "value": 10,
-                "amount": 4,
-                "valueType": "PERCENTAGE"
-              },
-              "customAttributes": [
-                {
-                  "key": "appointment",
-                  "value": "morning"
-                }
-              ]
-            },
-            {
-              "variantId": "gid://shopify/ProductVariant/49875425296690",
-              "quantity": 1
-            }
-          ]
-        }
-      },
-      "mutation": {
-        "response": {
-          "data": {
-            "draftOrderCreate": {
-              "draftOrder": {
-                "id": "gid://shopify/DraftOrder/1249078214962",
-                "name": "#D32",
-                "status": "OPEN",
-                "ready": true,
-                "email": "hermes-draft-order-duplicate-1777156988943@example.com",
-                "customer": {
-                  "id": "gid://shopify/Customer/9522206933298",
-                  "email": "karine.ruby@example.com",
-                  "displayName": "Karine Ruby"
-                },
-                "taxExempt": true,
-                "taxesIncluded": false,
-                "reserveInventoryUntil": "2026-05-23T12:00:00Z",
-                "paymentTerms": null,
-                "tags": ["draft-order-family", "duplicate", "parity-capture"],
-                "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/656cbec7c0042f8abc6c95a97834f6a3",
-                "customAttributes": [
-                  {
-                    "key": "source",
-                    "value": "phone-order"
-                  },
-                  {
-                    "key": "purchase-order",
-                    "value": "PO-117"
-                  }
-                ],
-                "appliedDiscount": {
-                  "title": "Loyalty credit",
-                  "description": "merchant order-level discount",
-                  "value": 5,
-                  "valueType": "FIXED_AMOUNT",
-                  "amountSet": {
-                    "shopMoney": {
-                      "amount": "5.0",
-                      "currencyCode": "CAD"
-                    }
-                  }
-                },
-                "billingAddress": {
-                  "firstName": "Hermes",
-                  "lastName": "Buyer",
-                  "address1": "123 Queen St W",
-                  "city": "Toronto",
-                  "provinceCode": "ON",
-                  "countryCodeV2": "CA",
-                  "zip": "M5H 2M9"
-                },
-                "shippingAddress": {
-                  "firstName": "Hermes",
-                  "lastName": "Buyer",
-                  "address1": "500 King St W",
-                  "city": "Toronto",
-                  "provinceCode": "ON",
-                  "countryCodeV2": "CA",
-                  "zip": "M5V 1L9"
-                },
-                "shippingLine": {
-                  "title": "Merchant Courier",
-                  "code": "custom",
-                  "custom": true,
-                  "originalPriceSet": {
-                    "shopMoney": {
-                      "amount": "7.25",
-                      "currencyCode": "CAD"
-                    }
-                  },
-                  "discountedPriceSet": {
-                    "shopMoney": {
-                      "amount": "7.25",
-                      "currencyCode": "CAD"
-                    }
-                  }
-                },
-                "subtotalPriceSet": {
-                  "shopMoney": {
-                    "amount": "980.95",
-                    "currencyCode": "CAD"
-                  }
-                },
-                "totalDiscountsSet": {
-                  "shopMoney": {
-                    "amount": "9.0",
-                    "currencyCode": "CAD"
-                  }
-                },
-                "totalShippingPriceSet": {
-                  "shopMoney": {
-                    "amount": "7.25",
-                    "currencyCode": "CAD"
-                  }
-                },
-                "totalPriceSet": {
-                  "shopMoney": {
-                    "amount": "988.2",
-                    "currencyCode": "CAD"
-                  }
-                },
-                "totalQuantityOfLineItems": 3,
-                "lineItems": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/DraftOrderLineItem/58580567064882",
-                      "title": "Custom installation service",
-                      "name": "Custom installation service",
-                      "quantity": 2,
-                      "sku": "CUSTOM-INSTALL",
-                      "variantTitle": null,
-                      "custom": true,
-                      "requiresShipping": false,
-                      "taxable": false,
-                      "customAttributes": [
-                        {
-                          "key": "appointment",
-                          "value": "morning"
-                        }
-                      ],
-                      "appliedDiscount": {
-                        "title": "Service discount",
-                        "description": "10 percent off service",
-                        "value": 10,
-                        "valueType": "PERCENTAGE",
-                        "amountSet": {
-                          "shopMoney": {
-                            "amount": "4.0",
-                            "currencyCode": "CAD"
-                          }
-                        }
-                      },
-                      "originalUnitPriceSet": {
-                        "shopMoney": {
-                          "amount": "20.0",
-                          "currencyCode": "CAD"
-                        }
-                      },
-                      "originalTotalSet": {
-                        "shopMoney": {
-                          "amount": "40.0",
-                          "currencyCode": "CAD"
-                        }
-                      },
-                      "discountedTotalSet": {
-                        "shopMoney": {
-                          "amount": "36.0",
-                          "currencyCode": "CAD"
-                        }
-                      },
-                      "totalDiscountSet": {
-                        "shopMoney": {
-                          "amount": "4.0",
-                          "currencyCode": "CAD"
-                        }
-                      },
-                      "variant": null
-                    },
-                    {
-                      "id": "gid://shopify/DraftOrderLineItem/58580567097650",
-                      "title": "The Inventory Not Tracked Snowboard",
-                      "name": "The Inventory Not Tracked Snowboard",
-                      "quantity": 1,
-                      "sku": "sku-untracked-1",
-                      "variantTitle": null,
-                      "custom": false,
-                      "requiresShipping": true,
-                      "taxable": true,
-                      "customAttributes": [],
-                      "appliedDiscount": null,
-                      "originalUnitPriceSet": {
-                        "shopMoney": {
-                          "amount": "949.95",
-                          "currencyCode": "CAD"
-                        }
-                      },
-                      "originalTotalSet": {
-                        "shopMoney": {
-                          "amount": "949.95",
-                          "currencyCode": "CAD"
-                        }
-                      },
-                      "discountedTotalSet": {
-                        "shopMoney": {
-                          "amount": "949.95",
-                          "currencyCode": "CAD"
-                        }
-                      },
-                      "totalDiscountSet": {
-                        "shopMoney": {
-                          "amount": "0.0",
-                          "currencyCode": "CAD"
-                        }
-                      },
-                      "variant": {
-                        "id": "gid://shopify/ProductVariant/49875425296690",
-                        "title": "Default Title",
-                        "sku": "sku-untracked-1"
-                      }
-                    }
-                  ]
-                }
-              },
-              "userErrors": []
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 31,
-              "actualQueryCost": 24,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1976,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      },
-      "downstreamRead": {
-        "variables": {
-          "id": "gid://shopify/DraftOrder/1249078214962"
-        },
-        "response": {
-          "data": {
-            "draftOrder": {
-              "id": "gid://shopify/DraftOrder/1249078214962",
-              "name": "#D32",
-              "status": "OPEN",
-              "ready": true,
-              "email": "hermes-draft-order-duplicate-1777156988943@example.com",
-              "customer": {
-                "id": "gid://shopify/Customer/9522206933298",
-                "email": "karine.ruby@example.com",
-                "displayName": "Karine Ruby"
-              },
-              "taxExempt": true,
-              "taxesIncluded": false,
-              "reserveInventoryUntil": "2026-05-23T12:00:00Z",
-              "paymentTerms": null,
-              "tags": ["draft-order-family", "duplicate", "parity-capture"],
-              "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/656cbec7c0042f8abc6c95a97834f6a3",
-              "customAttributes": [
-                {
-                  "key": "source",
-                  "value": "phone-order"
-                },
-                {
-                  "key": "purchase-order",
-                  "value": "PO-117"
-                }
-              ],
-              "appliedDiscount": {
-                "title": "Loyalty credit",
-                "description": "merchant order-level discount",
-                "value": 5,
-                "valueType": "FIXED_AMOUNT",
-                "amountSet": {
-                  "shopMoney": {
-                    "amount": "5.0",
-                    "currencyCode": "CAD"
-                  }
-                }
-              },
-              "billingAddress": {
-                "firstName": "Hermes",
-                "lastName": "Buyer",
-                "address1": "123 Queen St W",
-                "city": "Toronto",
-                "provinceCode": "ON",
-                "countryCodeV2": "CA",
-                "zip": "M5H 2M9"
-              },
-              "shippingAddress": {
-                "firstName": "Hermes",
-                "lastName": "Buyer",
-                "address1": "500 King St W",
-                "city": "Toronto",
-                "provinceCode": "ON",
-                "countryCodeV2": "CA",
-                "zip": "M5V 1L9"
-              },
-              "shippingLine": {
-                "title": "Merchant Courier",
-                "code": "custom",
-                "custom": true,
-                "originalPriceSet": {
-                  "shopMoney": {
-                    "amount": "7.25",
-                    "currencyCode": "CAD"
-                  }
-                },
-                "discountedPriceSet": {
-                  "shopMoney": {
-                    "amount": "7.25",
-                    "currencyCode": "CAD"
-                  }
-                }
-              },
-              "subtotalPriceSet": {
-                "shopMoney": {
-                  "amount": "980.95",
-                  "currencyCode": "CAD"
-                }
-              },
-              "totalDiscountsSet": {
-                "shopMoney": {
-                  "amount": "9.0",
-                  "currencyCode": "CAD"
-                }
-              },
-              "totalShippingPriceSet": {
-                "shopMoney": {
-                  "amount": "7.25",
-                  "currencyCode": "CAD"
-                }
-              },
-              "totalPriceSet": {
-                "shopMoney": {
-                  "amount": "988.2",
-                  "currencyCode": "CAD"
-                }
-              },
-              "totalQuantityOfLineItems": 3,
-              "lineItems": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/DraftOrderLineItem/58580567064882",
-                    "title": "Custom installation service",
-                    "name": "Custom installation service",
-                    "quantity": 2,
-                    "sku": "CUSTOM-INSTALL",
-                    "variantTitle": null,
-                    "custom": true,
-                    "requiresShipping": false,
-                    "taxable": false,
-                    "customAttributes": [
-                      {
-                        "key": "appointment",
-                        "value": "morning"
-                      }
-                    ],
-                    "appliedDiscount": {
-                      "title": "Service discount",
-                      "description": "10 percent off service",
-                      "value": 10,
-                      "valueType": "PERCENTAGE",
-                      "amountSet": {
-                        "shopMoney": {
-                          "amount": "4.0",
-                          "currencyCode": "CAD"
-                        }
-                      }
-                    },
-                    "originalUnitPriceSet": {
-                      "shopMoney": {
-                        "amount": "20.0",
-                        "currencyCode": "CAD"
-                      }
-                    },
-                    "originalTotalSet": {
-                      "shopMoney": {
-                        "amount": "40.0",
-                        "currencyCode": "CAD"
-                      }
-                    },
-                    "discountedTotalSet": {
-                      "shopMoney": {
-                        "amount": "36.0",
-                        "currencyCode": "CAD"
-                      }
-                    },
-                    "totalDiscountSet": {
-                      "shopMoney": {
-                        "amount": "4.0",
-                        "currencyCode": "CAD"
-                      }
-                    },
-                    "variant": null
-                  },
-                  {
-                    "id": "gid://shopify/DraftOrderLineItem/58580567097650",
-                    "title": "The Inventory Not Tracked Snowboard",
-                    "name": "The Inventory Not Tracked Snowboard",
-                    "quantity": 1,
-                    "sku": "sku-untracked-1",
-                    "variantTitle": null,
-                    "custom": false,
-                    "requiresShipping": true,
-                    "taxable": true,
-                    "customAttributes": [],
-                    "appliedDiscount": null,
-                    "originalUnitPriceSet": {
-                      "shopMoney": {
-                        "amount": "949.95",
-                        "currencyCode": "CAD"
-                      }
-                    },
-                    "originalTotalSet": {
-                      "shopMoney": {
-                        "amount": "949.95",
-                        "currencyCode": "CAD"
-                      }
-                    },
-                    "discountedTotalSet": {
-                      "shopMoney": {
-                        "amount": "949.95",
-                        "currencyCode": "CAD"
-                      }
-                    },
-                    "totalDiscountSet": {
-                      "shopMoney": {
-                        "amount": "0.0",
-                        "currencyCode": "CAD"
-                      }
-                    },
-                    "variant": {
-                      "id": "gid://shopify/ProductVariant/49875425296690",
-                      "title": "Default Title",
-                      "sku": "sku-untracked-1"
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 22,
-              "actualQueryCost": 15,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1985,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    }
-  },
+  "scenarioId": "draft-order-duplicate-live-parity",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "recordedAt": "2026-06-22T22:33:49.618Z",
+  "source": "live-shopify-admin-graphql",
   "variables": {
-    "id": "gid://shopify/DraftOrder/1249078214962"
+    "id": "gid://shopify/DraftOrder/1269664350514"
   },
   "mutation": {
     "response": {
       "data": {
         "draftOrderDuplicate": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1249078247730",
-            "name": "#D33",
-            "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/3d24194dcde03fdd0c30b9b9bfb092a5",
+            "id": "gid://shopify/DraftOrder/1269664383282",
+            "name": "#D217",
+            "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/0d3c2ffbf05de838baeb7778bdb8b09f",
             "status": "OPEN",
             "ready": true,
-            "email": "hermes-draft-order-duplicate-1777156988943@example.com",
+            "email": "hermes-draft-order-duplicate-20260622223346@example.com",
             "tags": ["draft-order-family", "duplicate", "parity-capture"],
             "customAttributes": [
               {
@@ -567,13 +44,13 @@
             "lineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/DraftOrderLineItem/58580567130418",
+                  "id": "gid://shopify/DraftOrderLineItem/58619479621938",
                   "title": "Custom installation service",
                   "quantity": 2,
                   "sku": "CUSTOM-INSTALL"
                 },
                 {
-                  "id": "gid://shopify/DraftOrderLineItem/58580567163186",
+                  "id": "gid://shopify/DraftOrderLineItem/58619479654706",
                   "title": "The Inventory Not Tracked Snowboard",
                   "quantity": 1,
                   "sku": "sku-untracked-1"
@@ -598,17 +75,14 @@
     }
   },
   "downstreamRead": {
-    "variables": {
-      "id": "gid://shopify/DraftOrder/1249078247730"
-    },
     "response": {
       "data": {
         "draftOrder": {
-          "id": "gid://shopify/DraftOrder/1249078247730",
-          "name": "#D33",
+          "id": "gid://shopify/DraftOrder/1269664383282",
+          "name": "#D217",
           "status": "OPEN",
           "ready": true,
-          "email": "hermes-draft-order-duplicate-1777156988943@example.com",
+          "email": "hermes-draft-order-duplicate-20260622223346@example.com",
           "customer": {
             "id": "gid://shopify/Customer/9522206933298",
             "email": "karine.ruby@example.com",
@@ -619,7 +93,7 @@
           "reserveInventoryUntil": null,
           "paymentTerms": null,
           "tags": ["draft-order-family", "duplicate", "parity-capture"],
-          "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/3d24194dcde03fdd0c30b9b9bfb092a5",
+          "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/0d3c2ffbf05de838baeb7778bdb8b09f",
           "customAttributes": [
             {
               "key": "source",
@@ -678,7 +152,7 @@
           "lineItems": {
             "nodes": [
               {
-                "id": "gid://shopify/DraftOrderLineItem/58580567130418",
+                "id": "gid://shopify/DraftOrderLineItem/58619479621938",
                 "title": "Custom installation service",
                 "name": "Custom installation service",
                 "quantity": 2,
@@ -721,7 +195,7 @@
                 "variant": null
               },
               {
-                "id": "gid://shopify/DraftOrderLineItem/58580567163186",
+                "id": "gid://shopify/DraftOrderLineItem/58619479654706",
                 "title": "The Inventory Not Tracked Snowboard",
                 "name": "The Inventory Not Tracked Snowboard",
                 "quantity": 1,
@@ -783,19 +257,20 @@
     {
       "operationName": "OrdersDraftOrderHydrate",
       "variables": {
-        "id": "gid://shopify/DraftOrder/1249078214962"
+        "id": "gid://shopify/DraftOrder/1269664350514"
       },
-      "query": "hand-synthesized from checked-in setup draftOrderCreate response for HAR-538 draft order Pattern 2 hydration",
+      "query": "\n    query OrdersDraftOrderHydrate($id: ID!) {\n      draftOrder(id: $id) {\n        id\n        name\n        status\n        ready\n        note: note2\n        email\n        customer { id email displayName }\n        taxExempt\n        taxesIncluded\n        reserveInventoryUntil\n        paymentTerms {\n          id\n          overdue\n          dueInDays\n          paymentTermsName\n          paymentTermsType\n          translatedName\n        }\n        tags\n        invoiceUrl\n        customAttributes { key value }\n        appliedDiscount {\n          title\n          description\n          value\n          valueType\n          amountSet { shopMoney { amount currencyCode } }\n        }\n        billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingLine {\n          title\n          code\n          custom\n          originalPriceSet { shopMoney { amount currencyCode } }\n          discountedPriceSet { shopMoney { amount currencyCode } }\n        }\n        subtotalPriceSet { shopMoney { amount currencyCode } }\n        totalDiscountsSet { shopMoney { amount currencyCode } }\n        totalShippingPriceSet { shopMoney { amount currencyCode } }\n        totalPriceSet { shopMoney { amount currencyCode } }\n        totalQuantityOfLineItems\n        lineItems(first: 10) {\n          nodes {\n            id\n            title\n            name\n            quantity\n            sku\n            variantTitle\n            custom\n            requiresShipping\n            taxable\n            customAttributes { key value }\n            appliedDiscount {\n              title\n              description\n              value\n              valueType\n              amountSet { shopMoney { amount currencyCode } }\n            }\n            originalUnitPriceSet { shopMoney { amount currencyCode } }\n            originalTotalSet { shopMoney { amount currencyCode } }\n            discountedTotalSet { shopMoney { amount currencyCode } }\n            totalDiscountSet { shopMoney { amount currencyCode } }\n            variant { id title sku }\n          }\n        }\n      }\n    }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "draftOrder": {
-              "id": "gid://shopify/DraftOrder/1249078214962",
-              "name": "#D32",
+              "id": "gid://shopify/DraftOrder/1269664350514",
+              "name": "#D216",
               "status": "OPEN",
               "ready": true,
-              "email": "hermes-draft-order-duplicate-1777156988943@example.com",
+              "note": "draft order duplicate setup",
+              "email": "hermes-draft-order-duplicate-20260622223346@example.com",
               "customer": {
                 "id": "gid://shopify/Customer/9522206933298",
                 "email": "karine.ruby@example.com",
@@ -803,10 +278,10 @@
               },
               "taxExempt": true,
               "taxesIncluded": false,
-              "reserveInventoryUntil": "2026-05-23T12:00:00Z",
+              "reserveInventoryUntil": "2026-09-20T12:00:00Z",
               "paymentTerms": null,
               "tags": ["draft-order-family", "duplicate", "parity-capture"],
-              "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/656cbec7c0042f8abc6c95a97834f6a3",
+              "invoiceUrl": "https://harry-test-heelo.myshopify.com/92891250994/invoices/3e38eaecd10ef914a2e817aa41e58089",
               "customAttributes": [
                 {
                   "key": "source",
@@ -892,7 +367,7 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/DraftOrderLineItem/58580567064882",
+                    "id": "gid://shopify/DraftOrderLineItem/58619479556402",
                     "title": "Custom installation service",
                     "name": "Custom installation service",
                     "quantity": 2,
@@ -946,7 +421,7 @@
                     "variant": null
                   },
                   {
-                    "id": "gid://shopify/DraftOrderLineItem/58580567097650",
+                    "id": "gid://shopify/DraftOrderLineItem/58619479589170",
                     "title": "The Inventory Not Tracked Snowboard",
                     "name": "The Inventory Not Tracked Snowboard",
                     "quantity": 1,
@@ -988,6 +463,17 @@
                     }
                   }
                 ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 26,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
               }
             }
           }

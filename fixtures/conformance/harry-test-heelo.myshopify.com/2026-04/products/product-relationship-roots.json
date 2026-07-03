@@ -1152,7 +1152,7 @@
       "variables": {
         "ids": ["gid://shopify/ProductOption/12718177878322", "gid://shopify/ProductOption/12718177845554"]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformProductOptionNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on ProductOption {\n      name\n      position\n      values\n      optionValues {\n        id\n        name\n        hasVariants\n      }\n    }\n    ... on ProductOptionValue {\n      name\n      hasVariants\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1199,7 +1199,7 @@
       "variables": {
         "ids": ["gid://shopify/ProductOptionValue/7979025957170"]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformProductOptionNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on ProductOption {\n      name\n      position\n      values\n      optionValues {\n        id\n        name\n        hasVariants\n      }\n    }\n    ... on ProductOptionValue {\n      name\n      hasVariants\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1220,7 +1220,7 @@
       "variables": {
         "ids": ["gid://shopify/ProductOptionValue/7979025891634"]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformProductOptionNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on ProductOption {\n      name\n      position\n      values\n      optionValues {\n        id\n        name\n        hasVariants\n      }\n    }\n    ... on ProductOptionValue {\n      name\n      hasVariants\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1241,7 +1241,7 @@
       "variables": {
         "ids": ["gid://shopify/ProductOptionValue/7979025924402"]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformProductOptionNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on ProductOption {\n      name\n      position\n      values\n      optionValues {\n        id\n        name\n        hasVariants\n      }\n    }\n    ... on ProductOptionValue {\n      name\n      hasVariants\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1260,7 +1260,7 @@
     {
       "operationName": "AdminPlatformSellingPlanNodeReads",
       "variables": {},
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformSellingPlanNodeReads {\n  sellingPlanNode: node(id: \"gid://shopify/SellingPlan/7026999602\") {\n    ... on SellingPlan {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n    }\n  }\n  nodes(ids: [\"gid://shopify/SellingPlan/7026999602\", \"gid://shopify/SellingPlan/999999999999\"]) {\n    ... on SellingPlan {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1290,155 +1290,11 @@
       }
     },
     {
-      "operationName": "ProductsHydrateNodes",
-      "variables": {
-        "ids": [
-          "gid://shopify/Collection/512193167666",
-          "gid://shopify/Product/10172011872562",
-          "gid://shopify/Product/10172011905330"
-        ]
-      },
-      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "nodes": [
-              {
-                "id": "gid://shopify/Collection/512193167666",
-                "title": "Product relationship collection mohpcrbe",
-                "handle": "product-relationship-collection-mohpcrbe",
-                "products": {
-                  "nodes": []
-                },
-                "hasProduct": true,
-                "productsCount": {
-                  "count": 0,
-                  "precision": "EXACT"
-                },
-                "productIds": []
-              },
-              {
-                "id": "gid://shopify/Product/10172011872562",
-                "title": "Product relationship collection one mohpcrbe",
-                "handle": "product-relationship-collection-one-mohpcrbe",
-                "status": "DRAFT",
-                "variants": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/ProductVariant/51104997802290",
-                      "title": "Default Title",
-                      "selectedOptions": [
-                        {
-                          "name": "Title",
-                          "value": "Default Title"
-                        }
-                      ]
-                    }
-                  ]
-                },
-                "collections": {
-                  "nodes": []
-                }
-              },
-              {
-                "id": "gid://shopify/Product/10172011905330",
-                "title": "Product relationship collection two mohpcrbe",
-                "handle": "product-relationship-collection-two-mohpcrbe",
-                "status": "DRAFT",
-                "variants": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/ProductVariant/51104997867826",
-                      "title": "Default Title",
-                      "selectedOptions": [
-                        {
-                          "name": "Title",
-                          "value": "Default Title"
-                        }
-                      ]
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "operationName": "ProductsHydrateNodes",
-      "variables": {
-        "ids": ["gid://shopify/Product/10172012003634"]
-      },
-      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "nodes": [
-              {
-                "id": "gid://shopify/Product/10172012003634",
-                "title": "Product relationship selling plan membership mohpcrbe",
-                "handle": "product-relationship-selling-plan-membership-mohpcrbe",
-                "status": "DRAFT",
-                "variants": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/ProductVariant/51104997966130",
-                      "title": "Default Title",
-                      "selectedOptions": [
-                        {
-                          "name": "Title",
-                          "value": "Default Title"
-                        }
-                      ],
-                      "sellingPlanGroups": {
-                        "nodes": [
-                          {
-                            "id": "gid://shopify/SellingPlanGroup/2877227314",
-                            "name": "Product relationship membership mohpcrbe",
-                            "merchantCode": "product-relationship-mohpcrbe",
-                            "productIds": [],
-                            "productVariantIds": []
-                          }
-                        ]
-                      },
-                      "sellingPlanGroupsCount": {
-                        "count": 1,
-                        "precision": "EXACT"
-                      }
-                    }
-                  ]
-                },
-                "sellingPlanGroupIds": ["gid://shopify/SellingPlanGroup/2877227314"],
-                "sellingPlanGroups": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/SellingPlanGroup/2877227314",
-                      "name": "Product relationship membership mohpcrbe",
-                      "merchantCode": "product-relationship-mohpcrbe",
-                      "productIds": [],
-                      "productVariantIds": []
-                    }
-                  ]
-                },
-                "sellingPlanGroupsCount": {
-                  "count": 1,
-                  "precision": "EXACT"
-                }
-              }
-            ]
-          }
-        }
-      }
-    },
-    {
       "operationName": "ProductRelationshipProductOptionsRead",
       "variables": {
         "productId": "gid://shopify/Product/10172011938098"
       },
-      "query": "hand-synthesized from checked-in optionDownstreamRead capture for HAR-545 Pattern 1 product relationship read passthrough",
+      "query": "query ProductRelationshipProductOptionsRead($productId: ID!) {\n  product(id: $productId) {\n    id\n    title\n    handle\n    status\n    options {\n      id\n      name\n      position\n      values\n      optionValues {\n        id\n        name\n        hasVariants\n      }\n    }\n    variants(first: 10) {\n      nodes {\n        id\n        title\n        selectedOptions {\n          name\n          value\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1518,9 +1374,132 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
+        "ids": [
+          "gid://shopify/Collection/512193167666",
+          "gid://shopify/Product/10172011872562",
+          "gid://shopify/Product/10172011905330"
+        ]
+      },
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/512193167666",
+                "title": "Product relationship collection mohpcrbe",
+                "handle": "product-relationship-collection-mohpcrbe",
+                "products": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Product/10172011905330",
+                      "title": "Product relationship collection two mohpcrbe",
+                      "handle": "product-relationship-collection-two-mohpcrbe"
+                    },
+                    {
+                      "id": "gid://shopify/Product/10172011872562",
+                      "title": "Product relationship collection one mohpcrbe",
+                      "handle": "product-relationship-collection-one-mohpcrbe"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                },
+                "defaultProducts": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Product/10172011905330",
+                      "title": "Product relationship collection two mohpcrbe",
+                      "handle": "product-relationship-collection-two-mohpcrbe"
+                    },
+                    {
+                      "id": "gid://shopify/Product/10172011872562",
+                      "title": "Product relationship collection one mohpcrbe",
+                      "handle": "product-relationship-collection-one-mohpcrbe"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                },
+                "manualProducts": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Product/10172011905330",
+                      "title": "Product relationship collection two mohpcrbe",
+                      "handle": "product-relationship-collection-two-mohpcrbe"
+                    },
+                    {
+                      "id": "gid://shopify/Product/10172011872562",
+                      "title": "Product relationship collection one mohpcrbe",
+                      "handle": "product-relationship-collection-one-mohpcrbe"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              {
+                "id": "gid://shopify/Product/10172011872562",
+                "title": "Product relationship collection one mohpcrbe",
+                "handle": "product-relationship-collection-one-mohpcrbe",
+                "status": "ACTIVE",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "variants": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                },
+                "collections": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              {
+                "id": "gid://shopify/Product/10172011905330",
+                "title": "Product relationship collection two mohpcrbe",
+                "handle": "product-relationship-collection-two-mohpcrbe",
+                "status": "ACTIVE",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "variants": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                },
+                "collections": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductOptionsHydrateNodes",
+      "variables": {
         "ids": ["gid://shopify/Product/10172011938098"]
       },
-      "query": "hand-synthesized from checked-in seedProducts/mediaReadyRead capture for HAR-545 Pattern 2 product options reorder owner hydration",
+      "query": "query ProductOptionsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      title\n      handle\n      status\n      options {\n        id\n        name\n        position\n        optionValues {\n          id\n          name\n          hasVariants\n        }\n      }\n      variants(first: 100) {\n        nodes {\n          id\n          title\n          selectedOptions {\n            name\n            value\n          }\n        }\n      }\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
@@ -1531,8 +1510,6 @@
                 "title": "Product relationship option reorder mohpcrbe",
                 "handle": "product-relationship-option-reorder-mohpcrbe",
                 "status": "DRAFT",
-                "totalInventory": 0,
-                "tracksInventory": true,
                 "options": [
                   {
                     "id": "gid://shopify/ProductOption/12718177845554",
@@ -1583,12 +1560,6 @@
                       ]
                     }
                   ]
-                },
-                "media": {
-                  "nodes": []
-                },
-                "metafields": {
-                  "nodes": []
                 }
               }
             ]
@@ -1597,165 +1568,111 @@
       }
     },
     {
-      "operationName": "ProductsHydrateNodes",
+      "operationName": "MediaProductHydrate",
       "variables": {
-        "ids": ["gid://shopify/Product/10172011970866", "gid://shopify/ProductVariant/51104997933362"]
+        "id": "gid://shopify/Product/10172011970866"
       },
-      "query": "hand-synthesized from checked-in seedProducts/mediaReadyRead capture for HAR-545 Pattern 2 variant media owner hydration",
+      "query": "query MediaProductHydrate($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    status\n    media(first: 50) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n        preview { image { url width height } }\n        ... on MediaImage { image { url width height } }\n      }\n    }\n    variants(first: 50) {\n      nodes {\n        id\n        title\n        media(first: 10) { nodes { id } }\n      }\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "nodes": [
-              {
-                "id": "gid://shopify/Product/10172011970866",
-                "title": "Product relationship variant media mohpcrbe",
-                "handle": "product-relationship-variant-media-mohpcrbe",
-                "status": "DRAFT",
-                "totalInventory": 0,
-                "tracksInventory": true,
-                "options": [],
-                "variants": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/ProductVariant/51104997933362",
-                      "title": "Default Title",
-                      "selectedOptions": [
-                        {
-                          "name": "Title",
-                          "value": "Default Title"
-                        }
-                      ]
-                    }
-                  ]
-                },
-                "media": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/MediaImage/43623803650354",
-                      "alt": "Product relationship front",
-                      "mediaContentType": "IMAGE",
-                      "status": "READY",
-                      "image": {
-                        "id": "gid://shopify/ImageSource/43705876611378",
-                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png.png?v=1777324908"
-                      }
-                    },
-                    {
-                      "id": "gid://shopify/MediaImage/43623803683122",
-                      "alt": "Product relationship side",
-                      "mediaContentType": "IMAGE",
-                      "status": "READY",
-                      "image": {
-                        "id": "gid://shopify/ImageSource/43705876644146",
-                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_865fd24d-10ac-4a54-aaa1-8e8673932073.png?v=1777324908"
-                      }
-                    }
-                  ]
-                },
-                "metafields": {
-                  "nodes": []
-                }
-              },
-              {
-                "id": "gid://shopify/ProductVariant/51104997933362",
-                "title": "Default Title",
-                "selectedOptions": [
+            "product": {
+              "id": "gid://shopify/Product/10172011970866",
+              "title": "Product relationship variant media mohpcrbe",
+              "handle": "product-relationship-variant-media-mohpcrbe",
+              "status": "ACTIVE",
+              "media": {
+                "nodes": [
                   {
-                    "name": "Title",
-                    "value": "Default Title"
+                    "id": "gid://shopify/MediaImage/43623803650354",
+                    "alt": "Product relationship front",
+                    "mediaContentType": "IMAGE",
+                    "status": "READY",
+                    "image": {
+                      "id": "gid://shopify/ImageSource/43705876611378",
+                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png.png?v=1777324908"
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/MediaImage/43623803683122",
+                    "alt": "Product relationship side",
+                    "mediaContentType": "IMAGE",
+                    "status": "READY",
+                    "image": {
+                      "id": "gid://shopify/ImageSource/43705876644146",
+                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_865fd24d-10ac-4a54-aaa1-8e8673932073.png?v=1777324908"
+                    }
                   }
-                ],
-                "product": {
-                  "id": "gid://shopify/Product/10172011970866"
-                },
-                "media": {
-                  "nodes": []
-                }
+                ]
+              },
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51104997933362",
+                    "title": null,
+                    "media": {
+                      "nodes": []
+                    }
+                  }
+                ]
               }
-            ]
+            }
           }
         }
       }
     },
     {
-      "operationName": "ProductsHydrateNodes",
+      "operationName": "MediaProductHydrate",
       "variables": {
-        "ids": ["gid://shopify/Product/10172011970866", "gid://shopify/ProductVariant/51104997933362"]
+        "id": "gid://shopify/Product/10172011970866"
       },
-      "query": "hand-synthesized from checked-in seedProducts/mediaReadyRead capture for HAR-545 Pattern 2 variant media owner reverse order hydration",
+      "query": "query MediaProductHydrate($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    status\n    media(first: 50) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n        preview { image { url width height } }\n        ... on MediaImage { image { url width height } }\n      }\n    }\n    variants(first: 50) {\n      nodes {\n        id\n        title\n        media(first: 10) { nodes { id } }\n      }\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "nodes": [
-              {
-                "id": "gid://shopify/ProductVariant/51104997933362",
-                "title": "Default Title",
-                "selectedOptions": [
+            "product": {
+              "id": "gid://shopify/Product/10172011970866",
+              "title": "Product relationship variant media mohpcrbe",
+              "handle": "product-relationship-variant-media-mohpcrbe",
+              "status": "ACTIVE",
+              "media": {
+                "nodes": [
                   {
-                    "name": "Title",
-                    "value": "Default Title"
+                    "id": "gid://shopify/MediaImage/43623803650354",
+                    "alt": "Product relationship front",
+                    "mediaContentType": "IMAGE",
+                    "status": "READY",
+                    "image": {
+                      "id": "gid://shopify/ImageSource/43705876611378",
+                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png.png?v=1777324908"
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/MediaImage/43623803683122",
+                    "alt": "Product relationship side",
+                    "mediaContentType": "IMAGE",
+                    "status": "READY",
+                    "image": {
+                      "id": "gid://shopify/ImageSource/43705876644146",
+                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_865fd24d-10ac-4a54-aaa1-8e8673932073.png?v=1777324908"
+                    }
                   }
-                ],
-                "product": {
-                  "id": "gid://shopify/Product/10172011970866"
-                },
-                "media": {
-                  "nodes": []
-                }
+                ]
               },
-              {
-                "id": "gid://shopify/Product/10172011970866",
-                "title": "Product relationship variant media mohpcrbe",
-                "handle": "product-relationship-variant-media-mohpcrbe",
-                "status": "DRAFT",
-                "totalInventory": 0,
-                "tracksInventory": true,
-                "options": [],
-                "variants": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/ProductVariant/51104997933362",
-                      "title": "Default Title",
-                      "selectedOptions": [
-                        {
-                          "name": "Title",
-                          "value": "Default Title"
-                        }
-                      ]
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51104997933362",
+                    "title": null,
+                    "media": {
+                      "nodes": []
                     }
-                  ]
-                },
-                "media": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/MediaImage/43623803650354",
-                      "alt": "Product relationship front",
-                      "mediaContentType": "IMAGE",
-                      "status": "READY",
-                      "image": {
-                        "id": "gid://shopify/ImageSource/43705876611378",
-                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png.png?v=1777324908"
-                      }
-                    },
-                    {
-                      "id": "gid://shopify/MediaImage/43623803683122",
-                      "alt": "Product relationship side",
-                      "mediaContentType": "IMAGE",
-                      "status": "READY",
-                      "image": {
-                        "id": "gid://shopify/ImageSource/43705876644146",
-                        "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_865fd24d-10ac-4a54-aaa1-8e8673932073.png?v=1777324908"
-                      }
-                    }
-                  ]
-                },
-                "metafields": {
-                  "nodes": []
-                }
+                  }
+                ]
               }
-            ]
+            }
           }
         }
       }

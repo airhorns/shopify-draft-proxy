@@ -58,6 +58,7 @@ pub struct ParsedOperation {
 pub struct SelectedField {
     pub name: String,
     pub response_key: String,
+    pub location: SourceLocation,
     pub arguments: BTreeMap<String, ResolvedValue>,
     pub selection: Vec<SelectedField>,
     pub type_condition: Option<String>,
@@ -87,6 +88,16 @@ pub enum OperationType {
     Query,
     Mutation,
     Subscription,
+}
+
+impl OperationType {
+    pub fn keyword(self) -> &'static str {
+        match self {
+            Self::Query => "query",
+            Self::Mutation => "mutation",
+            Self::Subscription => "subscription",
+        }
+    }
 }
 
 impl ParsedOperation {
@@ -177,7 +188,7 @@ pub fn root_field_arguments(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Option<BTreeMap<String, ResolvedValue>> {
-    let root_field = root_fields(query, variables)?.into_iter().next()?;
+    let root_field = primary_root_field(query, variables)?;
     Some(root_field.arguments)
 }
 
@@ -188,18 +199,11 @@ pub fn root_fields(
     Some(parsed_document(query, variables)?.root_fields)
 }
 
-pub fn root_field_selection(query: &str) -> Option<Vec<SelectedField>> {
-    let root_field = first_root_field(query)?;
-    Some(root_field.selection)
-}
-
-pub fn root_field_response_key(query: &str) -> Option<String> {
-    let root_field = first_root_field(query)?;
-    Some(root_field.response_key)
-}
-
-pub fn nested_root_field_selection(query: &str, child_name: &str) -> Option<Vec<SelectedField>> {
-    nested_root_field_path_selection(query, &[child_name])
+pub fn primary_root_field(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<RootFieldSelection> {
+    root_fields(query, variables)?.into_iter().next()
 }
 
 pub fn variable_definition_info(
@@ -213,12 +217,8 @@ pub fn variable_definition_info(
 }
 
 pub fn nested_root_field_path_selection(query: &str, path: &[&str]) -> Option<Vec<SelectedField>> {
-    let root_field = first_root_field(query)?;
+    let root_field = primary_root_field(query, &BTreeMap::new())?;
     nested_selected_field(&root_field.selection, path).map(|field| field.selection.clone())
-}
-
-fn first_root_field(query: &str) -> Option<RootFieldSelection> {
-    root_fields(query, &BTreeMap::new())?.into_iter().next()
 }
 
 fn selected_fields<'a>(
@@ -232,6 +232,7 @@ fn selected_fields<'a>(
             Selection::Field(field) => vec![SelectedField {
                 name: field.name.to_string(),
                 response_key: field.alias.unwrap_or(field.name).to_string(),
+                location: source_location(field.position),
                 arguments: field_arguments(field, variables),
                 selection: selected_fields(&field.selection_set.items, variables, fragments),
                 type_condition: None,
@@ -413,11 +414,7 @@ fn graphql_named_type<'a>(type_: &'a Type<'a, &'a str>) -> Option<&'a str> {
 }
 
 fn operation_path(operation_type: OperationType, name: Option<&str>) -> String {
-    let operation_type = match operation_type {
-        OperationType::Query => "query",
-        OperationType::Mutation => "mutation",
-        OperationType::Subscription => "subscription",
-    };
+    let operation_type = operation_type.keyword();
     name.map_or_else(
         || operation_type.to_string(),
         |name| format!("{operation_type} {name}"),

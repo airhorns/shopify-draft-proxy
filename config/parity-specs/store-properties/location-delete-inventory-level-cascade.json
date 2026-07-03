@@ -14,7 +14,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-delete-inventory-level-cascade.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
   "proxyRequest": {
     "apiVersion": "2026-04",
     "documentPath": "config/parity-requests/store-properties/location-delete-inventory-product-create.graphql",

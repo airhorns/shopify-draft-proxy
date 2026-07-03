@@ -1,0 +1,45 @@
+{
+  "seedProduct": {
+    "id": "gid://shopify/Product/10213936759090",
+    "title": "Hermes Product Publication Conformance 1781587861405",
+    "status": "ACTIVE"
+  },
+  "mutation": {
+    "variables": {
+      "id": "gid://shopify/Product/10213936759090"
+    },
+    "response": {
+      "data": {
+        "publishablePublishToCurrentChannel": {
+          "publishable": {
+            "id": "gid://shopify/Product/10213936759090",
+            "publishedOnCurrentPublication": true,
+            "availablePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 3,
+              "precision": "EXACT"
+            }
+          },
+          "shop": {
+            "publicationCount": 6
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

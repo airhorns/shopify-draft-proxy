@@ -123,7 +123,12 @@
         ],
         "expectedDifferences": [
           {
-            "path": "$.id",
+            "path": "$.duplicate.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy uses synthetic IDs for locally staged discounts."
+          },
+          {
+            "path": "$.valid.id",
             "matcher": "shopify-gid:DiscountCodeNode",
             "reason": "The proxy uses synthetic IDs for locally staged discounts."
           }
@@ -201,7 +206,12 @@
         ],
         "expectedDifferences": [
           {
-            "path": "$.id",
+            "path": "$.sameDiscount.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy uses synthetic IDs for locally staged discounts."
+          },
+          {
+            "path": "$.fresh.id",
             "matcher": "shopify-gid:DiscountCodeNode",
             "reason": "The proxy uses synthetic IDs for locally staged discounts."
           }
@@ -226,5 +236,5 @@
       }
     ]
   },
-  "notes": "Live Admin GraphQL 2026-04 validation evidence for discountRedeemCodeBulkAdd. Unknown discount IDs and empty code arrays reject via mutation userErrors; more than 250 inputs is a top-level MAX_INPUT_SIZE_EXCEEDED GraphQL error; per-code blank/newline/too-long/duplicate failures are accepted into a bulk creation and surface on discountRedeemCodeBulkCreation codes.nodes.errors after processing. Existing redeem codes on the target discount and on another shop code-discount return per-code uniqueness errors with code null while fresh accepted codes still stage and read back. The proxy keeps legacy local-runtime string-code inputs completed immediately, but schema-shaped DiscountRedeemCodeInput arrays follow the captured async response shape."
+  "notes": "Live Admin GraphQL 2026-04 validation evidence for discountRedeemCodeBulkAdd. Unknown discount IDs and empty code arrays reject via mutation userErrors; more than 250 inputs is a top-level MAX_INPUT_SIZE_EXCEEDED GraphQL error; per-code blank/newline/too-long/duplicate failures are accepted into a bulk creation and surface on discountRedeemCodeBulkCreation codes.nodes.errors after processing. Existing redeem codes on the target discount and on another shop code-discount return per-code uniqueness errors with code null while fresh accepted codes still stage and read back. The proxy keeps string-code inputs completed immediately, but schema-shaped DiscountRedeemCodeInput arrays follow the captured async response shape."
 }

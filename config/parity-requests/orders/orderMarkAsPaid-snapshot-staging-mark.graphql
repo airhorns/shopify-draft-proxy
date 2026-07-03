@@ -1,0 +1,14 @@
+#graphql
+mutation OrderMarkAsPaidSnapshotStagingMark($input: OrderMarkAsPaidInput!) {
+  orderMarkAsPaid(input: $input) {
+    order {
+      id
+      displayFinancialStatus
+      paymentGatewayNames
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

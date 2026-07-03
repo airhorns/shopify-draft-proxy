@@ -1,0 +1,16 @@
+mutation DraftOrderCompleteAlreadyPaidComplete($id: ID!, $paymentPending: Boolean) {
+  draftOrderComplete(id: $id, sourceName: "shopify-draft-proxy", paymentPending: $paymentPending) {
+    draftOrder {
+      id
+      status
+      order {
+        id
+        name
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

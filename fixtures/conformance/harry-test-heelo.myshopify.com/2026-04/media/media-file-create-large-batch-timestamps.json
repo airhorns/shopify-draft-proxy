@@ -1,0 +1,965 @@
+{
+  "capturedAt": "2026-06-21T23:15:34.671Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "document": "mutation MediaFileCreateLargeBatchTimestamps($files: [FileCreateInput!]!) {\n  fileCreate(files: $files) {\n    files {\n      id\n      alt\n      createdAt\n      updatedAt\n      fileStatus\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+  "create": {
+    "variables": {
+      "files": [
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-1.png",
+          "filename": "media-file-create-large-batch-timestamps-1.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 1"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-2.png",
+          "filename": "media-file-create-large-batch-timestamps-2.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 2"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-3.png",
+          "filename": "media-file-create-large-batch-timestamps-3.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 3"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-4.png",
+          "filename": "media-file-create-large-batch-timestamps-4.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 4"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-5.png",
+          "filename": "media-file-create-large-batch-timestamps-5.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 5"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-6.png",
+          "filename": "media-file-create-large-batch-timestamps-6.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 6"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-7.png",
+          "filename": "media-file-create-large-batch-timestamps-7.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 7"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-8.png",
+          "filename": "media-file-create-large-batch-timestamps-8.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 8"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-9.png",
+          "filename": "media-file-create-large-batch-timestamps-9.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 9"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-10.png",
+          "filename": "media-file-create-large-batch-timestamps-10.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 10"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-11.png",
+          "filename": "media-file-create-large-batch-timestamps-11.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 11"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-12.png",
+          "filename": "media-file-create-large-batch-timestamps-12.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 12"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-13.png",
+          "filename": "media-file-create-large-batch-timestamps-13.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 13"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-14.png",
+          "filename": "media-file-create-large-batch-timestamps-14.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 14"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-15.png",
+          "filename": "media-file-create-large-batch-timestamps-15.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 15"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-16.png",
+          "filename": "media-file-create-large-batch-timestamps-16.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 16"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-17.png",
+          "filename": "media-file-create-large-batch-timestamps-17.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 17"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-18.png",
+          "filename": "media-file-create-large-batch-timestamps-18.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 18"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-19.png",
+          "filename": "media-file-create-large-batch-timestamps-19.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 19"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-20.png",
+          "filename": "media-file-create-large-batch-timestamps-20.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 20"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-21.png",
+          "filename": "media-file-create-large-batch-timestamps-21.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 21"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-22.png",
+          "filename": "media-file-create-large-batch-timestamps-22.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 22"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-23.png",
+          "filename": "media-file-create-large-batch-timestamps-23.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 23"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-24.png",
+          "filename": "media-file-create-large-batch-timestamps-24.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 24"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-25.png",
+          "filename": "media-file-create-large-batch-timestamps-25.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 25"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-26.png",
+          "filename": "media-file-create-large-batch-timestamps-26.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 26"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-27.png",
+          "filename": "media-file-create-large-batch-timestamps-27.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 27"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-28.png",
+          "filename": "media-file-create-large-batch-timestamps-28.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 28"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-29.png",
+          "filename": "media-file-create-large-batch-timestamps-29.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 29"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-30.png",
+          "filename": "media-file-create-large-batch-timestamps-30.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 30"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-31.png",
+          "filename": "media-file-create-large-batch-timestamps-31.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 31"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-32.png",
+          "filename": "media-file-create-large-batch-timestamps-32.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 32"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-33.png",
+          "filename": "media-file-create-large-batch-timestamps-33.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 33"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-34.png",
+          "filename": "media-file-create-large-batch-timestamps-34.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 34"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-35.png",
+          "filename": "media-file-create-large-batch-timestamps-35.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 35"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-36.png",
+          "filename": "media-file-create-large-batch-timestamps-36.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 36"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-37.png",
+          "filename": "media-file-create-large-batch-timestamps-37.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 37"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-38.png",
+          "filename": "media-file-create-large-batch-timestamps-38.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 38"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-39.png",
+          "filename": "media-file-create-large-batch-timestamps-39.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 39"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-40.png",
+          "filename": "media-file-create-large-batch-timestamps-40.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 40"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-41.png",
+          "filename": "media-file-create-large-batch-timestamps-41.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 41"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-42.png",
+          "filename": "media-file-create-large-batch-timestamps-42.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 42"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-43.png",
+          "filename": "media-file-create-large-batch-timestamps-43.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 43"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-44.png",
+          "filename": "media-file-create-large-batch-timestamps-44.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 44"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-45.png",
+          "filename": "media-file-create-large-batch-timestamps-45.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 45"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-46.png",
+          "filename": "media-file-create-large-batch-timestamps-46.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 46"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-47.png",
+          "filename": "media-file-create-large-batch-timestamps-47.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 47"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-48.png",
+          "filename": "media-file-create-large-batch-timestamps-48.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 48"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-49.png",
+          "filename": "media-file-create-large-batch-timestamps-49.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 49"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-50.png",
+          "filename": "media-file-create-large-batch-timestamps-50.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 50"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-51.png",
+          "filename": "media-file-create-large-batch-timestamps-51.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 51"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-52.png",
+          "filename": "media-file-create-large-batch-timestamps-52.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 52"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-53.png",
+          "filename": "media-file-create-large-batch-timestamps-53.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 53"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-54.png",
+          "filename": "media-file-create-large-batch-timestamps-54.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 54"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-55.png",
+          "filename": "media-file-create-large-batch-timestamps-55.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 55"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-56.png",
+          "filename": "media-file-create-large-batch-timestamps-56.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 56"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-57.png",
+          "filename": "media-file-create-large-batch-timestamps-57.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 57"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-58.png",
+          "filename": "media-file-create-large-batch-timestamps-58.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 58"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-59.png",
+          "filename": "media-file-create-large-batch-timestamps-59.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 59"
+        },
+        {
+          "originalSource": "https://placehold.co/600x400/media-file-create-large-batch-timestamps-60.png",
+          "filename": "media-file-create-large-batch-timestamps-60.png",
+          "contentType": "IMAGE",
+          "alt": "Media file create large batch timestamp 60"
+        }
+      ]
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fileCreate": {
+            "files": [
+              {
+                "id": "gid://shopify/MediaImage/43917468762418",
+                "alt": "Media file create large batch timestamp 1",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917468795186",
+                "alt": "Media file create large batch timestamp 2",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917468827954",
+                "alt": "Media file create large batch timestamp 3",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917468860722",
+                "alt": "Media file create large batch timestamp 4",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917468893490",
+                "alt": "Media file create large batch timestamp 5",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917468926258",
+                "alt": "Media file create large batch timestamp 6",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917468959026",
+                "alt": "Media file create large batch timestamp 7",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917468991794",
+                "alt": "Media file create large batch timestamp 8",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469024562",
+                "alt": "Media file create large batch timestamp 9",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469057330",
+                "alt": "Media file create large batch timestamp 10",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469090098",
+                "alt": "Media file create large batch timestamp 11",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469122866",
+                "alt": "Media file create large batch timestamp 12",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469155634",
+                "alt": "Media file create large batch timestamp 13",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469188402",
+                "alt": "Media file create large batch timestamp 14",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469221170",
+                "alt": "Media file create large batch timestamp 15",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469253938",
+                "alt": "Media file create large batch timestamp 16",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469286706",
+                "alt": "Media file create large batch timestamp 17",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469319474",
+                "alt": "Media file create large batch timestamp 18",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469352242",
+                "alt": "Media file create large batch timestamp 19",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469385010",
+                "alt": "Media file create large batch timestamp 20",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469417778",
+                "alt": "Media file create large batch timestamp 21",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469450546",
+                "alt": "Media file create large batch timestamp 22",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469483314",
+                "alt": "Media file create large batch timestamp 23",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469516082",
+                "alt": "Media file create large batch timestamp 24",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469548850",
+                "alt": "Media file create large batch timestamp 25",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469581618",
+                "alt": "Media file create large batch timestamp 26",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469614386",
+                "alt": "Media file create large batch timestamp 27",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469647154",
+                "alt": "Media file create large batch timestamp 28",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469679922",
+                "alt": "Media file create large batch timestamp 29",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469712690",
+                "alt": "Media file create large batch timestamp 30",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469745458",
+                "alt": "Media file create large batch timestamp 31",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469778226",
+                "alt": "Media file create large batch timestamp 32",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469810994",
+                "alt": "Media file create large batch timestamp 33",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469843762",
+                "alt": "Media file create large batch timestamp 34",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469876530",
+                "alt": "Media file create large batch timestamp 35",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469909298",
+                "alt": "Media file create large batch timestamp 36",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469942066",
+                "alt": "Media file create large batch timestamp 37",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917469974834",
+                "alt": "Media file create large batch timestamp 38",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470007602",
+                "alt": "Media file create large batch timestamp 39",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470040370",
+                "alt": "Media file create large batch timestamp 40",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470073138",
+                "alt": "Media file create large batch timestamp 41",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470105906",
+                "alt": "Media file create large batch timestamp 42",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470138674",
+                "alt": "Media file create large batch timestamp 43",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470171442",
+                "alt": "Media file create large batch timestamp 44",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470204210",
+                "alt": "Media file create large batch timestamp 45",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470236978",
+                "alt": "Media file create large batch timestamp 46",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470269746",
+                "alt": "Media file create large batch timestamp 47",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470302514",
+                "alt": "Media file create large batch timestamp 48",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470335282",
+                "alt": "Media file create large batch timestamp 49",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470368050",
+                "alt": "Media file create large batch timestamp 50",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470400818",
+                "alt": "Media file create large batch timestamp 51",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470433586",
+                "alt": "Media file create large batch timestamp 52",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470466354",
+                "alt": "Media file create large batch timestamp 53",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470499122",
+                "alt": "Media file create large batch timestamp 54",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470531890",
+                "alt": "Media file create large batch timestamp 55",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470564658",
+                "alt": "Media file create large batch timestamp 56",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470597426",
+                "alt": "Media file create large batch timestamp 57",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470630194",
+                "alt": "Media file create large batch timestamp 58",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470662962",
+                "alt": "Media file create large batch timestamp 59",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              },
+              {
+                "id": "gid://shopify/MediaImage/43917470695730",
+                "alt": "Media file create large batch timestamp 60",
+                "createdAt": "2026-06-21T23:15:30Z",
+                "updatedAt": "2026-06-21T23:15:30Z",
+                "fileStatus": "UPLOADED"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "variables": {
+      "fileIds": [
+        "gid://shopify/MediaImage/43917468762418",
+        "gid://shopify/MediaImage/43917468795186",
+        "gid://shopify/MediaImage/43917468827954",
+        "gid://shopify/MediaImage/43917468860722",
+        "gid://shopify/MediaImage/43917468893490",
+        "gid://shopify/MediaImage/43917468926258",
+        "gid://shopify/MediaImage/43917468959026",
+        "gid://shopify/MediaImage/43917468991794",
+        "gid://shopify/MediaImage/43917469024562",
+        "gid://shopify/MediaImage/43917469057330",
+        "gid://shopify/MediaImage/43917469090098",
+        "gid://shopify/MediaImage/43917469122866",
+        "gid://shopify/MediaImage/43917469155634",
+        "gid://shopify/MediaImage/43917469188402",
+        "gid://shopify/MediaImage/43917469221170",
+        "gid://shopify/MediaImage/43917469253938",
+        "gid://shopify/MediaImage/43917469286706",
+        "gid://shopify/MediaImage/43917469319474",
+        "gid://shopify/MediaImage/43917469352242",
+        "gid://shopify/MediaImage/43917469385010",
+        "gid://shopify/MediaImage/43917469417778",
+        "gid://shopify/MediaImage/43917469450546",
+        "gid://shopify/MediaImage/43917469483314",
+        "gid://shopify/MediaImage/43917469516082",
+        "gid://shopify/MediaImage/43917469548850",
+        "gid://shopify/MediaImage/43917469581618",
+        "gid://shopify/MediaImage/43917469614386",
+        "gid://shopify/MediaImage/43917469647154",
+        "gid://shopify/MediaImage/43917469679922",
+        "gid://shopify/MediaImage/43917469712690",
+        "gid://shopify/MediaImage/43917469745458",
+        "gid://shopify/MediaImage/43917469778226",
+        "gid://shopify/MediaImage/43917469810994",
+        "gid://shopify/MediaImage/43917469843762",
+        "gid://shopify/MediaImage/43917469876530",
+        "gid://shopify/MediaImage/43917469909298",
+        "gid://shopify/MediaImage/43917469942066",
+        "gid://shopify/MediaImage/43917469974834",
+        "gid://shopify/MediaImage/43917470007602",
+        "gid://shopify/MediaImage/43917470040370",
+        "gid://shopify/MediaImage/43917470073138",
+        "gid://shopify/MediaImage/43917470105906",
+        "gid://shopify/MediaImage/43917470138674",
+        "gid://shopify/MediaImage/43917470171442",
+        "gid://shopify/MediaImage/43917470204210",
+        "gid://shopify/MediaImage/43917470236978",
+        "gid://shopify/MediaImage/43917470269746",
+        "gid://shopify/MediaImage/43917470302514",
+        "gid://shopify/MediaImage/43917470335282",
+        "gid://shopify/MediaImage/43917470368050",
+        "gid://shopify/MediaImage/43917470400818",
+        "gid://shopify/MediaImage/43917470433586",
+        "gid://shopify/MediaImage/43917470466354",
+        "gid://shopify/MediaImage/43917470499122",
+        "gid://shopify/MediaImage/43917470531890",
+        "gid://shopify/MediaImage/43917470564658",
+        "gid://shopify/MediaImage/43917470597426",
+        "gid://shopify/MediaImage/43917470630194",
+        "gid://shopify/MediaImage/43917470662962",
+        "gid://shopify/MediaImage/43917470695730"
+      ]
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fileDelete": {
+            "deletedFileIds": [
+              "gid://shopify/MediaImage/43917468762418",
+              "gid://shopify/MediaImage/43917468795186",
+              "gid://shopify/MediaImage/43917468827954",
+              "gid://shopify/MediaImage/43917468860722",
+              "gid://shopify/MediaImage/43917468893490",
+              "gid://shopify/MediaImage/43917468926258",
+              "gid://shopify/MediaImage/43917468959026",
+              "gid://shopify/MediaImage/43917468991794",
+              "gid://shopify/MediaImage/43917469024562",
+              "gid://shopify/MediaImage/43917469057330",
+              "gid://shopify/MediaImage/43917469090098",
+              "gid://shopify/MediaImage/43917469122866",
+              "gid://shopify/MediaImage/43917469155634",
+              "gid://shopify/MediaImage/43917469188402",
+              "gid://shopify/MediaImage/43917469221170",
+              "gid://shopify/MediaImage/43917469253938",
+              "gid://shopify/MediaImage/43917469286706",
+              "gid://shopify/MediaImage/43917469319474",
+              "gid://shopify/MediaImage/43917469352242",
+              "gid://shopify/MediaImage/43917469385010",
+              "gid://shopify/MediaImage/43917469417778",
+              "gid://shopify/MediaImage/43917469450546",
+              "gid://shopify/MediaImage/43917469483314",
+              "gid://shopify/MediaImage/43917469516082",
+              "gid://shopify/MediaImage/43917469548850",
+              "gid://shopify/MediaImage/43917469581618",
+              "gid://shopify/MediaImage/43917469614386",
+              "gid://shopify/MediaImage/43917469647154",
+              "gid://shopify/MediaImage/43917469679922",
+              "gid://shopify/MediaImage/43917469712690",
+              "gid://shopify/MediaImage/43917469745458",
+              "gid://shopify/MediaImage/43917469778226",
+              "gid://shopify/MediaImage/43917469810994",
+              "gid://shopify/MediaImage/43917469843762",
+              "gid://shopify/MediaImage/43917469876530",
+              "gid://shopify/MediaImage/43917469909298",
+              "gid://shopify/MediaImage/43917469942066",
+              "gid://shopify/MediaImage/43917469974834",
+              "gid://shopify/MediaImage/43917470007602",
+              "gid://shopify/MediaImage/43917470040370",
+              "gid://shopify/MediaImage/43917470073138",
+              "gid://shopify/MediaImage/43917470105906",
+              "gid://shopify/MediaImage/43917470138674",
+              "gid://shopify/MediaImage/43917470171442",
+              "gid://shopify/MediaImage/43917470204210",
+              "gid://shopify/MediaImage/43917470236978",
+              "gid://shopify/MediaImage/43917470269746",
+              "gid://shopify/MediaImage/43917470302514",
+              "gid://shopify/MediaImage/43917470335282",
+              "gid://shopify/MediaImage/43917470368050",
+              "gid://shopify/MediaImage/43917470400818",
+              "gid://shopify/MediaImage/43917470433586",
+              "gid://shopify/MediaImage/43917470466354",
+              "gid://shopify/MediaImage/43917470499122",
+              "gid://shopify/MediaImage/43917470531890",
+              "gid://shopify/MediaImage/43917470564658",
+              "gid://shopify/MediaImage/43917470597426",
+              "gid://shopify/MediaImage/43917470630194",
+              "gid://shopify/MediaImage/43917470662962",
+              "gid://shopify/MediaImage/43917470695730"
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

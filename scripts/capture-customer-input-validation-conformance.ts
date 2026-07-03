@@ -2,7 +2,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -120,6 +120,50 @@ const downstreamReadQuery = `#graphql
   }
 `;
 
+const customerHydrateQuery = `
+query CustomerHydrate($id: ID!) {
+  customer(id: $id) {
+    id
+    firstName
+    lastName
+    displayName
+    email
+    phone
+    locale
+    note
+    canDelete
+    verifiedEmail
+    dataSaleOptOut
+    taxExempt
+    taxExemptions
+    state
+    tags
+    createdAt
+    updatedAt
+    defaultEmailAddress { emailAddress }
+    defaultPhoneNumber { phoneNumber }
+    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }
+    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }
+  }
+}
+`;
+
+const customerDuplicateHydrateQuery = `
+query CustomerDuplicateHydrate($query: String!) {
+  customers(first: 1, query: $query) {
+    nodes { id }
+  }
+}
+`;
+
+// customerMerge forwards the richer CustomerMergeHydrate per referenced customer (it needs
+// the orders/metafields the lighter CustomerHydrate omits). Read the exact shared constant
+// the proxy include_str!s so the synthesized cassette byte-matches the proxy's forward.
+const customerMergeHydrateQuery = await readFile(
+  'config/parity-requests/customers/customer-merge-hydrate.graphql',
+  'utf8',
+);
+
 const createdCustomerIds = new Set<string>();
 const deletedCustomerIds = new Set<string>();
 
@@ -145,10 +189,8 @@ function emailFor(stamp, label) {
 }
 
 function phoneFor(stamp, offset) {
-  const tail = String(stamp + offset)
-    .slice(-7)
-    .padStart(7, '0');
-  return `+1415${tail}`;
+  const tail = String((offset % 9000) + 1000).padStart(4, '0');
+  return `+1415555${tail}`;
 }
 
 async function runCase(document, variables) {
@@ -206,6 +248,141 @@ async function readDownstream(customerId, email) {
 
 function customerFromCase(rootName, result) {
   return result.response?.data?.[rootName]?.customer ?? null;
+}
+
+function capturedCustomerFromCreate(record) {
+  return record?.response?.data?.customerCreate?.customer ?? null;
+}
+
+function customerHydrateCall(customer) {
+  return {
+    operationName: 'CustomerHydrate',
+    variables: { id: customer.id },
+    query: customerHydrateQuery,
+    response: {
+      status: 200,
+      body: { data: { customer } },
+    },
+  };
+}
+
+// Shape a CustomerMergeHydrate response from the live-created customer record. The merge
+// customers carry no orders/metafields, so those connections are empty; the remaining fields
+// the merge query selects (phone, dataSaleOptOut, taxExemptions, numberOfOrders, defaultAddress,
+// addressesV2, lastOrder) default to their no-data forms. Only the query text + variables are
+// matched, so this richer body simply lets the merge stage a well-formed customer.
+function customerMergeHydrateCall(customer) {
+  return {
+    operationName: 'CustomerMergeHydrate',
+    variables: { id: customer.id },
+    query: customerMergeHydrateQuery,
+    response: {
+      status: 200,
+      body: {
+        data: {
+          customer: {
+            ...customer,
+            phone: customer.defaultPhoneNumber?.phoneNumber ?? null,
+            dataSaleOptOut: false,
+            taxExemptions: [],
+            numberOfOrders: '0',
+            defaultAddress: null,
+            addressesV2: { nodes: [] },
+            metafields: { nodes: [] },
+            orders: { edges: [] },
+            lastOrder: null,
+          },
+        },
+      },
+    },
+  };
+}
+
+function emptyDuplicateHydrateCall(field, value) {
+  return {
+    operationName: 'CustomerDuplicateHydrate',
+    variables: { query: `${field}:${value}` },
+    query: customerDuplicateHydrateQuery,
+    response: {
+      status: 200,
+      body: { data: { customers: { nodes: [] } } },
+    },
+  };
+}
+
+function inputEmail(record) {
+  return record?.variables?.input?.email ?? null;
+}
+
+function inputPhone(record) {
+  return record?.variables?.input?.phone ?? null;
+}
+
+function buildUpstreamCalls(capture) {
+  const calls = [];
+  const primaryCustomer = capturedCustomerFromCreate(capture.preconditions.primary);
+  const duplicateTargetCustomer = capturedCustomerFromCreate(capture.preconditions.duplicateTarget);
+  // The two precondition customers (primary, duplicate-target) are staged by their
+  // own setup-create targets, which the proxy validates by forwarding a uniqueness
+  // lookup upstream. At precondition time no such customer exists upstream, so these
+  // lookups must come back EMPTY — otherwise the setup creates fail "already taken"
+  // and never stage, and the later duplicate scenarios (which detect the dup against
+  // the *staged* precondition customers, short-circuiting before any forward) never
+  // see them. Emitting a MATCH here is the seeding-era bug this de-seed removes.
+  if (primaryCustomer) {
+    calls.push(emptyDuplicateHydrateCall('email', capture.preconditions.primary.email));
+    calls.push(emptyDuplicateHydrateCall('phone', capture.preconditions.primary.phone));
+  }
+  if (duplicateTargetCustomer) {
+    calls.push(emptyDuplicateHydrateCall('email', capture.preconditions.duplicateTarget.email));
+    calls.push(emptyDuplicateHydrateCall('phone', capture.preconditions.duplicateTarget.phone));
+  }
+  for (const scenario of Object.values(capture.createScenarios)) {
+    const email = inputEmail(scenario);
+    if (typeof email === 'string' && email.includes('@') && email !== capture.preconditions.primary.email) {
+      calls.push(emptyDuplicateHydrateCall('email', email));
+    }
+    const phone = inputPhone(scenario);
+    if (typeof phone === 'string' && phone.startsWith('+') && phone !== capture.preconditions.primary.phone) {
+      calls.push(emptyDuplicateHydrateCall('phone', phone));
+    }
+  }
+  for (const scenario of Object.values(capture.updateScenarios)) {
+    // Each update targets a pre-existing customer that no setup-create staged, so
+    // the proxy forwards a CustomerHydrate to resolve it. The duplicate-email/phone
+    // update scenarios detect the collision against the *staged* duplicate-target
+    // customer (short-circuiting before any uniqueness forward), so we emit no
+    // dedupe cassette here — a MATCH would also collide with the EMPTY dup-target
+    // uniqueness lookups the setup-create targets consume.
+    const baseCustomer = capturedCustomerFromCreate({
+      response: { data: { customerCreate: { customer: scenario.baseCustomer } } },
+    });
+    if (baseCustomer) {
+      calls.push(customerHydrateCall(baseCustomer));
+    }
+  }
+  // The delete target forwards a CustomerHydrate to confirm the customer exists,
+  // then stages the deletion. The follow-up update of that now-deleted customer is
+  // answered from staged `deleted_customer_ids` (no forward), so no missing-hydrate
+  // cassette is needed — the delete's own hydrate is the only forward.
+  const deletedCustomer = capturedCustomerFromCreate(capture.deletedCustomerUpdate.precondition);
+  if (deletedCustomer) {
+    calls.push(customerHydrateCall(deletedCustomer));
+  }
+  // customerMerge resolves both pre-existing customers the real way: the proxy
+  // forwards a CustomerMergeHydrate for each and stages the observed record, so both
+  // must hydrate to a real customer. After the merge the source is in
+  // `deleted_customer_ids`, so the follow-up update of the merged-away source is
+  // answered locally (no forward) as "Customer does not exist".
+  const mergeSource = capturedCustomerFromCreate(capture.mergedCustomerUpdate.mergeSource);
+  const mergeTarget = capturedCustomerFromCreate(capture.mergedCustomerUpdate.mergeTarget);
+  if (mergeSource) {
+    calls.push(customerMergeHydrateCall(mergeSource));
+  }
+  if (mergeTarget) {
+    calls.push(customerMergeHydrateCall(mergeTarget));
+  }
+  return calls;
 }
 
 async function runCreateScenario(input, options = {}) {
@@ -407,6 +584,7 @@ async function main() {
     },
     cleanup,
   };
+  capture.upstreamCalls = buildUpstreamCalls(capture);
 
   const outputFile = path.join(outputDir, 'customer-input-validation-parity.json');
   await writeFile(outputFile, `${JSON.stringify(capture, null, 2)}\n`, 'utf8');

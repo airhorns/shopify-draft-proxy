@@ -10,6 +10,7 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 
 type JsonRecord = Record<string, unknown>;
 type FixtureGroup = 'events' | 'payments' | 'apps' | 'bulk-operations' | 'functions';
+type PaymentFixtureTarget = 'reads' | 'customization-validation' | 'payment-reminder-send';
 
 type Capture = {
   query: string;
@@ -33,7 +34,9 @@ type FunctionNode = {
 };
 
 const allGroups: FixtureGroup[] = ['events', 'payments', 'apps', 'bulk-operations', 'functions'];
+const paymentFixtureTargets: PaymentFixtureTarget[] = ['reads', 'customization-validation', 'payment-reminder-send'];
 const requestedGroup = process.env['ORPHAN_FIXTURE_GROUP'];
+const requestedPaymentFixture = process.env['ORPHAN_PAYMENT_FIXTURE'];
 const groupsToCapture =
   requestedGroup === undefined || requestedGroup === ''
     ? allGroups
@@ -43,6 +46,17 @@ const groupsToCapture =
 
 if (groupsToCapture === null) {
   throw new Error(`Unknown ORPHAN_FIXTURE_GROUP: ${requestedGroup}`);
+}
+if (
+  requestedPaymentFixture !== undefined &&
+  requestedPaymentFixture !== '' &&
+  !paymentFixtureTargets.includes(requestedPaymentFixture as PaymentFixtureTarget)
+) {
+  throw new Error(`Unknown ORPHAN_PAYMENT_FIXTURE: ${requestedPaymentFixture}`);
+}
+
+function shouldCapturePaymentFixture(target: PaymentFixtureTarget): boolean {
+  return requestedPaymentFixture === undefined || requestedPaymentFixture === '' || requestedPaymentFixture === target;
 }
 
 const clientCache = new Map<string, CaptureClient>();
@@ -311,10 +325,18 @@ const reminderHydrateDocument = `query PaymentScheduleReminderHydrate($id: ID!) 
         translatedName
         order {
           id
+          email
           closed
           closedAt
           cancelledAt
           displayFinancialStatus
+          lineItems(first: 1) {
+            nodes {
+              sellingPlan {
+                name
+              }
+            }
+          }
         }
         draftOrder {
           id
@@ -543,7 +565,7 @@ async function captureReminderHydrate(
   return {
     operationName: 'PaymentScheduleReminderHydrate',
     variables: { id: paymentScheduleId },
-    query: `captured live hydrate for ${label}`,
+    query: reminderHydrateDocument,
     response: {
       status: response.status,
       body: response.payload,
@@ -614,9 +636,11 @@ async function capturePaymentReminderSend(): Promise<string> {
 }
 
 async function capturePayments(): Promise<string[]> {
-  const written = await capturePaymentReads();
-  written.push(await capturePaymentCustomizationValidation());
-  written.push(await capturePaymentReminderSend());
+  const written: string[] = [];
+  if (shouldCapturePaymentFixture('reads')) written.push(...(await capturePaymentReads()));
+  if (shouldCapturePaymentFixture('customization-validation'))
+    written.push(await capturePaymentCustomizationValidation());
+  if (shouldCapturePaymentFixture('payment-reminder-send')) written.push(await capturePaymentReminderSend());
   return written;
 }
 
@@ -929,10 +953,46 @@ function requireFunction(nodes: FunctionNode[], handle: string, apiType: string)
   return node;
 }
 
+function assertCartTransformUserError(
+  captureResult: Capture,
+  context: string,
+  expected: { code: string; field: string[]; message: string },
+): void {
+  assertNoTopLevelErrors(captureResult.response, context);
+  const payload = payloadRoot(captureResult.response, 'cartTransformCreate');
+  if (payload['cartTransform'] !== null) {
+    throw new Error(`${context} unexpectedly returned cartTransform: ${JSON.stringify(payload, null, 2)}`);
+  }
+  const userErrors = readArray(payload['userErrors']);
+  const actual = readRecord(userErrors[0]);
+  if (
+    userErrors.length !== 1 ||
+    actual['code'] !== expected.code ||
+    actual['message'] !== expected.message ||
+    JSON.stringify(actual['field']) !== JSON.stringify(expected.field)
+  ) {
+    throw new Error(`${context} userError mismatch: ${JSON.stringify({ expected, actual: userErrors }, null, 2)}`);
+  }
+}
+
+function assertNoCartTransforms(captureResult: Capture, context: string): void {
+  assertNoTopLevelErrors(captureResult.response, context);
+  const nodes = readArray(readPath(captureResult.response.payload, ['data', 'cartTransforms', 'nodes']));
+  if (nodes.length !== 0) {
+    throw new Error(`${context} expected no cartTransforms: ${JSON.stringify(nodes, null, 2)}`);
+  }
+}
+
 async function captureFunctions(): Promise<string[]> {
   const client = await clientFor('2026-04');
   const requestDir = path.join('config', 'parity-requests', 'functions');
   const setupQuery = await readText(path.join(requestDir, 'functions-cart-transform-create-validation-setup.graphql'));
+  const unknownIdQuery = await readText(
+    path.join(requestDir, 'functions-cart-transform-create-validation-unknown-id.graphql'),
+  );
+  const unknownHandleQuery = await readText(
+    path.join(requestDir, 'functions-cart-transform-create-validation-unknown-handle.graphql'),
+  );
   const conflictQuery = await readText(
     path.join(requestDir, 'functions-cart-transform-create-validation-conflict.graphql'),
   );
@@ -1005,6 +1065,32 @@ async function captureFunctions(): Promise<string[]> {
 
   let createdCartTransformId: string | null = null;
   try {
+    const unknownFunctionId = '00000000-0000-0000-0000-000000000000';
+    const unknownFunctionHandle = 'missing-cart-transform';
+    const cartTransformCreateUnknownId = await capture(client, unknownIdQuery, {
+      functionId: unknownFunctionId,
+      blockOnFailure: false,
+    });
+    assertCartTransformUserError(cartTransformCreateUnknownId, 'cartTransformCreate unknown functionId', {
+      code: 'FUNCTION_NOT_FOUND',
+      field: ['functionId'],
+      message: `Function ${unknownFunctionId} not found. Ensure that it is released in the current app (347082227713), and that the app is installed.`,
+    });
+    const cartTransformsAfterUnknownId = await capture(client, readQuery, { first: 5 });
+    assertNoCartTransforms(cartTransformsAfterUnknownId, 'cartTransforms after unknown functionId');
+
+    const cartTransformCreateUnknownHandle = await capture(client, unknownHandleQuery, {
+      functionHandle: unknownFunctionHandle,
+      blockOnFailure: false,
+    });
+    assertCartTransformUserError(cartTransformCreateUnknownHandle, 'cartTransformCreate unknown functionHandle', {
+      code: 'FUNCTION_NOT_FOUND',
+      field: ['functionHandle'],
+      message: `Could not find function with handle: ${unknownFunctionHandle}.`,
+    });
+    const cartTransformsAfterUnknownHandle = await capture(client, readQuery, { first: 5 });
+    assertNoCartTransforms(cartTransformsAfterUnknownHandle, 'cartTransforms after unknown functionHandle');
+
     const cartTransformCreateSetup = await capture(client, setupQuery, {
       functionId: cartTransformFunction.id,
       blockOnFailure: false,
@@ -1050,11 +1136,15 @@ async function captureFunctions(): Promise<string[]> {
       storeDomain: client.config.storeDomain,
       apiVersion: client.config.apiVersion,
       summary:
-        'Cart transform create Function identifier validation, duplicate registration, multiple identifiers, and downstream read evidence.',
+        'Cart transform create Function identifier validation, duplicate registration, multiple identifiers, unresolved identifier errors, and downstream read evidence.',
       shopifyFunctions: {
         cartTransform: normalizeFunctionNode(cartTransformFunction),
         validation: normalizeFunctionNode(validationFunction),
       },
+      cartTransformCreateUnknownId,
+      cartTransformsAfterUnknownId,
+      cartTransformCreateUnknownHandle,
+      cartTransformsAfterUnknownHandle,
       cartTransformCreateSetup,
       cartTransformCreateConflict,
       cartTransformCreateApiMismatch,
@@ -1064,6 +1154,7 @@ async function captureFunctions(): Promise<string[]> {
         'The setup branch creates one disposable cart transform from the released cart-transform Function.',
         'The conflict branch reuses the same Function id and records duplicate-registration behavior.',
         'The both-identifiers branch sends both Function id and handle for the same released Function.',
+        'The unresolved identifier branches run before setup and each downstream read confirms no CartTransform was created.',
       ],
       upstreamCalls: [
         {

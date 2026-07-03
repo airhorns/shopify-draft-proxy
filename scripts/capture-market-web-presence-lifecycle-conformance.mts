@@ -57,6 +57,9 @@ const webPresencesReadQuery = `#graphql
   }
 `;
 
+const webPresencePreflightQuery =
+  'query MarketsMutationPreflightHydrate($first: Int!) { webPresences(first: $first) { nodes { id subfolderSuffix domain { id host url sslEnabled } rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } } }';
+
 const primaryWebPresenceSetupQuery = `#graphql
   ${webPresenceFields}
   query WebPresenceDeletePrimarySetupRead($first: Int!) {
@@ -376,6 +379,7 @@ const frenchCanadianSuffix = 'fr';
 const partialUpdateSuffix = `har${randomLetters(10)}`;
 const regionalLocaleSuffix = `har${randomLetters(10)}`;
 const caseInsensitiveSuffix = `har${randomLetters(10)}`;
+const italianDefaultSuffix = `har${randomLetters(10)}`;
 const duplicateCreateSuffix = `har${randomLetters(10)}`;
 const updateCollisionSourceSuffix = `har${randomLetters(10)}`;
 const updateCollisionTakenSuffix = `har${randomLetters(10)}`;
@@ -391,6 +395,8 @@ let frenchCanadianWebPresenceId: string | null = null;
 let partialUpdateWebPresenceId: string | null = null;
 let regionalLocaleWebPresenceId: string | null = null;
 let caseInsensitiveWebPresenceId: string | null = null;
+let italianDefaultWebPresenceId: string | null = null;
+let invalidDefaultLocaleUnexpectedWebPresenceId: string | null = null;
 let duplicateCreateWebPresenceId: string | null = null;
 let duplicateCreateUnexpectedWebPresenceId: string | null = null;
 let duplicateCreateMarketId: string | null = null;
@@ -409,6 +415,8 @@ let frenchCanadianCleanupResponse: unknown = null;
 let partialUpdateCleanupResponse: unknown = null;
 let regionalLocaleCleanupResponse: unknown = null;
 let caseInsensitiveCleanupResponse: unknown = null;
+let italianDefaultCleanupResponse: unknown = null;
+let invalidDefaultLocaleUnexpectedCleanupResponse: unknown = null;
 let duplicateCreateMarketCleanupResponse: unknown = null;
 let duplicateCreateCleanupResponse: unknown = null;
 let duplicateCreateUnexpectedCleanupResponse: unknown = null;
@@ -603,7 +611,9 @@ try {
     });
   }
 
-  const baselineRead = await runGraphql(webPresencesReadQuery, { first: 20 });
+  const baselineReadVariables = { first: 20 };
+  const baselineRead = await runGraphql(webPresencesReadQuery, baselineReadVariables);
+  const webPresencePreflightResponse = await runGraphql(webPresencePreflightQuery, baselineReadVariables);
   const createVariables = {
     input: {
       defaultLocale: 'en',
@@ -713,6 +723,27 @@ try {
   }
   caseInsensitiveCleanupResponse = await runGraphql(deleteMutation, { id: caseInsensitiveWebPresenceId });
 
+  await ensureLocalesEnabled(['it']);
+  const italianDefaultCreateVariables = {
+    input: {
+      defaultLocale: 'it',
+      alternateLocales: [],
+      subfolderSuffix: italianDefaultSuffix,
+    },
+  };
+  const italianDefaultCreateResponse = await runGraphql(createMutation, italianDefaultCreateVariables);
+  italianDefaultWebPresenceId = italianDefaultCreateResponse.data?.webPresenceCreate?.webPresence?.id ?? null;
+  if (!italianDefaultWebPresenceId) {
+    throw new Error(
+      `Italian default-locale webPresenceCreate did not return a disposable web presence id: ${JSON.stringify(
+        italianDefaultCreateResponse,
+        null,
+        2,
+      )}`,
+    );
+  }
+  italianDefaultCleanupResponse = await runGraphql(deleteMutation, { id: italianDefaultWebPresenceId });
+
   const invalidAlternatesCreateVariables = {
     input: {
       defaultLocale: 'en',
@@ -721,6 +752,29 @@ try {
     },
   };
   const invalidAlternatesCreateResponse = await runGraphql(createMutation, invalidAlternatesCreateVariables);
+
+  const invalidDefaultLocaleCreateVariables = {
+    input: {
+      defaultLocale: 'zz',
+      alternateLocales: [],
+      subfolderSuffix: `har${randomLetters(10)}`,
+    },
+  };
+  const invalidDefaultLocaleCreateResponse = await runGraphql(createMutation, invalidDefaultLocaleCreateVariables);
+  invalidDefaultLocaleUnexpectedWebPresenceId =
+    invalidDefaultLocaleCreateResponse.data?.webPresenceCreate?.webPresence?.id ?? null;
+  if (invalidDefaultLocaleUnexpectedWebPresenceId) {
+    invalidDefaultLocaleUnexpectedCleanupResponse = await runGraphql(deleteMutation, {
+      id: invalidDefaultLocaleUnexpectedWebPresenceId,
+    });
+    throw new Error(
+      `invalid default-locale webPresenceCreate unexpectedly succeeded: ${JSON.stringify(
+        invalidDefaultLocaleCreateResponse,
+        null,
+        2,
+      )}`,
+    );
+  }
 
   const partialUpdateCreateVariables = {
     input: {
@@ -967,6 +1021,7 @@ try {
       partialUpdate: partialUpdateSuffix,
       regionalLocale: regionalLocaleSuffix,
       caseInsensitive: caseInsensitiveSuffix,
+      italianDefault: italianDefaultSuffix,
       duplicateCreate: duplicateCreateSuffix,
       updateCollisionSource: updateCollisionSourceSuffix,
       updateCollisionTaken: updateCollisionTakenSuffix,
@@ -977,7 +1032,7 @@ try {
       nonLetterUpdateSource: nonLetterUpdateSourceSuffix,
     },
     scope:
-      'HAR-448 market web presence create/update/delete lifecycle parity plus HAR-613 multi-locale rootUrls parity, HAR-611 fr-CA default locale parity, web-presence locale catalog/error-shape parity, primary-domain delete guard parity, duplicate subfolder suffix validation parity, duplicate-language validation parity, and non-letter subfolder suffix validation parity',
+      'HAR-448 market web presence create/update/delete lifecycle parity plus HAR-613 multi-locale rootUrls parity, HAR-611 fr-CA default locale parity, web-presence locale catalog/error-shape parity including Italian default-locale acceptance and invalid default-locale rejection, primary-domain delete guard parity, duplicate subfolder suffix validation parity, duplicate-language validation parity, and non-letter subfolder suffix validation parity',
     data: {
       shop: primarySetupRead.data?.shop,
       webPresences: baselineRead.data?.webPresences,
@@ -1385,6 +1440,24 @@ try {
           payload: duplicateLanguageUpdateAlternateResponse,
         },
       },
+      {
+        name: 'webPresenceCreateItalianDefaultLocale',
+        query: createMutation,
+        variables: italianDefaultCreateVariables,
+        response: {
+          status: 200,
+          payload: italianDefaultCreateResponse,
+        },
+      },
+      {
+        name: 'webPresenceCreateInvalidDefaultLocale',
+        query: createMutation,
+        variables: invalidDefaultLocaleCreateVariables,
+        response: {
+          status: 200,
+          payload: invalidDefaultLocaleCreateResponse,
+        },
+      },
     ],
     cleanup: {
       webPresenceDelete: {
@@ -1435,6 +1508,24 @@ try {
           payload: caseInsensitiveCleanupResponse,
         },
       },
+      italianDefaultWebPresenceDelete: {
+        query: deleteMutation,
+        variables: { id: italianDefaultWebPresenceId },
+        response: {
+          status: 200,
+          payload: italianDefaultCleanupResponse,
+        },
+      },
+      invalidDefaultLocaleUnexpectedWebPresenceDelete: invalidDefaultLocaleUnexpectedWebPresenceId
+        ? {
+            query: deleteMutation,
+            variables: { id: invalidDefaultLocaleUnexpectedWebPresenceId },
+            response: {
+              status: 200,
+              payload: invalidDefaultLocaleUnexpectedCleanupResponse,
+            },
+          }
+        : null,
       duplicateCreateWebPresenceDelete: {
         query: deleteMutation,
         variables: { id: duplicateCreateWebPresenceId },
@@ -1552,379 +1643,11 @@ try {
       },
       {
         operationName: 'MarketsMutationPreflightHydrate',
-        variables: createVariables,
-        query: 'hand-synthesized from checked-in capture',
+        variables: baselineReadVariables,
+        query: webPresencePreflightQuery,
         response: {
           status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: updateVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: multiLocaleCreateVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: frenchCanadianCreateVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: partialUpdateCreateVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: partialUpdateVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: regionalLocaleCreateVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: caseInsensitiveCreateVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: invalidAlternatesCreateVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: duplicateCreateSourceVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: duplicateCreateTakenVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: updateCollisionSourceCreateVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: updateCollisionTakenCreateVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: updateCollisionVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: nonLetterCreateUs2Variables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: nonLetterCreateEn1Variables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: nonLetterCreateUsEastVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: nonLetterCreateValidUsVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: nonLetterUpdateSourceCreateVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: nonLetterUpdateUs2Variables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: nonLetterUpdateEn1Variables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: nonLetterUpdateUsEastVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: nonLetterUpdateValidUsVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: duplicateLanguageCreateDefaultVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: duplicateLanguageCreateAlternateVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: duplicateLanguageUpdateDefaultCreateVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: duplicateLanguageUpdateDefaultVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: duplicateLanguageUpdateAlternateCreateVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
-        },
-      },
-      {
-        operationName: 'MarketsMutationPreflightHydrate',
-        variables: duplicateLanguageUpdateAlternateVariables,
-        query: 'hand-synthesized from checked-in capture',
-        response: {
-          status: 200,
-          body: {
-            data: {
-              webPresences: baselineRead.data?.webPresences,
-            },
-          },
+          body: webPresencePreflightResponse,
         },
       },
     ],
@@ -1959,6 +1682,22 @@ try {
   if (caseInsensitiveWebPresenceId && !caseInsensitiveCleanupResponse) {
     caseInsensitiveCleanupResponse = await runGraphql(deleteMutation, { id: caseInsensitiveWebPresenceId });
     console.error(JSON.stringify({ caseInsensitiveCleanupAfterFailure: caseInsensitiveCleanupResponse }, null, 2));
+  }
+  if (italianDefaultWebPresenceId && !italianDefaultCleanupResponse) {
+    italianDefaultCleanupResponse = await runGraphql(deleteMutation, { id: italianDefaultWebPresenceId });
+    console.error(JSON.stringify({ italianDefaultCleanupAfterFailure: italianDefaultCleanupResponse }, null, 2));
+  }
+  if (invalidDefaultLocaleUnexpectedWebPresenceId && !invalidDefaultLocaleUnexpectedCleanupResponse) {
+    invalidDefaultLocaleUnexpectedCleanupResponse = await runGraphql(deleteMutation, {
+      id: invalidDefaultLocaleUnexpectedWebPresenceId,
+    });
+    console.error(
+      JSON.stringify(
+        { invalidDefaultLocaleUnexpectedCleanupAfterFailure: invalidDefaultLocaleUnexpectedCleanupResponse },
+        null,
+        2,
+      ),
+    );
   }
   if (
     duplicateCreateUnexpectedWebPresenceId &&

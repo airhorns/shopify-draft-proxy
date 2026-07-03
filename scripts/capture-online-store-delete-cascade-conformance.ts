@@ -55,72 +55,11 @@ const articleCreateMutation = `#graphql
   }
 `;
 
-const articleCascadeHydrateQuery = `#graphql
-  query OnlineStoreArticleDeleteCascadeHydrate($id: ID!) {
-    article(id: $id) {
-      __typename
-      id
-      title
-      handle
-      createdAt
-      updatedAt
-      blog { id }
-      comments(first: 50) {
-        nodes {
-          __typename
-          id
-          status
-          body
-          bodyHtml
-          isPublished
-          publishedAt
-          createdAt
-          updatedAt
-          article { id }
-        }
-      }
-    }
-  }
-`;
+const articleCascadeHydrateQuery =
+  'query OnlineStoreArticleDeleteCascadeHydrate($id: ID!) { article(id: $id) { __typename id title handle createdAt updatedAt blog { id } comments(first: 50) { nodes { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } } } }';
 
-const blogCascadeHydrateQuery = `#graphql
-  query OnlineStoreBlogDeleteCascadeHydrate($id: ID!) {
-    blog(id: $id) {
-      __typename
-      id
-      title
-      handle
-      createdAt
-      updatedAt
-      commentPolicy
-      articles(first: 50) {
-        nodes {
-          __typename
-          id
-          title
-          handle
-          createdAt
-          updatedAt
-          blog { id }
-          comments(first: 50) {
-            nodes {
-              __typename
-              id
-              status
-              body
-              bodyHtml
-              isPublished
-              publishedAt
-              createdAt
-              updatedAt
-              article { id }
-            }
-          }
-        }
-      }
-    }
-  }
-`;
+const blogCascadeHydrateQuery =
+  'query OnlineStoreBlogDeleteCascadeHydrate($id: ID!) { blog(id: $id) { __typename id title handle createdAt updatedAt commentPolicy articles(first: 50) { nodes { __typename id title handle createdAt updatedAt blog { id } comments(first: 50) { nodes { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } } } } } }';
 
 const articleDeleteMutation = `#graphql
   mutation ArticleDeleteCascadesComments($id: ID!) {
@@ -259,6 +198,7 @@ function upstreamCall(operationName: string, variables: Record<string, unknown>,
   return {
     operationName,
     variables,
+    query: captureResult.request.query,
     response: {
       status: captureResult.status,
       body: captureResult.response,

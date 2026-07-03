@@ -1,0 +1,577 @@
+{
+  "capturedAt": "2026-06-21T19:09:04.847Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "Captures public WebhookSubscription.metafields input/output round-trip for API-created HTTP webhook subscriptions.",
+    "The create branch stores and returns a MetafieldIdentifier list, then downstream detail and URI-filtered list reads project the same list.",
+    "The update branch replaces the MetafieldIdentifier list and downstream reads project the replacement list.",
+    "The omitted-input branch proves Shopify returns an empty non-null list when metafields is not supplied.",
+    "Temporary subscriptions are deleted during cleanup and the script does not trigger webhook delivery."
+  ],
+  "schemaProbe": {
+    "documentPath": "inline:webhook-subscription-metafields-schema-probe",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "webhookSubscriptionInput": {
+            "inputFields": [
+              {
+                "name": "format"
+              },
+              {
+                "name": "includeFields"
+              },
+              {
+                "name": "filter"
+              },
+              {
+                "name": "metafieldNamespaces"
+              },
+              {
+                "name": "metafields"
+              },
+              {
+                "name": "name"
+              },
+              {
+                "name": "uri"
+              }
+            ]
+          },
+          "webhookSubscription": {
+            "fields": [
+              {
+                "name": "apiVersion"
+              },
+              {
+                "name": "createdAt"
+              },
+              {
+                "name": "filter"
+              },
+              {
+                "name": "format"
+              },
+              {
+                "name": "id"
+              },
+              {
+                "name": "includeFields"
+              },
+              {
+                "name": "legacyResourceId"
+              },
+              {
+                "name": "metafieldNamespaces"
+              },
+              {
+                "name": "metafields"
+              },
+              {
+                "name": "name"
+              },
+              {
+                "name": "topic"
+              },
+              {
+                "name": "updatedAt"
+              },
+              {
+                "name": "uri"
+              }
+            ]
+          },
+          "metafieldIdentifier": {
+            "fields": [
+              {
+                "name": "key"
+              },
+              {
+                "name": "namespace"
+              },
+              {
+                "name": "ownerId"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "expectedMetafields": {
+    "create": [
+      {
+        "namespace": "custom",
+        "key": "colormqo5u4b3"
+      }
+    ],
+    "update": [
+      {
+        "namespace": "custom",
+        "key": "materialmqo5u4b3"
+      }
+    ],
+    "omittedCreate": []
+  },
+  "lifecycle": {
+    "create": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-metafields-create.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-webhook-metafields-mqo5u4b3",
+          "format": "JSON",
+          "metafields": [
+            {
+              "namespace": "custom",
+              "key": "colormqo5u4b3"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1957314822450",
+                "topic": "SHOP_UPDATE",
+                "uri": "https://example.com/hermes-webhook-metafields-mqo5u4b3",
+                "format": "JSON",
+                "metafields": [
+                  {
+                    "namespace": "custom",
+                    "key": "colormqo5u4b3"
+                  }
+                ],
+                "createdAt": "2026-06-21T19:09:02Z",
+                "updatedAt": "2026-06-21T19:09:02Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "detailAfterCreate": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-metafields-detail-read.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1957314822450"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscription": {
+              "id": "gid://shopify/WebhookSubscription/1957314822450",
+              "topic": "SHOP_UPDATE",
+              "uri": "https://example.com/hermes-webhook-metafields-mqo5u4b3",
+              "format": "JSON",
+              "metafields": [
+                {
+                  "namespace": "custom",
+                  "key": "colormqo5u4b3"
+                }
+              ],
+              "createdAt": "2026-06-21T19:09:02Z",
+              "updatedAt": "2026-06-21T19:09:02Z"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "listAfterCreate": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-metafields-list.graphql",
+      "variables": {
+        "first": 5,
+        "uri": "https://example.com/hermes-webhook-metafields-mqo5u4b3"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/WebhookSubscription/1957314822450",
+                  "uri": "https://example.com/hermes-webhook-metafields-mqo5u4b3",
+                  "metafields": [
+                    {
+                      "namespace": "custom",
+                      "key": "colormqo5u4b3"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-metafields-update.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1957314822450",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-webhook-metafields-mqo5u4b3-updated",
+          "format": "JSON",
+          "metafields": [
+            {
+              "namespace": "custom",
+              "key": "materialmqo5u4b3"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionUpdate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1957314822450",
+                "topic": "SHOP_UPDATE",
+                "uri": "https://example.com/hermes-webhook-metafields-mqo5u4b3-updated",
+                "format": "JSON",
+                "metafields": [
+                  {
+                    "namespace": "custom",
+                    "key": "materialmqo5u4b3"
+                  }
+                ],
+                "createdAt": "2026-06-21T19:09:02Z",
+                "updatedAt": "2026-06-21T19:09:03Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "detailAfterUpdate": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-metafields-detail-read.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1957314822450"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscription": {
+              "id": "gid://shopify/WebhookSubscription/1957314822450",
+              "topic": "SHOP_UPDATE",
+              "uri": "https://example.com/hermes-webhook-metafields-mqo5u4b3-updated",
+              "format": "JSON",
+              "metafields": [
+                {
+                  "namespace": "custom",
+                  "key": "materialmqo5u4b3"
+                }
+              ],
+              "createdAt": "2026-06-21T19:09:02Z",
+              "updatedAt": "2026-06-21T19:09:03Z"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "listAfterUpdate": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-metafields-list.graphql",
+      "variables": {
+        "first": 5,
+        "uri": "https://example.com/hermes-webhook-metafields-mqo5u4b3-updated"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/WebhookSubscription/1957314822450",
+                  "uri": "https://example.com/hermes-webhook-metafields-mqo5u4b3-updated",
+                  "metafields": [
+                    {
+                      "namespace": "custom",
+                      "key": "materialmqo5u4b3"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1957314822450"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1957314822450",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "omittedInput": {
+    "create": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-metafields-create.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-webhook-metafields-mqo5u4b3-omitted",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1957314855218",
+                "topic": "SHOP_UPDATE",
+                "uri": "https://example.com/hermes-webhook-metafields-mqo5u4b3-omitted",
+                "format": "JSON",
+                "metafields": [],
+                "createdAt": "2026-06-21T19:09:04Z",
+                "updatedAt": "2026-06-21T19:09:04Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "listAfterCreate": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-metafields-list.graphql",
+      "variables": {
+        "first": 5,
+        "uri": "https://example.com/hermes-webhook-metafields-mqo5u4b3-omitted"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/WebhookSubscription/1957314855218",
+                  "uri": "https://example.com/hermes-webhook-metafields-mqo5u4b3-omitted",
+                  "metafields": []
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1957314855218"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1957314855218",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+    "variables": {
+      "id": "gid://shopify/WebhookSubscription/1957314822450"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "webhookSubscriptionDelete": {
+            "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1957314822450",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "omittedCleanup": {
+    "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+    "variables": {
+      "id": "gid://shopify/WebhookSubscription/1957314855218"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "webhookSubscriptionDelete": {
+            "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1957314855218",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

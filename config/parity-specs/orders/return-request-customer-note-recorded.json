@@ -1,0 +1,51 @@
+{
+  "scenarioId": "return-request-customer-note-recorded",
+  "operationNames": ["return", "returnRequest"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["lifecycle-transition-parity", "downstream-read-parity", "schema-introspection"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-customer-note-recorded.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/return-request-customer-note-recorded.graphql",
+    "variablesCapturePath": "$.returnRequest.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live public Admin GraphQL evidence that ReturnRequestLineItemInput.customerNote is accepted and echoed on ReturnLineItem.customerNote in the mutation payload and a follow-up return(id:) read.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.return.id",
+        "matcher": "shopify-gid:Return",
+        "reason": "Shopify and the proxy allocate independent return IDs."
+      },
+      {
+        "path": "$.return.returnLineItems.nodes[*].id",
+        "matcher": "shopify-gid:ReturnLineItem",
+        "reason": "Shopify and the proxy allocate independent return line item IDs."
+      }
+    ],
+    "targets": [
+      {
+        "name": "return-request-customer-note-payload",
+        "capturePath": "$.returnRequest.response.payload.data.returnRequest",
+        "proxyPath": "$.data.returnRequest"
+      },
+      {
+        "name": "return-customer-note-downstream-read",
+        "capturePath": "$.downstreamRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-customer-note-read-recorded.graphql",
+          "variables": {
+            "returnId": {
+              "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

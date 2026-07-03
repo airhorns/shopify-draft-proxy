@@ -1,0 +1,1002 @@
+{
+  "capturedAt": "2026-06-24T01:11:25.495Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "source": "live-shopify-admin-graphql",
+  "notes": "Live public Admin GraphQL capture for returnCreate/returnRequest return line item returnReason validation against a fulfilled order. Missing legacy reason without reasonDefinitionId returns NOT_FOUND/BLANK by root, explicit legacy OTHER without a note returns BLANK for returnCreate, returnRequest accepts explicit OTHER without a note, the public enum boundary for invalid returnReason is recorded for this Admin API version, and the public other-reason returnReasonDefinitionId is accepted without a note on this shop/API version.",
+  "schema": {
+    "query": "query ReturnReasonValidationSchema {\n    returnReason: __type(name: \"ReturnReason\") {\n      kind\n      name\n      enumValues {\n        name\n      }\n    }\n    returnLineItemInput: __type(name: \"ReturnLineItemInput\") {\n      inputFields(includeDeprecated: true) {\n        name\n        isDeprecated\n        deprecationReason\n        defaultValue\n        type {\n          kind\n          name\n          ofType {\n            kind\n            name\n          }\n        }\n      }\n    }\n  }",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnReason": {
+            "kind": "ENUM",
+            "name": "ReturnReason",
+            "enumValues": [
+              {
+                "name": "SIZE_TOO_SMALL"
+              },
+              {
+                "name": "SIZE_TOO_LARGE"
+              },
+              {
+                "name": "UNWANTED"
+              },
+              {
+                "name": "NOT_AS_DESCRIBED"
+              },
+              {
+                "name": "WRONG_ITEM"
+              },
+              {
+                "name": "DEFECTIVE"
+              },
+              {
+                "name": "STYLE"
+              },
+              {
+                "name": "COLOR"
+              },
+              {
+                "name": "OTHER"
+              },
+              {
+                "name": "UNKNOWN"
+              }
+            ]
+          },
+          "returnLineItemInput": {
+            "inputFields": [
+              {
+                "name": "quantity",
+                "isDeprecated": false,
+                "deprecationReason": null,
+                "defaultValue": null,
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "Int"
+                  }
+                }
+              },
+              {
+                "name": "returnReason",
+                "isDeprecated": true,
+                "deprecationReason": "Use `returnReasonDefinitionId` instead. This field will be removed in the future.",
+                "defaultValue": null,
+                "type": {
+                  "kind": "ENUM",
+                  "name": "ReturnReason",
+                  "ofType": null
+                }
+              },
+              {
+                "name": "returnReasonDefinitionId",
+                "isDeprecated": false,
+                "deprecationReason": null,
+                "defaultValue": null,
+                "type": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              },
+              {
+                "name": "returnReasonNote",
+                "isDeprecated": false,
+                "deprecationReason": null,
+                "defaultValue": "\"\"",
+                "type": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              },
+              {
+                "name": "fulfillmentLineItemId",
+                "isDeprecated": false,
+                "deprecationReason": null,
+                "defaultValue": null,
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "ID"
+                  }
+                }
+              },
+              {
+                "name": "restockingFee",
+                "isDeprecated": false,
+                "deprecationReason": null,
+                "defaultValue": null,
+                "type": {
+                  "kind": "INPUT_OBJECT",
+                  "name": "RestockingFeeInput",
+                  "ofType": null
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "setup": {
+    "returnReasonDefinitions": {
+      "query": "query ReturnReasonValidationDefinitions {\n    returnReasonDefinitions(first: 20) {\n      nodes {\n        id\n        name\n        handle\n        deleted\n      }\n    }\n  }",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "returnReasonDefinitions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/1",
+                  "name": "Unknown",
+                  "handle": "unknown",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/2",
+                  "name": "Changed my mind",
+                  "handle": "changed-my-mind",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/3",
+                  "name": "Item not as described",
+                  "handle": "item-not-as-described",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/4",
+                  "name": "Received the wrong item",
+                  "handle": "received-the-wrong-item",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/5",
+                  "name": "Other",
+                  "handle": "other-reason",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/6",
+                  "name": "Damaged or defective",
+                  "handle": "damaged-or-defective",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/7",
+                  "name": "Too small",
+                  "handle": "too-small",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/8",
+                  "name": "Too big",
+                  "handle": "too-big",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/9",
+                  "name": "Style",
+                  "handle": "style",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/10",
+                  "name": "Color",
+                  "handle": "color",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/11",
+                  "name": "Absorbency",
+                  "handle": "absorbency",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/12",
+                  "name": "Academic level",
+                  "handle": "academic-level",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/13",
+                  "name": "Accuracy",
+                  "handle": "accuracy",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/14",
+                  "name": "Adhesion",
+                  "handle": "adhesion",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/15",
+                  "name": "Adhesive",
+                  "handle": "adhesive",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/16",
+                  "name": "Adhesive strength",
+                  "handle": "adhesive-strength",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/17",
+                  "name": "Adjustability",
+                  "handle": "adjustability",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/18",
+                  "name": "Age range",
+                  "handle": "age-range",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/19",
+                  "name": "Amperage",
+                  "handle": "amperage",
+                  "deleted": false
+                },
+                {
+                  "id": "gid://shopify/ReturnReasonDefinition/20",
+                  "name": "Angle",
+                  "handle": "angle",
+                  "deleted": false
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "orderCreate": {
+      "query": "#graphql\n  fragment ReturnReasonValidationOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n      }\n    }\n  }\n\n  mutation ReturnReasonValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        ...ReturnReasonValidationOrderFields\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "return-reason-validation-20260624011122@example.com",
+          "note": "return reason validation capture 20260624011122",
+          "tags": ["return-reason-validation", "20260624011122"],
+          "test": true,
+          "currency": "USD",
+          "lineItems": [
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "title": "Return reason validation item 20260624011122",
+              "quantity": 2,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8839875428658",
+                "name": "#1527",
+                "createdAt": "2026-06-24T01:11:22Z",
+                "updatedAt": "2026-06-24T01:11:22Z",
+                "displayFinancialStatus": null,
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "40.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "40.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "fulfillments": [],
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9776424223026",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19667294650674",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19498705256754",
+                              "title": "Return reason validation item 20260624011122"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "returns": {
+                  "nodes": []
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 53,
+              "actualQueryCost": 22,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfillmentCreate": {
+      "query": "mutation ReturnReasonValidationFulfillmentCreate($fulfillment: FulfillmentInput!, $message: String) {\n    fulfillmentCreate(fulfillment: $fulfillment, message: $message) {\n      fulfillment {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        fulfillmentLineItems(first: 5) {\n          nodes {\n            id\n            quantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "RETURN-REASON-FULFILL-20260624011122",
+            "url": "https://example.com/track/RETURN-REASON-FULFILL-20260624011122",
+            "company": "Hermes Carrier"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9776424223026",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/19667294650674",
+                  "quantity": 2
+                }
+              ]
+            }
+          ]
+        },
+        "message": "return reason validation fulfillment 20260624011122"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentCreate": {
+              "fulfillment": {
+                "id": "gid://shopify/Fulfillment/7989222932786",
+                "status": "SUCCESS",
+                "displayStatus": "FULFILLED",
+                "createdAt": "2026-06-24T01:11:23Z",
+                "updatedAt": "2026-06-24T01:11:23Z",
+                "fulfillmentLineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentLineItem/17277989880114",
+                      "quantity": 2,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19498705256754",
+                        "title": "Return reason validation item 20260624011122"
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "orderReadAfterFulfillment": {
+      "query": "#graphql\n  fragment ReturnReasonValidationOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n      }\n    }\n  }\n\n  query ReturnReasonValidationOrderRead($id: ID!) {\n    order(id: $id) {\n      ...ReturnReasonValidationOrderFields\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Order/8839875428658"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8839875428658",
+              "name": "#1527",
+              "createdAt": "2026-06-24T01:11:22Z",
+              "updatedAt": "2026-06-24T01:11:23Z",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "FULFILLED",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/7989222932786",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-06-24T01:11:23Z",
+                  "updatedAt": "2026-06-24T01:11:23Z",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17277989880114",
+                        "quantity": 2,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19498705256754",
+                          "title": "Return reason validation item 20260624011122"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9776424223026",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19667294650674",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 0,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19498705256754",
+                            "title": "Return reason validation item 20260624011122"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "returns": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 44,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "missingReasonCreate": {
+    "query": "mutation ReturnCreateReasonValidation($returnInput: ReturnInput!) {\n  returnCreate(returnInput: $returnInput) {\n    return {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+    "variables": {
+      "returnInput": {
+        "orderId": "gid://shopify/Order/8839875428658",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17277989880114",
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnCreate": {
+            "return": null,
+            "userErrors": [
+              {
+                "field": ["returnInput", "returnLineItems", "0"],
+                "message": "Return line items Either return reason or return reason definition must be provided",
+                "code": "NOT_FOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "missingReasonRequest": {
+    "query": "mutation ReturnRequestReasonValidation($input: ReturnRequestInput!) {\n  returnRequest(input: $input) {\n    return {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+    "variables": {
+      "input": {
+        "orderId": "gid://shopify/Order/8839875428658",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17277989880114",
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnRequest": {
+            "return": null,
+            "userErrors": [
+              {
+                "field": ["input", "returnLineItems", "0", "returnReason"],
+                "message": "Return reason can't be blank",
+                "code": "BLANK"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "otherBlankNoteCreate": {
+    "query": "mutation ReturnCreateReasonValidation($returnInput: ReturnInput!) {\n  returnCreate(returnInput: $returnInput) {\n    return {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+    "variables": {
+      "returnInput": {
+        "orderId": "gid://shopify/Order/8839875428658",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17277989880114",
+            "quantity": 1,
+            "returnReason": "OTHER"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnCreate": {
+            "return": null,
+            "userErrors": [
+              {
+                "field": ["returnInput", "returnLineItems", "0", "returnReasonNote"],
+                "message": "Return line items return reason note The note is required when the return reason is \"Other\"",
+                "code": "BLANK"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "otherBlankNoteRequest": {
+    "query": "mutation ReturnRequestReasonValidation($input: ReturnRequestInput!) {\n  returnRequest(input: $input) {\n    return {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+    "variables": {
+      "input": {
+        "orderId": "gid://shopify/Order/8839875428658",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17277989880114",
+            "quantity": 1,
+            "returnReason": "OTHER"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnRequest": {
+            "return": {
+              "id": "gid://shopify/Return/14750155058"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "otherDefinitionNoNoteRequest": {
+    "query": "mutation ReturnRequestReasonValidation($input: ReturnRequestInput!) {\n  returnRequest(input: $input) {\n    return {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+    "variables": {
+      "input": {
+        "orderId": "gid://shopify/Order/8839875428658",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17277989880114",
+            "quantity": 1,
+            "returnReasonDefinitionId": "gid://shopify/ReturnReasonDefinition/5"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnRequest": {
+            "return": {
+              "id": "gid://shopify/Return/14750187826"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "invalidReasonCreate": {
+    "query": "mutation ReturnCreateReasonValidation($returnInput: ReturnInput!) {\n  returnCreate(returnInput: $returnInput) {\n    return {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+    "variables": {
+      "returnInput": {
+        "orderId": "gid://shopify/Order/8839875428658",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17277989880114",
+            "quantity": 1,
+            "returnReason": "NOT_A_REASON"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Variable $returnInput of type ReturnInput! was provided invalid value for returnLineItems.0.returnReason (Expected \"NOT_A_REASON\" to be one of: SIZE_TOO_SMALL, SIZE_TOO_LARGE, UNWANTED, NOT_AS_DESCRIBED, WRONG_ITEM, DEFECTIVE, STYLE, COLOR, OTHER, UNKNOWN)",
+            "locations": [
+              {
+                "line": 1,
+                "column": 39
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "orderId": "gid://shopify/Order/8839875428658",
+                "returnLineItems": [
+                  {
+                    "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17277989880114",
+                    "quantity": 1,
+                    "returnReason": "NOT_A_REASON"
+                  }
+                ]
+              },
+              "problems": [
+                {
+                  "path": ["returnLineItems", 0, "returnReason"],
+                  "explanation": "Expected \"NOT_A_REASON\" to be one of: SIZE_TOO_SMALL, SIZE_TOO_LARGE, UNWANTED, NOT_AS_DESCRIBED, WRONG_ITEM, DEFECTIVE, STYLE, COLOR, OTHER, UNKNOWN"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "invalidReasonRequest": {
+    "query": "mutation ReturnRequestReasonValidation($input: ReturnRequestInput!) {\n  returnRequest(input: $input) {\n    return {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+    "variables": {
+      "input": {
+        "orderId": "gid://shopify/Order/8839875428658",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17277989880114",
+            "quantity": 1,
+            "returnReason": "NOT_A_REASON"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Variable $input of type ReturnRequestInput! was provided invalid value for returnLineItems.0.returnReason (Expected \"NOT_A_REASON\" to be one of: SIZE_TOO_SMALL, SIZE_TOO_LARGE, UNWANTED, NOT_AS_DESCRIBED, WRONG_ITEM, DEFECTIVE, STYLE, COLOR, OTHER, UNKNOWN)",
+            "locations": [
+              {
+                "line": 1,
+                "column": 40
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "orderId": "gid://shopify/Order/8839875428658",
+                "returnLineItems": [
+                  {
+                    "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17277989880114",
+                    "quantity": 1,
+                    "returnReason": "NOT_A_REASON"
+                  }
+                ]
+              },
+              "problems": [
+                {
+                  "path": ["returnLineItems", 0, "returnReason"],
+                  "explanation": "Expected \"NOT_A_REASON\" to be one of: SIZE_TOO_SMALL, SIZE_TOO_LARGE, UNWANTED, NOT_AS_DESCRIBED, WRONG_ITEM, DEFECTIVE, STYLE, COLOR, OTHER, UNKNOWN"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "cleanup": {
+    "orderCancel": {
+      "query": "mutation ReturnReasonValidationOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8839875428658",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/ba33cada-8c12-456f-b078-657938dc8e8e"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "orderDelete": {
+      "query": "mutation ReturnReasonValidationOrderDelete($orderId: ID!) {\n    orderDelete(orderId: $orderId) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8839875428658"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderDelete": {
+              "deletedId": "gid://shopify/Order/8839875428658",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "emptyObject": {},
+    "emptyArray": []
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersReturnOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8839875428658"
+      },
+      "query": "query OrdersReturnOrderHydrate($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    totalRefundedSet { shopMoney { amount currencyCode } }\n    lineItems(first: 50) {\n      nodes {\n        id\n        title\n        quantity\n      }\n    }\n    fulfillments(first: 50) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 50) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n            variant {\n              id\n            }\n          }\n        }\n      }\n    }\n    returns(first: 50) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n        returnLineItems(first: 50) {\n          nodes {\n            ... on ReturnLineItem {\n              id\n              quantity\n              fulfillmentLineItem {\n                id\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8839875428658",
+              "name": "#1527",
+              "createdAt": "2026-06-24T01:11:22Z",
+              "updatedAt": "2026-06-24T01:11:23Z",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "FULFILLED",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19498705256754",
+                    "title": "Return reason validation item 20260624011122",
+                    "quantity": 2
+                  }
+                ]
+              },
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/7989222932786",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-06-24T01:11:23Z",
+                  "updatedAt": "2026-06-24T01:11:23Z",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17277989880114",
+                        "quantity": 2,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19498705256754",
+                          "title": "Return reason validation item 20260624011122",
+                          "variant": null
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "returns": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 155,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

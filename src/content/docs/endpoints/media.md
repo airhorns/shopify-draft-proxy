@@ -58,6 +58,11 @@ Local staged mutations:
   Captured 2026-04 IMAGE and FILE targets with no `httpMethod` therefore use
   the two-field `content_type`, `acl` parameter shape, and the proxy applies
   that default instead of assuming POST.
+- `StagedUploadInput.resource`, `filename`, and `mimeType` are required input
+  fields. Omitting `filename` or `mimeType` fails Admin GraphQL input-object
+  coercion before the local resolver stages anything, returning top-level
+  `missingRequiredInputObjectAttribute` errors with no `stagedTargets` payload
+  and no mutation log entry.
 - `SHOP_IMAGE` is exposed by the 2026-04 resource enum, but the current
   conformance app receives top-level `ACCESS_DENIED` for that resource. The
   local handler treats `SHOP_IMAGE` as an IMAGE-family upload target so it does
@@ -75,7 +80,9 @@ Local staged mutations:
   `acl: private`, and `x-goog-algorithm: GOOG4-RSA-SHA256` for IMAGE and FILE.
 - Admin GraphQL 2026-04 captures cover staged upload validation behavior.
   `VIDEO` and `MODEL_3D` inputs require `fileSize`; missing values return a
-  field-scoped `userErrors` entry and a null placeholder target. Invalid enum
+  field-scoped `userErrors` entry and a null placeholder target. Captured
+  messages are `file size is required for video resources` for `VIDEO` and
+  `file size is required for 3D model resources` for `MODEL_3D`. Invalid enum
   resource values are rejected as top-level GraphQL `INVALID_VARIABLE` errors
   before resolver handling. IMAGE-family resources reject unsupported MIME
   values with a `mimeType` userError. Current Shopify accepts FILE staged
@@ -94,8 +101,12 @@ Local staged mutations:
   Shopify's non-null contracts: `createdAt`, `updatedAt`, `fileStatus`, and
   `fileErrors`. `updatedAt` is the record's last local modification timestamp,
   and `fileErrors` defaults to `[]` until the model stores Shopify file-error
-  rows. Type-specific fields derive `mimeType` for `MediaImage`, `Video`, and
-  `GenericFile` from the filename/source extension with content-type fallback.
+  rows. When `fileCreate` omits `contentType`, image and video extensions infer
+  `MediaImage` / `Video`; 3D model extensions such as `.glb`, `.gltf`, and
+  `.usdz` stay on the generic `GenericFile` path unless the caller explicitly
+  passes `contentType: MODEL_3D`. Type-specific fields derive `mimeType` for
+  `MediaImage`, `Video`, and `GenericFile` from the filename/source extension
+  with content-type fallback.
   `MediaImage`, `Video`, `ExternalVideo`, and `Model3d` expose empty
   `mediaErrors` / `mediaWarnings` lists by default; `GenericFile` does not
   expose those Media-interface fields.
@@ -118,8 +129,10 @@ Local staged mutations:
   GraphQL 2026-04 does not expose `referencesToAdd` on `FileCreateInput`, and
   the proxy no longer treats it as a per-input validation surface. Successful
   creates derive a filename from the source when no filename is supplied, create
-  stable synthetic Shopify GIDs by content type, and return uploaded file
-  status. IMAGE files sourced from a usable URL keep that URL available through
+  stable synthetic Shopify GIDs by content type, return uploaded file status,
+  and stamp `createdAt` / `updatedAt` from a deterministic per-input UTC
+  timestamp sequence that carries seconds into minutes for large batches. IMAGE
+  files sourced from a usable URL keep that URL available through
   `MediaImage.image` and `preview.image` immediately; the proxy does not
   suppress the image payload
   solely because the staged file is still `UPLOADED`. The proxy does not apply
@@ -154,8 +167,15 @@ Local staged mutations:
   with comma-joined GIDs. `fileUpdate` missing IDs also aggregate into one
   `FILE_DOES_NOT_EXIST` entry on `["files"]`, but Shopify 2026-04 interpolates
   the id list as a quoted array string such as `["gid://...", "gid://..."]`.
-  Non-ready `fileUpdate` inputs collapse to one `NON_READY_STATE` entry with
-  Shopify's generic `Non-ready files cannot be updated.` message.
+  Missing IDs preempt alt-length and source-conflict validation. Non-ready
+  `fileUpdate` inputs collapse to one `NON_READY_STATE` entry with Shopify's
+  generic `Non-ready files cannot be updated.` message, and non-ready files
+  preempt the ready-file-only `originalSource`/`previewImageSource` conflict.
+  Ready-file target checks then run before the source plus
+  `revertToVersionId` conflict. The public Admin schemas currently checked
+  through 2026-04 do not expose `FileUpdateInput.revertToVersionId`, so the
+  source/version conflict message remains tied to existing internal evidence
+  rather than a public live cassette.
 - In LiveHybrid mode, `fileUpdate` may issue narrow reads before validation: product reads hydrate referenced products, media-version reads validate `revertToVersionId` ownership, and file reads hydrate existing READY Shopify file records needed for local validation/staging. Supported mutation handling still stages locally and does not write upstream at runtime.
 - In Snapshot mode, `fileUpdate.revertToVersionId` existence validation is skipped when the version is not already known through LiveHybrid hydration. The public Admin GraphQL schemas currently checked through 2026-04 and unstable do not expose `FileUpdateInput.revertToVersionId`, so checked-in live conformance can prove the reference-target branch but the version-id branch remains covered by deterministic LiveHybrid cassette tests and internal Shopify behavior notes. When a supplied version is known, the proxy returns a stable `UNSUPPORTED` userError instead of silently succeeding because local media-version rollback snapshots are not modeled yet.
 - `fileDelete` marks files deleted in local state so downstream reads and product media references can observe the deletion. In LiveHybrid mode, deletes of product-owned media ids may first hydrate the owning product/media relationship from upstream so the local delete can remove that media node from downstream `product.media` reads. The payload's `deletedFileIds` are rebuilt from the local record's actual Files API type (`MediaImage`, `Video`, `GenericFile`, etc.) rather than echoing a caller-supplied alias GID unchanged.
@@ -183,7 +203,7 @@ Local staged mutations:
   external media processing or generate real storage-transfer failures. Those
   failed-inner-state branches remain outside the supported runtime boundary
   until the media model stores the relevant Shopify failure rows/statuses.
-- Product-owned media mutations (`productCreateMedia`, `productUpdateMedia`, and `productDeleteMedia`) are part of the products group because their read-after-write behavior is tied to product state.
+- Product-owned media mutation roots (`productCreateMedia`, `productUpdateMedia`, `productDeleteMedia`, and related product media association/reorder roots) are product-state behavior and remain documented as unsupported boundaries in the products group until they have a store-backed lifecycle model.
 
 ### Unsupported and boundary behavior
 
@@ -196,19 +216,39 @@ Local staged mutations:
 
 - Existing checked-in parity evidence covers `fileCreate`, `fileUpdate`, and
   `fileDelete` payloads plus product-media reference cleanup.
+- `config/parity-specs/media/media-file-create-large-batch-timestamps.json`
+  and
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-create-large-batch-timestamps.json`
+  cover a 60-file `fileCreate` payload whose timestamp fields cross the
+  one-minute boundary.
 - Existing live captures confirm Shopify serializes `FileStatus` enum values as
   `UPLOADED`, `PROCESSING`, `READY`, and `FAILED` in the covered Files API
   flows. Fresh public-URL `MediaImage` creates in the checked-in 2025-01 and
   2026-04 media captures returned `UPLOADED`, and the immediate
   reverse-ordered `files` read observed Shopify advancing that new file to
   `PROCESSING`; failed source processing returned `FAILED`.
-- Local executable coverage covers `files`, `fileSavedSearches`,
-  `stagedUploadsCreate`, and the former explicit
-  `fileAcknowledgeUpdateFailed` unsupported boundary. Live staged-upload target
-  payload captures cover IMAGE, FILE, VIDEO, and MODEL_3D
-  target metadata while preserving the no-upload/no-storage runtime boundary.
-- Local executable coverage for `fileAcknowledgeUpdateFailed` covers
-  acknowledgement payloads and downstream `files` reads. The Shopify 2026-04
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/file-create-content-type-inference.json`
+  covers omitted `contentType` inference for image, video, document,
+  extensionless, and `.glb` sources. The `.glb` branch records Shopify's
+  GenericFile behavior; `MODEL_3D` remains an explicit-contentType path.
+- The historically named
+  `config/parity-specs/media/files-upload-local-runtime.json`,
+  `media-file-acknowledge-update-failed-semantics.json`,
+  `fileUpdate-product-reference-local-staging.json`, and
+  `fileAcknowledgeUpdateFailed-local-staging.json` scenarios are now backed by
+  live Shopify Admin GraphQL 2026-04 recordings under
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/`, not by
+  `fixtures/conformance/local-runtime`. They cover local paginated `files`
+  connection reads, empty `fileSavedSearches`, `stagedUploadsCreate`, non-ready
+  `fileUpdate`, product reference validation, and `fileAcknowledgeUpdateFailed`
+  payload/read-after-write behavior from real request/response captures.
+  Focused Rust runtime tests still guard the local staging implementation.
+- `config/parity-specs/media/staged_uploads_create_required_args.json` and
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/staged_uploads_create_required_args.json`
+  cover top-level `stagedUploadsCreate` schema coercion for omitted required
+  `filename` and `mimeType` fields.
+- `fileAcknowledgeUpdateFailed` parity covers acknowledgement payloads and
+  downstream `files` reads. The Shopify 2026-04
   live capture records that the mutation takes `fileIds`, returns a `files`
   list, accepts READY files, reports `FILE_DOES_NOT_EXIST` for unknown/deleted
   IDs, and reports `NON_READY_STATE` for FAILED files produced by a bad-source
@@ -221,13 +261,11 @@ Local staged mutations:
   READY files. It preserves the mutation payload shape, parent READY
   validation, downstream empty error/warning list shape, and raw mutation log
   behavior without stamping synthetic acknowledgement metadata.
-- Executable local-runtime parity covers the Files API product-reference
-  lifecycle: a local `fileCreate` MediaImage is updated through
-  `fileUpdate.referencesToAdd`, becomes visible in downstream `product.media`,
-  and remains visible through top-level `files`. This is intentionally local
-  evidence because external upload byte transfer is still outside the proxy
-  boundary; existing live Files API fixtures anchor the generic create/update
-  payload family.
+- Live parity now exercises the Files API product-reference boundary for a
+  newly created non-ready file: `fileUpdate.referencesToAdd` rejects the edit,
+  the file remains visible through top-level `files`, and product media reads
+  stay empty. External upload byte transfer and Shopify processing remain
+  outside the proxy boundary.
 - Remaining media parity scenarios use cassette-backed LiveHybrid execution.
   `fileUpdate.referencesToAdd` uses a product hydrate
   cassette entry before local staging, and `fileDelete` of a product-owned

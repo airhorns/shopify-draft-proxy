@@ -55,7 +55,7 @@
               "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
             },
             "validation": {
-              "title": "HAR-778 validation update renamed"
+              "title": "Validation update renamed"
             }
           }
         }
@@ -96,5 +96,5 @@
       }
     ]
   },
-  "notes": "HAR-778 live Shopify parity evidence for validationUpdate defaults and unknown-id shape. The capture creates one disposable active validation with enable:true input and blockOnFailure:true through the released conformance-validation Function, updates it with a title-only ValidationUpdateInput, verifies the mutation payload and downstream validation(id:) read both report enabled:false and blockOnFailure:false, records the generic unknown-id userError message, and deletes the disposable validation during cleanup. The cassette contains only the ShopifyFunction lookup needed for local staging; supported mutations remain local-only under the proxy."
+  "notes": "Live Shopify parity evidence for validationUpdate defaults and unknown-id shape. The capture creates one disposable active validation with enable:true input and blockOnFailure:true through the released conformance-validation Function, updates it with a title-only ValidationUpdateInput, verifies the mutation payload and downstream validation(id:) read both report enabled:false and blockOnFailure:false, records the generic unknown-id userError message, and deletes the disposable validation during cleanup. The cassette contains only the ShopifyFunction lookup needed for local staging; supported mutations remain local-only under the proxy."
 }

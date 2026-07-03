@@ -1,0 +1,256 @@
+{
+  "scenarioId": "b2b-company-location-tax-settings-sequential",
+  "operationNames": ["companyCreate", "companyLocation", "companyLocationTaxSettingsUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "read-after-write", "tax-settings"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-company-location-tax-settings-sequential.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-create.graphql",
+    "variablesCapturePath": "$.companyCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
+  "notes": "Executable parity coverage for companyLocationTaxSettingsUpdate applying registration-only updates, no-knob no-ops, and exemption removals/assignments independently against the current company-location taxSettings. The live fixture creates one disposable B2B company/location, sets only taxRegistrationId, sends an update with no optional tax-setting knobs, sets taxExempt true with one exemption, removes a different exemption without resending taxExempt, assigns and removes in the same call, reads back taxSettings after the sequential updates, and deletes the company during cleanup.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "tax-settings-registration-only-payload",
+        "capturePath": "$.registrationOnlyTaxUpdate.response.data.companyLocationTaxSettingsUpdate",
+        "proxyPath": "$.data.companyLocationTaxSettingsUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-tax.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "taxRegistrationId": {
+              "fromCapturePath": "$.registrationOnlyTaxUpdate.request.variables.taxRegistrationId"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different company location IDs."
+          }
+        ]
+      },
+      {
+        "name": "tax-settings-read-after-registration-only",
+        "capturePath": "$.readAfterRegistrationOnly.response.data.companyLocation.taxSettings",
+        "proxyPath": "$.data.companyLocation.taxSettings",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-read.graphql",
+          "variables": {
+            "companyContactId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+            },
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "singleAssignmentLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "contactBulkLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "locationBulkLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "tax-settings-no-knobs-payload",
+        "capturePath": "$.noKnobsTaxUpdate.response.data.companyLocationTaxSettingsUpdate",
+        "proxyPath": "$.data.companyLocationTaxSettingsUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-tax.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different company location IDs."
+          }
+        ]
+      },
+      {
+        "name": "tax-settings-read-after-no-knobs",
+        "capturePath": "$.readAfterNoKnobs.response.data.companyLocation.taxSettings",
+        "proxyPath": "$.data.companyLocation.taxSettings",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-read.graphql",
+          "variables": {
+            "companyContactId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+            },
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "singleAssignmentLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "contactBulkLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "locationBulkLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "tax-settings-initial-payload",
+        "capturePath": "$.initialTaxUpdate.response.data.companyLocationTaxSettingsUpdate",
+        "proxyPath": "$.data.companyLocationTaxSettingsUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-tax.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "taxRegistrationId": {
+              "fromCapturePath": "$.initialTaxUpdate.request.variables.taxRegistrationId"
+            },
+            "taxExempt": {
+              "fromCapturePath": "$.initialTaxUpdate.request.variables.taxExempt"
+            },
+            "exemptionsToAssign": {
+              "fromCapturePath": "$.initialTaxUpdate.request.variables.exemptionsToAssign"
+            },
+            "exemptionsToRemove": {
+              "fromCapturePath": "$.initialTaxUpdate.request.variables.exemptionsToRemove"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different company location IDs."
+          }
+        ]
+      },
+      {
+        "name": "tax-settings-remove-absent-payload",
+        "capturePath": "$.removeAbsentTaxUpdate.response.data.companyLocationTaxSettingsUpdate",
+        "proxyPath": "$.data.companyLocationTaxSettingsUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-tax.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "exemptionsToRemove": {
+              "fromCapturePath": "$.removeAbsentTaxUpdate.request.variables.exemptionsToRemove"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different company location IDs."
+          }
+        ]
+      },
+      {
+        "name": "tax-settings-read-after-remove-absent",
+        "capturePath": "$.readAfterRemoveAbsent.response.data.companyLocation.taxSettings",
+        "proxyPath": "$.data.companyLocation.taxSettings",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-read.graphql",
+          "variables": {
+            "companyContactId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+            },
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "singleAssignmentLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "contactBulkLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "locationBulkLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "tax-settings-assign-remove-payload",
+        "capturePath": "$.assignRemoveTaxUpdate.response.data.companyLocationTaxSettingsUpdate",
+        "proxyPath": "$.data.companyLocationTaxSettingsUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-tax.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "exemptionsToAssign": {
+              "fromCapturePath": "$.assignRemoveTaxUpdate.request.variables.exemptionsToAssign"
+            },
+            "exemptionsToRemove": {
+              "fromCapturePath": "$.assignRemoveTaxUpdate.request.variables.exemptionsToRemove"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different company location IDs."
+          }
+        ]
+      },
+      {
+        "name": "tax-settings-read-after-assign-remove",
+        "capturePath": "$.readAfterAssignRemove.response.data.companyLocation.taxSettings",
+        "proxyPath": "$.data.companyLocation.taxSettings",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-read.graphql",
+          "variables": {
+            "companyContactId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+            },
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "singleAssignmentLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "contactBulkLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "locationBulkLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

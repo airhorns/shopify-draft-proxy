@@ -7,9 +7,9 @@ captured Shopify response named by the spec. It is the canonical proof
 that the Rust runtime emulates Shopify with high fidelity.
 
 This document describes the **cassette-playback** model. The previous
-seed-based model (where the parity runner pre-wrote into `base_state` to
-fake the proxy into knowing about resources it shouldn't yet have known
-about) is unsupported.
+seed-based model (where the parity runner pre-wrote into `base_state`,
+`staged_state`, or private setup hooks to fake the proxy into knowing about
+resources it shouldn't yet have known about) is unsupported.
 
 ## Model
 
@@ -47,8 +47,10 @@ the synthetic confirmation URL is still returned for shape fidelity.
 Activated test subscriptions are added to
 `AppInstallation.activeSubscriptions` and receive a deterministic
 `currentPeriodEnd` from the activation timestamp plus the line item's
-billing interval and `trialDays`. The executable local-runtime proof is
-`config/parity-specs/apps/app-subscription-activation-readback.json`.
+billing interval and `trialDays`. This local billing activation behavior is
+runtime-test-backed in `tests/graphql_routes/admin_app.rs`; it is not kept as
+captured parity evidence until a billing-capable disposable app can record the
+same lifecycle from Shopify.
 
 ## Spec shape
 
@@ -77,6 +79,31 @@ the operation handler must model that state from earlier scenario
 requests or from cassette-backed upstream reads. If that is not
 implemented yet, keep the gap out of the checked-in parity spec and
 track the missing fidelity work outside the scenario corpus.
+
+### Managing Setup State
+
+Setup state for parity is earned through the same public request surface an
+app or capture script would use:
+
+- run setup GraphQL mutations/queries as explicit scenario requests when the
+  setup is part of the behavior under test;
+- let operation handlers issue the upstream reads they genuinely need, then
+  record those reads under `upstreamCalls` with `pnpm parity:record`;
+- for older read-only fixtures, hand-synthesize only the cassette entry from
+  the captured Shopify response when live re-recording is not useful, as
+  described in _Recording_ below.
+
+Do **not** add or restore hidden setup-state files, `baseState` /
+`stagedState` JSON, `proxyRequest.localSetups`, test-only state importers, or
+`DraftProxy` store patching to make a scenario pass. Those shortcuts bypass the
+runtime behavior being graded and turn parity into a fixture echo.
+
+`POST /__meta/dump`, `POST /__meta/restore`, `dumpState`, and `restoreState`
+remain legitimate meta API/runtime test surfaces for the features that expose
+them. They are not a parity setup mechanism unless the scenario is specifically
+testing those documented meta APIs. The parity runner may use dump/restore
+internally to reset its own baseline between requests; specs and capture files
+must not depend on those internals to smuggle resource data into the proxy.
 
 ## Cassette shape
 
@@ -411,9 +438,12 @@ Per-scenario steps:
 
 Capture files must not carry top-level `seedProducts`, `seedCustomers`,
 `seedDiscounts`, `localRuntimeCases`, or similar artificial setup keys.
-Parity specs must not carry `localSetups`. Those keys were inputs to the
-unsupported seed-based runner. Seed-style fixture and spec keys remain
-banned by policy and should be removed rather than expanded.
+Parity specs must not carry `localSetups`, `baseState`, `stagedState`,
+`setupState`, or equivalent private state payloads. Those keys were inputs to
+the unsupported seed-based runner. Seed-style fixture and spec keys remain
+banned by policy and should be removed rather than expanded. If a scenario
+needs a precondition resource, create it through public GraphQL requests or
+hydrate it from a recorded cassette-backed upstream call.
 
 ## Why we changed
 

@@ -438,6 +438,18 @@
             "reason": "The local proxy timestamps staged row writes at replay time while Shopify returned the captured write timestamp."
           },
           {
+            "path": "$.catalog.edges[1]",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The post-schema entry is a brand-new row created after the definition's schema change; Shopify's Admin search index that backs metaobjects(type:) had not materialized it yet, so the live capture omits it, while local staging exposes the supported write immediately. The pre-existing pre-schema row (index 0) had already indexed and is fully verified by the remaining catalog matchers."
+          },
+          {
+            "path": "$.catalog.nodes[1]",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The post-schema entry is a brand-new row created after the definition's schema change; Shopify's Admin search index that backs metaobjects(type:) had not materialized it yet, so the live capture omits it, while local staging exposes the supported write immediately. The pre-existing pre-schema row (index 0) had already indexed and is fully verified by the remaining catalog matchers."
+          },
+          {
             "path": "$.catalog.edges[*].cursor",
             "matcher": "any-string",
             "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
@@ -523,6 +535,18 @@
             "path": "$.byHandle.updatedAt",
             "matcher": "iso-timestamp",
             "reason": "The local proxy timestamps staged row writes at replay time while Shopify returned the captured write timestamp."
+          },
+          {
+            "path": "$.catalog.edges[1]",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The post-schema entry is a brand-new row created after the definition's schema change; Shopify's Admin search index that backs metaobjects(type:) had not materialized it yet, so the live capture omits it, while local staging exposes the supported write immediately. The pre-existing pre-schema row (index 0) had already indexed and is fully verified by the remaining catalog matchers."
+          },
+          {
+            "path": "$.catalog.nodes[1]",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The post-schema entry is a brand-new row created after the definition's schema change; Shopify's Admin search index that backs metaobjects(type:) had not materialized it yet, so the live capture omits it, while local staging exposes the supported write immediately. The pre-existing pre-schema row (index 0) had already indexed and is fully verified by the remaining catalog matchers."
           },
           {
             "path": "$.catalog.edges[*].cursor",

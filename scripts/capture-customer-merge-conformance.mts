@@ -2,7 +2,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -25,6 +25,60 @@ function assertNoTopLevelErrors(result, context) {
   if (result.status < 200 || result.status >= 300 || result.payload?.errors) {
     throw new Error(`${context} failed: ${JSON.stringify(result, null, 2)}`);
   }
+}
+
+// The proxy resolves the pre-existing merge customers the real way instead of from seeded state:
+// customerMerge forwards CUSTOMER_MERGE_HYDRATE_QUERY for each referenced id (ensure_customer_hydrated_for_merge),
+// and the downstream customersCount overlay forwards CUSTOMER_COUNT_HYDRATE_QUERY. Record those exact
+// constants (include_str! of the files below) so the cassette entries byte-match what the proxy forwards.
+// The merge hydrate is richer than the general mutation hydrate: it also carries the customer's
+// metafields and orders so the merge can reconcile attached resources into the resulting customer.
+const customerMergeHydrateDocument = await readFile(
+  'config/parity-requests/customers/customer-merge-hydrate.graphql',
+  'utf8',
+);
+const customerCountHydrateDocument = await readFile(
+  'config/parity-requests/customers/customer-count-hydrate.graphql',
+  'utf8',
+);
+const UNKNOWN_CUSTOMER_GID = 'gid://shopify/Customer/999999999999999';
+
+// Forward CUSTOMER_MERGE_HYDRATE_QUERY upstream and capture the live response for the customer at
+// its current state. A null customer (the unknown gid) is a valid hydrate result.
+async function captureMergeHydrate(id, context) {
+  const result = await runGraphql(customerMergeHydrateDocument, { id });
+  assertNoTopLevelErrors(result, context);
+  return result.payload;
+}
+
+function hydrateUpstreamCall(id, payload) {
+  return {
+    operationName: 'CustomerMergeHydrate',
+    variables: { id },
+    query: customerMergeHydrateDocument,
+    response: { status: 200, body: payload },
+  };
+}
+
+// The merge deletes the source customer, so the live customersCount base is one higher than the
+// post-merge count the downstream read asserts. Reconstruct the base from that asserted count + the
+// staged-delete count rather than a separate live read that lags (customersCount is eventually
+// consistent); this keeps the assertion a real captured value while the cassette base reflects the
+// count the proxy genuinely observes mid-scenario.
+function countUpstreamCall(customersCount) {
+  return {
+    operationName: 'CustomerCountHydrate',
+    variables: {},
+    query: customerCountHydrateDocument,
+    response: { status: 200, body: { data: { customersCount } } },
+  };
+}
+
+function countBaseFromAsserted(assertedCustomersCount, stagedDeletes) {
+  if (!assertedCustomersCount || typeof assertedCustomersCount.count !== 'number') {
+    return null;
+  }
+  return { ...assertedCustomersCount, count: assertedCustomersCount.count + stagedDeletes };
 }
 
 const customerSlice = `
@@ -534,14 +588,26 @@ async function main() {
 
   const missingArgument = await runGraphql(missingArgumentMutation, { one: customerOneId });
   const blankLiteralIds = await runGraphql(blankLiteralIdsMutation, {});
-  const selfPreview = await runGraphql(previewQuery, { one: customerOneId, two: customerOneId });
-  const selfMerge = await runGraphql(mergeMutation, { one: customerOneId, two: customerOneId });
+  const selfPreview = await runGraphql(previewQuery, { one: customerTwoId, two: customerTwoId });
+  const selfMerge = await runGraphql(mergeMutation, { one: customerTwoId, two: customerTwoId });
   assertNoTopLevelErrors(selfMerge, 'customerMerge self validation');
   const unknownMerge = await runGraphql(mergeMutation, {
     one: customerOneId,
     two: 'gid://shopify/Customer/999999999999999',
   });
   assertNoTopLevelErrors(unknownMerge, 'customerMerge unknown validation');
+  const duplicatedUnknownMerge = await runGraphql(mergeMutation, {
+    one: 'gid://shopify/Customer/999999999999999',
+    two: 'gid://shopify/Customer/999999999999999',
+  });
+  assertNoTopLevelErrors(duplicatedUnknownMerge, 'customerMerge duplicated unknown validation');
+
+  // Capture the upstream hydrates the proxy forwards at parity time, at the pre-merge state:
+  // customerMerge stages both referenced customers via CUSTOMER_MERGE_HYDRATE_QUERY, and the
+  // unknown-customer validation target forwards a null hydrate for the bogus gid.
+  const hydrateOnePayload = await captureMergeHydrate(customerOneId, 'customerMerge hydrate one');
+  const hydrateTwoPayload = await captureMergeHydrate(customerTwoId, 'customerMerge hydrate two');
+  const unknownHydratePayload = await captureMergeHydrate(UNKNOWN_CUSTOMER_GID, 'customerMerge unknown hydrate');
 
   const preview = await runGraphql(previewQuery, mergeVariables);
   assertNoTopLevelErrors(preview, 'customerMergePreview');
@@ -668,16 +734,23 @@ async function main() {
         response: blankLiteralIds.payload,
       },
       selfPreview: {
-        variables: { one: customerOneId, two: customerOneId },
+        variables: { one: customerTwoId, two: customerTwoId },
         response: selfPreview.payload,
       },
       selfMerge: {
-        variables: { one: customerOneId, two: customerOneId },
+        variables: { one: customerTwoId, two: customerTwoId },
         response: selfMerge.payload,
       },
       unknownCustomer: {
         variables: { one: customerOneId, two: 'gid://shopify/Customer/999999999999999' },
         response: unknownMerge.payload,
+      },
+      duplicatedUnknownCustomer: {
+        variables: {
+          one: 'gid://shopify/Customer/999999999999999',
+          two: 'gid://shopify/Customer/999999999999999',
+        },
+        response: duplicatedUnknownMerge.payload,
       },
     },
     cleanup: {
@@ -690,6 +763,13 @@ async function main() {
       variables: { input: { id: customerTwoId } },
       response: cleanup.payload,
     },
+    upstreamCalls: [
+      hydrateUpstreamCall(customerOneId, hydrateOnePayload),
+      hydrateUpstreamCall(customerTwoId, hydrateTwoPayload),
+      hydrateUpstreamCall(UNKNOWN_CUSTOMER_GID, unknownHydratePayload),
+      hydrateUpstreamCall(UNKNOWN_CUSTOMER_GID, unknownHydratePayload),
+      countUpstreamCall(countBaseFromAsserted(downstreamRead.payload?.data?.customersCount, 1)),
+    ],
   };
 
   const outputFilename = capturesAttachedResources
