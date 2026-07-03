@@ -3200,7 +3200,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'selling-plan-groups',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-selling-plan-group-conformance.ts',
-    purpose: 'Selling-plan group lifecycle, membership mutation payloads, and downstream product/variant reads.',
+    purpose:
+      'Selling-plan group lifecycle, membership mutation payloads, downstream product/variant reads, and connection query/sort/window behavior.',
     requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}selling-plan-group-lifecycle.json`,
@@ -3208,11 +3209,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/selling-plan-group-add-products.graphql',
       'config/parity-requests/products/selling-plan-group-add-variants.graphql',
       'config/parity-requests/products/selling-plan-group-catalog.graphql',
+      'config/parity-requests/products/selling-plan-group-connection-after.graphql',
+      'config/parity-requests/products/selling-plan-group-connection-args.graphql',
       'config/parity-requests/products/selling-plan-group-create.graphql',
       'config/parity-requests/products/selling-plan-group-read.graphql',
       'config/parity-requests/products/selling-plan-group-update.graphql',
     ],
-    cleanupBehavior: 'Creates a disposable product and selling-plan group, then deletes both during cleanup.',
+    cleanupBehavior:
+      'Creates a disposable product plus selling-plan groups for lifecycle and connection coverage, then deletes created groups and product during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

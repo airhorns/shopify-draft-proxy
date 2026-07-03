@@ -144,6 +144,33 @@ fn create_selling_plan_group(proxy: &mut DraftProxy, input: Value) -> Response {
     ))
 }
 
+fn create_selling_plan_group_with_resources(
+    proxy: &mut DraftProxy,
+    input: Value,
+    resources: Value,
+) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSellingPlanGroupWithResources(
+          $input: SellingPlanGroupInput!
+          $resources: SellingPlanGroupResourceInput
+        ) {
+          sellingPlanGroupCreate(input: $input, resources: $resources) {
+            sellingPlanGroup { id name merchantCode }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": input, "resources": resources }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["sellingPlanGroupCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"].clone()
+}
+
 fn create_selling_plan_group_with_summary(proxy: &mut DraftProxy, input: Value) -> Response {
     proxy.process_request(json_graphql_request(
         r#"
@@ -1755,6 +1782,215 @@ fn selling_plan_group_membership_is_staged_and_visible_to_reads() {
     assert_eq!(
         read.body["data"]["productVariant"]["sellingPlanGroups"]["nodes"][0]["id"],
         create.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["id"]
+    );
+}
+
+#[test]
+fn selling_plan_group_connections_filter_sort_reverse_and_window() {
+    let product_id = "gid://shopify/Product/1";
+    let mut proxy =
+        snapshot_proxy().with_base_products(vec![seeded_product(product_id, "Window product")]);
+    let variant = create_legacy_variant(&mut proxy, product_id, "WINDOW", "1.00");
+    let variant_id = variant["id"].as_str().unwrap().to_string();
+
+    let alpha = create_selling_plan_group_with_resources(
+        &mut proxy,
+        valid_selling_plan_group_input("Alpha group"),
+        json!({ "productIds": [product_id] }),
+    );
+    let beta_input = json!({
+        "name": "Beta group",
+        "options": ["Delivery frequency"],
+        "sellingPlansToCreate": [selling_plan_input_with_policy(
+            "Monthly",
+            vec!["Monthly"],
+            "PERCENTAGE",
+            json!({ "percentage": 15.0 })
+        )]
+    });
+    let beta = create_selling_plan_group_with_resources(
+        &mut proxy,
+        beta_input,
+        json!({ "productIds": [product_id] }),
+    );
+    let gamma = create_selling_plan_group_with_resources(
+        &mut proxy,
+        valid_selling_plan_group_input("Gamma group"),
+        json!({ "productIds": [product_id] }),
+    );
+
+    let alpha_id = alpha["id"].as_str().unwrap();
+    let beta_id = beta["id"].as_str().unwrap();
+    let gamma_id = gamma["id"].as_str().unwrap();
+
+    let update_beta = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateBetaSellingPlanGroup($id: ID!, $input: SellingPlanGroupInput!) {
+          sellingPlanGroupUpdate(id: $id, input: $input) {
+            sellingPlanGroup { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": beta_id,
+            "input": { "description": "Beta was updated for UPDATED_AT sort coverage" }
+        }),
+    ));
+    assert_eq!(
+        update_beta.body["data"]["sellingPlanGroupUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let top_level = proxy.process_request(json_graphql_request(
+        r#"
+        query SellingPlanGroupsTopLevelWindow($after: String!) {
+          defaultId: sellingPlanGroups(first: 3) {
+            nodes { id name }
+          }
+          nameReverse: sellingPlanGroups(first: 2, query: "name:group", sortKey: NAME, reverse: true) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          updatedReverse: sellingPlanGroups(first: 1, sortKey: UPDATED_AT, reverse: true) {
+            nodes { id name }
+          }
+          afterWindow: sellingPlanGroups(first: 1, after: $after, query: "name:group", sortKey: NAME, reverse: true) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          betaOnly: sellingPlanGroups(first: 5, query: "name:Beta", sortKey: ID) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          percentageOnly: sellingPlanGroups(first: 5, query: "percentage_off:15", sortKey: ID) {
+            nodes { id name }
+          }
+          monthly: sellingPlanGroups(first: 5, query: "delivery_frequency:MONTH", sortKey: ID) {
+            nodes { id }
+          }
+          subscriptions: sellingPlanGroups(first: 5, query: "category:SUBSCRIPTION", sortKey: ID) {
+            nodes { id }
+          }
+          unknownFilter: sellingPlanGroups(first: 5, query: "unknown_filter:Beta") {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": beta_id }),
+    ));
+
+    assert_eq!(top_level.status, 200);
+    assert_eq!(
+        top_level.body["data"]["defaultId"]["nodes"],
+        json!([
+            { "id": alpha_id, "name": "Alpha group" },
+            { "id": beta_id, "name": "Beta group" },
+            { "id": gamma_id, "name": "Gamma group" }
+        ])
+    );
+    assert_eq!(
+        top_level.body["data"]["nameReverse"]["nodes"],
+        json!([
+            { "id": gamma_id, "name": "Gamma group" },
+            { "id": beta_id, "name": "Beta group" }
+        ])
+    );
+    assert_eq!(
+        top_level.body["data"]["updatedReverse"]["nodes"],
+        json!([{ "id": gamma_id, "name": "Gamma group" }])
+    );
+    assert_eq!(
+        top_level.body["data"]["nameReverse"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": gamma_id,
+            "endCursor": beta_id
+        })
+    );
+    assert_eq!(
+        top_level.body["data"]["afterWindow"]["nodes"],
+        json!([{ "id": alpha_id, "name": "Alpha group" }])
+    );
+    assert_eq!(
+        top_level.body["data"]["afterWindow"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": alpha_id,
+            "endCursor": alpha_id
+        })
+    );
+    assert_eq!(
+        top_level.body["data"]["betaOnly"]["nodes"],
+        json!([{ "id": beta_id, "name": "Beta group" }])
+    );
+    assert_eq!(
+        top_level.body["data"]["percentageOnly"]["nodes"],
+        json!([{ "id": beta_id, "name": "Beta group" }])
+    );
+    assert_eq!(
+        top_level.body["data"]["monthly"]["nodes"],
+        json!([{ "id": alpha_id }, { "id": beta_id }, { "id": gamma_id }])
+    );
+    assert_eq!(
+        top_level.body["data"]["subscriptions"]["nodes"],
+        json!([{ "id": alpha_id }, { "id": beta_id }, { "id": gamma_id }])
+    );
+    assert_eq!(top_level.body["data"]["unknownFilter"]["nodes"], json!([]));
+
+    let nested = proxy.process_request(json_graphql_request(
+        r#"
+        query NestedSellingPlanGroups($productId: ID!, $variantId: ID!, $after: String!) {
+          product(id: $productId) {
+            sellingPlanGroupsCount { count precision }
+            sellingPlanGroups(first: 1, after: $after, reverse: true) {
+              nodes { id name }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          productVariant(id: $variantId) {
+            sellingPlanGroupsCount { count precision }
+            sellingPlanGroups(first: 2, reverse: true) {
+              nodes { id name }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "variantId": variant_id, "after": beta_id }),
+    ));
+
+    assert_eq!(nested.status, 200);
+    assert_eq!(
+        nested.body["data"]["product"]["sellingPlanGroupsCount"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+    assert_eq!(
+        nested.body["data"]["product"]["sellingPlanGroups"]["nodes"],
+        json!([{ "id": alpha_id, "name": "Alpha group" }])
+    );
+    assert_eq!(
+        nested.body["data"]["product"]["sellingPlanGroups"]["pageInfo"],
+        json!({
+            "hasNextPage": false,
+            "hasPreviousPage": true,
+            "startCursor": alpha_id,
+            "endCursor": alpha_id
+        })
+    );
+    assert_eq!(
+        nested.body["data"]["productVariant"]["sellingPlanGroupsCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(
+        nested.body["data"]["productVariant"]["sellingPlanGroups"]["nodes"],
+        json!([
+            { "id": gamma_id, "name": "Gamma group" },
+            { "id": beta_id, "name": "Beta group" }
+        ])
     );
 }
 
