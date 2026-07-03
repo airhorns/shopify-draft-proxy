@@ -703,6 +703,7 @@ fn common_scalar_field_name(field_name: &str) -> bool {
             | "status"
             | "createdAt"
             | "updatedAt"
+            | "publishedAt"
             | "description"
             | "descriptionHtml"
             | "vendor"

@@ -6138,6 +6138,319 @@ fn products_connection_and_count_filter_common_search_fields_from_store_state() 
 }
 
 #[test]
+fn products_connection_sorts_filtered_lowercase_status_queries_before_cursor_windows() {
+    let mut zulu = seed_product("gid://shopify/Product/30");
+    zulu.title = "Zulu Probe Product".to_string();
+    zulu.handle = "zulu-probe-product".to_string();
+    zulu.vendor = "Beta Vendor".to_string();
+    zulu.product_type = "Outerwear".to_string();
+    zulu.created_at = "2024-01-03T00:00:00.000Z".to_string();
+    zulu.updated_at = "2024-01-05T00:00:00.000Z".to_string();
+    zulu.extra_fields
+        .insert("publishedAt".to_string(), json!("2024-01-03T00:00:00.000Z"));
+
+    let mut alpha = seed_product("gid://shopify/Product/10");
+    alpha.title = "Alpha Probe Product".to_string();
+    alpha.handle = "alpha-probe-product".to_string();
+    alpha.vendor = "Alpha Vendor".to_string();
+    alpha.product_type = "Accessories".to_string();
+    alpha.created_at = "2024-01-01T00:00:00.000Z".to_string();
+    alpha.updated_at = "2024-01-07T00:00:00.000Z".to_string();
+    alpha
+        .extra_fields
+        .insert("publishedAt".to_string(), json!("2024-01-01T00:00:00.000Z"));
+
+    let mut middle = seed_product("gid://shopify/Product/20");
+    middle.title = "Middle Probe Product".to_string();
+    middle.handle = "middle-probe-product".to_string();
+    middle.vendor = "Gamma Vendor".to_string();
+    middle.product_type = "Footwear".to_string();
+    middle.created_at = "2024-01-02T00:00:00.000Z".to_string();
+    middle.updated_at = "2024-01-06T00:00:00.000Z".to_string();
+    middle
+        .extra_fields
+        .insert("publishedAt".to_string(), json!("2024-01-02T00:00:00.000Z"));
+
+    let mut draft = seed_product("gid://shopify/Product/40");
+    draft.title = "Draft Probe Product".to_string();
+    draft.vendor = "Aardvark Vendor".to_string();
+    draft.product_type = "Drafts".to_string();
+    draft.status = "DRAFT".to_string();
+    draft.created_at = "2024-01-04T00:00:00.000Z".to_string();
+    draft.updated_at = "2024-01-08T00:00:00.000Z".to_string();
+    draft
+        .extra_fields
+        .insert("publishedAt".to_string(), json!("2024-01-04T00:00:00.000Z"));
+
+    let mut proxy = snapshot_proxy().with_base_products(vec![zulu, alpha, middle, draft]);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductSortKeysWithLowercaseStatus($query: String!) {
+          titleOrder: products(first: 10, query: $query, sortKey: TITLE) {
+            nodes { title }
+          }
+          vendorOrder: products(first: 10, query: $query, sortKey: VENDOR) {
+            nodes { title vendor }
+          }
+          vendorWindow: products(first: 1, after: "gid://shopify/Product/10", query: $query, sortKey: VENDOR) {
+            edges { cursor node { title } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          productTypeReverse: products(first: 10, query: $query, sortKey: PRODUCT_TYPE, reverse: true) {
+            nodes { title productType }
+          }
+          publishedAtReverse: products(first: 10, query: $query, sortKey: PUBLISHED_AT, reverse: true) {
+            nodes { title }
+          }
+          idReverse: products(first: 10, query: $query, sortKey: ID, reverse: true) {
+            nodes { id title }
+          }
+          updatedAtReverse: products(first: 10, query: $query, sortKey: UPDATED_AT, reverse: true) {
+            nodes { title updatedAt }
+          }
+          relevanceOrder: products(first: 10, query: $query, sortKey: RELEVANCE) {
+            nodes { title createdAt }
+          }
+          activeCount: productsCount(query: $query) { count precision }
+        }
+        "#,
+        json!({ "query": "status:active" }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert!(
+        read.body.get("errors").is_none(),
+        "unexpected GraphQL errors: {}",
+        read.body
+    );
+    assert_eq!(
+        read.body["data"]["titleOrder"]["nodes"],
+        json!([
+            { "title": "Alpha Probe Product" },
+            { "title": "Middle Probe Product" },
+            { "title": "Zulu Probe Product" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["vendorOrder"]["nodes"],
+        json!([
+            { "title": "Alpha Probe Product", "vendor": "Alpha Vendor" },
+            { "title": "Zulu Probe Product", "vendor": "Beta Vendor" },
+            { "title": "Middle Probe Product", "vendor": "Gamma Vendor" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["vendorWindow"],
+        json!({
+            "edges": [{
+                "cursor": "gid://shopify/Product/30",
+                "node": { "title": "Zulu Probe Product" }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/Product/30",
+                "endCursor": "gid://shopify/Product/30"
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["productTypeReverse"]["nodes"],
+        json!([
+            { "title": "Zulu Probe Product", "productType": "Outerwear" },
+            { "title": "Middle Probe Product", "productType": "Footwear" },
+            { "title": "Alpha Probe Product", "productType": "Accessories" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["publishedAtReverse"]["nodes"],
+        json!([
+            { "title": "Zulu Probe Product" },
+            { "title": "Middle Probe Product" },
+            { "title": "Alpha Probe Product" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["idReverse"]["nodes"],
+        json!([
+            { "id": "gid://shopify/Product/30", "title": "Zulu Probe Product" },
+            { "id": "gid://shopify/Product/20", "title": "Middle Probe Product" },
+            { "id": "gid://shopify/Product/10", "title": "Alpha Probe Product" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["updatedAtReverse"]["nodes"],
+        json!([
+            { "title": "Alpha Probe Product", "updatedAt": "2024-01-07T00:00:00.000Z" },
+            { "title": "Middle Probe Product", "updatedAt": "2024-01-06T00:00:00.000Z" },
+            { "title": "Zulu Probe Product", "updatedAt": "2024-01-05T00:00:00.000Z" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["relevanceOrder"]["nodes"],
+        json!([
+            { "title": "Alpha Probe Product", "createdAt": "2024-01-01T00:00:00.000Z" },
+            { "title": "Middle Probe Product", "createdAt": "2024-01-02T00:00:00.000Z" },
+            { "title": "Zulu Probe Product", "createdAt": "2024-01-03T00:00:00.000Z" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["activeCount"],
+        json!({ "count": 3, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn product_tag_mutations_keep_product_search_filters_in_sync_with_effective_tags() {
+    let mut product = seed_product("gid://shopify/Product/alpha");
+    product.title = "Alpha tagged product".to_string();
+    product.tags = vec!["base-red".to_string()];
+
+    let mut proxy = snapshot_proxy().with_base_products(vec![product]);
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddInterleavedTag($id: ID!, $tags: [String!]!) {
+          tagsAdd(id: $id, tags: $tags) {
+            node { ... on Product { id tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/alpha",
+            "tags": ["interleaved"]
+        }),
+    ));
+    assert_eq!(add.status, 200);
+    assert_eq!(
+        add.body["data"]["tagsAdd"]["node"],
+        json!({
+            "id": "gid://shopify/Product/alpha",
+            "tags": ["base-red", "interleaved"]
+        })
+    );
+
+    let after_add = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductTagSearchAfterAdd($id: ID!) {
+          product(id: $id) { tags }
+          added: products(first: 10, query: "tag:interleaved") {
+            nodes { id tags }
+          }
+          addedCount: productsCount(query: "tag:interleaved") { count precision }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Product/alpha" }),
+    ));
+    assert_eq!(
+        after_add.body["data"]["product"]["tags"],
+        json!(["base-red", "interleaved"])
+    );
+    assert_eq!(
+        after_add.body["data"]["added"]["nodes"],
+        json!([{
+            "id": "gid://shopify/Product/alpha",
+            "tags": ["base-red", "interleaved"]
+        }])
+    );
+    assert_eq!(
+        after_add.body["data"]["addedCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let remove = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RemoveInterleavedTag($id: ID!, $tags: [String!]!) {
+          tagsRemove(id: $id, tags: $tags) {
+            node { ... on Product { id tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/alpha",
+            "tags": ["interleaved"]
+        }),
+    ));
+    assert_eq!(remove.status, 200);
+    assert_eq!(
+        remove.body["data"]["tagsRemove"]["node"],
+        json!({
+            "id": "gid://shopify/Product/alpha",
+            "tags": ["base-red"]
+        })
+    );
+
+    let after_remove = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductTagSearchAfterRemove {
+          removed: products(first: 10, query: "tag:interleaved") { nodes { id } }
+          remaining: products(first: 10, query: "tag:base-red") { nodes { id tags } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(after_remove.body["data"]["removed"]["nodes"], json!([]));
+    assert_eq!(
+        after_remove.body["data"]["remaining"]["nodes"],
+        json!([{
+            "id": "gid://shopify/Product/alpha",
+            "tags": ["base-red"]
+        }])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReplaceProductTags($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product { id tags }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "id": "gid://shopify/Product/alpha",
+                "tags": ["updated-green"]
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productUpdate"]["product"],
+        json!({
+            "id": "gid://shopify/Product/alpha",
+            "tags": ["updated-green"]
+        })
+    );
+
+    let after_update = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductTagSearchAfterProductUpdate {
+          updated: products(first: 10, query: "tag:updated-green") { nodes { id tags } }
+          stale: products(first: 10, query: "tag:base-red") { nodes { id } }
+          updatedCount: productsCount(query: "tag:updated-green") { count precision }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        after_update.body["data"]["updated"]["nodes"],
+        json!([{
+            "id": "gid://shopify/Product/alpha",
+            "tags": ["updated-green"]
+        }])
+    );
+    assert_eq!(after_update.body["data"]["stale"]["nodes"], json!([]));
+    assert_eq!(
+        after_update.body["data"]["updatedCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+}
+
+#[test]
 fn products_connection_applies_first_limit_after_overlaying_state() {
     let mut proxy = snapshot_proxy().with_base_products(vec![
         ProductRecord {
