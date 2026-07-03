@@ -6759,6 +6759,54 @@ fn segment_create_update_query_grammar_stages_and_reads_generic_node() {
         })
     );
 
+    let abandoned = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "name": "Abandoned checkouts segment-query-grammar-local",
+            "query": "abandoned_checkout_date >= -30d"
+        }),
+    ));
+    let abandoned_segment = &abandoned.body["data"]["segmentCreate"]["segment"];
+    let abandoned_segment_id = abandoned_segment["id"].as_str().unwrap().to_string();
+    assert!(abandoned_segment_id.starts_with("gid://shopify/Segment/"));
+    assert_eq!(
+        abandoned.body["data"]["segmentCreate"],
+        json!({
+            "segment": {
+                "id": abandoned_segment_id,
+                "name": "Abandoned checkouts segment-query-grammar-local",
+                "query": "abandoned_checkout_date >= -30d",
+                "creationDate": abandoned_segment["creationDate"],
+                "lastEditDate": abandoned_segment["lastEditDate"],
+            },
+            "userErrors": []
+        })
+    );
+
+    let decimal_money = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "name": "Decimal money segment-query-grammar-local",
+            "query": "amount_spent > 100.50"
+        }),
+    ));
+    let decimal_money_segment = &decimal_money.body["data"]["segmentCreate"]["segment"];
+    let decimal_money_segment_id = decimal_money_segment["id"].as_str().unwrap().to_string();
+    assert!(decimal_money_segment_id.starts_with("gid://shopify/Segment/"));
+    assert_eq!(
+        decimal_money.body["data"]["segmentCreate"],
+        json!({
+            "segment": {
+                "id": decimal_money_segment_id,
+                "name": "Decimal money segment-query-grammar-local",
+                "query": "amount_spent > 100.50",
+                "creationDate": decimal_money_segment["creationDate"],
+                "lastEditDate": decimal_money_segment["lastEditDate"],
+            },
+            "userErrors": []
+        })
+    );
+
     let updated = proxy.process_request(json_graphql_request(
         r#"
         mutation SegmentUpdateQueryGrammar($id: ID!, $query: String) {
@@ -6768,11 +6816,11 @@ fn segment_create_update_query_grammar_stages_and_reads_generic_node() {
           }
         }
         "#,
-        json!({ "id": segment_id, "query": "customer_countries CONTAINS 'CA'" }),
+        json!({ "id": segment_id, "query": "abandoned_checkout_date >= -30d" }),
     ));
     assert_eq!(
         updated.body["data"]["segmentUpdate"]["segment"]["query"],
-        json!("customer_countries CONTAINS 'CA'")
+        json!("abandoned_checkout_date >= -30d")
     );
 
     let node = proxy.process_request(json_graphql_request(
@@ -6785,7 +6833,7 @@ fn segment_create_update_query_grammar_stages_and_reads_generic_node() {
     ));
     assert_eq!(
         node.body["data"]["node"]["query"],
-        json!("customer_countries CONTAINS 'CA'")
+        json!("abandoned_checkout_date >= -30d")
     );
 
     let malformed = proxy.process_request(json_graphql_request(
