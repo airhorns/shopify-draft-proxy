@@ -237,8 +237,30 @@ describe('public TS API Rust runtime', () => {
 
       const commit = await restored.commit({ authorization: 'Bearer test-token' });
       expect(commit).toMatchObject({
+        ok: true,
+        committed: 1,
+        failed: 0,
         stopIndex: null,
-        attempts: [{ status: 'committed', success: true }],
+        attempts: [
+          {
+            index: 0,
+            logId: 'log-1',
+            status: 'committed',
+            request: { method: 'POST', path: '/admin/api/2025-01/graphql.json' },
+            response: {
+              status: 200,
+              body: {
+                data: {
+                  savedSearchCreate: {
+                    savedSearch: {
+                      id: 'gid://shopify/SavedSearch/987654321',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        ],
       });
       expect(requests).toHaveLength(1);
       expect(requests[0]).toMatchObject({
@@ -249,6 +271,76 @@ describe('public TS API Rust runtime', () => {
       (proxy as unknown as { dispose: () => void }).dispose();
       (restored as unknown as { dispose: () => void }).dispose();
     } finally {
+      await new Promise<void>((resolveClose, rejectClose) => {
+        upstream.close((error) => {
+          if (error) rejectClose(error);
+          else resolveClose();
+        });
+      });
+    }
+  }, 60_000);
+
+  it('preserves the core commit result on JS commit failures', async () => {
+    const upstream = createServer((req, res) => {
+      req.resume();
+      req.on('end', () => {
+        res.writeHead(500, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ errors: [{ message: 'upstream boom' }] }));
+      });
+    });
+    await new Promise<void>((resolveListen) => {
+      upstream.listen(0, '127.0.0.1', resolveListen);
+    });
+
+    const { createDraftProxy, DraftProxyCommitError } = await import(resolve(repoRoot, 'js/src/index.ts'));
+    const address = upstream.address();
+    if (address === null || typeof address === 'string') {
+      throw new Error('Expected local upstream server to listen on a TCP port.');
+    }
+    const proxy = createDraftProxy({
+      readMode: 'snapshot',
+      port: 4000,
+      shopifyAdminOrigin: `http://127.0.0.1:${address.port}`,
+    });
+
+    try {
+      const create = await proxy.processGraphQLRequest({
+        query:
+          'mutation { savedSearchCreate(input: { name: "Promo orders", query: "tag:promo", resourceType: ORDER }) { savedSearch { id name query resourceType } userErrors { field message } } }',
+      });
+      expect(create.status).toBe(200);
+
+      let thrown: unknown;
+      try {
+        await proxy.commit({ authorization: 'Bearer test-token' });
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(DraftProxyCommitError);
+      const result = (thrown as InstanceType<typeof DraftProxyCommitError>).result;
+      expect(result).toMatchObject({
+        ok: false,
+        committed: 0,
+        failed: 1,
+        stopIndex: 0,
+        error: 'Upstream commit failed for log-1 with status 500',
+        attempts: [
+          {
+            index: 0,
+            logId: 'log-1',
+            status: 'failed',
+            request: { method: 'POST', path: '/admin/api/2025-01/graphql.json' },
+            response: {
+              status: 500,
+              body: { errors: [{ message: 'upstream boom' }] },
+            },
+            error: 'Upstream commit failed for log-1 with status 500',
+          },
+        ],
+      });
+    } finally {
+      (proxy as unknown as { dispose: () => void }).dispose();
       await new Promise<void>((resolveClose, rejectClose) => {
         upstream.close((error) => {
           if (error) rejectClose(error);
