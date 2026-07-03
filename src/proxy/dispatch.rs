@@ -1676,8 +1676,16 @@ impl DraftProxy {
             (CapabilityDomain::Webhooks, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {
-                let fields = try_root_fields!(&query, &variables);
-                ok_json(json!({ "data": self.webhook_subscriptions_query_data(&fields) }))
+                let Some(document) = parsed_document(&query, &variables) else {
+                    return json_error(400, "Could not parse GraphQL operation");
+                };
+                if let Some(error) = webhook_subscription_sort_key_validation_error(&document) {
+                    ok_json(json!({ "errors": [error] }))
+                } else {
+                    ok_json(json!({
+                        "data": self.webhook_subscriptions_query_data(&document.root_fields)
+                    }))
+                }
             }
             (CapabilityDomain::Webhooks, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation =>
