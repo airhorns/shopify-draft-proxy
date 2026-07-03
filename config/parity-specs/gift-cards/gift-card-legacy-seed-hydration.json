@@ -1,0 +1,52 @@
+{
+  "scenarioId": "gift-card-legacy-seed-hydration",
+  "operationNames": ["giftCardDebit", "giftCard"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["upstream-hydration-parity", "downstream-read-parity", "regression"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-user-error-typename.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-legacy-seed-hydration.graphql",
+    "variablesCapturePath": "$.proxyVariables.userErrorTypename",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Regression coverage for former gift-card seed IDs. The replay sends a public giftCardDebit mutation against the live-created legacy ID captured in gift-card-user-error-typename, then performs a giftCard(id:) read and compares it to the recorded GiftCardHydrate upstream response. Before the seed fallback was removed, this flow resolved the baked local card first, skipped upstream hydration, and the downstream read exposed hardcoded seed values instead of the captured Shopify card.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "legacy seed id debit user error matches",
+        "capturePath": "$.operations.userErrorTypename.response.payload.data.debitError",
+        "proxyPath": "$.data.debitError"
+      },
+      {
+        "name": "legacy seed id downstream read uses captured hydrated card",
+        "capturePath": "$.upstreamCalls[0].response.body.data.giftCard",
+        "proxyPath": "$.data.giftCard",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-legacy-seed-hydration-read.graphql",
+          "variables": {
+            "smallBalanceId": {
+              "fromCapturePath": "$.proxyVariables.userErrorTypename.smallBalanceId"
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.id",
+          "$.lastCharacters",
+          "$.maskedCode",
+          "$.note",
+          "$.customer",
+          "$.recipientAttributes",
+          "$.initialValue",
+          "$.balance"
+        ]
+      }
+    ]
+  }
+}

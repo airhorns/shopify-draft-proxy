@@ -5818,6 +5818,178 @@ fn online_store_script_tag_root_dispatch_delete_and_not_found_are_local() {
 }
 
 #[test]
+fn online_store_sales_channel_cold_reads_forward_and_hydrate_observed_state() {
+    let theme_id = "gid://shopify/OnlineStoreTheme/701";
+    let script_tag_id = "gid://shopify/ScriptTag/702";
+    let web_pixel_id = "gid://shopify/WebPixel/703";
+    let server_pixel_id = "gid://shopify/ServerPixel/704";
+    let mobile_app_id = "gid://shopify/MobilePlatformApplication/705";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body)
+                .expect("upstream sales-channel read body parses");
+            upstream_calls.lock().unwrap().push(body);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "theme": {
+                            "__typename": "OnlineStoreTheme",
+                            "id": theme_id,
+                            "name": "Upstream main theme",
+                            "role": "MAIN"
+                        },
+                        "themes": {
+                            "nodes": [{
+                                "__typename": "OnlineStoreTheme",
+                                "id": theme_id,
+                                "name": "Upstream main theme",
+                                "role": "MAIN"
+                            }]
+                        },
+                        "scriptTag": {
+                            "id": script_tag_id,
+                            "src": "https://cdn.example.test/upstream.js",
+                            "displayScope": "ALL",
+                            "event": "onload",
+                            "cache": true
+                        },
+                        "scriptTags": {
+                            "nodes": [{
+                                "id": script_tag_id,
+                                "src": "https://cdn.example.test/upstream.js",
+                                "displayScope": "ALL",
+                                "event": "onload",
+                                "cache": true
+                            }]
+                        },
+                        "webPixel": {
+                            "__typename": "WebPixel",
+                            "id": web_pixel_id,
+                            "status": "CONNECTED",
+                            "settings": {"accountID": "upstream"},
+                            "webhookEndpointAddress": null
+                        },
+                        "serverPixel": {
+                            "__typename": "ServerPixel",
+                            "id": server_pixel_id,
+                            "status": "CONNECTED",
+                            "webhookEndpointAddress": "arn:aws:events:us-east-1:123456789012:event-bus/upstream"
+                        },
+                        "mobilePlatformApplication": {
+                            "__typename": "AppleApplication",
+                            "id": mobile_app_id,
+                            "appId": "com.example.upstream",
+                            "universalLinksEnabled": true
+                        },
+                        "mobilePlatformApplications": {
+                            "nodes": [{
+                                "__typename": "AppleApplication",
+                                "id": mobile_app_id,
+                                "appId": "com.example.upstream",
+                                "universalLinksEnabled": true
+                            }]
+                        }
+                    }
+                }),
+            }
+        }
+    });
+
+    let read_query = r#"
+        query SalesChannelColdRead($themeId: ID!, $scriptTagId: ID!, $webPixelId: ID!, $serverPixelId: ID!, $mobileAppId: ID!) {
+          theme(id: $themeId) { id name role }
+          themes(first: 10) { nodes { id name role } }
+          scriptTag(id: $scriptTagId) { id src displayScope event cache }
+          scriptTags(first: 10) { nodes { id src displayScope event cache } }
+          webPixel(id: $webPixelId) { id status settings webhookEndpointAddress }
+          serverPixel(id: $serverPixelId) { id status webhookEndpointAddress }
+          mobilePlatformApplication(id: $mobileAppId) { __typename ... on AppleApplication { id appId universalLinksEnabled } }
+          mobilePlatformApplications(first: 10) { nodes { __typename ... on AppleApplication { id appId universalLinksEnabled } } }
+        }
+    "#;
+    let variables = json!({
+        "themeId": theme_id,
+        "scriptTagId": script_tag_id,
+        "webPixelId": web_pixel_id,
+        "serverPixelId": server_pixel_id,
+        "mobileAppId": mobile_app_id
+    });
+
+    let cold_read = proxy.process_request(json_graphql_request(read_query, variables.clone()));
+    assert_eq!(cold_read.status, 200);
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    assert_eq!(
+        cold_read.body["data"]["themes"]["nodes"][0]["id"],
+        json!(theme_id)
+    );
+    assert_eq!(
+        cold_read.body["data"]["scriptTags"]["nodes"][0]["id"],
+        json!(script_tag_id)
+    );
+
+    let hydrated_read = proxy.process_request(json_graphql_request(read_query, variables));
+    assert_eq!(
+        upstream_calls.lock().unwrap().len(),
+        1,
+        "observed sales-channel state should satisfy the second read locally"
+    );
+    assert_eq!(
+        hydrated_read.body["data"]["theme"],
+        json!({"id": theme_id, "name": "Upstream main theme", "role": "MAIN"})
+    );
+    assert_eq!(
+        hydrated_read.body["data"]["scriptTag"],
+        json!({"id": script_tag_id, "src": "https://cdn.example.test/upstream.js", "displayScope": "ALL", "event": "onload", "cache": true})
+    );
+    assert_eq!(
+        hydrated_read.body["data"]["webPixel"],
+        json!({"id": web_pixel_id, "status": "CONNECTED", "settings": {"accountID": "upstream"}, "webhookEndpointAddress": null})
+    );
+    assert_eq!(
+        hydrated_read.body["data"]["serverPixel"],
+        json!({"id": server_pixel_id, "status": "CONNECTED", "webhookEndpointAddress": "arn:aws:events:us-east-1:123456789012:event-bus/upstream"})
+    );
+    assert_eq!(
+        hydrated_read.body["data"]["mobilePlatformApplications"]["nodes"],
+        json!([{"__typename": "AppleApplication", "id": mobile_app_id, "appId": "com.example.upstream", "universalLinksEnabled": true}])
+    );
+}
+
+#[test]
+fn online_store_script_tag_update_unknown_id_returns_not_found() {
+    let mut proxy = snapshot_proxy();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ScriptTagUpdateUnknown {
+          scriptTagUpdate(id: "gid://shopify/ScriptTag/999999999", input: { src: "https://cdn.example.test/changed.js" }) {
+            scriptTag { id src displayScope event cache }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        update.body["data"]["scriptTagUpdate"],
+        json!({
+            "scriptTag": null,
+            "userErrors": [{
+                "code": "NOT_FOUND",
+                "field": ["id"],
+                "message": "Script tag not found"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
+}
+
+#[test]
 fn online_store_storefront_access_token_edges_ported_from_gleam() {
     let mut proxy = snapshot_proxy();
 
@@ -8214,6 +8386,214 @@ fn metaobject_auto_handles_and_fallback_display_names_follow_core_shapes() {
     assert_eq!(
         upsert_update.body["data"]["metaobjectUpsert"]["metaobject"],
         json!({"id": upsert_id, "handle": "upserthandle", "displayName": "Upsert Handle"})
+    );
+}
+
+#[test]
+fn metaobject_create_and_upsert_validate_explicit_handles_before_staging() {
+    let mut proxy = snapshot_proxy();
+    create_metaobject_definition_for_test(
+        &mut proxy,
+        "handle_validation_type",
+        vec![
+            json!({"key": "title", "name": "Title", "type": "single_line_text_field", "required": false}),
+        ],
+    );
+
+    let create_query = r#"
+        mutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle type displayName }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let update_query = r#"
+        mutation UpdateMetaobject($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id handle type displayName }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let upsert_query = r#"
+        mutation UpsertMetaobject($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject { id handle type displayName }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let read_query = r#"
+        query ReadHandleValidationState($type: String!, $handle: MetaobjectHandleInput!) {
+          definition: metaobjectDefinitionByType(type: $type) { metaobjectsCount }
+          entries: metaobjects(type: $type, first: 10) { nodes { id handle } }
+          byHandle: metaobjectByHandle(handle: $handle) { id handle }
+        }
+        "#;
+
+    let invalid_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "handle_validation_type",
+            "handle": "hello world!",
+            "fields": [{"key": "title", "value": "Handle hello world!"}]
+        }}),
+    ));
+    assert_eq!(
+        invalid_create.body["data"]["metaobjectCreate"],
+        json!({
+            "metaobject": null,
+            "userErrors": [{
+                "field": ["metaobject", "handle"],
+                "message": "Handle is invalid",
+                "code": "INVALID",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let too_long = "x".repeat(256);
+    let too_long_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "handle_validation_type",
+            "handle": too_long,
+            "fields": [{"key": "title", "value": "Handle too long"}]
+        }}),
+    ));
+    assert_eq!(
+        too_long_create.body["data"]["metaobjectCreate"],
+        json!({
+            "metaobject": null,
+            "userErrors": [{
+                "field": ["metaobject", "handle"],
+                "message": "Handle is too long (maximum is 255 characters)",
+                "code": "TOO_LONG",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let invalid_upsert = proxy.process_request(json_graphql_request(
+        upsert_query,
+        json!({
+            "handle": {"type": "handle_validation_type", "handle": "hello world!"},
+            "metaobject": {"fields": [{"key": "title", "value": "Handle hello world!"}]}
+        }),
+    ));
+    assert_eq!(
+        invalid_upsert.body["data"]["metaobjectUpsert"],
+        json!({
+            "metaobject": null,
+            "userErrors": [{
+                "field": ["handle", "handle"],
+                "message": "Handle is invalid",
+                "code": "INVALID",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let too_long = "x".repeat(256);
+    let too_long_upsert = proxy.process_request(json_graphql_request(
+        upsert_query,
+        json!({
+            "handle": {"type": "handle_validation_type", "handle": too_long},
+            "metaobject": {"fields": [{"key": "title", "value": "Handle too long"}]}
+        }),
+    ));
+    assert_eq!(
+        too_long_upsert.body["data"]["metaobjectUpsert"],
+        json!({
+            "metaobject": null,
+            "userErrors": [{
+                "field": ["handle", "handle"],
+                "message": "Handle is too long (maximum is 255 characters)",
+                "code": "TOO_LONG",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let after_rejects = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({
+            "type": "handle_validation_type",
+            "handle": {"type": "handle_validation_type", "handle": "hello-world"}
+        }),
+    ));
+    assert_eq!(
+        after_rejects.body["data"]["definition"]["metaobjectsCount"],
+        json!(0)
+    );
+    assert_eq!(after_rejects.body["data"]["entries"]["nodes"], json!([]));
+    assert_eq!(after_rejects.body["data"]["byHandle"], Value::Null);
+
+    let blank_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "handle_validation_type",
+            "handle": "",
+            "fields": [{"key": "title", "value": "Blank create"}]
+        }}),
+    ));
+    assert_eq!(
+        blank_create.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    let blank_create_metaobject = &blank_create.body["data"]["metaobjectCreate"]["metaobject"];
+    let blank_create_id = blank_create_metaobject["id"].as_str().unwrap().to_string();
+    let blank_create_handle = blank_create_metaobject["handle"].as_str().unwrap();
+    assert!(!blank_create_handle.is_empty());
+    assert_eq!(
+        blank_create_metaobject["displayName"],
+        json!("Blank create")
+    );
+
+    let blank_upsert = proxy.process_request(json_graphql_request(
+        upsert_query,
+        json!({
+            "handle": {"type": "handle_validation_type", "handle": ""},
+            "metaobject": {"fields": [{"key": "title", "value": "Blank upsert"}]}
+        }),
+    ));
+    assert_eq!(
+        blank_upsert.body["data"]["metaobjectUpsert"]["userErrors"],
+        json!([])
+    );
+    let blank_upsert_metaobject = &blank_upsert.body["data"]["metaobjectUpsert"]["metaobject"];
+    let blank_upsert_handle = blank_upsert_metaobject["handle"].as_str().unwrap();
+    assert!(!blank_upsert_handle.is_empty());
+    assert_ne!(blank_upsert_handle, blank_create_handle);
+    assert_eq!(
+        blank_upsert_metaobject["displayName"],
+        json!("Blank upsert")
+    );
+
+    let update_invalid = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": blank_create_id, "metaobject": {
+            "handle": "hello world!",
+            "fields": [{"key": "title", "value": "Update invalid"}]
+        }}),
+    ));
+    assert_eq!(
+        update_invalid.body["data"]["metaobjectUpdate"],
+        json!({
+            "metaobject": null,
+            "userErrors": [{
+                "field": ["metaobject", "handle"],
+                "message": "Handle is invalid",
+                "code": "INVALID",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
     );
 }
 
@@ -10640,6 +11020,86 @@ fn online_store_content_lifecycle_dispatches_by_root_and_reads_staged_state() {
         json!([])
     );
     assert_eq!(*upstream_calls.lock().unwrap(), 2);
+}
+
+#[test]
+fn online_store_articles_published_status_query_controls_visibility() {
+    let mut proxy = snapshot_proxy();
+
+    let blog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ArticleStatusBlog {
+          blogCreate(blog: { title: "Article status blog" }) {
+            blog { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(blog.body["data"]["blogCreate"]["userErrors"], json!([]));
+    let blog_id = blog.body["data"]["blogCreate"]["blog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let articles = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ArticleStatusSetup($blogId: ID!) {
+          published: articleCreate(article: { title: "Published article", blogId: $blogId, author: { name: "Status Author" }, isPublished: true }) {
+            article { id title isPublished }
+            userErrors { field message code }
+          }
+          draft: articleCreate(article: { title: "Draft article", blogId: $blogId, author: { name: "Status Author" }, isPublished: false }) {
+            article { id title isPublished }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"blogId": blog_id}),
+    ));
+    assert_eq!(articles.body["data"]["published"]["userErrors"], json!([]));
+    assert_eq!(articles.body["data"]["draft"]["userErrors"], json!([]));
+    let published_id = articles.body["data"]["published"]["article"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let draft_id = articles.body["data"]["draft"]["article"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ArticleStatusReads {
+          defaultPublished: articles(first: 10) { nodes { id title isPublished } }
+          explicitPublished: articles(first: 10, query: "published_status:published") { nodes { id title isPublished } }
+          anyStatus: articles(first: 10, query: "published_status:any") { nodes { id title isPublished } }
+          unpublishedOnly: articles(first: 10, query: "published_status:unpublished") { nodes { id title isPublished } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["defaultPublished"]["nodes"],
+        json!([{"id": published_id, "title": "Published article", "isPublished": true}])
+    );
+    assert_eq!(
+        read.body["data"]["explicitPublished"]["nodes"],
+        json!([{"id": published_id, "title": "Published article", "isPublished": true}])
+    );
+    assert_eq!(
+        read.body["data"]["anyStatus"]["nodes"],
+        json!([
+            {"id": published_id, "title": "Published article", "isPublished": true},
+            {"id": draft_id, "title": "Draft article", "isPublished": false}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["unpublishedOnly"]["nodes"],
+        json!([{"id": draft_id, "title": "Draft article", "isPublished": false}])
+    );
 }
 
 #[test]
