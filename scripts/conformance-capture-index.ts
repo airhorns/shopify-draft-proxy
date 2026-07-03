@@ -12095,6 +12095,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    captureId: 'customer-update-inline-address-id-semantics',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-customer-update-inline-addresses-conformance.mts',
+    purpose:
+      'customerUpdate CustomerInput.addresses id-aware update, unknown-id validation, replacement-list, and downstream read behavior.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-update-inline-address-id-semantics.json`,
+      'config/parity-specs/customers/customer-update-inline-address-id-semantics.json',
+      'config/parity-requests/customers/customer-update-inline-addresses-create.graphql',
+      'config/parity-requests/customers/customer-update-inline-addresses-read.graphql',
+      'config/parity-requests/customers/customer-update-inline-addresses-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable customer with two addresses, records inline address update/error/create branches, then deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     captureId: 'customer-address-country-province-validation',
     scriptPath: 'scripts/capture-customer-address-country-province-validation.mts',
     purpose:
