@@ -2283,7 +2283,7 @@ fn fulfillment_cancel_returns_not_found_for_unknown_fulfillment_gid() {
         mutation FulfillmentCancelUnknown($id: ID!) {
           cancelAlias: fulfillmentCancel(id: $id) {
             fulfillment { id }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2316,7 +2316,7 @@ fn fulfillment_tracking_update_returns_not_found_for_unknown_fulfillment_gid() {
             trackingInfoInput: $trackingInfoInput
           ) {
             fulfillment { id }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,

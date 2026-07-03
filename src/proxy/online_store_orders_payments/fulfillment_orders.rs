@@ -1381,8 +1381,6 @@ impl DraftProxy {
             }),
             &field.selection,
         )
-
-        )
     }
 
     pub(super) fn staged_fulfillment_payload(
