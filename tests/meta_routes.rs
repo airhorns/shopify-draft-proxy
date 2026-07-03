@@ -314,11 +314,13 @@ fn ported_gleam_draft_proxy_route_and_snapshot_helpers_match_old_proxy_tests() {
     );
     assert_eq!(
         default_proxy
-            .process_request(graphql_request(
-                &json!({ "query": "mutation { eventDelete(id: \"x\") { ok } }" }).to_string()
+            .process_request(request_with_body(
+                "POST",
+                "/admin/api/banana/graphql.json",
+                &json!({ "query": "{ shop { id } }" }).to_string()
             ))
             .status,
-        400
+        404
     );
     assert_eq!(
         default_proxy
