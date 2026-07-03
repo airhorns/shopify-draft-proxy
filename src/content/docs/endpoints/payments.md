@@ -42,43 +42,6 @@ email at runtime. Live success capture still needs a safe
 disposable-customer/no-recipient plan before expanding beyond local intent and
 validation behavior.
 
-### Evidence summary
-
-Payment terms, payment customization, Shopify Payments, dispute, POS cash, and
-Shop Pay payment-request roots are evaluated against the checked-in registry,
-executable parity specs, integration tests, Shopify Admin docs/examples, and
-public query examples. Existing coverage is strongest where the proxy has
-either scrubbed local lifecycle modeling or captured empty/no-data fixtures:
-
-- Payment terms now have live captured lifecycle evidence for
-  `paymentTermsCreate`, `paymentTermsUpdate`, and `paymentTermsDelete` on a
-  disposable draft order, plus downstream `draftOrder.paymentTerms` reads.
-- Payment customizations have local lifecycle tests and captured validation plus
-  empty read parity, but full live happy-path parity still depends on an
-  install/grant that exposes a released `payment_customization` Shopify
-  Function to the conformance store.
-- Shopify Payments account support is intentionally limited to access-denied or
-  no-account parity plus fixture-backed safe scalar fields and empty account
-  activity connections. Balance, bank-account, payout, statement descriptor,
-  dispute, payout, and balance-transaction details remain sensitive
-  scrubbed-fixture gaps.
-- Dispute, POS cash tracking, and Shop Pay payment-request receipt reads are
-  supported only for captured null/empty behavior. Non-empty support requires
-  disposable-store fixtures with minimized financial/customer-visible data and
-  a normalized local state model before the roots can be treated as lifecycle
-  complete.
-- Public examples for POS, Shopify Payments, Shop Pay receipts, and disputes are
-  mostly shape/access examples rather than safe lifecycle recipes. Do not
-  promote them into parity specs unless they are backed by a real captured
-  interaction and an executable proxy comparison.
-
-External processor, POS, and customer-visible side effects remain intentionally
-unemulated at runtime: Shopify Functions are not executed, POS cash sessions and
-hardware state are not invented, Shopify Payments balances/payouts/bank details
-are not synthesized, disputes/evidence are not fabricated, Shop Pay payment
-requests are not sent, and payment-reminder emails are recorded only as local
-intent unless the original raw mutation is later committed explicitly.
-
 ### Supported roots
 
 - `paymentCustomization(id:)`
@@ -222,20 +185,3 @@ Create supports eligible local or upstream-hydrated `Order` and `DraftOrder` IDs
 Validation is local and does not append staged-write log entries for rejected branches. Multiple payment schedules are rejected with `field: null`, `PAYMENT_TERMS_CREATION_UNSUCCESSFUL` on create, `PAYMENT_TERMS_UPDATE_UNSUCCESSFUL` on update, and the Shopify message `Cannot create payment terms with multiple payment schedules.` Missing `Order` and `DraftOrder` create references use `PAYMENT_TERMS_CREATION_UNSUCCESSFUL`, `field: null`, and the Shopify messages `Cannot find the specific Order with id <numeric id>.` / `Cannot find the specific Draft order with id <numeric id>.`; `payment-terms-create-reference-not-found` captures this 2026-04 behavior. Missing update IDs use `field: null`, `Could not find payment terms.`, and `PAYMENT_TERMS_UPDATE_UNSUCCESSFUL`; `payment-terms-create-on-order` and the retained `payment-terms-update-missing-local-runtime` scenario capture this live 2026-04 payload. Missing delete IDs use `field: null`, `Could not find payment terms.`, and `PAYMENT_TERMS_DELETE_UNSUCCESSFUL`; `payment-terms-delete-not-found` captures this 2026-04 behavior. Captured 2026-04 evidence in `payment-terms-create-template-and-schedule-validation` covers the template catalog lookup, unknown template IDs (`Could not find payment terms template.`), FIXED schedules missing `dueAt` (`A due date is required with fixed or net payment terms.`), RECEIPT schedules with `dueAt` (`A due date cannot be set with event payment terms.`), and RECEIPT `issuedAt` success with no schedule nodes. `payment-terms-create-template-reprojection` covers successful FIXED, Net 7, and FULFILLMENT create reprojection plus materialized vs empty schedule-node shape; the Net 7 branch uses Shopify's accepted `issuedAt` input because the current 2026-04 target rejects dueAt-only NET schedules. The `payment-terms-create-order-eligibility` capture covers Order-owner eligibility: paid Orders reject with `field: null`, `PAYMENT_TERMS_CREATION_UNSUCCESSFUL`, and `Cannot create payment terms on an Order that has already been paid in full.` before staging; unpaid closed and cancelled Orders were accepted by the public 2026-04 Admin API and remain accepted locally. `payment-terms-create-on-order` now captures disposable Order-owned create, multiple-schedule create validation, missing update, and missing delete branches against live Shopify. `payment-terms-delete-owner-cascade` now captures disposable DraftOrder and Order owners through public Admin GraphQL, deletes created payment terms, and verifies owner reads return `paymentTerms: null` after deletion. `payment-terms-update-order-eligibility` captures the update-side paid-Order guard: after an existing Order-owned `PaymentTerms` record is hydrated by `paymentTermsId`, a fully paid owner returns `field: null`, `PAYMENT_TERMS_UPDATE_UNSUCCESSFUL`, and the same paid-in-full message without staging an update. Local update also honors explicit channel-policy hints on hydrated/seeded Order data (`paymentTermsAllowed`, `payment_terms_allowed`, or `__draftProxyPaymentTermsAllowed: false`) and returns `PAYMENT_TERMS_UPDATE_UNSUCCESSFUL` with Shopify's channel-policy message; the current conformance shop did not expose a public order-create path for a channel-disallowed sales channel, so that branch is runtime-test-backed until a live fixture can be captured. DraftOrder owners skip these Order-only paid-status and channel-policy guards. Shopify rejects omitted standalone `paymentTermsCreate.paymentTermsAttributes.paymentTermsTemplateId` during GraphQL variable coercion before the local lifecycle handler runs, so the proxy returns the same top-level `INVALID_VARIABLE` envelope without staging or logging a create. Public 2026-04 introspection shows `PaymentTermsInput.paymentTermsTemplateId` is nullable for `paymentTermsUpdate`; a live disposable-draft capture confirms omitting it on an existing Net 30 payment term succeeds and recomputes the schedule from the supplied `issuedAt`. The standalone lifecycle mutations use Shopify-documented 2026-04 argument/input shapes plus local guardrails for unknown order/draft targets, unknown template IDs, invalid NET/FIXED/event schedule requirements, missing update IDs, and duplicate deletes.
 
 For `paymentTermsCreate` against an existing captured order or draft order, the Rust runtime uses narrow cassette-backed owner hydration before staging local payment terms. For `paymentTermsUpdate` and `paymentTermsDelete`, the same local path can hydrate an existing `PaymentTerms` node by `paymentTermsId`, including owner and schedule context, before deciding whether to reject or stage locally. Subsequent update/delete and downstream `Order.paymentTerms` / `DraftOrder.paymentTerms` reads then run from local state, preserving the supported-mutation rule while matching the captured owner context.
-
-### Validation anchors
-
-- `config/parity-specs/payments/finance-risk-no-data-read.json`
-- `tests/graphql_routes/orders.rs`
-- `config/parity-specs/payments/payment-reminder-send-eligibility.json`
-- `config/parity-specs/payments/payment-reminder-send-shape.json`
-- `config/parity-specs/payments/payment-reminder-send-additional-guards.json`
-- `config/parity-specs/payments/payment-terms-create-on-order.json`
-- `config/parity-specs/payments/payment-terms-update-missing-local-runtime.json`
-- `config/parity-specs/payments/payment_terms_delete_owner_cascade.json`
-- `config/parity-specs/payments/payment-terms-due-state.json`
-- `config/parity-specs/payments/payment-terms-delete-not-found.json`
-- `scripts/capture-payments-salvaged-parity-conformance.ts`
-- `corepack pnpm conformance:capture-finance-risk`
-- `corepack pnpm conformance:check`
-- `corepack pnpm conformance:parity`

@@ -1867,8 +1867,8 @@ impl DraftProxy {
         if payment_gateway_id.is_some() {
             return selected_json(
                 &json!({
-                    "draftOrder": Value::Null,
-                    "userErrors": [user_error(["paymentGatewayId"], "payment_gateway_not_found", Some("INVALID"))]
+                    "draftOrder": draft_order,
+                    "userErrors": [user_error_omit_code(Value::Null, "Invalid payment gateway", None)]
                 }),
                 &field.selection,
             );

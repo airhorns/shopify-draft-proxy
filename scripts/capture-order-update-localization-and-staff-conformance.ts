@@ -460,7 +460,6 @@ await writeJson(fixturePath, {
             {
               field: ['input', 'staffMemberId'],
               message: 'Staff member does not exist',
-              code: 'NOT_FOUND',
             },
           ],
         },

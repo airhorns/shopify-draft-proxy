@@ -19,8 +19,6 @@ use crate::operation_registry::{
 pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 104_857_600;
 pub(in crate::proxy) const METAFIELDS_SET_INPUT_LIMIT: usize = 25;
 const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
-const LOCAL_APP_SUBSCRIPTION_ACTIVATION_ID: &str = "gid://shopify/AppSubscription/expected";
-const LOCAL_APP_PURCHASE_ONE_TIME_ID: &str = "gid://shopify/AppPurchaseOneTime/expected";
 const LOCALIZATION_BASELINE_PRODUCT_ID: &str = "gid://shopify/Product/9801098789170";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1130,11 +1128,36 @@ impl Store {
     }
 
     fn has_known_publication_catalog(&self) -> bool {
-        !self.base.publication_ids.is_empty() || !self.staged.publication_ids.is_empty()
+        self.base.publication_count.is_some()
+            || !self.base.publication_ids.is_empty()
+            || !self.staged.publication_ids.is_empty()
+            || !self.staged.publications.is_empty()
     }
 
     fn has_publication_id(&self, id: &str) -> bool {
-        self.base.publication_ids.contains(id) || self.staged.publication_ids.contains(id)
+        self.base.publication_ids.contains(id)
+            || self.staged.publication_ids.contains(id)
+            || self.staged.publications.contains_key(id)
+    }
+
+    fn publication_id_for_channel_id(&self, channel_id: &str) -> Option<String> {
+        self.staged
+            .publications
+            .iter()
+            .find_map(|(id, record)| {
+                let matches = record
+                    .get("channel")
+                    .and_then(|channel| channel.get("id"))
+                    .and_then(Value::as_str)
+                    == Some(channel_id);
+                matches.then(|| id.clone())
+            })
+            .or_else(|| {
+                let suffix = resource_id_path_tail(channel_id);
+                let publication_id = shopify_gid("Publication", suffix);
+                self.has_publication_id(&publication_id)
+                    .then_some(publication_id)
+            })
     }
 
     pub(in crate::proxy) fn effective_shop(&self) -> Value {
