@@ -697,6 +697,10 @@ pub(in crate::proxy) fn order_create_line_item_record(
         .as_ref()
         .map(|id| json!({ "id": id }))
         .unwrap_or(Value::Null);
+    let selling_plan = resolved_string_field(input, "sellingPlanId")
+        .or_else(|| resolved_string_field(input, "sellingPlanName"))
+        .map(|name| json!({ "name": name }))
+        .unwrap_or(Value::Null);
     let weight = resolved_object_field(input, "weight")
         .map(|weight| {
             json!({
@@ -716,6 +720,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
         "variant": variant,
         "productId": product_id,
         "product": product,
+        "sellingPlan": selling_plan,
         "customAttributes": custom_attributes,
         "requiresShipping": resolved_bool_field(input, "requiresShipping").unwrap_or(true),
         "taxable": resolved_bool_field(input, "taxable").unwrap_or(true),

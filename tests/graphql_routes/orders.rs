@@ -4420,81 +4420,28 @@ fn payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards() {
 }
 
 #[test]
-fn payment_reminder_send_local_only_order_guardrails_ported_from_gleam() {
+fn payment_reminder_send_resolves_staged_payment_terms_schedule_guardrails() {
     let mut proxy = snapshot_proxy();
     let query = include_str!("../../config/parity-requests/payments/payment-reminder-send.graphql");
-    let cases = [
-        (
-            // `/123` is the conformance "does not exist" sentinel
-            // (metafields_orders_payments.rs:2608); editing the handler would
-            // break the payments parity spec, so assert the recorded error here.
-            "gid://shopify/PaymentSchedule/123",
-            payment_reminder_error("Payment schedule does not exist"),
-        ),
-        (
-            "gid://shopify/PaymentSchedule/selling-plan",
-            payment_reminder_error("Order has a selling plan"),
-        ),
-        (
-            "gid://shopify/PaymentSchedule/capture",
-            payment_reminder_error("Order has capture at fulfillment terms"),
-        ),
-        (
-            "gid://shopify/PaymentSchedule/missing-email",
-            payment_reminder_error("Order does not have a contact email"),
-        ),
-        (
-            "gid://shopify/PaymentSchedule/collection",
-            payment_reminder_error("Payment collection request has not been sent"),
-        ),
-        (
-            "gid://shopify/PaymentSchedule/paid",
-            payment_reminder_error("Payment schedule is already completed"),
-        ),
-        (
-            "gid://shopify/PaymentSchedule/current",
-            payment_reminder_error("Payment reminder could not be sent"),
-        ),
-        (
-            "gid://shopify/PaymentSchedule/cancelled",
-            payment_reminder_error("Payment reminder could not be sent"),
-        ),
-        (
-            "gid://shopify/PaymentSchedule/paid-owner",
-            payment_reminder_error("Payment schedule is already completed"),
-        ),
-        (
-            "gid://shopify/PaymentSchedule/completed-draft",
-            payment_reminder_error("Payment schedule is not for an Order"),
-        ),
-    ];
 
-    for (schedule_id, expected_payload) in cases {
-        let response = proxy.process_request(json_graphql_request(
-            query,
-            json!({ "paymentScheduleId": schedule_id }),
-        ));
-        assert_eq!(response.status, 200, "{schedule_id}");
-        assert_eq!(
-            response.body,
-            json!({ "data": { "paymentReminderSend": expected_payload } }),
-            "{schedule_id}"
-        );
-    }
-
-    let first_rate_limited_schedule = proxy.process_request(json_graphql_request(
+    let (_success_order, success_schedule) = stage_reminder_order_payment_schedule(
+        &mut proxy,
+        Some("reminder-success@example.test"),
+        None,
+    );
+    let first_send = proxy.process_request(json_graphql_request(
         query,
-        json!({ "paymentScheduleId": "gid://shopify/PaymentSchedule/rate-limit" }),
+        json!({ "paymentScheduleId": success_schedule.clone() }),
     ));
-    assert_eq!(first_rate_limited_schedule.status, 200);
+    assert_eq!(first_send.status, 200);
     assert_eq!(
-        first_rate_limited_schedule.body,
+        first_send.body,
         json!({ "data": { "paymentReminderSend": { "success": true, "userErrors": [] } } })
     );
 
     let second_send = proxy.process_request(json_graphql_request(
         query,
-        json!({ "paymentScheduleId": "gid://shopify/PaymentSchedule/rate-limit" }),
+        json!({ "paymentScheduleId": success_schedule }),
     ));
     assert_eq!(second_send.status, 200);
     assert_eq!(
@@ -4504,6 +4451,198 @@ fn payment_reminder_send_local_only_order_guardrails_ported_from_gleam() {
                 "paymentReminderSend": payment_reminder_error("You cannot send more than 1 payment reminders for the same order in a 24hour period")
             }
         })
+    );
+
+    let unknown_schedule = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "paymentScheduleId": "gid://shopify/PaymentSchedule/999999" }),
+    ));
+    assert_eq!(
+        unknown_schedule.body,
+        json!({ "data": { "paymentReminderSend": payment_reminder_error("Payment schedule does not exist") } })
+    );
+
+    let (_missing_email_order, missing_email_schedule) =
+        stage_reminder_order_payment_schedule(&mut proxy, Some("   "), None);
+    let missing_email = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "paymentScheduleId": missing_email_schedule }),
+    ));
+    assert_eq!(
+        missing_email.body,
+        json!({ "data": { "paymentReminderSend": payment_reminder_error("Order does not have a contact email") } })
+    );
+
+    let (_selling_plan_order, selling_plan_schedule) = stage_reminder_order_payment_schedule(
+        &mut proxy,
+        Some("reminder-selling-plan@example.test"),
+        Some("Subscribe and save"),
+    );
+    let selling_plan = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "paymentScheduleId": selling_plan_schedule }),
+    ));
+    assert_eq!(
+        selling_plan.body,
+        json!({ "data": { "paymentReminderSend": payment_reminder_error("Order has a selling plan") } })
+    );
+
+    let (paid_order, paid_schedule) =
+        stage_reminder_order_payment_schedule(&mut proxy, Some("reminder-paid@example.test"), None);
+    mark_reminder_order_paid(&mut proxy, paid_order);
+    let paid = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "paymentScheduleId": paid_schedule }),
+    ));
+    assert_eq!(
+        paid.body,
+        json!({ "data": { "paymentReminderSend": payment_reminder_error("Payment schedule is already completed") } })
+    );
+
+    let (closed_order, closed_schedule) = stage_reminder_order_payment_schedule(
+        &mut proxy,
+        Some("reminder-closed@example.test"),
+        None,
+    );
+    close_reminder_order(&mut proxy, closed_order);
+    let closed = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "paymentScheduleId": closed_schedule }),
+    ));
+    assert_eq!(
+        closed.body,
+        json!({ "data": { "paymentReminderSend": payment_reminder_error("Payment reminder could not be sent") } })
+    );
+
+    let draft_schedule = stage_reminder_draft_payment_schedule(&mut proxy);
+    let draft = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "paymentScheduleId": draft_schedule }),
+    ));
+    assert_eq!(
+        draft.body,
+        json!({ "data": { "paymentReminderSend": payment_reminder_error("Payment schedule is not for an Order") } })
+    );
+}
+
+fn stage_reminder_order_payment_schedule(
+    proxy: &mut DraftProxy,
+    email: Option<&str>,
+    selling_plan_name: Option<&str>,
+) -> (Value, Value) {
+    let mut line_item = json!({
+        "title": "Reminder order item",
+        "quantity": 1,
+        "priceSet": {
+            "shopMoney": { "amount": "10.00", "currencyCode": "CAD" },
+            "presentmentMoney": { "amount": "10.00", "currencyCode": "CAD" }
+        },
+        "taxable": false
+    });
+    if let Some(name) = selling_plan_name {
+        line_item["sellingPlanName"] = json!(name);
+    }
+    let mut order = json!({
+        "currency": "CAD",
+        "presentmentCurrency": "CAD",
+        "financialStatus": "PENDING",
+        "lineItems": [line_item]
+    });
+    if let Some(email) = email {
+        order["email"] = json!(email);
+    }
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreatePaymentReminderOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id displayFinancialStatus email }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "order": order }),
+    ));
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let schedule_id = stage_reminder_payment_terms(proxy, order_id.clone());
+    (order_id, schedule_id)
+}
+
+fn stage_reminder_draft_payment_schedule(proxy: &mut DraftProxy) -> Value {
+    stage_reminder_payment_terms(proxy, json!("gid://shopify/DraftOrder/reminder-draft"))
+}
+
+fn stage_reminder_payment_terms(proxy: &mut DraftProxy, owner_id: Value) -> Value {
+    let create_terms = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreatePaymentReminderTerms($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {
+          paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {
+            paymentTerms {
+              id
+              overdue
+              paymentSchedules(first: 1) {
+                nodes { id due dueAt completedAt }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "referenceId": owner_id,
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+                "paymentSchedules": [{ "issuedAt": "2026-05-05T00:00:00Z" }]
+            }
+        }),
+    ));
+    assert_eq!(
+        create_terms.body["data"]["paymentTermsCreate"]["userErrors"],
+        json!([])
+    );
+    create_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["paymentSchedules"]["nodes"][0]
+        ["id"]
+        .clone()
+}
+
+fn mark_reminder_order_paid(proxy: &mut DraftProxy, order_id: Value) {
+    let mark = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarkPaymentReminderOrderPaid($input: OrderMarkAsPaidInput!) {
+          orderMarkAsPaid(input: $input) {
+            order { id displayFinancialStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": order_id } }),
+    ));
+    assert_eq!(
+        mark.body["data"]["orderMarkAsPaid"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        mark.body["data"]["orderMarkAsPaid"]["order"]["displayFinancialStatus"],
+        json!("PAID")
+    );
+}
+
+fn close_reminder_order(proxy: &mut DraftProxy, order_id: Value) {
+    let close = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ClosePaymentReminderOrder($input: OrderCloseInput!) {
+          orderClose(input: $input) {
+            order { id closed closedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": order_id } }),
+    ));
+    assert_eq!(close.body["data"]["orderClose"]["userErrors"], json!([]));
+    assert_eq!(
+        close.body["data"]["orderClose"]["order"]["closed"],
+        json!(true)
     );
 }
 
@@ -9782,6 +9921,11 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
         "countryCode": "US",
         "provinceCode": "NY"
     });
+    let (_reminder_order_id, payment_schedule_id) = stage_reminder_order_payment_schedule(
+        &mut proxy,
+        Some("customer-payment-method-reminder@example.test"),
+        None,
+    );
 
     let primary = proxy.process_request(json_graphql_request(
         include_str!(
@@ -9798,7 +9942,7 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
                     "paymentMethodId": "pm_sensitive"
                 }
             },
-            "paymentScheduleId": "gid://shopify/PaymentSchedule/123"
+            "paymentScheduleId": payment_schedule_id
         }),
     ));
     assert_eq!(primary.body["data"]["cardCreate"]["userErrors"], json!([]));
@@ -9815,17 +9959,8 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
         json!("gid://shopify/CustomerPaymentMethod/3")
     );
     assert_eq!(
-        // The inline reminder targets `/123`, the conformance "does not exist"
-        // sentinel; the recorded fixture reports a PAYMENT_REMINDER_SEND_UNSUCCESSFUL.
         primary.body["data"]["reminder"],
-        json!({
-            "success": null,
-            "userErrors": [{
-                "field": null,
-                "message": "Payment schedule does not exist",
-                "code": "PAYMENT_REMINDER_SEND_UNSUCCESSFUL"
-            }]
-        })
+        json!({ "success": true, "userErrors": [] })
     );
 
     let duplication = proxy.process_request(json_graphql_request(
