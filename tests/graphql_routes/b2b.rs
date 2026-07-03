@@ -1065,7 +1065,7 @@ fn b2b_companies_delete_mixes_blocked_deleted_and_unknown_ids() {
         }
         "#,
         json!({ "order": {
-            "email": "order-customer-b2b@example.com",
+            "email": "b2b-company-delete-blocker@example.test",
             "purchasingEntity": {
                 "purchasingCompany": { "companyId": blocked_id }
             },
