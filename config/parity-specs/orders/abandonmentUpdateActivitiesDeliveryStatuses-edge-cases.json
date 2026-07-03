@@ -1,102 +1,27 @@
 {
   "scenarioId": "abandonmentUpdateActivitiesDeliveryStatuses-edge-cases",
-  "operationNames": ["abandonmentUpdateActivitiesDeliveryStatuses", "abandonment", "node"],
+  "operationNames": ["abandonmentUpdateActivitiesDeliveryStatuses"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "runtime-staging",
-    "user-errors-parity",
-    "downstream-read-parity",
-    "no-upstream-passthrough",
-    "local-runtime-backed"
-  ],
+  "assertionKinds": ["payload-shape", "selected-fields", "user-errors"],
   "liveCaptureFiles": [
-    "fixtures/conformance/local-runtime/2026-04/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/abandonment-delivery-status-unknown.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql",
-    "variablesCapturePath": "$.cases.forward.variables",
-    "apiVersion": "2026-04"
+    "documentPath": "config/parity-requests/orders/abandonment-delivery-status-unknown.graphql",
+    "variablesPath": "config/parity-requests/orders/abandonment-delivery-status-unknown.variables.json"
   },
   "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable safe mutation parity for an unknown abandonment id. This validates the local side-effect-free userError branch; seeded integration tests cover the local staging branch for existing in-memory abandonment records. Replacement for retired synthetic/local-runtime orders evidence. This scenario ID is preserved for continuity but now reuses the real Shopify capture and proxy request contract from config/parity-specs/orders/abandonment-delivery-status-unknown.json (abandonment-delivery-status-unknown); the old local-runtime cassette is no longer parity evidence.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "forward-transition",
-        "capturePath": "$.cases.forward.expected.data.abandonmentUpdateActivitiesDeliveryStatuses",
-        "proxyPath": "$.data.abandonmentUpdateActivitiesDeliveryStatuses"
-      },
-      {
-        "name": "read-after-forward-transition",
-        "capturePath": "$.cases.forwardRead.expected.data.abandonment",
-        "proxyPath": "$.data.abandonment",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.abandonmentUpdateActivitiesDeliveryStatuses.abandonment.id"
-            }
-          },
-          "apiVersion": "2026-04"
-        }
-      },
-      {
-        "name": "node-read-after-forward-transition",
-        "capturePath": "$.cases.forwardRead.expected.data.abandonment",
-        "proxyPath": "$.data.node",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-node-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.abandonmentUpdateActivitiesDeliveryStatuses.abandonment.id"
-            }
-          },
-          "apiVersion": "2026-04"
-        }
-      },
-      {
-        "name": "unknown-marketing-activity",
-        "capturePath": "$.cases.unknownMarketingActivity.expected.data.abandonmentUpdateActivitiesDeliveryStatuses",
-        "proxyPath": "$.data.abandonmentUpdateActivitiesDeliveryStatuses",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql",
-          "variablesCapturePath": "$.cases.unknownMarketingActivity.variables",
-          "apiVersion": "2026-04"
-        }
-      },
-      {
-        "name": "backwards-transition",
-        "capturePath": "$.cases.backwards.expected.data.abandonmentUpdateActivitiesDeliveryStatuses",
-        "proxyPath": "$.data.abandonmentUpdateActivitiesDeliveryStatuses",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql",
-          "variablesCapturePath": "$.cases.backwards.variables",
-          "apiVersion": "2026-04"
-        }
-      },
-      {
-        "name": "same-status-no-op",
-        "capturePath": "$.cases.sameStatus.expected.data.abandonmentUpdateActivitiesDeliveryStatuses",
-        "proxyPath": "$.data.abandonmentUpdateActivitiesDeliveryStatuses",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql",
-          "variablesCapturePath": "$.cases.sameStatus.variables",
-          "apiVersion": "2026-04"
-        }
-      },
-      {
-        "name": "future-delivered-at",
-        "capturePath": "$.cases.futureDeliveredAt.expected.data.abandonmentUpdateActivitiesDeliveryStatuses",
-        "proxyPath": "$.data.abandonmentUpdateActivitiesDeliveryStatuses",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql",
-          "variablesCapturePath": "$.cases.futureDeliveredAt.variables",
-          "apiVersion": "2026-04"
-        }
+        "name": "abandonment-delivery-status-unknown-data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
       }
     ]
-  },
-  "notes": "Executable local-runtime parity for abandonmentUpdateActivitiesDeliveryStatuses edge cases. Public Admin Abandonment reads do not expose the internal marketing-activity delivery map, so this scenario earns known abandonment state through cassette-backed local-runtime hydration and then strictly compares the mutation payloads plus downstream abandonment(id:) and generic node(id:) read-after-write behavior without sending the supported mutation upstream."
+  }
 }
