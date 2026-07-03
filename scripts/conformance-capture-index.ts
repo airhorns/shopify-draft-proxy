@@ -6732,6 +6732,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'fulfillment-unknown-not-found',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-fulfillment-unknown-not-found-conformance.mts',
+    purpose:
+      'fulfillmentCancel and fulfillmentTrackingInfoUpdate not-found userErrors for well-formed never-created Fulfillment GIDs.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-unknown-not-found.json`,
+      'config/parity-specs/orders/fulfillment-unknown-not-found.json',
+      'config/parity-requests/orders/fulfillmentCancel-unknown-id-not-found.graphql',
+      'config/parity-requests/orders/fulfillmentTrackingInfoUpdate-unknown-id-not-found.graphql',
+    ],
+    cleanupBehavior:
+      'Uses fixed never-created Fulfillment GIDs only; Shopify returns userErrors before mutation so no cleanup is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'draft-orders-status-query-read',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-draft-orders-status-query-conformance.ts',

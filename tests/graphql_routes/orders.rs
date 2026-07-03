@@ -1987,6 +1987,76 @@ fn fulfillment_event_create_rejects_unknown_real_fulfillment_gid() {
 }
 
 #[test]
+fn fulfillment_cancel_returns_not_found_for_unknown_fulfillment_gid() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentCancelUnknown($id: ID!) {
+          cancelAlias: fulfillmentCancel(id: $id) {
+            fulfillment { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Fulfillment/999999999" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["cancelAlias"],
+        json!({
+            "fulfillment": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Fulfillment not found."
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn fulfillment_tracking_update_returns_not_found_for_unknown_fulfillment_gid() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentTrackingInfoUpdateUnknown($fulfillmentId: ID!, $trackingInfoInput: FulfillmentTrackingInput!) {
+          trackingAlias: fulfillmentTrackingInfoUpdate(
+            fulfillmentId: $fulfillmentId
+            trackingInfoInput: $trackingInfoInput
+          ) {
+            fulfillment { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentId": "gid://shopify/Fulfillment/999999999",
+            "trackingInfoInput": {
+                "company": "UPS",
+                "number": "UNKNOWN-TRACK",
+                "url": "https://tracking.example/UNKNOWN-TRACK"
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["trackingAlias"],
+        json!({
+            "fulfillment": null,
+            "userErrors": [{
+                "field": ["fulfillmentId"],
+                "message": "Fulfillment does not exist."
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
 fn fulfillment_cancel_and_tracking_accept_cancelled_or_delivered_fulfillments() {
     let mut proxy = snapshot_proxy();
     let (_order_id, fulfillment_id) = stage_fulfillment_for_event(&mut proxy);

@@ -1329,6 +1329,32 @@ impl DraftProxy {
         )
     }
 
+    pub(super) fn fulfillment_cancel_not_found_payload(field: &RootFieldSelection) -> Value {
+        selected_json(
+            &json!({
+                "fulfillment": Value::Null,
+                "userErrors": [user_error_omit_code(["id"], "Fulfillment not found.", None)]
+            }),
+            &field.selection,
+        )
+    }
+
+    pub(super) fn fulfillment_tracking_info_update_not_found_payload(
+        field: &RootFieldSelection,
+    ) -> Value {
+        selected_json(
+            &json!({
+                "fulfillment": Value::Null,
+                "userErrors": [user_error_omit_code(
+                    ["fulfillmentId"],
+                    "Fulfillment does not exist.",
+                    None
+                )]
+            }),
+            &field.selection,
+        )
+    }
+
     pub(super) fn staged_fulfillment_payload(
         &mut self,
         request: &Request,
@@ -1608,9 +1634,14 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Option<Value> {
         let fulfillment_id = resolved_string_field(&field.arguments, "fulfillmentId")?;
-        let order_id = self
+        let Some(order_id) = self
             .staged_order_id_for_fulfillment(&fulfillment_id)
-            .or_else(|| self.hydrate_order_for_fulfillment_lifecycle(&fulfillment_id, request))?;
+            .or_else(|| self.hydrate_order_for_fulfillment_lifecycle(&fulfillment_id, request))
+        else {
+            return Some(Self::fulfillment_tracking_info_update_not_found_payload(
+                field,
+            ));
+        };
         let tracking_input = resolved_object_field(&field.arguments, "trackingInfoInput")
             .or_else(|| resolved_object_field(&field.arguments, "trackingInfo"))
             .unwrap_or_default();
@@ -1653,9 +1684,12 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Option<Value> {
         let fulfillment_id = resolved_string_field(&field.arguments, "id")?;
-        let order_id = self
+        let Some(order_id) = self
             .staged_order_id_for_fulfillment(&fulfillment_id)
-            .or_else(|| self.hydrate_order_for_fulfillment_lifecycle(&fulfillment_id, request))?;
+            .or_else(|| self.hydrate_order_for_fulfillment_lifecycle(&fulfillment_id, request))
+        else {
+            return Some(Self::fulfillment_cancel_not_found_payload(field));
+        };
         let mut order = self.store.staged.orders.get(&order_id)?.clone();
         let fulfillment = order_fulfillments_mut(&mut order)?
             .iter_mut()
