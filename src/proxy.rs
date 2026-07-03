@@ -2330,6 +2330,70 @@ mod store_tests {
     }
 
     #[test]
+    fn state_version_header_advances_on_mutation_and_holds_on_reads() {
+        let mut proxy = snapshot_proxy();
+
+        let version_of = |response: &Response| {
+            response
+                .headers
+                .get("x-sdp-state-version")
+                .cloned()
+                .expect("every response should carry x-sdp-state-version")
+        };
+
+        let baseline = proxy.process_request(Request {
+            method: "GET".to_string(),
+            path: "/__meta/health".to_string(),
+            headers: BTreeMap::new(),
+            body: String::new(),
+        });
+        let baseline_version = version_of(&baseline);
+
+        let create = proxy.process_request(graphql_request(
+            r#"
+            mutation ProductCreate($product: ProductInput!) {
+              productCreate(product: $product) {
+                product { id }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "product": { "title": "Versioned", "handle": "versioned" } }),
+        ));
+        let after_create = version_of(&create);
+        assert_ne!(
+            after_create, baseline_version,
+            "a staged mutation must advance the state version"
+        );
+
+        // A pure read must not advance the version, so embedders skip persisting.
+        let read = proxy.process_request(Request {
+            method: "GET".to_string(),
+            path: "/__meta/state".to_string(),
+            headers: BTreeMap::new(),
+            body: String::new(),
+        });
+        assert_eq!(
+            version_of(&read),
+            after_create,
+            "reads must leave the state version unchanged"
+        );
+
+        // Reset returns the version to its pristine baseline.
+        let reset = proxy.process_request(Request {
+            method: "POST".to_string(),
+            path: "/__meta/reset".to_string(),
+            headers: BTreeMap::new(),
+            body: String::new(),
+        });
+        assert_eq!(
+            version_of(&reset),
+            baseline_version,
+            "reset must return the state version to baseline"
+        );
+    }
+
+    #[test]
     fn product_downstream_read_uses_staged_store_instead_of_operation_name_fixture() {
         let mut proxy = snapshot_proxy();
         let create = proxy.process_request(graphql_request(

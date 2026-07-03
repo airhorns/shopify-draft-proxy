@@ -62,6 +62,105 @@ proxy = ShopifyDraftProxy.create(
 A transport is anything responding to `#call`. When omitted, the default
 `Net::HTTP` transport is installed.
 
+## Storage adapters (persisting state)
+
+By default a proxy holds its staged state in process memory and loses it when
+the process exits. A **storage adapter** lets you persist that state somewhere
+you control — a file, Redis, a database row, S3 — so it survives restarts or is
+shared between processes.
+
+An adapter is any object responding to two methods:
+
+```ruby
+# load        → a state dump Hash (as returned by #dump_state) or nil
+# save(dump)  → persist the given dump Hash
+```
+
+On construction the proxy calls `#load`; a non-nil result rehydrates the proxy
+(and takes precedence over any `state:` seed). After that, the proxy calls
+`#save` whenever a request changed persistable state:
+
+```ruby
+proxy = ShopifyDraftProxy.create(
+  shopify_admin_origin: "https://example.myshopify.com",
+  storage: ShopifyDraftProxy::Storage::File.new("tmp/proxy-state.json"),
+)
+
+# ... run mutations; each change is persisted automatically ...
+proxy.dispose
+```
+
+`ShopifyDraftProxy::Storage::File` is a batteries-included adapter (and the
+reference implementation of the contract). A custom backend is just as small:
+
+```ruby
+class RedisStorage
+  def initialize(redis, key)
+    @redis = redis
+    @key = key
+  end
+
+  def load
+    raw = @redis.get(@key)
+    raw && JSON.parse(raw)
+  end
+
+  def save(dump)
+    @redis.set(@key, JSON.generate(dump))
+  end
+end
+
+proxy = ShopifyDraftProxy.create(
+  shopify_admin_origin: "https://example.myshopify.com",
+  storage: RedisStorage.new(redis, "shop:#{worker_id}"),
+)
+```
+
+### When state is persisted
+
+`persist:` controls the save cadence:
+
+- `:each_mutation` (default) — the proxy saves automatically after every request
+  that changed state, plus after `commit` and `reset`. Pure reads never save.
+  You can still call `persist!` at any time to force a write.
+- `:manual` — the proxy never saves on its own; call `proxy.persist!` when you
+  want to flush the current state. Fastest, but you own every write.
+
+```ruby
+proxy = ShopifyDraftProxy.create(
+  shopify_admin_origin: "https://example.myshopify.com",
+  storage: my_storage,
+  persist: :manual,
+)
+
+run_a_batch_of_mutations(proxy)
+proxy.persist! # one write for the whole batch
+```
+
+Each adapter is expected to be the single writer of its stored dump. The
+intended concurrency model is *many isolated stores* — one key per test or
+worker — rather than many writers sharing one key (whole-state saves are
+last-write-wins).
+
+### Threading
+
+A `DraftProxy` instance is **not** safe to share across threads. Each call
+borrows the underlying Rust store mutably for the whole request — including the
+outbound transport IO performed during a `commit` — so a second thread entering
+the *same instance* concurrently will panic with a Rust `BorrowMutError`. Give
+each thread/worker its own proxy (and its own storage key); that is the same
+"many isolated stores" model described above.
+
+### If a save fails
+
+Under `:each_mutation`, persistence is **fail-loud**: if `storage.save` raises
+(e.g. the backend is unreachable), the error propagates out of the request call.
+The in-memory mutation has already applied, but the cached version token is *not*
+advanced, so the next successful save writes the full current state and the
+skipped write self-heals. A raised save therefore means "this mutation applied
+but was not persisted" — rescue it if your backend can be flaky, or use
+`persist: :manual` to control exactly when writes happen.
+
 ## Native Extension Build
 
 The native extension lives in `native/` and compiles to:

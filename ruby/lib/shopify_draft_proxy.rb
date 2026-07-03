@@ -42,18 +42,66 @@ module ShopifyDraftProxy
     end
   end
 
+  # Storage adapters let an embedder persist proxy state somewhere other than
+  # process memory — a file, Redis, a database row, S3, ... The proxy stays the
+  # single writer of a given adapter; concurrency is expected to come from *many
+  # isolated* stores (one key per test/worker), not many writers sharing one.
+  #
+  # An adapter is any object responding to:
+  #   #load        -> a state dump Hash (as returned by `#dump_state`) or nil
+  #   #save(dump)  -> persists the given dump Hash
+  #
+  # Provide one via `ShopifyDraftProxy.create(storage: MyAdapter.new)`. On
+  # construction the proxy calls `#load`; a non-nil result rehydrates the proxy
+  # (taking precedence over any `state:` seed). By default the proxy then calls
+  # `#save` after every request that changed persistable state (see `persist:`).
+  module Storage
+    # A minimal file-backed adapter that stores the dump as JSON at `path`.
+    # Doubles as the reference implementation of the adapter contract.
+    class File
+      def initialize(path)
+        @path = path
+      end
+
+      def load
+        return nil unless ::File.exist?(@path)
+
+        contents = ::File.read(@path)
+        return nil if contents.empty?
+
+        JSON.parse(contents)
+      end
+
+      def save(dump)
+        ::File.write(@path, JSON.generate(dump))
+      end
+    end
+  end
+
   class << self
     def create(**options)
       DraftProxy.new(options)
     end
   end
 
+  # A DraftProxy wraps a single mutable Rust store. It is **not** safe to share
+  # one instance across threads: each call borrows the store mutably for the
+  # whole request — including the outbound transport IO performed during a
+  # commit — so a second thread entering the same instance concurrently panics
+  # with a Rust `BorrowMutError`. The intended concurrency model is one isolated
+  # proxy (and one storage key) per test/worker, never many threads sharing one.
   class DraftProxy
     DEFAULT_API_VERSION = "2025-01"
 
-    # Inject the default Net::HTTP transport unless the caller supplied one, so
-    # every construction path (create, .new) ends up with a working transport
-    # while still letting embedders override it.
+    # Version token for a brand-new proxy: zero log entries, none settled, and
+    # the synthetic id counter at its initial value. Must mirror the Rust
+    # `state_version()` format `"<len>:<settled>:<next_synthetic_id>"`.
+    PRISTINE_STATE_VERSION = "0:0:1"
+
+    # Inject the default Net::HTTP transport unless the caller supplied one, and
+    # pull out the storage-adapter options (which the native runtime does not
+    # understand) before constructing, so every construction path ends up with a
+    # working transport and an optional persistence wiring.
     class << self
       alias_method :native_new, :new
 
@@ -62,7 +110,39 @@ module ShopifyDraftProxy
         unless options.key?(:transport) || options.key?("transport")
           options[:transport] = Transports::DEFAULT
         end
-        native_new(options)
+
+        storage = options.delete(:storage) || options.delete("storage")
+        persist_mode = options.delete(:persist) || options.delete("persist") || :each_mutation
+        unless [:each_mutation, :manual].include?(persist_mode)
+          raise ArgumentError, "persist: must be :each_mutation or :manual (got #{persist_mode.inspect})"
+        end
+
+        # Storage rehydration wins over an explicit `state:` seed; the seed only
+        # applies when the adapter has nothing stored yet.
+        if storage
+          loaded = storage.load
+          options[:state] = loaded unless loaded.nil?
+        end
+
+        instance = native_new(options)
+        instance.send(:sdp_install_storage, storage, persist_mode, options[:state]) if storage
+        instance
+      end
+
+      # Everything below is internal (private class methods). `new` and
+      # `native_new` above stay public.
+      private
+
+      # Compute the state-version token for a dump Hash, mirroring the Rust
+      # `state_version()` tuple so a client-side comparison stays consistent with
+      # the `x-sdp-state-version` response header. Accepts string- or
+      # symbol-keyed dumps.
+      def sdp_version_of(dump)
+        log = dump["log"] || dump[:log] || {}
+        entries = log["entries"] || log[:entries] || []
+        settled = entries.count { |entry| (entry["status"] || entry[:status]) != "staged" }
+        next_id = dump["nextSyntheticId"] || dump[:nextSyntheticId] || 1
+        "#{entries.length}:#{settled}:#{next_id}"
       end
     end
 
@@ -70,18 +150,24 @@ module ShopifyDraftProxy
     alias native_process_graphql_request process_graphql_request
     alias native_dump_state dump_state
     alias native_commit commit
+    alias native_reset reset
+    alias native_restore_state restore_state
 
     def process_request(request)
-      self.class.response_from_native(native_process_request(request))
+      response = self.class.response_from_native(native_process_request(request))
+      sdp_maybe_persist(response)
+      response
     end
 
     def process_graphql_request(body, api_version: DEFAULT_API_VERSION, path: nil, headers: {})
-      self.class.response_from_native(
+      response = self.class.response_from_native(
         native_process_graphql_request(
           body,
           { "api_version" => api_version, "path" => path, "headers" => headers },
         ),
       )
+      sdp_maybe_persist(response)
+      response
     end
 
     def dump_state(created_at: nil)
@@ -89,10 +175,50 @@ module ShopifyDraftProxy
     end
 
     def commit(headers: {})
-      native_commit({ "headers" => headers })
+      result = native_commit({ "headers" => headers })
+      # Commit flips staged log entries to committed/failed in place — a state
+      # change that advances the version tuple without adding log entries.
+      sdp_persist! if sdp_storage? && @sdp_persist_mode == :each_mutation
+      result
+    end
+
+    def reset
+      result = native_reset
+      sdp_persist! if sdp_storage? && @sdp_persist_mode == :each_mutation
+      result
+    end
+
+    def restore_state(dump)
+      result = native_restore_state(dump)
+      # A restore replaces staged state wholesale, so the cached version token no
+      # longer describes the live store. Re-sync it. Under :each_mutation we also
+      # write the restored state through, keeping storage authoritative the same
+      # way commit/reset do; under :manual we only refresh the tracker so a later
+      # auto/manual persist decision stays correct.
+      if sdp_storage?
+        if @sdp_persist_mode == :each_mutation
+          sdp_persist!
+        else
+          @sdp_state_version = self.class.send(:sdp_version_of, native_dump_state({ "created_at" => nil }))
+        end
+      end
+      result
+    end
+
+    # Persist the current state to the configured adapter immediately, whatever
+    # the persist mode. No-op when no adapter is configured. Use this to control
+    # write frequency under `persist: :manual`.
+    def persist!
+      return nil unless sdp_storage?
+
+      sdp_persist!
+      nil
     end
 
     def dispose
+      # No persistence here: in :each_mutation mode every mutating call (request,
+      # graphql, commit, reset) has already persisted, so a flush would just
+      # rewrite identical state; in :manual mode the caller owns every write.
       nil
     end
 
@@ -106,6 +232,49 @@ module ShopifyDraftProxy
         body: response.fetch("body"),
         headers: response.fetch("headers"),
       )
+    end
+
+    private
+
+    def sdp_install_storage(storage, persist_mode, effective_state)
+      @sdp_storage = storage
+      @sdp_persist_mode = persist_mode
+      # The store already reflects `effective_state` (loaded or seeded) or a
+      # pristine proxy, so record that version without writing it back out.
+      @sdp_state_version =
+        if effective_state
+          self.class.send(:sdp_version_of, effective_state)
+        else
+          PRISTINE_STATE_VERSION
+        end
+    end
+
+    def sdp_storage?
+      defined?(@sdp_storage) && !@sdp_storage.nil?
+    end
+
+    def sdp_maybe_persist(response)
+      return unless sdp_storage?
+      return unless @sdp_persist_mode == :each_mutation
+
+      version = sdp_response_version(response)
+      return if version.nil? || version == @sdp_state_version
+
+      @sdp_storage.save(native_dump_state({ "created_at" => nil }))
+      @sdp_state_version = version
+    end
+
+    def sdp_response_version(response)
+      headers = response.headers
+      return nil if headers.nil?
+
+      headers["x-sdp-state-version"] || headers[:"x-sdp-state-version"]
+    end
+
+    def sdp_persist!
+      dump = native_dump_state({ "created_at" => nil })
+      @sdp_storage.save(dump)
+      @sdp_state_version = self.class.send(:sdp_version_of, dump)
     end
   end
 end
