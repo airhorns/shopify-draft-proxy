@@ -8416,6 +8416,101 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
 }
 
 #[test]
+fn media_files_read_returns_staged_files_and_empty_file_saved_searches() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FilesUploadRuntimeCoverageCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id alt createdAt fileStatus filename ... on MediaImage { image { url width height } preview { image { url } } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [{"alt": "Local runtime file", "contentType": "IMAGE", "filename": "local-runtime.jpg", "originalSource": "https://cdn.example.com/local-runtime.jpg"}]}),
+    ));
+    assert_eq!(
+        create.body["data"]["fileCreate"],
+        json!({
+            "files": [{
+                "id": "gid://shopify/MediaImage/2",
+                "alt": "Local runtime file",
+                "createdAt": "2024-01-01T00:00:01.000Z",
+                "fileStatus": "UPLOADED",
+                "filename": "local-runtime.jpg",
+                "image": {
+                    "url": "https://cdn.example.com/local-runtime.jpg",
+                    "width": null,
+                    "height": null
+                },
+                "preview": {
+                    "image": {
+                        "url": "https://cdn.example.com/local-runtime.jpg"
+                    }
+                }
+            }],
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query FilesUploadRuntimeCoverageRead {
+          files(first: 10) {
+            nodes { id alt createdAt fileStatus filename ... on MediaImage { image { url width height } preview { image { url } } } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          fileSavedSearches(first: 5) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"],
+        json!({
+            "files": {
+                "nodes": [{
+                    "id": "gid://shopify/MediaImage/2",
+                    "alt": "Local runtime file",
+                    "createdAt": "2024-01-01T00:00:01.000Z",
+                    "fileStatus": "UPLOADED",
+                    "filename": "local-runtime.jpg",
+                    "image": {
+                        "url": "https://cdn.example.com/local-runtime.jpg",
+                        "width": null,
+                        "height": null
+                    },
+                    "preview": {
+                        "image": {
+                            "url": "https://cdn.example.com/local-runtime.jpg"
+                        }
+                    }
+                }],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "cursor:gid://shopify/MediaImage/2",
+                    "endCursor": "cursor:gid://shopify/MediaImage/2"
+                }
+            },
+            "fileSavedSearches": {
+                "nodes": [],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                }
+            }
+        })
+    );
+}
+
+#[test]
 fn media_files_connection_paginates_edges_nodes_and_page_info_consistently() {
     let mut proxy = snapshot_proxy();
 
@@ -9450,6 +9545,42 @@ fn media_file_acknowledge_update_failed_validates_missing_and_non_ready_ids() {
             "message": "File id gid://shopify/MediaImage/999 does not exist.",
             "code": "FILE_DOES_NOT_EXIST"
         }]})
+    );
+
+    let downstream_read = proxy.process_request(json_graphql_request(
+        r#"
+        query MediaFileAcknowledgeValidationRead {
+          files(first: 5) {
+            nodes {
+              id
+              fileStatus
+              __typename
+              mediaErrors { code message }
+              mediaWarnings { code message }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        downstream_read.body["data"]["files"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/MediaImage/2",
+                "fileStatus": "UPLOADED",
+                "__typename": "MediaImage",
+                "mediaErrors": [],
+                "mediaWarnings": []
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/MediaImage/2",
+                "endCursor": "cursor:gid://shopify/MediaImage/2"
+            }
+        })
     );
 }
 

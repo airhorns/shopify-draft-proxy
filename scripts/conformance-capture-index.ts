@@ -91,6 +91,10 @@ export const retiredConformanceEvidencePaths = [
   'fixtures/conformance/local-runtime/2026-04/discounts/discount-activation-failure-field-base.json',
   'fixtures/conformance/local-runtime/2026-04/discounts/discount-app-bulk-local-runtime.json',
   'fixtures/conformance/local-runtime/2026-04/discounts/discount-subscription-fields-not-permitted.json',
+  'fixtures/conformance/local-runtime/2026-04/media/file-acknowledge-update-failed-local-runtime.json',
+  'fixtures/conformance/local-runtime/2026-04/media/file-update-product-reference-local-runtime.json',
+  'fixtures/conformance/local-runtime/2026-04/media/files-upload-local-runtime.json',
+  'fixtures/conformance/local-runtime/2026-04/media/media-file-acknowledge-update-failed-semantics.json',
 ] as const;
 
 function defineCaptureIndex(entries: Array<z.input<typeof captureIndexEntrySchema>>): ConformanceCaptureIndexEntry[] {
@@ -1412,7 +1416,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose: 'fileCreate/fileUpdate/fileDelete and staged upload interactions.',
     requiredAuthScopes: ['read_files', 'write_files'],
     fixtureOutputs: [
-      `${LOCAL_RUNTIME_ROOT}file-update-product-reference-local-runtime.json`,
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/file-acknowledge-update-failed-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/media/file-create-delete-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/media/file-delete-product-media-parity.json',
@@ -1422,7 +1425,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-create-validation-branches.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-delete-typed-gid-roundtrip.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-update-validation-branches.json',
-      `${LOCAL_RUNTIME_ROOT}files-upload-local-runtime.json`,
     ],
     cleanupBehavior:
       'Deletes created files when Shopify returns file IDs; local-runtime fixtures need no Shopify cleanup.',
@@ -1597,6 +1599,40 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates two disposable non-ready files for acknowledge validation and deletes them in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
+    captureId: 'media-retired-parity-replacements',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-retired-parity-replacements-conformance.ts',
+    purpose:
+      'Live Shopify Admin GraphQL replacement recordings for former synthetic Files API parity scenarios covering fileCreate/read, stagedUploadsCreate, non-ready fileUpdate, product-reference validation, and fileAcknowledgeUpdateFailed.',
+    requiredAuthScopes: ['read_files', 'write_files', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}files-upload-live-capture.json`,
+      `${CAPTURE_ROOT}media-file-acknowledge-update-failed-semantics.json`,
+      `${CAPTURE_ROOT}file-update-product-reference-local-staging.json`,
+      `${CAPTURE_ROOT}file-acknowledge-update-failed-local-staging.json`,
+      'config/parity-specs/media/files-upload-local-runtime.json',
+      'config/parity-specs/media/media-file-acknowledge-update-failed-semantics.json',
+      'config/parity-specs/media/fileUpdate-product-reference-local-staging.json',
+      'config/parity-specs/media/fileAcknowledgeUpdateFailed-local-staging.json',
+      'config/parity-requests/media/files-upload-local-runtime-create.graphql',
+      'config/parity-requests/media/files-upload-local-runtime-read.graphql',
+      'config/parity-requests/media/files-upload-local-runtime-read-page-two.graphql',
+      'config/parity-requests/media/files-upload-local-runtime-staged-upload.graphql',
+      'config/parity-requests/media/media-file-acknowledge-update-failed-semantics-create.graphql',
+      'config/parity-requests/media/media-file-acknowledge-update-failed-semantics-ack.graphql',
+      'config/parity-requests/media/media-file-acknowledge-update-failed-semantics-read.graphql',
+      'config/parity-requests/media/fileUpdate-product-reference-create.graphql',
+      'config/parity-requests/media/fileUpdate-product-reference-attach.graphql',
+      'config/parity-requests/media/fileUpdate-product-reference-files-read.graphql',
+      'config/parity-requests/media/fileUpdate-product-reference-product-read.graphql',
+      'config/parity-requests/media/fileAcknowledgeUpdateFailed-parity.graphql',
+      'config/parity-requests/media/fileAcknowledgeUpdateFailed-downstream-read.graphql',
+    ],
+    cleanupBehavior: 'Creates disposable files and one disposable product, then deletes them in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -1795,12 +1831,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-file-acknowledge-update-failed-conformance.ts',
     purpose: 'fileAcknowledgeUpdateFailed success and validation behavior.',
     requiredAuthScopes: ['read_files', 'write_files'],
-    fixtureOutputs: [
-      `${CAPTURE_ROOT}file-acknowledge-update-failed-parity.json`,
-      `${LOCAL_RUNTIME_ROOT}file-acknowledge-update-failed-local-runtime.json`,
-      'config/parity-specs/media/fileAcknowledgeUpdateFailed-local-staging.json',
-      'config/parity-specs/media/media-file-acknowledge-update-failed-semantics.json',
-    ],
+    fixtureOutputs: [`${CAPTURE_ROOT}file-acknowledge-update-failed-parity.json`],
     cleanupBehavior: 'Deletes disposable files created for READY acknowledgement and FAILED validation branches.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
