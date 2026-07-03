@@ -9648,7 +9648,7 @@ fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
     assert_eq!(draft["lineItems"]["nodes"].as_array().unwrap().len(), 2);
     let draft_id = draft["id"].clone();
 
-    let complete = proxy.process_request(json_graphql_request(
+    let mut complete_request = json_graphql_request(
         r#"
         mutation CompleteDraft($id: ID!) {
           draftOrderComplete(id: $id, sourceName: "checkout-ui", paymentPending: false) {
@@ -9675,7 +9675,12 @@ fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
         }
         "#,
         json!({ "id": draft_id.clone() }),
-    ));
+    );
+    complete_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "123456789012".to_string(),
+    );
+    let complete = proxy.process_request(complete_request);
     assert_eq!(complete.status, 200);
     assert_eq!(
         complete.body["data"]["draftOrderComplete"]["userErrors"],
@@ -9686,7 +9691,7 @@ fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
     assert_eq!(completed_draft["status"], json!("COMPLETED"));
     let order = &completed_draft["order"];
     assert_eq!(order["id"], json!("gid://shopify/Order/1"));
-    assert_eq!(order["sourceName"], json!("347082227713"));
+    assert_eq!(order["sourceName"], json!("123456789012"));
     assert_eq!(order["displayFinancialStatus"], json!("PAID"));
     assert_eq!(
         order["currentTotalPriceSet"]["shopMoney"],
