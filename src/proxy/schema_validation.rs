@@ -3277,6 +3277,38 @@ fn extend_metafield_definition_input_schema(schema: &mut AdminInputSchema) {
 }
 
 fn extend_marketing_engagement_input_schema(schema: &mut AdminInputSchema) {
+    // Marketing activity and engagement money inputs default an omitted
+    // currencyCode from the shop currency in the local model. Keep the shared
+    // MoneyInput strict for order-edit/payment paths while letting these
+    // marketing-specific fields reach the resolver for that defaulting branch.
+    schema.insert_strict_input_object(
+        "MarketingMoneyInputLocal".to_string(),
+        BTreeMap::from([
+            ("amount".to_string(), input_field(non_null("Decimal"))),
+            (
+                "currencyCode".to_string(),
+                input_field(named("CurrencyCode")),
+            ),
+        ]),
+    );
+    if let Some(fields) = schema.input_objects.get_mut("MarketingActivityBudgetInput") {
+        if let Some(field) = fields.get_mut("total") {
+            field.type_ref = marketing_money_input_ref();
+        }
+    }
+    for input_object_name in [
+        "MarketingActivityCreateExternalInput",
+        "MarketingActivityUpdateExternalInput",
+        "MarketingActivityUpsertExternalInput",
+        "MarketingActivityUpdateInput",
+    ] {
+        if let Some(fields) = schema.input_objects.get_mut(input_object_name) {
+            if let Some(field) = fields.get_mut("adSpend") {
+                field.type_ref = marketing_money_input_ref();
+            }
+        }
+    }
+
     // MarketingEngagementInput on Admin API 2026-04: occurredOn, utcOffset, and
     // isCumulative are required (non-null) schema fields. Omitting any of them must
     // produce top-level coercion errors before the local handler stages anything.
@@ -3298,8 +3330,14 @@ fn extend_marketing_engagement_input_schema(schema: &mut AdminInputSchema) {
             ("sendsCount".to_string(), input_field(named("Int"))),
             ("uniqueViewsCount".to_string(), input_field(named("Int"))),
             ("uniqueClicksCount".to_string(), input_field(named("Int"))),
-            ("adSpend".to_string(), input_field(named("MoneyInput"))),
-            ("sales".to_string(), input_field(named("MoneyInput"))),
+            (
+                "adSpend".to_string(),
+                input_field(marketing_money_input_ref()),
+            ),
+            (
+                "sales".to_string(),
+                input_field(marketing_money_input_ref()),
+            ),
             ("sessionsCount".to_string(), input_field(named("Int"))),
             ("orders".to_string(), input_field(named("Decimal"))),
             (
@@ -3337,6 +3375,12 @@ fn extend_marketing_engagement_input_schema(schema: &mut AdminInputSchema) {
             ("id".to_string(), mutation_arg(named("ID"))),
         ]),
     );
+}
+
+fn marketing_money_input_ref() -> SchemaTypeRef {
+    let mut type_ref = named("MarketingMoneyInputLocal");
+    type_ref.display = "MoneyInput".to_string();
+    type_ref
 }
 
 fn extend_media_input_schema(schema: &mut AdminInputSchema, api_version: &str) {
