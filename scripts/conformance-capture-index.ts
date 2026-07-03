@@ -3974,6 +3974,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
+    captureId: 'inventory-existence-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-inventory-existence-validation-conformance.ts',
+    purpose: 'Inventory quantity mutation existence validation for well-formed but unbacked inventory GIDs.',
+    requiredAuthScopes: ['write_inventory'],
+    fixtureOutputs: [
+      'config/parity-requests/products/inventory-existence-adjust-unknown-item.graphql',
+      `${CAPTURE_ROOT}inventory-existence-validation.json`,
+      'config/parity-specs/products/inventory-existence-validation.json',
+    ],
+    cleanupBehavior:
+      'Mutation-only validation capture against deliberately unbacked inventory/location GIDs; creates no resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
     captureId: 'inventory-quantity-contracts-2026',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-inventory-quantity-contracts-2026.ts',
