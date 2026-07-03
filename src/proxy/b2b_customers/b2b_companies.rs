@@ -968,19 +968,6 @@ impl DraftProxy {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let mut location = match self.store.staged.b2b_locations.get(&location_id).cloned() {
             Some(location) => location,
-            // Shopify always provisions a default, tax-exempt company location on
-            // the shop. An update targeting the synthetic seed location resolves
-            // against that default (so input validation runs) rather than failing
-            // not-found, mirroring real Shopify where the location already exists.
-            None if location_id == b2b_synthetic_seed_company_location_id() => json!({
-                "id": location_id,
-                "name": "HQ",
-                "taxSettings": { "taxExempt": true, "taxExemptions": [] },
-                "buyerExperienceConfiguration":
-                    b2b_buyer_experience_configuration_json(&BTreeMap::new()),
-                "roleAssignmentIds": [],
-                "staffAssignmentIds": []
-            }),
             None => {
                 return (
                     b2b_company_location_payload(

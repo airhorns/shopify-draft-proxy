@@ -826,7 +826,7 @@ impl DraftProxy {
                 .b2b_locations
                 .get(owner_id)
                 .cloned()
-                .unwrap_or_else(|| b2b_synthetic_seed_company_location(owner_id)),
+                .unwrap_or_else(|| json!({ "id": owner_id })),
             _ => json!({ "id": owner_id }),
         }
     }
@@ -1610,10 +1610,14 @@ impl DraftProxy {
     ) -> (Value, Vec<String>, Vec<Value>) {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let id = resolved_string_field(&input, "id").unwrap_or_default();
+        let shop = self.store.effective_shop();
+        let selected_shop = selected_child_selection(&field.selection, "shop")
+            .map(|selection| selected_json(&shop, &selection))
+            .unwrap_or(Value::Null);
         let mut payload = if id.is_empty() || !self.customer_exists_for_mutation(request, &id) {
             json!({
                 "deletedCustomerId": null,
-                "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+                "shop": selected_shop.clone(),
                 "userErrors": [user_error_omit_code(["id"], "Customer can't be found", None)]
             })
         } else if self
@@ -1626,7 +1630,7 @@ impl DraftProxy {
         {
             json!({
                 "deletedCustomerId": null,
-                "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+                "shop": selected_shop.clone(),
                 "userErrors": [user_error_omit_code(["id"], "Customer can’t be deleted because they have associated orders", None)]
             })
         } else {
@@ -1634,7 +1638,7 @@ impl DraftProxy {
             self.store.staged.customers.tombstone(id.clone());
             json!({
                 "deletedCustomerId": id,
-                "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+                "shop": selected_shop,
                 "userErrors": []
             })
         };
@@ -5217,11 +5221,11 @@ fn resolved_money_amount_text(
 }
 
 fn store_credit_expires_at_in_past(expires_at: &str) -> bool {
-    !expires_at.is_empty() && expires_at < store_credit_synthetic_today().as_str()
-}
-
-fn store_credit_synthetic_today() -> String {
-    format!("{:04}-{:02}-{:02}T00:00:00Z", 2026, 6, 15)
+    if expires_at.is_empty() {
+        return false;
+    }
+    time::OffsetDateTime::parse(expires_at, &time::format_description::well_known::Rfc3339)
+        .is_ok_and(|expires_at| expires_at <= time::OffsetDateTime::now_utc())
 }
 
 fn store_credit_result_only_currency_response(fields: &[RootFieldSelection]) -> Option<Response> {

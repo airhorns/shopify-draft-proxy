@@ -3742,7 +3742,7 @@ fn customer_update_and_delete_stage_known_fixture_customer_reads() {
         delete.body["data"]["customerDelete"],
         json!({
             "deletedCustomerId": id,
-            "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+            "shop": { "id": "gid://shopify/Shop/0" },
             "userErrors": []
         })
     );
@@ -3751,6 +3751,80 @@ fn customer_update_and_delete_stage_known_fixture_customer_reads() {
         json!({ "id": id }),
     ));
     assert_eq!(read.body["data"]["customer"], Value::Null);
+}
+
+#[test]
+fn customer_delete_shop_payload_uses_restored_shop_state() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    restored["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/customer-delete-restored",
+        "name": "Customer delete restored shop",
+        "myshopifyDomain": "customer-delete-restored.myshopify.com",
+        "currencyCode": "CAD"
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteRestoredShopCustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "customer-delete-restored-shop@example.test",
+                "firstName": "Delete",
+                "lastName": "Shop"
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .expect("customer id")
+        .to_string();
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteRestoredShop($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) {
+            deletedCustomerId
+            shop { id name myshopifyDomain currencyCode }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": customer_id } }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["customerDelete"],
+        json!({
+            "deletedCustomerId": customer_id,
+            "shop": {
+                "id": "gid://shopify/Shop/customer-delete-restored",
+                "name": "Customer delete restored shop",
+                "myshopifyDomain": "customer-delete-restored.myshopify.com",
+                "currencyCode": "CAD"
+            },
+            "userErrors": []
+        })
+    );
 }
 
 #[test]
@@ -8039,6 +8113,22 @@ fn store_credit_validations_match_shopify_user_error_shapes_without_staging_fail
         }])
     );
 
+    let yesterday_expiry = store_credit_expiry_timestamp_days_from_now(-1);
+    let dynamic_past_expiry = store_credit_credit_error(
+        &mut proxy,
+        &customer_id,
+        json!({ "amount": "1.00", "currencyCode": "USD" }),
+        Some(&yesterday_expiry),
+    );
+    assert_eq!(
+        dynamic_past_expiry,
+        json!([{
+            "field": ["creditInput", "expiresAt"],
+            "message": "The expiry date must be in the future",
+            "code": "EXPIRES_AT_IN_PAST"
+        }])
+    );
+
     let unsupported_debit_currency = store_credit_debit_error(
         &mut proxy,
         &account_id,
@@ -8316,7 +8406,46 @@ fn store_credit_result_only_currency_codes_return_top_level_error_without_stagin
 #[test]
 fn store_credit_credit_creates_company_location_account() {
     let mut proxy = snapshot_proxy();
-    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+    let synthetic_location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+    let missing_owner = store_credit_credit_error(
+        &mut proxy,
+        synthetic_location_id,
+        json!({ "amount": "3.00", "currencyCode": "USD" }),
+        None,
+    );
+    assert_eq!(
+        missing_owner,
+        json!([{
+            "field": ["id"],
+            "message": "Owner does not exist",
+            "code": "OWNER_NOT_FOUND"
+        }])
+    );
+
+    let company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StoreCreditCompanyLocationSetup($name: String!) {
+          companyCreate(input: { company: { name: $name } }) {
+            company {
+              id
+              locations(first: 1) { nodes { id name } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "name": "Store Credit Company Location Co" }),
+    ));
+    assert_eq!(company.status, 200);
+    assert_eq!(
+        company.body["data"]["companyCreate"]["userErrors"],
+        json!([])
+    );
+    let location_id = company.body["data"]["companyCreate"]["company"]["locations"]["nodes"][0]
+        ["id"]
+        .as_str()
+        .expect("company location id")
+        .to_string();
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -8350,6 +8479,11 @@ fn store_credit_credit_creates_company_location_account() {
         response.body["data"]["storeCreditAccountCredit"]["storeCreditAccountTransaction"]
             ["account"]["owner"]["id"],
         json!(location_id)
+    );
+    assert_eq!(
+        response.body["data"]["storeCreditAccountCredit"]["storeCreditAccountTransaction"]
+            ["account"]["owner"]["name"],
+        json!("Store Credit Company Location Co")
     );
 }
 
@@ -8505,6 +8639,13 @@ fn store_credit_credit_response(
         "#,
         json!({ "id": id, "input": credit_input }),
     ))
+}
+
+fn store_credit_expiry_timestamp_days_from_now(days: i64) -> String {
+    let timestamp = time::OffsetDateTime::now_utc() + time::Duration::days(days);
+    timestamp
+        .format(&time::format_description::well_known::Rfc3339)
+        .expect("expiry timestamp must format")
 }
 
 fn store_credit_debit_error(proxy: &mut DraftProxy, id: &str, amount: Value) -> Value {
