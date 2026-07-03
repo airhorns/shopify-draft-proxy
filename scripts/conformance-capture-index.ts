@@ -10305,6 +10305,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-order-set-deadline-closed-not-found',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-order-set-deadline-closed-not-found-conformance.ts',
+    purpose:
+      'fulfillmentOrdersSetFulfillmentDeadline success on an existing closed fulfillment order and all-ids-unresolvable userError shape.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-set-deadline-closed-not-found.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-set-deadline-closed-not-found.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-set-deadline-order-create.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable order, closes its fulfillment order through fulfillmentOrderCancel, captures deadline mutation behavior and unknown-id validation, then cancels the disposable order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'fulfillment-order-open-report-progress-preconditions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-order-open-report-progress-preconditions-conformance.ts',

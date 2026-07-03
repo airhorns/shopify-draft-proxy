@@ -5279,7 +5279,7 @@ fn fulfillment_order_status_invalid_state_rejections_do_not_mutate_order_reads()
 }
 
 #[test]
-fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_orders() {
+fn fulfillment_order_deadline_stages_existing_orders_and_reports_all_missing_ids() {
     let order_id = "gid://shopify/Order/7005001";
     let open_a_id = "gid://shopify/FulfillmentOrder/70050011";
     let open_b_id = "gid://shopify/FulfillmentOrder/70050012";
@@ -5355,9 +5355,9 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
         json!({
             "success": false,
             "userErrors": [{
-                "field": ["base"],
-                "message": "The fulfillment orders could not be found.",
-                "code": "FULFILLMENT_ORDERS_NOT_FOUND"
+                "field": null,
+                "message": "Fulfillment orders could not be found.",
+                "code": null
             }]
         })
     );
@@ -5371,18 +5371,18 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
     ));
     assert_eq!(
         mixed.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
-        unknown.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"]
+        json!({ "success": true, "userErrors": [] })
     );
 
     let after_mixed =
         proxy.process_request(json_graphql_request(read_query, json!({ "id": order_id })));
     assert_eq!(
         after_mixed.body["data"]["order"]["fulfillmentOrders"]["nodes"][0]["fulfillBy"],
-        json!(null)
+        json!("2026-12-01T00:00:00Z")
     );
 
     for id in [closed_id, cancelled_id] {
-        let rejected = proxy.process_request(json_graphql_request(
+        let set_deadline = proxy.process_request(json_graphql_request(
             mutation,
             json!({
                 "fulfillmentOrderIds": [id],
@@ -5390,15 +5390,8 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
             }),
         ));
         assert_eq!(
-            rejected.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
-            json!({
-                "success": false,
-                "userErrors": [{
-                    "field": ["base"],
-                    "message": "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.",
-                    "code": null
-                }]
-            })
+            set_deadline.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
+            json!({ "success": true, "userErrors": [] })
         );
     }
 
@@ -5425,8 +5418,8 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
     for (id, status, fulfill_by) in [
         (open_a_id, "OPEN", json!("2026-12-01T00:00:00Z")),
         (open_b_id, "OPEN", json!("2026-12-01T00:00:00Z")),
-        (closed_id, "CLOSED", Value::Null),
-        (cancelled_id, "CANCELLED", Value::Null),
+        (closed_id, "CLOSED", json!("2026-12-01T00:00:00Z")),
+        (cancelled_id, "CANCELLED", json!("2026-12-01T00:00:00Z")),
     ] {
         let node = nodes
             .iter()
