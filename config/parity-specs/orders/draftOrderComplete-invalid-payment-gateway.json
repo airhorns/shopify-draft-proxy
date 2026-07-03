@@ -1,0 +1,72 @@
+{
+  "scenarioId": "draft-order-complete-invalid-payment-gateway",
+  "operationNames": ["draftOrderCreate", "draftOrderComplete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "schema-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-complete-invalid-payment-gateway.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-create.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify evidence for draftOrderComplete(paymentGatewayId:) when the supplied gateway ID does not resolve to an enabled manual payment gateway. Shopify returns a plain base UserError with field null and message Invalid payment gateway, and the public draftOrderComplete.userErrors type rejects a code selection as plain UserError.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-gateway-user-error",
+        "capturePath": "$.mutation.response.data.draftOrderComplete",
+        "proxyPath": "$.data.draftOrderComplete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderComplete-invalid-payment-gateway.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "paymentGatewayId": {
+              "fromCapturePath": "$.variables.paymentGatewayId"
+            },
+            "paymentPending": false
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.draftOrder.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "Live Shopify and the local draft proxy allocate independent draft order ids for the setup draft."
+          }
+        ]
+      },
+      {
+        "name": "code-selection-error-message",
+        "capturePath": "$.codeSelection.response.errors[0].message",
+        "proxyPath": "$.errors[0].message",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderComplete-user-error-code-selection.graphql",
+          "variables": {
+            "id": "gid://shopify/DraftOrder/0",
+            "paymentGatewayId": {
+              "fromCapturePath": "$.variables.paymentGatewayId"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-selection-error-extensions",
+        "capturePath": "$.codeSelection.response.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderComplete-user-error-code-selection.graphql",
+          "variables": {
+            "id": "gid://shopify/DraftOrder/0",
+            "paymentGatewayId": {
+              "fromCapturePath": "$.variables.paymentGatewayId"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

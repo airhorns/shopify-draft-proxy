@@ -157,11 +157,36 @@ pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
     user_error(Value::Null, message, Some(code))
 }
 
-pub(in crate::proxy) fn local_app_json() -> Value {
+const DEFAULT_LOCAL_APP_ID: &str = "gid://shopify/App/expected";
+
+pub(in crate::proxy) fn default_local_app_id() -> &'static str {
+    DEFAULT_LOCAL_APP_ID
+}
+
+pub(in crate::proxy) fn request_app_id(request: &Request) -> String {
+    request_header(request, "x-shopify-draft-proxy-api-client-id")
+        .map(|value| normalize_app_id(&value))
+        .unwrap_or_else(|| DEFAULT_LOCAL_APP_ID.to_string())
+}
+
+pub(in crate::proxy) fn request_matches_current_app(request: &Request, id: &str) -> bool {
+    id == DEFAULT_LOCAL_APP_ID || id == request_app_id(request)
+}
+
+pub(in crate::proxy) fn local_app_json_with_id(id: &str) -> Value {
     json!({
-        "id": "gid://shopify/App/expected",
+        "id": id,
         "handle": "shopify-draft-proxy"
     })
+}
+
+fn normalize_app_id(value: &str) -> String {
+    let value = value.trim();
+    if value.starts_with("gid://shopify/App/") {
+        value.to_string()
+    } else {
+        shopify_gid("App", value)
+    }
 }
 
 pub(in crate::proxy) fn app_uninstall_payload_json(
@@ -241,6 +266,7 @@ pub(in crate::proxy) fn app_purchase_one_time_payload_json(
     payload_selection: &[SelectedField],
     purchase_selection: &[SelectedField],
     user_errors: Vec<Value>,
+    confirmation_url: Option<Value>,
 ) -> Value {
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
@@ -252,7 +278,7 @@ pub(in crate::proxy) fn app_purchase_one_time_payload_json(
                 }
             }
             "confirmationUrl" => Some(if user_errors.is_empty() {
-                json!("https://app.example.test/local-confirmation")
+                confirmation_url.clone().unwrap_or(Value::Null)
             } else {
                 Value::Null
             }),
@@ -270,12 +296,14 @@ pub(in crate::proxy) fn app_subscription_create_payload_json(
     subscription: &Value,
     payload_selection: &[SelectedField],
     subscription_selection: &[SelectedField],
+    confirmation_url: Value,
 ) -> Value {
-    app_subscription_payload_json(
+    app_subscription_payload_json_with_confirmation_url(
         subscription.clone(),
         payload_selection,
         subscription_selection,
         vec![],
+        Some(confirmation_url),
     )
 }
 
@@ -290,7 +318,7 @@ pub(in crate::proxy) fn app_subscription_payload_json(
         payload_selection,
         subscription_selection,
         user_errors,
-        Some(json!("https://app.example.test/local-confirmation")),
+        None,
     )
 }
 
@@ -345,71 +373,6 @@ fn app_user_error_json(error: Value, typename: &str, selection: &[SelectedField]
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn app_subscription_line_items_from_arguments(
-        &mut self,
-        arguments: &BTreeMap<String, ResolvedValue>,
-    ) -> Vec<Value> {
-        match arguments.get("lineItems") {
-            Some(ResolvedValue::List(items)) => items
-                .iter()
-                .map(|item| self.app_subscription_line_item_from_input(item))
-                .collect(),
-            _ => Vec::new(),
-        }
-    }
-
-    fn app_subscription_line_item_from_input(&mut self, value: &ResolvedValue) -> Value {
-        let id = self.next_proxy_synthetic_gid("AppSubscriptionLineItem");
-        if let ResolvedValue::Object(item) = value {
-            if let Some(ResolvedValue::Object(plan)) = item.get("plan") {
-                if let Some(ResolvedValue::Object(details)) = plan.get("appRecurringPricingDetails")
-                {
-                    let price = resolved_object_field(details, "price").unwrap_or_default();
-                    let price_amount = maybe_money_amount_string_from_resolved(price.get("amount"))
-                        .unwrap_or_else(|| "0.0".to_string());
-                    let price_currency =
-                        resolved_string_field(&price, "currencyCode").unwrap_or_default();
-                    return json!({
-                        "id": id,
-                        "plan": { "pricingDetails": {
-                            "__typename": "AppRecurringPricing",
-                            "price": money_value(&price_amount, &price_currency)
-                        }}
-                    });
-                }
-                if let Some(ResolvedValue::Object(details)) = plan.get("appUsagePricingDetails") {
-                    let capped = resolved_object_field(details, "cappedAmount").unwrap_or_default();
-                    let capped_amount =
-                        maybe_money_amount_string_from_resolved(capped.get("amount"))
-                            .unwrap_or_else(|| "0.0".to_string());
-                    let currency_code =
-                        resolved_string_field(&capped, "currencyCode").unwrap_or_default();
-                    let terms = resolved_string_field(details, "terms").unwrap_or_default();
-                    return json!({
-                        "id": id,
-                        "plan": { "pricingDetails": {
-                            "__typename": "AppUsagePricing",
-                            "cappedAmount": money_value(&capped_amount, &currency_code),
-                            "balanceUsed": money_value("0.0", &currency_code),
-                            "interval": "EVERY_30_DAYS",
-                            "terms": terms
-                        }}
-                    });
-                }
-            }
-        }
-        json!({
-            "id": id,
-            "plan": { "pricingDetails": {
-                "__typename": "AppUsagePricing",
-                "cappedAmount": money_value("0.0", ""),
-                "balanceUsed": money_value("0.0", ""),
-                "interval": "EVERY_30_DAYS",
-                "terms": ""
-            }}
-        })
-    }
-
     pub(in crate::proxy) fn delivery_profile_location_record(&self, id: &str) -> Value {
         let mut record = json!({ "id": id });
         if let Some(name) = self.location_for_read(id).and_then(|location| {
@@ -421,6 +384,25 @@ impl DraftProxy {
             record["name"] = json!(name);
         }
         record
+    }
+}
+
+pub(in crate::proxy) fn app_subscription_line_items_from_arguments(
+    arguments: &BTreeMap<String, ResolvedValue>,
+    line_item_ids: &[String],
+) -> Vec<Value> {
+    match arguments.get("lineItems") {
+        Some(ResolvedValue::List(items)) => items
+            .iter()
+            .enumerate()
+            .map(|(index, item)| {
+                app_subscription_line_item_from_input(
+                    item,
+                    line_item_ids.get(index).cloned().unwrap_or_default(),
+                )
+            })
+            .collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -451,6 +433,55 @@ fn maybe_money_amount_string_from_resolved(value: Option<&ResolvedValue>) -> Opt
     Some(normalize_money_amount(&raw))
 }
 
+fn app_subscription_line_item_from_input(value: &ResolvedValue, id: String) -> Value {
+    if let ResolvedValue::Object(item) = value {
+        if let Some(ResolvedValue::Object(plan)) = item.get("plan") {
+            if let Some(ResolvedValue::Object(details)) = plan.get("appRecurringPricingDetails") {
+                let price = resolved_object_field(details, "price").unwrap_or_default();
+                let price_amount = maybe_money_amount_string_from_resolved(price.get("amount"))
+                    .unwrap_or_else(|| "0.0".to_string());
+                let price_currency =
+                    resolved_string_field(&price, "currencyCode").unwrap_or_default();
+                return json!({
+                    "id": id,
+                    "plan": { "pricingDetails": {
+                        "__typename": "AppRecurringPricing",
+                        "price": money_value(&price_amount, &price_currency)
+                    }}
+                });
+            }
+            if let Some(ResolvedValue::Object(details)) = plan.get("appUsagePricingDetails") {
+                let capped = resolved_object_field(details, "cappedAmount").unwrap_or_default();
+                let capped_amount = maybe_money_amount_string_from_resolved(capped.get("amount"))
+                    .unwrap_or_else(|| "0.0".to_string());
+                let currency_code =
+                    resolved_string_field(&capped, "currencyCode").unwrap_or_default();
+                let terms = resolved_string_field(details, "terms").unwrap_or_default();
+                return json!({
+                    "id": id,
+                    "plan": { "pricingDetails": {
+                        "__typename": "AppUsagePricing",
+                        "cappedAmount": money_value(&capped_amount, &currency_code),
+                        "balanceUsed": money_value("0.0", &currency_code),
+                        "interval": "EVERY_30_DAYS",
+                        "terms": terms
+                    }}
+                });
+            }
+        }
+    }
+    json!({
+        "id": id,
+        "plan": { "pricingDetails": {
+            "__typename": "AppUsagePricing",
+            "cappedAmount": money_value("0.0", ""),
+            "balanceUsed": money_value("0.0", ""),
+            "interval": "EVERY_30_DAYS",
+            "terms": ""
+        }}
+    })
+}
+
 pub(in crate::proxy) fn money_amount_string_from_resolved(value: Option<&ResolvedValue>) -> String {
     let raw = match value {
         Some(ResolvedValue::Int(value)) => value.to_string(),
@@ -465,6 +496,7 @@ pub(in crate::proxy) fn current_app_installation_json(
     subscriptions: &BTreeMap<String, Value>,
     one_time_purchases: &BTreeMap<String, Value>,
     revoked_access_scopes: &BTreeSet<String>,
+    granted_access_scopes: &[String],
     selections: &[SelectedField],
 ) -> Value {
     let mut fields = serde_json::Map::new();
@@ -499,9 +531,9 @@ pub(in crate::proxy) fn current_app_installation_json(
                 }))
             }
             "accessScopes" => Some(Value::Array(
-                ["read_products", "write_products"]
-                    .into_iter()
-                    .filter(|scope| !revoked_access_scopes.contains(*scope))
+                granted_access_scopes
+                    .iter()
+                    .filter(|scope| !revoked_access_scopes.contains(scope.as_str()))
                     .map(|scope| selected_json(&json!({ "handle": scope }), &selection.selection))
                     .collect(),
             )),
@@ -512,6 +544,49 @@ pub(in crate::proxy) fn current_app_installation_json(
         }
     }
     Value::Object(fields)
+}
+
+pub(in crate::proxy) fn app_granted_access_scopes(request: &Request) -> Vec<String> {
+    let parsed = request_header(request, "x-shopify-draft-proxy-access-scopes")
+        .map(|header| {
+            header
+                .split(',')
+                .map(str::trim)
+                .filter(|scope| !scope.is_empty() && app_access_scope_handle_is_valid(scope))
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if parsed.is_empty() && request_header(request, "x-shopify-draft-proxy-access-scopes").is_none()
+    {
+        vec!["read_products".to_string(), "write_products".to_string()]
+    } else {
+        parsed
+    }
+}
+
+pub(in crate::proxy) fn app_required_access_scopes(request: &Request) -> BTreeSet<String> {
+    request_header(request, "x-shopify-draft-proxy-required-access-scopes")
+        .map(|header| {
+            header
+                .split(',')
+                .map(str::trim)
+                .filter(|scope| !scope.is_empty() && app_access_scope_handle_is_valid(scope))
+                .map(str::to_string)
+                .collect()
+        })
+        .filter(|scopes: &BTreeSet<String>| !scopes.is_empty())
+        .unwrap_or_else(|| BTreeSet::from(["read_products".to_string()]))
+}
+
+pub(in crate::proxy) fn app_access_scope_handle_is_valid(scope: &str) -> bool {
+    let mut parts = scope.split('_');
+    let prefix = parts.next().unwrap_or_default();
+    matches!(prefix, "read" | "write" | "unauthenticated")
+        && parts.clone().next().is_some()
+        && scope
+            .chars()
+            .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_')
 }
 
 pub(in crate::proxy) fn location_deactivate_payload_json(
@@ -1132,26 +1207,6 @@ pub(in crate::proxy) fn delivery_price_from_method_input(
     })
 }
 
-pub(in crate::proxy) fn fulfillment_order_move_assignment_record(
-    id: &str,
-    location_id: &str,
-) -> Value {
-    json!({
-        "id": id,
-        "status": "OPEN",
-        "requestStatus": "UNSUBMITTED",
-        "updatedAt": "2026-05-11T10:00:00Z",
-        "assignedLocation": {
-            "name": "Move assignment destination",
-            "location": {
-                "id": location_id,
-                "name": "Move assignment destination"
-            }
-        },
-        "lineItems": { "nodes": [] }
-    })
-}
-
 pub(in crate::proxy) fn fulfillment_order_move_payload_json(
     moved: Value,
     original: Value,
@@ -1271,97 +1326,6 @@ pub(in crate::proxy) fn fulfillment_order_deadline_payload_json(
     })
 }
 
-pub(in crate::proxy) fn shipping_fulfillment_order_local_order_record(
-    id: &str,
-    deadlines: &BTreeMap<String, String>,
-) -> Value {
-    match id {
-        "gid://shopify/Order/status-precondition-open-closed" => json!({
-            "id": id,
-            "fulfillmentOrders": { "nodes": [{
-                "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed",
-                "status": "CLOSED",
-                "updatedAt": "2026-05-11T10:00:00Z",
-                "supportedActions": []
-            }] }
-        }),
-        "gid://shopify/Order/status-precondition-progress-scheduled" => json!({
-            "id": id,
-            "fulfillmentOrders": { "nodes": [{
-                "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled",
-                "status": "SCHEDULED",
-                "updatedAt": "2026-05-11T10:05:00Z",
-                "supportedActions": [{ "action": "MARK_AS_OPEN" }]
-            }] }
-        }),
-        "gid://shopify/Order/deadline-validation" => json!({
-            "id": id,
-            "name": "#DEADLINE-VALIDATION",
-            "displayFulfillmentStatus": "UNFULFILLED",
-            "fulfillmentOrders": { "nodes": [
-                deadline_fulfillment_order("gid://shopify/FulfillmentOrder/deadline-open-a", "OPEN", deadlines),
-                deadline_fulfillment_order("gid://shopify/FulfillmentOrder/deadline-open-b", "OPEN", deadlines),
-                deadline_fulfillment_order("gid://shopify/FulfillmentOrder/deadline-closed", "CLOSED", deadlines),
-                deadline_fulfillment_order("gid://shopify/FulfillmentOrder/deadline-cancelled", "CANCELLED", deadlines)
-            ] }
-        }),
-        _ => Value::Null,
-    }
-}
-
-pub(in crate::proxy) fn deadline_fulfillment_order(
-    id: &str,
-    status: &str,
-    deadlines: &BTreeMap<String, String>,
-) -> Value {
-    json!({
-        "id": id,
-        "status": status,
-        "fulfillBy": deadlines.get(id).cloned().map(Value::String).unwrap_or(Value::Null)
-    })
-}
-
-pub(in crate::proxy) fn known_deadline_fulfillment_order_status(id: &str) -> Option<&'static str> {
-    match id {
-        "gid://shopify/FulfillmentOrder/deadline-open-a"
-        | "gid://shopify/FulfillmentOrder/deadline-open-b" => Some("OPEN"),
-        "gid://shopify/FulfillmentOrder/deadline-closed" => Some("CLOSED"),
-        "gid://shopify/FulfillmentOrder/deadline-cancelled" => Some("CANCELLED"),
-        _ => None,
-    }
-}
-
-pub(in crate::proxy) fn fulfillment_order_request_lifecycle_record(id: &str) -> Value {
-    if id == "gid://shopify/FulfillmentOrder/9656703910194" {
-        json!({
-            "id": id,
-            "status": "OPEN",
-            "requestStatus": "SUBMITTED",
-            "merchantRequests": {
-                "nodes": [{
-                    "kind": "FULFILLMENT_REQUEST",
-                    "message": "Hermes partial submit",
-                    "requestOptions": { "notify_customer": false },
-                    "responseData": null
-                }]
-            },
-            "lineItems": {
-                "nodes": [{
-                    "id": "gid://shopify/FulfillmentOrderLineItem/19457456636210",
-                    "totalQuantity": 1,
-                    "remainingQuantity": 1,
-                    "lineItem": {
-                        "id": "gid://shopify/LineItem/19308253118770",
-                        "title": "Hermes fulfillment-order request partial 20260506222236"
-                    }
-                }]
-            }
-        })
-    } else {
-        Value::Null
-    }
-}
-
 pub(in crate::proxy) fn publishable_payload_json(
     publishable: Value,
     shop: Value,
@@ -1478,77 +1442,6 @@ pub(in crate::proxy) fn destination_location_not_found_or_inactive_error() -> Va
         "code": "DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE",
         "message": "Location could not be deactivated because the destination location could be not found or is inactive."
     })
-}
-
-pub(in crate::proxy) fn is_shipping_fulfillment_order_local_order_read(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    root_fields(query, variables)
-        .unwrap_or_default()
-        .iter()
-        .any(|field| {
-            field.name == "order"
-                && resolved_string_field(&field.arguments, "id")
-                    .map(|id| {
-                        id.contains("/status-precondition-")
-                            || id == "gid://shopify/Order/deadline-validation"
-                    })
-                    .unwrap_or(false)
-        })
-}
-
-pub(in crate::proxy) fn is_fulfillment_order_request_lifecycle_direct_read(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    root_fields(query, variables)
-        .unwrap_or_default()
-        .iter()
-        .any(|field| {
-            field.name == "fulfillmentOrder"
-                && resolved_string_field(&field.arguments, "id")
-                    .map(|id| id == "gid://shopify/FulfillmentOrder/9656703910194")
-                    .unwrap_or(false)
-        })
-}
-
-/// The hand-built fulfillment-order lifecycle handlers (move-assignment,
-/// status-precondition, deadline-validation, request-lifecycle direct read) drive a
-/// handful of synthetic sentinel-id scenarios. Specs captured against real fulfillment
-/// orders carry purely numeric ids and full recorded local-runtime responses, so the
-/// proxy serves those from the cassette (recorded evidence) rather than the stale
-/// sentinel handlers. These predicates keep each local handler scoped to its own
-/// sentinel ids; everything else passes through to the recorded response.
-pub(in crate::proxy) fn fulfillment_order_move_is_sentinel_scenario(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    root_field_arguments(query, variables)
-        .and_then(|arguments| resolved_string_field(&arguments, "id"))
-        .map(|id| id.contains("move-assignment"))
-        .unwrap_or(false)
-}
-
-pub(in crate::proxy) fn fulfillment_order_status_precondition_is_sentinel_scenario(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    root_field_arguments(query, variables)
-        .and_then(|arguments| resolved_string_field(&arguments, "id"))
-        .map(|id| id.contains("status-precondition"))
-        .unwrap_or(false)
-}
-
-pub(in crate::proxy) fn fulfillment_order_set_deadline_is_sentinel_scenario(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    root_field_arguments(query, variables)
-        .map(|arguments| list_string_field(&arguments, "fulfillmentOrderIds"))
-        .unwrap_or_default()
-        .iter()
-        .any(|id| id.contains("deadline-") || id == "gid://shopify/FulfillmentOrder/9999999")
 }
 
 pub(in crate::proxy) fn carrier_service_record(

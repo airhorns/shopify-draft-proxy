@@ -2,100 +2,14 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
-import { conformanceCaptureIndex, retiredConformanceEvidencePaths } from './conformance-capture-index.js';
 import { validateRecordedUpstreamCalls, type RecordedUpstreamCall } from './parity-cassette.js';
+import {
+  changedProtectedEvidencePaths,
+  findProductsProvenanceFailures,
+  findUnregisteredProtectedEvidenceChanges,
+} from './protected-evidence-invariants.js';
 
-const protectedPaths = ['config/parity-specs', 'config/parity-requests', 'fixtures/conformance'];
 const repoRoot = process.cwd();
-const registeredProtectedEvidenceRemovals = new Set([
-  'config/parity-specs/payments/customer-payment-method-credit-card-create-validation.json',
-  'config/parity-specs/payments/customer-payment-method-local-staging.json',
-  'config/parity-specs/payments/customer-payment-method-remote-create-validation.json',
-  'config/parity-specs/payments/customer-payment-method-shop-pay-guards.json',
-  'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-credit-card-create-validation.json',
-  'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-local-staging.json',
-  'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-remote-create-validation.json',
-  'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-shop-pay-guards.json',
-  'fixtures/conformance/local-runtime/2026-04/media/file-acknowledge-update-failed-local-runtime.json',
-  'fixtures/conformance/local-runtime/2026-04/media/file-update-product-reference-local-runtime.json',
-  'fixtures/conformance/local-runtime/2026-04/media/files-upload-local-runtime.json',
-  'fixtures/conformance/local-runtime/2026-04/media/media-file-acknowledge-update-failed-semantics.json',
-  'fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json',
-  'fixtures/conformance/local-runtime/2026-04/payments/payment-terms-delete-owner-cascade.json',
-  'fixtures/conformance/local-runtime/2026-05/payments/payment-reminder-send-shape.json',
-]);
-
-const result = spawnSync('git', ['diff', '--name-status', 'origin/main', '--', ...protectedPaths], {
-  encoding: 'utf8',
-});
-
-if (result.error) {
-  throw result.error;
-}
-
-if (result.status !== 0) {
-  process.stderr.write(result.stderr);
-  process.exit(result.status ?? 1);
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-}
-
-function fixtureOutputMatchesPath(output: string, candidatePath: string): boolean {
-  if (
-    candidatePath.startsWith('fixtures/conformance/local-runtime/') &&
-    !output.startsWith('fixtures/conformance/local-runtime/')
-  ) {
-    return false;
-  }
-
-  const pattern = escapeRegExp(output)
-    .replaceAll('<store>', '[^/]+')
-    .replaceAll('<api-version>', '[^/]+')
-    .replaceAll('<domain-folder>', '[^/]+');
-  return new RegExp(`^${pattern}$`, 'u').test(candidatePath);
-}
-
-const registeredFixtureOutputs = [
-  ...conformanceCaptureIndex.flatMap((entry) => entry.fixtureOutputs),
-  ...retiredConformanceEvidencePaths,
-];
-
-type ChangedPath = {
-  status: string;
-  path: string;
-};
-
-const changed = result.stdout
-  .split('\n')
-  .map((line) => line.trim())
-  .filter(Boolean)
-  .map((line): ChangedPath => {
-    const [status = '', firstPath = '', secondPath] = line.split('\t');
-    const changedPath = secondPath ?? firstPath;
-    if (!status || !changedPath) {
-      throw new Error(`Unexpected git diff --name-status line: ${line}`);
-    }
-    return {
-      status,
-      path: changedPath,
-    };
-  })
-  .filter((entry) => entry.path.length > 0);
-
-const unregistered = changed.filter(({ status, path: changedPath }) => {
-  if (status === 'D') {
-    return (
-      !registeredProtectedEvidenceRemovals.has(changedPath) &&
-      !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath))
-    );
-  }
-  return (
-    existsSync(changedPath) && !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath))
-  );
-});
-
 function readJson(relativePath: string): unknown {
   return JSON.parse(readFileSync(path.join(repoRoot, relativePath), 'utf8')) as unknown;
 }
@@ -388,6 +302,11 @@ function marketsParityEvidenceErrors(): string[] {
   return errors;
 }
 
+const changed = changedProtectedEvidencePaths();
+const protectedEvidenceErrors = [
+  ...findUnregisteredProtectedEvidenceChanges(changed),
+  ...findProductsProvenanceFailures(),
+];
 const metafieldDefinitionsErrors = metafieldDefinitionsParityEvidenceErrors();
 const customerErrors = customerParityEvidenceErrors();
 const giftCardErrors = giftCardParityEvidenceErrors();
@@ -396,11 +315,11 @@ const bulkOperationsErrors = bulkOperationsParityEvidenceErrors();
 const shippingFulfillmentErrors = shippingFulfillmentParityEvidenceErrors();
 const marketsErrors = marketsParityEvidenceErrors();
 
-if (unregistered.length > 0) {
-  process.stderr.write(
-    'Protected parity specs, parity requests, or conformance fixtures changed without capture-index registration.\n',
-  );
-  for (const { status, path } of unregistered) process.stderr.write(`- ${status}\t${path}\n`);
+if (protectedEvidenceErrors.length > 0) {
+  process.stderr.write('Protected parity evidence invariant failures.\n');
+  for (const { path: failurePath, message } of protectedEvidenceErrors) {
+    process.stderr.write(`- ${failurePath}: ${message}\n`);
+  }
 }
 
 if (metafieldDefinitionsErrors.length > 0) {
@@ -447,7 +366,7 @@ if (marketsErrors.length > 0) {
 }
 
 if (
-  unregistered.length > 0 ||
+  protectedEvidenceErrors.length > 0 ||
   metafieldDefinitionsErrors.length > 0 ||
   customerErrors.length > 0 ||
   giftCardErrors.length > 0 ||
@@ -459,7 +378,7 @@ if (
   process.exit(1);
 }
 
-process.stdout.write('Protected parity evidence changes are registered in the capture index.\n');
+process.stdout.write('Protected parity evidence changes are registered and products provenance checks passed.\n');
 process.stdout.write('metafield-definitions parity evidence uses live fixture paths and GraphQL upstream queries.\n');
 process.stdout.write('Customers parity evidence uses live fixture paths and GraphQL upstream cassette queries.\n');
 process.stdout.write('Gift-card parity evidence contains no local-runtime captures or descriptor cassette queries.\n');

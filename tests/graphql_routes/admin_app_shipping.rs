@@ -1011,7 +1011,7 @@ fn bulk_operation_run_mutation_validates_without_dispatcher_errors() {
         (
             "missingUpload",
             "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }",
-            "tmp/92891250994/bulk/missing/non-recording.jsonl",
+            "valid",
             Value::Null,
             json!([{
                 "field": null,
@@ -1379,6 +1379,7 @@ fn bulk_operation_run_mutation_allows_65535_storage_bytes() {
     );
     assert_eq!(mutation.len(), BULK_OPERATION_STORAGE_BYTE_LIMIT);
     let mut proxy = snapshot_proxy();
+    let path = staged_bulk_mutation_upload_path(&mut proxy, "exact-limit-import.jsonl", "0");
 
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -1389,7 +1390,7 @@ fn bulk_operation_run_mutation_allows_65535_storage_bytes() {
           }
         }
         "#,
-        json!({ "mutation": mutation, "path": "valid" }),
+        json!({ "mutation": mutation, "path": path }),
     ));
 
     assert_eq!(response.status, 200);
@@ -1581,6 +1582,7 @@ fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
         cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
         json!("CANCELING")
     );
+    let path = staged_bulk_mutation_upload_path(&mut proxy, "throttled-import.jsonl", "0");
 
     // A single non-terminal mutation only throttles at the pre-2026.1 limit of 1.
     let mut run_request = json_graphql_request(
@@ -1594,7 +1596,7 @@ fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
         "#,
         json!({
             "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
-            "path": "valid"
+            "path": path
         }),
     );
     run_request.path = "/admin/api/2025-01/graphql.json".to_string();
@@ -1655,6 +1657,11 @@ fn live_hybrid_proxy_with_bulk_operation_hydration(
 }
 
 fn run_bulk_operation_mutation(proxy: &mut DraftProxy, api_version: &str) -> Value {
+    let path = staged_bulk_mutation_upload_path(
+        proxy,
+        &format!("mutation-import-{api_version}.jsonl"),
+        "0",
+    );
     let mut request = json_graphql_request(
         r#"
         mutation RunBulkImport($mutation: String!, $path: String!) {
@@ -1666,7 +1673,7 @@ fn run_bulk_operation_mutation(proxy: &mut DraftProxy, api_version: &str) -> Val
         "#,
         json!({
             "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
-            "path": "valid"
+            "path": path
         }),
     );
     request.path = format!("/admin/api/{api_version}/graphql.json");

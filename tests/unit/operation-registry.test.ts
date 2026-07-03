@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -47,12 +47,10 @@ describe('operation registry', () => {
   it('keeps runtime test references executable on disk', () => {
     for (const entry of listRuntimeTestedOperationRegistryEntries()) {
       for (const runtimeTest of entry.runtimeTests) {
-        expect(() => {
-          execFileSync('test', ['-f', runtimeTest], {
-            cwd: repoRoot,
-            stdio: 'pipe',
-          });
-        }, `${entry.name} runtime test should exist: ${runtimeTest}`).not.toThrow();
+        expect(
+          existsSync(resolve(repoRoot, runtimeTest)),
+          `${entry.name} runtime test should exist: ${runtimeTest}`,
+        ).toBe(true);
       }
     }
   });

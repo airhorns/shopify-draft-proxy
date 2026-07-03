@@ -1,0 +1,9 @@
+mutation DraftOrderCompleteInvalidGatewayCodeSelection($id: ID!, $paymentGatewayId: ID) {
+  draftOrderComplete(id: $id, paymentGatewayId: $paymentGatewayId) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
