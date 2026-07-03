@@ -8,6 +8,12 @@ import { validateRecordedUpstreamCalls, type RecordedUpstreamCall } from './pari
 const protectedPaths = ['config/parity-specs', 'config/parity-requests', 'fixtures/conformance'];
 const repoRoot = process.cwd();
 const registeredProtectedEvidenceRemovals = new Set([
+  'config/parity-specs/orders/draftOrderInvoiceSend-invoice-errors.json',
+  'config/parity-specs/orders/order-payment-mandate-local-staging.json',
+  'config/parity-specs/orders/order-payment-transaction-non-recording-operation-name.json',
+  'config/parity-specs/payments/order_create_mandate_payment_auto_capture_false.json',
+  'config/parity-specs/payments/order_create_mandate_payment_idempotency.json',
+  'config/parity-specs/payments/order_create_mandate_payment_reference_id_format.json',
   'config/parity-specs/payments/customer-payment-method-credit-card-create-validation.json',
   'config/parity-specs/payments/customer-payment-method-local-staging.json',
   'config/parity-specs/payments/customer-payment-method-remote-create-validation.json',
@@ -19,6 +25,9 @@ const registeredProtectedEvidenceRemovals = new Set([
   'fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json',
   'fixtures/conformance/local-runtime/2026-04/payments/payment-terms-delete-owner-cascade.json',
   'fixtures/conformance/local-runtime/2026-05/payments/payment-reminder-send-shape.json',
+  'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/refund-create-full-parity.json',
+  'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/refund-create-over-refund-user-errors.json',
+  'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/refund-create-partial-shipping-restock-parity.json',
 ]);
 
 const result = spawnSync('git', ['diff', '--name-status', 'origin/main', '--', ...protectedPaths], {

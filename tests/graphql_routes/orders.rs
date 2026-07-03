@@ -1361,8 +1361,8 @@ fn return_create_and_request_reject_quantities_beyond_remaining_fulfillment() {
     assert_eq!(
         over_request.body["data"]["returnRequest"]["userErrors"],
         json!([{
-            "field": ["returnLineItems", "0", "quantity"],
-            "message": "Quantity is not available for return.",
+            "field": ["input", "returnLineItems", "0", "quantity"],
+            "message": "Return line item has an invalid quantity.",
             "code": "INVALID"
         }])
     );
@@ -1395,8 +1395,8 @@ fn return_create_and_request_reject_quantities_beyond_remaining_fulfillment() {
     assert_eq!(
         over_create.body["data"]["returnCreate"]["userErrors"],
         json!([{
-            "field": ["returnLineItems", "0", "quantity"],
-            "message": "Quantity is not available for return.",
+            "field": ["returnInput", "returnLineItems", "0", "quantity"],
+            "message": "Return line item has an invalid quantity.",
             "code": "INVALID"
         }])
     );
@@ -1444,11 +1444,19 @@ fn remove_from_return_rejects_zero_and_over_quantity_without_state_changes() {
         );
         assert_eq!(
             response.body["data"]["removeFromReturn"]["userErrors"],
-            json!([{
-                "field": ["returnLineItems", "0", "quantity"],
-                "message": "Quantity is not removable from return.",
-                "code": "INVALID"
-            }]),
+            if quantity == 0 {
+                json!([{
+                    "field": null,
+                    "message": "Quantity must be greater than 0",
+                    "code": "GREATER_THAN"
+                }])
+            } else {
+                json!([{
+                    "field": ["returnLineItems", "0", "quantity"],
+                    "message": "Return line item has an invalid quantity.",
+                    "code": "INVALID"
+                }])
+            },
             "quantity {quantity} should be rejected without staging a removal"
         );
         assert_eq!(log_snapshot(&proxy), log_before_rejections);

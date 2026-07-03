@@ -1,0 +1,100 @@
+{
+  "scenarioId": "order-payment-transaction-void-local-staging",
+  "operationNames": ["orderCreate", "transactionVoid"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "downstream-read-parity", "transaction-void-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/order-payment-transaction-void-live.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/order-payment-transaction-void-create.graphql",
+    "variablesCapturePath": "$.voidFlow.create.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "authorization-order-create",
+        "capturePath": "$.voidFlow.create.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "selectedPaths": [
+          "$.userErrors",
+          "$.order.displayFinancialStatus",
+          "$.order.capturable",
+          "$.order.totalCapturable",
+          "$.order.totalCapturableSet",
+          "$.order.totalOutstandingSet",
+          "$.order.totalReceivedSet",
+          "$.order.netPaymentSet",
+          "$.order.paymentGatewayNames",
+          "$.order.transactions[0].kind",
+          "$.order.transactions[0].status",
+          "$.order.transactions[0].gateway",
+          "$.order.transactions[0].amountSet"
+        ]
+      },
+      {
+        "name": "void-authorization-transaction",
+        "capturePath": "$.voidFlow.void.response.payload.data.transactionVoid",
+        "proxyPath": "$.data.transactionVoid",
+        "selectedPaths": [
+          "$.userErrors",
+          "$.transaction.kind",
+          "$.transaction.status",
+          "$.transaction.gateway",
+          "$.transaction.amountSet",
+          "$.transaction.parentTransaction.kind",
+          "$.transaction.parentTransaction.status"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-payment-transaction-void.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.transactions[0].id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "void-downstream-order-read",
+        "capturePath": "$.voidFlow.readAfterVoid.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "selectedPaths": [
+          "$.displayFinancialStatus",
+          "$.capturable",
+          "$.totalCapturable",
+          "$.totalCapturableSet",
+          "$.totalOutstandingSet",
+          "$.totalReceivedSet",
+          "$.netPaymentSet",
+          "$.paymentGatewayNames",
+          "$.transactions[0].kind",
+          "$.transactions[0].status",
+          "$.transactions[0].gateway",
+          "$.transactions[0].amountSet",
+          "$.transactions[1].kind",
+          "$.transactions[1].status",
+          "$.transactions[1].gateway",
+          "$.transactions[1].amountSet",
+          "$.transactions[1].parentTransaction.kind",
+          "$.transactions[1].parentTransaction.status"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/order-payment-transaction-void-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live 2026-04 public Admin API capture for successful transactionVoid and downstream order read on a disposable manual authorization order. This restores the old local-staging scenario ID with public Shopify evidence. Private OrderTransaction paymentId/paymentReferenceId projections from the retired local-runtime request shape remain covered by focused Rust tests because public Admin GraphQL rejects paymentReferenceId on OrderTransaction."
+}

@@ -1,0 +1,37 @@
+{
+  "scenarioId": "returnRequest-quantity-cap",
+  "operationNames": ["returnRequest", "returnCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "return-quantity-validation", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-quantity-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/return-request-quantity-cap.graphql",
+    "variablesCapturePath": "$.returnRequestQuantityCap.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "return-request-over-remaining-quantity",
+        "capturePath": "$.expected.returnRequestQuantityCap.data.returnRequest",
+        "proxyPath": "$.data.returnRequest"
+      },
+      {
+        "name": "return-create-over-remaining-quantity",
+        "capturePath": "$.expected.returnCreateQuantityCap.data.returnCreate",
+        "proxyPath": "$.data.returnCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-create-quantity-validation.graphql",
+          "variablesCapturePath": "$.returnCreateQuantityCap.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live 2026-04 Admin API capture for returnRequest and returnCreate quantity validation after an existing open return consumes part of a fulfilled line. The recorder creates and fulfills disposable orders, opens a first return, records the proxy's cold order hydrate as an upstream cassette, then captures the over-remaining-quantity userErrors. Replacement for retired synthetic/local-runtime orders evidence."
+}

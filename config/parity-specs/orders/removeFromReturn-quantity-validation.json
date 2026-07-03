@@ -1,0 +1,66 @@
+{
+  "scenarioId": "removeFromReturn-quantity-validation",
+  "operationNames": ["returnCreate", "removeFromReturn"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "return-quantity-validation", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-quantity-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/return-create-quantity-validation.graphql",
+    "variablesCapturePath": "$.returnCreateForRemoval.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "remove-from-return-over-quantity",
+        "capturePath": "$.expected.removeFromReturnOverQuantity.data.removeFromReturn",
+        "proxyPath": "$.data.removeFromReturn",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/remove-from-return-quantity-validation.graphql",
+          "variables": {
+            "returnId": {
+              "fromPrimaryProxyPath": "$.data.returnCreate.return.id"
+            },
+            "returnLineItems": [
+              {
+                "returnLineItemId": {
+                  "fromPrimaryProxyPath": "$.data.returnCreate.return.returnLineItems.nodes[0].id"
+                },
+                "quantity": 2
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "remove-from-return-zero-quantity",
+        "capturePath": "$.expected.removeFromReturnZeroQuantity.data.removeFromReturn",
+        "proxyPath": "$.data.removeFromReturn",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/remove-from-return-quantity-validation.graphql",
+          "variables": {
+            "returnId": {
+              "fromPrimaryProxyPath": "$.data.returnCreate.return.id"
+            },
+            "returnLineItems": [
+              {
+                "returnLineItemId": {
+                  "fromPrimaryProxyPath": "$.data.returnCreate.return.returnLineItems.nodes[0].id"
+                },
+                "quantity": 0
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live 2026-04 Admin API capture for removeFromReturn quantity validation on an open return. The recorder creates and fulfills a disposable order, records the proxy's cold order hydrate as an upstream cassette, creates the return through the same public returnCreate request, then captures over-quantity and zero-quantity removeFromReturn userErrors. Replacement for retired synthetic/local-runtime orders evidence."
+}

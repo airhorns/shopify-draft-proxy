@@ -112,9 +112,10 @@ Local staged mutations:
   `tmp_notify_customer.email_address` notification payloads against local staged return state. Public Admin GraphQL
   evidence for the exposed `ReturnDeclineReason` enum and the current public-schema `tmp_notify_customer` boundary is
   recorded separately in `return-decline-request-validation.json`.
-- Rust runtime tests cover return quantity validation: existing `OPEN` returns consuming part of the fulfilled quantity
-  make over-cap `returnRequest` and `returnCreate` calls return a quantity userError instead of staging a second return,
-  while zero and over-line `removeFromReturn` quantities return `INVALID` quantity userErrors.
+- Live 2026-04 parity covers return quantity validation: existing `OPEN` returns consuming part of the fulfilled
+  quantity make over-cap `returnRequest` and `returnCreate` calls return `Return line item has an invalid quantity.`
+  with root-specific field paths, while zero and over-line `removeFromReturn` quantities return Shopify's captured
+  `GREATER_THAN`/`INVALID` userError shapes.
 - Executable parity covers request approval, empty reverse-delivery line expansion, `ReverseDeliveryLabelInput.fileUrl`,
   shipping update, reverse-fulfillment disposal, return processing, and downstream reads from staged return and
   reverse-logistics records. Exchange processing, carrier label creation, notification sends, refund transfers, duties,
@@ -144,9 +145,14 @@ Local staged mutations:
 
 ### Evidence and validation
 
-- Return lifecycle, decline/request hidden notification branches, quantity validation, local reverse-delivery label
-  normalization, and non-recording operation-name dispatch are covered by Rust runtime tests rather than the retired
-  local-runtime parity specs.
+- Return lifecycle, decline/request hidden notification branches, local reverse-delivery label normalization, and
+  non-recording operation-name dispatch are covered by Rust runtime tests rather than the retired local-runtime parity
+  specs.
+- Return quantity validation parity:
+  `config/parity-specs/orders/returnRequest-quantity-cap.json` and
+  `config/parity-specs/orders/removeFromReturn-quantity-validation.json`, backed by
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-quantity-validation.json` and captured with
+  `scripts/capture-return-quantity-validation-conformance.mts`.
 - Return decline/request public-schema validation evidence:
   `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/return-decline-request-validation.json`.
 - Live reverse-logistics recorded parity:

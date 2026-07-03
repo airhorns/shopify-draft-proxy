@@ -14,7 +14,10 @@ const replacementCaptureIds = [
   'return-approve-decline-state-preconditions',
   'return-reverse-logistics',
   'return-status-preconditions',
+  'return-quantity-validation',
   'order-capture-validation',
+  'order-payment-transaction-void',
+  'order-create-mandate-payment-validation',
 ];
 
 for (const captureId of replacementCaptureIds) {

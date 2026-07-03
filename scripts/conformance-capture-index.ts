@@ -69,6 +69,12 @@ const CAPTURE_ROOT = 'fixtures/conformance/<store>/<api-version>/<domain-folder>
 const LOCAL_RUNTIME_ROOT = 'fixtures/conformance/local-runtime/<api-version>/<domain-folder>/';
 
 export const retiredConformanceEvidencePaths = [
+  'config/parity-specs/orders/draftOrderInvoiceSend-invoice-errors.json',
+  'config/parity-specs/orders/order-payment-mandate-local-staging.json',
+  'config/parity-specs/orders/order-payment-transaction-non-recording-operation-name.json',
+  'config/parity-specs/payments/order_create_mandate_payment_auto_capture_false.json',
+  'config/parity-specs/payments/order_create_mandate_payment_idempotency.json',
+  'config/parity-specs/payments/order_create_mandate_payment_reference_id_format.json',
   'config/parity-requests/discounts/discount-activation-failure-field-base-automatic-activate.graphql',
   'config/parity-requests/discounts/discount-activation-failure-field-base-code-activate.graphql',
   'config/parity-requests/discounts/discount-activation-failure-field-base-create.graphql',
@@ -91,6 +97,9 @@ export const retiredConformanceEvidencePaths = [
   'fixtures/conformance/local-runtime/2026-04/discounts/discount-activation-failure-field-base.json',
   'fixtures/conformance/local-runtime/2026-04/discounts/discount-app-bulk-local-runtime.json',
   'fixtures/conformance/local-runtime/2026-04/discounts/discount-subscription-fields-not-permitted.json',
+  'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/refund-create-full-parity.json',
+  'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/refund-create-over-refund-user-errors.json',
+  'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/refund-create-partial-shipping-restock-parity.json',
 ] as const;
 
 function defineCaptureIndex(entries: Array<z.input<typeof captureIndexEntrySchema>>): ConformanceCaptureIndexEntry[] {
@@ -6696,6 +6705,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'write_products',
       'read_payment_terms',
       'write_payment_terms',
+      'write_payment_mandate for successful mandate payment branches (not present on the active token)',
+      'pay_orders_by_vaulted_card staff permission and Shopify Plus store for real mandate payment success',
     ],
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/abandonment-delivery-status-unknown.json',
@@ -6709,7 +6720,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnApprove-decline-state-preconditions.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnClose-Reopen-Cancel-state-preconditions.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-quantity-validation.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/order-capture-validation.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/order-payment-transaction-void-live.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/order-create-mandate-payment-validation.json',
       'config/parity-specs/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.json',
       'config/parity-specs/orders/draftOrderBulkTag-validation.json',
       'config/parity-specs/orders/draftOrderComplete-non-recording-operation-name.json',
@@ -6721,17 +6735,85 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/orders/orderCancel-state-transitions.json',
       'config/parity-specs/orders/orderDelete-cascade-and-deletability.json',
       'config/parity-specs/orders/removeFromReturn-local-staging.json',
+      'config/parity-specs/orders/removeFromReturn-quantity-validation.json',
       'config/parity-specs/orders/return-lifecycle-local-staging.json',
       'config/parity-specs/orders/return-request-decline-local-staging.json',
       'config/parity-specs/orders/return-reverse-logistics-local-staging.json',
       'config/parity-specs/orders/return-reverse-logistics-non-recording-operation-name.json',
       'config/parity-specs/orders/returnApprove-decline-state-preconditions.json',
+      'config/parity-specs/orders/returnRequest-quantity-cap.json',
+      'config/parity-specs/orders/order-payment-transaction-void-local-staging.json',
+      'config/parity-specs/payments/order_create_mandate_payment_missing_mandate.json',
+      'config/parity-requests/payments/order-payment-transaction-void-create.graphql',
+      'config/parity-requests/payments/order-payment-transaction-void.graphql',
+      'config/parity-requests/payments/order-payment-transaction-void-read.graphql',
     ],
     cleanupBehavior:
       'Delegates to the underlying live capture scripts; those scripts create and clean up disposable orders, draft orders, returns, and payment-validation orders per scenario.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
     notes:
-      'The private invoice-error, real mandate-payment-service, operation-name-only, and quantity-local branches remain retired from parity evidence and are protected by focused Rust integration tests because they are not legitimate public Shopify recordings.',
+      'The private invoice-error, private OrderTransaction paymentReferenceId/paymentId projection, operation-name-only, and successful real mandate-payment-service branches remain retired from parity evidence and are protected by focused Rust integration tests. Live probes confirmed public Admin GraphQL rejects private payload fields and the active token lacks write_payment_mandate / customer-payment-method scopes plus the required pay_orders_by_vaulted_card/Plus preconditions.',
+  },
+  {
+    domain: 'orders',
+    captureId: 'return-quantity-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-return-quantity-validation-conformance.mts',
+    purpose:
+      'returnRequest, returnCreate, and removeFromReturn quantity validation against disposable fulfilled orders and real existing-return state.',
+    requiredAuthScopes: [
+      'read_orders',
+      'write_orders',
+      'read_returns',
+      'write_returns',
+      'read_fulfillments',
+      'write_fulfillments',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}return-quantity-validation.json`,
+      'config/parity-specs/orders/returnRequest-quantity-cap.json',
+      'config/parity-specs/orders/removeFromReturn-quantity-validation.json',
+    ],
+    cleanupBehavior:
+      'Creates and fulfills disposable orders, opens returns for quantity preconditions, records validation failures, and leaves the disposable return records as captured evidence.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
+    captureId: 'order-payment-transaction-void',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-payment-transaction-void-conformance.ts',
+    purpose:
+      'Successful public transactionVoid behavior and downstream order read against a disposable manual authorization order.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-payment-transaction-void-live.json`,
+      'config/parity-specs/orders/order-payment-transaction-void-local-staging.json',
+      'config/parity-requests/payments/order-payment-transaction-void-create.graphql',
+      'config/parity-requests/payments/order-payment-transaction-void.graphql',
+      'config/parity-requests/payments/order-payment-transaction-void-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable manual authorization order, voids the authorization, records downstream order state, then cancels the order in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Uses public OrderTransaction fields only; private paymentId/paymentReferenceId projection remains runtime-test-backed.',
+  },
+  {
+    domain: 'payments',
+    captureId: 'order-create-mandate-payment-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-create-mandate-payment-validation-conformance.ts',
+    purpose: 'orderCreateMandatePayment omitted mandateId public schema-validation response.',
+    requiredAuthScopes: ['active Admin GraphQL schema access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-create-mandate-payment-validation.json`,
+      'config/parity-specs/payments/order_create_mandate_payment_missing_mandate.json',
+    ],
+    cleanupBehavior: 'Validation-only capture fails before resolver execution and does not mutate Shopify.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Successful mandate payment requires write_payment_mandate, a user with pay_orders_by_vaulted_card, Shopify Plus amount-field access, and a real PaymentMandate; those are not available to the active conformance token.',
   },
   {
     domain: 'orders',
