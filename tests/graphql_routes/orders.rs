@@ -5874,8 +5874,9 @@ fn payment_reminder_send_resolves_staged_payment_terms_schedule_guardrails() {
         json!({ "data": { "paymentReminderSend": payment_reminder_error("Payment reminder could not be sent") } })
     );
 
-    let draft_schedule = stage_reminder_draft_payment_schedule(&mut proxy);
-    let draft = proxy.process_request(json_graphql_request(
+    let mut draft_proxy = snapshot_proxy();
+    let draft_schedule = stage_reminder_draft_payment_schedule(&mut draft_proxy);
+    let draft = draft_proxy.process_request(json_graphql_request(
         query,
         json!({ "paymentScheduleId": draft_schedule }),
     ));
@@ -5929,7 +5930,8 @@ fn stage_reminder_order_payment_schedule(
 }
 
 fn stage_reminder_draft_payment_schedule(proxy: &mut DraftProxy) -> Value {
-    stage_reminder_payment_terms(proxy, json!("gid://shopify/DraftOrder/reminder-draft"))
+    let draft = create_payment_terms_test_draft(proxy, "Payment reminder draft");
+    stage_reminder_payment_terms(proxy, draft["id"].clone())
 }
 
 fn stage_reminder_payment_terms(proxy: &mut DraftProxy, owner_id: Value) -> Value {
@@ -6799,10 +6801,15 @@ fn payment_terms_omitted_template_id_create_coerces_update_defaults() {
     );
     assert_eq!(log_snapshot(&proxy), json!({ "entries": [] }));
 
+    let setup_owner = create_payment_terms_test_order(
+        &mut proxy,
+        "payment-terms-default-owner@example.test",
+        "Payment terms default owner",
+    );
     let setup = proxy.process_request(json_graphql_request(
         create_query,
         json!({
-            "referenceId": "gid://shopify/Order/637",
+            "referenceId": setup_owner["id"].clone(),
             "attrs": {
                 "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
                 "paymentSchedules": [{ "issuedAt": "2026-01-01T00:00:00Z" }]
@@ -6920,11 +6927,16 @@ fn payment_terms_create_update_due_state_tracks_schedule_due_at() {
         "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
         "paymentSchedules": [{ "dueAt": "2099-01-01T00:00:00Z" }]
     });
+    let past_draft = create_payment_terms_test_draft(&mut proxy, "Payment terms past due owner");
+    let past_draft_id = past_draft["id"].clone();
+    let future_draft =
+        create_payment_terms_test_draft(&mut proxy, "Payment terms future due owner");
+    let future_draft_id = future_draft["id"].clone();
 
     let past_create = proxy.process_request(json_graphql_request(
         create_query,
         json!({
-            "referenceId": "gid://shopify/DraftOrder/past-due",
+            "referenceId": past_draft_id.clone(),
             "attrs": past_attrs.clone()
         }),
     ));
@@ -6941,7 +6953,7 @@ fn payment_terms_create_update_due_state_tracks_schedule_due_at() {
 
     let past_read = proxy.process_request(json_graphql_request(
         read_query,
-        json!({ "id": "gid://shopify/DraftOrder/past-due" }),
+        json!({ "id": past_draft_id }),
     ));
     assert_eq!(past_read.status, 200);
     assert_payment_terms_due_state(
@@ -6953,7 +6965,7 @@ fn payment_terms_create_update_due_state_tracks_schedule_due_at() {
     let future_create = proxy.process_request(json_graphql_request(
         create_query,
         json!({
-            "referenceId": "gid://shopify/DraftOrder/future-due",
+            "referenceId": future_draft_id.clone(),
             "attrs": future_attrs.clone()
         }),
     ));
@@ -6994,7 +7006,7 @@ fn payment_terms_create_update_due_state_tracks_schedule_due_at() {
 
     let past_update_read = proxy.process_request(json_graphql_request(
         read_query,
-        json!({ "id": "gid://shopify/DraftOrder/future-due" }),
+        json!({ "id": future_draft_id }),
     ));
     assert_eq!(past_update_read.status, 200);
     assert_payment_terms_due_state(
@@ -7038,6 +7050,92 @@ fn assert_payment_terms_due_state(terms: &Value, expected_due: bool, expected_du
     assert_eq!(schedule["due"], json!(expected_due));
 }
 
+fn create_payment_terms_test_order(proxy: &mut DraftProxy, email: &str, title: &str) -> Value {
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreatePaymentTermsOwner($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              displayFinancialStatus
+              currentTotalPriceSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": email,
+                "currency": "USD",
+                "presentmentCurrency": "CAD",
+                "financialStatus": "PENDING",
+                "lineItems": [{
+                    "title": title,
+                    "quantity": 1,
+                    "priceSet": {
+                        "shopMoney": { "amount": "42.50", "currencyCode": "USD" },
+                        "presentmentMoney": { "amount": "57.00", "currencyCode": "CAD" }
+                    }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    create.body["data"]["orderCreate"]["order"].clone()
+}
+
+fn mark_payment_terms_test_order_paid(proxy: &mut DraftProxy, order_id: Value) {
+    let mark = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarkPaymentTermsOwnerPaid($input: OrderMarkAsPaidInput!) {
+          orderMarkAsPaid(input: $input) {
+            order { id displayFinancialStatus }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": order_id } }),
+    ));
+    assert_eq!(mark.status, 200);
+    assert_eq!(
+        mark.body["data"]["orderMarkAsPaid"]["order"]["displayFinancialStatus"],
+        json!("PAID")
+    );
+    assert_eq!(
+        mark.body["data"]["orderMarkAsPaid"]["userErrors"],
+        json!([])
+    );
+}
+
+fn create_payment_terms_test_draft(proxy: &mut DraftProxy, title: &str) -> Value {
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreatePaymentTermsDraftOwner($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder { id status totalPriceSet { shopMoney { amount currencyCode } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "lineItems": [{ "title": title, "quantity": 1, "originalUnitPrice": "3.25" }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    create.body["data"]["draftOrderCreate"]["draftOrder"].clone()
+}
+
 #[test]
 fn payment_terms_create_update_guardrails_cover_current_helper_edges() {
     let create_query = r#"
@@ -7075,9 +7173,15 @@ fn payment_terms_create_update_guardrails_cover_current_helper_edges() {
         "paymentSchedules": [{ "issuedAt": "2026-05-05T00:00:00Z" }]
     });
 
+    let paid_owner = create_payment_terms_test_order(
+        &mut proxy,
+        "payment-terms-paid-create@example.test",
+        "Payment terms paid create",
+    );
+    mark_payment_terms_test_order_paid(&mut proxy, paid_owner["id"].clone());
     let paid_create = proxy.process_request(json_graphql_request(
         create_query,
-        json!({ "referenceId": "gid://shopify/Order/paid", "attrs": net_attrs.clone() }),
+        json!({ "referenceId": paid_owner["id"].clone(), "attrs": net_attrs.clone() }),
     ));
     assert_eq!(paid_create.status, 200);
     assert_eq!(
@@ -7093,11 +7197,14 @@ fn payment_terms_create_update_guardrails_cover_current_helper_edges() {
         })
     );
 
-    for reference_id in [
-        "gid://shopify/Order/closed",
-        "gid://shopify/Order/cancelled-unpaid",
-        "gid://shopify/DraftOrder/paid-status",
-    ] {
+    let accepted_order = create_payment_terms_test_order(
+        &mut proxy,
+        "payment-terms-accepted-order@example.test",
+        "Payment terms accepted order",
+    );
+    let accepted_draft =
+        create_payment_terms_test_draft(&mut proxy, "Payment terms accepted draft");
+    for reference_id in [accepted_order["id"].clone(), accepted_draft["id"].clone()] {
         let accepted = proxy.process_request(json_graphql_request(
             create_query,
             json!({ "referenceId": reference_id, "attrs": net_attrs.clone() }),
@@ -7115,10 +7222,17 @@ fn payment_terms_create_update_guardrails_cover_current_helper_edges() {
         );
     }
 
+    let validation_owner = create_payment_terms_test_order(
+        &mut proxy,
+        "payment-terms-validation-owner@example.test",
+        "Payment terms validation owner",
+    );
+    let validation_owner_id = validation_owner["id"].clone();
+
     let multiple_schedules = proxy.process_request(json_graphql_request(
         create_query,
         json!({
-            "referenceId": "gid://shopify/Order/637",
+            "referenceId": validation_owner_id.clone(),
             "attrs": {
                 "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
                 "paymentSchedules": [
@@ -7144,26 +7258,26 @@ fn payment_terms_create_update_guardrails_cover_current_helper_edges() {
 
     let unknown_order = proxy.process_request(json_graphql_request(
         create_query,
-        json!({ "referenceId": "gid://shopify/Order/123", "attrs": net_attrs.clone() }),
+        json!({ "referenceId": "gid://shopify/Order/456", "attrs": net_attrs.clone() }),
     ));
     assert_eq!(
         unknown_order.body["data"]["paymentTermsCreate"]["userErrors"][0],
         json!({
             "field": Value::Null,
-            "message": "Cannot find the specific Order with id 123.",
+            "message": "Cannot find the specific Order with id 456.",
             "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
         })
     );
 
     let unknown_draft = proxy.process_request(json_graphql_request(
         create_query,
-        json!({ "referenceId": "gid://shopify/DraftOrder/999999", "attrs": net_attrs.clone() }),
+        json!({ "referenceId": "gid://shopify/DraftOrder/888888", "attrs": net_attrs.clone() }),
     ));
     assert_eq!(
         unknown_draft.body["data"]["paymentTermsCreate"]["userErrors"][0],
         json!({
             "field": Value::Null,
-            "message": "Cannot find the specific Draft order with id 999999.",
+            "message": "Cannot find the specific Draft order with id 888888.",
             "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
         })
     );
@@ -7171,7 +7285,7 @@ fn payment_terms_create_update_guardrails_cover_current_helper_edges() {
     let unknown_template = proxy.process_request(json_graphql_request(
         create_query,
         json!({
-            "referenceId": "gid://shopify/Order/637",
+            "referenceId": validation_owner_id.clone(),
             "attrs": {
                 "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/9999",
                 "paymentSchedules": [{ "issuedAt": "2026-01-01T00:00:00Z" }]
@@ -7194,7 +7308,7 @@ fn payment_terms_create_update_guardrails_cover_current_helper_edges() {
     let fixed_without_due = proxy.process_request(json_graphql_request(
         create_query,
         json!({
-            "referenceId": "gid://shopify/Order/637",
+            "referenceId": validation_owner_id.clone(),
             "attrs": {
                 "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
                 "paymentSchedules": [{}]
@@ -7213,7 +7327,7 @@ fn payment_terms_create_update_guardrails_cover_current_helper_edges() {
     let receipt_with_due = proxy.process_request(json_graphql_request(
         create_query,
         json!({
-            "referenceId": "gid://shopify/Order/637",
+            "referenceId": validation_owner_id.clone(),
             "attrs": {
                 "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/1",
                 "paymentSchedules": [{ "dueAt": "2026-01-01T00:00:00Z" }]
@@ -7228,7 +7342,7 @@ fn payment_terms_create_update_guardrails_cover_current_helper_edges() {
     let receipt_issued_at = proxy.process_request(json_graphql_request(
         create_query,
         json!({
-            "referenceId": "gid://shopify/Order/637",
+            "referenceId": validation_owner_id.clone(),
             "attrs": {
                 "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/1",
                 "paymentSchedules": [{ "issuedAt": "2026-01-01T00:00:00Z" }]
@@ -7251,7 +7365,7 @@ fn payment_terms_create_update_guardrails_cover_current_helper_edges() {
 
     let missing_update = proxy.process_request(json_graphql_request(
         update_query,
-        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/999999", "paymentTermsAttributes": net_attrs.clone() } }),
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/424242", "paymentTermsAttributes": net_attrs.clone() } }),
     ));
     assert_eq!(
         missing_update.body["data"]["paymentTermsUpdate"]["userErrors"][0],
@@ -7262,9 +7376,25 @@ fn payment_terms_create_update_guardrails_cover_current_helper_edges() {
         })
     );
 
+    let paid_update_owner = create_payment_terms_test_order(
+        &mut proxy,
+        "payment-terms-update-paid-owner@example.test",
+        "Payment terms paid update",
+    );
+    let paid_update_seed = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "referenceId": paid_update_owner["id"].clone(), "attrs": net_attrs.clone() }),
+    ));
+    assert_eq!(
+        paid_update_seed.body["data"]["paymentTermsCreate"]["userErrors"],
+        json!([])
+    );
+    let paid_update_id =
+        paid_update_seed.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone();
+    mark_payment_terms_test_order_paid(&mut proxy, paid_update_owner["id"].clone());
     let paid_update = proxy.process_request(json_graphql_request(
         update_query,
-        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/paid-update", "paymentTermsAttributes": net_attrs.clone() } }),
+        json!({ "input": { "paymentTermsId": paid_update_id, "paymentTermsAttributes": net_attrs.clone() } }),
     ));
     assert_eq!(
         paid_update.body["data"]["paymentTermsUpdate"]["userErrors"][0],
@@ -7275,19 +7405,12 @@ fn payment_terms_create_update_guardrails_cover_current_helper_edges() {
         })
     );
 
-    let channel_policy_update = proxy.process_request(json_graphql_request(
-        update_query,
-        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/channel-policy-update", "paymentTermsAttributes": net_attrs.clone() } }),
-    ));
-    assert_eq!(
-        channel_policy_update.body["data"]["paymentTermsUpdate"]["userErrors"][0]["message"],
-        json!("Cannot create payment terms on an Order where the sales channel does not allow payment terms.")
-    );
-
+    let draft_update_owner =
+        create_payment_terms_test_draft(&mut proxy, "Payment terms draft update");
     let draft_update_seed = proxy.process_request(json_graphql_request(
         create_query,
         json!({
-            "referenceId": "gid://shopify/DraftOrder/draft-update",
+            "referenceId": draft_update_owner["id"].clone(),
             "attrs": {
                 "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
                 "paymentSchedules": [{ "dueAt": "2026-01-01T00:00:00Z" }]
@@ -7318,7 +7441,7 @@ fn payment_terms_create_update_guardrails_cover_current_helper_edges() {
         update_query,
         json!({
             "input": {
-                "paymentTermsId": "gid://shopify/PaymentTerms/123",
+                "paymentTermsId": draft_update_id.clone(),
                 "paymentTermsAttributes": {
                     "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/9999",
                     "paymentSchedules": [{ "issuedAt": "2026-01-01T00:00:00Z" }]
@@ -7343,7 +7466,7 @@ fn payment_terms_create_update_guardrails_cover_current_helper_edges() {
         update_query,
         json!({
             "input": {
-                "paymentTermsId": "gid://shopify/PaymentTerms/123",
+                "paymentTermsId": draft_update_id,
                 "paymentTermsAttributes": {
                     "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
                     "paymentSchedules": [{}]
@@ -7357,6 +7480,110 @@ fn payment_terms_create_update_guardrails_cover_current_helper_edges() {
             "field": Value::Null,
             "message": "A due date is required with fixed or net payment terms.",
             "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
+        })
+    );
+}
+
+#[test]
+fn payment_terms_owner_and_template_validation_derive_from_state() {
+    let create_query = r#"
+        mutation PaymentTermsStatefulCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {
+          paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {
+            paymentTerms { id paymentTermsName paymentTermsType }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation PaymentTermsStatefulUpdate($input: PaymentTermsUpdateInput!) {
+          paymentTermsUpdate(input: $input) {
+            paymentTerms { id paymentTermsName paymentTermsType }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let mut proxy = snapshot_proxy();
+    let net_attrs = json!({
+        "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+        "paymentSchedules": [{ "issuedAt": "2026-05-05T00:00:00Z" }]
+    });
+
+    let unknown_order = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "referenceId": "gid://shopify/Order/456", "attrs": net_attrs.clone() }),
+    ));
+    assert_eq!(
+        unknown_order.body["data"]["paymentTermsCreate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Cannot find the specific Order with id 456.",
+            "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+        })
+    );
+    assert_eq!(
+        unknown_order.body["data"]["paymentTermsCreate"]["paymentTerms"],
+        Value::Null
+    );
+
+    let order = create_payment_terms_test_order(
+        &mut proxy,
+        "payment-terms-paid-owner@example.test",
+        "Payment terms paid owner",
+    );
+    let order_id = order["id"].clone();
+    let create_terms = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "referenceId": order_id.clone(), "attrs": net_attrs.clone() }),
+    ));
+    assert_eq!(
+        create_terms.body["data"]["paymentTermsCreate"]["userErrors"],
+        json!([])
+    );
+    let payment_terms_id = create_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"]
+        .as_str()
+        .expect("created terms id")
+        .to_string();
+
+    mark_payment_terms_test_order_paid(&mut proxy, order_id);
+    let paid_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "input": {
+                "paymentTermsId": payment_terms_id,
+                "paymentTermsAttributes": net_attrs.clone()
+            }
+        }),
+    ));
+    assert_eq!(
+        paid_update.body["data"]["paymentTermsUpdate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Cannot create payment terms on an Order that has already been paid in full.",
+            "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
+        })
+    );
+    assert_eq!(
+        paid_update.body["data"]["paymentTermsUpdate"]["paymentTerms"],
+        Value::Null
+    );
+
+    let draft = create_payment_terms_test_draft(&mut proxy, "Payment terms fulfillment owner");
+    let fulfillment_with_due = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "referenceId": draft["id"].clone(),
+            "attrs": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/9",
+                "paymentSchedules": [{ "dueAt": "2026-05-05T00:00:00Z" }]
+            }
+        }),
+    ));
+    assert_eq!(
+        fulfillment_with_due.body["data"]["paymentTermsCreate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "A due date cannot be set with event payment terms.",
+            "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
         })
     );
 }
@@ -7430,9 +7657,9 @@ fn payment_terms_create_update_reprojects_from_template_catalog() {
     let mut create_attrs_for_log = Vec::new();
     let mut created_terms_ids = Vec::new();
 
-    for (reference_id, attrs, expected_name, expected_type, expected_due_days, schedule_count) in [
+    for (draft_title, attrs, expected_name, expected_type, expected_due_days, schedule_count) in [
         (
-            "gid://shopify/DraftOrder/fixed-template",
+            "Payment terms fixed template",
             json!({
                 "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
                 "paymentSchedules": [{ "dueAt": "2026-07-01T00:00:00Z" }]
@@ -7443,7 +7670,7 @@ fn payment_terms_create_update_reprojects_from_template_catalog() {
             1_usize,
         ),
         (
-            "gid://shopify/DraftOrder/net-7-template",
+            "Payment terms net template",
             json!({
                 "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/2",
                 "paymentSchedules": [{ "issuedAt": "2026-07-01T00:00:00Z" }]
@@ -7454,7 +7681,7 @@ fn payment_terms_create_update_reprojects_from_template_catalog() {
             1_usize,
         ),
         (
-            "gid://shopify/DraftOrder/fulfillment-template",
+            "Payment terms fulfillment template",
             json!({
                 "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/9"
             }),
@@ -7464,9 +7691,10 @@ fn payment_terms_create_update_reprojects_from_template_catalog() {
             0_usize,
         ),
     ] {
+        let draft = create_payment_terms_test_draft(&mut proxy, draft_title);
         let create = proxy.process_request(json_graphql_request(
             create_query,
-            json!({ "referenceId": reference_id, "attrs": attrs.clone() }),
+            json!({ "referenceId": draft["id"].clone(), "attrs": attrs.clone() }),
         ));
         assert_eq!(create.status, 200);
         assert_eq!(
@@ -7682,7 +7910,7 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         ),
         json!({
             "input": {
-                "paymentTermsId": "gid://shopify/PaymentTerms/999999",
+                "paymentTermsId": "gid://shopify/PaymentTerms/424243",
                 "paymentTermsAttributes": net_30_attrs.clone()
             }
         }),
@@ -7696,12 +7924,15 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         json!("Could not find payment terms.")
     );
 
+    let draft_owner =
+        create_payment_terms_test_draft(&mut proxy, "Payment terms delete cascade draft");
+    let draft_owner_id = draft_owner["id"].clone();
     let draft_terms = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-terms-lifecycle-create.graphql"
         ),
         json!({
-            "referenceId": "gid://shopify/DraftOrder/payment-terms-delete-cascade",
+            "referenceId": draft_owner_id.clone(),
             "attrs": net_30_attrs.clone()
         }),
     ));
@@ -7734,7 +7965,7 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         include_str!(
             "../../config/parity-requests/payments/payment-terms-owner-cascade-draft-read.graphql"
         ),
-        json!({ "id": "gid://shopify/DraftOrder/payment-terms-delete-cascade" }),
+        json!({ "id": draft_owner_id }),
     ));
     assert_eq!(
         draft_read.body["data"]["draftOrder"]["paymentTerms"],
@@ -7816,7 +8047,7 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         include_str!(
             "../../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"
         ),
-        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/999999" } }),
+        json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/424244" } }),
     ));
     assert_eq!(
         missing_delete.body["data"]["paymentTermsDelete"]["userErrors"][0]["field"],
@@ -10536,6 +10767,94 @@ fn draft_order_invoice_send_validation_branches_do_not_mark_invoice_sent() {
         json!("Draft order Invoice can't be sent. This draft order is already paid.")
     );
     assert_eq!(paid_payload["invoiceErrors"], json!([]));
+}
+
+#[test]
+fn draft_order_invoice_send_validation_projects_created_draft_shape() {
+    let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "USD");
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDraftForInvoiceProjection($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              name
+              status
+              totalQuantityOfLineItems
+              totalPriceSet { shopMoney { amount currencyCode } }
+              lineItems(first: 5) {
+                nodes {
+                  title
+                  quantity
+                  originalUnitPriceSet { shopMoney { amount currencyCode } }
+                  originalTotalSet { shopMoney { amount currencyCode } }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "lineItems": [{
+                    "title": "Invoice projection item",
+                    "quantity": 2,
+                    "originalUnitPrice": "3.25"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let created_draft = create.body["data"]["draftOrderCreate"]["draftOrder"].clone();
+    let draft_order_id = created_draft["id"].clone();
+
+    let send = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SendDraftInvoiceWithoutRecipient($id: ID!) {
+          draftOrderInvoiceSend(id: $id) {
+            draftOrder {
+              id
+              name
+              status
+              totalQuantityOfLineItems
+              totalPriceSet { shopMoney { amount currencyCode } }
+              lineItems(first: 5) {
+                nodes {
+                  title
+                  quantity
+                  originalUnitPriceSet { shopMoney { amount currencyCode } }
+                  originalTotalSet { shopMoney { amount currencyCode } }
+                }
+              }
+            }
+            userErrors { field message }
+            invoiceErrors { code message }
+          }
+        }
+        "#,
+        json!({ "id": draft_order_id }),
+    ));
+    assert_eq!(send.status, 200);
+    let payload = &send.body["data"]["draftOrderInvoiceSend"];
+    assert_eq!(payload["draftOrder"], created_draft);
+    assert_eq!(
+        payload["userErrors"][0]["message"],
+        json!("To can't be blank")
+    );
+    assert_eq!(
+        payload["invoiceErrors"][0],
+        json!({
+            "code": "CUSTOMER_NO_EMAIL",
+            "message": "Customer email can't be blank"
+        })
+    );
 }
 
 #[test]

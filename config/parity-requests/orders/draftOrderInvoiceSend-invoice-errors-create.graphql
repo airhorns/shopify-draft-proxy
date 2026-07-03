@@ -1,6 +1,6 @@
 mutation DraftOrderInvoiceSendInvoiceErrorsCreate {
   draftOrderCreate(
-    input: { lineItems: [{ title: "Invoice error parity item", quantity: 1, originalUnitPrice: "1.00" }] }
+    input: { lineItems: [{ title: "Invoice send local runtime item", quantity: 1, originalUnitPrice: "1.00" }] }
   ) {
     draftOrder {
       id
