@@ -726,6 +726,50 @@ fn marketing_external_activity_uses_request_app_custom_channel_and_tracking_valu
 }
 
 #[test]
+fn marketing_external_activity_unknown_non_email_source_medium_is_null() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityUnknownSourceMedium {
+          createExternal: marketingActivityCreateExternal(input: {
+            title: "Display post launch",
+            remoteId: "display-post-launch",
+            status: ACTIVE,
+            tactic: POST,
+            marketingChannelType: DISPLAY,
+            remoteUrl: "https://example.com/display-post-launch",
+            utm: { campaign: "display-post-launch", source: "display", medium: "post" }
+          }) {
+            marketingActivity {
+              sourceAndMedium
+              marketingEvent {
+                sourceAndMedium
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        create.body["data"]["createExternal"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["sourceAndMedium"],
+        json!(null)
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["marketingEvent"]
+            ["sourceAndMedium"],
+        json!(null)
+    );
+}
+
+#[test]
 fn marketing_engagement_currency_validation_matches_shopify_error_codes() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(

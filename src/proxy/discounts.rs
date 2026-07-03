@@ -373,7 +373,7 @@ impl DraftProxy {
             let _ = self.next_proxy_synthetic_gid("DiscountRedeemCode");
         }
         let shop_currency_code = self.store.shop_currency_code();
-        let summary = self.discount_summary_for_input(typename, &input);
+        let summary = self.discount_summary_for_input(typename, &input, None);
         let mut record = discount_record_from_input(
             &id,
             discount_kind,
@@ -837,7 +837,7 @@ impl DraftProxy {
         }
         let input = input.unwrap_or_default();
         let existing = self.discount_record(&id).cloned();
-        let summary = self.discount_summary_for_input(typename, &input);
+        let summary = self.discount_summary_for_input(typename, &input, existing.as_ref());
         let shop_currency_code = self.store.shop_currency_code();
         let mut record = discount_record_from_input(
             &id,
@@ -902,7 +902,7 @@ impl DraftProxy {
             let _ = self.next_proxy_synthetic_gid("DiscountRedeemCode");
         }
         let shop_currency_code = self.store.shop_currency_code();
-        let summary = self.discount_summary_for_input(typename, &input);
+        let summary = self.discount_summary_for_input(typename, &input, None);
         let mut record = discount_record_from_input(
             &id,
             discount_kind,
@@ -963,7 +963,7 @@ impl DraftProxy {
             }
         };
         let existing = self.discount_record(&id).cloned();
-        let summary = self.discount_summary_for_input(typename, &input);
+        let summary = self.discount_summary_for_input(typename, &input, existing.as_ref());
         let shop_currency_code = self.store.shop_currency_code();
         let mut record = discount_record_from_input(
             &id,
@@ -1823,28 +1823,41 @@ impl DraftProxy {
         &self,
         typename: &str,
         input: &BTreeMap<String, ResolvedValue>,
-    ) -> String {
+        existing: Option<&Value>,
+    ) -> Value {
         if typename.contains("Bxgy") {
-            return discount_bxgy_summary(input);
+            return discount_bxgy_summary(input)
+                .map(Value::String)
+                .or_else(|| existing.and_then(|record| record.get("summary").cloned()))
+                .unwrap_or(Value::Null);
         }
         if typename.contains("FreeShipping") {
-            return self.discount_free_shipping_summary_for_input(typename, input);
+            return Value::String(self.discount_free_shipping_summary_for_input(typename, input));
         }
         if typename.contains("Basic") {
-            return self.discount_basic_summary_for_input(input);
+            return self
+                .discount_basic_summary_for_input(input)
+                .map(Value::String)
+                .or_else(|| existing.and_then(|record| record.get("summary").cloned()))
+                .unwrap_or(Value::Null);
         }
-        "Discount".to_string()
+        existing
+            .and_then(|record| record.get("summary").cloned())
+            .unwrap_or_else(|| Value::String("Discount".to_string()))
     }
 
-    fn discount_basic_summary_for_input(&self, input: &BTreeMap<String, ResolvedValue>) -> String {
-        discount_summary_with_parts(
+    fn discount_basic_summary_for_input(
+        &self,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<String> {
+        Some(discount_summary_with_parts(
             format!(
                 "{} {}",
-                discount_amount_off_summary_value(input),
+                discount_amount_off_summary_value(input)?,
                 self.discount_basic_scope_for_input(input)
             ),
             [discount_minimum_requirement_summary(input)],
-        )
+        ))
     }
 
     fn discount_free_shipping_summary_for_input(
@@ -2070,6 +2083,9 @@ fn discount_input_user_errors(
     if let Some(error) = discount_context_customer_selection_user_error(input, input_arg) {
         errors.push(error);
     }
+    errors.extend(discount_customer_gets_value_user_errors(
+        input, input_arg, typename, create,
+    ));
     if resolved_object_path(
         Some(&ResolvedValue::Object(input.clone())),
         &["minimumRequirement", "quantity"],
@@ -2257,6 +2273,91 @@ fn discount_bxgy_customer_gets_user_errors(
         }
     }
     errors
+}
+
+fn discount_customer_gets_value_user_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    input_arg: &str,
+    typename: &str,
+    _create: bool,
+) -> Vec<Value> {
+    if !(typename.contains("Basic") || typename.contains("Bxgy")) {
+        return Vec::new();
+    }
+
+    let input_value = ResolvedValue::Object(input.clone());
+    let customer_gets_present =
+        resolved_object_path(Some(&input_value), &["customerGets"]).is_some();
+    if !customer_gets_present {
+        return Vec::new();
+    }
+
+    let value = resolved_object_path(Some(&input_value), &["customerGets", "value"]);
+    let Some(ResolvedValue::Object(value)) = value else {
+        return vec![discount_user_error(
+            vec![input_arg, "customerGets", "value"],
+            "Discount value must be defined.",
+            "BLANK",
+        )];
+    };
+
+    if typename.contains("Bxgy") {
+        if !value.contains_key("discountOnQuantity") {
+            if value.contains_key("percentage") || value.contains_key("discountAmount") {
+                return Vec::new();
+            }
+            return vec![discount_user_error(
+                vec![input_arg, "customerGets", "value", "discountOnQuantity"],
+                "Discount value must be defined.",
+                "BLANK",
+            )];
+        }
+        let effect_path = ["customerGets", "value", "discountOnQuantity", "effect"];
+        let Some(ResolvedValue::Object(effect)) =
+            resolved_object_path(Some(&input_value), &effect_path)
+        else {
+            return vec![discount_user_error(
+                vec![
+                    input_arg,
+                    "customerGets",
+                    "value",
+                    "discountOnQuantity",
+                    "effect",
+                ],
+                "Discount value must be defined.",
+                "BLANK",
+            )];
+        };
+        if effect.contains_key("percentage")
+            || effect.contains_key("discountAmount")
+            || effect.contains_key("amount")
+        {
+            return Vec::new();
+        }
+        return vec![discount_user_error(
+            vec![
+                input_arg,
+                "customerGets",
+                "value",
+                "discountOnQuantity",
+                "effect",
+            ],
+            "Discount value must be defined.",
+            "BLANK",
+        )];
+    }
+
+    if value.contains_key("percentage")
+        || value.contains_key("discountAmount")
+        || value.contains_key("discountOnQuantity")
+    {
+        return Vec::new();
+    }
+    Vec::from([discount_user_error(
+        vec![input_arg, "customerGets", "value"],
+        "Discount value must be defined.",
+        "BLANK",
+    )])
 }
 
 /// Validate `combinesWith` against the discount class. Two business rules apply:
@@ -2897,7 +2998,7 @@ fn discount_record_from_input(
     input: &BTreeMap<String, ResolvedValue>,
     existing: Option<&Value>,
     shop_currency_code: &str,
-    summary: String,
+    summary: Value,
 ) -> Value {
     let title = resolved_string_path(input, &["title"])
         .or_else(|| existing.and_then(|record| record["title"].as_str().map(str::to_string)))
@@ -2961,7 +3062,12 @@ fn discount_record_from_input(
         "combinesWith": combines_with,
         "context": discount_context_from_input(input),
         "customerBuys": discount_customer_buys_from_input(typename, input),
-        "customerGets": discount_customer_gets_from_input(typename, input, shop_currency_code),
+        "customerGets": discount_customer_gets_from_input(
+            typename,
+            input,
+            existing,
+            shop_currency_code
+        ),
         "minimumRequirement": discount_minimum_requirement_from_input(input, shop_currency_code),
         "destinationSelection": discount_destination_selection_from_input(input),
         "maximumShippingPrice": discount_maximum_shipping_price_from_input(input, shop_currency_code),
@@ -3411,8 +3517,21 @@ fn discount_customer_buys_from_input(
 fn discount_customer_gets_from_input(
     typename: &str,
     input: &BTreeMap<String, ResolvedValue>,
+    existing: Option<&Value>,
     shop_currency_code: &str,
 ) -> Value {
+    if resolved_object_path(
+        Some(&ResolvedValue::Object(input.clone())),
+        &["customerGets"],
+    )
+    .is_none()
+    {
+        if let Some(existing_customer_gets) =
+            existing.and_then(|record| record.get("customerGets").cloned())
+        {
+            return existing_customer_gets;
+        }
+    }
     let value = if typename.contains("Bxgy") {
         discount_on_quantity_value_from_input(input, shop_currency_code)
     } else if let Some(percentage) =
@@ -3426,7 +3545,7 @@ fn discount_customer_gets_from_input(
     ) {
         amount
     } else {
-        json!({ "__typename": "DiscountPercentage", "percentage": 0.1 })
+        Value::Null
     };
     json!({
         "value": value,
@@ -3484,7 +3603,7 @@ fn discount_on_quantity_value_from_input(
     ) {
         fixed_discount_amount_value(&amount, false, shop_currency_code)
     } else {
-        json!({ "__typename": "DiscountPercentage", "percentage": 1.0 })
+        Value::Null
     };
     json!({
         "__typename": "DiscountOnQuantity",
@@ -3722,7 +3841,7 @@ fn compare_resource_ids(left: &str, right: &str) -> std::cmp::Ordering {
     }
 }
 
-fn discount_bxgy_summary(input: &BTreeMap<String, ResolvedValue>) -> String {
+fn discount_bxgy_summary(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
     let buy_quantity =
         resolved_i64_path(input, &["customerBuys", "value", "quantity"]).unwrap_or(1);
     let get_quantity = resolved_i64_path(
@@ -3730,7 +3849,9 @@ fn discount_bxgy_summary(input: &BTreeMap<String, ResolvedValue>) -> String {
         &["customerGets", "value", "discountOnQuantity", "quantity"],
     )
     .unwrap_or(1);
-    let effect_percentage = resolved_f64_path(
+    let buy_item = if buy_quantity == 1 { "item" } else { "items" };
+    let get_item = if get_quantity == 1 { "item" } else { "items" };
+    if let Some(effect_percentage) = resolved_f64_path(
         input,
         &[
             "customerGets",
@@ -3739,32 +3860,62 @@ fn discount_bxgy_summary(input: &BTreeMap<String, ResolvedValue>) -> String {
             "effect",
             "percentage",
         ],
-    )
-    .unwrap_or(1.0);
-    let buy_item = if buy_quantity == 1 { "item" } else { "items" };
-    let get_item = if get_quantity == 1 { "item" } else { "items" };
-    if (effect_percentage - 1.0).abs() < f64::EPSILON {
-        format!("Buy {buy_quantity} {buy_item}, get {get_quantity} {get_item} free")
-    } else {
+    ) {
+        if (effect_percentage - 1.0).abs() < f64::EPSILON {
+            return Some(format!(
+                "Buy {buy_quantity} {buy_item}, get {get_quantity} {get_item} free"
+            ));
+        }
         let percent = (effect_percentage * 100.0).round() as i64;
-        format!("Buy {buy_quantity} {buy_item}, get {get_quantity} {get_item} at {percent}% off")
+        return Some(format!(
+            "Buy {buy_quantity} {buy_item}, get {get_quantity} {get_item} at {percent}% off"
+        ));
     }
+    if let Some(amount) = resolved_decimal_text_path(
+        input,
+        &[
+            "customerGets",
+            "value",
+            "discountOnQuantity",
+            "effect",
+            "discountAmount",
+            "amount",
+        ],
+    )
+    .or_else(|| {
+        resolved_decimal_text_path(
+            input,
+            &[
+                "customerGets",
+                "value",
+                "discountOnQuantity",
+                "effect",
+                "amount",
+            ],
+        )
+    }) {
+        return Some(format!(
+            "Buy {buy_quantity} {buy_item}, get {get_quantity} {get_item} at {} off",
+            discount_money_summary_amount(&amount)
+        ));
+    }
+    None
 }
 
-fn discount_amount_off_summary_value(input: &BTreeMap<String, ResolvedValue>) -> String {
+fn discount_amount_off_summary_value(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
     if let Some(percentage) = resolved_f64_path(input, &["customerGets", "value", "percentage"]) {
-        return format!(
+        return Some(format!(
             "{}% off",
             discount_percentage_summary_number(percentage * 100.0)
-        );
+        ));
     }
     if let Some(amount) = resolved_decimal_text_path(
         input,
         &["customerGets", "value", "discountAmount", "amount"],
     ) {
-        return format!("{} off", discount_money_summary_amount(&amount));
+        return Some(format!("{} off", discount_money_summary_amount(&amount)));
     }
-    "10% off".to_string()
+    None
 }
 
 fn discount_purchase_scope_summary(

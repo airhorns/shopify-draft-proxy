@@ -11574,6 +11574,192 @@ fn discount_basic_summary_supports_one_time_scope_when_shop_sells_subscriptions(
 }
 
 #[test]
+fn discount_basic_update_preserves_non_default_percentage_when_value_is_omitted() {
+    let mut proxy = snapshot_proxy();
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountBasicNonDefaultCreate($input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
+            automaticDiscountNode {
+              id
+              automaticDiscount {
+                __typename
+                ... on DiscountAutomaticBasic {
+                  summary
+                  customerGets {
+                    value {
+                      __typename
+                      ... on DiscountPercentage { percentage }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Quarter off",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "customerGets": {
+                "value": { "percentage": 0.25 },
+                "items": { "all": true }
+            }
+        }}),
+    ));
+    assert_eq!(
+        created.body["data"]["discountAutomaticBasicCreate"]["userErrors"],
+        json!([])
+    );
+    let discount_id = json_string(
+        &created.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]["id"],
+        "non-default automatic discount id",
+    );
+    assert_eq!(
+        created.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["customerGets"]["value"],
+        json!({ "__typename": "DiscountPercentage", "percentage": 0.25 })
+    );
+    assert_eq!(
+        created.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["summary"],
+        json!("25% off entire order")
+    );
+
+    let updated = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountBasicNonDefaultUpdate($id: ID!, $input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $input) {
+            automaticDiscountNode {
+              automaticDiscount {
+                __typename
+                ... on DiscountAutomaticBasic {
+                  title
+                  summary
+                  customerGets {
+                    value {
+                      __typename
+                      ... on DiscountPercentage { percentage }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "id": discount_id.clone(),
+            "input": {
+                "title": "Quarter off renamed"
+            }
+        }),
+    ));
+    assert_eq!(
+        updated.body["data"]["discountAutomaticBasicUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        updated.body["data"]["discountAutomaticBasicUpdate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["summary"],
+        json!("25% off entire order")
+    );
+    assert_eq!(
+        updated.body["data"]["discountAutomaticBasicUpdate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["customerGets"]["value"],
+        json!({ "__typename": "DiscountPercentage", "percentage": 0.25 })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountBasicNonDefaultRead($id: ID!) {
+          automaticDiscountNode(id: $id) {
+            automaticDiscount {
+              __typename
+              ... on DiscountAutomaticBasic {
+                title
+                summary
+                customerGets {
+                  value {
+                    __typename
+                    ... on DiscountPercentage { percentage }
+                  }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": discount_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["automaticDiscountNode"]["automaticDiscount"]["title"],
+        json!("Quarter off renamed")
+    );
+    assert_eq!(
+        read.body["data"]["automaticDiscountNode"]["automaticDiscount"]["summary"],
+        json!("25% off entire order")
+    );
+    assert_eq!(
+        read.body["data"]["automaticDiscountNode"]["automaticDiscount"]["customerGets"]["value"],
+        json!({ "__typename": "DiscountPercentage", "percentage": 0.25 })
+    );
+}
+
+#[test]
+fn discount_basic_create_rejects_missing_customer_gets_value_without_defaulting() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountBasicMissingValue($input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
+            automaticDiscountNode {
+              automaticDiscount {
+                __typename
+                ... on DiscountAutomaticBasic {
+                  summary
+                  customerGets {
+                    value {
+                      __typename
+                      ... on DiscountPercentage { percentage }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Missing value",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "customerGets": {
+                "items": { "all": true }
+            }
+        }}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        response.body["data"]["discountAutomaticBasicCreate"]["userErrors"],
+        json!([{
+            "field": ["automaticBasicDiscount", "customerGets", "value"],
+            "message": "Discount value must be defined.",
+            "code": "BLANK",
+            "extraInfo": null
+        }])
+    );
+}
+
+#[test]
 fn discount_fixed_amount_applies_on_each_item_readback_matches_input() {
     let mut proxy = snapshot_proxy();
 
