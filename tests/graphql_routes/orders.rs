@@ -7812,6 +7812,42 @@ fn money_bag_order_edit_sessions_use_target_order_and_outstanding_defaults() {
 }
 
 #[test]
+fn money_bag_refund_missing_order_returns_user_error_without_canned_money() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RefundMissingMoneyBagOrder($input: RefundInput!) {
+          refundCreate(input: $input) {
+            refund { totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }
+            order { totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "orderId": "gid://shopify/Order/404",
+                "allowOverRefunding": true
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["refundCreate"],
+        json!({
+            "refund": Value::Null,
+            "order": Value::Null,
+            "userErrors": [{
+                "field": ["orderId"],
+                "message": "Order does not exist",
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+}
+
+#[test]
 fn abandonment_delivery_status_edge_cases_replay_mutation_and_reads() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-04/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.json"

@@ -82,7 +82,7 @@ impl DraftProxy {
         if !order_create_is_money_bag_only {
             return None;
         }
-        // The money-bag shim's orderEditBegin/Commit stubs only echo a
+        // The money-bag handler's orderEditBegin/Commit path only projects a
         // calculated order's totalPriceSet / committed order currentTotalPriceSet
         // money bag. A real order-edit begin/commit selects the calculated
         // line-item structure (lineItems, addedLineItems, originalOrder.name,
@@ -158,20 +158,29 @@ impl DraftProxy {
                         resolved_object_field(&field.arguments, "input").unwrap_or_default();
                     let transactions = resolved_object_list_field(&input, "transactions");
                     let order_id = resolved_string_field(&input, "orderId").unwrap_or_default();
-                    let order = self.store.staged.orders.get(&order_id);
+                    let Some(order) = self.store.staged.orders.get(&order_id).cloned() else {
+                        let shop_currency_code = self.store.shop_currency_code();
+                        early_response = Some(json!({
+                            "data": {
+                                field.response_key.clone(): refund_input_error(
+                                    field,
+                                    None,
+                                    refund_user_error(json!(["orderId"]), "Order does not exist", "NOT_FOUND"),
+                                    &shop_currency_code,
+                                )
+                            }
+                        }));
+                        return None;
+                    };
                     let total = if let Some(amount) = transactions
                         .first()
                         .and_then(|transaction| resolved_string_field(transaction, "amount"))
                     {
                         let amount = normalize_money_amount(&amount);
-                        let currency = order
-                            .map(|order| money_bag_currency(&order["totalPriceSet"]))
-                            .unwrap_or_else(|| "USD".to_string());
+                        let currency = money_bag_currency(&order["totalPriceSet"]);
                         money_set_pair(&amount, &currency, &amount, &currency)
                     } else {
-                        order
-                            .map(|order| money_bag_order_money_set(order, "totalOutstandingSet"))
-                            .unwrap_or_else(|| money_set_pair("5.0", "USD", "5.0", "USD"))
+                        money_bag_order_money_set(&order, "totalOutstandingSet")
                     };
                     if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
                         order["totalRefundedSet"] = total.clone();
