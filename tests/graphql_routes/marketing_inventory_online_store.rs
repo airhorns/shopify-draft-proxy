@@ -5426,6 +5426,15 @@ fn online_store_storefront_access_token_edges_ported_from_gleam() {
         .unwrap();
     assert!(filtered_token.starts_with("shpat_"));
     assert_ne!(filtered_token, first_token);
+    let first_token_value = u64::from_str_radix(first_token.trim_start_matches("shpat_"), 16)
+        .expect("first synthetic StorefrontAccessToken should be hex encoded");
+    let filtered_token_value = u64::from_str_radix(filtered_token.trim_start_matches("shpat_"), 16)
+        .expect("second synthetic StorefrontAccessToken should be hex encoded");
+    assert_eq!(
+        filtered_token_value.wrapping_sub(first_token_value),
+        1,
+        "synthetic StorefrontAccessToken bytes should advance uniformly with the id"
+    );
     assert_eq!(
         filtered.body["data"]["storefrontAccessTokenCreate"]["storefrontAccessToken"]
             ["accessScopes"],
@@ -5433,6 +5442,29 @@ fn online_store_storefront_access_token_edges_ported_from_gleam() {
             {"handle": "unauthenticated_read_customers"},
             {"handle": "unauthenticated_read_product_inventory"}
         ])
+    );
+
+    let third = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeThird {
+          storefrontAccessTokenCreate(input: { title: "Hydrogen third" }) {
+            storefrontAccessToken { accessToken }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let third_token = third.body["data"]["storefrontAccessTokenCreate"]["storefrontAccessToken"]
+        ["accessToken"]
+        .as_str()
+        .unwrap();
+    let third_token_value = u64::from_str_radix(third_token.trim_start_matches("shpat_"), 16)
+        .expect("third synthetic StorefrontAccessToken should be hex encoded");
+    assert_eq!(
+        third_token_value.wrapping_sub(filtered_token_value),
+        1,
+        "synthetic StorefrontAccessToken bytes should not special-case id suffixes"
     );
 
     let blank = proxy.process_request(json_graphql_request(
@@ -5456,7 +5488,7 @@ fn online_store_storefront_access_token_edges_ported_from_gleam() {
         })
     );
 
-    for index in 0..98 {
+    for index in 0..97 {
         let fill = proxy.process_request(json_graphql_request(
             r#"
             mutation RustOnlineStoreStorefrontAccessTokenLocalRuntimeFill($title: String!) {

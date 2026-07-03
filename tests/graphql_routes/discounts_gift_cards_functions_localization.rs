@@ -3092,8 +3092,9 @@ fn functions_validation_create_title_fallback_uses_hydrated_function_title() {
 fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
     let upstream_hits = Arc::new(Mutex::new(0usize));
     let hit_counter = Arc::clone(&upstream_hits);
-    let upstream_function =
+    let mut upstream_function =
         test_function_metadata_by_id_or_handle(None, Some("non-catalog-validation")).unwrap();
+    upstream_function["apiType"] = json!("cart_checkout_validation");
     let mut proxy = configured_proxy(
         ReadMode::LiveHybrid,
         Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
@@ -3187,11 +3188,121 @@ fn functions_cold_reads_forward_and_hydrate_non_catalog_function_metadata() {
         local_read.body["data"]["validationFunctions"]["nodes"][0],
         json!({
             "handle": "non-catalog-validation",
-            "apiType": "VALIDATION",
+            "apiType": "cart_checkout_validation",
             "app": { "apiKey": "non-catalog-app-key" }
         })
     );
     assert_eq!(*upstream_hits.lock().unwrap(), 1);
+}
+
+#[test]
+fn functions_hydrated_raw_api_types_remain_public_while_filters_use_canonical_keys() {
+    let upstream_hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&upstream_hits);
+    let upstream_functions = vec![
+        function_metadata_record(
+            "gid://shopify/ShopifyFunction/raw-validation",
+            "Raw Validation",
+            "raw-validation",
+            "cart_checkout_validation",
+            "raw-validation-app-key",
+            "raw-validation-app",
+        ),
+        function_metadata_record(
+            "gid://shopify/ShopifyFunction/raw-cart",
+            "Raw Cart",
+            "raw-cart",
+            "cart_transform",
+            "raw-cart-app-key",
+            "raw-cart-app",
+        ),
+        function_metadata_record(
+            "gid://shopify/ShopifyFunction/raw-discount",
+            "Raw Discount",
+            "raw-discount",
+            "discount",
+            "raw-discount-app-key",
+            "raw-discount-app",
+        ),
+        function_metadata_record(
+            "gid://shopify/ShopifyFunction/raw-payment",
+            "Raw Payment",
+            "raw-payment",
+            "payment_customization",
+            "raw-payment-app-key",
+            "raw-payment-app",
+        ),
+    ];
+    let upstream_response_functions = upstream_functions.clone();
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value =
+            serde_json::from_str(&request.body).expect("cold function read body should parse");
+        *hit_counter.lock().unwrap() += 1;
+        assert!(
+            body["query"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("shopifyFunctions"),
+            "cold function read should forward the original shopifyFunctions query, got {body}"
+        );
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "validationFunctions": { "nodes": [upstream_response_functions[0].clone()] },
+                    "cartFunctions": { "nodes": [upstream_response_functions[1].clone()] },
+                    "discountFunctions": { "nodes": [upstream_response_functions[2].clone()] },
+                    "paymentFunctions": { "nodes": [upstream_response_functions[3].clone()] }
+                }
+            }),
+        }
+    });
+
+    let query = r#"
+        query RawFunctionApiTypes {
+          validationFunctions: shopifyFunctions(first: 5, apiType: VALIDATION) {
+            nodes { handle apiType }
+          }
+          cartFunctions: shopifyFunctions(first: 5, apiType: CART_TRANSFORM) {
+            nodes { handle apiType }
+          }
+          discountFunctions: shopifyFunctions(first: 5, apiType: DISCOUNT) {
+            nodes { handle apiType }
+          }
+          paymentFunctions: shopifyFunctions(first: 5, apiType: PAYMENT_CUSTOMIZATION) {
+            nodes { handle apiType }
+          }
+        }
+    "#;
+    let cold_read = proxy.process_request(json_graphql_request(query, json!({})));
+    assert_eq!(cold_read.status, 200);
+    assert_eq!(
+        cold_read.body["data"]["validationFunctions"]["nodes"][0]["apiType"],
+        json!("cart_checkout_validation")
+    );
+    assert_eq!(*upstream_hits.lock().unwrap(), 1);
+
+    let local_read = proxy.process_request(json_graphql_request(query, json!({})));
+    assert_eq!(local_read.status, 200);
+    assert_eq!(
+        local_read.body["data"],
+        json!({
+            "validationFunctions": { "nodes": [{ "handle": "raw-validation", "apiType": "cart_checkout_validation" }] },
+            "cartFunctions": { "nodes": [{ "handle": "raw-cart", "apiType": "cart_transform" }] },
+            "discountFunctions": { "nodes": [{ "handle": "raw-discount", "apiType": "discount" }] },
+            "paymentFunctions": { "nodes": [{ "handle": "raw-payment", "apiType": "payment_customization" }] }
+        })
+    );
+    assert_eq!(
+        *upstream_hits.lock().unwrap(),
+        1,
+        "local function read should use hydrated metadata without another upstream request"
+    );
 }
 
 #[test]
