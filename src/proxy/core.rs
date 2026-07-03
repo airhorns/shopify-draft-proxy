@@ -860,9 +860,9 @@ impl DraftProxy {
             .cloned();
         let base_shop = state["baseState"]
             .get("shop")
-            .filter(|shop| shop.is_object())
+            .filter(|shop| shop.is_object() || shop.is_null())
             .cloned()
-            .unwrap_or_else(|| Store::with_default_baseline().base.shop);
+            .unwrap_or(Value::Null);
         let mut base_shop_policies =
             shop_policy_state_map_from_json(&state["baseState"]["shopPolicies"]);
         let mut base_shop_policy_order =
@@ -909,17 +909,14 @@ impl DraftProxy {
                         "name": "English",
                         "primary": true,
                         "published": true,
-                        "marketWebPresences": [{
-                            "id": "gid://shopify/MarketWebPresence/62842765618",
-                            "subfolderSuffix": null
-                        }]
+                        "marketWebPresences": []
                     }),
                 )])
             });
         self.store.base.localization_product_ids = state["baseState"]
             .get("localizationProductIds")
             .map(string_array_from_json)
-            .unwrap_or_else(|| vec![LOCALIZATION_BASELINE_PRODUCT_ID.to_string()])
+            .unwrap_or_default()
             .into_iter()
             .collect();
         self.store.staged.publication_ids =

@@ -6078,7 +6078,7 @@ fn online_store_storefront_access_token_edges_ported_from_gleam() {
                     {"handle": "unauthenticated_read_product_inventory"}
                 ]
             },
-            "shop": {"id": "gid://shopify/Shop/0"},
+            "shop": {},
             "userErrors": []
         })
     );
@@ -6131,7 +6131,7 @@ fn online_store_storefront_access_token_edges_ported_from_gleam() {
         blank.body["data"]["storefrontAccessTokenCreate"],
         json!({
             "storefrontAccessToken": null,
-            "shop": {"id": "gid://shopify/Shop/0"},
+            "shop": {},
             "userErrors": [{"code": "BLANK", "field": ["input", "title"], "message": "Title can't be blank"}]
         })
     );
