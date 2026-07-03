@@ -117,6 +117,104 @@ const DISCOUNT_HYDRATE_QUERY: &str = r#"#graphql
     }
   }
 "#;
+const DISCOUNT_UPDATE_HYDRATE_QUERY: &str = r#"#graphql
+  query DiscountHydrate($id: ID!) {
+    codeNode: codeDiscountNode(id: $id) {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+          codes(first: 250) {
+            nodes {
+              id
+              code
+              asyncUsageCount
+            }
+          }
+        }
+        ... on DiscountCodeApp {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountCodeBxgy {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountCodeFreeShipping {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+          codes(first: 250) {
+            nodes {
+              id
+              code
+              asyncUsageCount
+            }
+          }
+          appliesOnOneTimePurchase
+          appliesOnSubscription
+        }
+      }
+    }
+    automaticNode: automaticDiscountNode(id: $id) {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountAutomaticApp {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountAutomaticBxgy {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountAutomaticFreeShipping {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+          appliesOnOneTimePurchase
+          appliesOnSubscription
+        }
+      }
+    }
+  }
+"#;
 /// Item-entitlement existence probe forwarded before a discount create is
 /// validated. Discounts that entitle products / variants / collections must
 /// reject references to entities that do not exist in the shop; rather than
@@ -849,7 +947,10 @@ impl DraftProxy {
     ) -> MutationFieldOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = discount_input(field, input_arg);
-        let existing_record = self.discount_record(&id).cloned();
+        let existing_record = self
+            .discount_record(&id)
+            .cloned()
+            .or_else(|| self.hydrate_discount_record_for_update(request, &id));
         let user_errors = match existing_record.as_ref() {
             None => vec![user_error_with_extra_info(
                 ["id"],
@@ -898,7 +999,6 @@ impl DraftProxy {
             ));
         }
         let input = input.unwrap_or_default();
-        let existing = self.discount_record(&id).cloned();
         let summary = self.discount_summary_for_input(typename, &input);
         let shop_currency_code = self.store.shop_currency_code();
         let mut record = discount_record_from_input(
@@ -906,7 +1006,7 @@ impl DraftProxy {
             discount_kind,
             typename,
             &input,
-            existing.as_ref(),
+            existing_record.as_ref(),
             &shop_currency_code,
             summary,
         );
@@ -1109,13 +1209,26 @@ impl DraftProxy {
     /// when the id resolves to neither a code nor an automatic discount (or no
     /// upstream is available, e.g. snapshot mode).
     fn hydrate_discount_record(&self, request: &Request, id: &str) -> Option<Value> {
+        self.hydrate_discount_record_with_query(request, id, DISCOUNT_HYDRATE_QUERY)
+    }
+
+    fn hydrate_discount_record_for_update(&self, request: &Request, id: &str) -> Option<Value> {
+        self.hydrate_discount_record_with_query(request, id, DISCOUNT_UPDATE_HYDRATE_QUERY)
+    }
+
+    fn hydrate_discount_record_with_query(
+        &self,
+        request: &Request,
+        id: &str,
+        query: &str,
+    ) -> Option<Value> {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return None;
         }
         let response = self.upstream_post(
             request,
             json!({
-                "query": DISCOUNT_HYDRATE_QUERY,
+                "query": query,
                 "variables": { "id": id }
             }),
         );
@@ -1174,6 +1287,8 @@ impl DraftProxy {
             "createdAt": disc.get("createdAt").cloned().unwrap_or(Value::Null),
             "updatedAt": disc.get("updatedAt").cloned().unwrap_or(Value::Null),
             "asyncUsageCount": disc.get("asyncUsageCount").cloned().unwrap_or_else(|| json!(0)),
+            "appliesOnOneTimePurchase": disc.get("appliesOnOneTimePurchase").cloned().unwrap_or(Value::Null),
+            "appliesOnSubscription": disc.get("appliesOnSubscription").cloned().unwrap_or(Value::Null),
             "codes": codes,
             "codesCount": count_object(codes_count)
         }))

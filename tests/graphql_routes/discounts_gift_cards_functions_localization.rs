@@ -10074,6 +10074,112 @@ fn discount_update_preserves_redeemed_usage_and_scope_when_omitted() {
 }
 
 #[test]
+fn discount_update_hydrates_free_shipping_scope_before_omitted_update() {
+    let discount_id = "gid://shopify/DiscountCodeNode/4242101".to_string();
+    let redeem_code_id = "gid://shopify/DiscountRedeemCode/4242102".to_string();
+    let hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&hits);
+    let expected_discount_id = discount_id.clone();
+    let expected_redeem_code_id = redeem_code_id.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            assert!(
+                request.body.contains("appliesOnOneTimePurchase")
+                    && request.body.contains("appliesOnSubscription")
+                    && request.body.contains("asyncUsageCount"),
+                "discount hydrate query should select usage and scope fields, got: {}",
+                request.body
+            );
+            *hit_counter.lock().unwrap() += 1;
+            let body: Value =
+                serde_json::from_str(&request.body).expect("discount hydrate body should parse");
+            assert_eq!(body["variables"]["id"], json!(expected_discount_id));
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "codeNode": {
+                            "id": expected_discount_id.clone(),
+                            "codeDiscount": {
+                                "__typename": "DiscountCodeFreeShipping",
+                                "title": "Redeemed upstream free shipping",
+                                "status": "ACTIVE",
+                                "startsAt": "2026-04-27T19:31:14Z",
+                                "endsAt": null,
+                                "updatedAt": "2026-05-01T00:00:00Z",
+                                "asyncUsageCount": 9,
+                                "codes": {
+                                    "nodes": [{
+                                        "id": expected_redeem_code_id.clone(),
+                                        "code": "REDEEMED-SHIP-UPSTREAM",
+                                        "asyncUsageCount": 4
+                                    }]
+                                },
+                                "appliesOnOneTimePurchase": false,
+                                "appliesOnSubscription": true
+                            }
+                        },
+                        "automaticNode": null
+                    }
+                }),
+            }
+        });
+
+    let updated = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateHydratedRedeemedShipping($id: ID!, $input: DiscountCodeFreeShippingInput!) {
+          discountCodeFreeShippingUpdate(id: $id, freeShippingCodeDiscount: $input) {
+            codeDiscountNode {
+              id
+              codeDiscount {
+                __typename
+                ... on DiscountCodeFreeShipping {
+                  title
+                  asyncUsageCount
+                  codes(first: 1) { nodes { id code asyncUsageCount } }
+                  appliesOnOneTimePurchase
+                  appliesOnSubscription
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "id": discount_id,
+            "input": {
+                "title": "Redeemed upstream free shipping renamed",
+                "startsAt": "2026-04-27T19:31:14Z",
+                "destination": { "all": true }
+            }
+        }),
+    ));
+
+    assert_eq!(*hits.lock().unwrap(), 1);
+    let discount =
+        &updated.body["data"]["discountCodeFreeShippingUpdate"]["codeDiscountNode"]["codeDiscount"];
+    assert_eq!(
+        discount["title"],
+        json!("Redeemed upstream free shipping renamed")
+    );
+    assert_eq!(discount["asyncUsageCount"], json!(9));
+    assert_eq!(discount["codes"]["nodes"][0]["id"], json!(redeem_code_id));
+    assert_eq!(
+        discount["codes"]["nodes"][0]["code"],
+        json!("REDEEMED-SHIP-UPSTREAM")
+    );
+    assert_eq!(discount["codes"]["nodes"][0]["asyncUsageCount"], json!(4));
+    assert_eq!(discount["appliesOnOneTimePurchase"], json!(false));
+    assert_eq!(discount["appliesOnSubscription"], json!(true));
+    assert_eq!(
+        updated.body["data"]["discountCodeFreeShippingUpdate"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
 fn discount_basic_summary_derives_value_scope_and_minimum_requirement() {
     let mut proxy = snapshot_proxy();
     let product = proxy.process_request(json_graphql_request(
