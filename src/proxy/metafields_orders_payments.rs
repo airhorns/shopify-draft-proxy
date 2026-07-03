@@ -92,7 +92,7 @@ fn metafields_set_namespace_key_validation(
 }
 
 /// Normalize a metafield `value` STRING the way Shopify echoes it back.
-/// Mirrors Gleam `normalize_metafield_value`. Most types pass through
+/// Matches Shopify echo behavior: Most types pass through
 /// unchanged; date_time gains a `+00:00` offset, rating keys are reordered,
 /// and measurement / list-measurement values are reformatted (float-style
 /// number + UPPERCASE unit). Value strings are built manually because key
@@ -117,7 +117,7 @@ pub(in crate::proxy) fn normalize_metafield_value_string(
 }
 
 /// Compute a metafield `jsonValue` from its type + raw value string.
-/// Mirrors Gleam `parse_metafield_json_value`. jsonValue is compared
+/// Matches Shopify jsonValue behavior: jsonValue is compared
 /// structurally, so these can be built with `json!`/serde maps.
 pub(in crate::proxy) fn metafield_json_value(metafield_type: &str, value: &str) -> Value {
     match metafield_type {
@@ -239,7 +239,7 @@ fn json_string_field(fields: &serde_json::Map<String, Value>, key: &str) -> Opti
 }
 
 /// Read a numeric field as a `jsonValue` number: ints stay ints, floats
-/// collapse to ints when whole. Mirrors Gleam `json_number_field`.
+/// collapse to ints when whole.
 fn json_number_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<Value> {
     match fields.get(key) {
         Some(Value::Number(number)) => {
@@ -269,8 +269,7 @@ fn json_number_from_float(value: f64) -> Value {
 }
 
 /// Read a numeric field as a value-STRING component: ints render `n.0`,
-/// floats render through Shopify's decimal text normalization. Mirrors Gleam
-/// `json_number_string_field`.
+/// floats render through Shopify's decimal text normalization.
 fn json_number_string_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
     match fields.get(key) {
         Some(Value::Number(number)) => {

@@ -265,7 +265,7 @@ function buildSpec(): Record<string, unknown> {
     scenarioStatus: 'captured',
     assertionKinds: ['payload-shape', 'runtime-staging'],
     liveCaptureFiles: [outputPath],
-    runtimeTestFiles: ['test/parity_test.gleam', 'test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam'],
+    runtimeTestFiles: ['tests/graphql_routes/marketing_inventory_online_store.rs'],
     proxyRequest: {
       documentPath: requestPaths.definitionCreate,
       variablesCapturePath: '$.definitionCreate.request.variables',

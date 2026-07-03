@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/products/publication-delete-default-validation.json"
   ],
-  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/publicationDelete-default-validation.graphql",
     "variablesCapturePath": "$.scenarios.defaultOnlineStore.variables",

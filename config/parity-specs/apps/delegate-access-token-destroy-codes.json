@@ -12,7 +12,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-destroy-codes.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app.rs"],
   "comparisonMode": "captured-vs-proxy-request",
   "proxyRequest": {
     "documentPath": "config/parity-requests/apps/delegateAccessTokenDestroy-codes.graphql",
@@ -316,5 +316,5 @@
       }
     ]
   },
-  "notes": "HAR-751 replay covers live-captured missing, parent-self, sibling-hierarchy denied, success, and repeat-not-found payloads. Cross-app denial is exercised through the proxy's request api-client identity header because the live harness has one disposable app credential; focused Gleam tests also verify the failed log/no-state branches."
+  "notes": "HAR-751 replay covers live-captured missing, parent-self, sibling-hierarchy denied, success, and repeat-not-found payloads. Cross-app denial is exercised through the proxy's request api-client identity header because the live harness has one disposable app credential; focused runtime tests also verify the failed log/no-state branches."
 }

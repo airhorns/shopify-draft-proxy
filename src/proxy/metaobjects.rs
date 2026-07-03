@@ -2662,7 +2662,7 @@ impl DraftProxy {
         if !staged_ids.is_empty() {
             // Each successful metaobject mutation reserves one synthetic id for its
             // mutation-log entry after allocating the resources it creates, matching
-            // the Gleam reference's id bookkeeping (e.g. a definition lands on /1 and
+            // the current synthetic-id bookkeeping (e.g. a definition lands on /1 and
             // the next entry on /3 because the definition's log entry consumed /2).
             self.reserve_synthetic_log_id();
             self.record_mutation_log_entry(

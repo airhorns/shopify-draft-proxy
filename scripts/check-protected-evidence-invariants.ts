@@ -34,6 +34,7 @@ function fixtureOutputMatchesPath(output: string, candidatePath: string): boolea
 }
 
 const registeredFixtureOutputs = conformanceCaptureIndex.flatMap((entry) => entry.fixtureOutputs);
+const nonEvidenceMetadataKeys = new Set(['notes', 'reason', 'runtimeEvidence', 'runtimeTestFiles']);
 
 type ChangedPath = {
   status: string;
@@ -53,10 +54,53 @@ const changed = result.stdout
   })
   .filter((entry) => entry.path.length > 0);
 
+function readOriginMainJson(relativePath: string): unknown | undefined {
+  const showResult = spawnSync('git', ['show', `origin/main:${relativePath}`], { encoding: 'utf8' });
+  if (showResult.status !== 0) {
+    return undefined;
+  }
+  return JSON.parse(showResult.stdout) as unknown;
+}
+
+function stripNonEvidenceMetadata(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(stripNonEvidenceMetadata);
+  }
+
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !nonEvidenceMetadataKeys.has(key))
+      .map(([key, nestedValue]) => [key, stripNonEvidenceMetadata(nestedValue)]),
+  );
+}
+
+function isProtectedMetadataOnlyChange(changedPath: string): boolean {
+  if (!changedPath.endsWith('.json')) {
+    return false;
+  }
+
+  try {
+    const before = readOriginMainJson(changedPath);
+    if (before === undefined) {
+      return false;
+    }
+
+    const after = readJson(changedPath);
+    return JSON.stringify(stripNonEvidenceMetadata(before)) === JSON.stringify(stripNonEvidenceMetadata(after));
+  } catch {
+    return false;
+  }
+}
+
 const unregistered = changed.filter(
   ({ status, path: changedPath }) =>
     status !== 'D' &&
     existsSync(changedPath) &&
+    !isProtectedMetadataOnlyChange(changedPath) &&
     !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath)),
 );
 

@@ -12,7 +12,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.graphql",
     "variablesCapturePath": "$.cases.forward.variables",

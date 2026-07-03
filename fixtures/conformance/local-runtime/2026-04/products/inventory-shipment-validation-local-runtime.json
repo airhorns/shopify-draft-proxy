@@ -238,7 +238,7 @@
   "runtimeEvidence": [
     "The scenario earns transfer state by replaying inventoryTransferCreateAsReadyToShip before shipment validation requests.",
     "Unknown transfer, non-member transfer line item, over-remaining quantities, invalid tracking fields, add/update over-remaining quantities, receive from DRAFT, and CANCELED transfer state all return local userErrors without upstream writes.",
-    "A received transfer-state guard remains covered by the focused Gleam runtime fixture because no supported transfer mutation currently earns RECEIVED state in the generic parity runner."
+    "A received transfer-state guard remains covered by the focused runtime fixture because no supported transfer mutation currently earns RECEIVED state in the generic parity runner."
   ],
   "upstreamCalls": [
     {

@@ -13,7 +13,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/products/productJoinLeaveSellingPlanGroups-validation.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/productJoinLeaveSellingPlanGroups-validation-setup-product.graphql",
     "variablesCapturePath": "$.setupProduct.variables"
@@ -137,5 +137,5 @@
       }
     ]
   },
-  "notes": "Local-runtime executable parity for selling-plan group membership validation. Live public Admin API probes on harry-test-heelo.myshopify.com returned empty userErrors for duplicate joins, leave-non-member, and 32-group joins, so this spec records the ticket-requested local contract rather than public-store behavior for those branches. The 31-group cap is covered by focused Gleam tests because building that many groups in a replayed parity scenario would add large setup noise."
+  "notes": "Local-runtime executable parity for selling-plan group membership validation. Live public Admin API probes on harry-test-heelo.myshopify.com returned empty userErrors for duplicate joins, leave-non-member, and 32-group joins, so this spec records the ticket-requested local contract rather than public-store behavior for those branches. The 31-group cap is covered by focused runtime tests because building that many groups in a replayed parity scenario would add large setup noise."
 }

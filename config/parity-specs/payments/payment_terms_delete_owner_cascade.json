@@ -11,7 +11,7 @@
     "local-runtime-backed"
   ],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/payments/payment-terms-delete-owner-cascade.json"],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "comparisonMode": "captured-vs-proxy-request",
   "proxyRequest": {
     "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-create.graphql",

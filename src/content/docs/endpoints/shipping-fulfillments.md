@@ -93,9 +93,9 @@ The registry-only mutation roots are:
 
 ### Local behavior
 
-The Rust runtime has scenario-backed shipping and fulfillment slices for ported
-parity requests and runtime tests. These slices stage or serialize local state
-only for the request families recognized by the Rust dispatcher.
+The Rust runtime has scenario-backed shipping and fulfillment slices for parity
+requests and runtime tests. These slices stage or serialize local state only for
+the request families recognized by the Rust dispatcher.
 
 Fulfillment-service slices cover create, update, delete, downstream
 `fulfillmentService(id:)`, associated `location(id:)`, after-delete absence,
@@ -221,7 +221,7 @@ with `/endpoints/orders/` and `/endpoints/returns/`.
   calculation, carrier callback execution, carrier service-discovery side
   effects, and full shipping-package discovery/validation remain outside the
   supported local slices.
-- Unsupported mutation documents outside the ported local slices follow the
+- Unsupported mutation documents outside the modeled local slices follow the
   configured unsupported path and must remain visible in logs/observability.
 
 ### Evidence

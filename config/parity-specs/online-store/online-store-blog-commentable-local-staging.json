@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/online-store/online-store-blog-commentable-local-staging.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/online-store/online-store-blog-commentable-create.graphql",
     "variablesCapturePath": "$.primary.variables",
@@ -82,5 +82,5 @@
       }
     ]
   },
-  "notes": "Executable local-runtime scenario for BlogUpdateInput.commentable handling described by Shopify Core resolver behavior. Public Admin API 2025-01 and 2026-04 live probes on the configured conformance store reject `commentable` as an unknown BlogUpdateInput field, so this scenario records the proxy's supported local staging contract without upstream calls while the Gleam unit tests cover the same behavior."
+  "notes": "Executable local-runtime scenario for BlogUpdateInput.commentable handling described by Shopify Core resolver behavior. Public Admin API 2025-01 and 2026-04 live probes on the configured conformance store reject `commentable` as an unknown BlogUpdateInput field, so this scenario records the proxy's supported local staging contract without upstream calls while the runtime tests cover the same behavior."
 }

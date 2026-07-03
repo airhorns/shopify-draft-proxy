@@ -145,7 +145,7 @@ function buildSpec(): Record<string, unknown> {
     scenarioStatus: 'captured',
     assertionKinds: ['graphql-validation-parity', 'no-local-staging-on-validation-error'],
     liveCaptureFiles: [outputPath],
-    runtimeTestFiles: ['test/parity_test.gleam', 'test/shopify_draft_proxy/proxy/draft_proxy_test.gleam'],
+    runtimeTestFiles: ['tests/graphql_routes.rs'],
     proxyRequest: {
       documentPath: createMissingProjectRequestPath,
       variablesCapturePath: '$.validation.createMissingProject.variables',

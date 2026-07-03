@@ -19,7 +19,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "Live Shopify 2026-04 evidence for companiesDelete partial success: order, draft-order, and store-credit blocked companies return indexed FAILED_TO_DELETE userErrors, the unblocked company is deleted, and an unknown ID returns indexed RESOURCE_NOT_FOUND.",
   "comparison": {
     "mode": "strict-json",

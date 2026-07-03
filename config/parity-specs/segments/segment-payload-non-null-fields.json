@@ -4,10 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "runtime-staging", "downstream-read-parity", "non-null-field-parity"],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/segments/segment-payload-non-null-fields.json"],
-  "runtimeTestFiles": [
-    "test/shopify_draft_proxy/proxy/segments_mutation_test.gleam",
-    "test/shopify_draft_proxy/proxy/segments_test.gleam"
-  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/segments/segment-payload-non-null-fields-create.graphql",
     "variablesCapturePath": "$.create.variables",

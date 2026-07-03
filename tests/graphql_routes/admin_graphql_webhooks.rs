@@ -2,7 +2,7 @@ use super::common::*;
 use pretty_assertions::assert_eq;
 
 #[test]
-fn ported_gleam_event_empty_read_shapes_match_draft_proxy_tests() {
+fn event_empty_read_shapes_match_current_behavior() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -1014,7 +1014,7 @@ fn webhook_subscription_endpoint_uri_variants_validate_cloud_destinations() {
 }
 
 #[test]
-fn webhook_subscription_validation_guards_match_old_gleam_cases() {
+fn webhook_subscription_validation_guards_match_captured_cases() {
     let mut proxy = snapshot_proxy();
 
     let blank = proxy.process_request(json_graphql_request(
@@ -1579,7 +1579,7 @@ fn dedicated_pubsub_missing_required_fields_return_coercion_errors_before_stagin
 }
 
 #[test]
-fn webhook_subscription_uri_and_format_validation_ports_old_gleam_edges() {
+fn webhook_subscription_uri_and_format_validation_covers_current_edges() {
     let assert_rejected = |uri: &str,
                            format_value: &str,
                            topic: &str,
@@ -2093,7 +2093,7 @@ fn pubsub_gcp_project_and_topic_char_rules_match_shopify() {
 }
 
 #[test]
-fn dedicated_pubsub_webhook_update_uses_old_gleam_field_path_errors() {
+fn dedicated_pubsub_webhook_update_uses_captured_field_path_errors() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
         "# RustWebhookLocalRuntime\nmutation { pubSubWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { pubSubProject: \"valid-project\", pubSubTopic: \"topic-1\" }) { webhookSubscription { id } userErrors { field message } } }",
@@ -2122,7 +2122,7 @@ fn dedicated_pubsub_webhook_update_uses_old_gleam_field_path_errors() {
 }
 
 #[test]
-fn webhook_subscriptions_connection_filters_sorts_and_counts_like_old_gleam_helpers() {
+fn webhook_subscriptions_connection_filters_sorts_and_counts_like_current_helpers() {
     let mut proxy = snapshot_proxy();
 
     for (topic, uri, format) in [

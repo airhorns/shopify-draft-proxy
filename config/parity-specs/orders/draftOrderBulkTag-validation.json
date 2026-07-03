@@ -10,7 +10,7 @@
     "local-runtime-backed"
   ],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/orders/draft-order-bulk-tag-validation.json"],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/draftOrderBulkTag-validation-create.graphql",
     "variablesCapturePath": "$.setup.simpleDraftOrderCreate.variables",

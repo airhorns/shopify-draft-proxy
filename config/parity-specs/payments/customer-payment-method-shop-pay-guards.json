@@ -16,7 +16,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-shop-pay-guards.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/payments/customer-payment-method-shop-pay-guards.graphql",
     "variablesCapturePath": "$.variables"

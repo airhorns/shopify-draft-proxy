@@ -6,11 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-engagement-create-response-shape.json"
   ],
-  "runtimeTestFiles": [
-    "test/parity_test.gleam",
-    "test/shopify_draft_proxy/proxy/marketing_test.gleam",
-    "test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"
-  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs", "tests/graphql_routes.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/marketing/marketing-engagement-response-shape-create-activity.graphql",
     "variablesCapturePath": "$.cases.createActivity.variables",

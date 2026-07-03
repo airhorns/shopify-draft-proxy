@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/online-store/server_pixel_endpoint_update_no_pixel.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam", "test/parity_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/online-store/server_pixel_endpoint_update_no_pixel.graphql",
     "apiVersion": "2026-04"

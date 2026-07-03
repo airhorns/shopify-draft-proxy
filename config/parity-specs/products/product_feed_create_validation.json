@@ -10,7 +10,7 @@
     "captured-vs-proxy-request"
   ],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/products/product-feed-create-validation.json"],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/product-feed-create-local-runtime.graphql",
     "variablesCapturePath": "$.invalidCountry.variables",

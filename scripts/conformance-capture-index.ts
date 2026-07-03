@@ -3529,7 +3529,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Creates disposable definitions and metaobjects for each capability branch, registers one translation for the translatable branch, captures update and read-after-update evidence, then deletes disposable records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'The parity spec strictly compares public renderable enable validation. The live fixture also records public capability-disable behavior; source-backed conservative local disable guards are covered by focused Gleam runtime tests.',
+      'The parity spec strictly compares public renderable enable validation. The live fixture also records public capability-disable behavior; conservative local disable guards are covered by focused runtime tests.',
   },
   {
     domain: 'metaobjects',
@@ -3696,7 +3696,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}standard-metaobject-templates.json`,
       `${CAPTURE_ROOT}standard-metaobject-definition-enable-catalog.json`,
-      'src/shopify_draft_proxy/proxy/metaobject_standard_templates_data.gleam',
       'config/parity-specs/metaobjects/standard-metaobject-definition-enable-catalog.json',
       'config/parity-requests/metaobjects/standard-metaobject-definition-enable-catalog.graphql',
       'config/parity-requests/metaobjects/standard-metaobject-definition-enable-read.graphql',
@@ -6611,7 +6610,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}root-operation-introspection.json`,
       `${CAPTURE_ROOT}admin-graphql-root-operation-introspection.json`,
-      'src/shopify_draft_proxy/proxy/operation_registry_data.gleam',
+      'src/operation_registry_data.rs',
     ],
     cleanupBehavior: 'Read-only introspection; no cleanup expected.',
     expectedStatusChecks: ['conformance:check', 'conformance:status'],
@@ -10365,10 +10364,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-bulk-query-schema.mts',
     purpose: 'Admin GraphQL output-field connection/list/object schema facts used by bulkOperationRunQuery validation.',
     requiredAuthScopes: ['schema introspection access through the active Admin token'],
-    fixtureOutputs: [
-      'config/admin-graphql-bulk-query-schema.json',
-      'src/shopify_draft_proxy/proxy/bulk_query_schema_data.gleam',
-    ],
+    fixtureOutputs: ['config/admin-graphql-bulk-query-schema.json'],
     cleanupBehavior: 'Read-only introspection; no cleanup expected.',
     expectedStatusChecks: ['conformance:check', 'conformance:status'],
   },

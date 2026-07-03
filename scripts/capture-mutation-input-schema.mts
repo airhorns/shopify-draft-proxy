@@ -5,9 +5,8 @@
  * validation in the proxy.
  *
  * Output: `config/admin-graphql-mutation-schema.json`. Regenerated whenever
- * the targeted API version changes — checked in so the proxy carries it on
- * every target without runtime IO. The `scripts/sync-mutation-schema.sh`
- * companion script mirrors this JSON into a Gleam source module.
+ * the targeted API version changes. The Rust runtime reads the checked-in JSON
+ * directly so every target carries the schema without runtime IO.
  *
  * Strategy:
  *   1. Introspect Mutation { fields { args { type } } } with deprecated args

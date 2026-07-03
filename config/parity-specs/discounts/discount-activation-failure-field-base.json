@@ -19,7 +19,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/discounts/discount-activation-failure-field-base.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/discounts_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/discounts/discount-activation-failure-field-base-create.graphql",
     "variablesCapturePath": "$.create.variables",

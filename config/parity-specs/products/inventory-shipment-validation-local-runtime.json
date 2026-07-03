@@ -19,7 +19,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/products/inventory-shipment-validation-local-runtime.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/inventory-transfer-create-ready.graphql",
     "variablesCapturePath": "$.workflow.createReadyTransfer.variables"

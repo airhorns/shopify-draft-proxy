@@ -10,7 +10,7 @@
     "no-upstream-passthrough"
   ],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/orders/orderDelete-cascade-and-deletability.json"],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/orderDelete-cascade-and-deletability.graphql",
     "variablesCapturePath": "$.requests.unknownOrderDelete.variables",
@@ -28,5 +28,5 @@
       }
     ]
   },
-  "notes": "Executable local-runtime parity for orderDelete deletability and cascade behavior. The generic parity request strictly checks the unknown-order NOT_FOUND branch with no upstream passthrough. The referenced Gleam runtime tests additionally prove paid orders return INVALID without deletedId or local mutation and successful deletes remove the order plus attached fulfillment-order/return reads, payment terms, and abandoned-checkout order linkage. Successful orderDelete is a supported local mutation and must not be sent upstream during proxy runtime, so the side-effecting lifecycle branches are runtime-test-backed rather than recorded as live Shopify writes."
+  "notes": "Executable local-runtime parity for orderDelete deletability and cascade behavior. The generic parity request strictly checks the unknown-order NOT_FOUND branch with no upstream passthrough. The referenced runtime tests additionally prove paid orders return INVALID without deletedId or local mutation and successful deletes remove the order plus attached fulfillment-order/return reads, payment terms, and abandoned-checkout order linkage. Successful orderDelete is a supported local mutation and must not be sent upstream during proxy runtime, so the side-effecting lifecycle branches are runtime-test-backed rather than recorded as live Shopify writes."
 }

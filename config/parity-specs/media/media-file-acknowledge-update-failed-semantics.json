@@ -7,7 +7,7 @@
     "fixtures/conformance/local-runtime/2026-04/media/media-file-acknowledge-update-failed-semantics.json",
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/file-acknowledge-update-failed-parity.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/media_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/media/media-file-acknowledge-update-failed-semantics-create.graphql",
     "variablesCapturePath": "$.create.variables"

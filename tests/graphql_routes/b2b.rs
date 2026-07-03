@@ -2,7 +2,7 @@ use super::common::*;
 use pretty_assertions::assert_eq;
 
 #[test]
-fn b2b_tax_settings_update_tail_helpers_port_old_gleam_tests() {
+fn b2b_tax_settings_update_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
     let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
 
@@ -435,7 +435,7 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
 }
 
 #[test]
-fn b2b_location_buyer_experience_configuration_update_tail_helpers_port_old_gleam_tests() {
+fn b2b_location_buyer_experience_configuration_update_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
     let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
 
@@ -693,7 +693,7 @@ fn b2b_company_blank_names_reject_without_staging() {
 }
 
 #[test]
-fn b2b_company_identity_validation_tail_helpers_port_old_gleam_tests() {
+fn b2b_company_identity_validation_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
 
     let long_name = "x".repeat(300);
@@ -1134,7 +1134,7 @@ fn b2b_companies_delete_mixes_blocked_deleted_and_unknown_ids() {
 }
 
 #[test]
-fn b2b_company_update_immutable_and_note_validation_tail_helpers_port_old_gleam_tests() {
+fn b2b_company_update_immutable_and_note_validation_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
         r#"

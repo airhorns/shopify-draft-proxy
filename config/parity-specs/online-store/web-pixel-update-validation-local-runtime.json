@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/online-store/web-pixel-update-validation-local-runtime.json"
   ],
-  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/online-store/web-pixel-update-validation-local-runtime.graphql",
     "apiVersion": "2026-04"
@@ -28,5 +28,5 @@
       }
     ]
   },
-  "notes": "Executable local-runtime parity for webPixelUpdate settings JSON parsing, INVALID_CONFIGURATION_JSON userError shape, and status derivation after a locally staged create. App-extension declaration checks for runtimeContext and settingsDefinition are covered by focused Gleam runtime tests because the generic parity runner cannot pre-seed declaration metadata."
+  "notes": "Executable local-runtime parity for webPixelUpdate settings JSON parsing, INVALID_CONFIGURATION_JSON userError shape, and status derivation after a locally staged create. App-extension declaration checks for runtimeContext and settingsDefinition are covered by focused runtime tests because the generic parity runner cannot pre-seed declaration metadata."
 }

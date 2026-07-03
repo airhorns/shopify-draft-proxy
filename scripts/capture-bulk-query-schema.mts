@@ -7,9 +7,8 @@
  * - field returns a non-connection List, including the element type
  * - field returns an object/interface/union, for nested traversal
  *
- * Output: `config/admin-graphql-bulk-query-schema.json`. Regenerate the
- * Gleam mirror with `corepack pnpm tsx scripts/sync-bulk-query-schema.mts`
- * after refreshing it.
+ * Output: `config/admin-graphql-bulk-query-schema.json`. The Rust runtime reads
+ * the checked-in JSON directly.
  */
 import 'dotenv/config';
 

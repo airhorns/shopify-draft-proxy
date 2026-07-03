@@ -3570,8 +3570,7 @@ impl DraftProxy {
         }
     }
 
-    /// True when any markets-domain record has been staged. Mirrors Gleam's
-    /// `has_local_markets_query_state` (minus the product check, since the Rust
+    /// True when any markets-domain record has been staged. Tracks local markets query state (minus the product check, since the Rust
     /// markets stores are staged-only with no base layer). Once a lifecycle has
     /// staged a market/catalog/price-list/web-presence, plural reads serve
     /// locally (read-after-write); before that, cold reads forward upstream.
@@ -3582,8 +3581,7 @@ impl DraftProxy {
             || !self.store.staged.web_presences.is_empty()
     }
 
-    /// LiveHybrid cold-read decision for the Markets domain, ported from Gleam
-    /// `should_fetch_upstream_in_live_hybrid` (markets/queries.gleam:111). When
+    /// LiveHybrid cold-read decision for the Markets domain. When
     /// this returns true the dispatcher forwards the original request verbatim
     /// upstream and hydrates the staged store from the response.
     pub(in crate::proxy) fn markets_should_fetch_upstream(
@@ -3623,8 +3621,7 @@ impl DraftProxy {
     }
 
     /// Hydrate the staged markets stores from an upstream GraphQL response body,
-    /// ported from Gleam `hydrate_from_upstream_response` (markets/queries.gleam:644).
-    /// Records are observed as a side effect of a cold read so later targets
+    /// fed by captured upstream response hydration. Records are observed as a side effect of a cold read so later targets
     /// (read-after-write, catalog delete, market localization) resolve locally.
     pub(in crate::proxy) fn hydrate_markets_from_upstream(&mut self, body: &Value) {
         let Some(data) = body.get("data") else {
@@ -3802,8 +3799,7 @@ impl DraftProxy {
     /// product/source-content slice before local translation mutations can
     /// validate resource existence and stage read-after-write effects. Once any
     /// localization/product/collection state exists, stay local so staged locale
-    /// and translation changes are not bypassed by passthrough. Ported from Gleam
-    /// `should_fetch_upstream_in_live_hybrid` (localization/queries.gleam:100).
+    /// and translation changes are not bypassed by passthrough. Modeled from captured LiveHybrid localization behavior.
     pub(in crate::proxy) fn localization_should_fetch_upstream(&self, root_field: &str) -> bool {
         if !matches!(
             root_field,
@@ -3827,8 +3823,7 @@ impl DraftProxy {
     }
 
     /// Hydrate localization base state from an upstream GraphQL response body,
-    /// ported from Gleam `hydrate_from_upstream_response`
-    /// (localization/queries.gleam:234). Shop locales, available locales and
+    /// fed by captured upstream response hydration. Shop locales, available locales and
     /// translatable-resource product ids are observed as a side effect of a cold
     /// read so later targets (locale validation, read-after-write) resolve
     /// locally against real Shopify state.
@@ -4086,7 +4081,7 @@ impl DraftProxy {
     /// so this lets the register path reject stale/incorrect `translatableContentDigest`
     /// inputs exactly like Shopify. Returns `None` for resources whose source content
     /// the proxy hasn't observed (hydrated-only ids), in which case digest validation
-    /// is skipped — mirroring Gleam's "content not found → no digest error".
+    /// is skipped — matching Shopify's captured "content not found -> no digest error" behavior.
     fn localization_source_content_value(&self, resource_id: &str, key: &str) -> Option<String> {
         if resource_id.starts_with("gid://shopify/Product/") {
             let product = self.store.product_staged_or_base(resource_id)?;
@@ -4199,7 +4194,7 @@ impl DraftProxy {
     /// update the association is authoritative, so non-target presences lose the
     /// locale (`replace = true`); enable only adds. The downstream `webPresences`
     /// read is served from `staged.web_presences`, so the staged records are
-    /// mutated in place. Ported from the Gleam localization mutation handlers.
+    /// mutated in place. Modeled from captured localization mutation behavior.
     fn sync_web_presence_locales(&mut self, locale: &str, target_ids: &[String], replace: bool) {
         if locale == "en" {
             return;
@@ -4464,8 +4459,7 @@ fn next_web_presence_numeric_id(web_presences: &BTreeMap<String, Value>) -> u64 
 }
 
 /// A market participates in backup-region coverage when it is enabled, of REGION
-/// type, and not a legacy market. Ported from Gleam
-/// `markets.market_record_is_active_region_non_legacy` (markets.gleam:227).
+/// type, and not a legacy market. Used for captured backup-region coverage decisions.
 fn market_record_is_active_region_non_legacy(market: &Value) -> bool {
     market_record_enabled(market)
         && market_record_region_type(market)
@@ -4560,9 +4554,7 @@ fn market_record_legacy(market: &Value) -> bool {
 }
 
 /// Region country codes declared by a market record, reading from the captured
-/// `conditions.regionsCondition.regions` connection (nodes and/or edges). Ported
-/// from Gleam `serializers.market_country_codes` (markets/serializers.gleam:450)
-/// so both upstream-hydrated and mutation-staged market shapes resolve.
+/// `conditions.regionsCondition.regions` connection (nodes and/or edges). Supports both upstream-hydrated and mutation-staged market shapes.
 fn market_record_country_codes(market: &Value) -> Vec<String> {
     let Some(regions) = market
         .get("conditions")

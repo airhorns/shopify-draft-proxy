@@ -85,8 +85,7 @@ Endpoint docs must not contain support-history narratives:
 - no `HAR-### added...`, `HAR-### reviewed...`, or ticket-review headings
 - no `previously`, `formerly`, `now`, `later`, `initially`, or migration-order
   prose unless the word is describing current Shopify API semantics
-- no TypeScript-to-Gleam port notes, dispatcher migration notes, or technology
-  history
+- no implementation-port notes, dispatcher migration notes, or technology history
 - no release-note style lists of what changed in a branch
 - no claims that a partial branch is implemented support
 - no unsupported-root reservations or planned-only parity placeholders
@@ -109,8 +108,6 @@ durable location:
   groups.
 - `docs/parity-runner.md`: parity runner mechanics, cassette format, replay
   behavior, or comparison-contract guidance.
-- `docs/GLEAM_PORT_LOG.md`: historical porting notes only. Do not copy port
-  history back into endpoint docs.
 - Linear issues/workpads: temporary implementation plans, rejected-review
   context, future work, and out-of-scope remediation.
 
@@ -127,7 +124,7 @@ Evidence sections should answer: "What can I run or inspect to trust this?"
 Good evidence bullets:
 
 - `config/parity-specs/webhooks/webhook-subscription-conformance.json`
-- `test/proxy/webhooks_test.gleam`
+- `tests/graphql_routes/admin_graphql_webhooks.rs`
 - `fixtures/conformance/.../webhook-subscription-conformance.json`
 - `corepack pnpm parity -- webhook-subscription-conformance`
 
@@ -156,7 +153,7 @@ Use this checklist when auditing an existing endpoint doc:
       future work.
 - [ ] Evidence references checked-in executable artifacts or concrete captures.
 - [ ] Validation commands are current for the endpoint group.
-- [ ] Ticket-review headings, support-history prose, and port/migration notes
+- [ ] Ticket-review headings, support-history prose, and migration notes
       are removed or moved to the correct internal note location.
 - [ ] The doc does not claim support beyond local lifecycle behavior and
       downstream read-after-write evidence.

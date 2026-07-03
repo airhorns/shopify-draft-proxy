@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/payments/order_create_mandate_payment_missing_mandate.graphql",
     "variables": {

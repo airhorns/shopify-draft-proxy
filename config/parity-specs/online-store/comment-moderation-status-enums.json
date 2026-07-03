@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["runtime-staging", "mutation-lifecycle", "user-errors-parity", "local-runtime-backed"],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/online-store/comment-moderation-status-enums.json"],
-  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/online-store/comment-moderation-status-spam.graphql",
     "variablesCapturePath": "$.variables",

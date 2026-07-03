@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["runtime-staging", "selected-fields", "downstream-read-parity", "no-upstream-passthrough"],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-05/orders/money-bag-presentment-parity.json"],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/money-bag-presentment-single-create.graphql",
     "variablesCapturePath": "$.singleCurrencyCreate.variables"

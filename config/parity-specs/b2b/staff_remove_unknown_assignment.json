@@ -12,7 +12,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "HAR-761 executable parity coverage for companyLocationRemoveStaffMembers unknown assignment validation. Shopify returns per-index RESOURCE_NOT_FOUND and a null deletedCompanyLocationStaffMemberAssignmentIds payload when no requested assignment ID exists; the proxy now mirrors that shape.",
   "comparison": {
     "mode": "strict-json",

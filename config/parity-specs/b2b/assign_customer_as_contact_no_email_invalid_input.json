@@ -12,7 +12,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "Executable public Admin 2026-04 parity evidence for companyAssignCustomerAsContact error branches: unknown customer remains RESOURCE_NOT_FOUND on customerId, duplicate contact remains INVALID_INPUT on companyId, and an existing customer with no email returns INVALID_INPUT on companyId. Public BusinessCustomerUserError rejects selecting detail, so the local detail value remains covered by the focused runtime test.",
   "comparison": {
     "mode": "strict-json",
