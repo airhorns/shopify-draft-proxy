@@ -1,0 +1,52 @@
+{
+  "capturedAt": "2026-07-02T22:29:06.604Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "scenarioId": "segment-local-runtime-dispatch-validation",
+  "cases": [
+    {
+      "name": "neutralSegmentCreate",
+      "documentPath": "config/parity-requests/segments/segment-local-runtime-dispatch-validation.graphql",
+      "request": {
+        "query": "mutation LocalSegmentCreate($name: String!, $query: String!) {\n  segmentCreate(name: $name, query: $query) {\n    segment {\n      id\n      name\n      query\n      creationDate\n      lastEditDate\n    }\n    userErrors {\n      __typename\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "name": "Neutral live payload segment-payload-shape-1783031346003",
+          "query": "number_of_orders >= 1"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/652702351666",
+                "name": "Neutral live payload segment-payload-shape-1783031346003",
+                "query": "number_of_orders >= 1",
+                "creationDate": "2026-07-02T22:29:06Z",
+                "lastEditDate": "2026-07-02T22:29:06Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": [
+    "Live Shopify payload capture for the neutral LocalSegmentCreate document that previously relied on local-runtime parity evidence.",
+    "No-upstream local dispatch and mutation-log behavior are proxy-only semantics and are covered by Rust integration tests."
+  ],
+  "upstreamCalls": []
+}

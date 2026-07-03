@@ -24,7 +24,6 @@ const registeredProtectedEvidenceRemovals = new Set([
   'fixtures/conformance/local-runtime/2026-04/payments/payment-terms-delete-owner-cascade.json',
   'fixtures/conformance/local-runtime/2026-05/payments/payment-reminder-send-shape.json',
 ]);
-
 const result = spawnSync('git', ['diff', '--name-status', 'origin/main', '--', ...protectedPaths], {
   encoding: 'utf8',
 });

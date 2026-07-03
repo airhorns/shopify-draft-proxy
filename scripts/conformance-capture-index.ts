@@ -95,6 +95,8 @@ export const retiredConformanceEvidencePaths = [
   'fixtures/conformance/local-runtime/2026-04/media/file-update-product-reference-local-runtime.json',
   'fixtures/conformance/local-runtime/2026-04/media/files-upload-local-runtime.json',
   'fixtures/conformance/local-runtime/2026-04/media/media-file-acknowledge-update-failed-semantics.json',
+  'fixtures/conformance/local-runtime/2026-04/segments/segment-local-runtime-dispatch-validation.json',
+  'fixtures/conformance/local-runtime/2026-04/segments/segment-payload-non-null-fields.json',
 ] as const;
 
 function defineCaptureIndex(entries: Array<z.input<typeof captureIndexEntrySchema>>): ConformanceCaptureIndexEntry[] {
@@ -5517,25 +5519,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'segments',
-    captureId: 'segment-local-runtime-dispatch-validation',
-    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
-    scriptPath: 'scripts/capture-segment-local-runtime-dispatch-validation.ts',
-    purpose:
-      'Local-runtime guard that segmentCreate dispatches and stages locally for neutral operation names without upstream passthrough.',
-    requiredAuthScopes: ['local-runtime'],
-    fixtureOutputs: [
-      `${LOCAL_RUNTIME_ROOT}segment-local-runtime-dispatch-validation.json`,
-      'config/parity-specs/segments/segment-local-runtime-dispatch-validation.json',
-      'config/parity-requests/segments/segment-local-runtime-dispatch-validation.graphql',
-    ],
-    cleanupBehavior:
-      'Local-runtime create scenario only; proxy reset during parity replay clears the synthetic segment and no Shopify cleanup is required.',
-    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
-    notes:
-      'This is executable local-runtime evidence for dispatch/staging, not Shopify fidelity evidence. Live segment resolver behavior remains covered by the Shopify segment validation fixtures.',
-  },
-  {
-    domain: 'segments',
     captureId: 'segment-validation-limits',
     scriptPath: 'scripts/capture-segment-validation-limits-conformance.ts',
     purpose: 'segmentCreate/segmentUpdate name and query length validation plus local segment-limit replay setup.',
@@ -5589,6 +5572,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable segment for segmentUpdate id-only and literal-null validation branches, reads it back after null-only updates, and deletes it during cleanup; all other captured branches are validation-only.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
+    captureId: 'segment-payload-shape',
+    scriptPath: 'scripts/capture-segment-payload-shape-conformance.ts',
+    purpose:
+      'Live Shopify replacement for the former local-runtime segment payload evidence: neutral operation-name segmentCreate plus create/update/read public Segment fields.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-local-runtime-dispatch-validation.json`,
+      `${CAPTURE_ROOT}segment-payload-non-null-fields.json`,
+      'config/parity-specs/segments/segment-local-runtime-dispatch-validation.json',
+      'config/parity-specs/segments/segment-payload-non-null-fields.json',
+      'config/parity-requests/segments/segment-local-runtime-dispatch-validation.graphql',
+      'config/parity-requests/segments/segment-payload-non-null-fields-create.graphql',
+      'config/parity-requests/segments/segment-payload-non-null-fields-read.graphql',
+      'config/parity-requests/segments/segment-payload-non-null-fields-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable segment for the neutral segmentCreate payload, creates and updates a second disposable segment for read-after-write payload capture, then deletes both segments.',
+    notes:
+      'Public Admin GraphQL 2025-01 and 2026-04 expose only id, name, query, creationDate, and lastEditDate on Segment for this conformance shop. Private Core Segment fields remain runtime-test-backed.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
