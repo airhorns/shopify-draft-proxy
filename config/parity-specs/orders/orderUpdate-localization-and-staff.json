@@ -13,7 +13,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured Shopify Admin API 2026-04 orderUpdate localization read-after-write behavior for localizedFields and deprecated localizationExtensions on a disposable order, plus executable local-runtime coverage for the staffMemberId branch. The configured public 2026-04 conformance schema rejects OrderInput.staffMemberId as an undefined field before resolver execution, so the fixture records that schema blocker separately and the staffMemberId NOT_FOUND/code contract is enforced by focused runtime tests and a local-runtime parity target rather than live public-schema replay.",
+  "notes": "Captured Shopify Admin API 2026-04 orderUpdate localization read-after-write behavior for localizedFields and deprecated localizationExtensions on a disposable order, plus executable local-runtime coverage for the staffMemberId branch. The configured public 2026-04 conformance schema rejects OrderInput.staffMemberId as an undefined field before resolver execution, so the fixture records that schema blocker separately and the staffMemberId plain UserError field/message contract is enforced by focused runtime tests and a local-runtime parity target rather than live public-schema replay.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

@@ -14,7 +14,7 @@
     "productResourceFeedback"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "empty-state-parity", "local-runtime-backed", "unsupported-branch-observability"],
+  "assertionKinds": ["payload-shape", "empty-state-parity", "unsupported-branch-observability"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-helper-roots-read.json"
   ],

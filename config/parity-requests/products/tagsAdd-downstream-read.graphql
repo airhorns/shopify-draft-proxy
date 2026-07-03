@@ -4,9 +4,22 @@ query TagsAddDownstreamRead($id: ID!, $query: String!) {
     tags
   }
   products(first: 10, query: $query) {
+    edges {
+      cursor
+      node {
+        id
+        tags
+      }
+    }
     nodes {
       id
       tags
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
     }
   }
   productsCount(query: $query) {

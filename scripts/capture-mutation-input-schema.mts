@@ -4,9 +4,12 @@
  * (including `includeDeprecated: true`) needed to drive central required-field
  * validation in the proxy.
  *
- * Output: `config/admin-graphql-mutation-schema.json`. Regenerated whenever
- * the targeted API version changes, and checked in so the Rust runtime can
- * validate mutation inputs without runtime schema IO.
+ * Output: `config/admin-graphql/<api-version>/mutation-schema.json`.
+ * Regenerate each supported Admin API version independently so runtime
+ * validation can use the schema that matches the request path without runtime
+ * IO. The current default-version capture is also mirrored to the legacy
+ * `config/admin-graphql-mutation-schema.json` path for compatibility with
+ * older local tooling.
  *
  * Strategy:
  *   1. Introspect Mutation { fields { args { type } } } with deprecated args
@@ -268,7 +271,7 @@ const enums: Array<{ name: string; values: SchemaEnumValue[] }> = [];
 let processedEnums = 0;
 for (const name of [...enumNames].sort((a, b) => a.localeCompare(b))) {
   processedEnums++;
-  if (processedEnums % 25 === 0) console.error(`  fetched ${processedEnums} enums (${enumNames.size} total)…`);
+  if (processedEnums % 25 === 0) console.error(`  fetched ${processedEnums} enums (${enumNames.size} total)...`);
   const r = await runGraphql<{
     type: {
       name: string;
@@ -278,11 +281,11 @@ for (const name of [...enumNames].sort((a, b) => a.localeCompare(b))) {
   }>(enumQuery, { name });
   const t = r.data?.type;
   if (!t) {
-    console.error(`  WARN: enum ${name} not found via __type — skipping`);
+    console.error(`  WARN: enum ${name} not found via __type - skipping`);
     continue;
   }
   if (t.kind !== 'ENUM') {
-    console.error(`  WARN: ${name} resolved as ${t.kind}, expected ENUM — skipping`);
+    console.error(`  WARN: ${name} resolved as ${t.kind}, expected ENUM - skipping`);
     continue;
   }
   enums.push({
@@ -296,30 +299,32 @@ for (const name of [...enumNames].sort((a, b) => a.localeCompare(b))) {
 }
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const outputPath = path.join(repoRoot, 'config', 'admin-graphql-mutation-schema.json');
+const outputPath = path.join(repoRoot, 'config', 'admin-graphql', apiVersion, 'mutation-schema.json');
+const legacyOutputPath = path.join(repoRoot, 'config', 'admin-graphql-mutation-schema.json');
+const output = `${JSON.stringify(
+  {
+    capturedAt: new Date().toISOString(),
+    storeDomain,
+    apiVersion,
+    mutations,
+    inputObjects,
+    enums,
+  },
+  null,
+  2,
+)}\n`;
 await mkdir(path.dirname(outputPath), { recursive: true });
-await writeFile(
-  outputPath,
-  `${JSON.stringify(
-    {
-      capturedAt: new Date().toISOString(),
-      storeDomain,
-      apiVersion,
-      mutations,
-      inputObjects,
-      enums,
-    },
-    null,
-    2,
-  )}\n`,
-  'utf8',
-);
+await writeFile(outputPath, output, 'utf8');
+if (apiVersion === '2026-04') {
+  await writeFile(legacyOutputPath, output, 'utf8');
+}
 
 console.log(
   JSON.stringify(
     {
       ok: true,
       outputPath,
+      legacyOutputPath: apiVersion === '2026-04' ? legacyOutputPath : null,
       apiVersion,
       mutationCount: mutations.length,
       inputObjectCount: inputObjects.length,

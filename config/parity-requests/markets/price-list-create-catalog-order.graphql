@@ -1,0 +1,24 @@
+#graphql
+mutation PriceListCreateCatalogOrder($input: PriceListCreateInput!) {
+  priceListCreate(input: $input) {
+    priceList {
+      id
+      name
+      currency
+      catalog {
+        id
+      }
+      parent {
+        adjustment {
+          type
+          value
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -6,14 +6,12 @@ use super::*;
 // cassette that matches this `include_str!` const exactly.
 const REFUND_ORDER_HYDRATE_QUERY: &str =
     include_str!("../../../config/parity-requests/orders/refund-order-hydrate.graphql");
+const FINAL_CAPTURE_UNSUPPORTED_PAYMENT_PROVIDER_MESSAGE: &str =
+    "Setting final capture is not supported for this transaction's payment gateway. Please remove the parameter or set it to null, then try again.";
 
-pub(in crate::proxy) fn refund_user_error(
-    field: Value,
-    message: impl Into<String>,
-    code: &str,
-) -> Value {
+pub(in crate::proxy) fn refund_user_error(field: Value, message: impl Into<String>) -> Value {
     let message = message.into();
-    user_error(field, &message, Some(code))
+    user_error_omit_code(field, &message, None)
 }
 
 pub(in crate::proxy) fn order_currency(order: &Value, shop_currency_code: &str) -> String {
@@ -274,7 +272,6 @@ pub(in crate::proxy) fn refund_transaction_validation_error(
                     "Kind {} is not a valid transaction",
                     kind.to_ascii_lowercase()
                 ),
-                "INVALID",
             ));
         }
         let parent_id = resolved_string_field(&transaction, "parentId").unwrap_or_default();
@@ -284,7 +281,6 @@ pub(in crate::proxy) fn refund_transaction_validation_error(
             return Some(refund_user_error(
                 json!(["transactions"]),
                 "Transactions require a parent_id associated with the order",
-                "INVALID",
             ));
         }
     }
@@ -306,7 +302,6 @@ pub(in crate::proxy) fn refund_quantity_validation_error(
             return Some(refund_user_error(
                 json!(["refundLineItems", index.to_string(), "lineItemId"]),
                 "Line item does not exist",
-                "NOT_FOUND",
             ));
         };
         let quantity = refund_line_item_quantity(line_input);
@@ -318,7 +313,6 @@ pub(in crate::proxy) fn refund_quantity_validation_error(
             return Some(refund_user_error(
                 json!(["refundLineItems", index.to_string(), "quantity"]),
                 "Quantity cannot refund more items than were purchased",
-                "INVALID",
             ));
         }
     }
@@ -338,7 +332,6 @@ pub(in crate::proxy) fn refund_amount_validation_error(
                 "Refund amount ${:.2} is greater than net payment received ${:.2}",
                 refund_amount, refundable
             ),
-            "OVER_REFUND",
         ));
     }
     None
@@ -667,6 +660,10 @@ pub(in crate::proxy) fn payment_transaction_matches_parent(
         == Some(parent_id)
 }
 
+fn payment_transaction_supports_final_capture(transaction: &Value) -> bool {
+    transaction["gateway"].as_str() == Some("shopify_payments")
+}
+
 pub(in crate::proxy) fn payment_user_error(
     field: Value,
     message: &str,
@@ -794,7 +791,7 @@ impl DraftProxy {
                 refund_input_error(
                     field,
                     None,
-                    refund_user_error(json!(["input"]), "Input is required", "INVALID"),
+                    refund_user_error(json!(["input"]), "Input is required"),
                     &shop_currency_code,
                 ),
                 Vec::new(),
@@ -805,7 +802,7 @@ impl DraftProxy {
                 refund_input_error(
                     field,
                     None,
-                    refund_user_error(json!(["orderId"]), "Order does not exist", "NOT_FOUND"),
+                    refund_user_error(json!(["orderId"]), "Order does not exist"),
                     &shop_currency_code,
                 ),
                 Vec::new(),
@@ -818,7 +815,7 @@ impl DraftProxy {
                 refund_input_error(
                     field,
                     None,
-                    refund_user_error(json!(["orderId"]), "Order does not exist", "NOT_FOUND"),
+                    refund_user_error(json!(["orderId"]), "Order does not exist"),
                     &shop_currency_code,
                 ),
                 Vec::new(),
@@ -1420,7 +1417,8 @@ impl DraftProxy {
             normalized_order_payment_amount(Some(requested_amount.clone()));
         let requested_amount_value = requested_amount.parse::<f64>().ok()?;
         let parent_id = resolved_string_field(input, "parentTransactionId");
-        let final_capture = matches!(input.get("finalCapture"), Some(ResolvedValue::Bool(true)));
+        let final_capture_input = input.get("finalCapture");
+        let final_capture = matches!(final_capture_input, Some(ResolvedValue::Bool(true)));
         let order = self.store.staged.orders.get(order_id)?;
         let transactions = order["transactions"]
             .as_array()
@@ -1512,6 +1510,20 @@ impl DraftProxy {
                     json!(["parent_transaction_id"]),
                     "Parent transaction must be a successful authorization",
                     Some("INVALID_TRANSACTION_STATE"),
+                )],
+                Vec::new(),
+            ));
+        }
+        if matches!(final_capture_input, Some(value) if !matches!(value, ResolvedValue::Null))
+            && !payment_transaction_supports_final_capture(&parent_transaction)
+        {
+            return Some((
+                Value::Null,
+                order.clone(),
+                vec![payment_user_error(
+                    Value::Null,
+                    FINAL_CAPTURE_UNSUPPORTED_PAYMENT_PROVIDER_MESSAGE,
+                    None,
                 )],
                 Vec::new(),
             ));
@@ -1758,12 +1770,18 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn payment_customization_mutation_data(
         &mut self,
+        request: &Request,
         fields: &[RootFieldSelection],
     ) -> Value {
+        let api_client_id = request_app_namespace_api_client_id(request);
         root_payload_json(fields, |field| {
             Some(match field.name.as_str() {
-                "paymentCustomizationCreate" => self.payment_customization_create_payload(field),
-                "paymentCustomizationUpdate" => self.payment_customization_update_payload(field),
+                "paymentCustomizationCreate" => {
+                    self.payment_customization_create_payload(field, api_client_id.as_deref())
+                }
+                "paymentCustomizationUpdate" => {
+                    self.payment_customization_update_payload(field, api_client_id.as_deref())
+                }
                 "paymentCustomizationActivation" => {
                     self.payment_customization_activation_payload(field)
                 }
@@ -1776,6 +1794,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn payment_customization_create_payload(
         &mut self,
         field: &RootFieldSelection,
+        api_client_id: Option<&str>,
     ) -> Value {
         let input =
             resolved_object_field(&field.arguments, "paymentCustomization").unwrap_or_default();
@@ -1854,7 +1873,7 @@ impl DraftProxy {
 
         let id = shopify_gid("PaymentCustomization", self.next_synthetic_id);
         self.next_synthetic_id += 1;
-        let record = payment_customization_record(&id, &input);
+        let record = payment_customization_record(&id, &input, api_client_id);
         self.store
             .staged
             .payment_customizations
@@ -1865,6 +1884,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn payment_customization_update_payload(
         &mut self,
         field: &RootFieldSelection,
+        api_client_id: Option<&str>,
     ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input =
@@ -1944,7 +1964,7 @@ impl DraftProxy {
             updated["enabled"] = json!(enabled);
         }
         if input.contains_key("metafields") {
-            let metafields = payment_customization_metafields(&input);
+            let metafields = payment_customization_metafields(&input, api_client_id);
             payment_customization_set_metafields(&mut updated, metafields);
         }
         self.store

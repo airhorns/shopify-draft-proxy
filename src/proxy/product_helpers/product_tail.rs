@@ -621,7 +621,7 @@ impl DraftProxy {
                     "__typename": "ProductFullSyncPayload",
                     "id": null,
                     "job": null,
-                    "userErrors": [user_error(["id"], "ProductFeed does not exist", Some("NOT_FOUND"))]
+                    "userErrors": [user_error(["id"], "ProductFeed does not exist", None)]
                 }),
                 Vec::new(),
                 "failed",
