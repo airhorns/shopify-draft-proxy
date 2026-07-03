@@ -1,11 +1,10 @@
 query FileReferenceFilesRead {
-  files(first: 10) {
+  files(first: 1, reverse: true) {
     nodes {
       id
       alt
       createdAt
       fileStatus
-      filename
       ... on MediaImage {
         image {
           url

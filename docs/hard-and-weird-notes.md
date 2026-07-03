@@ -860,8 +860,8 @@ After the initial orders-domain creation scaffolding landed, the next easy mista
   - `email`, `phone`, `poNumber`, `shippingAddress`, `customAttributes`, and order-scoped `metafields`
   - downstream `order(id:)` reads expose the staged values, including `customer.email` when the input updates `email`
   - `billingAddress` is intentionally not part of that local `orderUpdate` slice because the current `OrderInput` docs do not expose it
-  - executable local-runtime parity: `config/parity-specs/orders/orderUpdate-snapshot-staging.json` replays public `orderCreate -> orderUpdate -> order(id:) / orders / ordersCount` requests without seeding internal proxy state
-  - expanded live parity is captured for `email`, `poNumber`, `note`, `tags`, `customAttributes`, `shippingAddress`, and order-scoped `metafields` in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json`; `phone` remains local-runtime backed because Shopify 2025-01 rejected it as an `OrderInput` field in that capture path
+  - executable parity: `config/parity-specs/orders/orderUpdate-snapshot-staging.json` replays public `orderCreate -> orderUpdate -> order(id:) / orders / ordersCount` requests against the live 2026-04 fixture without seeding internal proxy state
+  - expanded live parity is captured for `email`, `poNumber`, `note`, `tags`, `customAttributes`, `shippingAddress`, and order-scoped `metafields` in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json`; `phone` remains runtime-test-backed because Shopify 2025-01 rejected it as an `OrderInput` field in that capture path
 - a later 2026-04 localization capture exposed several easy-to-miss `orderUpdate` details:
   - `localizedFields` and deprecated `localizationExtensions` both read back from the same localized-order record set; updating either connection makes the key visible through both `Order.localizedFields` and `Order.localizationExtensions`
   - Brazilian credential values are validated for real CPF/CNPJ shape; arbitrary 11-digit strings can fail with `Localization extension: 'value' provided is invalid`
@@ -3904,7 +3904,7 @@ Practical rule:
 - keep the app-reserved namespace delete message aligned with the public
   2026-04 capture, not older/internal wording
 
-## 89. `locationActivate` limit is public-capturable, ongoing relocation was not
+## 90. `locationActivate` limit is public-capturable, ongoing relocation was not
 
 Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` can produce a real
 `locationActivate` `LOCATION_LIMIT` branch by creating a disposable active
@@ -3925,3 +3925,43 @@ Practical rule:
 - keep `HAS_ONGOING_RELOCATION` as runtime-test-only behavior until a
   deterministic public or approved disposable-store setup can leave a real
   incomplete relocation job observable through `locationActivate`
+
+## 91. Public 2026-04 Files API does not expose `MediaImage.references`
+
+Admin GraphQL 2026-04 live capture against
+`harry-test-heelo.myshopify.com` recorded the runtime
+`MediaFileReferencesHydrate` query returning a top-level schema error:
+`Field 'references' doesn't exist on type 'MediaImage'`.
+
+Older checked-in 2025-01 cascade evidence has a successful
+`MediaImage.references(first:)` response for product/media/variant relationship
+hydration, so do not assume this field is stable across public API versions.
+
+Practical rule:
+
+- media parity cassettes must store the exact hydrate query and exact Shopify
+  response, including public schema errors when that is what the runtime query
+  receives
+- future file-delete cascade improvements should prefer a public,
+  version-stable product/media hydration path over relying on
+  `MediaImage.references` in API versions where the field is not exposed
+
+## 92. Public 2026-04 Files API selection boundaries for local replacement parity
+
+The live replacement captures for the older media parity scenarios exposed two
+public-schema boundaries that the former local fixtures had papered over:
+
+- `filename` is accepted in `FileCreateInput`, but public Admin GraphQL 2026-04
+  rejects selecting `filename` on the `File` interface.
+- `mediaErrors` and `mediaWarnings` are not `File` interface fields; select
+  them under concrete media fragments such as `... on MediaImage`.
+- An immediate `files(query: "filename:'name.jpg'")` read did not return the
+  freshly created files in this capture. The stable live read shape for these
+  scenarios is `files(first: 1, reverse: true)`, matching the existing
+  immediate media read captures.
+
+Practical rule:
+
+- keep restored media parity request documents on public fields only, and use
+  reverse-order immediate reads when the scenario needs the newly created file
+  without relying on full file-search semantics.

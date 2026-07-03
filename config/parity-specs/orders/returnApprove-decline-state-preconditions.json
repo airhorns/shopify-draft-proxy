@@ -1,22 +1,14 @@
 {
   "scenarioId": "returnApprove-decline-state-preconditions",
-  "operationNames": [
-    "return",
-    "returnRequest",
-    "returnApproveRequest",
-    "returnDeclineRequest",
-    "returnCancel",
-    "returnClose"
-  ],
+  "operationNames": ["returnRequest", "returnApproveRequest", "returnDeclineRequest"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["runtime-staging", "validation-parity", "downstream-read-parity", "no-upstream-passthrough"],
+  "assertionKinds": ["validation-parity", "runtime-staging", "no-upstream-passthrough"],
   "liveCaptureFiles": [
-    "fixtures/conformance/local-runtime/2026-04/orders/return-lifecycle-local-staging.json",
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-introspection.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnApprove-decline-state-preconditions.json"
   ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/orders/return-request-reverse-local-staging.graphql",
-    "variablesCapturePath": "$.returnRequest.variables"
+    "documentPath": "config/parity-requests/orders/return-request-recorded.graphql",
+    "variablesCapturePath": "$.openCase.returnRequest.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -24,11 +16,11 @@
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "requested-approve-happy-path",
-        "capturePath": "$.expected.approveRequest",
-        "proxyPath": "$",
+        "name": "setup-open-return",
+        "capturePath": "$.setup.noop",
+        "proxyPath": "$.setup.noop",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-approve-request-local-staging.graphql",
+          "documentPath": "config/parity-requests/orders/return-approve-request-recorded.graphql",
           "variables": {
             "input": {
               "id": {
@@ -39,30 +31,32 @@
         }
       },
       {
-        "name": "open-approve-invalid",
-        "capturePath": "$.expected.statePreconditionErrors.approveOpen",
-        "proxyPath": "$",
+        "name": "approve-open-invalid-state",
+        "capturePath": "$.openCase.approveOpenInvalid.response.payload.data.returnApproveRequest",
+        "proxyPath": "$.data.returnApproveRequest",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-approve-request-local-staging.graphql",
+          "documentPath": "config/parity-requests/orders/return-approve-request-recorded.graphql",
           "variables": {
             "input": {
               "id": {
-                "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
+                "fromProxyResponse": "setup-open-return",
+                "path": "$.data.returnApproveRequest.return.id"
               }
             }
           }
         }
       },
       {
-        "name": "open-decline-invalid",
-        "capturePath": "$.expected.statePreconditionErrors.declineOpen",
-        "proxyPath": "$",
+        "name": "decline-open-invalid-state",
+        "capturePath": "$.openCase.declineOpenInvalid.response.payload.data.returnDeclineRequest",
+        "proxyPath": "$.data.returnDeclineRequest",
         "proxyRequest": {
           "documentPath": "config/parity-requests/orders/return-decline-request-local-staging.graphql",
           "variables": {
             "input": {
               "id": {
-                "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
+                "fromProxyResponse": "setup-open-return",
+                "path": "$.data.returnApproveRequest.return.id"
               },
               "declineReason": {
                 "fromCapturePath": "$.declineRequest.declineInput.declineReason"
@@ -78,108 +72,12 @@
         }
       },
       {
-        "name": "open-read-after-invalid",
-        "capturePath": "$.expected.statePreconditionReads.open",
-        "proxyPath": "$.data",
-        "selectedPaths": [
-          "$.return.status",
-          "$.return.reverseFulfillmentOrders.nodes[0].status",
-          "$.return.reverseFulfillmentOrders.nodes[0].lineItems.nodes[0].totalQuantity",
-          "$.return.reverseFulfillmentOrders.nodes[0].lineItems.nodes[0].remainingQuantity",
-          "$.return.reverseFulfillmentOrders.nodes[1]"
-        ],
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-state-precondition-read-local-staging.graphql",
-          "variables": {
-            "returnId": {
-              "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
-            },
-            "orderId": "gid://shopify/Order/return-flow"
-          }
-        }
-      },
-      {
-        "name": "setup-canceled-return",
+        "name": "setup-declined-request",
         "capturePath": "$.setup.noop",
         "proxyPath": "$.setup.noop",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-cancel-local-staging.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
-            }
-          }
-        }
-      },
-      {
-        "name": "canceled-approve-invalid",
-        "capturePath": "$.expected.statePreconditionErrors.approveCanceled",
-        "proxyPath": "$",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-approve-request-local-staging.graphql",
-          "variables": {
-            "input": {
-              "id": {
-                "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
-              }
-            }
-          }
-        }
-      },
-      {
-        "name": "canceled-decline-invalid",
-        "capturePath": "$.expected.statePreconditionErrors.declineCanceled",
-        "proxyPath": "$",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-decline-request-local-staging.graphql",
-          "variables": {
-            "input": {
-              "id": {
-                "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
-              },
-              "declineReason": {
-                "fromCapturePath": "$.declineRequest.declineInput.declineReason"
-              },
-              "declineNote": {
-                "fromCapturePath": "$.declineRequest.declineInput.declineNote"
-              },
-              "notifyCustomer": {
-                "fromCapturePath": "$.declineRequest.declineInput.notifyCustomer"
-              }
-            }
-          }
-        }
-      },
-      {
-        "name": "canceled-read-after-invalid",
-        "capturePath": "$.expected.statePreconditionReads.canceled",
-        "proxyPath": "$.data",
-        "selectedPaths": [
-          "$.return.status",
-          "$.return.reverseFulfillmentOrders.nodes[0].status",
-          "$.return.reverseFulfillmentOrders.nodes[0].lineItems.nodes[0].totalQuantity",
-          "$.return.reverseFulfillmentOrders.nodes[0].lineItems.nodes[0].remainingQuantity",
-          "$.return.reverseFulfillmentOrders.nodes[1]"
-        ],
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-state-precondition-read-local-staging.graphql",
-          "variables": {
-            "returnId": {
-              "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
-            },
-            "orderId": "gid://shopify/Order/return-flow"
-          }
-        }
-      },
-      {
-        "name": "setup-second-request",
-        "capturePath": "$.setup.noop",
-        "proxyPath": "$.setup.noop",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-request-reverse-local-staging.graphql",
-          "variables": {
-            "fromCapturePath": "$.returnRequest.variables"
-          }
+          "documentPath": "config/parity-requests/orders/return-request-recorded.graphql",
+          "variablesCapturePath": "$.declinedCase.returnRequest.variables"
         }
       },
       {
@@ -191,7 +89,7 @@
           "variables": {
             "input": {
               "id": {
-                "fromProxyResponse": "setup-second-request",
+                "fromProxyResponse": "setup-declined-request",
                 "path": "$.data.returnRequest.return.id"
               },
               "declineReason": {
@@ -208,11 +106,11 @@
         }
       },
       {
-        "name": "declined-approve-invalid",
-        "capturePath": "$.expected.statePreconditionErrors.approveDeclined",
-        "proxyPath": "$",
+        "name": "approve-declined-invalid-state",
+        "capturePath": "$.declinedCase.approveDeclinedInvalid.response.payload.data.returnApproveRequest",
+        "proxyPath": "$.data.returnApproveRequest",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-approve-request-local-staging.graphql",
+          "documentPath": "config/parity-requests/orders/return-approve-request-recorded.graphql",
           "variables": {
             "input": {
               "id": {
@@ -224,9 +122,9 @@
         }
       },
       {
-        "name": "declined-decline-invalid",
-        "capturePath": "$.expected.statePreconditionErrors.declineDeclined",
-        "proxyPath": "$",
+        "name": "decline-declined-invalid-state",
+        "capturePath": "$.declinedCase.declineDeclinedInvalid.response.payload.data.returnDeclineRequest",
+        "proxyPath": "$.data.returnDeclineRequest",
         "proxyRequest": {
           "documentPath": "config/parity-requests/orders/return-decline-request-local-staging.graphql",
           "variables": {
@@ -249,104 +147,27 @@
         }
       },
       {
-        "name": "declined-read-after-invalid",
-        "capturePath": "$.expected.statePreconditionReads.declined",
-        "proxyPath": "$.data",
-        "selectedPaths": ["$.return.status", "$.return.reverseFulfillmentOrders.nodes[0]"],
+        "name": "approve-missing-return",
+        "capturePath": "$.unknownIdCase.approveMissing.response.payload.data.returnApproveRequest",
+        "proxyPath": "$.data.returnApproveRequest",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-state-precondition-read-local-staging.graphql",
-          "variables": {
-            "returnId": {
-              "fromProxyResponse": "setup-declined-return",
-              "path": "$.data.returnDeclineRequest.return.id"
-            },
-            "orderId": "gid://shopify/Order/return-flow"
-          }
-        }
-      },
-      {
-        "name": "setup-cancel-declined-return",
-        "capturePath": "$.setup.noop",
-        "proxyPath": "$.setup.noop",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-cancel-local-staging.graphql",
-          "variables": {
-            "id": {
-              "fromProxyResponse": "setup-declined-return",
-              "path": "$.data.returnDeclineRequest.return.id"
-            }
-          }
-        }
-      },
-      {
-        "name": "setup-third-request",
-        "capturePath": "$.setup.noop",
-        "proxyPath": "$.setup.noop",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-request-reverse-local-staging.graphql",
-          "variables": {
-            "fromCapturePath": "$.returnRequest.variables"
-          }
-        }
-      },
-      {
-        "name": "setup-open-for-closed-return",
-        "capturePath": "$.setup.noop",
-        "proxyPath": "$.setup.noop",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-approve-request-local-staging.graphql",
+          "documentPath": "config/parity-requests/orders/return-approve-request-recorded.graphql",
           "variables": {
             "input": {
-              "id": {
-                "fromProxyResponse": "setup-third-request",
-                "path": "$.data.returnRequest.return.id"
-              }
+              "id": "gid://shopify/Return/999999999991"
             }
           }
         }
       },
       {
-        "name": "setup-closed-return",
-        "capturePath": "$.setup.noop",
-        "proxyPath": "$.setup.noop",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-close-local-staging.graphql",
-          "variables": {
-            "id": {
-              "fromProxyResponse": "setup-open-for-closed-return",
-              "path": "$.data.returnApproveRequest.return.id"
-            }
-          }
-        }
-      },
-      {
-        "name": "closed-approve-invalid",
-        "capturePath": "$.expected.statePreconditionErrors.approveClosed",
-        "proxyPath": "$",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-approve-request-local-staging.graphql",
-          "variables": {
-            "input": {
-              "id": {
-                "fromProxyResponse": "setup-closed-return",
-                "path": "$.data.returnClose.return.id"
-              }
-            }
-          }
-        }
-      },
-      {
-        "name": "closed-decline-invalid",
-        "capturePath": "$.expected.statePreconditionErrors.declineClosed",
-        "proxyPath": "$",
+        "name": "decline-missing-return",
+        "capturePath": "$.unknownIdCase.declineMissing.response.payload.data.returnDeclineRequest",
+        "proxyPath": "$.data.returnDeclineRequest",
         "proxyRequest": {
           "documentPath": "config/parity-requests/orders/return-decline-request-local-staging.graphql",
           "variables": {
             "input": {
-              "id": {
-                "fromProxyResponse": "setup-closed-return",
-                "path": "$.data.returnClose.return.id"
-              },
+              "id": "gid://shopify/Return/999999999992",
               "declineReason": {
                 "fromCapturePath": "$.declineRequest.declineInput.declineReason"
               },
@@ -357,32 +178,10 @@
                 "fromCapturePath": "$.declineRequest.declineInput.notifyCustomer"
               }
             }
-          }
-        }
-      },
-      {
-        "name": "closed-read-after-invalid",
-        "capturePath": "$.expected.statePreconditionReads.closed",
-        "proxyPath": "$.data",
-        "selectedPaths": [
-          "$.return.status",
-          "$.return.reverseFulfillmentOrders.nodes[0].status",
-          "$.return.reverseFulfillmentOrders.nodes[0].lineItems.nodes[0].totalQuantity",
-          "$.return.reverseFulfillmentOrders.nodes[0].lineItems.nodes[0].remainingQuantity",
-          "$.return.reverseFulfillmentOrders.nodes[1]"
-        ],
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/return-state-precondition-read-local-staging.graphql",
-          "variables": {
-            "returnId": {
-              "fromProxyResponse": "setup-closed-return",
-              "path": "$.data.returnClose.return.id"
-            },
-            "orderId": "gid://shopify/Order/return-flow"
           }
         }
       }
     ]
   },
-  "notes": "Executable local-runtime parity for return request approve/decline state preconditions. The replay verifies REQUESTED approval still creates reverse fulfillment work, while OPEN, DECLINED, CLOSED, and CANCELED approve/decline attempts return Shopify-like INVALID_STATE userErrors on input.id with rendered messages and leave downstream return/reverse-fulfillment state unchanged. Live Shopify evidence for the wire error shapes is captured by returnApprove-decline-state-preconditions-live."
+  "notes": "Live Shopify 2026-04 evidence for returnApproveRequest and returnDeclineRequest invalid-state userError shapes on non-REQUESTED OPEN/DECLINED returns, already-declined decline, and missing Return IDs. Replacement for retired synthetic/local-runtime orders evidence. This scenario ID is preserved for continuity but now reuses the real Shopify capture and proxy request contract from config/parity-specs/orders/returnApprove-decline-state-preconditions-live.json (returnApprove-decline-state-preconditions-live); the old local-runtime cassette is no longer parity evidence."
 }
