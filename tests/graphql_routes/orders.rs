@@ -10,6 +10,29 @@ fn without_extensions(value: &Value) -> Value {
     value
 }
 
+fn restore_customer_payment_method_state(proxy: &mut DraftProxy, update: impl FnOnce(&mut Value)) {
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    update(&mut restored);
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+}
+
+fn assert_numeric_customer_payment_method_id(id: &str) {
+    let tail = id
+        .strip_prefix("gid://shopify/CustomerPaymentMethod/")
+        .expect("customer payment method gid");
+    assert!(
+        tail.parse::<u64>().is_ok(),
+        "expected ordinary numeric payment method id, got {id}"
+    );
+}
+
 fn assert_draft_order_variant_catalog_line(line: &Value, quantity: i64) {
     assert_eq!(line["title"], json!("Catalog product title"));
     assert_eq!(line["name"], json!("Catalog product title"));
@@ -11782,14 +11805,170 @@ fn customer_payment_methods_remote_create_counts_all_gateway_objects_for_cardina
 }
 
 #[test]
-fn customer_payment_methods_replay_shop_pay_guard_shapes() {
+fn customer_payment_methods_reject_non_shop_pay_sources_by_instrument_type() {
     let mut proxy = snapshot_proxy();
 
-    let response = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/payments/customer-payment-method-shop-pay-guards.graphql"
-        ),
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentMethodCreateCreditCardSource {
+          customerPaymentMethodCreditCardCreate(
+            customerId: "gid://shopify/Customer/44101"
+            sessionId: "card-session-44101"
+            billingAddress: {
+              address1: "1 Main St"
+              city: "New York"
+              zip: "10001"
+              country: "US"
+              province: "NY"
+            }
+          ) {
+            customerPaymentMethod {
+              id
+              instrument { __typename }
+            }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    let card =
+        &create.body["data"]["customerPaymentMethodCreditCardCreate"]["customerPaymentMethod"];
+    assert_eq!(
+        card["instrument"]["__typename"],
+        json!("CustomerCreditCard")
+    );
+    let card_id = card["id"].as_str().expect("created card id").to_string();
+    assert_numeric_customer_payment_method_id(&card_id);
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentMethodRejectCreditCardDuplication($id: ID!) {
+          customerPaymentMethodGetDuplicationData(
+            customerPaymentMethodId: $id
+            targetShopId: "gid://shopify/Shop/991"
+            targetCustomerId: "gid://shopify/Customer/44102"
+          ) {
+            encryptedDuplicationData
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": card_id }),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["customerPaymentMethodGetDuplicationData"],
         json!({
+            "encryptedDuplicationData": Value::Null,
+            "userErrors": [{
+                "field": ["customerPaymentMethodId"],
+                "code": "INVALID_INSTRUMENT",
+                "message": "Invalid instrument"
+            }]
+        })
+    );
+
+    let update_url = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentMethodRejectCreditCardUpdateUrl($id: ID!) {
+          customerPaymentMethodGetUpdateUrl(customerPaymentMethodId: $id) {
+            updatePaymentMethodUrl
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": card_id }),
+    ));
+    assert_eq!(
+        update_url.body["data"]["customerPaymentMethodGetUpdateUrl"],
+        json!({
+            "updatePaymentMethodUrl": Value::Null,
+            "userErrors": [{
+                "field": ["customerPaymentMethodId"],
+                "code": "INVALID_INSTRUMENT",
+                "message": "Invalid instrument"
+            }]
+        })
+    );
+}
+
+#[test]
+fn customer_payment_methods_replay_shop_pay_guard_shapes() {
+    let mut proxy = snapshot_proxy();
+    let card_id = "gid://shopify/CustomerPaymentMethod/44121";
+    let shop_pay_id = "gid://shopify/CustomerPaymentMethod/44122";
+    assert_numeric_customer_payment_method_id(card_id);
+    assert_numeric_customer_payment_method_id(shop_pay_id);
+    restore_customer_payment_method_state(&mut proxy, |restored| {
+        restored["state"]["stagedState"]["customerPaymentMethods"][card_id] = json!({
+            "id": card_id,
+            "customer": { "id": "gid://shopify/Customer/44101" },
+            "instrument": {
+                "__typename": "CustomerCreditCard",
+                "lastDigits": Value::Null,
+                "maskedNumber": Value::Null
+            },
+            "revokedAt": Value::Null,
+            "revokedReason": Value::Null,
+            "activeSubscriptionContracts": { "nodes": [] }
+        });
+        restored["state"]["stagedState"]["customerPaymentMethods"][shop_pay_id] = json!({
+            "id": shop_pay_id,
+            "customer": { "id": "gid://shopify/Customer/44101" },
+            "instrument": { "__typename": "CustomerShopPayAgreement" },
+            "sourceShopId": "gid://shopify/Shop/441",
+            "revokedAt": Value::Null,
+            "revokedReason": Value::Null,
+            "activeSubscriptionContracts": { "nodes": [] }
+        });
+        restored["state"]["stagedState"]["customerPaymentMethodCustomerIndex"]
+            ["gid://shopify/Customer/44101"] = json!([card_id, shop_pay_id]);
+        restored["state"]["stagedState"]["nextCustomerPaymentMethodId"] = json!(44123);
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentMethodShopPayGuards(
+          $cardId: ID!
+          $shopPayId: ID!
+          $targetCustomerId: ID!
+          $blankBillingAddress: MailingAddressInput!
+          $encryptedDuplicationData: String!
+        ) {
+          creditCardDuplication: customerPaymentMethodGetDuplicationData(
+            customerPaymentMethodId: $cardId
+            targetShopId: "gid://shopify/Shop/999"
+            targetCustomerId: $targetCustomerId
+          ) {
+            encryptedDuplicationData
+            userErrors { field message code }
+          }
+          sameShopDuplication: customerPaymentMethodGetDuplicationData(
+            customerPaymentMethodId: $shopPayId
+            targetShopId: "gid://shopify/Shop/441"
+            targetCustomerId: $targetCustomerId
+          ) {
+            encryptedDuplicationData
+            userErrors { field message code }
+          }
+          creditCardUpdateUrl: customerPaymentMethodGetUpdateUrl(customerPaymentMethodId: $cardId) {
+            updatePaymentMethodUrl
+            userErrors { field message code }
+          }
+          blankBillingAddressCreate: customerPaymentMethodCreateFromDuplicationData(
+            customerId: $targetCustomerId
+            billingAddress: $blankBillingAddress
+            encryptedDuplicationData: $encryptedDuplicationData
+          ) {
+            customerPaymentMethod { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "cardId": card_id,
+            "shopPayId": shop_pay_id,
             "targetCustomerId": "gid://shopify/Customer/8802",
             "blankBillingAddress": {},
             "encryptedDuplicationData": "shopify-draft-proxy:customer-payment-method-duplication:not-used-before-billing-address-validation"
@@ -11857,40 +12036,250 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
         Some("customer-payment-method-reminder@example.test"),
         None,
     );
+    let shop_pay_id = "gid://shopify/CustomerPaymentMethod/88010";
+    assert_numeric_customer_payment_method_id(shop_pay_id);
+    restore_customer_payment_method_state(&mut proxy, |restored| {
+        restored["state"]["stagedState"]["customerPaymentMethods"][shop_pay_id] = json!({
+            "id": shop_pay_id,
+            "customer": { "id": "gid://shopify/Customer/8801" },
+            "instrument": { "__typename": "CustomerShopPayAgreement" },
+            "sourceShopId": "gid://shopify/Shop/8801",
+            "revokedAt": Value::Null,
+            "revokedReason": Value::Null,
+            "activeSubscriptionContracts": { "nodes": [] }
+        });
+        restored["state"]["stagedState"]["customerPaymentMethodCustomerIndex"]
+            ["gid://shopify/Customer/8801"] = json!([shop_pay_id]);
+        restored["state"]["stagedState"]["nextCustomerPaymentMethodId"] = json!(1);
+    });
 
-    let primary = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/payments/customer-payment-method-local-staging.graphql"
-        ),
+    let card_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentMethodCardCreate($customerId: ID!, $billingAddress: MailingAddressInput!) {
+          customerPaymentMethodCreditCardCreate(
+            customerId: $customerId
+            billingAddress: $billingAddress
+            sessionId: "csn_sensitive_session"
+          ) {
+            customerPaymentMethod {
+              id
+              instrument {
+                __typename
+                ... on CustomerCreditCard { lastDigits maskedNumber }
+              }
+              customer { id }
+            }
+            processing
+            userErrors { field message }
+          }
+        }
+        "#,
         json!({
             "customerId": "gid://shopify/Customer/8801",
-            "targetCustomerId": "gid://shopify/Customer/8802",
-            "billingAddress": billing_address.clone(),
-            "sessionId": "csn_sensitive_session",
+            "billingAddress": billing_address.clone()
+        }),
+    ));
+    assert_eq!(
+        card_create.body["data"]["customerPaymentMethodCreditCardCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        card_create.body["data"]["customerPaymentMethodCreditCardCreate"]["customerPaymentMethod"]
+            ["id"],
+        json!("gid://shopify/CustomerPaymentMethod/1")
+    );
+    let card_id = card_create.body["data"]["customerPaymentMethodCreditCardCreate"]
+        ["customerPaymentMethod"]["id"]
+        .as_str()
+        .expect("card id")
+        .to_string();
+    assert_numeric_customer_payment_method_id(&card_id);
+
+    let card_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentMethodCardUpdate($id: ID!, $billingAddress: MailingAddressInput!) {
+          customerPaymentMethodCreditCardUpdate(
+            id: $id
+            billingAddress: $billingAddress
+            sessionId: "csn_sensitive_session"
+          ) {
+            customerPaymentMethod {
+              id
+              instrument {
+                __typename
+                ... on CustomerCreditCard { lastDigits maskedNumber }
+              }
+            }
+            processing
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": card_id, "billingAddress": billing_address.clone() }),
+    ));
+    assert_eq!(
+        card_update.body["data"]["customerPaymentMethodCreditCardUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let remote_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentMethodRemoteCreate($customerId: ID!, $remoteReference: CustomerPaymentMethodRemoteInput!) {
+          customerPaymentMethodRemoteCreate(customerId: $customerId, remoteReference: $remoteReference) {
+            customerPaymentMethod { id instrument { __typename } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "customerId": "gid://shopify/Customer/8801",
             "remoteReference": {
                 "stripePaymentMethod": {
                     "customerId": "cus_sensitive",
                     "paymentMethodId": "pm_sensitive"
                 }
-            },
-            "paymentScheduleId": payment_schedule_id
+            }
         }),
     ));
-    assert_eq!(primary.body["data"]["cardCreate"]["userErrors"], json!([]));
     assert_eq!(
-        primary.body["data"]["cardCreate"]["customerPaymentMethod"]["id"],
-        json!("gid://shopify/CustomerPaymentMethod/1")
-    );
-    assert_eq!(
-        primary.body["data"]["remoteCreate"]["customerPaymentMethod"]["id"],
+        remote_create.body["data"]["customerPaymentMethodRemoteCreate"]["customerPaymentMethod"]
+            ["id"],
         json!("gid://shopify/CustomerPaymentMethod/2")
     );
+
+    let paypal_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentMethodPaypalCreate($customerId: ID!, $billingAddress: MailingAddressInput!) {
+          customerPaymentMethodPaypalBillingAgreementCreate(
+            customerId: $customerId
+            billingAddress: $billingAddress
+            billingAgreementId: "B-sensitive-agreement"
+            inactive: true
+          ) {
+            customerPaymentMethod {
+              id
+              instrument {
+                __typename
+                ... on CustomerPaypalBillingAgreement { paypalAccountEmail inactive }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "customerId": "gid://shopify/Customer/8801",
+            "billingAddress": billing_address.clone()
+        }),
+    ));
     assert_eq!(
-        primary.body["data"]["paypalCreate"]["customerPaymentMethod"]["id"],
+        paypal_create.body["data"]["customerPaymentMethodPaypalBillingAgreementCreate"]
+            ["customerPaymentMethod"]["id"],
         json!("gid://shopify/CustomerPaymentMethod/3")
     );
+    let paypal_id = paypal_create.body["data"]["customerPaymentMethodPaypalBillingAgreementCreate"]
+        ["customerPaymentMethod"]["id"]
+        .as_str()
+        .expect("paypal id")
+        .to_string();
+    assert_numeric_customer_payment_method_id(&paypal_id);
+
+    let paypal_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentMethodPaypalUpdate($id: ID!, $billingAddress: MailingAddressInput!) {
+          customerPaymentMethodPaypalBillingAgreementUpdate(id: $id, billingAddress: $billingAddress) {
+            customerPaymentMethod {
+              id
+              instrument {
+                __typename
+                ... on CustomerPaypalBillingAgreement { paypalAccountEmail inactive }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": paypal_id, "billingAddress": billing_address.clone() }),
+    ));
     assert_eq!(
-        primary.body["data"]["reminder"],
+        paypal_update.body["data"]["customerPaymentMethodPaypalBillingAgreementUpdate"]
+            ["customerPaymentMethod"]["id"],
+        json!("gid://shopify/CustomerPaymentMethod/3")
+    );
+
+    let duplication_data = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentMethodDuplicationData($shopPayId: ID!, $targetCustomerId: ID!) {
+          customerPaymentMethodGetDuplicationData(
+            customerPaymentMethodId: $shopPayId
+            targetShopId: "gid://shopify/Shop/8802"
+            targetCustomerId: $targetCustomerId
+          ) {
+            encryptedDuplicationData
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "shopPayId": shop_pay_id,
+            "targetCustomerId": "gid://shopify/Customer/8802"
+        }),
+    ));
+    assert_eq!(
+        duplication_data.body["data"]["customerPaymentMethodGetDuplicationData"]["userErrors"],
+        json!([])
+    );
+
+    let update_url = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentMethodUpdateUrl($shopPayId: ID!) {
+          customerPaymentMethodGetUpdateUrl(customerPaymentMethodId: $shopPayId) {
+            updatePaymentMethodUrl
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "shopPayId": shop_pay_id }),
+    ));
+    assert_eq!(
+        update_url.body["data"]["customerPaymentMethodGetUpdateUrl"]["userErrors"],
+        json!([])
+    );
+    assert!(
+        update_url.body["data"]["customerPaymentMethodGetUpdateUrl"]["updatePaymentMethodUrl"]
+            .as_str()
+            .is_some_and(|url| url.contains("/customer-payment-methods/88010/update"))
+    );
+
+    let revoke = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentMethodRevoke($id: ID!) {
+          customerPaymentMethodRevoke(customerPaymentMethodId: $id) {
+            revokedCustomerPaymentMethodId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": card_id }),
+    ));
+    assert_eq!(
+        revoke.body["data"]["customerPaymentMethodRevoke"],
+        json!({ "revokedCustomerPaymentMethodId": "gid://shopify/CustomerPaymentMethod/1", "userErrors": [] })
+    );
+
+    let reminder = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentReminder($paymentScheduleId: ID!) {
+          paymentReminderSend(paymentScheduleId: $paymentScheduleId) {
+            success
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "paymentScheduleId": payment_schedule_id }),
+    ));
+    assert_eq!(
+        reminder.body["data"]["paymentReminderSend"],
         json!({ "success": true, "userErrors": [] })
     );
 
@@ -11899,7 +12288,7 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
         json!({
             "customerId": "gid://shopify/Customer/8802",
             "billingAddress": billing_address.clone(),
-            "encryptedDuplicationData": primary.body["data"]["duplication"]["encryptedDuplicationData"].clone()
+            "encryptedDuplicationData": duplication_data.body["data"]["customerPaymentMethodGetDuplicationData"]["encryptedDuplicationData"].clone()
         }),
     ));
     assert_eq!(
@@ -11919,12 +12308,36 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
         .is_some_and(|id| id.starts_with("gid://shopify/CustomerPaymentMethod/")));
 
     let lifecycle_read = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/payments/customer-payment-method-local-staging-read.graphql"
-        ),
+        r#"
+        query CustomerPaymentMethodLocalStagingRead($sourceCustomerId: ID!, $targetCustomerId: ID!, $revokedId: ID!) {
+          hiddenRevoked: customerPaymentMethod(id: $revokedId) { id }
+          shownRevoked: customerPaymentMethod(id: $revokedId, showRevoked: true) {
+            id
+            revokedAt
+            revokedReason
+          }
+          source: customer(id: $sourceCustomerId) {
+            paymentMethods(first: 10, showRevoked: true) {
+              nodes { id revokedAt }
+            }
+          }
+          target: customer(id: $targetCustomerId) {
+            paymentMethods(first: 10) {
+              nodes {
+                id
+                instrument {
+                  __typename
+                  ... on CustomerCreditCard { lastDigits maskedNumber }
+                }
+              }
+            }
+          }
+        }
+        "#,
         json!({
             "sourceCustomerId": "gid://shopify/Customer/8801",
-            "targetCustomerId": "gid://shopify/Customer/8802"
+            "targetCustomerId": "gid://shopify/Customer/8802",
+            "revokedId": card_id
         }),
     ));
     let source_nodes = lifecycle_read.body["data"]["source"]["paymentMethods"]["nodes"]
@@ -11939,9 +12352,10 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
     assert!(source_nodes
         .iter()
         .any(|node| node["id"] == json!("gid://shopify/CustomerPaymentMethod/3")));
+    assert_eq!(lifecycle_read.body["data"]["hiddenRevoked"], Value::Null);
     assert_eq!(
         lifecycle_read.body["data"]["shownRevoked"]["id"],
-        json!("gid://shopify/CustomerPaymentMethod/base-card")
+        json!("gid://shopify/CustomerPaymentMethod/1")
     );
     assert_eq!(
         lifecycle_read.body["data"]["target"]["paymentMethods"]["nodes"][0]["id"],
@@ -11999,11 +12413,16 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
     );
     assert!(missing_session.body.get("data").is_none());
 
+    let processing_session_id = "card-session-processing-8801";
+    restore_customer_payment_method_state(&mut proxy, |restored| {
+        restored["state"]["stagedState"]["customerPaymentMethodSessionStates"]
+            [processing_session_id] = json!("PROCESSING");
+    });
     let processing = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-processing.graphql"),
         json!({
             "customerId": "gid://shopify/Customer/8801",
-            "sessionId": "shopify-draft-proxy:processing",
+            "sessionId": processing_session_id,
             "billingAddress": {
                 "address1": "1 Main St",
                 "city": "New York",
@@ -12080,12 +12499,68 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
 #[test]
 fn customer_payment_method_update_and_revoke_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
+    let update_id = "gid://shopify/CustomerPaymentMethod/55200";
+    let active_contract_id = "gid://shopify/CustomerPaymentMethod/55201";
+    let success_id = "gid://shopify/CustomerPaymentMethod/55202";
+    let already_revoked_id = "gid://shopify/CustomerPaymentMethod/55203";
+    for id in [
+        update_id,
+        active_contract_id,
+        success_id,
+        already_revoked_id,
+    ] {
+        assert_numeric_customer_payment_method_id(id);
+    }
+    restore_customer_payment_method_state(&mut proxy, |restored| {
+        restored["state"]["stagedState"]["customerPaymentMethods"][active_contract_id] = json!({
+            "id": active_contract_id,
+            "customer": { "id": "gid://shopify/Customer/55201" },
+            "instrument": {
+                "__typename": "CustomerCreditCard",
+                "lastDigits": Value::Null,
+                "maskedNumber": Value::Null
+            },
+            "revokedAt": Value::Null,
+            "revokedReason": Value::Null,
+            "activeSubscriptionContracts": {
+                "nodes": [{ "id": "gid://shopify/SubscriptionContract/55201" }]
+            }
+        });
+        restored["state"]["stagedState"]["customerPaymentMethods"][success_id] = json!({
+            "id": success_id,
+            "customer": { "id": "gid://shopify/Customer/55201" },
+            "instrument": {
+                "__typename": "CustomerCreditCard",
+                "lastDigits": Value::Null,
+                "maskedNumber": Value::Null
+            },
+            "revokedAt": Value::Null,
+            "revokedReason": Value::Null,
+            "activeSubscriptionContracts": { "nodes": [] }
+        });
+        restored["state"]["stagedState"]["customerPaymentMethods"][already_revoked_id] = json!({
+            "id": already_revoked_id,
+            "customer": { "id": "gid://shopify/Customer/55201" },
+            "instrument": {
+                "__typename": "CustomerCreditCard",
+                "lastDigits": Value::Null,
+                "maskedNumber": Value::Null
+            },
+            "revokedAt": "2026-05-01T00:00:00.000Z",
+            "revokedReason": "CUSTOMER_REVOKED",
+            "activeSubscriptionContracts": { "nodes": [] }
+        });
+        restored["state"]["stagedState"]["customerPaymentMethodCustomerIndex"]
+            ["gid://shopify/Customer/55201"] =
+            json!([active_contract_id, success_id, already_revoked_id]);
+        restored["state"]["stagedState"]["nextCustomerPaymentMethodId"] = json!(55204);
+    });
 
     let update = proxy.process_request(json_graphql_request(
         r#"
-        mutation RustCustomerPaymentMethodCreditCardUpdateValidation {
+        mutation RustCustomerPaymentMethodCreditCardUpdateValidation($id: ID!) {
           customerPaymentMethodCreditCardUpdate(
-            id: "gid://shopify/CustomerPaymentMethod/base-card"
+            id: $id
             sessionId: "sess_valid"
             billingAddress: { address1: null, city: null, zip: null, country: null, province: null }
           ) {
@@ -12095,7 +12570,7 @@ fn customer_payment_method_update_and_revoke_tail_helpers_cover_current_behavior
           }
         }
         "#,
-        json!({}),
+        json!({ "id": update_id }),
     ));
     assert_eq!(update.status, 200);
     assert_eq!(
@@ -12115,14 +12590,14 @@ fn customer_payment_method_update_and_revoke_tail_helpers_cover_current_behavior
 
     let active_contract = proxy.process_request(json_graphql_request(
         r#"
-        mutation RustCustomerPaymentMethodRevokeLocalRuntimeActive {
-          customerPaymentMethodRevoke(customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/active-contract") {
+        mutation RustCustomerPaymentMethodRevokeLocalRuntimeActive($id: ID!) {
+          customerPaymentMethodRevoke(customerPaymentMethodId: $id) {
             revokedCustomerPaymentMethodId
             userErrors { field message code }
           }
         }
         "#,
-        json!({}),
+        json!({ "id": active_contract_id }),
     ));
     assert_eq!(
         active_contract.body["data"]["customerPaymentMethodRevoke"],
@@ -12138,20 +12613,20 @@ fn customer_payment_method_update_and_revoke_tail_helpers_cover_current_behavior
 
     let active_read = proxy.process_request(json_graphql_request(
         r#"
-        query RustCustomerPaymentMethodRevokeLocalRuntimeActiveRead {
-          customerPaymentMethod(id: "gid://shopify/CustomerPaymentMethod/active-contract", showRevoked: true) {
+        query RustCustomerPaymentMethodRevokeLocalRuntimeActiveRead($id: ID!) {
+          customerPaymentMethod(id: $id, showRevoked: true) {
             id
             revokedAt
             revokedReason
           }
         }
         "#,
-        json!({}),
+        json!({ "id": active_contract_id }),
     ));
     assert_eq!(
         active_read.body["data"]["customerPaymentMethod"],
         json!({
-            "id": "gid://shopify/CustomerPaymentMethod/active-contract",
+            "id": active_contract_id,
             "revokedAt": Value::Null,
             "revokedReason": Value::Null
         })
@@ -12159,39 +12634,39 @@ fn customer_payment_method_update_and_revoke_tail_helpers_cover_current_behavior
 
     let success = proxy.process_request(json_graphql_request(
         r#"
-        mutation RustCustomerPaymentMethodRevokeLocalRuntimeSuccess {
-          customerPaymentMethodRevoke(customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/base-card") {
+        mutation RustCustomerPaymentMethodRevokeLocalRuntimeSuccess($id: ID!) {
+          customerPaymentMethodRevoke(customerPaymentMethodId: $id) {
             revokedCustomerPaymentMethodId
             userErrors { field message code }
           }
         }
         "#,
-        json!({}),
+        json!({ "id": success_id }),
     ));
     assert_eq!(
         success.body["data"]["customerPaymentMethodRevoke"],
         json!({
-            "revokedCustomerPaymentMethodId": "gid://shopify/CustomerPaymentMethod/base-card",
+            "revokedCustomerPaymentMethodId": success_id,
             "userErrors": []
         })
     );
 
     let success_read = proxy.process_request(json_graphql_request(
         r#"
-        query RustCustomerPaymentMethodRevokeLocalRuntimeSuccessRead {
-          customerPaymentMethod(id: "gid://shopify/CustomerPaymentMethod/base-card", showRevoked: true) {
+        query RustCustomerPaymentMethodRevokeLocalRuntimeSuccessRead($id: ID!) {
+          customerPaymentMethod(id: $id, showRevoked: true) {
             id
             revokedAt
             revokedReason
           }
         }
         "#,
-        json!({}),
+        json!({ "id": success_id }),
     ));
     assert_eq!(
         success_read.body["data"]["customerPaymentMethod"],
         json!({
-            "id": "gid://shopify/CustomerPaymentMethod/base-card",
+            "id": success_id,
             "revokedAt": "2024-01-01T00:00:02.000Z",
             "revokedReason": "CUSTOMER_REVOKED"
         })
@@ -12199,39 +12674,39 @@ fn customer_payment_method_update_and_revoke_tail_helpers_cover_current_behavior
 
     let already_revoked = proxy.process_request(json_graphql_request(
         r#"
-        mutation RustCustomerPaymentMethodRevokeLocalRuntimeAlreadyRevoked {
-          customerPaymentMethodRevoke(customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/already-revoked") {
+        mutation RustCustomerPaymentMethodRevokeLocalRuntimeAlreadyRevoked($id: ID!) {
+          customerPaymentMethodRevoke(customerPaymentMethodId: $id) {
             revokedCustomerPaymentMethodId
             userErrors { field message code }
           }
         }
         "#,
-        json!({}),
+        json!({ "id": already_revoked_id }),
     ));
     assert_eq!(
         already_revoked.body["data"]["customerPaymentMethodRevoke"],
         json!({
-            "revokedCustomerPaymentMethodId": "gid://shopify/CustomerPaymentMethod/already-revoked",
+            "revokedCustomerPaymentMethodId": already_revoked_id,
             "userErrors": []
         })
     );
 
     let already_revoked_read = proxy.process_request(json_graphql_request(
         r#"
-        query RustCustomerPaymentMethodRevokeLocalRuntimeAlreadyRevokedRead {
-          customerPaymentMethod(id: "gid://shopify/CustomerPaymentMethod/already-revoked", showRevoked: true) {
+        query RustCustomerPaymentMethodRevokeLocalRuntimeAlreadyRevokedRead($id: ID!) {
+          customerPaymentMethod(id: $id, showRevoked: true) {
             id
             revokedAt
             revokedReason
           }
         }
         "#,
-        json!({}),
+        json!({ "id": already_revoked_id }),
     ));
     assert_eq!(
         already_revoked_read.body["data"]["customerPaymentMethod"],
         json!({
-            "id": "gid://shopify/CustomerPaymentMethod/already-revoked",
+            "id": already_revoked_id,
             "revokedAt": "2026-05-01T00:00:00.000Z",
             "revokedReason": "CUSTOMER_REVOKED"
         })

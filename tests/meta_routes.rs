@@ -1579,12 +1579,7 @@ fn restore_state_round_trips_customer_payment_method_records_and_counter() {
     assert_eq!(
         dump.body["state"]["stagedState"]["customerPaymentMethodCustomerIndex"]
             ["gid://shopify/Customer/8801"],
-        json!([
-            "gid://shopify/CustomerPaymentMethod/base-card",
-            "gid://shopify/CustomerPaymentMethod/base-paypal",
-            "gid://shopify/CustomerPaymentMethod/base-shop-pay",
-            "gid://shopify/CustomerPaymentMethod/1"
-        ])
+        json!(["gid://shopify/CustomerPaymentMethod/1"])
     );
     assert_eq!(
         dump.body["state"]["stagedState"]["nextCustomerPaymentMethodId"],
