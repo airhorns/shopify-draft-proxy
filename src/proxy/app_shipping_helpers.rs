@@ -344,16 +344,83 @@ fn app_user_error_json(error: Value, typename: &str, selection: &[SelectedField]
     selected_json(&error, selection)
 }
 
-pub(in crate::proxy) fn app_subscription_line_items_from_arguments(
-    arguments: &BTreeMap<String, ResolvedValue>,
-) -> Vec<Value> {
-    match arguments.get("lineItems") {
-        Some(ResolvedValue::List(items)) => items
-            .iter()
-            .enumerate()
-            .map(|(index, item)| app_subscription_line_item_from_input(index, items.len(), item))
-            .collect(),
-        _ => Vec::new(),
+impl DraftProxy {
+    pub(in crate::proxy) fn app_subscription_line_items_from_arguments(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Vec<Value> {
+        match arguments.get("lineItems") {
+            Some(ResolvedValue::List(items)) => items
+                .iter()
+                .map(|item| self.app_subscription_line_item_from_input(item))
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    fn app_subscription_line_item_from_input(&mut self, value: &ResolvedValue) -> Value {
+        let id = self.next_proxy_synthetic_gid("AppSubscriptionLineItem");
+        if let ResolvedValue::Object(item) = value {
+            if let Some(ResolvedValue::Object(plan)) = item.get("plan") {
+                if let Some(ResolvedValue::Object(details)) = plan.get("appRecurringPricingDetails")
+                {
+                    let price = resolved_object_field(details, "price").unwrap_or_default();
+                    let price_amount = maybe_money_amount_string_from_resolved(price.get("amount"))
+                        .unwrap_or_else(|| "0.0".to_string());
+                    let price_currency =
+                        resolved_string_field(&price, "currencyCode").unwrap_or_default();
+                    return json!({
+                        "id": id,
+                        "plan": { "pricingDetails": {
+                            "__typename": "AppRecurringPricing",
+                            "price": money_value(&price_amount, &price_currency)
+                        }}
+                    });
+                }
+                if let Some(ResolvedValue::Object(details)) = plan.get("appUsagePricingDetails") {
+                    let capped = resolved_object_field(details, "cappedAmount").unwrap_or_default();
+                    let capped_amount =
+                        maybe_money_amount_string_from_resolved(capped.get("amount"))
+                            .unwrap_or_else(|| "0.0".to_string());
+                    let currency_code =
+                        resolved_string_field(&capped, "currencyCode").unwrap_or_default();
+                    let terms = resolved_string_field(details, "terms").unwrap_or_default();
+                    return json!({
+                        "id": id,
+                        "plan": { "pricingDetails": {
+                            "__typename": "AppUsagePricing",
+                            "cappedAmount": money_value(&capped_amount, &currency_code),
+                            "balanceUsed": money_value("0.0", &currency_code),
+                            "interval": "EVERY_30_DAYS",
+                            "terms": terms
+                        }}
+                    });
+                }
+            }
+        }
+        json!({
+            "id": id,
+            "plan": { "pricingDetails": {
+                "__typename": "AppUsagePricing",
+                "cappedAmount": money_value("0.0", ""),
+                "balanceUsed": money_value("0.0", ""),
+                "interval": "EVERY_30_DAYS",
+                "terms": ""
+            }}
+        })
+    }
+
+    pub(in crate::proxy) fn delivery_profile_location_record(&self, id: &str) -> Value {
+        let mut record = json!({ "id": id });
+        if let Some(name) = self.location_for_read(id).and_then(|location| {
+            location
+                .get("name")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        }) {
+            record["name"] = json!(name);
+        }
+        record
     }
 }
 
@@ -374,64 +441,14 @@ pub(in crate::proxy) fn app_subscription_line_item_currency_codes(
         .collect()
 }
 
-pub(in crate::proxy) fn app_subscription_line_item_from_input(
-    index: usize,
-    total_items: usize,
-    value: &ResolvedValue,
-) -> Value {
-    let default_id = match (total_items, index) {
-        (2, 0) => "gid://shopify/AppSubscriptionLineItem/usage".to_string(),
-        (2, 1) => "gid://shopify/AppSubscriptionLineItem/recurring".to_string(),
-        _ if index == 0 => shopify_gid("AppSubscriptionLineItem", "expected"),
-        _ => shopify_gid("AppSubscriptionLineItem", format!("expected-{}", index + 1)),
+fn maybe_money_amount_string_from_resolved(value: Option<&ResolvedValue>) -> Option<String> {
+    let raw = match value? {
+        ResolvedValue::Int(value) => value.to_string(),
+        ResolvedValue::Float(value) => value.to_string(),
+        ResolvedValue::String(value) => value.clone(),
+        _ => return None,
     };
-    let mut capped_amount = "100.0".to_string();
-    let mut currency_code = "USD".to_string();
-    let mut terms = "usage terms".to_string();
-    if let ResolvedValue::Object(item) = value {
-        if let Some(ResolvedValue::Object(plan)) = item.get("plan") {
-            if let Some(ResolvedValue::Object(details)) = plan.get("appRecurringPricingDetails") {
-                let mut price_amount = "1.0".to_string();
-                let mut price_currency = "USD".to_string();
-                if let Some(ResolvedValue::Object(price)) = details.get("price") {
-                    price_amount = money_amount_string_from_resolved(price.get("amount"));
-                    price_currency = match price.get("currencyCode") {
-                        Some(ResolvedValue::String(value)) => value.clone(),
-                        _ => price_currency,
-                    };
-                }
-                return json!({
-                    "id": default_id,
-                    "plan": { "pricingDetails": {
-                        "__typename": "AppRecurringPricing",
-                        "price": money_value(&price_amount, &price_currency)
-                    }}
-                });
-            }
-            if let Some(ResolvedValue::Object(details)) = plan.get("appUsagePricingDetails") {
-                if let Some(ResolvedValue::Object(capped)) = details.get("cappedAmount") {
-                    capped_amount = money_amount_string_from_resolved(capped.get("amount"));
-                    currency_code = match capped.get("currencyCode") {
-                        Some(ResolvedValue::String(value)) => value.clone(),
-                        _ => currency_code,
-                    };
-                }
-                if let Some(ResolvedValue::String(value)) = details.get("terms") {
-                    terms = value.clone();
-                }
-            }
-        }
-    }
-    json!({
-        "id": default_id,
-        "plan": { "pricingDetails": {
-            "__typename": "AppUsagePricing",
-            "cappedAmount": money_value(&capped_amount, &currency_code),
-            "balanceUsed": money_value("0.0", &currency_code),
-            "interval": "EVERY_30_DAYS",
-            "terms": terms
-        }}
-    })
+    Some(normalize_money_amount(&raw))
 }
 
 pub(in crate::proxy) fn money_amount_string_from_resolved(value: Option<&ResolvedValue>) -> String {
@@ -1011,20 +1028,6 @@ pub(in crate::proxy) fn refresh_delivery_profile_counts(profile: &mut Value) {
     profile["productVariantsCount"] = count_object(variant_count);
 }
 
-pub(in crate::proxy) fn delivery_profile_location_record(id: &str) -> Value {
-    json!({
-        "id": id,
-        "name": delivery_profile_location_name(id)
-    })
-}
-
-fn delivery_profile_location_name(id: &str) -> String {
-    match Some(resource_id_path_tail(id)).filter(|tail| !tail.is_empty()) {
-        Some(tail) => format!("Location {tail}"),
-        None => "Delivery profile location".to_string(),
-    }
-}
-
 pub(in crate::proxy) fn delivery_profile_item_for_variant(
     variant_id: &str,
     observed_variant: Option<&Value>,
@@ -1357,19 +1360,6 @@ pub(in crate::proxy) fn fulfillment_order_request_lifecycle_record(id: &str) -> 
     } else {
         Value::Null
     }
-}
-
-pub(in crate::proxy) fn collection_publication_record(id: String, published: bool) -> Value {
-    let count = if published { 1 } else { 0 };
-    json!({
-        "id": id,
-        "title": "Hermes Collection Conformance 1777078204269",
-        "handle": "hermes-collection-conformance-1777078204269",
-        "publishedOnCurrentPublication": false,
-        "publishedOnPublication": published,
-        "availablePublicationsCount": count_object(count),
-        "resourcePublicationsCount": count_object(count)
-    })
 }
 
 pub(in crate::proxy) fn publishable_payload_json(

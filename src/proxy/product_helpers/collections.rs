@@ -547,10 +547,20 @@ impl DraftProxy {
                     let publication_id = resolved_string_field(&sel.arguments, "publicationId");
                     json!(publication_id.map(|id| pubs.contains(&id)).unwrap_or(false))
                 }
-                "publishedOnCurrentPublication" => json!(false),
+                "publishedOnCurrentPublication" => {
+                    json!(pubs.contains("gid://shopify/Publication/1"))
+                }
                 "resourcePublicationsCount" | "publicationCount" | "availablePublicationsCount" => {
                     count_object(self.publishable_live_publication_count(resource_id, &pubs))
                 }
+                "title" => self
+                    .publishable_resource_title(resource_id, resource_type)
+                    .map(Value::from)
+                    .unwrap_or(Value::Null),
+                "handle" => self
+                    .publishable_resource_handle(resource_id, resource_type)
+                    .map(Value::from)
+                    .unwrap_or(Value::Null),
                 _ => continue,
             };
             out.insert(sel.response_key.clone(), value);
@@ -581,6 +591,38 @@ impl DraftProxy {
             }
         }
         pubs.len()
+    }
+
+    fn publishable_resource_title(&self, resource_id: &str, resource_type: &str) -> Option<String> {
+        match resource_type {
+            "Product" => self
+                .product_record_by_id(resource_id)
+                .map(|product| product.title.clone()),
+            "Collection" => self
+                .store
+                .collection_by_id(resource_id)
+                .and_then(|collection| collection.get("title").and_then(Value::as_str))
+                .map(str::to_string),
+            _ => None,
+        }
+    }
+
+    fn publishable_resource_handle(
+        &self,
+        resource_id: &str,
+        resource_type: &str,
+    ) -> Option<String> {
+        match resource_type {
+            "Product" => self
+                .product_record_by_id(resource_id)
+                .map(|product| product.handle.clone()),
+            "Collection" => self
+                .store
+                .collection_by_id(resource_id)
+                .and_then(|collection| collection.get("handle").and_then(Value::as_str))
+                .map(str::to_string),
+            _ => None,
+        }
     }
 
     /// Stage a `publishablePublish`/`publishableUnpublish` against the local

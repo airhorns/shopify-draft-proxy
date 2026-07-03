@@ -1510,6 +1510,48 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
 }
 
 #[test]
+fn backup_region_update_does_not_infer_region_from_shop_domain() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    let mut restored = dump.body.clone();
+    restored["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/no-address",
+        "name": "No Address Shop",
+        "myshopifyDomain": "harry-test-heelo.myshopify.com",
+        "currencyCode": "USD"
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateNoAddressDomainFallback {
+          backupRegionUpdate(region: { countryCode: CA }) {
+            backupRegion { __typename id name ... on MarketRegionCountry { code } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        response.body["data"]["backupRegionUpdate"],
+        json!({
+            "backupRegion": null,
+            "userErrors": [{
+                "field": ["region"],
+                "message": "Region not found.",
+                "code": "REGION_NOT_FOUND"
+            }]
+        })
+    );
+}
+
+#[test]
 fn backup_region_update_uses_delegate_token_scopes_for_access_denied() {
     let mut proxy = snapshot_proxy();
     let created_market = proxy.process_request(json_graphql_request(

@@ -250,7 +250,7 @@ impl DraftProxy {
         let location_ids = list_string_field(input, "locations");
         let locations = location_ids
             .into_iter()
-            .map(|id| delivery_profile_location_record(&id))
+            .map(|id| self.delivery_profile_location_record(&id))
             .collect::<Vec<_>>();
         let zones = resolved_object_list_field(input, "zonesToCreate")
             .into_iter()
@@ -402,7 +402,7 @@ impl DraftProxy {
                     if !locations.iter().any(|location| {
                         location.get("id").and_then(Value::as_str) == Some(location_id.as_str())
                     }) {
-                        locations.push(delivery_profile_location_record(&location_id));
+                        locations.push(self.delivery_profile_location_record(&location_id));
                     }
                 }
                 let count = locations.len();

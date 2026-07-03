@@ -597,25 +597,13 @@ fn segment_query_token_is_operator(token: &str) -> bool {
 
 fn segment_query_grammar_user_errors(query: &str) -> Vec<Value> {
     let stripped = query.trim();
-    if stripped == "not a valid segment query ???" {
-        return vec![
-            segment_user_error(
-                json!(["query"]),
-                "Query Line 1 Column 6: 'valid' is unexpected.",
-            ),
-            segment_user_error(
-                json!(["query"]),
-                "Query Line 1 Column 4: 'a' filter cannot be found.",
-            ),
-        ];
-    }
     if segment_query_grammar_accepts(stripped) {
         Vec::new()
     } else {
-        vec![segment_user_error(
-            json!(["query"]),
-            "Invalid segment query",
-        )]
+        let message = segment_query_unexpected_token_message(stripped)
+            .map(|message| format!("Query {message}"))
+            .unwrap_or_else(|| "Invalid segment query".to_string());
+        vec![segment_user_error(json!(["query"]), &message)]
     }
 }
 

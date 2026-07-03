@@ -110,7 +110,7 @@ fn apps_mutations_dispatch_by_root_field_for_ordinary_operation_names() {
             lineItems: $lineItems
           ) {
             confirmationUrl
-            appSubscription { id status }
+            appSubscription { id status lineItems { id } }
             userErrors { field message }
           }
         }
@@ -127,13 +127,23 @@ fn apps_mutations_dispatch_by_root_field_for_ordinary_operation_names() {
         }),
     ));
     assert_eq!(create.status, 200);
+    let line_item_id = create.body["data"]["appSubscriptionCreate"]["appSubscription"]["lineItems"]
+        [0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(
+        line_item_id.starts_with("gid://shopify/AppSubscriptionLineItem/"),
+        "line item id should be synthetic Shopify GID, got {line_item_id}"
+    );
     assert_eq!(
         create.body["data"]["appSubscriptionCreate"],
         json!({
             "confirmationUrl": "https://app.example.test/local-confirmation",
             "appSubscription": {
                 "id": "gid://shopify/AppSubscription/expected",
-                "status": "ACTIVE"
+                "status": "ACTIVE",
+                "lineItems": [{ "id": line_item_id }]
             },
             "userErrors": []
         })
@@ -153,7 +163,7 @@ fn apps_mutations_dispatch_by_root_field_for_ordinary_operation_names() {
           }
         }
         "#,
-        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+        json!({ "id": line_item_id }),
     ));
     assert_eq!(usage.status, 200);
     assert_eq!(
@@ -180,7 +190,7 @@ fn apps_mutations_dispatch_by_root_field_for_ordinary_operation_names() {
         (
             "UpdateLineItem",
             r#"mutation UpdateLineItem($id: ID!) { appSubscriptionLineItemUpdate(id: $id, cappedAmount: { amount: 101, currencyCode: USD }) { appSubscription { id } userErrors { field message } } }"#,
-            json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+            json!({ "id": line_item_id }),
             "appSubscriptionLineItemUpdate",
         ),
         (
@@ -651,6 +661,15 @@ fn app_subscription_create_cancel_and_repeat_cancel_stages_status_transitions() 
         create.body["data"]["appSubscriptionCreate"]["userErrors"],
         json!([])
     );
+    let line_item_id = create.body["data"]["appSubscriptionCreate"]["appSubscription"]["lineItems"]
+        [0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(
+        line_item_id.starts_with("gid://shopify/AppSubscriptionLineItem/"),
+        "line item id should be synthetic Shopify GID, got {line_item_id}"
+    );
     assert_eq!(
         create.body["data"]["appSubscriptionCreate"]["appSubscription"],
         json!({
@@ -660,7 +679,7 @@ fn app_subscription_create_cancel_and_repeat_cancel_stages_status_transitions() 
             "test": true,
             "trialDays": 7,
             "lineItems": [{
-                "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                "id": line_item_id,
                 "plan": { "pricingDetails": {
                     "__typename": "AppUsagePricing",
                     "cappedAmount": { "amount": "100.0", "currencyCode": "USD" },
@@ -742,9 +761,14 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
             }]
         }),
     ));
-    assert_eq!(
-        create.body["data"]["appSubscriptionCreate"]["appSubscription"]["lineItems"][0]["id"],
-        json!("gid://shopify/AppSubscriptionLineItem/expected")
+    let line_item_id = create.body["data"]["appSubscriptionCreate"]["appSubscription"]["lineItems"]
+        [0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(
+        line_item_id.starts_with("gid://shopify/AppSubscriptionLineItem/"),
+        "line item id should be synthetic Shopify GID, got {line_item_id}"
     );
 
     let success_query = r#"
@@ -767,7 +791,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
     "#;
     let success = proxy.process_request(json_graphql_request(
         success_query,
-        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+        json!({ "id": line_item_id }),
     ));
     assert_eq!(
         success.body["data"]["appUsageRecordCreate"],
@@ -777,7 +801,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
                 "description": "first",
                 "price": { "amount": "3.0", "currencyCode": "USD" },
                 "subscriptionLineItem": {
-                    "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                    "id": line_item_id,
                     "plan": { "pricingDetails": { "__typename": "AppUsagePricing", "balanceUsed": { "amount": "3.0", "currencyCode": "USD" } } }
                 }
             },
@@ -787,7 +811,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
 
     let duplicate = proxy.process_request(json_graphql_request(
         success_query,
-        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+        json!({ "id": line_item_id }),
     ));
     assert_eq!(duplicate.body, success.body);
 
@@ -805,7 +829,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
           }
         }
         "#,
-        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+        json!({ "id": line_item_id }),
     ));
     assert_eq!(
         over_cap.body["data"]["appUsageRecordCreate"],
@@ -830,7 +854,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
         }
         "#,
         json!({
-            "id": "gid://shopify/AppSubscriptionLineItem/expected",
+            "id": line_item_id,
             "key": "x".repeat(256)
         }),
     ));
@@ -855,7 +879,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
           }
         }
         "#,
-        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+        json!({ "id": line_item_id }),
     ));
     assert_eq!(
         missing_description.body["data"]["appUsageRecordCreate"],
@@ -946,6 +970,15 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
         create_subscription.body["data"]["appSubscriptionCreate"]["appSubscription"]["id"],
         json!("gid://shopify/AppSubscription/expected")
     );
+    let line_item_id = create_subscription.body["data"]["appSubscriptionCreate"]["appSubscription"]
+        ["lineItems"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(
+        line_item_id.starts_with("gid://shopify/AppSubscriptionLineItem/"),
+        "line item id should be synthetic Shopify GID, got {line_item_id}"
+    );
 
     let one_time = proxy.process_request(json_graphql_request(
         r#"
@@ -1006,7 +1039,7 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
           }
         }
         "#,
-        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+        json!({ "id": line_item_id }),
     ));
     assert_eq!(
         usage.body["data"]["appUsageRecordCreate"]["appUsageRecord"],
@@ -1014,7 +1047,7 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
             "id": "gid://shopify/AppUsageRecord/expected",
             "description": "metered import",
             "price": { "amount": "12.5", "currencyCode": "USD" },
-            "subscriptionLineItem": { "id": "gid://shopify/AppSubscriptionLineItem/expected" }
+            "subscriptionLineItem": { "id": line_item_id }
         })
     );
 
@@ -1069,7 +1102,7 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
                 "status": "CANCELLED",
                 "trialDays": 7,
                 "lineItems": [{
-                    "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                    "id": line_item_id,
                     "usageRecords": { "nodes": [{
                         "description": "metered import",
                         "price": { "amount": "12.5", "currencyCode": "USD" }
@@ -1239,6 +1272,25 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
             ]
         }),
     ));
+    let usage_line_item_id = create.body["data"]["appSubscriptionCreate"]["appSubscription"]
+        ["lineItems"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let recurring_line_item_id = create.body["data"]["appSubscriptionCreate"]["appSubscription"]
+        ["lineItems"][1]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(
+        usage_line_item_id.starts_with("gid://shopify/AppSubscriptionLineItem/"),
+        "usage line item id should be synthetic Shopify GID, got {usage_line_item_id}"
+    );
+    assert!(
+        recurring_line_item_id.starts_with("gid://shopify/AppSubscriptionLineItem/"),
+        "recurring line item id should be synthetic Shopify GID, got {recurring_line_item_id}"
+    );
+    assert_ne!(usage_line_item_id, recurring_line_item_id);
     assert_eq!(
         create.body["data"]["appSubscriptionCreate"],
         json!({
@@ -1247,14 +1299,14 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
                 "id": "gid://shopify/AppSubscription/expected",
                 "lineItems": [
                     {
-                        "id": "gid://shopify/AppSubscriptionLineItem/usage",
+                        "id": usage_line_item_id,
                         "plan": { "pricingDetails": {
                             "__typename": "AppUsagePricing",
                             "cappedAmount": { "amount": "5.0", "currencyCode": "USD" }
                         }}
                     },
                     {
-                        "id": "gid://shopify/AppSubscriptionLineItem/recurring",
+                        "id": recurring_line_item_id,
                         "plan": { "pricingDetails": {
                             "__typename": "AppRecurringPricing",
                             "price": { "amount": "1.0", "currencyCode": "USD" }
@@ -1301,8 +1353,8 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
         }
         "#,
         json!({
-            "usageLineItemId": "gid://shopify/AppSubscriptionLineItem/usage",
-            "recurringLineItemId": "gid://shopify/AppSubscriptionLineItem/recurring"
+            "usageLineItemId": usage_line_item_id,
+            "recurringLineItemId": recurring_line_item_id
         }),
     ));
 
@@ -1327,14 +1379,14 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
                     "id": "gid://shopify/AppSubscription/expected",
                     "lineItems": [
                         {
-                            "id": "gid://shopify/AppSubscriptionLineItem/usage",
+                            "id": usage_line_item_id,
                             "plan": { "pricingDetails": {
                                 "__typename": "AppUsagePricing",
                                 "cappedAmount": { "amount": "5.0", "currencyCode": "USD" }
                             }}
                         },
                         {
-                            "id": "gid://shopify/AppSubscriptionLineItem/recurring",
+                            "id": recurring_line_item_id,
                             "plan": { "pricingDetails": {
                                 "__typename": "AppRecurringPricing",
                                 "price": { "amount": "1.0", "currencyCode": "USD" }
@@ -1371,7 +1423,7 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
           }
         }
         "#,
-        json!({ "usageLineItemId": "gid://shopify/AppSubscriptionLineItem/usage" }),
+        json!({ "usageLineItemId": usage_line_item_id }),
     ));
     assert_eq!(
         synchronous_update.body["data"]["appSubscriptionLineItemUpdate"],
@@ -1380,14 +1432,14 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
             "appSubscription": {
                 "lineItems": [
                     {
-                        "id": "gid://shopify/AppSubscriptionLineItem/usage",
+                        "id": usage_line_item_id,
                         "plan": { "pricingDetails": {
                             "__typename": "AppUsagePricing",
                             "cappedAmount": { "amount": "12.0", "currencyCode": "USD" }
                         }}
                     },
                     {
-                        "id": "gid://shopify/AppSubscriptionLineItem/recurring",
+                        "id": recurring_line_item_id,
                         "plan": { "pricingDetails": {
                             "__typename": "AppRecurringPricing"
                         }}

@@ -1,5 +1,7 @@
 use super::*;
 
+const CURRENT_PUBLICATION_ID: &str = "gid://shopify/Publication/1";
+
 const PUBLISHABLE_SHOP_HYDRATE_QUERY: &str = r#"#graphql
   query StorePropertiesPublishableInputValidationHydrate($id: ID!) {
     publishable: node(id: $id) {
@@ -53,8 +55,7 @@ impl DraftProxy {
             if field.name != root_field {
                 continue;
             }
-            let product_id = resolved_string_field(&field.arguments, "id")
-                .unwrap_or_else(|| "gid://shopify/Product/9264105488617".to_string());
+            let publishable_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
             if let Some(response) = publishable_empty_string_publication_error(root_field, &field) {
                 return response;
             }
@@ -63,7 +64,7 @@ impl DraftProxy {
                 .as_deref()
                 .is_some_and(|selection| self.publishable_payload_shop_needs_hydration(selection))
             {
-                self.hydrate_publishable_payload_shop(&product_id, request);
+                self.hydrate_publishable_payload_shop(&publishable_id, request);
             }
             let publishable_selection =
                 selected_child_selection(&payload_selection, "publishable").unwrap_or_default();
@@ -72,29 +73,34 @@ impl DraftProxy {
                 root_field == "publishablePublishToCurrentChannel"
                     || root_field == "publishableUnpublishToCurrentChannel",
             );
-            let publishable = if product_id.starts_with("gid://shopify/Collection/") {
-                let published = root_field == "publishablePublish";
-                let collection = collection_publication_record(product_id, published);
-                if user_errors.is_empty() {
-                    if let Some(id) = collection.get("id").and_then(Value::as_str) {
-                        self.store
-                            .staged
-                            .collections
-                            .insert(id.to_string(), collection.clone());
+            if user_errors.is_empty() {
+                self.hydrate_publishable_resource(&publishable_id, request);
+                let publication_ids = if root_field == "publishablePublishToCurrentChannel"
+                    || root_field == "publishableUnpublishToCurrentChannel"
+                {
+                    vec![CURRENT_PUBLICATION_ID.to_string()]
+                } else {
+                    publishable_input_publication_ids(&field.arguments)
+                };
+                let set = self
+                    .store
+                    .staged
+                    .resource_publications
+                    .entry(publishable_id.clone())
+                    .or_default();
+                for publication_id in publication_ids {
+                    if root_field == "publishablePublish"
+                        || root_field == "publishablePublishToCurrentChannel"
+                    {
+                        set.insert(publication_id);
+                    } else {
+                        set.remove(&publication_id);
                     }
                 }
-                collection
-            } else {
-                json!({
-                    "id": product_id,
-                    "publishedOnCurrentPublication": false,
-                    "availablePublicationsCount": count_object(0),
-                    "resourcePublicationsCount": count_object(0)
-                })
-            };
-            if user_errors.is_empty() {
                 self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
             }
+            let publishable =
+                self.publishable_resource_value(&publishable_id, &publishable_selection);
             let shop = self.store.effective_shop();
             data.insert(
                 field.response_key,

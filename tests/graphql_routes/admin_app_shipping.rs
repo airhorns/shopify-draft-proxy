@@ -6858,6 +6858,10 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
         profile["profileItems"]["nodes"][0]["variants"]["nodes"][0]["id"],
         json!("gid://shopify/ProductVariant/51098706739506")
     );
+    assert_eq!(
+        profile["profileLocationGroups"][0]["locationGroup"]["locations"]["nodes"][0]["name"],
+        json!("Shop location")
+    );
 
     let read = proxy.process_request(json_graphql_request(
         read_query,
@@ -6965,6 +6969,94 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
         json!("deliveryProfileRemove")
     );
     assert_eq!(log["entries"][2]["status"], json!("staged"));
+}
+
+#[test]
+fn delivery_profile_create_uses_observed_location_name() {
+    let location_id = "gid://shopify/Location/observed-delivery";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("locationsAvailableForDeliveryProfilesConnection"),
+                "unexpected upstream query: {query}"
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "locationsAvailableForDeliveryProfilesConnection": {
+                            "nodes": [{
+                                "id": location_id,
+                                "name": "Observed Delivery Warehouse",
+                                "isActive": true,
+                                "isFulfillmentService": false
+                            }]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let locations = proxy.process_request(json_graphql_request(
+        r#"
+        query AvailableDeliveryLocations {
+          locationsAvailableForDeliveryProfilesConnection(first: 5) {
+            nodes { id name }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        locations.body["data"]["locationsAvailableForDeliveryProfilesConnection"]["nodes"][0]["id"],
+        json!(location_id)
+    );
+    assert_eq!(
+        locations.body["data"]["locationsAvailableForDeliveryProfilesConnection"]["nodes"][0]
+            ["name"],
+        json!("Observed Delivery Warehouse")
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileObservedLocation($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              profileLocationGroups {
+                locationGroup {
+                  locations(first: 5) { nodes { id name } }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "profile": {
+                "name": "Observed locations",
+                "locationGroupsToCreate": [{
+                    "locations": [location_id],
+                    "zonesToCreate": [{
+                        "name": "Domestic",
+                        "countries": [{ "code": "US", "includeAllProvinces": true }]
+                    }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["deliveryProfileCreate"]["profile"]["profileLocationGroups"][0]
+            ["locationGroup"]["locations"]["nodes"][0],
+        json!({ "id": location_id, "name": "Observed Delivery Warehouse" })
+    );
 }
 
 #[test]

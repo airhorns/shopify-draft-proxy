@@ -149,7 +149,7 @@ impl DraftProxy {
                 _ => None,
             })
             .unwrap_or(false);
-        let line_items = app_subscription_line_items_from_arguments(&arguments);
+        let line_items = self.app_subscription_line_items_from_arguments(&arguments);
         if app_subscription_line_item_currency_codes(&line_items).len() > 1 {
             user_errors.push(user_error(
                 ["lineItems"],
