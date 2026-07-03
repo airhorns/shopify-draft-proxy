@@ -2573,6 +2573,15 @@ can read the B2B company roots on that store. The capture showed:
   `CompanyContact.customer { id }` in B2B reads. The proxy should model that as
   a contact-local customer reference without inventing broader customer catalog
   rows.
+- HAR-1999's fresh 2026-04 string-validation captures showed public Admin
+  preserves HTML in `companyUpdate(input.note)` and
+  `companyContactCreate(input.title)`: the update note branch ignores HTML and
+  applies only the 5000-character note limit, while contact titles have no
+  observed HTML or 255-character title validation. Standalone
+  `companyContactCreate` still rejects HTML in `firstName` / `lastName` with a
+  generic `INVALID_INPUT` / `Invalid input.` error at `["input"]`; nested
+  `companyCreate(input.companyContact)` reports the analogous parent path under
+  `["input", "companyContact"]`.
 - `companyLocationTaxSettingsUpdate` accepts flat mutation arguments, but the
   captured 2026-04 readback shape is nested under
   `CompanyLocation.taxSettings { taxRegistrationId taxExempt taxExemptions }`;

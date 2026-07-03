@@ -414,6 +414,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/b2b/b2b-string-validation.json',
       'config/parity-requests/b2b/b2b-string-validation-company-create.graphql',
       'config/parity-requests/b2b/b2b-string-validation-company-read.graphql',
+      'config/parity-requests/b2b/b2b-string-validation-contact-create.graphql',
       'config/parity-requests/b2b/b2b-string-validation-company-update.graphql',
       'config/parity-requests/b2b/b2b-string-validation-location-create.graphql',
       'config/parity-requests/b2b/b2b-string-validation-location-update.graphql',
