@@ -75,15 +75,6 @@ pub(in crate::proxy) fn normalize_order_lifecycle_defaults(order: &mut Value) {
     }
 }
 
-pub(in crate::proxy) fn order_line_inventory_item_id(
-    line_item: &BTreeMap<String, ResolvedValue>,
-) -> Option<String> {
-    resolved_string_field(line_item, "inventoryItemId").or_else(|| {
-        resolved_string_field(line_item, "variantId")
-            .map(|variant_id| shopify_gid("InventoryItem", resource_id_tail(&variant_id)))
-    })
-}
-
 pub(in crate::proxy) fn order_read_selects_payment_transaction_fields(
     field: &RootFieldSelection,
 ) -> bool {
@@ -1396,7 +1387,7 @@ impl DraftProxy {
         }
         if order_create_inventory_behaviour(field) != "BYPASS" {
             for line_item in resolved_object_list_field(&order_input, "lineItems") {
-                if let Some(inventory_item_id) = order_line_inventory_item_id(&line_item) {
+                if let Some(inventory_item_id) = self.order_line_inventory_item_id(&line_item) {
                     let quantity = resolved_int_field(&line_item, "quantity").unwrap_or(1);
                     self.decrement_inventory_item_available(&inventory_item_id, quantity);
                 }
@@ -1429,6 +1420,20 @@ impl DraftProxy {
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,
         )
+    }
+
+    fn order_line_inventory_item_id(
+        &self,
+        line_item: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<String> {
+        resolved_string_field(line_item, "inventoryItemId").or_else(|| {
+            resolved_string_field(line_item, "variantId").map(|variant_id| {
+                self.store
+                    .product_variant_by_id(&variant_id)
+                    .map(|variant| variant.inventory_item.id.clone())
+                    .unwrap_or_else(|| shopify_gid("InventoryItem", resource_id_tail(&variant_id)))
+            })
+        })
     }
 
     pub(super) fn stage_order_lifecycle(
@@ -2106,8 +2111,8 @@ impl DraftProxy {
         if root_field == "orderCreate" {
             let field = field?;
             let order_input = resolved_object_field(&field.arguments, "order")?;
-            let email = resolved_string_field(&order_input, "email").unwrap_or_default();
-            if !email.starts_with("order-customer-") {
+            let purchasing_entity = draft_order_purchasing_entity(&order_input);
+            if !order_customer_purchasing_entity_is_b2b(&purchasing_entity) {
                 return None;
             }
             let order = self.order_customer_paths_order_create(field)?;
@@ -3174,13 +3179,17 @@ impl DraftProxy {
     ) -> Option<Value> {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let email = resolved_string_field(&input, "email").unwrap_or_default();
-        if !email.starts_with("order-customer-") {
-            return None;
-        }
+        let first_name = resolved_string_field(&input, "firstName");
+        let last_name = resolved_string_field(&input, "lastName");
+        let display_name =
+            order_customer_display_name(first_name.as_deref(), last_name.as_deref(), &email);
+        let id = self.next_synthetic_gid("Customer");
         let customer = json!({
-            "id": "gid://shopify/Customer/1?shopify-draft-proxy=synthetic",
+            "id": id,
             "email": email,
-            "displayName": "Order Customer Error Paths"
+            "firstName": first_name.map(Value::String).unwrap_or(Value::Null),
+            "lastName": last_name.map(Value::String).unwrap_or(Value::Null),
+            "displayName": display_name
         });
         self.store.staged.customers.insert(
             customer["id"].as_str().unwrap_or_default().to_string(),
@@ -3193,25 +3202,33 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn order_customer_paths_company_create(
-        &self,
+        &mut self,
         field: &RootFieldSelection,
     ) -> Option<Value> {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let company_input = resolved_object_field(&input, "company").unwrap_or_default();
         let name = resolved_string_field(&company_input, "name")
             .or_else(|| resolved_string_field(&input, "name"))
-            .unwrap_or_default();
-        if !name.contains("Order Customer Error Paths") {
-            return None;
-        }
+            .unwrap_or_else(|| "B2B Draft".to_string());
+        let id = synthetic_shopify_gid("Company", self.store.staged.next_b2b_company_id);
+        self.store.staged.next_b2b_company_id += 5;
+        let company = json!({
+            "id": id,
+            "name": name,
+            "externalId": Value::Null,
+            "customerSince": Value::Null,
+            "note": Value::Null,
+            "locationIds": [],
+            "contactIds": [],
+            "contactRoleIds": [],
+            "mainContactId": Value::Null
+        });
+        self.store.staged.b2b_companies.insert(
+            company["id"].as_str().unwrap_or_default().to_string(),
+            company.clone(),
+        );
         Some(selected_json(
-            &json!({
-                "company": {
-                    "id": "gid://shopify/Company/1?shopify-draft-proxy=synthetic",
-                    "name": name
-                },
-                "userErrors": []
-            }),
+            &json!({ "company": company, "userErrors": [] }),
             &field.selection,
         ))
     }
@@ -3221,33 +3238,48 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Option<Value> {
         let company_id = resolved_string_field(&field.arguments, "companyId")?;
-        // Only the orderCustomerSet/Remove error-path flow's sentinel customer
-        // (email "order-customer-...") is owned here; all other company-contact
-        // assignments belong to the general b2b handler.
-        let is_order_customer_flow = resolved_string_field(&field.arguments, "customerId")
-            .and_then(|customer_id| self.store.staged.customers.get(&customer_id).cloned())
-            .and_then(|customer| customer["email"].as_str().map(str::to_string))
-            .is_some_and(|email| email.starts_with("order-customer-"));
-        if !is_order_customer_flow {
-            return None;
-        }
-        if let Some(customer_id) = resolved_string_field(&field.arguments, "customerId") {
+        let customer_id = resolved_string_field(&field.arguments, "customerId")?;
+        let customer = self.store.staged.customers.get(&customer_id)?.clone();
+        let company = self.store.staged.b2b_companies.get(&company_id)?.clone();
+        self.store
+            .staged
+            .order_customer_contact_customer_ids
+            .insert(customer_id.clone());
+        let contact_id = self.next_proxy_synthetic_gid("CompanyContact");
+        let contact = json!({
+            "id": contact_id,
+            "companyId": company_id,
+            "customerId": customer_id,
+            "firstName": customer["firstName"].clone(),
+            "lastName": customer["lastName"].clone(),
+            "title": Value::Null,
+            "locale": "en",
+            "isMainContact": false
+        });
+        self.store
+            .staged
+            .b2b_contacts
+            .insert(contact_id.clone(), contact.clone());
+        if let Some(mut company_record) = self.store.staged.b2b_companies.get(&company_id).cloned()
+        {
+            if let Some(contact_ids) = company_record
+                .get_mut("contactIds")
+                .and_then(Value::as_array_mut)
+            {
+                contact_ids.push(json!(contact_id.clone()));
+            }
             self.store
                 .staged
-                .order_customer_contact_customer_ids
-                .insert(customer_id.clone());
+                .b2b_companies
+                .insert(company_id.clone(), company_record);
         }
-        let customer_id =
-            resolved_string_field(&field.arguments, "customerId").unwrap_or_else(|| {
-                "gid://shopify/Customer/1?shopify-draft-proxy=synthetic".to_string()
-            });
         Some(selected_json(
             &json!({
                 "companyContact": {
-                    "id": "gid://shopify/CompanyContact/1?shopify-draft-proxy=synthetic",
+                    "id": contact_id,
                     "isMainContact": false,
                     "customer": { "id": customer_id },
-                    "company": { "id": company_id, "name": "Order Customer Error Paths Company" }
+                    "company": { "id": company_id, "name": company["name"].clone() }
                 },
                 "userErrors": []
             }),
@@ -3260,19 +3292,12 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Option<Value> {
         let order_input = resolved_object_field(&field.arguments, "order")?;
-        let email = resolved_string_field(&order_input, "email").unwrap_or_default();
-        if !email.is_empty() && !email.starts_with("order-customer-") {
-            return None;
-        }
-        let id = synthetic_shopify_gid("Order", self.store.staged.next_order_customer_order_id);
-        self.store.staged.next_order_customer_order_id += 1;
+        let id = self.next_proxy_synthetic_gid("Order");
         let customer_id = resolved_string_field(&order_input, "customerId");
         // Retain the purchasing entity so a later company delete can detect that an
         // order still references the company (mirrors a real B2B Order).
         let purchasing_entity = draft_order_purchasing_entity(&order_input);
-        if email == "order-customer-b2b@example.com"
-            || order_customer_purchasing_entity_is_b2b(&purchasing_entity)
-        {
+        if order_customer_purchasing_entity_is_b2b(&purchasing_entity) {
             self.store
                 .staged
                 .order_customer_b2b_order_ids
@@ -3509,10 +3534,11 @@ impl DraftProxy {
             "orderCancel",
             vec![order_id.clone()],
         );
+        let job_id = self.next_proxy_synthetic_gid("Job");
         Some(selected_json(
             &json!({
                 "order": order,
-                "job": { "id": "gid://shopify/Job/order-customer-cancel", "done": false },
+                "job": { "id": job_id, "done": false },
                 "orderCancelUserErrors": [],
                 "userErrors": []
             }),
@@ -3582,11 +3608,7 @@ impl DraftProxy {
             );
         };
         if self.order_customer_order_is_b2b(&order_id, &order)
-            && self
-                .store
-                .staged
-                .order_customer_contact_customer_ids
-                .contains(&customer_id)
+            && self.order_customer_customer_is_b2b_contact_for_order(&customer_id, &order)
         {
             return selected_json(
                 &json!({
@@ -3717,6 +3739,81 @@ impl DraftProxy {
             .order_customer_b2b_order_ids
             .contains(order_id)
             || order_customer_purchasing_entity_is_b2b(&order["purchasingEntity"])
+    }
+
+    fn order_customer_customer_is_b2b_contact_for_order(
+        &self,
+        customer_id: &str,
+        order: &Value,
+    ) -> bool {
+        if self
+            .store
+            .staged
+            .order_customer_contact_customer_ids
+            .contains(customer_id)
+        {
+            return true;
+        }
+        let company_ids = order_customer_purchasing_entity_company_ids(&order["purchasingEntity"]);
+        self.store.staged.b2b_contacts.values().any(|contact| {
+            contact["customerId"].as_str() == Some(customer_id)
+                && contact["companyId"].as_str().is_some_and(|company_id| {
+                    company_ids.is_empty() || company_ids.iter().any(|id| id == company_id)
+                })
+        })
+    }
+}
+
+fn order_customer_display_name(
+    first_name: Option<&str>,
+    last_name: Option<&str>,
+    email: &str,
+) -> String {
+    let name = [first_name, last_name]
+        .into_iter()
+        .flatten()
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if name.is_empty() {
+        email.to_string()
+    } else {
+        name
+    }
+}
+
+fn order_customer_purchasing_entity_company_ids(entity: &Value) -> Vec<String> {
+    let mut ids = Vec::new();
+    order_customer_collect_purchasing_entity_company_ids(entity, &mut ids);
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
+fn order_customer_collect_purchasing_entity_company_ids(entity: &Value, ids: &mut Vec<String>) {
+    match entity {
+        Value::Object(map) => {
+            if let Some(company_id) = map.get("companyId").and_then(Value::as_str) {
+                ids.push(company_id.to_string());
+            }
+            if let Some(company_id) = map
+                .get("company")
+                .and_then(|company| company.get("id"))
+                .and_then(Value::as_str)
+            {
+                ids.push(company_id.to_string());
+            }
+            for value in map.values() {
+                order_customer_collect_purchasing_entity_company_ids(value, ids);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                order_customer_collect_purchasing_entity_company_ids(item, ids);
+            }
+        }
+        _ => {}
     }
 }
 

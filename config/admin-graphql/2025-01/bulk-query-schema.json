@@ -1,7 +1,7 @@
 {
-  "capturedAt": "2026-07-03T03:44:41.279Z",
+  "capturedAt": "2026-07-03T03:44:36.024Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
-  "apiVersion": "2026-04",
+  "apiVersion": "2025-01",
   "fields": [
     {
       "parentType": "__Directive",
@@ -357,14 +357,6 @@
     },
     {
       "parentType": "AbandonedCheckoutLineItem",
-      "name": "parentRelationship",
-      "kind": {
-        "type": "object",
-        "typeName": "AbandonedCheckoutLineItemParentRelationship"
-      }
-    },
-    {
-      "parentType": "AbandonedCheckoutLineItem",
       "name": "product",
       "kind": {
         "type": "object",
@@ -414,14 +406,6 @@
     {
       "parentType": "AbandonedCheckoutLineItemEdge",
       "name": "node",
-      "kind": {
-        "type": "object",
-        "typeName": "AbandonedCheckoutLineItem"
-      }
-    },
-    {
-      "parentType": "AbandonedCheckoutLineItemParentRelationship",
-      "name": "parent",
       "kind": {
         "type": "object",
         "typeName": "AbandonedCheckoutLineItem"
@@ -653,14 +637,6 @@
     },
     {
       "parentType": "App",
-      "name": "channels",
-      "kind": {
-        "type": "connection",
-        "nodeType": "Channel"
-      }
-    },
-    {
-      "parentType": "App",
       "name": "failedRequirements",
       "kind": {
         "type": "list",
@@ -737,14 +713,6 @@
       "kind": {
         "type": "connection",
         "nodeType": "App"
-      }
-    },
-    {
-      "parentType": "AppCatalog",
-      "name": "channels",
-      "kind": {
-        "type": "connection",
-        "nodeType": "Channel"
       }
     },
     {
@@ -905,14 +873,6 @@
       "kind": {
         "type": "object",
         "typeName": "App"
-      }
-    },
-    {
-      "parentType": "AppFeedback",
-      "name": "channel",
-      "kind": {
-        "type": "object",
-        "typeName": "Channel"
       }
     },
     {
@@ -1716,14 +1676,6 @@
       }
     },
     {
-      "parentType": "BankAccount",
-      "name": "billingAddress",
-      "kind": {
-        "type": "object",
-        "typeName": "CustomerPaymentInstrumentBillingAddress"
-      }
-    },
-    {
       "parentType": "BasicEvent",
       "name": "subject",
       "kind": {
@@ -1929,38 +1881,6 @@
       "kind": {
         "type": "list",
         "elementType": "UserError"
-      }
-    },
-    {
-      "parentType": "BulkOperationConnection",
-      "name": "edges",
-      "kind": {
-        "type": "list",
-        "elementType": "BulkOperationEdge"
-      }
-    },
-    {
-      "parentType": "BulkOperationConnection",
-      "name": "nodes",
-      "kind": {
-        "type": "list",
-        "elementType": "BulkOperation"
-      }
-    },
-    {
-      "parentType": "BulkOperationConnection",
-      "name": "pageInfo",
-      "kind": {
-        "type": "object",
-        "typeName": "PageInfo"
-      }
-    },
-    {
-      "parentType": "BulkOperationEdge",
-      "name": "node",
-      "kind": {
-        "type": "object",
-        "typeName": "BulkOperation"
       }
     },
     {
@@ -2988,422 +2908,6 @@
       }
     },
     {
-      "parentType": "CashActivity",
-      "name": "cash",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "CashActivity",
-      "name": "paymentSession",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDevicePaymentSession"
-      }
-    },
-    {
-      "parentType": "CashActivity",
-      "name": "staffMember",
-      "kind": {
-        "type": "object",
-        "typeName": "StaffMember"
-      }
-    },
-    {
-      "parentType": "CashActivityConnection",
-      "name": "edges",
-      "kind": {
-        "type": "list",
-        "elementType": "CashActivityEdge"
-      }
-    },
-    {
-      "parentType": "CashActivityConnection",
-      "name": "nodes",
-      "kind": {
-        "type": "list",
-        "elementType": "CashActivity"
-      }
-    },
-    {
-      "parentType": "CashActivityConnection",
-      "name": "pageInfo",
-      "kind": {
-        "type": "object",
-        "typeName": "PageInfo"
-      }
-    },
-    {
-      "parentType": "CashActivityEdge",
-      "name": "node",
-      "kind": {
-        "type": "object",
-        "typeName": "CashActivity"
-      }
-    },
-    {
-      "parentType": "CashAdjustmentActivity",
-      "name": "cash",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "CashAdjustmentActivity",
-      "name": "giftCard",
-      "kind": {
-        "type": "object",
-        "typeName": "GiftCard"
-      }
-    },
-    {
-      "parentType": "CashAdjustmentActivity",
-      "name": "paymentSession",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDevicePaymentSession"
-      }
-    },
-    {
-      "parentType": "CashAdjustmentActivity",
-      "name": "reasonCode",
-      "kind": {
-        "type": "object",
-        "typeName": "CashManagementReasonCode"
-      }
-    },
-    {
-      "parentType": "CashAdjustmentActivity",
-      "name": "staffMember",
-      "kind": {
-        "type": "object",
-        "typeName": "StaffMember"
-      }
-    },
-    {
-      "parentType": "CashCountActivity",
-      "name": "cash",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "CashCountActivity",
-      "name": "cashCounted",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "CashCountActivity",
-      "name": "cashDiscrepancy",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "CashCountActivity",
-      "name": "cashExpected",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "CashCountActivity",
-      "name": "paymentSession",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDevicePaymentSession"
-      }
-    },
-    {
-      "parentType": "CashCountActivity",
-      "name": "staffMember",
-      "kind": {
-        "type": "object",
-        "typeName": "StaffMember"
-      }
-    },
-    {
-      "parentType": "CashDrawer",
-      "name": "cashActivities",
-      "kind": {
-        "type": "connection",
-        "nodeType": "CashActivity"
-      }
-    },
-    {
-      "parentType": "CashDrawer",
-      "name": "location",
-      "kind": {
-        "type": "object",
-        "typeName": "Location"
-      }
-    },
-    {
-      "parentType": "CashDrawer",
-      "name": "netSales",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "CashDrawer",
-      "name": "pointOfSaleDevices",
-      "kind": {
-        "type": "connection",
-        "nodeType": "PointOfSaleDevice"
-      }
-    },
-    {
-      "parentType": "CashDrawer",
-      "name": "totalAdjustments",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "CashDrawer",
-      "name": "totalDiscrepancies",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "CashDrawer",
-      "name": "totalRefunds",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "CashDrawer",
-      "name": "totalSales",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "CashDrawerConnection",
-      "name": "edges",
-      "kind": {
-        "type": "list",
-        "elementType": "CashDrawerEdge"
-      }
-    },
-    {
-      "parentType": "CashDrawerConnection",
-      "name": "nodes",
-      "kind": {
-        "type": "list",
-        "elementType": "CashDrawer"
-      }
-    },
-    {
-      "parentType": "CashDrawerConnection",
-      "name": "pageInfo",
-      "kind": {
-        "type": "object",
-        "typeName": "PageInfo"
-      }
-    },
-    {
-      "parentType": "CashDrawerCreatePayload",
-      "name": "cashDrawer",
-      "kind": {
-        "type": "object",
-        "typeName": "CashDrawer"
-      }
-    },
-    {
-      "parentType": "CashDrawerCreatePayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "CashDrawerCreateUserError"
-      }
-    },
-    {
-      "parentType": "CashDrawerCreateUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
-      "parentType": "CashDrawerEdge",
-      "name": "node",
-      "kind": {
-        "type": "object",
-        "typeName": "CashDrawer"
-      }
-    },
-    {
-      "parentType": "CashDrawerFindOrCreatePayload",
-      "name": "cashDrawer",
-      "kind": {
-        "type": "object",
-        "typeName": "CashDrawer"
-      }
-    },
-    {
-      "parentType": "CashDrawerFindOrCreatePayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "CashDrawerFindOrCreateUserError"
-      }
-    },
-    {
-      "parentType": "CashDrawerFindOrCreateUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
-      "parentType": "CashDrawerUpdatePayload",
-      "name": "cashDrawer",
-      "kind": {
-        "type": "object",
-        "typeName": "CashDrawer"
-      }
-    },
-    {
-      "parentType": "CashDrawerUpdatePayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "CashDrawerUpdateUserError"
-      }
-    },
-    {
-      "parentType": "CashDrawerUpdateUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
-      "parentType": "CashManagementReasonCodeConnection",
-      "name": "edges",
-      "kind": {
-        "type": "list",
-        "elementType": "CashManagementReasonCodeEdge"
-      }
-    },
-    {
-      "parentType": "CashManagementReasonCodeConnection",
-      "name": "nodes",
-      "kind": {
-        "type": "list",
-        "elementType": "CashManagementReasonCode"
-      }
-    },
-    {
-      "parentType": "CashManagementReasonCodeConnection",
-      "name": "pageInfo",
-      "kind": {
-        "type": "object",
-        "typeName": "PageInfo"
-      }
-    },
-    {
-      "parentType": "CashManagementReasonCodeCreatePayload",
-      "name": "reasonCode",
-      "kind": {
-        "type": "object",
-        "typeName": "CashManagementCustomReasonCode"
-      }
-    },
-    {
-      "parentType": "CashManagementReasonCodeCreatePayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "CashManagementReasonCodeCreateUserError"
-      }
-    },
-    {
-      "parentType": "CashManagementReasonCodeCreateUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
-      "parentType": "CashManagementReasonCodeDeletePayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "CashManagementReasonCodeDeleteUserError"
-      }
-    },
-    {
-      "parentType": "CashManagementReasonCodeDeleteUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
-      "parentType": "CashManagementReasonCodeEdge",
-      "name": "node",
-      "kind": {
-        "type": "object",
-        "typeName": "CashManagementReasonCode"
-      }
-    },
-    {
-      "parentType": "CashManagementSummary",
-      "name": "cashBalanceAtEnd",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "CashManagementSummary",
-      "name": "cashBalanceAtStart",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "CashManagementSummary",
-      "name": "netCash",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "CashManagementSummary",
-      "name": "totalDiscrepancies",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
       "parentType": "CashRoundingAdjustment",
       "name": "paymentSet",
       "kind": {
@@ -3620,38 +3124,6 @@
       }
     },
     {
-      "parentType": "CashTransactionActivity",
-      "name": "cash",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "CashTransactionActivity",
-      "name": "orderTransaction",
-      "kind": {
-        "type": "object",
-        "typeName": "OrderTransaction"
-      }
-    },
-    {
-      "parentType": "CashTransactionActivity",
-      "name": "paymentSession",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDevicePaymentSession"
-      }
-    },
-    {
-      "parentType": "CashTransactionActivity",
-      "name": "staffMember",
-      "kind": {
-        "type": "object",
-        "typeName": "StaffMember"
-      }
-    },
-    {
       "parentType": "Catalog",
       "name": "operations",
       "kind": {
@@ -3844,14 +3316,6 @@
       }
     },
     {
-      "parentType": "Channel",
-      "name": "resourceFeedback",
-      "kind": {
-        "type": "object",
-        "typeName": "AppFeedback"
-      }
-    },
-    {
       "parentType": "ChannelConnection",
       "name": "edges",
       "kind": {
@@ -3876,75 +3340,11 @@
       }
     },
     {
-      "parentType": "ChannelCreatePayload",
-      "name": "channel",
-      "kind": {
-        "type": "object",
-        "typeName": "Channel"
-      }
-    },
-    {
-      "parentType": "ChannelCreatePayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "ChannelCreateUserError"
-      }
-    },
-    {
-      "parentType": "ChannelCreateUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
-      "parentType": "ChannelDeletePayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "ChannelDeleteUserError"
-      }
-    },
-    {
-      "parentType": "ChannelDeleteUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
       "parentType": "ChannelEdge",
       "name": "node",
       "kind": {
         "type": "object",
         "typeName": "Channel"
-      }
-    },
-    {
-      "parentType": "ChannelFullSyncPayload",
-      "name": "fullSyncTraceInfo",
-      "kind": {
-        "type": "list",
-        "elementType": "FullSyncTraceInfo"
-      }
-    },
-    {
-      "parentType": "ChannelFullSyncPayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "ChannelFullSyncUserError"
-      }
-    },
-    {
-      "parentType": "ChannelFullSyncUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
       }
     },
     {
@@ -3961,918 +3361,6 @@
       "kind": {
         "type": "object",
         "typeName": "ChannelDefinition"
-      }
-    },
-    {
-      "parentType": "ChannelUpdatePayload",
-      "name": "channel",
-      "kind": {
-        "type": "object",
-        "typeName": "Channel"
-      }
-    },
-    {
-      "parentType": "ChannelUpdatePayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "ChannelUpdateUserError"
-      }
-    },
-    {
-      "parentType": "ChannelUpdateUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfiguration",
-      "name": "branding",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBranding"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfiguration",
-      "name": "overrides",
-      "kind": {
-        "type": "list",
-        "elementType": "CheckoutAndAccountsConfigurationOverride"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBranding",
-      "name": "components",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingComponents"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBranding",
-      "name": "designTokens",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingDesignTokens"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBranding",
-      "name": "surfaces",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingSurfaces"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingButton",
-      "name": "typography",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingTypographyStyle"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCheckoutComponents",
-      "name": "buyerJourney",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingBuyerJourney"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCheckoutComponents",
-      "name": "cartLink",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingCartLink"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCheckoutComponents",
-      "name": "content",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingContent"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCheckoutComponents",
-      "name": "expressCheckout",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingExpressCheckout"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCheckoutComponents",
-      "name": "footer",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingCheckoutFooter"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCheckoutComponents",
-      "name": "header",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingCheckoutHeader"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCheckoutComponents",
-      "name": "main",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingMain"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCheckoutComponents",
-      "name": "orderSummary",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingOrderSummary"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCheckoutFooter",
-      "name": "colors",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingColors"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCheckoutFooter",
-      "name": "content",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingFooterContent"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCheckoutHeader",
-      "name": "cartLink",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingHeaderCartLink"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCheckoutHeader",
-      "name": "colors",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingColors"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCheckoutHeader",
-      "name": "logo",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingLogo"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCheckoutSurface",
-      "name": "components",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingCheckoutComponents"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingChoiceList",
-      "name": "group",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingChoiceListGroup"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingColors",
-      "name": "base",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingBaseColorRoles"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingColors",
-      "name": "control",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingControlColorRoles"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingColors",
-      "name": "primaryButton",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingPrimaryButtonColorRoles"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingColors",
-      "name": "secondaryButton",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingSecondaryButtonColorRoles"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingComponents",
-      "name": "checkbox",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingCheckbox"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingComponents",
-      "name": "choiceList",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingChoiceList"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingComponents",
-      "name": "control",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingControl"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingComponents",
-      "name": "divider",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingDividerStyle"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingComponents",
-      "name": "favicon",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingImageValue"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingComponents",
-      "name": "footer",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingFooter"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingComponents",
-      "name": "header",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingHeader"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingComponents",
-      "name": "headingLevel1",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingHeadingLevel"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingComponents",
-      "name": "headingLevel2",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingHeadingLevel"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingComponents",
-      "name": "headingLevel3",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingHeadingLevel"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingComponents",
-      "name": "main",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingMain"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingComponents",
-      "name": "merchandiseThumbnail",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingMerchandiseThumbnail"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingComponents",
-      "name": "primaryButton",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingButton"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingComponents",
-      "name": "secondaryButton",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingButton"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingComponents",
-      "name": "select",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingSelect"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingComponents",
-      "name": "shared",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingShared"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingComponents",
-      "name": "textField",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingTextField"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingContent",
-      "name": "divider",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingContainerDivider"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingControlColorRoles",
-      "name": "selected",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingColorRoles"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCustomerAccountsComponents",
-      "name": "footer",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingCustomerAccountsFooter"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCustomerAccountsComponents",
-      "name": "header",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingCustomerAccountsHeader"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCustomerAccountsComponents",
-      "name": "main",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingCustomerAccountsMain"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCustomerAccountsFooter",
-      "name": "colors",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingColors"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCustomerAccountsHeader",
-      "name": "colors",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingColors"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCustomerAccountsHeader",
-      "name": "logo",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingCustomerAccountsLogo"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCustomerAccountsLogo",
-      "name": "image",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingImageValue"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCustomerAccountsMain",
-      "name": "colors",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingColors"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCustomerAccountsMain",
-      "name": "section",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingCustomerAccountsMainSection"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCustomerAccountsMainSection",
-      "name": "colors",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingColors"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCustomerAccountsSurface",
-      "name": "components",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingCustomerAccountsComponents"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCustomFontGroup",
-      "name": "base",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingCustomFont"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingCustomFontGroup",
-      "name": "bold",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingCustomFont"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingDesignTokenColors",
-      "name": "palette",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingPalette"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingDesignTokens",
-      "name": "colors",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingDesignTokenColors"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingDesignTokens",
-      "name": "cornerRadius",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingCornerRadiusVariables"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingDesignTokens",
-      "name": "typography",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingTypography"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingExpressCheckout",
-      "name": "button",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingExpressCheckoutButton"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingFooter",
-      "name": "colors",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingColors"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingFooter",
-      "name": "content",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingFooterContent"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingHeader",
-      "name": "colors",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingColors"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingHeader",
-      "name": "logo",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingLogo"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingHeaderCartLink",
-      "name": "image",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingImageValue"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingHeadingLevel",
-      "name": "typography",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingTypographyStyle"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingImage",
-      "name": "image",
-      "kind": {
-        "type": "object",
-        "typeName": "Image"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingLogo",
-      "name": "image",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingImageValue"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingMain",
-      "name": "colors",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingColors"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingMain",
-      "name": "divider",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingContainerDivider"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingMain",
-      "name": "section",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingMainSection"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingMainSection",
-      "name": "colors",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingColors"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingMerchandiseThumbnail",
-      "name": "badge",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingMerchandiseThumbnailBadge"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingOrderSummary",
-      "name": "backgroundImage",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingImageValue"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingOrderSummary",
-      "name": "colors",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingColors"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingOrderSummary",
-      "name": "divider",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingContainerDivider"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingOrderSummary",
-      "name": "section",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingOrderSummarySection"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingOrderSummarySection",
-      "name": "colors",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingColors"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingPrimaryButtonColorRoles",
-      "name": "hover",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingColorRoles"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingSecondaryButtonColorRoles",
-      "name": "hover",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingColorRoles"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingSelect",
-      "name": "typography",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingTypographyStyle"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingShared",
-      "name": "colors",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingSharedColors"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingShared",
-      "name": "typography",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingSharedTypographyStyle"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingShopifyFontGroup",
-      "name": "base",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingShopifyFont"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingShopifyFontGroup",
-      "name": "bold",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingShopifyFont"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingSignInComponents",
-      "name": "header",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingSignInHeader"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingSignInComponents",
-      "name": "main",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingSignInMain"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingSignInHeader",
-      "name": "logo",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingSignInLogo"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingSignInLogo",
-      "name": "image",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingImageValue"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingSignInMain",
-      "name": "backgroundImage",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingImageValue"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingSignInMain",
-      "name": "colors",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingColors"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingSignInMain",
-      "name": "section",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingMainSection"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingSignInSurface",
-      "name": "components",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingSignInComponents"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingSurfaces",
-      "name": "checkout",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingCheckoutSurface"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingSurfaces",
-      "name": "customerAccounts",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingCustomerAccountsSurface"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingSurfaces",
-      "name": "signIn",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingSignInSurface"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingTextField",
-      "name": "typography",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingTypographyStyle"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingTypography",
-      "name": "primary",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingFontGroup"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingTypography",
-      "name": "secondary",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingFontGroup"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationBrandingTypography",
-      "name": "size",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBrandingFontSize"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationConnection",
-      "name": "edges",
-      "kind": {
-        "type": "list",
-        "elementType": "CheckoutAndAccountsConfigurationEdge"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationConnection",
-      "name": "nodes",
-      "kind": {
-        "type": "list",
-        "elementType": "CheckoutAndAccountsConfiguration"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationConnection",
-      "name": "pageInfo",
-      "kind": {
-        "type": "object",
-        "typeName": "PageInfo"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationEdge",
-      "name": "node",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfiguration"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationInterface",
-      "name": "branding",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBranding"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationOverride",
-      "name": "branding",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationBranding"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationUpdatePayload",
-      "name": "configuration",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfiguration"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationUpdatePayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "CheckoutAndAccountsConfigurationUserError"
-      }
-    },
-    {
-      "parentType": "CheckoutAndAccountsConfigurationUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
       }
     },
     {
@@ -4990,22 +3478,6 @@
     {
       "parentType": "CheckoutBrandingColorSchemes",
       "name": "scheme4",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutBrandingColorScheme"
-      }
-    },
-    {
-      "parentType": "CheckoutBrandingColorSchemes",
-      "name": "scheme5",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutBrandingColorScheme"
-      }
-    },
-    {
-      "parentType": "CheckoutBrandingColorSchemes",
-      "name": "scheme6",
       "kind": {
         "type": "object",
         "typeName": "CheckoutBrandingColorScheme"
@@ -5477,14 +3949,6 @@
     },
     {
       "parentType": "Collection",
-      "name": "activeOperations",
-      "kind": {
-        "type": "object",
-        "typeName": "CollectionOperations"
-      }
-    },
-    {
-      "parentType": "Collection",
       "name": "availablePublicationsCount",
       "kind": {
         "type": "object",
@@ -5724,59 +4188,11 @@
       }
     },
     {
-      "parentType": "CollectionDuplicateOperation",
-      "name": "job",
-      "kind": {
-        "type": "object",
-        "typeName": "Job"
-      }
-    },
-    {
-      "parentType": "CollectionDuplicatePayload",
-      "name": "collection",
-      "kind": {
-        "type": "object",
-        "typeName": "Collection"
-      }
-    },
-    {
-      "parentType": "CollectionDuplicatePayload",
-      "name": "job",
-      "kind": {
-        "type": "object",
-        "typeName": "Job"
-      }
-    },
-    {
-      "parentType": "CollectionDuplicatePayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "CollectionDuplicateUserError"
-      }
-    },
-    {
-      "parentType": "CollectionDuplicateUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
       "parentType": "CollectionEdge",
       "name": "node",
       "kind": {
         "type": "object",
         "typeName": "Collection"
-      }
-    },
-    {
-      "parentType": "CollectionOperations",
-      "name": "duplicate",
-      "kind": {
-        "type": "list",
-        "elementType": "CollectionDuplicateOperation"
       }
     },
     {
@@ -5896,15 +4312,7 @@
       "name": "userErrors",
       "kind": {
         "type": "list",
-        "elementType": "CollectionReorderProductsUserError"
-      }
-    },
-    {
-      "parentType": "CollectionReorderProductsUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
+        "elementType": "UserError"
       }
     },
     {
@@ -6957,14 +5365,6 @@
     },
     {
       "parentType": "CompanyLocation",
-      "name": "storeCreditAccounts",
-      "kind": {
-        "type": "connection",
-        "nodeType": "StoreCreditAccount"
-      }
-    },
-    {
-      "parentType": "CompanyLocation",
       "name": "taxExemptions",
       "kind": {
         "type": "list",
@@ -7369,22 +5769,6 @@
       "kind": {
         "type": "list",
         "elementType": "BusinessCustomerUserError"
-      }
-    },
-    {
-      "parentType": "ComponentizedProductsBundleConsolidatedOption",
-      "name": "selections",
-      "kind": {
-        "type": "list",
-        "elementType": "ComponentizedProductsBundleConsolidatedOptionSelection"
-      }
-    },
-    {
-      "parentType": "ComponentizedProductsBundleConsolidatedOptionSelection",
-      "name": "components",
-      "kind": {
-        "type": "list",
-        "elementType": "ComponentizedProductsBundleConsolidatedOptionSelectionComponent"
       }
     },
     {
@@ -8225,14 +6609,6 @@
       "kind": {
         "type": "object",
         "typeName": "CustomerPaymentInstrument"
-      }
-    },
-    {
-      "parentType": "CustomerPaymentMethod",
-      "name": "mandates",
-      "kind": {
-        "type": "connection",
-        "nodeType": "PaymentMandateResource"
       }
     },
     {
@@ -9172,6 +7548,14 @@
       }
     },
     {
+      "parentType": "DeliveryLegacyModeBlocked",
+      "name": "reasons",
+      "kind": {
+        "type": "list",
+        "elementType": "DeliveryLegacyModeBlockedReason"
+      }
+    },
+    {
       "parentType": "DeliveryLocationGroup",
       "name": "locations",
       "kind": {
@@ -9644,6 +8028,22 @@
       }
     },
     {
+      "parentType": "DeliverySetting",
+      "name": "legacyModeBlocked",
+      "kind": {
+        "type": "object",
+        "typeName": "DeliveryLegacyModeBlocked"
+      }
+    },
+    {
+      "parentType": "DeliverySettingUpdatePayload",
+      "name": "setting",
+      "kind": {
+        "type": "object",
+        "typeName": "DeliverySetting"
+      }
+    },
+    {
       "parentType": "DeliverySettingUpdatePayload",
       "name": "userErrors",
       "kind": {
@@ -9805,14 +8205,6 @@
     },
     {
       "parentType": "DiscountAutomaticApp",
-      "name": "context",
-      "kind": {
-        "type": "object",
-        "typeName": "DiscountContext"
-      }
-    },
-    {
-      "parentType": "DiscountAutomaticApp",
       "name": "discountClasses",
       "kind": {
         "type": "list",
@@ -9825,14 +8217,6 @@
       "kind": {
         "type": "object",
         "typeName": "FunctionsErrorHistory"
-      }
-    },
-    {
-      "parentType": "DiscountAutomaticApp",
-      "name": "tags",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
       }
     },
     {
@@ -9877,14 +8261,6 @@
     },
     {
       "parentType": "DiscountAutomaticBasic",
-      "name": "context",
-      "kind": {
-        "type": "object",
-        "typeName": "DiscountContext"
-      }
-    },
-    {
-      "parentType": "DiscountAutomaticBasic",
       "name": "customerGets",
       "kind": {
         "type": "object",
@@ -9905,14 +8281,6 @@
       "kind": {
         "type": "object",
         "typeName": "DiscountMinimumRequirement"
-      }
-    },
-    {
-      "parentType": "DiscountAutomaticBasic",
-      "name": "tags",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
       }
     },
     {
@@ -9973,14 +8341,6 @@
     },
     {
       "parentType": "DiscountAutomaticBxgy",
-      "name": "context",
-      "kind": {
-        "type": "object",
-        "typeName": "DiscountContext"
-      }
-    },
-    {
-      "parentType": "DiscountAutomaticBxgy",
       "name": "customerBuys",
       "kind": {
         "type": "object",
@@ -10009,14 +8369,6 @@
       "kind": {
         "type": "connection",
         "nodeType": "Event"
-      }
-    },
-    {
-      "parentType": "DiscountAutomaticBxgy",
-      "name": "tags",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
       }
     },
     {
@@ -10117,14 +8469,6 @@
     },
     {
       "parentType": "DiscountAutomaticFreeShipping",
-      "name": "context",
-      "kind": {
-        "type": "object",
-        "typeName": "DiscountContext"
-      }
-    },
-    {
-      "parentType": "DiscountAutomaticFreeShipping",
       "name": "destinationSelection",
       "kind": {
         "type": "object",
@@ -10153,14 +8497,6 @@
       "kind": {
         "type": "object",
         "typeName": "DiscountMinimumRequirement"
-      }
-    },
-    {
-      "parentType": "DiscountAutomaticFreeShipping",
-      "name": "tags",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
       }
     },
     {
@@ -10276,38 +8612,6 @@
       }
     },
     {
-      "parentType": "DiscountBulkTagsAddPayload",
-      "name": "job",
-      "kind": {
-        "type": "object",
-        "typeName": "Job"
-      }
-    },
-    {
-      "parentType": "DiscountBulkTagsAddPayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "DiscountUserError"
-      }
-    },
-    {
-      "parentType": "DiscountBulkTagsRemovePayload",
-      "name": "job",
-      "kind": {
-        "type": "object",
-        "typeName": "Job"
-      }
-    },
-    {
-      "parentType": "DiscountBulkTagsRemovePayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "DiscountUserError"
-      }
-    },
-    {
       "parentType": "DiscountCodeActivatePayload",
       "name": "codeDiscountNode",
       "kind": {
@@ -10357,14 +8661,6 @@
     },
     {
       "parentType": "DiscountCodeApp",
-      "name": "context",
-      "kind": {
-        "type": "object",
-        "typeName": "DiscountContext"
-      }
-    },
-    {
-      "parentType": "DiscountCodeApp",
       "name": "customerSelection",
       "kind": {
         "type": "object",
@@ -10393,14 +8689,6 @@
       "kind": {
         "type": "list",
         "elementType": "DiscountShareableUrl"
-      }
-    },
-    {
-      "parentType": "DiscountCodeApp",
-      "name": "tags",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
       }
     },
     {
@@ -10477,14 +8765,6 @@
     },
     {
       "parentType": "DiscountCodeBasic",
-      "name": "context",
-      "kind": {
-        "type": "object",
-        "typeName": "DiscountContext"
-      }
-    },
-    {
-      "parentType": "DiscountCodeBasic",
       "name": "customerGets",
       "kind": {
         "type": "object",
@@ -10521,14 +8801,6 @@
       "kind": {
         "type": "list",
         "elementType": "DiscountShareableUrl"
-      }
-    },
-    {
-      "parentType": "DiscountCodeBasic",
-      "name": "tags",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
       }
     },
     {
@@ -10645,14 +8917,6 @@
     },
     {
       "parentType": "DiscountCodeBxgy",
-      "name": "context",
-      "kind": {
-        "type": "object",
-        "typeName": "DiscountContext"
-      }
-    },
-    {
-      "parentType": "DiscountCodeBxgy",
       "name": "customerBuys",
       "kind": {
         "type": "object",
@@ -10689,14 +8953,6 @@
       "kind": {
         "type": "list",
         "elementType": "DiscountShareableUrl"
-      }
-    },
-    {
-      "parentType": "DiscountCodeBxgy",
-      "name": "tags",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
       }
     },
     {
@@ -10789,14 +9045,6 @@
     },
     {
       "parentType": "DiscountCodeFreeShipping",
-      "name": "context",
-      "kind": {
-        "type": "object",
-        "typeName": "DiscountContext"
-      }
-    },
-    {
-      "parentType": "DiscountCodeFreeShipping",
       "name": "customerSelection",
       "kind": {
         "type": "object",
@@ -10841,14 +9089,6 @@
       "kind": {
         "type": "list",
         "elementType": "DiscountShareableUrl"
-      }
-    },
-    {
-      "parentType": "DiscountCodeFreeShipping",
-      "name": "tags",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
       }
     },
     {
@@ -10985,14 +9225,6 @@
       "kind": {
         "type": "connection",
         "nodeType": "Collection"
-      }
-    },
-    {
-      "parentType": "DiscountCombinesWith",
-      "name": "productDiscountsWithTagsOnSameCartLine",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
       }
     },
     {
@@ -13293,14 +11525,6 @@
     },
     {
       "parentType": "FulfillmentOrder",
-      "name": "remainingLineItemsWeight",
-      "kind": {
-        "type": "object",
-        "typeName": "Weight"
-      }
-    },
-    {
-      "parentType": "FulfillmentOrder",
       "name": "supportedActions",
       "kind": {
         "type": "list",
@@ -13348,14 +11572,6 @@
       }
     },
     {
-      "parentType": "FulfillmentOrderCancelError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
       "parentType": "FulfillmentOrderCancelPayload",
       "name": "fulfillmentOrder",
       "kind": {
@@ -13376,7 +11592,7 @@
       "name": "userErrors",
       "kind": {
         "type": "list",
-        "elementType": "FulfillmentOrderCancelError"
+        "elementType": "UserError"
       }
     },
     {
@@ -13748,14 +11964,6 @@
       }
     },
     {
-      "parentType": "FulfillmentOrderMoveFulfillmentOrderMoveUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
       "parentType": "FulfillmentOrderMovePayload",
       "name": "movedFulfillmentOrder",
       "kind": {
@@ -13784,7 +11992,7 @@
       "name": "userErrors",
       "kind": {
         "type": "list",
-        "elementType": "FulfillmentOrderMoveFulfillmentOrderMoveUserError"
+        "elementType": "UserError"
       }
     },
     {
@@ -13860,30 +12068,6 @@
       }
     },
     {
-      "parentType": "FulfillmentOrderReportProgressPayload",
-      "name": "fulfillmentOrder",
-      "kind": {
-        "type": "object",
-        "typeName": "FulfillmentOrder"
-      }
-    },
-    {
-      "parentType": "FulfillmentOrderReportProgressPayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "FulfillmentOrderReportProgressUserError"
-      }
-    },
-    {
-      "parentType": "FulfillmentOrderReportProgressUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
       "parentType": "FulfillmentOrderReschedulePayload",
       "name": "fulfillmentOrder",
       "kind": {
@@ -13949,30 +12133,6 @@
     },
     {
       "parentType": "FulfillmentOrderSplitUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
-      "parentType": "FulfillmentOrdersReroutePayload",
-      "name": "movedFulfillmentOrders",
-      "kind": {
-        "type": "list",
-        "elementType": "FulfillmentOrder"
-      }
-    },
-    {
-      "parentType": "FulfillmentOrdersReroutePayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "FulfillmentOrdersRerouteUserError"
-      }
-    },
-    {
-      "parentType": "FulfillmentOrdersRerouteUserError",
       "name": "field",
       "kind": {
         "type": "list",
@@ -14185,14 +12345,6 @@
       "kind": {
         "type": "connection",
         "nodeType": "GiftCardTransaction"
-      }
-    },
-    {
-      "parentType": "GiftCardConfiguration",
-      "name": "expirationConfiguration",
-      "kind": {
-        "type": "object",
-        "typeName": "GiftCardExpirationConfiguration"
       }
     },
     {
@@ -14660,14 +12812,6 @@
       }
     },
     {
-      "parentType": "Image",
-      "name": "translations",
-      "kind": {
-        "type": "list",
-        "elementType": "Translation"
-      }
-    },
-    {
       "parentType": "ImageConnection",
       "name": "edges",
       "kind": {
@@ -14881,14 +13025,6 @@
       "kind": {
         "type": "object",
         "typeName": "ProductVariant"
-      }
-    },
-    {
-      "parentType": "InventoryItem",
-      "name": "variants",
-      "kind": {
-        "type": "connection",
-        "nodeType": "ProductVariant"
       }
     },
     {
@@ -15429,30 +13565,6 @@
     },
     {
       "parentType": "InventoryShipmentRemoveItemsUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
-      "parentType": "InventoryShipmentSetBarcodePayload",
-      "name": "inventoryShipment",
-      "kind": {
-        "type": "object",
-        "typeName": "InventoryShipment"
-      }
-    },
-    {
-      "parentType": "InventoryShipmentSetBarcodePayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "InventoryShipmentSetBarcodeUserError"
-      }
-    },
-    {
-      "parentType": "InventoryShipmentSetBarcodeUserError",
       "name": "field",
       "kind": {
         "type": "list",
@@ -16025,14 +14137,6 @@
       "kind": {
         "type": "object",
         "typeName": "StaffMember"
-      }
-    },
-    {
-      "parentType": "LineItem",
-      "name": "suggestedReturnReasonDefinitions",
-      "kind": {
-        "type": "connection",
-        "nodeType": "ReturnReasonDefinition"
       }
     },
     {
@@ -17628,14 +15732,6 @@
       }
     },
     {
-      "parentType": "MediaImage",
-      "name": "translations",
-      "kind": {
-        "type": "list",
-        "elementType": "Translation"
-      }
-    },
-    {
       "parentType": "MediaPreviewImage",
       "name": "image",
       "kind": {
@@ -17812,35 +15908,11 @@
       }
     },
     {
-      "parentType": "Metafield",
-      "name": "translations",
-      "kind": {
-        "type": "list",
-        "elementType": "Translation"
-      }
-    },
-    {
       "parentType": "MetafieldCapabilities",
       "name": "adminFilterable",
       "kind": {
         "type": "object",
         "typeName": "MetafieldCapabilityAdminFilterable"
-      }
-    },
-    {
-      "parentType": "MetafieldCapabilities",
-      "name": "analyticsQueryable",
-      "kind": {
-        "type": "object",
-        "typeName": "MetafieldCapabilityAnalyticsQueryable"
-      }
-    },
-    {
-      "parentType": "MetafieldCapabilities",
-      "name": "cartToOrderCopyable",
-      "kind": {
-        "type": "object",
-        "typeName": "MetafieldCapabilityCartToOrderCopyable"
       }
     },
     {
@@ -18653,14 +16725,6 @@
     },
     {
       "parentType": "MetaobjectFieldDefinition",
-      "name": "capabilities",
-      "kind": {
-        "type": "object",
-        "typeName": "MetaobjectFieldDefinitionCapabilities"
-      }
-    },
-    {
-      "parentType": "MetaobjectFieldDefinition",
       "name": "type",
       "kind": {
         "type": "object",
@@ -18673,14 +16737,6 @@
       "kind": {
         "type": "list",
         "elementType": "MetafieldDefinitionValidation"
-      }
-    },
-    {
-      "parentType": "MetaobjectFieldDefinitionCapabilities",
-      "name": "adminFilterable",
-      "kind": {
-        "type": "object",
-        "typeName": "MetaobjectFieldCapabilityAdminFilterable"
       }
     },
     {
@@ -19101,46 +17157,6 @@
     },
     {
       "parentType": "Mutation",
-      "name": "cashDrawerCreate",
-      "kind": {
-        "type": "object",
-        "typeName": "CashDrawerCreatePayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "cashDrawerFindOrCreate",
-      "kind": {
-        "type": "object",
-        "typeName": "CashDrawerFindOrCreatePayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "cashDrawerUpdate",
-      "kind": {
-        "type": "object",
-        "typeName": "CashDrawerUpdatePayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "cashManagementReasonCodeCreate",
-      "kind": {
-        "type": "object",
-        "typeName": "CashManagementReasonCodeCreatePayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "cashManagementReasonCodeDelete",
-      "kind": {
-        "type": "object",
-        "typeName": "CashManagementReasonCodeDeletePayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
       "name": "catalogContextUpdate",
       "kind": {
         "type": "object",
@@ -19169,46 +17185,6 @@
       "kind": {
         "type": "object",
         "typeName": "CatalogUpdatePayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "channelCreate",
-      "kind": {
-        "type": "object",
-        "typeName": "ChannelCreatePayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "channelDelete",
-      "kind": {
-        "type": "object",
-        "typeName": "ChannelDeletePayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "channelFullSync",
-      "kind": {
-        "type": "object",
-        "typeName": "ChannelFullSyncPayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "channelUpdate",
-      "kind": {
-        "type": "object",
-        "typeName": "ChannelUpdatePayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "checkoutAndAccountsConfigurationUpdate",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfigurationUpdatePayload"
       }
     },
     {
@@ -19249,14 +17225,6 @@
       "kind": {
         "type": "object",
         "typeName": "CollectionDeletePayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "collectionDuplicate",
-      "kind": {
-        "type": "object",
-        "typeName": "CollectionDuplicatePayload"
       }
     },
     {
@@ -20045,22 +18013,6 @@
     },
     {
       "parentType": "Mutation",
-      "name": "discountBulkTagsAdd",
-      "kind": {
-        "type": "object",
-        "typeName": "DiscountBulkTagsAddPayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "discountBulkTagsRemove",
-      "kind": {
-        "type": "object",
-        "typeName": "DiscountBulkTagsRemovePayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
       "name": "discountCodeActivate",
       "kind": {
         "type": "object",
@@ -20517,14 +18469,6 @@
     },
     {
       "parentType": "Mutation",
-      "name": "fulfillmentOrderReportProgress",
-      "kind": {
-        "type": "object",
-        "typeName": "FulfillmentOrderReportProgressPayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
       "name": "fulfillmentOrderReschedule",
       "kind": {
         "type": "object",
@@ -20537,14 +18481,6 @@
       "kind": {
         "type": "object",
         "typeName": "FulfillmentOrderSplitPayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "fulfillmentOrdersReroute",
-      "kind": {
-        "type": "object",
-        "typeName": "FulfillmentOrdersReroutePayload"
       }
     },
     {
@@ -20793,14 +18729,6 @@
       "kind": {
         "type": "object",
         "typeName": "InventoryShipmentRemoveItemsPayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "inventoryShipmentSetBarcode",
-      "kind": {
-        "type": "object",
-        "typeName": "InventoryShipmentSetBarcodePayload"
       }
     },
     {
@@ -21577,46 +19505,6 @@
       "kind": {
         "type": "object",
         "typeName": "PaymentTermsUpdatePayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "pointOfSaleDeviceAssignToCashDrawer",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDeviceAssignToCashDrawerPayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "pointOfSaleDevicePaymentSessionAdjust",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDevicePaymentSessionAdjustPayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "pointOfSaleDevicePaymentSessionClose",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDevicePaymentSessionClosePayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "pointOfSaleDevicePaymentSessionCount",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDevicePaymentSessionCountPayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "pointOfSaleDevicePaymentSessionOpen",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDevicePaymentSessionOpenPayload"
       }
     },
     {
@@ -22741,14 +20629,6 @@
     },
     {
       "parentType": "Mutation",
-      "name": "taxSummaryCreate",
-      "kind": {
-        "type": "object",
-        "typeName": "TaxSummaryCreatePayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
       "name": "themeCreate",
       "kind": {
         "type": "object",
@@ -22761,14 +20641,6 @@
       "kind": {
         "type": "object",
         "typeName": "ThemeDeletePayload"
-      }
-    },
-    {
-      "parentType": "Mutation",
-      "name": "themeDuplicate",
-      "kind": {
-        "type": "object",
-        "typeName": "ThemeDuplicatePayload"
       }
     },
     {
@@ -24093,14 +21965,6 @@
     },
     {
       "parentType": "OrderEditAddCustomItemPayload",
-      "name": "orderEditSession",
-      "kind": {
-        "type": "object",
-        "typeName": "OrderEditSession"
-      }
-    },
-    {
-      "parentType": "OrderEditAddCustomItemPayload",
       "name": "userErrors",
       "kind": {
         "type": "list",
@@ -24133,14 +21997,6 @@
     },
     {
       "parentType": "OrderEditAddLineItemDiscountPayload",
-      "name": "orderEditSession",
-      "kind": {
-        "type": "object",
-        "typeName": "OrderEditSession"
-      }
-    },
-    {
-      "parentType": "OrderEditAddLineItemDiscountPayload",
       "name": "userErrors",
       "kind": {
         "type": "list",
@@ -24161,14 +22017,6 @@
       "kind": {
         "type": "object",
         "typeName": "CalculatedShippingLine"
-      }
-    },
-    {
-      "parentType": "OrderEditAddShippingLinePayload",
-      "name": "orderEditSession",
-      "kind": {
-        "type": "object",
-        "typeName": "OrderEditSession"
       }
     },
     {
@@ -24201,14 +22049,6 @@
       "kind": {
         "type": "object",
         "typeName": "CalculatedOrder"
-      }
-    },
-    {
-      "parentType": "OrderEditAddVariantPayload",
-      "name": "orderEditSession",
-      "kind": {
-        "type": "object",
-        "typeName": "OrderEditSession"
       }
     },
     {
@@ -24253,14 +22093,6 @@
     },
     {
       "parentType": "OrderEditBeginPayload",
-      "name": "orderEditSession",
-      "kind": {
-        "type": "object",
-        "typeName": "OrderEditSession"
-      }
-    },
-    {
-      "parentType": "OrderEditBeginPayload",
       "name": "userErrors",
       "kind": {
         "type": "list",
@@ -24277,14 +22109,6 @@
     },
     {
       "parentType": "OrderEditCommitPayload",
-      "name": "successMessages",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
-      "parentType": "OrderEditCommitPayload",
       "name": "userErrors",
       "kind": {
         "type": "list",
@@ -24297,14 +22121,6 @@
       "kind": {
         "type": "object",
         "typeName": "CalculatedOrder"
-      }
-    },
-    {
-      "parentType": "OrderEditRemoveDiscountPayload",
-      "name": "orderEditSession",
-      "kind": {
-        "type": "object",
-        "typeName": "OrderEditSession"
       }
     },
     {
@@ -24341,14 +22157,6 @@
     },
     {
       "parentType": "OrderEditRemoveLineItemDiscountPayload",
-      "name": "orderEditSession",
-      "kind": {
-        "type": "object",
-        "typeName": "OrderEditSession"
-      }
-    },
-    {
-      "parentType": "OrderEditRemoveLineItemDiscountPayload",
       "name": "userErrors",
       "kind": {
         "type": "list",
@@ -24361,14 +22169,6 @@
       "kind": {
         "type": "object",
         "typeName": "CalculatedOrder"
-      }
-    },
-    {
-      "parentType": "OrderEditRemoveShippingLinePayload",
-      "name": "orderEditSession",
-      "kind": {
-        "type": "object",
-        "typeName": "OrderEditSession"
       }
     },
     {
@@ -24405,14 +22205,6 @@
     },
     {
       "parentType": "OrderEditSetQuantityPayload",
-      "name": "orderEditSession",
-      "kind": {
-        "type": "object",
-        "typeName": "OrderEditSession"
-      }
-    },
-    {
-      "parentType": "OrderEditSetQuantityPayload",
       "name": "userErrors",
       "kind": {
         "type": "list",
@@ -24425,14 +22217,6 @@
       "kind": {
         "type": "object",
         "typeName": "CalculatedOrder"
-      }
-    },
-    {
-      "parentType": "OrderEditUpdateDiscountPayload",
-      "name": "orderEditSession",
-      "kind": {
-        "type": "object",
-        "typeName": "OrderEditSession"
       }
     },
     {
@@ -24457,14 +22241,6 @@
       "kind": {
         "type": "object",
         "typeName": "CalculatedOrder"
-      }
-    },
-    {
-      "parentType": "OrderEditUpdateShippingLinePayload",
-      "name": "orderEditSession",
-      "kind": {
-        "type": "object",
-        "typeName": "OrderEditSession"
       }
     },
     {
@@ -24681,14 +22457,6 @@
       "kind": {
         "type": "object",
         "typeName": "LineItem"
-      }
-    },
-    {
-      "parentType": "OrderStagedChangeRemoveDiscount",
-      "name": "discountApplication",
-      "kind": {
-        "type": "object",
-        "typeName": "DiscountApplication"
       }
     },
     {
@@ -25156,38 +22924,6 @@
       }
     },
     {
-      "parentType": "PaymentMandateResourceConnection",
-      "name": "edges",
-      "kind": {
-        "type": "list",
-        "elementType": "PaymentMandateResourceEdge"
-      }
-    },
-    {
-      "parentType": "PaymentMandateResourceConnection",
-      "name": "nodes",
-      "kind": {
-        "type": "list",
-        "elementType": "PaymentMandateResource"
-      }
-    },
-    {
-      "parentType": "PaymentMandateResourceConnection",
-      "name": "pageInfo",
-      "kind": {
-        "type": "object",
-        "typeName": "PageInfo"
-      }
-    },
-    {
-      "parentType": "PaymentMandateResourceEdge",
-      "name": "node",
-      "kind": {
-        "type": "object",
-        "typeName": "PaymentMandateResource"
-      }
-    },
-    {
       "parentType": "PaymentReminderSendPayload",
       "name": "userErrors",
       "kind": {
@@ -25213,26 +22949,10 @@
     },
     {
       "parentType": "PaymentSchedule",
-      "name": "balanceDue",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "PaymentSchedule",
       "name": "paymentTerms",
       "kind": {
         "type": "object",
         "typeName": "PaymentTerms"
-      }
-    },
-    {
-      "parentType": "PaymentSchedule",
-      "name": "totalBalance",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
       }
     },
     {
@@ -25369,358 +23089,6 @@
       "kind": {
         "type": "object",
         "typeName": "Distance"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevice",
-      "name": "activePaymentSession",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDevicePaymentSession"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevice",
-      "name": "cashDrawer",
-      "kind": {
-        "type": "object",
-        "typeName": "CashDrawer"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDeviceAssignToCashDrawerPayload",
-      "name": "pointOfSaleDevice",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDevice"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDeviceAssignToCashDrawerPayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "PointOfSaleDeviceAssignToCashDrawerUserError"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDeviceAssignToCashDrawerUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDeviceConnection",
-      "name": "edges",
-      "kind": {
-        "type": "list",
-        "elementType": "PointOfSaleDeviceEdge"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDeviceConnection",
-      "name": "nodes",
-      "kind": {
-        "type": "list",
-        "elementType": "PointOfSaleDevice"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDeviceConnection",
-      "name": "pageInfo",
-      "kind": {
-        "type": "object",
-        "typeName": "PageInfo"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDeviceEdge",
-      "name": "node",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDevice"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "cashActivities",
-      "kind": {
-        "type": "connection",
-        "nodeType": "CashActivity"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "cashCountedAtClose",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "cashCountedAtOpen",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "cashDrawer",
-      "kind": {
-        "type": "object",
-        "typeName": "CashDrawer"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "closingAdjustment",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "closingBalance",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "closingStaffMember",
-      "kind": {
-        "type": "object",
-        "typeName": "StaffMember"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "expectedCashAtClose",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "expectedCashAtOpen",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "location",
-      "kind": {
-        "type": "object",
-        "typeName": "Location"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "netCashSales",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "netSales",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "openingStaffMember",
-      "kind": {
-        "type": "object",
-        "typeName": "StaffMember"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "pointOfSaleDevice",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDevice"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "totalAdjustments",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "totalCashRefunds",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "totalCashSales",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "totalDiscrepancy",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "totalRefunds",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSession",
-      "name": "totalSales",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSessionAdjustPayload",
-      "name": "pointOfSaleDevicePaymentSession",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDevicePaymentSession"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSessionAdjustPayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "UserError"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSessionClosePayload",
-      "name": "pointOfSaleDevicePaymentSession",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDevicePaymentSession"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSessionClosePayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "PointOfSaleDevicePaymentSessionCloseUserError"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSessionCloseUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSessionConnection",
-      "name": "edges",
-      "kind": {
-        "type": "list",
-        "elementType": "PointOfSaleDevicePaymentSessionEdge"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSessionConnection",
-      "name": "nodes",
-      "kind": {
-        "type": "list",
-        "elementType": "PointOfSaleDevicePaymentSession"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSessionConnection",
-      "name": "pageInfo",
-      "kind": {
-        "type": "object",
-        "typeName": "PageInfo"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSessionCountPayload",
-      "name": "pointOfSaleDevicePaymentSession",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDevicePaymentSession"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSessionCountPayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "PointOfSaleDevicePaymentSessionCountUserError"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSessionCountUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSessionEdge",
-      "name": "node",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDevicePaymentSession"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSessionOpenPayload",
-      "name": "pointOfSaleDevicePaymentSession",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDevicePaymentSession"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSessionOpenPayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "PointOfSaleDevicePaymentSessionOpenUserError"
-      }
-    },
-    {
-      "parentType": "PointOfSaleDevicePaymentSessionOpenUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
       }
     },
     {
@@ -26393,14 +23761,6 @@
       "kind": {
         "type": "connection",
         "nodeType": "ProductBundleComponent"
-      }
-    },
-    {
-      "parentType": "Product",
-      "name": "bundleConsolidatedOptions",
-      "kind": {
-        "type": "list",
-        "elementType": "ComponentizedProductsBundleConsolidatedOption"
       }
     },
     {
@@ -27685,14 +25045,6 @@
     },
     {
       "parentType": "ProductResourceFeedback",
-      "name": "channel",
-      "kind": {
-        "type": "object",
-        "typeName": "Channel"
-      }
-    },
-    {
-      "parentType": "ProductResourceFeedback",
       "name": "messages",
       "kind": {
         "type": "list",
@@ -28413,14 +25765,6 @@
     },
     {
       "parentType": "Publication",
-      "name": "channels",
-      "kind": {
-        "type": "connection",
-        "nodeType": "Channel"
-      }
-    },
-    {
-      "parentType": "Publication",
       "name": "collectionPublicationsV3",
       "kind": {
         "type": "connection",
@@ -28441,14 +25785,6 @@
       "kind": {
         "type": "connection",
         "nodeType": "Product"
-      }
-    },
-    {
-      "parentType": "Publication",
-      "name": "includedProductsCount",
-      "kind": {
-        "type": "object",
-        "typeName": "Count"
       }
     },
     {
@@ -29189,22 +26525,6 @@
     },
     {
       "parentType": "QueryRoot",
-      "name": "bulkOperation",
-      "kind": {
-        "type": "object",
-        "typeName": "BulkOperation"
-      }
-    },
-    {
-      "parentType": "QueryRoot",
-      "name": "bulkOperations",
-      "kind": {
-        "type": "connection",
-        "nodeType": "BulkOperation"
-      }
-    },
-    {
-      "parentType": "QueryRoot",
       "name": "businessEntities",
       "kind": {
         "type": "list",
@@ -29241,46 +26561,6 @@
       "kind": {
         "type": "connection",
         "nodeType": "CartTransform"
-      }
-    },
-    {
-      "parentType": "QueryRoot",
-      "name": "cashDrawer",
-      "kind": {
-        "type": "object",
-        "typeName": "CashDrawer"
-      }
-    },
-    {
-      "parentType": "QueryRoot",
-      "name": "cashDrawers",
-      "kind": {
-        "type": "connection",
-        "nodeType": "CashDrawer"
-      }
-    },
-    {
-      "parentType": "QueryRoot",
-      "name": "cashManagementLocationSummary",
-      "kind": {
-        "type": "object",
-        "typeName": "CashManagementSummary"
-      }
-    },
-    {
-      "parentType": "QueryRoot",
-      "name": "cashManagementReasonCodes",
-      "kind": {
-        "type": "connection",
-        "nodeType": "CashManagementReasonCode"
-      }
-    },
-    {
-      "parentType": "QueryRoot",
-      "name": "cashManagementShopSummary",
-      "kind": {
-        "type": "object",
-        "typeName": "CashManagementSummary"
       }
     },
     {
@@ -29341,34 +26621,10 @@
     },
     {
       "parentType": "QueryRoot",
-      "name": "channelByHandle",
-      "kind": {
-        "type": "object",
-        "typeName": "Channel"
-      }
-    },
-    {
-      "parentType": "QueryRoot",
       "name": "channels",
       "kind": {
         "type": "connection",
         "nodeType": "Channel"
-      }
-    },
-    {
-      "parentType": "QueryRoot",
-      "name": "checkoutAndAccountsConfiguration",
-      "kind": {
-        "type": "object",
-        "typeName": "CheckoutAndAccountsConfiguration"
-      }
-    },
-    {
-      "parentType": "QueryRoot",
-      "name": "checkoutAndAccountsConfigurations",
-      "kind": {
-        "type": "connection",
-        "nodeType": "CheckoutAndAccountsConfiguration"
       }
     },
     {
@@ -29765,6 +27021,14 @@
     },
     {
       "parentType": "QueryRoot",
+      "name": "deliverySettings",
+      "kind": {
+        "type": "object",
+        "typeName": "DeliverySetting"
+      }
+    },
+    {
+      "parentType": "QueryRoot",
       "name": "discountCodesCount",
       "kind": {
         "type": "object",
@@ -29809,14 +27073,6 @@
       "kind": {
         "type": "connection",
         "nodeType": "SavedSearch"
-      }
-    },
-    {
-      "parentType": "QueryRoot",
-      "name": "discountTags",
-      "kind": {
-        "type": "connection",
-        "nodeType": "String"
       }
     },
     {
@@ -30065,14 +27321,6 @@
       "kind": {
         "type": "object",
         "typeName": "InventoryShipment"
-      }
-    },
-    {
-      "parentType": "QueryRoot",
-      "name": "inventoryShipments",
-      "kind": {
-        "type": "connection",
-        "nodeType": "InventoryShipment"
       }
     },
     {
@@ -30389,14 +27637,6 @@
     },
     {
       "parentType": "QueryRoot",
-      "name": "orderEditSession",
-      "kind": {
-        "type": "object",
-        "typeName": "OrderEditSession"
-      }
-    },
-    {
-      "parentType": "QueryRoot",
       "name": "orderPaymentStatus",
       "kind": {
         "type": "object",
@@ -30489,22 +27729,6 @@
       "kind": {
         "type": "object",
         "typeName": "PointOfSaleDevice"
-      }
-    },
-    {
-      "parentType": "QueryRoot",
-      "name": "pointOfSaleDevicePaymentSession",
-      "kind": {
-        "type": "object",
-        "typeName": "PointOfSaleDevicePaymentSession"
-      }
-    },
-    {
-      "parentType": "QueryRoot",
-      "name": "pointOfSaleDevicePaymentSessions",
-      "kind": {
-        "type": "connection",
-        "nodeType": "PointOfSaleDevicePaymentSession"
       }
     },
     {
@@ -30765,14 +27989,6 @@
     },
     {
       "parentType": "QueryRoot",
-      "name": "returnReasonDefinitions",
-      "kind": {
-        "type": "connection",
-        "nodeType": "ReturnReasonDefinition"
-      }
-    },
-    {
-      "parentType": "QueryRoot",
       "name": "reverseDelivery",
       "kind": {
         "type": "object",
@@ -30925,14 +28141,6 @@
     },
     {
       "parentType": "QueryRoot",
-      "name": "shopifyqlQuery",
-      "kind": {
-        "type": "object",
-        "typeName": "ShopifyqlQueryResponse"
-      }
-    },
-    {
-      "parentType": "QueryRoot",
       "name": "shopLocales",
       "kind": {
         "type": "list",
@@ -30985,14 +28193,6 @@
       "kind": {
         "type": "object",
         "typeName": "StoreCreditAccount"
-      }
-    },
-    {
-      "parentType": "QueryRoot",
-      "name": "storeCreditConfiguration",
-      "kind": {
-        "type": "object",
-        "typeName": "StoreCreditConfiguration"
       }
     },
     {
@@ -31773,14 +28973,6 @@
     },
     {
       "parentType": "Return",
-      "name": "staffMember",
-      "kind": {
-        "type": "object",
-        "typeName": "StaffMember"
-      }
-    },
-    {
-      "parentType": "Return",
       "name": "suggestedFinancialOutcome",
       "kind": {
         "type": "object",
@@ -31793,14 +28985,6 @@
       "kind": {
         "type": "object",
         "typeName": "SuggestedReturnRefund"
-      }
-    },
-    {
-      "parentType": "Return",
-      "name": "transactions",
-      "kind": {
-        "type": "connection",
-        "nodeType": "OrderTransaction"
       }
     },
     {
@@ -32053,14 +29237,6 @@
     },
     {
       "parentType": "ReturnLineItem",
-      "name": "returnReasonDefinition",
-      "kind": {
-        "type": "object",
-        "typeName": "ReturnReasonDefinition"
-      }
-    },
-    {
-      "parentType": "ReturnLineItem",
       "name": "totalWeight",
       "kind": {
         "type": "object",
@@ -32089,14 +29265,6 @@
       "kind": {
         "type": "list",
         "elementType": "ReturnUserError"
-      }
-    },
-    {
-      "parentType": "ReturnLineItemType",
-      "name": "returnReasonDefinition",
-      "kind": {
-        "type": "object",
-        "typeName": "ReturnReasonDefinition"
       }
     },
     {
@@ -32145,38 +29313,6 @@
       "kind": {
         "type": "list",
         "elementType": "ReturnUserError"
-      }
-    },
-    {
-      "parentType": "ReturnReasonDefinitionConnection",
-      "name": "edges",
-      "kind": {
-        "type": "list",
-        "elementType": "ReturnReasonDefinitionEdge"
-      }
-    },
-    {
-      "parentType": "ReturnReasonDefinitionConnection",
-      "name": "nodes",
-      "kind": {
-        "type": "list",
-        "elementType": "ReturnReasonDefinition"
-      }
-    },
-    {
-      "parentType": "ReturnReasonDefinitionConnection",
-      "name": "pageInfo",
-      "kind": {
-        "type": "object",
-        "typeName": "PageInfo"
-      }
-    },
-    {
-      "parentType": "ReturnReasonDefinitionEdge",
-      "name": "node",
-      "kind": {
-        "type": "object",
-        "typeName": "ReturnReasonDefinition"
       }
     },
     {
@@ -33845,6 +30981,14 @@
     },
     {
       "parentType": "Shop",
+      "name": "draftOrders",
+      "kind": {
+        "type": "connection",
+        "nodeType": "DraftOrder"
+      }
+    },
+    {
+      "parentType": "Shop",
       "name": "draftOrderTags",
       "kind": {
         "type": "connection",
@@ -34073,14 +31217,6 @@
       "kind": {
         "type": "list",
         "elementType": "CountryCode"
-      }
-    },
-    {
-      "parentType": "Shop",
-      "name": "shopAddress",
-      "kind": {
-        "type": "object",
-        "typeName": "ShopAddress"
       }
     },
     {
@@ -34401,14 +31537,6 @@
       "kind": {
         "type": "object",
         "typeName": "MoneyV2"
-      }
-    },
-    {
-      "parentType": "ShopifyPaymentsDispute",
-      "name": "disputeEvidence",
-      "kind": {
-        "type": "object",
-        "typeName": "ShopifyPaymentsDisputeEvidence"
       }
     },
     {
@@ -34740,14 +31868,6 @@
       }
     },
     {
-      "parentType": "ShopifyPaymentsPayoutSummary",
-      "name": "usdcRebateCreditAmount",
-      "kind": {
-        "type": "object",
-        "typeName": "MoneyV2"
-      }
-    },
-    {
       "parentType": "ShopifyPaymentsToolingProviderPayout",
       "name": "amount",
       "kind": {
@@ -34777,30 +31897,6 @@
       "kind": {
         "type": "object",
         "typeName": "ShopifyProtectOrderEligibility"
-      }
-    },
-    {
-      "parentType": "ShopifyqlQueryResponse",
-      "name": "parseErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
-      "parentType": "ShopifyqlQueryResponse",
-      "name": "tableData",
-      "kind": {
-        "type": "object",
-        "typeName": "ShopifyqlTableData"
-      }
-    },
-    {
-      "parentType": "ShopifyqlTableData",
-      "name": "columns",
-      "kind": {
-        "type": "list",
-        "elementType": "ShopifyqlTableDataColumn"
       }
     },
     {
@@ -35821,14 +32917,6 @@
     },
     {
       "parentType": "SubscriptionBillingAttempt",
-      "name": "state",
-      "kind": {
-        "type": "object",
-        "typeName": "SubscriptionBillingAttemptState"
-      }
-    },
-    {
-      "parentType": "SubscriptionBillingAttempt",
       "name": "subscriptionContract",
       "kind": {
         "type": "object",
@@ -35841,14 +32929,6 @@
       "kind": {
         "type": "connection",
         "nodeType": "OrderTransaction"
-      }
-    },
-    {
-      "parentType": "SubscriptionBillingAttemptActionRequiredState",
-      "name": "action",
-      "kind": {
-        "type": "object",
-        "typeName": "SubscriptionBillingAttemptAction"
       }
     },
     {
@@ -35900,23 +32980,7 @@
       }
     },
     {
-      "parentType": "SubscriptionBillingAttemptFailedState",
-      "name": "error",
-      "kind": {
-        "type": "object",
-        "typeName": "SubscriptionBillingAttemptError"
-      }
-    },
-    {
       "parentType": "SubscriptionBillingAttemptInsufficientStockProductVariantsError",
-      "name": "insufficientStockProductVariants",
-      "kind": {
-        "type": "connection",
-        "nodeType": "ProductVariant"
-      }
-    },
-    {
-      "parentType": "SubscriptionBillingAttemptInventoryError",
       "name": "insufficientStockProductVariants",
       "kind": {
         "type": "connection",
@@ -35929,14 +32993,6 @@
       "kind": {
         "type": "connection",
         "nodeType": "ProductVariant"
-      }
-    },
-    {
-      "parentType": "SubscriptionBillingAttemptSuccessState",
-      "name": "order",
-      "kind": {
-        "type": "object",
-        "typeName": "Order"
       }
     },
     {
@@ -37996,30 +35052,6 @@
       }
     },
     {
-      "parentType": "TaxSummaryCreatePayload",
-      "name": "enqueuedOrders",
-      "kind": {
-        "type": "list",
-        "elementType": "Order"
-      }
-    },
-    {
-      "parentType": "TaxSummaryCreatePayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "TaxSummaryCreateUserError"
-      }
-    },
-    {
-      "parentType": "TaxSummaryCreateUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
       "parentType": "TenderTransaction",
       "name": "amount",
       "kind": {
@@ -38117,30 +35149,6 @@
     },
     {
       "parentType": "ThemeDeleteUserError",
-      "name": "field",
-      "kind": {
-        "type": "list",
-        "elementType": "String"
-      }
-    },
-    {
-      "parentType": "ThemeDuplicatePayload",
-      "name": "newTheme",
-      "kind": {
-        "type": "object",
-        "typeName": "OnlineStoreTheme"
-      }
-    },
-    {
-      "parentType": "ThemeDuplicatePayload",
-      "name": "userErrors",
-      "kind": {
-        "type": "list",
-        "elementType": "ThemeDuplicateUserError"
-      }
-    },
-    {
-      "parentType": "ThemeDuplicateUserError",
       "name": "field",
       "kind": {
         "type": "list",
@@ -38489,14 +35497,6 @@
       "kind": {
         "type": "object",
         "typeName": "MoneyBag"
-      }
-    },
-    {
-      "parentType": "UnverifiedReturnLineItem",
-      "name": "returnReasonDefinition",
-      "kind": {
-        "type": "object",
-        "typeName": "ReturnReasonDefinition"
       }
     },
     {

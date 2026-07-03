@@ -486,8 +486,7 @@ impl DraftProxy {
 
     /// Handles companyAssignCustomerAsContact against locally-staged b2b state.
     /// Returns None when the target company is not in local state, so callers can
-    /// defer to other handlers (e.g. the order-customer-error-path scenario, which
-    /// uses a sentinel company that is never staged in `b2b_companies`).
+    /// defer to other handlers that may own non-B2B company fixtures.
     pub(in crate::proxy) fn b2b_assign_customer_as_contact_response(
         &mut self,
         request: &Request,
@@ -502,19 +501,16 @@ impl DraftProxy {
         if !self.store.staged.b2b_companies.contains_key(&company_id) {
             return None;
         }
-        // The orderCustomerSet/Remove error-path flow assigns its sentinel customer
-        // (email "order-customer-...") as a contact and relies on the dedicated
-        // order-customer orchestrator to record the contact id its NOT_PERMITTED guard
-        // checks. Defer that case so the orchestrator below handles it.
-        if resolved_string_field(&field.arguments, "customerId")
-            .and_then(|customer_id| self.store.staged.customers.get(&customer_id).cloned())
-            .and_then(|customer| customer["email"].as_str().map(str::to_string))
-            .is_some_and(|email| email.starts_with("order-customer-"))
-        {
-            return None;
-        }
         let (payload, status, staged_ids) =
             self.b2b_company_assign_customer_as_contact_payload(field);
+        if status == "staged" {
+            if let Some(customer_id) = resolved_string_field(&field.arguments, "customerId") {
+                self.store
+                    .staged
+                    .order_customer_contact_customer_ids
+                    .insert(customer_id);
+            }
+        }
         self.record_mutation_log_with_status(
             request,
             query,
