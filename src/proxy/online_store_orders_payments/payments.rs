@@ -14,6 +14,15 @@ pub(in crate::proxy) fn refund_user_error(field: Value, message: impl Into<Strin
     user_error_omit_code(field, &message, None)
 }
 
+pub(in crate::proxy) fn refund_user_error_with_code(
+    field: Value,
+    message: impl Into<String>,
+    code: &str,
+) -> Value {
+    let message = message.into();
+    user_error_omit_code(field, &message, Some(code))
+}
+
 pub(in crate::proxy) fn order_currency(order: &Value, shop_currency_code: &str) -> String {
     [
         &order["totalPriceSet"],
