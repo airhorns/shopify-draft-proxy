@@ -4532,6 +4532,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-translatable-resource-absence',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-translatable-resource-absence-conformance.mts',
+    purpose:
+      'Empty translatableResources connection and missing translatableResource null behavior without fabricated default resource IDs.',
+    requiredAuthScopes: ['read_products', 'read_translations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-translatable-resource-absence.json`,
+      'config/parity-specs/localization/localization-translatable-resource-absence.json',
+      'config/parity-requests/localization/localization-translatable-resource-absence.graphql',
+    ],
+    cleanupBehavior: 'Read-only capture; no shop mutations are performed.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-shop-locale-market-web-presence-filter',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-shop-locale-market-web-presence-filter-conformance.mts',
