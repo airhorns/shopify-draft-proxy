@@ -9032,6 +9032,33 @@ fn saved_search_required_input_omissions_return_top_level_graphql_errors() {
             }
         })
     );
+
+    let missing_delete_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchDeleteMissingId {
+          savedSearchDelete(input: {}) {
+            deletedSavedSearchId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(missing_delete_id.body.get("data"), None);
+    assert_eq!(
+        missing_delete_id.body["errors"][0],
+        json!({
+            "message": "Argument 'id' on InputObject 'SavedSearchDeleteInput' is required. Expected type ID!",
+            "locations": [{ "line": 2, "column": 28 }],
+            "path": ["mutation SavedSearchDeleteMissingId", "savedSearchDelete", "input", "id"],
+            "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "id",
+                "argumentType": "ID!",
+                "inputObjectType": "SavedSearchDeleteInput"
+            }
+        })
+    );
 }
 
 #[test]
@@ -9078,6 +9105,50 @@ fn saved_search_required_variable_omissions_return_invalid_variable_errors() {
                 "code": "INVALID_VARIABLE",
                 "value": { "resourceType": "PRODUCT", "query": "tag:variable-required" },
                 "problems": [{ "path": ["name"], "explanation": "Expected value to not be null" }]
+            }
+        })
+    );
+
+    let missing_delete_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchDeleteVariableMissingId($input: SavedSearchDeleteInput!) {
+          savedSearchDelete(input: $input) { deletedSavedSearchId userErrors { field message } }
+        }
+        "#,
+        json!({ "input": {} }),
+    ));
+    assert_eq!(missing_delete_id.body.get("data"), None);
+    assert_eq!(
+        missing_delete_id.body["errors"][0],
+        json!({
+            "message": "Variable $input of type SavedSearchDeleteInput! was provided invalid value for id (Expected value to not be null)",
+            "locations": [{ "line": 1, "column": 45 }],
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {},
+                "problems": [{ "path": ["id"], "explanation": "Expected value to not be null" }]
+            }
+        })
+    );
+
+    let null_delete_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchDeleteVariableMissingId($input: SavedSearchDeleteInput!) {
+          savedSearchDelete(input: $input) { deletedSavedSearchId userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": null } }),
+    ));
+    assert_eq!(null_delete_id.body.get("data"), None);
+    assert_eq!(
+        null_delete_id.body["errors"][0],
+        json!({
+            "message": "Variable $input of type SavedSearchDeleteInput! was provided invalid value for id (Expected value to not be null)",
+            "locations": [{ "line": 1, "column": 45 }],
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": { "id": null },
+                "problems": [{ "path": ["id"], "explanation": "Expected value to not be null" }]
             }
         })
     );
