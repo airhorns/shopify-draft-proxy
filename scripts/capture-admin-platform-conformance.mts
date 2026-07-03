@@ -2,7 +2,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write capture status to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -17,6 +17,121 @@ const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, api
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'admin-platform');
 const outputPath = path.join(outputDir, 'admin-platform-utility-roots.json');
 const taxonomyHierarchyOutputPath = path.join(outputDir, 'admin-platform-taxonomy-hierarchy-node-reads.json');
+const byIdNotFoundOutputPath = path.join(outputDir, 'by-id-not-found-read.json');
+const utilityReadsDocumentPath = path.join(
+  'config',
+  'parity-requests',
+  'admin-platform',
+  'admin-platform-utility-reads.graphql',
+);
+const utilityReadsVariablesPath = path.join(
+  'config',
+  'parity-requests',
+  'admin-platform',
+  'admin-platform-utility-reads.variables.json',
+);
+const backupRegionUpdateIdempotentDocumentPath = path.join(
+  'config',
+  'parity-requests',
+  'admin-platform',
+  'admin-platform-backup-region-update-idempotent.graphql',
+);
+const supportedNodeReadsDocumentPath = path.join(
+  'config',
+  'parity-requests',
+  'admin-platform',
+  'admin-platform-supported-node-reads.graphql',
+);
+const taxonomyHierarchyDocumentPath = path.join(
+  'config',
+  'parity-requests',
+  'admin-platform',
+  'admin-platform-taxonomy-hierarchy-node-reads.graphql',
+);
+const byIdNotFoundDocumentRoot = path.join('config', 'parity-requests', 'admin-platform', 'by-id-not-found');
+const utilityReadsDocument = await readFile(utilityReadsDocumentPath, 'utf8');
+const utilityReadsVariables = JSON.parse(await readFile(utilityReadsVariablesPath, 'utf8'));
+const supportedNodeReadsDocument = await readFile(supportedNodeReadsDocumentPath, 'utf8');
+const taxonomyHierarchyDocument = await readFile(taxonomyHierarchyDocumentPath, 'utf8');
+const byIdNotFoundCaseConfigs = {
+  discounts: {
+    documentPath: path.join(byIdNotFoundDocumentRoot, 'discounts.graphql'),
+    variables: {
+      automaticDiscountNodeId: 'gid://shopify/DiscountAutomaticNode/0',
+      codeDiscountNodeId: 'gid://shopify/DiscountCodeNode/0',
+      discountNodeId: 'gid://shopify/DiscountCodeNode/0',
+      discountRedeemCodeBulkCreationId: 'gid://shopify/DiscountRedeemCodeBulkCreation/999999999999',
+    },
+  },
+  markets: {
+    documentPath: path.join(byIdNotFoundDocumentRoot, 'markets.graphql'),
+    variables: {
+      catalogId: 'gid://shopify/MarketCatalog/999999999999',
+      marketId: 'gid://shopify/Market/999999999999',
+      priceListId: 'gid://shopify/PriceList/999999999999',
+    },
+  },
+  products: {
+    documentPath: path.join(byIdNotFoundDocumentRoot, 'products.graphql'),
+    variables: {
+      inventoryShipmentId: 'gid://shopify/InventoryShipment/999999999999',
+    },
+  },
+  shippingFulfillments: {
+    documentPath: path.join(byIdNotFoundDocumentRoot, 'shipping-fulfillments.graphql'),
+    variables: {
+      fulfillmentServiceId: 'gid://shopify/FulfillmentService/999999999999',
+    },
+  },
+  storeProperties: {
+    documentPath: path.join(byIdNotFoundDocumentRoot, 'store-properties.graphql'),
+    variables: {
+      locationId: 'gid://shopify/Location/999999999999',
+    },
+  },
+  orders: {
+    documentPath: path.join(byIdNotFoundDocumentRoot, 'orders.graphql'),
+    variables: {
+      returnId: 'gid://shopify/Return/999999999999',
+      reverseDeliveryId: 'gid://shopify/ReverseDelivery/999999999999',
+      reverseFulfillmentOrderId: 'gid://shopify/ReverseFulfillmentOrder/999999999999',
+    },
+  },
+  customers: {
+    documentPath: path.join(byIdNotFoundDocumentRoot, 'customers.graphql'),
+    variables: {
+      customerPaymentMethodId: 'gid://shopify/CustomerPaymentMethod/999999999999',
+      storeCreditAccountId: 'gid://shopify/StoreCreditAccount/999999999999',
+    },
+  },
+  giftCards: {
+    documentPath: path.join(byIdNotFoundDocumentRoot, 'gift-cards.graphql'),
+    variables: {
+      giftCardId: 'gid://shopify/GiftCard/999999999999',
+    },
+  },
+  onlineStore: {
+    documentPath: path.join(byIdNotFoundDocumentRoot, 'online-store.graphql'),
+    variables: {
+      scriptTagId: 'gid://shopify/ScriptTag/999999999999',
+      themeId: 'gid://shopify/OnlineStoreTheme/999999999999',
+      urlRedirectId: 'gid://shopify/UrlRedirect/999999999999',
+    },
+  },
+  functions: {
+    documentPath: path.join(byIdNotFoundDocumentRoot, 'functions.graphql'),
+    variables: {
+      shopifyFunctionId: 'gid://shopify/ShopifyFunction/999999999999',
+      validationId: 'gid://shopify/Validation/999999999999',
+    },
+  },
+  segments: {
+    documentPath: path.join(byIdNotFoundDocumentRoot, 'segments.graphql'),
+    variables: {
+      customerSegmentMembersQueryId: 'gid://shopify/CustomerSegmentMembersQuery/999999999999',
+    },
+  },
+};
 
 const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
@@ -30,6 +145,39 @@ async function runGraphqlCapture(query, variables = {}) {
     status: result.status,
     payload: result.payload,
   };
+}
+
+function operationNameFromDocument(document) {
+  return /\b(?:query|mutation)\s+([_A-Za-z][_0-9A-Za-z]*)/u.exec(document)?.[1] ?? 'AnonymousOperation';
+}
+
+async function captureByIdNotFoundCases() {
+  const cases = {};
+  const upstreamCalls = [];
+
+  for (const [caseName, caseConfig] of Object.entries(byIdNotFoundCaseConfigs)) {
+    const query = await readFile(caseConfig.documentPath, 'utf8');
+    const result = await runGraphqlCapture(query, caseConfig.variables);
+    cases[caseName] = {
+      query,
+      variables: caseConfig.variables,
+      response: {
+        status: result.status,
+        body: result.payload,
+      },
+    };
+    upstreamCalls.push({
+      operationName: operationNameFromDocument(query),
+      variables: caseConfig.variables,
+      query,
+      response: {
+        status: result.status,
+        body: result.payload,
+      },
+    });
+  }
+
+  return { cases, upstreamCalls };
 }
 
 const rootTypeIntrospectionQuery = `#graphql
@@ -169,6 +317,47 @@ const backupRegionQuery = `#graphql
     }
   }
 `;
+
+const backupRegionAccessScopesHydrateQuery =
+  'query BackupRegionAccessScopes { currentAppInstallation { accessScopes { handle } } }';
+
+const backupRegionMarketsHydrateQuery = `query BackupRegionMarketsHydrate($first: Int!, $regionsFirst: Int!) {
+  markets(first: $first) {
+    nodes {
+      id
+      name
+      handle
+      status
+      type
+      conditions {
+        conditionTypes
+        regionsCondition {
+          regions(first: $regionsFirst) {
+            nodes {
+              __typename
+              id
+              name
+              ... on MarketRegionCountry {
+                code
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`;
+
+const backupRegionCurrentHydrateQuery = `query BackupRegionCurrentHydrate {
+  backupRegion {
+    __typename
+    id
+    name
+    ... on MarketRegionCountry {
+      code
+    }
+  }
+}`;
 
 const taxonomyEmptySearchQuery = `#graphql
   query TaxonomyEmptySearchRead {
@@ -552,33 +741,6 @@ const supportedNodeSeedQuery = `#graphql
   }
 `;
 
-const supportedNodesQuery = `#graphql
-  query SupportedNodeRead($ids: [ID!]!) {
-    nodes(ids: $ids) {
-      __typename
-      ... on Node {
-        id
-      }
-      ... on Product {
-        title
-        handle
-      }
-      ... on Collection {
-        title
-        handle
-      }
-      ... on Customer {
-        displayName
-        email
-      }
-      ... on Location {
-        name
-        isActive
-      }
-    }
-  }
-`;
-
 const staffAccessBlockerQuery = `#graphql
   query StaffUtilityRead {
     staffMember {
@@ -723,7 +885,28 @@ const flowGenerateUnknownMutation = `mutation {
   }
 }`;
 
-const backupRegionUpdateIdempotentMutation = `#graphql
+function backupRegionUpdateIdempotentMutation(countryCode) {
+  return `mutation BackupRegionUpdateIdempotent {
+  backupRegionUpdate(region: { countryCode: ${countryCode} }) {
+    backupRegion {
+      __typename
+      id
+      name
+      ... on MarketRegionCountry {
+        code
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
+`;
+}
+
+const backupRegionUpdateFallbackMutation = `#graphql
   mutation BackupRegionUpdateIdempotent {
     backupRegionUpdate(region: { countryCode: CA }) {
       backupRegion {
@@ -830,6 +1013,15 @@ const taxonomyCatalogFirstPage = {
 };
 const taxonomyCatalogAfterCursor =
   taxonomyCatalogFirstPage.result.payload.data?.taxonomy?.categories?.pageInfo?.endCursor;
+const backupRegionCapture = {
+  query: backupRegionQuery,
+  result: await runGraphqlCapture(backupRegionQuery),
+};
+const currentBackupRegionCountryCode = backupRegionCapture.result.payload.data?.backupRegion?.code;
+const backupRegionUpdateCurrentCountryMutation =
+  typeof currentBackupRegionCountryCode === 'string' && /^[A-Z]{2}$/u.test(currentBackupRegionCountryCode)
+    ? backupRegionUpdateIdempotentMutation(currentBackupRegionCountryCode)
+    : backupRegionUpdateFallbackMutation;
 
 const captures = {
   publicApiVersions: {
@@ -864,9 +1056,19 @@ const captures = {
       jobId: 'gid://shopify/Job/0',
     }),
   },
-  backupRegion: {
-    query: backupRegionQuery,
-    result: await runGraphqlCapture(backupRegionQuery),
+  backupRegion: backupRegionCapture,
+  backupRegionAccessScopesHydrate: {
+    query: backupRegionAccessScopesHydrateQuery,
+    result: await runGraphqlCapture(backupRegionAccessScopesHydrateQuery),
+  },
+  backupRegionMarketsHydrate: {
+    query: backupRegionMarketsHydrateQuery,
+    variables: { first: 250, regionsFirst: 250 },
+    result: await runGraphqlCapture(backupRegionMarketsHydrateQuery, { first: 250, regionsFirst: 250 }),
+  },
+  backupRegionCurrentHydrate: {
+    query: backupRegionCurrentHydrateQuery,
+    result: await runGraphqlCapture(backupRegionCurrentHydrateQuery),
   },
   taxonomyEmptySearch: {
     query: taxonomyEmptySearchQuery,
@@ -906,11 +1108,11 @@ const captures = {
   },
   supportedNodeSeeds: supportedNodeSeed,
   supportedNodes: {
-    query: supportedNodesQuery,
+    query: supportedNodeReadsDocument,
     variables: {
       ids: supportedNodeIds,
     },
-    result: await runGraphqlCapture(supportedNodesQuery, {
+    result: await runGraphqlCapture(supportedNodeReadsDocument, {
       ids: supportedNodeIds,
     }),
   },
@@ -964,8 +1166,8 @@ const captures = {
     result: await runGraphqlCapture(flowGenerateUnknownMutation),
   },
   backupRegionUpdateIdempotent: {
-    query: backupRegionUpdateIdempotentMutation,
-    result: await runGraphqlCapture(backupRegionUpdateIdempotentMutation),
+    query: backupRegionUpdateCurrentCountryMutation,
+    result: await runGraphqlCapture(backupRegionUpdateCurrentCountryMutation),
   },
   backupRegionAfterIdempotentUpdate: {
     query: backupRegionQuery,
@@ -975,28 +1177,47 @@ const captures = {
     query: backupRegionUpdateInvalidMutation,
     result: await runGraphqlCapture(backupRegionUpdateInvalidMutation),
   },
-};
-
-const capturedAt = new Date().toISOString();
-const utilityReadData = {
-  publicApiVersions: captures.publicApiVersions.result.payload.data?.publicApiVersions ?? null,
-  node: captures.nodeNoData.result.payload.data?.node ?? null,
-  nodes: captures.nodeNoData.result.payload.data?.nodes ?? null,
-  domain: captures.jobDomainNoData.result.payload.data?.domain ?? null,
-  job: captures.jobDomainNoData.result.payload.data?.job ?? null,
-  backupRegion: captures.backupRegion.result.payload.data?.backupRegion ?? null,
-  taxonomy: {
-    emptySearch: captures.taxonomyEmptySearch.result.payload.data?.taxonomy?.categories ?? null,
-    catalogFirstPage: captures.taxonomyCatalogFirstPage.result.payload.data?.taxonomy?.categories ?? null,
-    catalogNextPage: captures.taxonomyCatalogNextPage.result.payload.data?.taxonomy?.categories ?? null,
-    apparelSearch: captures.taxonomySearchApparel.result.payload.data?.taxonomy?.categories ?? null,
+  adminPlatformUtilityReads: {
+    query: utilityReadsDocument,
+    variables: utilityReadsVariables,
+    result: await runGraphqlCapture(utilityReadsDocument, utilityReadsVariables),
   },
 };
+
+const byIdNotFoundCapture = await captureByIdNotFoundCases();
+const capturedAt = new Date().toISOString();
 const utilityUpstreamCalls = [
+  {
+    operationName: 'BackupRegionAccessScopes',
+    variables: {},
+    query: backupRegionAccessScopesHydrateQuery,
+    response: {
+      status: captures.backupRegionAccessScopesHydrate.result.status,
+      body: captures.backupRegionAccessScopesHydrate.result.payload,
+    },
+  },
+  {
+    operationName: 'BackupRegionMarketsHydrate',
+    variables: captures.backupRegionMarketsHydrate.variables,
+    query: backupRegionMarketsHydrateQuery,
+    response: {
+      status: captures.backupRegionMarketsHydrate.result.status,
+      body: captures.backupRegionMarketsHydrate.result.payload,
+    },
+  },
+  {
+    operationName: 'BackupRegionCurrentHydrate',
+    variables: {},
+    query: backupRegionCurrentHydrateQuery,
+    response: {
+      status: captures.backupRegionCurrentHydrate.result.status,
+      body: captures.backupRegionCurrentHydrate.result.payload,
+    },
+  },
   {
     operationName: 'SupportedNodeRead',
     variables: captures.supportedNodes.variables,
-    query: 'sha:har-525-hand-synthesized-admin-platform',
+    query: supportedNodeReadsDocument,
     response: {
       status: 200,
       body: {
@@ -1008,18 +1229,11 @@ const utilityUpstreamCalls = [
   },
   {
     operationName: 'AdminPlatformUtilityReads',
-    variables: {
-      ids: ['gid://shopify/Product/0', 'gid://shopify/Job/0', 'gid://shopify/Domain/0'],
-      domainId: 'gid://shopify/Domain/0',
-      jobId: 'gid://shopify/Job/0',
-      taxonomyAfter: 'eyJpZCI6ODUyfQ==',
-    },
-    query: 'sha:har-525-hand-synthesized-admin-platform',
+    variables: captures.adminPlatformUtilityReads.variables,
+    query: utilityReadsDocument,
     response: {
-      status: 200,
-      body: {
-        data: utilityReadData,
-      },
+      status: captures.adminPlatformUtilityReads.result.status,
+      body: captures.adminPlatformUtilityReads.result.payload,
     },
   },
 ];
@@ -1027,7 +1241,7 @@ const taxonomyHierarchyUpstreamCalls = [
   {
     operationName: 'AdminPlatformTaxonomyHierarchyNodeReads',
     variables: {},
-    query: 'sha:har-525-hand-synthesized-admin-platform',
+    query: taxonomyHierarchyDocument,
     response: {
       status: 200,
       body: captures.taxonomyHierarchyAndNodeReads.result.payload,
@@ -1063,10 +1277,21 @@ const taxonomyHierarchyOutput = {
   },
   upstreamCalls: taxonomyHierarchyUpstreamCalls,
 };
+const byIdNotFoundOutput = {
+  capturedAt,
+  storeDomain,
+  apiVersion,
+  cases: byIdNotFoundCapture.cases,
+  upstreamCalls: byIdNotFoundCapture.upstreamCalls,
+};
 
 await mkdir(outputDir, { recursive: true });
+await writeFile(backupRegionUpdateIdempotentDocumentPath, backupRegionUpdateCurrentCountryMutation, 'utf8');
 await writeFile(outputPath, `${JSON.stringify(captureOutput, null, 2)}\n`, 'utf8');
 await writeFile(taxonomyHierarchyOutputPath, `${JSON.stringify(taxonomyHierarchyOutput, null, 2)}\n`, 'utf8');
+await writeFile(byIdNotFoundOutputPath, `${JSON.stringify(byIdNotFoundOutput, null, 2)}\n`, 'utf8');
 
+console.log(`Wrote ${backupRegionUpdateIdempotentDocumentPath}`);
 console.log(`Wrote ${outputPath}`);
 console.log(`Wrote ${taxonomyHierarchyOutputPath}`);
+console.log(`Wrote ${byIdNotFoundOutputPath}`);

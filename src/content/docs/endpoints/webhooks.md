@@ -30,7 +30,8 @@ Mutation roots:
 Webhook subscription reads are backed by normalized `webhookSubscriptions` state plus `webhookSubscriptionOrder`:
 
 - Snapshot mode returns `null` for unknown `webhookSubscription(id:)`, an empty `webhookSubscriptions` connection, and `{ count: 0, precision: "EXACT" }` for `webhookSubscriptionsCount` when no records are present.
-- Local records preserve captured fields: `id`, `topic`, `uri`, `name`, `format`, `includeFields`, `metafieldNamespaces`, `metafields`, `filter`, `createdAt`, `updatedAt`, and deprecated endpoint-specific fields for HTTP, EventBridge, and Pub/Sub endpoints.
+- Local records preserve captured fields: `id`, `topic`, `uri`, `name`, `format`, `includeFields`, `metafieldNamespaces`, `metafields`, `filter`, `apiVersion`, `createdAt`, `updatedAt`, and deprecated endpoint-specific fields for HTTP, EventBridge, and Pub/Sub endpoints.
+- `apiVersion` projections use the proxy's maintained Admin GraphQL version inventory. Known supported handles report `supported: true`, explicit preview handles such as `2026-07` and `unstable` report `supported: false`, and unknown/future/typo handles are preserved but not marked supported.
 - `webhookSubscriptions(...)` uses shared connection helpers for `nodes`, `edges`, selected `pageInfo`, stable synthetic cursors, `first`/`last`, `before`/`after`, `sortKey: ID`, and `reverse`.
 - Catalog filters cover captured Shopify filters for `uri`, deprecated `callbackUrl`, `format`, and `topics`.
 - `webhookSubscriptionsCount(...)` supports `limit` precision semantics and captured query filtering for IDs, topic, format, URI, and endpoint fragments.
@@ -38,12 +39,12 @@ Webhook subscription reads are backed by normalized `webhookSubscriptions` state
 
 Subscription lifecycle mutations stage locally and retain the original raw mutation for commit replay:
 
-- `webhookSubscriptionCreate` rejects unknown or non-public `WebhookSubscriptionTopic` values before resolver side effects. Accepted public topics stage a synthetic local `WebhookSubscription` record after address, format, name, duplicate, filter, and namespace validation passes.
+- `webhookSubscriptionCreate` rejects blank or malformed `WebhookSubscriptionTopic` values before resolver side effects, but it does not freeze topic validation to a captured enum snapshot. Non-empty uppercase enum-shaped topic names stage a synthetic local `WebhookSubscription` record after address, format, name, duplicate, filter, and namespace validation passes.
 - `webhookSubscriptionUpdate` updates an existing staged or hydrated subscription in place, preserving `topic` and `createdAt` while replacing supported mutable fields.
 - `webhookSubscriptionDelete` records local deletion state. Downstream detail reads return `null`, and list/count reads omit deleted subscriptions.
 - `$app:<suffix>` `metafieldNamespaces` entries resolve through request-owned `x-shopify-draft-proxy-api-client-id` when available. Without a caller API client ID, the proxy preserves `$app:` input unchanged rather than fabricating an identity.
 - `metafields` accepts and stores the webhook payload metafield identifier list as `[{ namespace, key }]`. Create/update payloads, detail reads, and list reads project the stored identifiers, and omitted input projects Shopify's non-null empty list `[]`.
-- Unified `uri` input derives endpoint projections: HTTPS URIs keep the same top-level deprecated `callbackUrl` and become `WebhookHttpEndpoint.callbackUrl`; valid `pubsub://project:topic` URIs and Shopify partner EventBridge ARNs keep the real address in `uri` and `endpoint`, while the top-level deprecated `callbackUrl` returns Shopify's `https://eventbridge.arn` placeholder.
+- Unified `uri` input derives endpoint projections: HTTPS URIs keep the same top-level deprecated `callbackUrl` and become `WebhookHttpEndpoint.callbackUrl`; valid `pubsub://project:topic` URIs and Shopify partner EventBridge ARNs keep the real address in `uri` and `endpoint`, while the top-level deprecated `callbackUrl` is omitted for cloud endpoints.
 - Dedicated Pub/Sub create/update roots normalize `pubSubProject` plus `pubSubTopic` into the stored `pubsub://project:topic` URI while preserving dedicated validation field paths.
 - Pub/Sub GCP project validation accepts all-numeric project numbers in addition to lowercase alpha-start project IDs. Topic validation requires an ASCII letter first character and accepts literal percent signs when represented by a valid percent-encoded `%25` sequence; encoded invalid characters such as `%20` are rejected like Shopify.
 - Dedicated EventBridge create/update roots normalize `arn` into the stored URI/address while preserving dedicated validation field paths.
@@ -59,6 +60,7 @@ Validation and no-side-effect behavior:
 - Callback address byte-size validation uses Shopify's MySQL text-column maximum of 65,535 bytes.
 - Filter byte-size validation uses the same 65,535-byte maximum and takes precedence over filter syntax validation.
 - Shop-owned callback host validation uses effective shop state or a LiveHybrid upstream shop baseline when available. The proxy rejects the effective non-static `primaryDomain.host` as shop-owned and keeps exact-host matching only.
+- When a webhook record has no hydrated API-version metadata, the local `apiVersion` projection derives `handle` and `displayName` from the Admin route or `x-shopify-draft-proxy-api-version`; `supported` still comes from the maintained version inventory.
 
 Supported create/update/delete operations do not deliver webhook payloads and do not create, update, or unsubscribe real Shopify webhook subscriptions at runtime.
 
@@ -110,6 +112,7 @@ Supported create/update/delete operations do not deliver webhook payloads and do
 - `scripts/capture-webhook-subscription-metafields-conformance.ts`
 - `scripts/capture-webhook-subscription-uri-whitespace.ts`
 - `scripts/capture-webhook-subscription-address-byte-size-validation.ts`
+- Runtime coverage: `cargo test --test graphql_routes admin_graphql_webhooks::`
 
 ### Validation
 
@@ -120,4 +123,5 @@ Supported create/update/delete operations do not deliver webhook payloads and do
 - `corepack pnpm parity -- webhook-subscription-metafields-lifecycle`
 - `corepack pnpm parity -- eventbridge-cloud-format-json-only`
 - `corepack pnpm parity -- gcp-project-topic-char-rules`
+- `cargo test --test graphql_routes admin_graphql_webhooks::`
 - `corepack pnpm conformance:check`

@@ -49,11 +49,12 @@ Mutation import behavior:
 
 - `bulkOperationRunMutation(mutation:, stagedUploadPath:, clientIdentifier:, groupObjects:)` dispatches by the root field and arguments, independent of the client's GraphQL operation name, and accepts any single inner mutation root except `bulkOperationRunMutation` and `bulkOperationRunQuery`, matching Shopify's top-level analyzer.
 - Submitted inner mutation text is measured with the same escaped UTF-8 storage limit. Sizes above 65,535 bytes return `field: ["query"]`, message `is too large (<bytes> bytes; maximum is 65535 bytes)`, `code: INVALID_MUTATION`, `bulkOperation: null`, and no staged job.
-- A fully local import requires a proxy staged upload, a valid single-root mutation, an implemented Admin API mutation root with `stage-locally` execution, and a matching local mutation handler.
+- Inner mutation selection validation uses the captured Admin output schema to reject more than one selected connection field before staging. Nested connection documents currently surface Shopify's count error before the deeper nesting message, so they also return `field: ["mutation"]`, message `Bulk mutations cannot contain more than 1 connection.`, `code: null`, `bulkOperation: null`, and no staged job. A single shallow connection selection is accepted.
+- A fully local import requires a proxy staged upload, a valid single-root mutation, an implemented Admin API mutation root with `stage-locally` execution, and a matching local mutation handler. The `stagedUploadPath` must be a key produced by the instance's `stagedUploadsCreate` state; literal placeholder paths such as `valid` are treated as missing uploads.
 - For locally executable roots, each JSONL line is parsed as variables, stages through the same domain handler used by normal GraphQL mutations, and writes one result JSONL row.
 - Accepted roots without a local executor still create an observable local BulkOperation job, but each JSONL line is sent upstream through the unsupported-mutation passthrough escape hatch and logged as `Proxied`. Those lines are Shopify-side effects and do not create local downstream read-after-write state.
 - The proxy records one staged mutation-log entry per locally handled JSONL line, in original line order, with replay bodies containing the inner mutation and that line's variables. The outer bulk request is retained as audit metadata rather than as an additional commit entry.
-- Missing staged upload objects, malformed inner mutation documents, non-mutation operations, multiple top-level mutation fields, disallowed bulk roots, oversized uploads, invalid `clientIdentifier`, and in-progress jobs return Shopify-like userErrors without staging a successful job. Malformed JSONL after a valid import starts stages a failed job with a result artifact for observability.
+- Missing staged upload objects, malformed inner mutation documents, non-mutation operations, multiple top-level mutation fields, disallowed bulk roots, zero-byte uploads, oversized uploads, invalid `clientIdentifier`, and in-progress jobs return Shopify-like userErrors without staging a successful job. Zero-byte uploads return `field: null`, message `The input file is empty.`, `code: INVALID_STAGED_UPLOAD_FILE`, and `bulkOperation: null` before same-type in-progress throttling. Malformed JSONL after a valid import starts stages a failed job with a result artifact for observability.
 
 Cancel behavior:
 
@@ -94,6 +95,8 @@ Meta API behavior:
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-allowed-roots.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-created-status.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-client-identifier-validation.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-connection-validators.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-empty-file.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-concurrency-limit.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-concurrency-limit.json`
 - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
@@ -113,6 +116,8 @@ Meta API behavior:
 - `config/parity-specs/bulk-operations/run-mutation-allowed-roots.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-created-status.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-client-identifier-validation.json`
+- `config/parity-specs/bulk-operations/bulk-operation-run-mutation-connection-validators.json`
+- `config/parity-specs/bulk-operations/bulk-operation-run-mutation-empty-file.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-query-concurrency-limit.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-concurrency-limit.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-operation-in-progress.json`
@@ -125,6 +130,7 @@ Meta API behavior:
 - `corepack pnpm parity -- bulk-operation-storage-byte-limit`
 - `corepack pnpm parity -- bulk-operation-name-independent-run-roots`
 - `corepack pnpm parity -- bulk-operation-run-mutation-user-errors`
+- `corepack pnpm parity -- bulk-operation-run-mutation-connection-validators`
 - `corepack pnpm parity -- bulk-operation-run-query-concurrency-limit`
 - `corepack pnpm parity -- bulk-operation-run-mutation-concurrency-limit`
 - `corepack pnpm parity -- bulk-operations-read-arg-validation`

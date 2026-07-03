@@ -171,6 +171,25 @@ async function createCollection(runId, sortOrder) {
   return { variables, response, id };
 }
 
+async function createSmartCollection(runId) {
+  const variables = {
+    input: {
+      title: `Hermes Reorder Smart ${runId}`,
+      ruleSet: {
+        appliedDisjunctively: false,
+        rules: [{ column: 'TITLE', relation: 'CONTAINS', condition: `reorder-smart-${runId}` }],
+      },
+    },
+  };
+  const response = await runGraphql(createCollectionMutation, variables);
+  const id = response.data?.collectionCreate?.collection?.id ?? null;
+  if (!id) {
+    throw new Error(`Smart collection create did not return an id: ${JSON.stringify(response)}`);
+  }
+  collectionIds.push(id);
+  return { variables, response, id };
+}
+
 async function addProducts(collectionId, productIds) {
   const variables = { id: collectionId, productIds };
   const response = await runGraphql(addProductsMutation, variables);
@@ -286,6 +305,28 @@ async function captureNonManualScenario(runId, firstProduct, secondProduct) {
   };
 }
 
+async function captureSmartScenario(runId, firstProduct) {
+  const create = await createSmartCollection(runId);
+  const hydrateCall = await captureHydrate(create.id, firstProduct.id);
+  const sortOrderHydrateCall = await captureSortOrderHydrate(create.id);
+  const mutation = {
+    variables: {
+      id: create.id,
+      moves: [{ id: firstProduct.id, newPosition: '0' }],
+    },
+    response: await runGraphql(reorderDocument, {
+      id: create.id,
+      moves: [{ id: firstProduct.id, newPosition: '0' }],
+    }),
+  };
+  return {
+    create,
+    hydrateCall,
+    sortOrderHydrateCall,
+    mutation,
+  };
+}
+
 await mkdir(outputDir, { recursive: true });
 
 const runId = `${Date.now()}`;
@@ -295,6 +336,7 @@ const [firstProduct, secondProduct] = pickSeedProducts(seedProductsResponse);
 try {
   const manualSorted = await captureManualScenario(runId, firstProduct, secondProduct);
   const nonManualSorted = await captureNonManualScenario(runId, firstProduct, secondProduct);
+  const smartCollection = await captureSmartScenario(runId, firstProduct);
 
   const payload = {
     storeDomain,
@@ -315,6 +357,10 @@ try {
       downstreamReadVariables: nonManualSorted.downstreamReadVariables,
       downstreamRead: nonManualSorted.downstreamRead,
     },
+    smartCollection: {
+      create: smartCollection.create,
+      mutation: smartCollection.mutation,
+    },
     upstreamCalls: [
       manualSorted.hydrateCall,
       manualSorted.sortOrderHydrateCall,
@@ -322,6 +368,8 @@ try {
       nonManualSorted.hydrateCall,
       nonManualSorted.sortOrderHydrateCall,
       nonManualSorted.downstreamCall,
+      smartCollection.hydrateCall,
+      smartCollection.sortOrderHydrateCall,
     ],
   };
 
@@ -337,6 +385,7 @@ try {
         seedProducts: [firstProduct, secondProduct],
         manualCollectionId: manualSorted.create.id,
         nonManualCollectionId: nonManualSorted.create.id,
+        smartCollectionId: smartCollection.create.id,
       },
       null,
       2,

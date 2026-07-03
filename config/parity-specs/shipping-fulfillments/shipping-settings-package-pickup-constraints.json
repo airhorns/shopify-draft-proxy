@@ -19,14 +19,14 @@
     "no-upstream-passthrough"
   ],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-fulfillments/shipping-settings-package-pickup-constraints.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/shipping-settings-package-pickup-constraints.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/shipping-fulfillments/shipping-settings-availability.graphql"
   },
   "runtimeTestFiles": ["tests/integration/shipping-settings-flow.test.ts"],
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-320 executable parity coverage for shipping settings: the runner seeds captured carrier services and delivery-profile locations, replays availability reads, replays controlled local-pickup enable/read/disable/unknown-location branches, and compares shipping-package unknown-id RESOURCE_NOT_FOUND envelopes. The runtime integration test remains the no-upstream-passthrough/meta-log proof for successful local shipping-package staging because Admin GraphQL 2025-01 exposes no package read root for downstream comparison.",
+  "notes": "Executable parity coverage for shipping settings: the runner seeds captured carrier services and delivery-profile locations, replays availability reads, replays controlled local-pickup enable/read/disable/unknown-location branches, and compares shipping-package unknown-id RESOURCE_NOT_FOUND envelopes. The runtime integration test remains the no-upstream-passthrough/meta-log proof for successful local shipping-package staging because Admin GraphQL exposes no package read root for downstream comparison.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -95,6 +95,16 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/shipping-fulfillments/shipping-local-pickup-unknown-enable.graphql",
           "variablesCapturePath": "$.captures.unknownLocationEnable.variables"
+        }
+      },
+      {
+        "name": "local-pickup-disable-unknown-location-user-errors",
+        "capturePath": "$.captures.unknownLocationDisable.result.payload.data.locationLocalPickupDisable",
+        "proxyPath": "$.data.locationLocalPickupDisable",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/shipping-local-pickup-disable.graphql",
+          "variablesCapturePath": "$.captures.unknownLocationDisable.variables"
         }
       },
       {

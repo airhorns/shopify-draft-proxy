@@ -50,3 +50,12 @@ pub(in crate::proxy) fn set_relation(
         }
     }
 }
+
+pub(in crate::proxy) fn string_array_from_json(value: &Value) -> Vec<String> {
+    value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|value| value.as_str().map(str::to_string))
+        .collect()
+}

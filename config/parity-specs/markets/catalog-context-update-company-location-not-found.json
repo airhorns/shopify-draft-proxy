@@ -1,0 +1,55 @@
+{
+  "scenarioId": "catalog-context-update-company-location-not-found",
+  "operationNames": ["companyCreate", "catalogCreate", "catalogContextUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-context-update-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-context-update-company-create.graphql",
+    "variablesCapturePath": "$.cases[15].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-company-location-catalog",
+        "capturePath": "$.cases[17].response.payload.data.catalogCreate.userErrors",
+        "proxyPath": "$.data.catalogCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-company-catalog-create.graphql",
+          "variables": {
+            "input": {
+              "title": { "fromCapturePath": "$.cases[17].variables.input.title" },
+              "status": "ACTIVE",
+              "context": {
+                "companyLocationIds": [{ "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id" }]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "company-location-not-found-payload",
+        "capturePath": "$.cases[20].response.payload.data.catalogContextUpdate",
+        "proxyPath": "$.data.catalogContextUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-company-location-add-remove.graphql",
+          "variables": {
+            "catalogId": {
+              "fromProxyResponse": "setup-company-location-catalog",
+              "path": "$.data.catalogCreate.catalog.id"
+            },
+            "contextsToAdd": { "fromCapturePath": "$.cases[20].variables.contextsToAdd" },
+            "contextsToRemove": { "fromCapturePath": "$.cases[20].variables.contextsToRemove" }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify Admin 2026-04 capture proves missing company-location context IDs return typed CatalogUserError COMPANY_LOCATION_NOT_FOUND at indexed contextsToAdd/companyLocationIds and contextsToRemove/companyLocationIds paths with a null catalog payload."
+}

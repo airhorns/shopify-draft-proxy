@@ -1,0 +1,24 @@
+mutation MetafieldsSetTypeFromDefinition($metafields: [MetafieldsSetInput!]!) {
+  metafieldsSet(metafields: $metafields) {
+    metafields {
+      id
+      namespace
+      key
+      type
+      value
+      definition {
+        id
+        namespace
+        key
+        type {
+          name
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

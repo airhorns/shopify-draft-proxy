@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/store-credit-account-parity.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/customers_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/customers.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/storeCreditCustomerCreate-parity.graphql",
     "variablesCapturePath": "$.setup.createCustomer.request.variables"
@@ -52,6 +52,43 @@
             },
             "creditInput": {
               "fromCapturePath": "$.setup.createAccountCredit.request.variables.creditInput"
+            }
+          }
+        }
+      },
+      {
+        "name": "credit-missing-account-zero-amount-account-not-found-data",
+        "capturePath": "$.validations.missingAccountZeroCredit.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountCredit-parity.graphql",
+          "variablesCapturePath": "$.validations.missingAccountZeroCredit.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "debit-missing-account-zero-amount-account-not-found-data",
+        "capturePath": "$.validations.missingAccountZeroDebit.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountDebit-parity.graphql",
+          "variablesCapturePath": "$.validations.missingAccountZeroDebit.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "credit-past-expiry-negative-amount-data",
+        "capturePath": "$.validations.pastExpiryNegativeCredit.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountCredit-parity.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "owner-id-account-create-data",
+              "path": "$.data.storeCreditAccountCredit.storeCreditAccountTransaction.account.id"
+            },
+            "creditInput": {
+              "fromCapturePath": "$.validations.pastExpiryNegativeCredit.request.variables.creditInput"
             }
           }
         }
@@ -432,5 +469,5 @@
       }
     ]
   },
-  "notes": "Captures a disposable-customer store-credit flow. The recorder uses storeCreditAccountCredit with the customer id to make Shopify create a real store credit account, captures account-ID validation branches and owner-ID validation branches, then replays account-ID credit/debit mutations plus downstream direct/nested balance reads. The 2026-04 refresh additionally records creditInput.notify acceptance, public-schema attribution rejection, debitInput unsupported notify/attribution rejection, debitInput unsupported currency asymmetry, debitInput zero/negative amount wording, CREDIT_LIMIT_EXCEEDED for credits at/above Shopify's captured account limit, a CHF owner-id credit success branch outside the old local allow-list, and result-only USDC/XXX credit inputs returning top-level CURRENCY_CODE_INVALID errors. Expected differences are limited to live Shopify IDs versus proxy-local synthetic IDs for locally created customers/accounts and GraphQL location offsets for validation replay documents."
+  "notes": "Captures a disposable-customer store-credit flow. The recorder uses storeCreditAccountCredit with the customer id to make Shopify create a real store credit account, captures account-ID validation branches and owner-ID validation branches, then replays account-ID credit/debit mutations plus downstream direct/nested balance reads. The 2026-04 refresh additionally records creditInput.notify acceptance, public-schema attribution rejection, debitInput unsupported notify/attribution rejection, debitInput unsupported currency asymmetry, debitInput zero/negative amount wording, ACCOUNT_NOT_FOUND precedence over zero amount for missing credit/debit account IDs, EXPIRES_AT_IN_PAST precedence over negative credit amount for an existing account, CREDIT_LIMIT_EXCEEDED for credits at/above Shopify's captured account limit, a CHF owner-id credit success branch outside the old local allow-list, and result-only USDC/XXX credit inputs returning top-level CURRENCY_CODE_INVALID errors. Expected differences are limited to live Shopify IDs versus proxy-local synthetic IDs for locally created customers/accounts and GraphQL location offsets for validation replay documents."
 }

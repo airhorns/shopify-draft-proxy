@@ -1,0 +1,9 @@
+mutation SavedSearchDeleteMissingId {
+  savedSearchDelete(input: {}) {
+    deletedSavedSearchId
+    userErrors {
+      field
+      message
+    }
+  }
+}

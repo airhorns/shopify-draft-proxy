@@ -16,7 +16,7 @@ type CapturedCase = {
 };
 
 type CleanupEntry = {
-  kind: 'catalog' | 'market';
+  kind: 'catalog' | 'market' | 'company';
   id: string;
   response: ConformanceGraphqlResult;
 };
@@ -40,6 +40,18 @@ const catalogCreateDocument = await readFile(
   path.join('config', 'parity-requests', 'markets', 'catalog-context-update-catalog-create.graphql'),
   'utf8',
 );
+const companyCreateDocument = await readFile(
+  path.join('config', 'parity-requests', 'markets', 'catalog-context-update-company-create.graphql'),
+  'utf8',
+);
+const companyLocationCreateDocument = await readFile(
+  path.join('config', 'parity-requests', 'markets', 'catalog-context-update-company-location-create.graphql'),
+  'utf8',
+);
+const companyCatalogCreateDocument = await readFile(
+  path.join('config', 'parity-requests', 'markets', 'catalog-context-update-company-catalog-create.graphql'),
+  'utf8',
+);
 const noArgsDocument = await readFile(
   path.join('config', 'parity-requests', 'markets', 'catalog-context-update-no-args.graphql'),
   'utf8',
@@ -58,6 +70,18 @@ const catalogNotFoundDocument = await readFile(
 );
 const readDocument = await readFile(
   path.join('config', 'parity-requests', 'markets', 'catalog-context-update-read.graphql'),
+  'utf8',
+);
+const companyLocationUpdateDocument = await readFile(
+  path.join('config', 'parity-requests', 'markets', 'catalog-context-update-company-location-add-remove.graphql'),
+  'utf8',
+);
+const companyLocationReadDocument = await readFile(
+  path.join('config', 'parity-requests', 'markets', 'catalog-context-update-company-read.graphql'),
+  'utf8',
+);
+const driverMismatchDocument = await readFile(
+  path.join('config', 'parity-requests', 'markets', 'catalog-context-update-driver-mismatch.graphql'),
   'utf8',
 );
 
@@ -87,10 +111,24 @@ mutation CatalogContextUpdateMarketCleanup($id: ID!) {
 }
 `;
 
+const companyDeleteDocument = `#graphql
+mutation CatalogContextUpdateCompanyCleanup($id: ID!) {
+  companyDelete(id: $id) {
+    deletedCompanyId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
+`;
+
 const cases: CapturedCase[] = [];
 const cleanup: CleanupEntry[] = [];
 const createdCatalogIds: string[] = [];
 const createdMarketIds: string[] = [];
+const createdCompanyIds: string[] = [];
 const suffix = new Date().toISOString().replace(/\D/gu, '').slice(0, 14);
 
 function assertGraphqlOk(label: string, result: ConformanceGraphqlResult): void {
@@ -157,6 +195,27 @@ function nestedId(result: ConformanceGraphqlResult, root: string, field: string)
   return id;
 }
 
+function stringAtPath(value: unknown, pathParts: Array<string | number>, label: string): string {
+  let current = value;
+  for (const pathPart of pathParts) {
+    if (typeof pathPart === 'number') {
+      if (!Array.isArray(current)) {
+        throw new Error(`${label} expected array before ${pathPart}: ${JSON.stringify(value)}`);
+      }
+      current = current[pathPart];
+    } else {
+      if (typeof current !== 'object' || current === null || Array.isArray(current)) {
+        throw new Error(`${label} expected object before ${pathPart}: ${JSON.stringify(value)}`);
+      }
+      current = (current as Record<string, unknown>)[pathPart];
+    }
+  }
+  if (typeof current !== 'string' || current.length === 0) {
+    throw new Error(`${label} missing string at ${pathParts.join('.')}: ${JSON.stringify(value)}`);
+  }
+  return current;
+}
+
 async function captureCase(name: string, query: string, variables: Record<string, unknown>): Promise<CapturedCase> {
   const response = await runGraphqlRequest(query, variables);
   assertGraphqlOk(name, response);
@@ -201,6 +260,62 @@ async function createCatalog(label: string, marketIds: string[]): Promise<string
   return id;
 }
 
+async function createCompany(label: string): Promise<{ companyId: string; locationId: string }> {
+  const capture = await captureCase(`${label}CompanyCreate`, companyCreateDocument, {
+    input: {
+      company: {
+        name: `Catalog Context ${label} Company ${suffix}`,
+        externalId: `catalog-context-${label.toLowerCase().replace(/\s+/gu, '-')}-${suffix}`,
+      },
+      companyLocation: {
+        name: `Catalog Context ${label} HQ`,
+        billingAddress: {
+          address1: '1 Catalog Context Way',
+          city: 'Ottawa',
+          countryCode: 'CA',
+        },
+      },
+    },
+  });
+  assertNoUserErrors(label, capture.response, 'companyCreate');
+  const companyId = nestedId(capture.response, 'companyCreate', 'company');
+  const locationId = stringAtPath(
+    capture.response.payload,
+    ['data', 'companyCreate', 'company', 'locations', 'nodes', 0, 'id'],
+    `${label} companyCreate location`,
+  );
+  createdCompanyIds.push(companyId);
+  return { companyId, locationId };
+}
+
+async function createCompanyLocation(label: string, companyId: string): Promise<string> {
+  const capture = await captureCase(`${label}CompanyLocationCreate`, companyLocationCreateDocument, {
+    companyId,
+    input: {
+      name: `Catalog Context ${label} Branch`,
+      phone: '+16135550111',
+    },
+  });
+  assertNoUserErrors(label, capture.response, 'companyLocationCreate');
+  return nestedId(capture.response, 'companyLocationCreate', 'companyLocation');
+}
+
+async function createCompanyCatalog(label: string, companyLocationIds: string[]): Promise<string> {
+  const capture = await captureCase(`${label}CompanyCatalogCreate`, companyCatalogCreateDocument, {
+    input: {
+      title: `Catalog Context ${label} Company Catalog ${suffix}`,
+      status: 'ACTIVE',
+      context: {
+        companyLocationIds,
+      },
+    },
+  });
+  assertNoUserErrors(label, capture.response, 'catalogCreate');
+  const id = nestedId(capture.response, 'catalogCreate', 'catalog');
+  createdCatalogIds.push(id);
+  return id;
+}
+
 async function cleanupCatalog(id: string): Promise<void> {
   const response = await runGraphqlRequest(catalogDeleteDocument, { id });
   cleanup.push({ kind: 'catalog', id, response });
@@ -209,6 +324,11 @@ async function cleanupCatalog(id: string): Promise<void> {
 async function cleanupMarket(id: string): Promise<void> {
   const response = await runGraphqlRequest(marketDeleteDocument, { id });
   cleanup.push({ kind: 'market', id, response });
+}
+
+async function cleanupCompany(id: string): Promise<void> {
+  const response = await runGraphqlRequest(companyDeleteDocument, { id });
+  cleanup.push({ kind: 'company', id, response });
 }
 
 let captureFailure: unknown = null;
@@ -267,6 +387,73 @@ try {
     'CATALOG_NOT_FOUND',
     ['catalogId'],
   );
+
+  const companyContext = await createCompany('Company Context');
+  const secondCompanyLocationId = await createCompanyLocation('Company Context', companyContext.companyId);
+  const companyCatalogId = await createCompanyCatalog('Company Context', [companyContext.locationId]);
+  const companyLocationAddRemove = await captureCase(
+    'catalogContextUpdateCompanyLocationAddRemove',
+    companyLocationUpdateDocument,
+    {
+      catalogId: companyCatalogId,
+      contextsToAdd: {
+        companyLocationIds: [secondCompanyLocationId],
+      },
+      contextsToRemove: {
+        companyLocationIds: [companyContext.locationId],
+      },
+    },
+  );
+  assertNoUserErrors(
+    'catalogContextUpdate company location add/remove',
+    companyLocationAddRemove.response,
+    'catalogContextUpdate',
+  );
+  await captureCase('catalogReadAfterCompanyLocationUpdate', companyLocationReadDocument, { id: companyCatalogId });
+
+  const companyLocationNotFound = await captureCase(
+    'catalogContextUpdateCompanyLocationNotFound',
+    companyLocationUpdateDocument,
+    {
+      catalogId: companyCatalogId,
+      contextsToAdd: {
+        companyLocationIds: ['gid://shopify/CompanyLocation/999999999999'],
+      },
+      contextsToRemove: {
+        companyLocationIds: ['gid://shopify/CompanyLocation/999999999998'],
+      },
+    },
+  );
+  assertUserError(
+    'catalogContextUpdate company location add not found',
+    companyLocationNotFound.response,
+    'catalogContextUpdate',
+    'COMPANY_LOCATION_NOT_FOUND',
+    ['contextsToAdd', 'companyLocationIds', '0'],
+  );
+  assertUserError(
+    'catalogContextUpdate company location remove not found',
+    companyLocationNotFound.response,
+    'catalogContextUpdate',
+    'COMPANY_LOCATION_NOT_FOUND',
+    ['contextsToRemove', 'companyLocationIds', '0'],
+  );
+
+  const mismatchMarketId = await createMarket('Driver Mismatch');
+  const mismatchCatalogId = await createCatalog('Driver Mismatch', [mismatchMarketId]);
+  const driverMismatch = await captureCase('catalogContextUpdateDriverMismatch', driverMismatchDocument, {
+    catalogId: mismatchCatalogId,
+    contextsToAdd: {
+      companyLocationIds: [companyContext.locationId],
+    },
+  });
+  assertUserError(
+    'catalogContextUpdate driver mismatch',
+    driverMismatch.response,
+    'catalogContextUpdate',
+    'CONTEXT_DRIVER_MISMATCH',
+    ['contextsToAdd', 'companyLocationIds'],
+  );
 } catch (error) {
   captureFailure = error;
 } finally {
@@ -275,6 +462,9 @@ try {
   }
   for (const id of createdMarketIds.slice().reverse()) {
     await cleanupMarket(id);
+  }
+  for (const id of createdCompanyIds.slice().reverse()) {
+    await cleanupCompany(id);
   }
 }
 
@@ -293,13 +483,14 @@ await writeFile(
       storeDomain,
       apiVersion,
       scope:
-        'catalogContextUpdate required-context validation, remove-only update, duplicate market add behavior, and catalog-not-found typing',
+        'catalogContextUpdate required-context validation, remove-only update, duplicate market add behavior, catalog-not-found typing, company-location context updates, driver mismatch validation, and catalogsCount after catalog writes',
       setup: {
         suffix,
         createdMarketIds,
         createdCatalogIds,
+        createdCompanyIds,
         cleanup:
-          'The capture creates disposable markets and MarketCatalogs, records catalogContextUpdate branches, deletes catalogs in reverse creation order, then deletes markets in reverse creation order.',
+          'The capture creates disposable markets, B2B companies, MarketCatalogs, and CompanyLocationCatalogs, records catalogContextUpdate branches, deletes catalogs in reverse creation order, deletes markets in reverse creation order, then deletes companies in reverse creation order.',
       },
       cases,
       cleanup,

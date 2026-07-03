@@ -9,15 +9,13 @@
     "null-empty-behavior",
     "deprecated-root"
   ],
-  "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-detail.json"
-  ],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/collection-detail.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/collection-detail-read.graphql",
     "variablesPath": "config/parity-requests/products/collection-detail-read.variables.json"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Uses the captured collection detail fixture to seed the local collection graph, then replays equivalent selected-field reads through collectionByIdentifier id/handle branches and the deprecated collectionByHandle root. collectionByIdentifier customId remains intentionally null in local behavior until a collection unique-metafield fixture exists. Captured product connection cursors now compare strictly because the cassette-backed passthrough returns the recorded Shopify payload. The root-specific local replay targets use the custom collection slice because the smart collection fixture captures only the first product page, not enough local membership state to prove productsCount or hasProduct.",
+  "notes": "Uses the captured collection detail fixture to seed the local collection graph, then replays equivalent selected-field reads through collectionByIdentifier id/handle branches and the deprecated collectionByHandle root. collectionByIdentifier customId remains intentionally null in local behavior until a collection unique-metafield fixture exists. Captured product connection cursors now compare strictly because the recorded passthrough returns the Shopify payload. The root-specific local replay targets use the custom collection slice because the smart collection fixture captures only the first product page, not enough local membership state to prove productsCount or hasProduct.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -55,7 +53,7 @@
         "upstreamCapturePath": null,
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/collection-handle-read.graphql",
-          "variablesPath": "config/parity-requests/products/collection-identifier-read.variables.json"
+          "variablesPath": "config/parity-requests/products/collection-handle-read.variables.json"
         }
       }
     ]

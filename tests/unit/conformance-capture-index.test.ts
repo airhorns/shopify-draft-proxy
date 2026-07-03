@@ -1,3 +1,6 @@
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -5,8 +8,14 @@ import {
   loadConformanceCaptureScriptPaths,
   profileConformanceFixtureProvenance,
   renderCaptureIndexMarkdown,
+  retiredConformanceEvidencePaths,
   validateCaptureIndexAgainstScriptFiles,
 } from '../../scripts/conformance-capture-index.js';
+import { isGraphqlDocumentText } from '../../scripts/parity-cassette.js';
+import {
+  findProductsProvenanceFailures,
+  validateProductsParitySpecEvidence,
+} from '../../scripts/protected-evidence-invariants.js';
 
 const repoRoot = new URL('../..', import.meta.url).pathname;
 
@@ -69,5 +78,105 @@ describe('conformance capture index', () => {
       profile.orphanedFixturePaths,
       'every checked-in live Shopify fixture under fixtures/conformance/**/*.json must be declared by a capture index fixtureOutputs entry',
     ).toEqual([]);
+  });
+
+  it('rejects descriptor and local-runtime products evidence in products parity specs', () => {
+    const spec = {
+      scenarioStatus: 'captured',
+      comparisonMode: 'captured-vs-proxy-request',
+      liveCaptureFiles: [
+        'fixtures/conformance/local-runtime/2026-04/products/product-feed-lifecycle-local-runtime.json',
+        'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json',
+      ],
+    };
+
+    const failures = validateProductsParitySpecEvidence('config/parity-specs/products/example.json', spec, () => ({
+      upstreamCalls: [
+        {
+          operationName: 'ProductsHydrateNodes',
+          variables: { ids: ['gid://shopify/Product/1'] },
+          query: 'hand-synthesized from a setup product',
+          response: { status: 200, body: { data: { nodes: [] } } },
+        },
+      ],
+    }));
+
+    expect(failures.map((failure) => failure.message)).toEqual([
+      'products/store-properties parity spec references local-runtime fixture fixtures/conformance/local-runtime/2026-04/products/product-feed-lifecycle-local-runtime.json; remove the synthetic fixture/spec from parity evidence or replace it with live Shopify capture',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json: upstreamCalls[0].query is not a valid GraphQL document: "hand-synthesized from a setup product"',
+    ]);
+  });
+
+  it('rejects local-runtime products evidence even when labeled captured-fixture', () => {
+    const failures = validateProductsParitySpecEvidence(
+      'config/parity-specs/products/example.json',
+      {
+        scenarioStatus: 'captured',
+        comparisonMode: 'captured-fixture',
+        liveCaptureFiles: [
+          'fixtures/conformance/local-runtime/2026-04/products/product-feed-lifecycle-local-runtime.json',
+        ],
+      },
+      () => {
+        throw new Error('fixture loader should not be called for local-runtime products evidence');
+      },
+    );
+
+    expect(failures.map((failure) => failure.message)).toEqual([
+      'products/store-properties parity spec references local-runtime fixture fixtures/conformance/local-runtime/2026-04/products/product-feed-lifecycle-local-runtime.json; remove the synthetic fixture/spec from parity evidence or replace it with live Shopify capture',
+    ]);
+  });
+
+  it('keeps checked-in products strict parity free of local-runtime and descriptor cassettes', () => {
+    expect(findProductsProvenanceFailures(repoRoot)).toEqual([]);
+  });
+
+  it('keeps retired protected evidence absent from disk', () => {
+    const presentRetiredPaths = retiredConformanceEvidencePaths.filter((retiredPath) =>
+      existsSync(path.join(repoRoot, retiredPath)),
+    );
+
+    expect(presentRetiredPaths).toEqual([]);
+  });
+
+  it('rejects synthetic store-properties parity evidence', () => {
+    const specRoot = path.join(repoRoot, 'config/parity-specs/store-properties');
+    const descriptorPattern =
+      /\b(hand-synthesized|cassette-backed|recorded by scripts|local-runtime)\b|^sha(?:256)?:/iu;
+
+    for (const filename of readdirSync(specRoot).filter((entry) => entry.endsWith('.json'))) {
+      const specPath = path.join(specRoot, filename);
+      const spec = JSON.parse(readFileSync(specPath, 'utf8')) as {
+        scenarioId?: string;
+        comparisonMode?: string;
+        liveCaptureFiles?: string[];
+      };
+      if (spec.comparisonMode !== 'captured-vs-proxy-request') {
+        continue;
+      }
+
+      for (const capturePath of spec.liveCaptureFiles ?? []) {
+        expect(capturePath, `${spec.scenarioId} must not use local-runtime parity evidence`).not.toContain(
+          'fixtures/conformance/local-runtime/',
+        );
+        if (!capturePath.includes('/store-properties/')) {
+          continue;
+        }
+
+        const capture = JSON.parse(readFileSync(path.join(repoRoot, capturePath), 'utf8')) as {
+          upstreamCalls?: Array<{ query?: unknown }>;
+        };
+        for (const [index, call] of (capture.upstreamCalls ?? []).entries()) {
+          expect(
+            typeof call.query === 'string' && isGraphqlDocumentText(call.query),
+            `${spec.scenarioId} upstreamCalls[${index}].query must be an exact GraphQL document`,
+          ).toBe(true);
+          expect(
+            call.query,
+            `${spec.scenarioId} upstreamCalls[${index}].query must not be a provenance descriptor`,
+          ).not.toMatch(descriptorPattern);
+        }
+      }
+    }
   });
 });

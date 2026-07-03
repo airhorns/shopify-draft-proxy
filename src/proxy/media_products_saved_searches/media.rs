@@ -12,7 +12,7 @@ pub(in crate::proxy) const MEDIA_PRODUCT_HYDRATE_QUERY: &str = "query MediaProdu
 // LiveHybrid we read the file's `references` from upstream; in replay this
 // matches the recorded cassette call. Both the product `media` nodes and each
 // variant's attached `media` are hydrated so the cascade and downstream variant
-// reads operate on real owner state. (Gleam parity: PR #794 file media cascade.)
+// reads operate on real owner state. (parity: file media cascade.)
 const MEDIA_FILE_REFERENCES_HYDRATE_QUERY: &str = "query MediaFileReferencesHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on MediaImage {\n      alt\n      fileStatus\n      mediaContentType\n      status\n      preview { image { url width height } }\n      image { url width height }\n      references(first: 50) {\n        nodes {\n          ... on Product {\n            id\n            title\n            handle\n            status\n            media(first: 50) {\n              nodes {\n                id\n                __typename\n                alt\n                fileStatus\n                mediaContentType\n                status\n                preview { image { url width height } }\n                ... on MediaImage { image { url width height } }\n              }\n            }\n            variants(first: 50) {\n              nodes {\n                id\n                title\n                media(first: 10) { nodes { id alt mediaContentType } }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}";
 
 impl DraftProxy {
@@ -53,31 +53,26 @@ impl DraftProxy {
 
         if inputs.len() > 250 {
             return MutationOutcome::response(ok_json(json!({
-                "errors": [{
-                    "message": format!("The input array size of {} is greater than the maximum allowed of 250.", inputs.len()),
-                    "locations": [{"line": 2, "column": 3}],
-                    "path": ["fileCreate", "files"],
-                    "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
-                }]
+                "errors": [max_input_size_exceeded_error(
+                    ["fileCreate", "files"],
+                    inputs.len(),
+                    250,
+                    Some(json!([{"line": 2, "column": 3}]))
+                )]
             })));
         }
 
         for (index, input) in inputs.iter().enumerate() {
             match resolved_string_field(input, "originalSource") {
                 None => {
+                    let message = format!("Variable $files of type [FileCreateInput!]! was provided invalid value for {index}.originalSource (Expected value to not be null)");
                     return MutationOutcome::response(ok_json(json!({
-                        "errors": [{
-                            "message": format!("Variable $files of type [FileCreateInput!]! was provided invalid value for {index}.originalSource (Expected value to not be null)"),
-                            "locations": [{"line": 2, "column": 43}],
-                            "extensions": {
-                                "code": "INVALID_VARIABLE",
-                                "value": resolved_variables_json(variables).get("files").cloned().unwrap_or(Value::Null),
-                                "problems": [{
-                                    "path": [index, "originalSource"],
-                                    "explanation": "Expected value to not be null"
-                                }]
-                            }
-                        }]
+                        "errors": [invalid_variable_error_envelope(
+                            message,
+                            SourceLocation { line: 2, column: 43 },
+                            resolved_variables_json(variables).get("files").cloned().unwrap_or(Value::Null),
+                            json!([{ "path": [index, "originalSource"], "explanation": "Expected value to not be null" }]),
+                        )]
                     })));
                 }
                 Some(source) if source.is_empty() => {
@@ -112,8 +107,7 @@ impl DraftProxy {
         }
 
         // Each successful mutation reserves a synthetic id for its log entry
-        // before allocating resource ids (Gleam fileCreate reserves a
-        // MutationLogEntry id first), keeping file ids in lockstep with parity.
+        // before allocating resource ids, keeping file ids in lockstep with the synthetic-id contract.
         self.reserve_synthetic_log_id();
         let files = inputs
             .into_iter()
@@ -185,22 +179,8 @@ impl DraftProxy {
             }
         }
 
-        let required_field_errors = inputs
-            .iter()
-            .enumerate()
-            .filter_map(|(index, input)| validate_file_update_required_fields(input, index))
-            .collect::<Vec<_>>();
-        if !required_field_errors.is_empty() {
-            return MutationOutcome::response(media_file_update_error_response(
-                &response_key,
-                &payload_selection,
-                required_field_errors,
-            ));
-        }
-
         // Hydrate referenced products and file-update targets from upstream so
-        // existence/validation checks run against the real records (Gleam parity:
-        // maybe_hydrate_referenced_products + maybe_hydrate_file_update_targets).
+        // existence/validation checks run against the real records.
         self.hydrate_referenced_products(request, &inputs);
         self.hydrate_file_update_targets(request, &inputs);
 
@@ -237,11 +217,11 @@ impl DraftProxy {
             return MutationOutcome::response(media_file_update_error_response(
                 &response_key,
                 &payload_selection,
-                vec![json!({
-                    "field": ["files"],
-                    "message": "Non-ready files cannot be updated.",
-                    "code": "NON_READY_STATE"
-                })],
+                vec![user_error(
+                    ["files"],
+                    "Non-ready files cannot be updated.",
+                    Some("NON_READY_STATE"),
+                )],
             ));
         }
 
@@ -325,8 +305,7 @@ impl DraftProxy {
                 file["displayName"] = json!(filename);
             }
             // Source/preview updates invalidate the rendered image until the
-            // backend reprocesses it. The immediate payload nulls `image` (Gleam
-            // update_file_record) while the existing `preview`/`url` are retained,
+            // backend reprocesses it. The immediate payload nulls `image` while the existing `preview`/`url` are retained,
             // because regeneration is asynchronous.
             let content_type = file
                 .get("contentType")
@@ -345,22 +324,20 @@ impl DraftProxy {
             if explicit_preview.is_some() {
                 file["image"] = Value::Null;
             }
-            // GenericFile renders `url` from the accepted originalSource (Gleam
-            // next_original_source for FILE). Image-type files defer to async
-            // regeneration and keep their hydrated preview/url instead.
+            // GenericFile renders `url` from the accepted originalSource. Image-type files defer to async regeneration and keep their hydrated preview/url instead.
             if content_type.as_deref() == Some("FILE") {
                 if let Some(source) = &original_source {
                     file["url"] = json!(source);
                 }
             }
-            file["updatedAt"] = json!("2024-01-01T00:00:59.000Z");
+            file["updatedAt"] = json!(self.next_product_timestamp());
             self.store
                 .staged
                 .media_files
                 .insert(id.clone(), file.clone());
             // Cascade: detaching a file from a product (referencesToRemove)
             // removes that file from the product's media and from every variant
-            // that had it attached (Gleam parity: remove_media_ids_from_variants_for_products).
+            // that had it attached.
             let remove_products = list_string_field(input, "referencesToRemove");
             if !remove_products.is_empty() {
                 self.store
@@ -415,7 +392,7 @@ impl DraftProxy {
         }
         // Cascade: detach the deleted files from every product/variant that
         // referenced them, so subsequent product.media / variant.media reads no
-        // longer surface the removed file (Gleam parity: delete_staged_files).
+        // longer surface the removed file.
         self.store.clear_media_ids(&ids, None);
         let payload = json!({"deletedFileIds": ids, "userErrors": []});
         MutationOutcome::staged(
@@ -519,25 +496,25 @@ impl DraftProxy {
             })
             .find(|(_, resource)| !valid_staged_upload_resource(resource))
         {
+            let allowed = "COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD";
+            let message = format!(
+                "Variable $input of type [StagedUploadInput!]! was provided invalid value for {index}.resource (Expected \"{resource}\" to be one of: {allowed})"
+            );
             return MutationOutcome::response(ok_json(json!({
-                "errors": [{
-                    "message": format!("Variable $input of type [StagedUploadInput!]! was provided invalid value for {index}.resource (Expected \"{resource}\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD)"),
-                    "locations": [{"line": 2, "column": 35}],
-                    "extensions": {
-                        "code": "INVALID_VARIABLE",
-                        "value": resolved_variables_json(variables).get("input").cloned().unwrap_or(Value::Null),
-                        "problems": [{
-                            "path": [index, "resource"],
-                            "explanation": format!("Expected \"{resource}\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD")
-                        }]
-                    }
-                }]
+                "errors": [invalid_variable_error_envelope(
+                    message,
+                    SourceLocation { line: 2, column: 35 },
+                    resolved_variables_json(variables).get("input").cloned().unwrap_or(Value::Null),
+                    json!([{
+                        "path": [index, "resource"],
+                        "explanation": format!("Expected \"{resource}\" to be one of: {allowed}")
+                    }]),
+                )]
             })));
         }
         // Validate every input up front so we know whether the mutation will
         // succeed. A successful mutation reserves a synthetic id for its log
-        // entry before allocating target ids (Gleam reserves a MutationLogEntry
-        // id first), keeping target ids in lockstep with parity.
+        // entry before allocating target ids, keeping target ids in lockstep with the synthetic-id contract.
         let validations: Vec<Vec<Value>> = inputs
             .iter()
             .enumerate()
@@ -600,7 +577,7 @@ impl DraftProxy {
         {
             return id.to_string();
         }
-        let numeric_id = id.trim_start_matches("gid://shopify/Video/");
+        let numeric_id = shopify_gid_tail_for_type(id, "Video").unwrap_or(id);
         let media_image_id = shopify_gid("MediaImage", numeric_id);
         if self.store.staged.media_files.contains_key(&media_image_id) {
             media_image_id
@@ -806,7 +783,7 @@ impl DraftProxy {
     }
 
     // Files referencing products that do not exist (after hydration) fail with
-    // REFERENCE_TARGET_DOES_NOT_EXIST (Gleam parity: validate_file_update_reference_targets).
+    // REFERENCE_TARGET_DOES_NOT_EXIST.
     fn validate_file_update_reference_targets(
         &self,
         inputs: &[BTreeMap<String, ResolvedValue>],
@@ -821,11 +798,11 @@ impl DraftProxy {
             })
         });
         if any_missing {
-            vec![json!({
-                "field": ["files"],
-                "message": "The reference target does not exist",
-                "code": "REFERENCE_TARGET_DOES_NOT_EXIST"
-            })]
+            vec![user_error(
+                ["files"],
+                "The reference target does not exist",
+                Some("REFERENCE_TARGET_DOES_NOT_EXIST"),
+            )]
         } else {
             Vec::new()
         }
@@ -853,28 +830,29 @@ impl DraftProxy {
             .is_some()
             && !allows_source_or_filename
         {
-            errors.push(json!({
-                "field": ["files", index.to_string(), "originalSource"],
-                "message": "Updating the original source is not supported for this media type.",
-                "code": "INVALID"
-            }));
+            errors.push(media_file_user_error(
+                index,
+                "originalSource",
+                "Updating the original source is not supported for this media type.",
+                "INVALID",
+            ));
         }
         if let Some(filename) =
             resolved_string_field(input, "filename").filter(|value| !value.is_empty())
         {
             if !allows_source_or_filename {
-                errors.push(json!({
-                    "field": ["files"],
-                    "message": "Updating the filename is only supported on images and generic files",
-                    "code": "UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE"
-                }));
+                errors.push(user_error(
+                    ["files"],
+                    "Updating the filename is only supported on images and generic files",
+                    Some("UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE"),
+                ));
             } else if let Some(existing) = file.get("filename").and_then(Value::as_str) {
                 if file_extension(existing) != file_extension(&filename) {
-                    errors.push(json!({
-                        "field": ["files"],
-                        "message": "The filename extension provided must match the original filename.",
-                        "code": "INVALID_FILENAME_EXTENSION"
-                    }));
+                    errors.push(user_error(
+                        ["files"],
+                        "The filename extension provided must match the original filename.",
+                        Some("INVALID_FILENAME_EXTENSION"),
+                    ));
                 }
             }
         }
@@ -948,7 +926,7 @@ fn media_object_list_arg(
     key: &str,
 ) -> Vec<BTreeMap<String, ResolvedValue>> {
     let arguments = root_field_arguments(query, variables).unwrap_or_default();
-    list_object_field(&arguments, key)
+    resolved_object_list_field(&arguments, key)
 }
 
 fn media_string_list_arg(
@@ -1037,11 +1015,12 @@ fn media_quota_errors(request: &Request, inputs: &[BTreeMap<String, ResolvedValu
             } else {
                 None
             }?;
-            Some(json!({
-                "field": ["files", index.to_string(), "contentType"],
-                "message": media_quota_message(code),
-                "code": code
-            }))
+            Some(media_file_user_error(
+                index,
+                "contentType",
+                media_quota_message(code),
+                code,
+            ))
         })
         .collect()
 }
@@ -1055,27 +1034,50 @@ fn media_quota_message(code: &str) -> &'static str {
     }
 }
 
+fn media_file_user_error(index: usize, field: &str, message: &str, code: &str) -> Value {
+    user_error(
+        vec!["files".to_string(), index.to_string(), field.to_string()],
+        message,
+        Some(code),
+    )
+}
+
+fn media_file_row_user_error(index: usize, message: &str, code: &str) -> Value {
+    user_error(
+        vec!["files".to_string(), index.to_string()],
+        message,
+        Some(code),
+    )
+}
+
 fn validate_file_create_input(
     input: &BTreeMap<String, ResolvedValue>,
     index: usize,
 ) -> Option<Value> {
     let original_source = resolved_string_field(input, "originalSource").unwrap_or_default();
     if !is_http_url(&original_source) {
-        return Some(json!({
-            "field": ["files", index.to_string(), "originalSource"],
-            "message": "File URL is invalid",
-            "code": if has_uri_scheme(&original_source) { "INVALID_IMAGE_SOURCE_URL" } else { "INVALID" }
-        }));
+        let code = if has_uri_scheme(&original_source) {
+            "INVALID_IMAGE_SOURCE_URL"
+        } else {
+            "INVALID"
+        };
+        return Some(media_file_user_error(
+            index,
+            "originalSource",
+            "File URL is invalid",
+            code,
+        ));
     }
     if let Some(filename) =
         resolved_string_field(input, "filename").filter(|value| !value.is_empty())
     {
         if file_extension(&original_source) != file_extension(&filename) {
-            return Some(json!({
-                "field": ["files", index.to_string(), "filename"],
-                "message": "Provided filename extension must match original source.",
-                "code": "MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE"
-            }));
+            return Some(media_file_user_error(
+                index,
+                "filename",
+                "Provided filename extension must match original source.",
+                "MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE",
+            ));
         }
     }
     match resolved_string_field(input, "duplicateResolutionMode").as_deref() {
@@ -1083,42 +1085,30 @@ fn validate_file_create_input(
             let mode = resolved_string_field(input, "duplicateResolutionMode").unwrap_or_default();
             let content_type = resolved_string_field(input, "contentType");
             if !duplicate_mode_allowed(&mode, content_type.as_deref()) {
-                return Some(json!({
-                    "field": ["files", index.to_string(), "duplicateResolutionMode"],
-                    "message": format!("Duplicate resolution mode '{mode}' is not supported for '{}' media type.", duplicate_media_type_name(content_type.as_deref())),
-                    "code": "INVALID_DUPLICATE_MODE_FOR_TYPE"
-                }));
+                return Some(media_file_user_error(
+                    index,
+                    "duplicateResolutionMode",
+                    &format!(
+                        "Duplicate resolution mode '{mode}' is not supported for '{}' media type.",
+                        duplicate_media_type_name(content_type.as_deref())
+                    ),
+                    "INVALID_DUPLICATE_MODE_FOR_TYPE",
+                ));
             }
             if mode == "REPLACE"
                 && resolved_string_field(input, "filename")
                     .filter(|value| !value.is_empty())
                     .is_none()
             {
-                return Some(json!({
-                    "field": ["files", index.to_string(), "filename"],
-                    "message": "Missing filename argument when attempting to use REPLACE duplicate mode.",
-                    "code": "MISSING_FILENAME_FOR_DUPLICATE_MODE_REPLACE"
-                }));
+                return Some(media_file_user_error(
+                    index,
+                    "filename",
+                    "Missing filename argument when attempting to use REPLACE duplicate mode.",
+                    "MISSING_FILENAME_FOR_DUPLICATE_MODE_REPLACE",
+                ));
             }
         }
         _ => {}
-    }
-    None
-}
-
-fn validate_file_update_required_fields(
-    input: &BTreeMap<String, ResolvedValue>,
-    index: usize,
-) -> Option<Value> {
-    if resolved_string_field(input, "id")
-        .filter(|value| !value.is_empty())
-        .is_none()
-    {
-        return Some(json!({
-            "field": ["files", index.to_string(), "id"],
-            "message": "File id is required",
-            "code": "REQUIRED"
-        }));
     }
     None
 }
@@ -1130,24 +1120,26 @@ fn validate_file_update_post_readiness_fields(
     let mut errors = Vec::new();
     if let Some(alt) = resolved_string_field(input, "alt") {
         if alt.chars().count() > 512 {
-            errors.push(json!({
-                "field": ["files", index.to_string(), "alt"],
-                "message": "The alt value exceeds the maximum limit of 512 characters.",
-                "code": "ALT_VALUE_LIMIT_EXCEEDED"
-            }));
+            errors.push(media_file_user_error(
+                index,
+                "alt",
+                "The alt value exceeds the maximum limit of 512 characters.",
+                "ALT_VALUE_LIMIT_EXCEEDED",
+            ));
         }
     }
-    // Gleam parity (validate_optional_url): an invalid originalSource OR
+    // Captured validation behavior: an invalid originalSource OR
     // previewImageSource is always reported against the previewImageSource field
     // with the INVALID_IMAGE_SOURCE_URL code, regardless of which field carried it.
     for source_field in ["originalSource", "previewImageSource"] {
         if let Some(source) = resolved_string_field(input, source_field) {
             if !source.is_empty() && !is_http_url(&source) {
-                errors.push(json!({
-                    "field": ["files", index.to_string(), "previewImageSource"],
-                    "message": "Invalid image source url value provided",
-                    "code": "INVALID_IMAGE_SOURCE_URL"
-                }));
+                errors.push(media_file_user_error(
+                    index,
+                    "previewImageSource",
+                    "Invalid image source url value provided",
+                    "INVALID_IMAGE_SOURCE_URL",
+                ));
             }
         }
     }
@@ -1165,16 +1157,18 @@ fn validate_file_update_ready_source_fields(
     if original.is_some() && preview.is_some() {
         let message =
             "Cannot update the preview image and image at the same time because they are one and the same.";
-        errors.push(json!({
-            "field": ["files", index.to_string(), "previewImageSource"],
-            "message": message,
-            "code": "INVALID"
-        }));
-        errors.push(json!({
-            "field": ["files", index.to_string(), "originalSource"],
-            "message": message,
-            "code": "INVALID"
-        }));
+        errors.push(media_file_user_error(
+            index,
+            "previewImageSource",
+            message,
+            "INVALID",
+        ));
+        errors.push(media_file_user_error(
+            index,
+            "originalSource",
+            message,
+            "INVALID",
+        ));
     }
     errors
 }
@@ -1191,11 +1185,11 @@ fn file_update_source_version_conflict(
             .filter(|value| !value.is_empty())
             .is_some()
     {
-        return Some(json!({
-            "field": ["files", index.to_string()],
-            "message": "Specify either a source or revertToVersionId, not both.",
-            "code": "CANNOT_SPECIFY_SOURCE_AND_VERSION_ID"
-        }));
+        return Some(media_file_row_user_error(
+            index,
+            "Specify either a source or revertToVersionId, not both.",
+            "CANNOT_SPECIFY_SOURCE_AND_VERSION_ID",
+        ));
     }
     None
 }
@@ -1228,15 +1222,14 @@ fn file_update_missing_ids_error(file_ids: &[String]) -> Value {
 }
 
 fn file_ack_missing_ids_error(file_ids: &[String]) -> Value {
-    let message = if file_ids.len() == 1 {
-        format!("File id {} does not exist.", file_ids[0])
-    } else {
-        format!("File ids {} do not exist.", file_ids.join(","))
-    };
-    user_error(["fileIds"], &message, Some("FILE_DOES_NOT_EXIST"))
+    file_ids_missing_error(file_ids)
 }
 
 fn file_delete_missing_ids_error(file_ids: &[String]) -> Value {
+    file_ids_missing_error(file_ids)
+}
+
+fn file_ids_missing_error(file_ids: &[String]) -> Value {
     let message = if file_ids.len() == 1 {
         format!("File id {} does not exist.", file_ids[0])
     } else {
@@ -1269,22 +1262,37 @@ fn validate_staged_upload_input(
         && resolved_string_field(input, "fileSize").is_none()
         && !matches!(input.get("fileSize"), Some(ResolvedValue::Int(_)))
     {
-        errors.push(json!({
-            "field": ["input", index.to_string(), "fileSize"],
-            "message": format!("file size is required for {} resources", if resource == "VIDEO" { "video" } else { "model3d" })
-        }));
+        let resource_label = if resource == "VIDEO" {
+            "video"
+        } else {
+            "3D model"
+        };
+        errors.push(user_error_omit_code(
+            vec![
+                "input".to_string(),
+                index.to_string(),
+                "fileSize".to_string(),
+            ],
+            &format!("file size is required for {resource_label} resources"),
+            None,
+        ));
     }
     if image_family_resource(&resource) && !valid_image_mime_type(&mime_type) {
-        errors.push(json!({
-            "field": ["input", index.to_string(), "mimeType"],
-            "message": format!("{filename}: ({mime_type}) is not a recognized format")
-        }));
+        errors.push(user_error_omit_code(
+            vec![
+                "input".to_string(),
+                index.to_string(),
+                "mimeType".to_string(),
+            ],
+            &format!("{filename}: ({mime_type}) is not a recognized format"),
+            None,
+        ));
     }
     errors
 }
 
 /// Encode the path-unsafe characters of a staged-upload URL segment, mirroring
-/// the Gleam `encode_upload_segment` (`:` -> `%3A`, `/` -> `%2F`).
+/// Shopify-style staged-upload URL segment encoding (`:` -> `%3A`, `/` -> `%2F`).
 fn encode_upload_segment(value: &str) -> String {
     value.replace(':', "%3A").replace('/', "%2F")
 }
@@ -1292,7 +1300,7 @@ fn encode_upload_segment(value: &str) -> String {
 /// Build a single staged upload target. The synthetic `id`
 /// (`gid://shopify/StagedUploadTarget{index}/{n}`) is allocated by the caller so
 /// that target ids stay in lockstep with the shared synthetic counter, exactly
-/// as Gleam's `make_staged_target` does. URLs and signature material are inert
+/// as required by the staged-upload target model. URLs and signature material are inert
 /// `shopify-draft-proxy.local` placeholders: the proxy never allocates real
 /// external storage, so every signed value is a deterministic placeholder rather
 /// than a captured Shopify secret.
@@ -1488,14 +1496,14 @@ pub(super) fn media_file_record_from_node(node: &Value) -> Option<Value> {
     let created_at = node
         .get("createdAt")
         .and_then(Value::as_str)
-        .unwrap_or("2024-01-01T00:00:00.000Z")
-        .to_string();
+        .map(str::to_string)
+        .unwrap_or_else(default_product_timestamp);
     let updated_at = node
         .get("updatedAt")
         .and_then(Value::as_str)
         .or_else(|| node.get("createdAt").and_then(Value::as_str))
-        .unwrap_or("2024-01-01T00:00:00.000Z")
-        .to_string();
+        .map(str::to_string)
+        .unwrap_or_else(default_product_timestamp);
     let file_status = node
         .get("fileStatus")
         .and_then(Value::as_str)
@@ -1537,9 +1545,7 @@ pub(super) fn media_file_record_from_node(node: &Value) -> Option<Value> {
     Some(record)
 }
 
-// Files-connection cursors are the record gid prefixed with `cursor:` (Gleam
-// serializer convention), distinct from the bare-id cursors other connections
-// emit via value_id_cursor.
+// Files-connection cursors are the record gid prefixed with `cursor:`, distinct from the bare-id cursors other connections emit via value_id_cursor.
 fn media_file_cursor(record: &Value) -> String {
     format!("cursor:{}", value_id_cursor(record))
 }
@@ -1581,23 +1587,6 @@ fn filename_from_source(source: &str) -> String {
         .to_string()
 }
 
-fn file_extension(value: &str) -> String {
-    // Mirror Gleam derive_filename + file_extension: first reduce to the last
-    // non-empty path segment (after stripping query/fragment), then take the
-    // substring after that segment's final dot. A URL like
-    // `https://www.w3.org/.../dummy` must yield "" — not "org/.../dummy" — even
-    // though the host contains dots.
-    let path = value.split(['?', '#']).next().unwrap_or(value);
-    let filename = path
-        .rsplit('/')
-        .find(|segment| !segment.is_empty())
-        .unwrap_or("");
-    match filename.rsplit_once('.') {
-        Some((_, extension)) => extension.to_ascii_lowercase(),
-        None => String::new(),
-    }
-}
-
 // Shopify infers FileContentType from the source/filename extension when the
 // caller omits `contentType`, but the auto-detector maps only image/video
 // results to typed media. Model3d and ExternalVideo require explicit contentType.
@@ -1610,9 +1599,7 @@ fn infer_content_type_from_source(filename: &str) -> &'static str {
 }
 
 fn mime_type_for_filename(filename: &str, content_type: &str) -> &'static str {
-    // Extension-first derivation (Gleam media/serializers.gleam `derive_mime_type`):
-    // the recognized extension wins regardless of contentType, and only an
-    // unrecognized extension falls back to the contentType default.
+    // Extension-first derivation: the recognized extension wins regardless of contentType, and only an unrecognized extension falls back to the contentType default.
     match file_extension(filename).as_str() {
         "gif" => "image/gif",
         "heic" => "image/heic",

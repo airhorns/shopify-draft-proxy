@@ -1,12 +1,12 @@
 {
   "scenarioId": "catalog-context-update-removes-only",
-  "operationNames": ["marketCreate", "catalogCreate", "catalogContextUpdate", "catalog"],
+  "operationNames": ["marketCreate", "catalogCreate", "catalogContextUpdate", "catalog", "catalogsCount"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "local-staging"],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "local-staging", "count-shape"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-context-update-lifecycle.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/markets/catalog-context-update-market-create.graphql",
     "variablesCapturePath": "$.cases[3].variables"
@@ -78,8 +78,23 @@
             }
           }
         }
+      },
+      {
+        "name": "catalogs-count-after-staged-catalog",
+        "capturePath": "$.cases[7].response.payload.data.catalogsCount",
+        "proxyPath": "$.data.catalogsCount",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-removes-catalog",
+              "path": "$.data.catalogCreate.catalog.id"
+            }
+          }
+        },
+        "selectedPaths": ["$.count", "$.precision"]
       }
     ]
   },
-  "notes": "Live Shopify Admin 2026-04 capture proves contextsToRemove can be supplied without contextsToAdd, removes only the requested Market ID, and downstream catalog(id:) observes the remaining market context. The replay creates both markets and the catalog through local mutations first."
+  "notes": "Live Shopify Admin 2026-04 capture proves contextsToRemove can be supplied without contextsToAdd, removes only the requested Market ID, and downstream catalog(id:) observes the remaining market context. The replay creates both markets and the catalog through local mutations first, then compares catalogsCount(type: MARKET) after the staged catalog exists so overlay reads cannot fall back to null."
 }

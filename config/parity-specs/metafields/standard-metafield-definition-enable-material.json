@@ -1,0 +1,38 @@
+{
+  "scenarioId": "standard-metafield-definition-enable-material",
+  "operationNames": ["standardMetafieldDefinitionEnable"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "runtime-staging", "template-catalog-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/standard-metafield-definition-enable-material.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/standard-metafield-definition-enable-material.graphql",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "material-standard-template-enable-shape-and-constraints",
+        "capturePath": "$.materialEnable.response.data.standardMetafieldDefinitionEnable",
+        "proxyPath": "$.data.standardMetafieldDefinitionEnable",
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          },
+          {
+            "path": "$.createdDefinition.validations[0].value",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The standard product-attribute template points at a shop-local standard metaobject definition ID; the proxy uses a deterministic synthetic MetaobjectDefinition GID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Captured Shopify Admin API 2025-01 behavior for enabling the PRODUCT `shopify.material` standard metafield definition. The target strictly compares the mutation payload shape, access defaults, list.metaobject_reference type, category constraint key and first five category constraint values; live definition and metaobject-definition IDs are carved out as volatile."
+}

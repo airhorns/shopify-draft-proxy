@@ -118,7 +118,7 @@ async function withChunkedUpstream<T>(run: (origin: string) => Promise<T>): Prom
 }
 
 describe('Rust HTTP adapter route surface', () => {
-  it('serves the required meta route response shapes without the TS/Gleam HTTP adapter', async () => {
+  it('serves the required meta route response shapes through the Rust HTTP adapter', async () => {
     const port = await unusedLocalPort();
     await withRustServer(port, async (origin) => {
       expect(await getJson(origin, '/__meta/health')).toEqual({
@@ -155,16 +155,13 @@ describe('Rust HTTP adapter route surface', () => {
             productOrder: [],
             productVariants: {},
             productVariantOrder: [],
+            giftCards: {},
+            giftCardConfiguration: null,
             savedSearches: {},
             savedSearchOrder: [],
             shopPolicies: {},
             shopPolicyOrder: [],
-            shop: {
-              id: 'gid://shopify/Shop/92891250994',
-              name: 'harry-test-heelo',
-              myshopifyDomain: 'harry-test-heelo.myshopify.com',
-              currencyCode: 'USD',
-            },
+            shop: null,
             publicationIds: [],
             publicationCount: null,
             availableLocales: expect.objectContaining({
@@ -179,7 +176,7 @@ describe('Rust HTTP adapter route surface', () => {
                 published: true,
               }),
             }),
-            localizationProductIds: ['gid://shopify/Product/9801098789170'],
+            localizationProductIds: [],
           },
           // This mirrors the authoritative empty staged-state serialization in
           // src/proxy/core.rs (the `/__meta/state` snapshot, which is also the
@@ -193,6 +190,9 @@ describe('Rust HTTP adapter route surface', () => {
             productVariants: {},
             productVariantOrder: [],
             deletedProductVariantIds: [],
+            productFeeds: {},
+            productFeedOrder: [],
+            deletedProductFeedIds: [],
             collections: {},
             deletedCollectionIds: [],
             collectionJobs: {},
@@ -204,6 +204,9 @@ describe('Rust HTTP adapter route surface', () => {
             deletedShopPolicyIds: [],
             shippingPackages: {},
             deletedShippingPackageIds: {},
+            installedApps: {},
+            revokedAppAccessScopes: {},
+            uninstalledAppIds: [],
             delegatedAccessTokens: {},
             customers: {},
             deletedCustomerIds: [],
@@ -222,6 +225,7 @@ describe('Rust HTTP adapter route surface', () => {
             nextStoreCreditAccountId: 1,
             nextStoreCreditTransactionId: 1,
             giftCards: {},
+            locallyCreatedCustomerIds: [],
             taggableResources: {},
             orders: {},
             deletedOrderIds: [],

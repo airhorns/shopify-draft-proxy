@@ -1,0 +1,28 @@
+{
+  "scenarioId": "shop-baseline-non-harry",
+  "operationNames": ["shop"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/store-properties/store-properties-baseline.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/store-properties/shop-baseline-read.graphql",
+    "variables": {},
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured shop baseline read against very-big-test-store.myshopify.com, proving cold live-hybrid shop passthrough does not fall back to the legacy harry-test-heelo identity when upstream/cassette shop state is available.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "non-harry-shop-data",
+        "capturePath": "$.readOnlyBaselines.shop.data.shop",
+        "proxyPath": "$.data.shop",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

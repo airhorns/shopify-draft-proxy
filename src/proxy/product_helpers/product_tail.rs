@@ -5,6 +5,13 @@ struct ProductTailMutationFieldResult {
     errors: Vec<Value>,
 }
 
+#[derive(Clone, Copy)]
+struct ProductTailLogContext<'a> {
+    request: &'a Request,
+    query: &'a str,
+    variables: &'a BTreeMap<String, ResolvedValue>,
+}
+
 impl ProductTailMutationFieldResult {
     fn value(value: Value) -> Self {
         Self {
@@ -35,7 +42,10 @@ impl DraftProxy {
                         | "publicationUpdate"
                         | "publicationDelete"
                         | "productFeedCreate"
+                        | "productFeedDelete"
                         | "productFullSync"
+                        | "combinedListingUpdate"
+                        | "productVariantRelationshipBulkUpdate"
                         | "bulkProductResourceFeedbackCreate"
                         | "shopResourceFeedbackCreate"
                 )
@@ -47,28 +57,46 @@ impl DraftProxy {
             return None;
         }
 
-        let mut data = serde_json::Map::new();
         let mut errors = Vec::new();
-        for field in fields {
+        let data = root_payload_json(&fields, |field| {
             let result = match field.name.as_str() {
                 "publicationCreate" => ProductTailMutationFieldResult::value(
-                    self.product_tail_publication_create(&field, request, query, variables),
+                    self.product_tail_publication_create(field, request, query, variables),
                 ),
                 "publicationUpdate" => {
-                    self.product_tail_publication_update(&field, request, query, variables)
+                    self.product_tail_publication_update(field, request, query, variables)
                 }
                 "publicationDelete" => ProductTailMutationFieldResult::value(
-                    self.product_tail_publication_delete(&field, request, query, variables),
+                    self.product_tail_publication_delete(field, request, query, variables),
                 ),
                 "productFeedCreate" => ProductTailMutationFieldResult::value(
-                    self.product_tail_feed_create(&field, request, query, variables),
+                    self.product_tail_feed_create(field, request, query, variables),
+                ),
+                "productFeedDelete" => ProductTailMutationFieldResult::value(
+                    self.product_tail_feed_delete(field, request, query, variables),
                 ),
                 "productFullSync" => ProductTailMutationFieldResult::value(
-                    self.product_tail_full_sync(&field, request, query, variables),
+                    self.product_tail_full_sync(field, request, query, variables),
                 ),
-                "job" => ProductTailMutationFieldResult::value(self.product_tail_job_read(&field)),
+                "combinedListingUpdate" => ProductTailMutationFieldResult::value(
+                    self.product_tail_combined_listing_update(field, request, query, variables),
+                ),
+                "productVariantRelationshipBulkUpdate" => ProductTailMutationFieldResult::value(
+                    self.product_tail_variant_relationship_bulk_update(
+                        field, request, query, variables,
+                    ),
+                ),
+                "job" => ProductTailMutationFieldResult::value(self.product_tail_job_read(field)),
+                "bulkProductResourceFeedbackCreate"
+                    if resource_feedback_scope_is_explicitly_missing(request) =>
+                {
+                    ProductTailMutationFieldResult {
+                        value: Value::Null,
+                        errors: vec![product_tail_resource_feedback_access_denied_error(field)],
+                    }
+                }
                 "bulkProductResourceFeedbackCreate" => {
-                    self.record_products_tail_log(
+                    self.record_mutation_log_with_status(
                         request,
                         query,
                         variables,
@@ -76,14 +104,22 @@ impl DraftProxy {
                         Vec::new(),
                         "failed",
                     );
-                    let missing_product_ids = self.feedback_missing_product_ids(&field, request);
+                    let missing_product_ids = self.feedback_missing_product_ids(field, request);
                     ProductTailMutationFieldResult::value(product_tail_resource_feedback_payload(
-                        &field,
+                        field,
                         &missing_product_ids,
                     ))
                 }
+                "shopResourceFeedbackCreate"
+                    if resource_feedback_scope_is_explicitly_missing(request) =>
+                {
+                    ProductTailMutationFieldResult {
+                        value: Value::Null,
+                        errors: vec![product_tail_resource_feedback_access_denied_error(field)],
+                    }
+                }
                 "shopResourceFeedbackCreate" => {
-                    self.record_products_tail_log(
+                    self.record_mutation_log_with_status(
                         request,
                         query,
                         variables,
@@ -91,19 +127,17 @@ impl DraftProxy {
                         Vec::new(),
                         "failed",
                     );
-                    ProductTailMutationFieldResult::value(product_tail_shop_feedback_payload(
-                        &field,
-                    ))
+                    ProductTailMutationFieldResult::value(product_tail_shop_feedback_payload(field))
                 }
-                _ => continue,
+                _ => return None,
             };
-            data.insert(field.response_key.clone(), result.value);
             errors.extend(result.errors);
-        }
-        if data.is_empty() {
+            Some(result.value)
+        });
+        if data.as_object().is_none_or(serde_json::Map::is_empty) {
             return None;
         }
-        let mut response = serde_json::Map::from_iter([("data".to_string(), Value::Object(data))]);
+        let mut response = serde_json::Map::from_iter([("data".to_string(), data)]);
         if !errors.is_empty() {
             response.insert("errors".to_string(), Value::Array(errors));
         }
@@ -161,7 +195,7 @@ impl DraftProxy {
                     "staged",
                 )
             };
-        self.record_products_tail_log(
+        self.record_mutation_log_with_status(
             request,
             query,
             variables,
@@ -205,7 +239,7 @@ impl DraftProxy {
             .as_deref()
             .and_then(|id| self.store.staged.publications.get(id).cloned());
         let (Some(id), Some(mut record)) = (id, record) else {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -218,16 +252,15 @@ impl DraftProxy {
                 &field.selection,
             ));
         };
-        let publishables_to_add = resolved_string_list_field_unsorted(&input, "publishablesToAdd");
-        let publishables_to_remove =
-            resolved_string_list_field_unsorted(&input, "publishablesToRemove");
+        let publishables_to_add = list_string_field(&input, "publishablesToAdd");
+        let publishables_to_remove = list_string_field(&input, "publishablesToRemove");
         let publishable_count = publishables_to_add.len() + publishables_to_remove.len();
         if publishable_count <= PUBLICATION_UPDATE_LIMIT {
             if let Some(variant_id) = Self::first_publication_update_variant_id(
                 &publishables_to_add,
                 &publishables_to_remove,
             ) {
-                self.record_products_tail_log(
+                self.record_mutation_log_with_status(
                     request,
                     query,
                     variables,
@@ -270,7 +303,7 @@ impl DraftProxy {
         let user_errors = self
             .publication_update_publishable_errors(&publishables_to_add, &publishables_to_remove);
         if !user_errors.is_empty() {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -316,7 +349,7 @@ impl DraftProxy {
             .staged
             .publications
             .insert(id.clone(), record.clone());
-        self.record_products_tail_log(
+        self.record_mutation_log_with_status(
             request,
             query,
             variables,
@@ -338,7 +371,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let Some(id) = resolved_string_field(&field.arguments, "id") else {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -354,7 +387,7 @@ impl DraftProxy {
         // Only publications staged this scenario can be deleted; the base/default
         // publication (and any unknown id) cannot be removed.
         if !self.store.staged.created_publication_ids.contains(&id) {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -373,11 +406,11 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "deletedId": null,
-                    "userErrors": [{
-                        "field": ["id"],
-                        "message": "Cannot delete the default publication",
-                        "code": "CANNOT_DELETE_DEFAULT_PUBLICATION"
-                    }]
+                    "userErrors": [user_error(
+                        ["id"],
+                        "Cannot delete the default publication",
+                        Some("CANNOT_DELETE_DEFAULT_PUBLICATION"),
+                    )]
                 }),
                 &field.selection,
             );
@@ -390,7 +423,7 @@ impl DraftProxy {
         for pubs in self.store.staged.resource_publications.values_mut() {
             pubs.remove(&id);
         }
-        self.record_products_tail_log(
+        self.record_mutation_log_with_status(
             request,
             query,
             variables,
@@ -439,10 +472,10 @@ impl DraftProxy {
         publishables_to_remove: &[String],
     ) -> Vec<Value> {
         if publishables_to_add.len() + publishables_to_remove.len() > PUBLICATION_UPDATE_LIMIT {
-            return vec![publication_error(
+            return vec![user_error(
                 publication_update_limit_field(publishables_to_add, publishables_to_remove),
                 "The limit for simultaneous publication updates has been exceeded.",
-                "PUBLICATION_UPDATE_LIMIT_EXCEEDED",
+                Some("PUBLICATION_UPDATE_LIMIT_EXCEEDED"),
             )];
         }
 
@@ -453,11 +486,14 @@ impl DraftProxy {
         ] {
             for (index, id) in ids.iter().enumerate() {
                 if !self.publication_update_publishable_exists(id) {
-                    user_errors.push(publication_indexed_error(
-                        field_name,
-                        index,
+                    user_errors.push(user_error(
+                        vec![
+                            "input".to_string(),
+                            field_name.to_string(),
+                            index.to_string(),
+                        ],
                         "Publishable ID not found.",
-                        "INVALID_PUBLISHABLE_ID",
+                        Some("INVALID_PUBLISHABLE_ID"),
                     ));
                 }
             }
@@ -531,7 +567,7 @@ impl DraftProxy {
         // ProductFeed.country is a CountryCode and .language a LanguageCode; Shopify rejects
         // values outside those enums at the resolver with a field-scoped INVALID userError.
         if !is_valid_product_feed_country(&country) {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -548,7 +584,7 @@ impl DraftProxy {
             );
         }
         if !is_valid_product_feed_language(&language) {
-            self.record_products_tail_log(
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -566,8 +602,8 @@ impl DraftProxy {
         }
         let id = shopify_gid("ProductFeed", format_args!("{country}-{language}"));
         // A feed is unique per country/language pair; re-creating an existing one is rejected.
-        if self.has_products_tail_staged_resource_id(&id) {
-            self.record_products_tail_log(
+        if self.store.product_feed_by_id(&id).is_some() {
+            self.record_mutation_log_with_status(
                 request,
                 query,
                 variables,
@@ -578,11 +614,11 @@ impl DraftProxy {
             return selected_json(
                 &json!({
                     "productFeed": null,
-                    "userErrors": [{
-                        "field": ["country"],
-                        "message": "Product feed already exists for this country/language pair",
-                        "code": "TAKEN"
-                    }]
+                    "userErrors": [user_error(
+                        ["country"],
+                        "Product feed already exists for this country/language pair",
+                        Some("TAKEN"),
+                    )]
                 }),
                 &field.selection,
             );
@@ -590,19 +626,63 @@ impl DraftProxy {
         let payload = json!({
             "productFeed": {
                 "id": id,
+                "__typename": "ProductFeed",
                 "country": country,
                 "language": language,
                 "status": "ACTIVE"
             },
             "userErrors": []
         });
-        self.record_products_tail_log(
+        if let Some(feed) = payload.get("productFeed").cloned() {
+            self.store.stage_product_feed(feed);
+        }
+        self.record_mutation_log_with_status(
             request,
             query,
             variables,
             "productFeedCreate",
             vec![id],
             "staged",
+        );
+        selected_json(&payload, &field.selection)
+    }
+
+    pub(in crate::proxy) fn product_tail_feed_delete(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let deleted = shopify_gid_resource_type(&id) == Some("ProductFeed")
+            && self.store.delete_product_feed(&id);
+        let (payload, staged_ids, status) = if deleted {
+            (
+                json!({
+                    "deletedId": id,
+                    "userErrors": []
+                }),
+                vec![id],
+                "staged",
+            )
+        } else {
+            (
+                json!({
+                    "deletedId": null,
+                    "userErrors": [user_error(["id"], "ProductFeed does not exist", None)]
+                }),
+                Vec::new(),
+                "failed",
+            )
+        };
+        self.record_mutation_log_with_status(
+            request,
+            query,
+            variables,
+            "productFeedDelete",
+            staged_ids,
+            status,
         );
         selected_json(&payload, &field.selection)
     }
@@ -614,22 +694,18 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let feed_exists = shopify_gid_resource_type(&id) == Some("ProductFeed")
-            && self.has_products_tail_staged_resource_id(&id);
-        let before_updated_at = resolved_string_arg(&field.arguments, "beforeUpdatedAt");
-        let updated_at_since = resolved_string_arg(&field.arguments, "updatedAtSince");
+            && self.store.product_feed_by_id(&id).is_some();
+        let before_updated_at = resolved_string_field(&field.arguments, "beforeUpdatedAt");
+        let updated_at_since = resolved_string_field(&field.arguments, "updatedAtSince");
         let (payload, staged_ids, status) = if !feed_exists {
             (
                 json!({
                     "__typename": "ProductFullSyncPayload",
                     "id": null,
                     "job": null,
-                    "userErrors": [{
-                        "field": ["id"],
-                        "message": "ProductFeed does not exist",
-                        "code": "NOT_FOUND"
-                    }]
+                    "userErrors": [user_error(["id"], "ProductFeed does not exist", None)]
                 }),
                 Vec::new(),
                 "failed",
@@ -643,11 +719,11 @@ impl DraftProxy {
                     "__typename": "ProductFullSyncPayload",
                     "id": null,
                     "job": null,
-                    "userErrors": [{
-                        "field": ["updatedAtSince"],
-                        "message": "updatedAtSince must be before beforeUpdatedAt",
-                        "code": Value::Null
-                    }]
+                    "userErrors": [user_error(
+                        ["updatedAtSince"],
+                        "updatedAtSince must be before beforeUpdatedAt",
+                        None,
+                    )]
                 }),
                 Vec::new(),
                 "failed",
@@ -678,7 +754,7 @@ impl DraftProxy {
                 "staged",
             )
         };
-        self.record_products_tail_log(
+        self.record_mutation_log_with_status(
             request,
             query,
             variables,
@@ -689,6 +765,470 @@ impl DraftProxy {
         selected_json(&payload, &field.selection)
     }
 
+    pub(in crate::proxy) fn product_tail_feed_read_field(
+        &self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        self.product_tail_feed_node_value(&id, &field.selection)
+            .unwrap_or(Value::Null)
+    }
+
+    pub(in crate::proxy) fn product_tail_feeds_read_field(
+        &self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        selected_connection_json_with_args(
+            self.store.product_feeds(),
+            &field.arguments,
+            &field.selection,
+            |feed| format!("cursor:{}", value_id_cursor(feed)),
+        )
+    }
+
+    pub(in crate::proxy) fn product_tail_feed_node_value(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        if shopify_gid_resource_type(id) != Some("ProductFeed") {
+            return None;
+        }
+        if self.store.product_feed_is_tombstoned(id) {
+            return Some(Value::Null);
+        }
+        self.store
+            .product_feed_by_id(id)
+            .map(|feed| selected_json(feed, selection))
+    }
+
+    pub(in crate::proxy) fn product_tail_combined_listing_update(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let log_context = ProductTailLogContext {
+            request,
+            query,
+            variables,
+        };
+        let parent_id =
+            resolved_string_field(&field.arguments, "parentProductId").unwrap_or_default();
+        let products_added = resolved_object_list_field(&field.arguments, "productsAdded");
+        let products_edited = resolved_object_list_field(&field.arguments, "productsEdited");
+        let products_removed_ids = resolved_string_list_arg(&field.arguments, "productsRemovedIds");
+        let options_and_values = resolved_object_list_field(&field.arguments, "optionsAndValues");
+        let mut errors = Vec::new();
+
+        let Some(parent) = self.store.product_by_id(&parent_id).cloned() else {
+            errors.push(user_error(
+                ["parentProductId"],
+                "Product does not exist",
+                Some("PARENT_PRODUCT_NOT_FOUND"),
+            ));
+            return self.product_tail_combined_listing_response(
+                field,
+                log_context,
+                errors,
+                None,
+                Vec::new(),
+            );
+        };
+
+        if resolved_string_field(&field.arguments, "title")
+            .is_some_and(|title| title.chars().count() > 255)
+        {
+            errors.push(user_error(
+                ["title"],
+                "The title cannot be longer than 255 characters.",
+                Some("TITLE_TOO_LONG"),
+            ));
+        }
+
+        let parent_role = product_combined_listing_role(&parent);
+        match parent_role.as_deref() {
+            Some("PARENT") => {}
+            Some("CHILD") => errors.push(user_error(
+                ["parentProductId"],
+                "A child product cannot be a combined listing parent.",
+                Some("PARENT_PRODUCT_CANNOT_BE_COMBINED_LISTING_CHILD"),
+            )),
+            _ => errors.push(user_error(
+                ["parentProductId"],
+                "The product must be a combined listing.",
+                Some("PARENT_PRODUCT_MUST_BE_A_COMBINED_LISTING"),
+            )),
+        }
+
+        if (!products_added.is_empty() || !products_edited.is_empty())
+            && options_and_values.is_empty()
+        {
+            errors.push(user_error(
+                ["optionsAndValues"],
+                "Options and values must be present when adding or editing products.",
+                Some("MISSING_OPTION_VALUES"),
+            ));
+        }
+
+        let added_ids = combined_listing_relation_child_ids(&products_added);
+        let edited_ids = combined_listing_relation_child_ids(&products_edited);
+        if has_duplicate_string(&added_ids) {
+            errors.push(user_error(
+                ["productsAdded"],
+                "The field cannot receive duplicated products.",
+                Some("CANNOT_HAVE_DUPLICATED_PRODUCTS"),
+            ));
+        }
+        if added_ids.iter().any(|id| id == &parent_id) {
+            errors.push(user_error(
+                ["productsAdded"],
+                "A parent product cannot have itself as child.",
+                Some("CANNOT_HAVE_PARENT_AS_CHILD"),
+            ));
+        }
+        let removed = products_removed_ids
+            .iter()
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        if edited_ids.iter().any(|id| removed.contains(id)) {
+            errors.push(user_error(
+                ["productsEdited"],
+                "Cannot edit and remove same child products.",
+                Some("EDIT_AND_REMOVE_ON_SAME_PRODUCTS"),
+            ));
+        }
+
+        for (index, relation) in products_added
+            .iter()
+            .chain(products_edited.iter())
+            .enumerate()
+        {
+            let selected = resolved_object_list_field(relation, "selectedParentOptionValues");
+            if selected.is_empty() {
+                errors.push(user_error(
+                    vec![
+                        if index < products_added.len() {
+                            "productsAdded".to_string()
+                        } else {
+                            "productsEdited".to_string()
+                        },
+                        index.to_string(),
+                        "selectedParentOptionValues".to_string(),
+                    ],
+                    "The selected option values cannot be empty.",
+                    Some("MUST_HAVE_SELECTED_OPTION_VALUES"),
+                ));
+            }
+        }
+
+        let mut missing_child_ids = Vec::new();
+        for child_id in added_ids.iter().chain(edited_ids.iter()) {
+            if self.store.product_by_id(child_id).is_none() {
+                missing_child_ids.push(child_id.clone());
+            }
+        }
+        if !missing_child_ids.is_empty() {
+            errors.push(user_error(
+                ["productsAdded"],
+                &format!(
+                    "The product with ID(s) {} could not be found.",
+                    serde_json::to_string(&missing_child_ids).unwrap_or_else(|_| "[]".to_string())
+                ),
+                Some("PRODUCT_NOT_FOUND"),
+            ));
+        }
+
+        let current_links = combined_listing_child_links(&parent);
+        for child_id in &added_ids {
+            let already_child = current_links.iter().any(|link| {
+                link.get("childProductId").and_then(Value::as_str) == Some(child_id.as_str())
+            }) || self
+                .store
+                .product_by_id(child_id)
+                .and_then(product_combined_listing_role)
+                .as_deref()
+                == Some("CHILD");
+            if already_child {
+                errors.push(user_error(
+                    ["productsAdded"],
+                    "A product can't belong to more than one product Combined Listing.",
+                    Some("PRODUCT_IS_ALREADY_A_CHILD"),
+                ));
+                break;
+            }
+        }
+
+        if !errors.is_empty() {
+            return self.product_tail_combined_listing_response(
+                field,
+                log_context,
+                errors,
+                None,
+                Vec::new(),
+            );
+        }
+
+        let mut links = current_links;
+        links.retain(|link| {
+            link.get("childProductId")
+                .and_then(Value::as_str)
+                .is_none_or(|id| !removed.contains(id))
+        });
+        for removed_id in &products_removed_ids {
+            if let Some(mut child) = self.store.product_by_id(removed_id).cloned() {
+                child.extra_fields.remove("combinedListingRole");
+                child.extra_fields.remove("combinedListingParentId");
+                self.store.stage_product(child);
+            }
+        }
+        for relation in products_added.iter().chain(products_edited.iter()) {
+            let Some(child_id) = resolved_string_field(relation, "childProductId") else {
+                continue;
+            };
+            let selected_values = resolved_value_json(
+                relation
+                    .get("selectedParentOptionValues")
+                    .unwrap_or(&ResolvedValue::List(Vec::new())),
+            );
+            let parent_variant_id = self
+                .combined_listing_parent_variant_id(&parent_id, relation)
+                .unwrap_or_default();
+            links.retain(|link| {
+                link.get("childProductId").and_then(Value::as_str) != Some(child_id.as_str())
+            });
+            links.push(json!({
+                "childProductId": child_id,
+                "parentVariantId": parent_variant_id,
+                "selectedParentOptionValues": selected_values
+            }));
+            if let Some(mut child) = self.store.product_by_id(&child_id).cloned() {
+                child
+                    .extra_fields
+                    .insert("combinedListingRole".to_string(), json!("CHILD"));
+                child
+                    .extra_fields
+                    .insert("combinedListingParentId".to_string(), json!(parent_id));
+                self.store.stage_product(child);
+            }
+        }
+
+        let mut updated_parent = parent;
+        if let Some(title) = resolved_string_field(&field.arguments, "title") {
+            updated_parent.title = title;
+        }
+        updated_parent
+            .extra_fields
+            .insert("combinedListingRole".to_string(), json!("PARENT"));
+        updated_parent.extra_fields.insert(
+            "combinedListingChildLinks".to_string(),
+            Value::Array(links.clone()),
+        );
+        let combined_listing = self.combined_listing_json(&updated_parent, &links);
+        updated_parent
+            .extra_fields
+            .insert("combinedListing".to_string(), combined_listing);
+        updated_parent.updated_at = self.next_product_updated_at(&updated_parent.updated_at);
+        self.store.stage_product(updated_parent.clone());
+
+        let mut staged_ids = vec![updated_parent.id.clone()];
+        staged_ids.extend(
+            links
+                .iter()
+                .filter_map(|link| link.get("childProductId").and_then(Value::as_str))
+                .map(str::to_string),
+        );
+        self.product_tail_combined_listing_response(
+            field,
+            log_context,
+            Vec::new(),
+            Some(updated_parent),
+            staged_ids,
+        )
+    }
+
+    pub(in crate::proxy) fn product_tail_variant_relationship_bulk_update(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let log_context = ProductTailLogContext {
+            request,
+            query,
+            variables,
+        };
+        let inputs = resolved_object_list_field(&field.arguments, "input");
+        let mut errors = Vec::new();
+        let mut missing_variant_ids = Vec::new();
+        let mut parent_ids = BTreeSet::new();
+
+        if inputs.is_empty() {
+            errors.push(user_error(
+                ["input"],
+                "At least one parent product variant is required.",
+                Some("PARENT_REQUIRED"),
+            ));
+        }
+
+        for input in &inputs {
+            let parent_variant_id = self.parent_variant_id_from_relationship_input(input);
+            let Some(parent_variant_id) = parent_variant_id else {
+                errors.push(user_error(
+                    ["input"],
+                    "A parent product variant is required.",
+                    Some("PARENT_REQUIRED"),
+                ));
+                continue;
+            };
+            if !parent_ids.insert(parent_variant_id.clone()) {
+                errors.push(user_error(
+                    ["input"],
+                    "Duplicate parent product variant relationships are not permitted.",
+                    Some("DUPLICATE_PRODUCT_VARIANT_RELATIONSHIP"),
+                ));
+            }
+            if self
+                .store
+                .product_variant_by_id(&parent_variant_id)
+                .is_none()
+            {
+                push_missing_variant_id(&mut missing_variant_ids, parent_variant_id.clone());
+            }
+            let creates = resolved_object_list_field(input, "productVariantRelationshipsToCreate");
+            let updates = resolved_object_list_field(input, "productVariantRelationshipsToUpdate");
+            let removes = resolved_object_list_field(input, "productVariantRelationshipsToRemove");
+            if creates.is_empty() && updates.is_empty() && removes.is_empty() {
+                errors.push(user_error(
+                    ["input"],
+                    "Components must be specified.",
+                    Some("MUST_SPECIFY_COMPONENTS"),
+                ));
+            }
+            let mut child_ids = BTreeSet::new();
+            for component in creates.iter().chain(updates.iter()).chain(removes.iter()) {
+                let Some(child_id) = resolved_string_field(component, "id") else {
+                    continue;
+                };
+                if child_id == parent_variant_id {
+                    errors.push(user_error(
+                        ["input"],
+                        "A parent product variant cannot contain itself as a component.",
+                        Some("CIRCULAR_REFERENCE"),
+                    ));
+                }
+                if !child_ids.insert(child_id.clone()) {
+                    errors.push(user_error(
+                        ["input"],
+                        "Duplicate product variant relationships are not permitted.",
+                        Some("DUPLICATE_PRODUCT_VARIANT_RELATIONSHIP"),
+                    ));
+                }
+                if self.store.product_variant_by_id(&child_id).is_none() {
+                    push_missing_variant_id(&mut missing_variant_ids, child_id.clone());
+                }
+                if resolved_int_field(component, "quantity").is_some_and(|quantity| quantity <= 0) {
+                    errors.push(user_error(
+                        ["input"],
+                        "Quantity must be greater than 0.",
+                        Some("INVALID_QUANTITY"),
+                    ));
+                }
+            }
+        }
+
+        if !missing_variant_ids.is_empty() {
+            errors.push(user_error(
+                ["input"],
+                &format!(
+                    "The product variants with ID(s) {} could not be found.",
+                    serde_json::to_string(&missing_variant_ids)
+                        .unwrap_or_else(|_| "[]".to_string())
+                ),
+                Some("PRODUCT_VARIANTS_NOT_FOUND"),
+            ));
+        }
+
+        if !errors.is_empty() {
+            return self.product_tail_variant_relationship_response(
+                field,
+                log_context,
+                errors,
+                Vec::new(),
+                Vec::new(),
+            );
+        }
+
+        let mut parent_variants = Vec::new();
+        let mut staged_ids = Vec::new();
+        for input in &inputs {
+            let Some(parent_variant_id) = self.parent_variant_id_from_relationship_input(input)
+            else {
+                continue;
+            };
+            let mut parent = self
+                .store
+                .product_variant_by_id(&parent_variant_id)
+                .cloned()
+                .expect("validated parent variant should exist");
+            let mut components = product_variant_component_rows(&parent);
+            for component in
+                resolved_object_list_field(input, "productVariantRelationshipsToRemove")
+            {
+                if let Some(child_id) = resolved_string_field(&component, "id") {
+                    components.retain(|row| {
+                        row.get("id").and_then(Value::as_str) != Some(child_id.as_str())
+                    });
+                }
+            }
+            for component in
+                resolved_object_list_field(input, "productVariantRelationshipsToCreate")
+                    .into_iter()
+                    .chain(resolved_object_list_field(
+                        input,
+                        "productVariantRelationshipsToUpdate",
+                    ))
+            {
+                let Some(child_id) = resolved_string_field(&component, "id") else {
+                    continue;
+                };
+                let quantity = resolved_int_field(&component, "quantity").unwrap_or(1);
+                components
+                    .retain(|row| row.get("id").and_then(Value::as_str) != Some(child_id.as_str()));
+                components.push(json!({ "id": child_id, "quantity": quantity }));
+            }
+            let component_connection = self.product_variant_components_connection(&components);
+            parent.extra_fields.insert(
+                "productVariantComponentRows".to_string(),
+                Value::Array(components),
+            );
+            parent.extra_fields.insert(
+                "productVariantComponents".to_string(),
+                component_connection.clone(),
+            );
+            parent.extra_fields.insert(
+                "requiresComponents".to_string(),
+                json!(component_connection
+                    .get("nodes")
+                    .and_then(Value::as_array)
+                    .is_some_and(|nodes| !nodes.is_empty())),
+            );
+            self.store.stage_product_variant(parent.clone());
+            staged_ids.push(parent.id.clone());
+            parent_variants.push(parent);
+        }
+
+        self.product_tail_variant_relationship_response(
+            field,
+            log_context,
+            Vec::new(),
+            parent_variants,
+            staged_ids,
+        )
+    }
+
     pub(in crate::proxy) fn product_tail_job_read(&self, field: &RootFieldSelection) -> Value {
         self.product_tail_job_read_with_error(field).0
     }
@@ -697,7 +1237,7 @@ impl DraftProxy {
         &self,
         field: &RootFieldSelection,
     ) -> (Value, Option<Value>) {
-        let Some(id) = resolved_string_arg(&field.arguments, "id") else {
+        let Some(id) = resolved_string_field(&field.arguments, "id") else {
             return (Value::Null, None);
         };
         if let Some(job) = self.store.staged.collection_jobs.get(&id) {
@@ -743,50 +1283,288 @@ impl DraftProxy {
         &self,
         fields: &[RootFieldSelection],
     ) -> Value {
-        let mut data = serde_json::Map::new();
         let mut errors = Vec::new();
-        for field in fields {
+        let data = root_payload_json(fields, |field| {
             if field.name == "job" {
                 let (value, error) = self.product_tail_job_read_with_error(field);
-                data.insert(field.response_key.clone(), value);
                 if let Some(error) = error {
                     errors.push(error);
                 }
+                Some(value)
+            } else {
+                None
             }
-        }
+        });
         let mut body = serde_json::Map::new();
         if !errors.is_empty() {
             body.insert("errors".to_string(), Value::Array(errors));
         }
-        body.insert("data".to_string(), Value::Object(data));
+        body.insert("data".to_string(), data);
         Value::Object(body)
     }
 
-    pub(in crate::proxy) fn has_products_tail_staged_resource_id(&self, resource_id: &str) -> bool {
-        self.log_entries.iter().any(|entry| {
-            entry["status"] == json!("staged")
-                && entry["stagedResourceIds"]
-                    .as_array()
-                    .is_some_and(|ids| ids.iter().any(|id| id == resource_id))
+    fn product_tail_combined_listing_response(
+        &mut self,
+        field: &RootFieldSelection,
+        log_context: ProductTailLogContext<'_>,
+        user_errors: Vec<Value>,
+        product: Option<ProductRecord>,
+        staged_ids: Vec<String>,
+    ) -> Value {
+        let status = if user_errors.is_empty() {
+            "staged"
+        } else {
+            "failed"
+        };
+        self.record_mutation_log_with_status(
+            log_context.request,
+            log_context.query,
+            log_context.variables,
+            "combinedListingUpdate",
+            staged_ids,
+            status,
+        );
+        let product_value = product
+            .as_ref()
+            .map(|product| {
+                product_json_with_variants_and_currency(
+                    product,
+                    &self.store.product_variants_for_product(&product.id),
+                    selected_child_selection(&field.selection, "product")
+                        .as_deref()
+                        .unwrap_or(&[]),
+                    &self.store.shop_currency_code(),
+                )
+            })
+            .unwrap_or(Value::Null);
+        selected_json(
+            &json!({
+                "product": product_value,
+                "userErrors": user_errors
+            }),
+            &field.selection,
+        )
+    }
+
+    fn combined_listing_parent_variant_id(
+        &self,
+        parent_product_id: &str,
+        relation: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<String> {
+        let selected_values = resolved_object_list_field(relation, "selectedParentOptionValues");
+        let variants = self.store.product_variants_for_product(parent_product_id);
+        variants
+            .iter()
+            .find(|variant| selected_options_match(&variant.selected_options, &selected_values))
+            .or_else(|| variants.first())
+            .map(|variant| variant.id.clone())
+    }
+
+    fn combined_listing_json(&self, parent: &ProductRecord, links: &[Value]) -> Value {
+        let children = links
+            .iter()
+            .filter_map(|link| {
+                let child_id = link.get("childProductId").and_then(Value::as_str)?;
+                let child = self.store.product_by_id(child_id)?;
+                let parent_variant = link
+                    .get("parentVariantId")
+                    .and_then(Value::as_str)
+                    .and_then(|id| self.store.product_variant_by_id(id))
+                    .map(product_variant_state_json)
+                    .unwrap_or(Value::Null);
+                Some(json!({
+                    "__typename": "CombinedListingChild",
+                    "product": combined_listing_product_node(child),
+                    "parentVariant": parent_variant
+                }))
+            })
+            .collect::<Vec<_>>();
+        json!({
+            "__typename": "CombinedListing",
+            "parentProduct": combined_listing_product_node(parent),
+            "combinedListingChildren": connection_json(children)
         })
     }
 
-    pub(in crate::proxy) fn record_products_tail_log(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        root_field: &str,
-        staged_ids: Vec<String>,
-        status: &str,
-    ) {
-        self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
-        if status != "staged" {
-            if let Some(entry) = self.log_entries.last_mut() {
-                set_log_status(entry, status);
-            }
-        }
+    fn parent_variant_id_from_relationship_input(
+        &self,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<String> {
+        resolved_string_field(input, "parentProductVariantId").or_else(|| {
+            let product_id = resolved_string_field(input, "parentProductId")?;
+            self.store
+                .product_variants_for_product(&product_id)
+                .first()
+                .map(|variant| variant.id.clone())
+        })
     }
+
+    fn product_variant_components_connection(&self, rows: &[Value]) -> Value {
+        let nodes = rows
+            .iter()
+            .filter_map(|row| {
+                let child_id = row.get("id").and_then(Value::as_str)?;
+                let quantity = row.get("quantity").cloned().unwrap_or_else(|| json!(1));
+                let variant = self.store.product_variant_by_id(child_id)?;
+                Some(json!({
+                    "__typename": "ProductVariantComponent",
+                    "quantity": quantity,
+                    "productVariant": product_variant_state_json(variant)
+                }))
+            })
+            .collect::<Vec<_>>();
+        connection_json(nodes)
+    }
+
+    fn product_tail_variant_relationship_response(
+        &mut self,
+        field: &RootFieldSelection,
+        log_context: ProductTailLogContext<'_>,
+        user_errors: Vec<Value>,
+        parent_variants: Vec<ProductVariantRecord>,
+        staged_ids: Vec<String>,
+    ) -> Value {
+        let status = if user_errors.is_empty() {
+            "staged"
+        } else {
+            "failed"
+        };
+        self.record_mutation_log_with_status(
+            log_context.request,
+            log_context.query,
+            log_context.variables,
+            "productVariantRelationshipBulkUpdate",
+            staged_ids,
+            status,
+        );
+        let parent_values = if user_errors.is_empty() {
+            Value::Array(
+                parent_variants
+                    .iter()
+                    .map(|variant| {
+                        product_variant_json(
+                            variant,
+                            self.store.product_by_id(&variant.product_id),
+                            selected_child_selection(&field.selection, "parentProductVariants")
+                                .as_deref()
+                                .unwrap_or(&[]),
+                        )
+                    })
+                    .collect(),
+            )
+        } else {
+            Value::Null
+        };
+        selected_json(
+            &json!({
+                "parentProductVariants": parent_values,
+                "userErrors": user_errors
+            }),
+            &field.selection,
+        )
+    }
+}
+
+fn resource_feedback_scope_is_explicitly_missing(request: &Request) -> bool {
+    request_header(request, "x-shopify-draft-proxy-access-scopes").is_some()
+        && !app_granted_access_scopes(request)
+            .iter()
+            .any(|scope| scope == "write_resource_feedbacks")
+}
+
+fn product_tail_resource_feedback_access_denied_error(field: &RootFieldSelection) -> Value {
+    const REQUIRED_ACCESS: &str = "`write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.";
+    json!({
+        "message": format!(
+            "Access denied for {} field. Required access: {REQUIRED_ACCESS}",
+            field.name
+        ),
+        "locations": [{"line": field.location.line, "column": field.location.column}],
+        "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": REQUIRED_ACCESS
+        },
+        "path": [field.response_key.clone()]
+    })
+}
+
+fn product_combined_listing_role(product: &ProductRecord) -> Option<String> {
+    product
+        .extra_fields
+        .get("combinedListingRole")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+fn combined_listing_relation_child_ids(
+    relations: &[BTreeMap<String, ResolvedValue>],
+) -> Vec<String> {
+    relations
+        .iter()
+        .filter_map(|relation| resolved_string_field(relation, "childProductId"))
+        .collect()
+}
+
+fn combined_listing_child_links(product: &ProductRecord) -> Vec<Value> {
+    product
+        .extra_fields
+        .get("combinedListingChildLinks")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn has_duplicate_string(values: &[String]) -> bool {
+    let mut seen = BTreeSet::new();
+    values.iter().any(|value| !seen.insert(value))
+}
+
+fn push_missing_variant_id(missing_ids: &mut Vec<String>, id: String) {
+    if !missing_ids.contains(&id) {
+        missing_ids.push(id);
+    }
+}
+
+fn selected_options_match(
+    variant_options: &[ProductVariantSelectedOption],
+    selected_values: &[BTreeMap<String, ResolvedValue>],
+) -> bool {
+    if selected_values.is_empty() {
+        return true;
+    }
+    selected_values.iter().all(|selected| {
+        let name = resolved_string_field(selected, "name");
+        let value = resolved_string_field(selected, "value");
+        variant_options.iter().any(|option| {
+            Some(option.name.as_str()) == name.as_deref()
+                && Some(option.value.as_str()) == value.as_deref()
+        })
+    })
+}
+
+fn combined_listing_product_node(product: &ProductRecord) -> Value {
+    json!({
+        "__typename": "Product",
+        "id": product.id,
+        "title": product.title,
+        "handle": product.handle,
+        "status": product.status,
+        "combinedListingRole": product
+            .extra_fields
+            .get("combinedListingRole")
+            .cloned()
+            .unwrap_or(Value::Null)
+    })
+}
+
+fn product_variant_component_rows(variant: &ProductVariantRecord) -> Vec<Value> {
+    variant
+        .extra_fields
+        .get("productVariantComponentRows")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
 }
 
 fn product_tail_invalid_enum_response(
@@ -807,7 +1585,7 @@ fn product_tail_invalid_enum_response(
         "bulkProductResourceFeedbackCreate" if product_feedback_state_invalid_literal(field) => {
             Some(ok_json(json!({
                 "errors": [{
-                    "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
+                    "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState!'.",
                     "extensions": {
                         "code": "argumentLiteralsIncompatible",
                         "typeName": "InputObject",
@@ -819,7 +1597,7 @@ fn product_tail_invalid_enum_response(
         "shopResourceFeedbackCreate" if shop_feedback_state_invalid_literal(field) => {
             Some(ok_json(json!({
                 "errors": [{
-                    "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
+                    "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState!'.",
                     "extensions": {
                         "code": "argumentLiteralsIncompatible",
                         "typeName": "InputObject",
@@ -852,10 +1630,10 @@ fn publication_create_name(id: &str, catalog: Option<&Value>) -> String {
 fn publication_catalog_not_found_payload(catalog_id: &str) -> Value {
     json!({
         "publication": null,
-        "userErrors": [publication_error(
-            vec!["input", "catalogId"],
+        "userErrors": [user_error(
+            ["input", "catalogId"],
             &format!("A catalog was not found for id= {catalog_id}."),
-            "CATALOG_NOT_FOUND",
+            Some("CATALOG_NOT_FOUND"),
         )]
     })
 }
@@ -865,10 +1643,10 @@ fn publication_not_found_payload(root_field: &str) -> Value {
     payload.insert(root_field.to_string(), Value::Null);
     payload.insert(
         "userErrors".to_string(),
-        json!([publication_error(
-            vec!["id"],
+        json!([user_error(
+            ["id"],
             "Publication was not found",
-            "PUBLICATION_NOT_FOUND",
+            Some("PUBLICATION_NOT_FOUND"),
         )]),
     );
     Value::Object(payload)
@@ -888,22 +1666,6 @@ fn publication_update_limit_field(
         "publishablesToAdd"
     };
     vec!["input", field_name, "51"]
-}
-
-fn publication_error(field: Vec<&str>, message: &str, code: &str) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
-}
-
-fn publication_indexed_error(field_name: &str, index: usize, message: &str, code: &str) -> Value {
-    json!({
-        "field": ["input", field_name, index.to_string()],
-        "message": message,
-        "code": code
-    })
 }
 
 /// When `publicationCreate`'s `$input.defaultState` is not a valid
@@ -943,26 +1705,19 @@ fn publication_default_state_invalid_response(
     let message = format!(
         "Variable ${variable_name} of type PublicationCreateInput! was provided invalid value for defaultState (Expected \"{state}\" to be one of: {one_of})"
     );
-    let mut error = serde_json::Map::new();
-    error.insert("message".to_string(), json!(message));
-    if let Some((line, column)) = graphql_variable_definition_location(query, variable_name) {
-        error.insert(
-            "locations".to_string(),
-            json!([{ "line": line, "column": column }]),
-        );
-    }
-    error.insert(
-        "extensions".to_string(),
-        json!({
-            "code": "INVALID_VARIABLE",
-            "value": provided,
-            "problems": [{
+    let (line, column) =
+        graphql_variable_definition_location(query, variable_name).unwrap_or((1, 1));
+    ok_json(json!({
+        "errors": [invalid_variable_error_envelope(
+            message,
+            SourceLocation { line, column },
+            provided.clone(),
+            json!([{
                 "path": ["defaultState"],
                 "explanation": format!("Expected \"{state}\" to be one of: {one_of}"),
-            }],
-        }),
-    );
-    ok_json(json!({ "errors": [Value::Object(error)] }))
+            }]),
+        )]
+    }))
 }
 
 fn product_full_sync_updated_at_range_invalid(

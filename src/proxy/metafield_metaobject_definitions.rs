@@ -1,4 +1,7 @@
 use super::*;
+use crate::graphql::ParsedDocument;
+use serde::Deserialize;
+use std::sync::OnceLock;
 
 const METAFIELD_DEFINITION_RESOURCE_TYPE_LIMIT: usize = 256;
 const PINNED_DEFINITION_LIMIT: usize = 20;
@@ -22,6 +25,125 @@ fn admin_filterable_definition_limit_message(owner_type: &str) -> String {
         "You can only use {ADMIN_FILTERABLE_DEFINITION_LIMIT} {} metafield definitions to filter the {} list. To add a new filter, disable filtering on an existing one.",
         owner_type.to_ascii_lowercase(),
         owner_type.to_ascii_lowercase()
+    )
+}
+
+fn metafield_access_grants_validation_response(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Response> {
+    let document = parsed_document(query, variables)?;
+    let mut errors = Vec::new();
+    for field in &document.root_fields {
+        if !matches!(
+            field.name.as_str(),
+            "metafieldDefinitionCreate" | "metafieldDefinitionUpdate"
+        ) {
+            continue;
+        }
+        let Some(definition) = field.raw_arguments.get("definition") else {
+            continue;
+        };
+        errors.extend(metafield_access_grants_errors(
+            query, &document, field, definition,
+        ));
+    }
+    (!errors.is_empty()).then(|| ok_json(json!({ "errors": errors })))
+}
+
+fn metafield_access_grants_errors(
+    query: &str,
+    document: &ParsedDocument,
+    field: &RootFieldSelection,
+    definition: &RawArgumentValue,
+) -> Vec<Value> {
+    match definition {
+        RawArgumentValue::Object(definition) => match definition.get("access") {
+            Some(RawArgumentValue::Object(access)) if access.contains_key("grants") => {
+                let context = ValidationContext {
+                    query,
+                    operation_path: &document.operation_path,
+                    response_key: &field.response_key,
+                    field_location: field.location,
+                    raw_body: "",
+                };
+                vec![input_object_argument_not_accepted_error(
+                    "MetafieldAccessInput",
+                    "grants",
+                    &[json!("definition"), json!("access")],
+                    context,
+                )]
+            }
+            Some(RawArgumentValue::Variable { name, value }) => value
+                .as_ref()
+                .map(|value| {
+                    metafield_access_grants_variable_error(
+                        query,
+                        document,
+                        name,
+                        value,
+                        vec![json!("grants")],
+                    )
+                })
+                .into_iter()
+                .collect(),
+            _ => Vec::new(),
+        },
+        RawArgumentValue::Variable { name, value } => value
+            .as_ref()
+            .and_then(|value| {
+                let ResolvedValue::Object(definition) = value else {
+                    return None;
+                };
+                let Some(ResolvedValue::Object(access)) = definition.get("access") else {
+                    return None;
+                };
+                if access.contains_key("grants") {
+                    Some(metafield_access_grants_variable_error(
+                        query,
+                        document,
+                        name,
+                        value,
+                        vec![json!("access"), json!("grants")],
+                    ))
+                } else {
+                    None
+                }
+            })
+            .into_iter()
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn metafield_access_grants_variable_error(
+    query: &str,
+    document: &ParsedDocument,
+    variable_name: &str,
+    value: &ResolvedValue,
+    path: Vec<Value>,
+) -> Value {
+    let variable = document.variable_definitions.get(variable_name);
+    let variable_type = variable
+        .map(|definition| definition.type_display.as_str())
+        .unwrap_or("MetafieldDefinitionInput");
+    let location = variable
+        .map(|definition| definition.location)
+        .or_else(|| {
+            variable_definition_info(query, variable_name).map(|definition| definition.location)
+        })
+        .unwrap_or(document.location);
+    invalid_variable_error(
+        VariableValidationContext {
+            variable_name,
+            variable_type,
+            location,
+        },
+        value,
+        vec![variable_problem_value_path(
+            &path,
+            "Field is not defined on MetafieldAccessInput",
+        )],
     )
 }
 
@@ -60,65 +182,38 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        if query.contains("access: { grants:") {
-            return ok_json(json!({
-                "errors": [{
-                    "message": "InputObject 'MetafieldAccessInput' doesn't accept argument 'grants'",
-                    "locations": [{"line": 9, "column": 17}],
-                    "path": ["mutation MetafieldDefinitionAccessValidationInlineGrants", "metafieldDefinitionCreate", "definition", "access", "grants"],
-                    "extensions": {
-                        "code": "argumentNotAccepted",
-                        "name": "MetafieldAccessInput",
-                        "typeName": "InputObject",
-                        "argumentName": "grants"
-                    }
-                }]
-            }));
+        if let Some(response) = metafield_access_grants_validation_response(query, variables) {
+            return response;
         }
         let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
         let mut primary_staged_root: Option<String> = None;
         for field in root_fields(query, variables).unwrap_or_default() {
             let root_name = field.name.clone();
-            match field.name.as_str() {
+            let mut track_staged_id_from_payload = true;
+            let payload = match field.name.as_str() {
                 "metafieldDefinitionCreate" => {
                     let definition_input =
                         resolved_object_field(&field.arguments, "definition").unwrap_or_default();
-                    if access_denied_for_reserved_metafield_namespace(&definition_input) {
+                    if access_denied_for_reserved_metafield_namespace(request, &definition_input) {
                         return metafield_definition_access_denied_response(
                             "metafieldDefinitionCreate",
                         );
                     }
-                    let payload =
-                        self.metafield_definition_create_payload(request, &definition_input);
-                    if let Some(id) = metafield_definition_payload_staged_id(&payload) {
-                        staged_ids.push(id);
-                        primary_staged_root.get_or_insert(root_name);
-                    }
-                    data.insert(
-                        field.response_key,
-                        selected_json(&payload, &field.selection),
-                    );
+                    self.metafield_definition_create_payload(request, &definition_input)
                 }
                 "metafieldDefinitionUpdate" => {
                     let definition_input =
                         resolved_object_field(&field.arguments, "definition").unwrap_or_default();
-                    if access_denied_for_reserved_metafield_namespace(&definition_input) {
+                    if access_denied_for_reserved_metafield_namespace(request, &definition_input) {
                         return metafield_definition_access_denied_response(
                             "metafieldDefinitionUpdate",
                         );
                     }
-                    let payload = self.metafield_definition_update_payload(&definition_input);
-                    if let Some(id) = metafield_definition_payload_staged_id(&payload) {
-                        staged_ids.push(id);
-                        primary_staged_root.get_or_insert(root_name);
-                    }
-                    data.insert(
-                        field.response_key,
-                        selected_json(&payload, &field.selection),
-                    );
+                    self.metafield_definition_update_payload(request, &definition_input)
                 }
                 "standardMetafieldDefinitionEnable" => {
+                    track_staged_id_from_payload = false;
                     let owner_type = resolved_string_field(&field.arguments, "ownerType")
                         .unwrap_or_else(|| "PRODUCT".to_string());
                     let id = resolved_string_field(&field.arguments, "id");
@@ -137,223 +232,31 @@ impl DraftProxy {
                         &mut staged_ids,
                     );
                     if !staged_ids.is_empty() {
-                        primary_staged_root.get_or_insert(root_name);
+                        primary_staged_root.get_or_insert(root_name.clone());
                     }
-                    data.insert(
-                        field.response_key,
-                        selected_json(&payload, &field.selection),
-                    );
+                    payload
                 }
                 "metafieldDefinitionDelete" => {
-                    let payload = self.metafield_definition_delete_payload(&field.arguments);
-                    if let Some(id) = metafield_definition_payload_staged_id(&payload) {
-                        staged_ids.push(id);
-                        primary_staged_root.get_or_insert(root_name);
-                    }
-                    data.insert(
-                        field.response_key,
-                        selected_json(&payload, &field.selection),
-                    );
+                    self.metafield_definition_delete_payload(request, &field.arguments)
                 }
                 "metafieldDefinitionPin" => {
-                    let identifier =
-                        resolved_object_field(&field.arguments, "identifier").unwrap_or_default();
-                    let mut owner_type = resolved_string_field(&identifier, "ownerType")
-                        .unwrap_or_else(|| "PRODUCT".to_string());
-                    let mut namespace =
-                        resolved_string_field(&identifier, "namespace").unwrap_or_default();
-                    let mut key = resolved_string_field(&identifier, "key").unwrap_or_default();
-                    if key.is_empty() {
-                        if let Some(definition_id) =
-                            resolved_string_field(&field.arguments, "definitionId")
-                                .or_else(|| resolved_string_arg(variables, "definitionId"))
-                        {
-                            if let Some((found_owner_type, found_namespace, found_key)) =
-                                self.metafield_definition_key_for_id(&definition_id)
-                            {
-                                owner_type = found_owner_type;
-                                namespace = found_namespace;
-                                key = found_key;
-                            } else {
-                                self.hydrate_metafield_definition_by_id(request, &definition_id);
-                                if let Some((found_owner_type, found_namespace, found_key)) =
-                                    self.metafield_definition_key_for_id(&definition_id)
-                                {
-                                    owner_type = found_owner_type;
-                                    namespace = found_namespace;
-                                    key = found_key;
-                                }
-                            }
-                        }
-                    }
-                    self.hydrate_metafield_definitions_for_owner(request, &owner_type, &namespace);
-                    let map_key = metafield_definition_store_key(&owner_type, &namespace, &key);
-                    let Some(mut definition) = self
-                        .store
-                        .staged
-                        .metafield_definitions
-                        .get(&map_key)
-                        .cloned()
-                    else {
-                        let payload = json!({
-                            "pinnedDefinition": Value::Null,
-                            "userErrors": [metafield_definition_user_error("MetafieldDefinitionPinUserError", Value::Null, "Definition not found.", "NOT_FOUND")]
-                        });
-                        data.insert(
-                            field.response_key,
-                            selected_json(&payload, &field.selection),
-                        );
-                        continue;
-                    };
-                    let definition_owner_type = definition
-                        .get("ownerType")
-                        .and_then(Value::as_str)
-                        .unwrap_or("PRODUCT")
-                        .to_string();
-                    if definition
-                        .get("pinnedPosition")
-                        .is_some_and(|position| !position.is_null())
-                        && !metafield_definition_has_constraints(&definition)
-                    {
-                        let payload = json!({
-                            "pinnedDefinition": Value::Null,
-                            "userErrors": [metafield_definition_user_error("MetafieldDefinitionPinUserError", Value::Null, "Definition already pinned.", "ALREADY_PINNED")]
-                        });
-                        data.insert(
-                            field.response_key,
-                            selected_json(&payload, &field.selection),
-                        );
-                        continue;
-                    }
-                    if let Some(user_errors) = self.metafield_definition_pin_guard_user_errors(
-                        &definition,
-                        &definition_owner_type,
-                        "MetafieldDefinitionPinUserError",
-                        Value::Null,
-                    ) {
-                        let payload = json!({
-                            "pinnedDefinition": Value::Null,
-                            "userErrors": user_errors
-                        });
-                        data.insert(
-                            field.response_key,
-                            selected_json(&payload, &field.selection),
-                        );
-                        continue;
-                    }
-                    let position =
-                        self.next_metafield_definition_pin_position(&definition_owner_type);
-                    if definition.get("pinnedPosition").is_none_or(Value::is_null) {
-                        definition["pinnedPosition"] = json!(position);
-                    }
-                    self.store
-                        .staged
-                        .metafield_definitions
-                        .insert(map_key, definition.clone());
-                    let payload = json!({
-                        "pinnedDefinition": public_metafield_definition_value(definition),
-                        "userErrors": []
-                    });
-                    if let Some(id) = metafield_definition_payload_staged_id(&payload) {
-                        staged_ids.push(id);
-                        primary_staged_root.get_or_insert(root_name);
-                    }
-                    data.insert(
-                        field.response_key,
-                        selected_json(&payload, &field.selection),
-                    );
+                    self.metafield_definition_pin_payload(request, &field.arguments, variables)
                 }
                 "metafieldDefinitionUnpin" => {
-                    let identifier =
-                        resolved_object_field(&field.arguments, "identifier").unwrap_or_default();
-                    let mut owner_type = resolved_string_field(&identifier, "ownerType")
-                        .unwrap_or_else(|| "PRODUCT".to_string());
-                    let mut namespace =
-                        resolved_string_field(&identifier, "namespace").unwrap_or_default();
-                    let mut key = resolved_string_field(&identifier, "key").unwrap_or_default();
-                    if key.is_empty() {
-                        if let Some(definition_id) = resolved_string_arg(variables, "definitionId")
-                            .or_else(|| resolved_string_arg(variables, "id"))
-                        {
-                            if let Some((found_owner_type, found_namespace, found_key)) =
-                                self.metafield_definition_key_for_id(&definition_id)
-                            {
-                                owner_type = found_owner_type;
-                                namespace = found_namespace;
-                                key = found_key;
-                            } else {
-                                self.hydrate_metafield_definition_by_id(request, &definition_id);
-                                if let Some((found_owner_type, found_namespace, found_key)) =
-                                    self.metafield_definition_key_for_id(&definition_id)
-                                {
-                                    owner_type = found_owner_type;
-                                    namespace = found_namespace;
-                                    key = found_key;
-                                }
-                            }
-                        }
-                    }
-                    self.hydrate_metafield_definitions_for_owner(request, &owner_type, &namespace);
-                    let map_key = metafield_definition_store_key(&owner_type, &namespace, &key);
-                    let Some(current) = self
-                        .store
-                        .staged
-                        .metafield_definitions
-                        .get(&map_key)
-                        .cloned()
-                    else {
-                        let payload = json!({
-                            "unpinnedDefinition": Value::Null,
-                            "userErrors": [metafield_definition_user_error("MetafieldDefinitionUnpinUserError", Value::Null, "Definition not found.", "NOT_FOUND")]
-                        });
-                        data.insert(
-                            field.response_key,
-                            selected_json(&payload, &field.selection),
-                        );
-                        continue;
-                    };
-                    if current.get("pinnedPosition").is_none_or(Value::is_null) {
-                        let numeric_id = current
-                            .get("id")
-                            .and_then(Value::as_str)
-                            .map(resource_id_tail)
-                            .unwrap_or_default();
-                        let payload = json!({
-                            "unpinnedDefinition": Value::Null,
-                            "userErrors": [metafield_definition_user_error("MetafieldDefinitionUnpinUserError", Value::Null, &format!("Definition {numeric_id} isn't pinned."), "NOT_PINNED")]
-                        });
-                        data.insert(
-                            field.response_key,
-                            selected_json(&payload, &field.selection),
-                        );
-                        continue;
-                    }
-                    let mut definition = current;
-                    let owner_type = definition["ownerType"]
-                        .as_str()
-                        .unwrap_or("PRODUCT")
-                        .to_string();
-                    definition["pinnedPosition"] = Value::Null;
-                    self.store
-                        .staged
-                        .metafield_definitions
-                        .insert(map_key, definition.clone());
-                    self.compact_metafield_definition_pins(&owner_type);
-                    let payload = json!({
-                        "unpinnedDefinition": public_metafield_definition_value(definition),
-                        "userErrors": []
-                    });
-                    if let Some(id) = metafield_definition_payload_staged_id(&payload) {
-                        staged_ids.push(id);
-                        primary_staged_root.get_or_insert(root_name);
-                    }
-                    data.insert(
-                        field.response_key,
-                        selected_json(&payload, &field.selection),
-                    );
+                    self.metafield_definition_unpin_payload(request, &field.arguments, variables)
                 }
-                _ => {}
+                _ => continue,
+            };
+            if track_staged_id_from_payload {
+                if let Some(id) = metafield_definition_payload_staged_id(&payload) {
+                    staged_ids.push(id);
+                    primary_staged_root.get_or_insert(root_name);
+                }
             }
+            data.insert(
+                field.response_key,
+                selected_json(&payload, &field.selection),
+            );
         }
         if let Some(root) = primary_staged_root {
             self.record_mutation_log_entry(request, query, variables, &root, staged_ids);
@@ -370,7 +273,7 @@ impl DraftProxy {
         let key = resolved_string_field(input, "key").unwrap_or_default();
         let errors = metafield_definition_create_errors_for_namespace(input, &namespace);
         if !errors.is_empty() {
-            return json!({"createdDefinition": Value::Null, "userErrors": errors});
+            return metafield_definition_null_payload("createdDefinition", errors);
         }
         let validation_errors = metafield_definition_validation_errors(
             input,
@@ -379,7 +282,7 @@ impl DraftProxy {
             None,
         );
         if !validation_errors.is_empty() {
-            return json!({"createdDefinition": Value::Null, "userErrors": validation_errors});
+            return metafield_definition_null_payload("createdDefinition", validation_errors);
         }
         let owner_type =
             resolved_string_field(input, "ownerType").unwrap_or_else(|| "PRODUCT".to_string());
@@ -390,23 +293,23 @@ impl DraftProxy {
             .metafield_definitions
             .contains_key(&map_key)
         {
-            return json!({
-                "createdDefinition": Value::Null,
-                "userErrors": [metafield_definition_taken_error(&owner_type, &namespace)]
-            });
+            return metafield_definition_null_payload(
+                "createdDefinition",
+                vec![metafield_definition_taken_error(&owner_type, &namespace)],
+            );
         }
         if self.metafield_definition_resource_type_count(&owner_type, &namespace)
             >= METAFIELD_DEFINITION_RESOURCE_TYPE_LIMIT
         {
-            return json!({
-                "createdDefinition": Value::Null,
-                "userErrors": [metafield_definition_user_error(
+            return metafield_definition_null_payload(
+                "createdDefinition",
+                vec![metafield_definition_user_error(
                     "MetafieldDefinitionCreateUserError",
                     json!(["definition"]),
                     &metafield_definition_resource_type_limit_message(),
-                    "RESOURCE_TYPE_LIMIT_EXCEEDED"
-                )]
-            });
+                    "RESOURCE_TYPE_LIMIT_EXCEEDED",
+                )],
+            );
         }
         if let Some(error) = metafield_definition_capability_input_error(
             input,
@@ -417,21 +320,21 @@ impl DraftProxy {
                 .as_deref()
                 .unwrap_or_default(),
         ) {
-            return json!({"createdDefinition": Value::Null, "userErrors": [error]});
+            return metafield_definition_null_payload("createdDefinition", vec![error]);
         }
         if metafield_definition_capabilities_will_enable_admin_filterable(input, None)
             && self.metafield_definition_admin_filterable_count(&owner_type)
                 >= ADMIN_FILTERABLE_DEFINITION_LIMIT
         {
-            return json!({
-                "createdDefinition": Value::Null,
-                "userErrors": [metafield_definition_user_error(
+            return metafield_definition_null_payload(
+                "createdDefinition",
+                vec![metafield_definition_user_error(
                     "MetafieldDefinitionCreateUserError",
                     json!(["definition"]),
                     &admin_filterable_definition_limit_message(&owner_type),
-                    "OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS"
-                )]
-            });
+                    "OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS",
+                )],
+            );
         }
         let mut definition = self.metafield_definition_from_input(request, input, None);
         if resolved_bool_field(input, "pin") == Some(true) {
@@ -441,10 +344,7 @@ impl DraftProxy {
                 "MetafieldDefinitionCreateUserError",
                 json!(["definition"]),
             ) {
-                return json!({
-                    "createdDefinition": Value::Null,
-                    "userErrors": user_errors
-                });
+                return metafield_definition_null_payload("createdDefinition", user_errors);
             }
             definition["pinnedPosition"] =
                 json!(self.next_metafield_definition_pin_position(&owner_type));
@@ -453,54 +353,45 @@ impl DraftProxy {
             .staged
             .metafield_definitions
             .insert(map_key, definition.clone());
-        json!({
-            "createdDefinition": public_metafield_definition_value(definition),
-            "userErrors": []
-        })
+        metafield_definition_success_payload(
+            "createdDefinition",
+            public_metafield_definition_value(definition),
+        )
     }
 
     fn metafield_definition_update_payload(
         &mut self,
+        request: &Request,
         input: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let owner_type =
             resolved_string_field(input, "ownerType").unwrap_or_else(|| "PRODUCT".to_string());
         let Some((_, namespace, key)) =
-            self.metafield_definition_key_from_input(input, &owner_type)
+            self.metafield_definition_key_from_input(request, input, &owner_type)
         else {
-            return json!({
-                "updatedDefinition": Value::Null,
-                "userErrors": [metafield_definition_user_error(
+            return metafield_definition_update_null_payload(vec![
+                metafield_definition_user_error(
                     "MetafieldDefinitionUpdateUserError",
                     json!(["definition"]),
                     "Definition not found.",
-                    "NOT_FOUND"
-                )],
-                "validationJob": Value::Null
-            });
+                    "NOT_FOUND",
+                ),
+            ]);
         };
         if let Some(access) = resolved_object_field(input, "access") {
             if resolved_string_field(&access, "admin").as_deref() == Some("MERCHANT_READ") {
-                return json!({
-                    "updatedDefinition": Value::Null,
-                    "userErrors": [metafield_definition_user_error(
+                return metafield_definition_update_null_payload(vec![metafield_definition_user_error(
                     "MetafieldDefinitionUpdateUserError",
                     json!(["definition"]),
-                        "Setting this access control is not permitted. It must be one of [\"public_read_write\"].",
-                        "INVALID_INPUT"
-                    )],
-                    "validationJob": Value::Null
-                });
+                    "Setting this access control is not permitted. It must be one of [\"public_read_write\"].",
+                    "INVALID_INPUT",
+                )]);
             }
         }
         if let Some(error) =
             constraints_empty_values_error(input, "MetafieldDefinitionUpdateUserError")
         {
-            return json!({
-                "updatedDefinition": Value::Null,
-                "userErrors": [error],
-                "validationJob": Value::Null
-            });
+            return metafield_definition_update_null_payload(vec![error]);
         }
         if let Some(error) = metafield_definition_validation_errors(
             input,
@@ -518,11 +409,7 @@ impl DraftProxy {
         .into_iter()
         .next()
         {
-            return json!({
-                "updatedDefinition": Value::Null,
-                "userErrors": [error],
-                "validationJob": Value::Null
-            });
+            return metafield_definition_update_null_payload(vec![error]);
         }
         let map_key = metafield_definition_store_key(&owner_type, &namespace, &key);
         let Some(mut definition) = self
@@ -532,16 +419,14 @@ impl DraftProxy {
             .get(&map_key)
             .cloned()
         else {
-            return json!({
-                "updatedDefinition": Value::Null,
-                "userErrors": [metafield_definition_user_error(
+            return metafield_definition_update_null_payload(vec![
+                metafield_definition_user_error(
                     "MetafieldDefinitionUpdateUserError",
                     json!(["definition"]),
                     "Definition not found.",
-                    "NOT_FOUND"
-                )],
-                "validationJob": Value::Null
-            });
+                    "NOT_FOUND",
+                ),
+            ]);
         };
         let type_name = definition["type"]["name"]
             .as_str()
@@ -554,35 +439,34 @@ impl DraftProxy {
             &owner_type,
             &type_name,
         ) {
-            return json!({
-                "updatedDefinition": Value::Null,
-                "userErrors": [error],
-                "validationJob": Value::Null
-            });
+            return metafield_definition_update_null_payload(vec![error]);
         }
         if metafield_definition_capabilities_will_enable_admin_filterable(input, Some(&definition))
             && self.metafield_definition_admin_filterable_count_excluding(&owner_type, &map_key)
                 >= ADMIN_FILTERABLE_DEFINITION_LIMIT
         {
-            return json!({
-                "updatedDefinition": Value::Null,
-                "userErrors": [metafield_definition_user_error(
+            return metafield_definition_update_null_payload(vec![
+                metafield_definition_user_error(
                     "MetafieldDefinitionUpdateUserError",
                     json!(["definition"]),
                     &admin_filterable_definition_limit_message(&owner_type),
-                    "OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS"
-                )],
-                "validationJob": Value::Null
-            });
+                    "OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS",
+                ),
+            ]);
         }
         let standard_template_immutable_field_errors =
             metafield_definition_standard_template_immutable_field_errors(input, &definition);
         if !standard_template_immutable_field_errors.is_empty() {
-            return json!({
-                "updatedDefinition": Value::Null,
-                "userErrors": standard_template_immutable_field_errors,
-                "validationJob": Value::Null
-            });
+            return metafield_definition_update_null_payload(
+                standard_template_immutable_field_errors,
+            );
+        }
+        let length_errors = metafield_definition_name_description_length_errors(
+            input,
+            "MetafieldDefinitionUpdateUserError",
+        );
+        if !length_errors.is_empty() {
+            return metafield_definition_update_null_payload(length_errors);
         }
         if let Some(name) = resolved_string_field(input, "name") {
             definition["name"] = json!(name);
@@ -616,11 +500,7 @@ impl DraftProxy {
                 "MetafieldDefinitionUpdateUserError",
                 json!(["definition"]),
             ) {
-                return json!({
-                    "updatedDefinition": Value::Null,
-                    "userErrors": user_errors,
-                    "validationJob": Value::Null
-                });
+                return metafield_definition_update_null_payload(user_errors);
             }
             definition["pinnedPosition"] =
                 json!(self.next_metafield_definition_pin_position(&owner_type));
@@ -651,6 +531,7 @@ impl DraftProxy {
 
     fn metafield_definition_delete_payload(
         &mut self,
+        request: &Request,
         arguments: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let delete_all =
@@ -660,6 +541,7 @@ impl DraftProxy {
                 .unwrap_or_else(|| "PRODUCT".to_string());
             let namespace = canonical_app_metafield_namespace(
                 resolved_string_field(&identifier, "namespace").as_deref(),
+                request_app_namespace_api_client_id(request).as_deref(),
             );
             let key = resolved_string_field(&identifier, "key").unwrap_or_default();
             metafield_definition_store_key(&owner_type, &namespace, &key)
@@ -676,55 +558,43 @@ impl DraftProxy {
             .get(&map_key)
             .cloned()
         else {
-            return json!({
-                "deletedDefinitionId": Value::Null,
-                "deletedDefinition": Value::Null,
-                "userErrors": [metafield_definition_user_error(
+            return metafield_definition_delete_null_payload(vec![
+                metafield_definition_user_error(
                     "MetafieldDefinitionDeleteUserError",
                     json!(["id"]),
                     "Definition not found.",
-                    "NOT_FOUND"
-                )]
-            });
+                    "NOT_FOUND",
+                ),
+            ]);
         };
         if !delete_all {
             let type_name = definition["type"]["name"].as_str().unwrap_or_default();
             let namespace = definition["namespace"].as_str().unwrap_or_default();
             if type_name == "id" {
-                return json!({
-                    "deletedDefinitionId": Value::Null,
-                    "deletedDefinition": Value::Null,
-                    "userErrors": [metafield_definition_user_error(
-                        "MetafieldDefinitionDeleteUserError",
-                        Value::Null,
-                        "Deleting an id type metafield definition requires deletion of its associated metafields.",
-                        "ID_TYPE_DELETION_ERROR"
-                    )]
-                });
+                return metafield_definition_delete_null_payload(vec![metafield_definition_user_error(
+                    "MetafieldDefinitionDeleteUserError",
+                    Value::Null,
+                    "Deleting an id type metafield definition requires deletion of its associated metafields.",
+                    "ID_TYPE_DELETION_ERROR",
+                )]);
             }
             if type_name.ends_with("_reference") {
-                return json!({
-                    "deletedDefinitionId": Value::Null,
-                    "deletedDefinition": Value::Null,
-                    "userErrors": [metafield_definition_user_error(
-                        "MetafieldDefinitionDeleteUserError",
-                        Value::Null,
-                        "Deleting a reference type metafield definition requires deletion of its associated metafields.",
-                        "REFERENCE_TYPE_DELETION_ERROR"
-                    )]
-                });
+                return metafield_definition_delete_null_payload(vec![metafield_definition_user_error(
+                    "MetafieldDefinitionDeleteUserError",
+                    Value::Null,
+                    "Deleting a reference type metafield definition requires deletion of its associated metafields.",
+                    "REFERENCE_TYPE_DELETION_ERROR",
+                )]);
             }
             if metafield_definition_delete_namespace_is_reserved(namespace) {
-                return json!({
-                    "deletedDefinitionId": Value::Null,
-                    "deletedDefinition": Value::Null,
-                    "userErrors": [metafield_definition_user_error(
+                return metafield_definition_delete_null_payload(vec![
+                    metafield_definition_user_error(
                         "MetafieldDefinitionDeleteUserError",
                         Value::Null,
                         RESERVED_NAMESPACE_ORPHANED_METAFIELDS_MESSAGE,
-                        "RESERVED_NAMESPACE_ORPHANED_METAFIELDS"
-                    )]
-                });
+                        "RESERVED_NAMESPACE_ORPHANED_METAFIELDS",
+                    ),
+                ]);
             }
         }
         let definition_id = definition["id"].clone();
@@ -753,6 +623,190 @@ impl DraftProxy {
         })
     }
 
+    fn metafield_definition_pin_payload(
+        &mut self,
+        request: &Request,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let (owner_type, namespace, key) = self.metafield_definition_pin_identifier(
+            request,
+            arguments,
+            variables,
+            &["definitionId"],
+            &["definitionId"],
+        );
+        self.hydrate_metafield_definitions_for_owner(request, &owner_type, &namespace);
+        let map_key = metafield_definition_store_key(&owner_type, &namespace, &key);
+        let Some(mut definition) = self
+            .store
+            .staged
+            .metafield_definitions
+            .get(&map_key)
+            .cloned()
+        else {
+            return metafield_definition_null_payload(
+                "pinnedDefinition",
+                vec![metafield_definition_user_error(
+                    "MetafieldDefinitionPinUserError",
+                    Value::Null,
+                    "Definition not found.",
+                    "NOT_FOUND",
+                )],
+            );
+        };
+        let definition_owner_type = definition
+            .get("ownerType")
+            .and_then(Value::as_str)
+            .unwrap_or("PRODUCT")
+            .to_string();
+        if definition
+            .get("pinnedPosition")
+            .is_some_and(|position| !position.is_null())
+            && !metafield_definition_has_constraints(&definition)
+        {
+            return metafield_definition_null_payload(
+                "pinnedDefinition",
+                vec![metafield_definition_user_error(
+                    "MetafieldDefinitionPinUserError",
+                    Value::Null,
+                    "Definition already pinned.",
+                    "ALREADY_PINNED",
+                )],
+            );
+        }
+        if let Some(user_errors) = self.metafield_definition_pin_guard_user_errors(
+            &definition,
+            &definition_owner_type,
+            "MetafieldDefinitionPinUserError",
+            Value::Null,
+        ) {
+            return metafield_definition_null_payload("pinnedDefinition", user_errors);
+        }
+        let position = self.next_metafield_definition_pin_position(&definition_owner_type);
+        if definition.get("pinnedPosition").is_none_or(Value::is_null) {
+            definition["pinnedPosition"] = json!(position);
+        }
+        self.store
+            .staged
+            .metafield_definitions
+            .insert(map_key, definition.clone());
+        metafield_definition_success_payload(
+            "pinnedDefinition",
+            public_metafield_definition_value(definition),
+        )
+    }
+
+    fn metafield_definition_unpin_payload(
+        &mut self,
+        request: &Request,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let (owner_type, namespace, key) = self.metafield_definition_pin_identifier(
+            request,
+            arguments,
+            variables,
+            &[],
+            &["definitionId", "id"],
+        );
+        self.hydrate_metafield_definitions_for_owner(request, &owner_type, &namespace);
+        let map_key = metafield_definition_store_key(&owner_type, &namespace, &key);
+        let Some(current) = self
+            .store
+            .staged
+            .metafield_definitions
+            .get(&map_key)
+            .cloned()
+        else {
+            return metafield_definition_null_payload(
+                "unpinnedDefinition",
+                vec![metafield_definition_user_error(
+                    "MetafieldDefinitionUnpinUserError",
+                    Value::Null,
+                    "Definition not found.",
+                    "NOT_FOUND",
+                )],
+            );
+        };
+        if current.get("pinnedPosition").is_none_or(Value::is_null) {
+            let numeric_id = current
+                .get("id")
+                .and_then(Value::as_str)
+                .map(resource_id_tail)
+                .unwrap_or_default();
+            return metafield_definition_null_payload(
+                "unpinnedDefinition",
+                vec![metafield_definition_user_error(
+                    "MetafieldDefinitionUnpinUserError",
+                    Value::Null,
+                    &format!("Definition {numeric_id} isn't pinned."),
+                    "NOT_PINNED",
+                )],
+            );
+        }
+        let mut definition = current;
+        let owner_type = definition["ownerType"]
+            .as_str()
+            .unwrap_or("PRODUCT")
+            .to_string();
+        definition["pinnedPosition"] = Value::Null;
+        self.store
+            .staged
+            .metafield_definitions
+            .insert(map_key, definition.clone());
+        self.compact_metafield_definition_pins(&owner_type);
+        metafield_definition_success_payload(
+            "unpinnedDefinition",
+            public_metafield_definition_value(definition),
+        )
+    }
+
+    fn metafield_definition_pin_identifier(
+        &mut self,
+        request: &Request,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        variables: &BTreeMap<String, ResolvedValue>,
+        argument_id_names: &[&str],
+        variable_id_names: &[&str],
+    ) -> (String, String, String) {
+        let identifier = resolved_object_field(arguments, "identifier").unwrap_or_default();
+        let mut owner_type = resolved_string_field(&identifier, "ownerType")
+            .unwrap_or_else(|| "PRODUCT".to_string());
+        let mut namespace = resolved_string_field(&identifier, "namespace").unwrap_or_default();
+        let mut key = resolved_string_field(&identifier, "key").unwrap_or_default();
+        if !key.is_empty() {
+            return (owner_type, namespace, key);
+        }
+        let definition_id = argument_id_names
+            .iter()
+            .find_map(|name| resolved_string_field(arguments, name))
+            .or_else(|| {
+                variable_id_names
+                    .iter()
+                    .find_map(|name| resolved_string_field(variables, name))
+            });
+        if let Some(definition_id) = definition_id {
+            if let Some((found_owner_type, found_namespace, found_key)) =
+                self.metafield_definition_key_for_id(&definition_id)
+            {
+                owner_type = found_owner_type;
+                namespace = found_namespace;
+                key = found_key;
+            } else {
+                self.hydrate_metafield_definition_by_id(request, &definition_id);
+                if let Some((found_owner_type, found_namespace, found_key)) =
+                    self.metafield_definition_key_for_id(&definition_id)
+                {
+                    owner_type = found_owner_type;
+                    namespace = found_namespace;
+                    key = found_key;
+                }
+            }
+        }
+        (owner_type, namespace, key)
+    }
+
     fn metafield_definition_from_input(
         &mut self,
         request: &Request,
@@ -762,16 +816,16 @@ impl DraftProxy {
         let namespace = self.metafield_definition_namespace_from_input(
             request,
             input,
-            template.map(|template| template.namespace),
+            template.map(|template| template.namespace.as_str()),
         );
         let key = resolved_string_field(input, "key")
-            .or_else(|| template.map(|template| template.key.to_string()))
+            .or_else(|| template.map(|template| template.key.clone()))
             .unwrap_or_default();
         let name = resolved_string_field(input, "name")
-            .or_else(|| template.map(|template| template.name.to_string()))
+            .or_else(|| template.map(|template| template.name.clone()))
             .unwrap_or_default();
         let metafield_type = resolved_string_field(input, "type")
-            .or_else(|| template.map(|template| template.metafield_type.to_string()))
+            .or_else(|| template.map(|template| template.metafield_type.clone()))
             .unwrap_or_else(|| "single_line_text_field".to_string());
         let id = self.next_proxy_synthetic_gid("MetafieldDefinition");
         let mut definition = metafield_definition_value(&namespace, &key, &name, &id, Value::Null);
@@ -782,7 +836,7 @@ impl DraftProxy {
         definition["description"] = match input.get("description") {
             Some(ResolvedValue::String(description)) => json!(description),
             _ => template
-                .and_then(|template| template.description)
+                .and_then(|template| template.description.as_deref())
                 .map_or(Value::Null, |description| json!(description)),
         };
         definition["validations"] = if input.contains_key("validations") {
@@ -792,7 +846,8 @@ impl DraftProxy {
                 template
                     .validations
                     .iter()
-                    .map(|(name, value)| json!({"name": name, "value": value}))
+                    .chain(template.derived_validations.iter())
+                    .map(|validation| json!({"name": &validation.name, "value": &validation.value}))
                     .collect(),
             )
         } else {
@@ -811,28 +866,32 @@ impl DraftProxy {
         }
         apply_metafield_definition_capability_derived_fields(&mut definition);
         if let Some(template) = template {
-            definition[STANDARD_TEMPLATE_MARKER_FIELD] = json!(template.id);
+            definition[STANDARD_TEMPLATE_MARKER_FIELD] = json!(&template.id);
         }
         if let Some(constraints) = resolved_object_field(input, "constraints") {
             definition["constraints"] = metafield_definition_constraints(&constraints);
-        } else if template.is_some_and(|template| {
-            template.namespace == "shopify" && template.key == "color-pattern"
-        }) {
-            definition["constraints"] = metafield_definition_constraints_for_key("category");
+        } else if let Some(constraints) =
+            template.and_then(|template| template.constraints.as_ref())
+        {
+            definition["constraints"] = metafield_definition_constraints_from_template(constraints);
         }
         definition
     }
 
     fn metafield_definition_key_from_input(
         &self,
+        request: &Request,
         input: &BTreeMap<String, ResolvedValue>,
         owner_type: &str,
     ) -> Option<MetafieldDefinitionKey> {
         // Definitions are stored under their canonical app namespace
-        // (`app--347082227713--<suffix>`), so an update/lookup arriving as
+        // (`app--<api-client-id>--<suffix>`), so an update/lookup arriving as
         // `$app:<suffix>` must be canonicalized before keying.
         let raw_namespace = resolved_string_field(input, "namespace")?;
-        let namespace = canonical_app_metafield_namespace(Some(&raw_namespace));
+        let namespace = canonical_app_metafield_namespace(
+            Some(&raw_namespace),
+            request_app_namespace_api_client_id(request).as_deref(),
+        );
         let key = resolved_string_field(input, "key")?;
         let map_key = metafield_definition_store_key(owner_type, &namespace, &key);
         self.store
@@ -849,19 +908,14 @@ impl DraftProxy {
         fallback: Option<&str>,
     ) -> String {
         let namespace = resolved_string_field(input, "namespace");
-        if matches!(namespace.as_deref(), Some(value) if value.starts_with("$app:")) {
-            let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id")
-                .unwrap_or_else(|| "347082227713".to_string());
-            let suffix = namespace
-                .as_deref()
-                .unwrap_or_default()
-                .trim_start_matches("$app:");
-            format!("app--{api_client_id}--{suffix}")
-        } else {
-            namespace
-                .or_else(|| fallback.map(str::to_string))
-                .unwrap_or_default()
-        }
+        let api_client_id = request_app_namespace_api_client_id(request);
+        namespace
+            .as_deref()
+            .map(|namespace| {
+                canonical_app_metafield_namespace(Some(namespace), api_client_id.as_deref())
+            })
+            .or_else(|| fallback.map(str::to_string))
+            .unwrap_or_default()
     }
 
     fn metafield_definition_pin_count(&self, owner_type: &str) -> usize {
@@ -1133,7 +1187,7 @@ impl DraftProxy {
         definition
     }
 
-    /// Mirrors Gleam `local_has_metafield_definition_state`. A cold
+    /// A cold
     /// LiveHybrid metafield-definition read with no local state is just an
     /// upstream read; once a lifecycle has staged (or a synthetic id is
     /// referenced) definitions, reads must stay local so read-after-write
@@ -1151,9 +1205,11 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn metafield_definition_pinning_read(
         &self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
+        let api_client_id = request_app_namespace_api_client_id(request);
         let mut data = serde_json::Map::new();
         for field in root_fields(query, variables).unwrap_or_default() {
             match field.name.as_str() {
@@ -1176,6 +1232,7 @@ impl DraftProxy {
                                 .unwrap_or_else(|| "PRODUCT".to_string());
                             let namespace = canonical_app_metafield_namespace(
                                 resolved_string_field(&identifier, "namespace").as_deref(),
+                                api_client_id.as_deref(),
                             );
                             let key = resolved_string_field(&identifier, "key").unwrap_or_default();
                             self.store
@@ -1198,8 +1255,13 @@ impl DraftProxy {
                 "metafieldDefinitions" => {
                     let owner_type = resolved_string_field(&field.arguments, "ownerType")
                         .unwrap_or_else(|| "PRODUCT".to_string());
-                    let namespace = resolved_string_field(&field.arguments, "namespace")
-                        .map(|namespace| canonical_app_metafield_namespace(Some(&namespace)));
+                    let namespace =
+                        resolved_string_field(&field.arguments, "namespace").map(|namespace| {
+                            canonical_app_metafield_namespace(
+                                Some(&namespace),
+                                api_client_id.as_deref(),
+                            )
+                        });
                     let key = resolved_string_field(&field.arguments, "key");
                     let pinned_status = resolved_string_field(&field.arguments, "pinnedStatus");
                     let mut definitions = self
@@ -1469,27 +1531,6 @@ impl DraftProxy {
                 .as_str()
                 .unwrap_or_default()
                 .to_string();
-            // The deprecated useAsCollectionCondition flag on an ineligible type
-            // reports TYPE_NOT_ALLOWED_FOR_CONDITIONS rather than the generic
-            // INVALID_CAPABILITY surfaced for explicit capability inputs.
-            if resolved_bool_field(arguments, "useAsCollectionCondition") == Some(true)
-                && metafield_definition_capability_enabled(&args, "smartCollectionCondition")
-                && !metafield_definition_capability_eligible(
-                    "smartCollectionCondition",
-                    owner_type,
-                    &metafield_type,
-                )
-            {
-                return json!({
-                    "createdDefinition": Value::Null,
-                    "userErrors": [metafield_definition_user_error(
-                        "StandardMetafieldDefinitionEnableUserError",
-                        Value::Null,
-                        "Definition type is not allowed for smart collection conditions.",
-                        "TYPE_NOT_ALLOWED_FOR_CONDITIONS"
-                    )]
-                });
-            }
             if let Some(error) = metafield_definition_capability_input_error(
                 &args,
                 "StandardMetafieldDefinitionEnableUserError",
@@ -1561,7 +1602,7 @@ impl DraftProxy {
                 "userErrors": []
             });
         }
-        let mut definition = self.metafield_definition_from_input(request, &args, Some(&template));
+        let mut definition = self.metafield_definition_from_input(request, &args, Some(template));
         definition["ownerType"] = json!(owner_type);
         if template.namespace == "shopify" && resolved_object_field(&args, "access").is_none() {
             definition["access"] = json!({
@@ -1592,27 +1633,6 @@ impl DraftProxy {
                     Value::Null,
                     "Unstructured metafields already exist for this owner type, namespace, and key.",
                     "UNSTRUCTURED_ALREADY_EXISTS"
-                )]
-            });
-        }
-        // The deprecated useAsCollectionCondition flag on an ineligible type
-        // reports TYPE_NOT_ALLOWED_FOR_CONDITIONS rather than the generic
-        // INVALID_CAPABILITY surfaced for explicit capability inputs.
-        if resolved_bool_field(arguments, "useAsCollectionCondition") == Some(true)
-            && metafield_definition_capability_enabled(&args, "smartCollectionCondition")
-            && !metafield_definition_capability_eligible(
-                "smartCollectionCondition",
-                owner_type,
-                &metafield_type,
-            )
-        {
-            return json!({
-                "createdDefinition": Value::Null,
-                "userErrors": [metafield_definition_user_error(
-                    "StandardMetafieldDefinitionEnableUserError",
-                    Value::Null,
-                    "Definition type is not allowed for smart collection conditions.",
-                    "TYPE_NOT_ALLOWED_FOR_CONDITIONS"
                 )]
             });
         }
@@ -1672,8 +1692,7 @@ impl DraftProxy {
 
     // True when loose (unstructured) metafields already exist for this owner
     // type, namespace, and key — used to gate standard-definition promotion when
-    // forceEnable is not set. Mirrors the Gleam effective-metafield filter,
-    // honoring tombstoned deletions.
+    // forceEnable is not set, honoring tombstoned deletions.
     fn metafield_definition_has_unstructured_metafields(
         &self,
         owner_type: &str,
@@ -1698,16 +1717,27 @@ impl DraftProxy {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StandardMetafieldDefinitionCatalog {
+    templates: Vec<StandardMetafieldDefinitionTemplate>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct StandardMetafieldDefinitionTemplate {
-    id: &'static str,
-    namespace: &'static str,
-    key: &'static str,
-    name: &'static str,
-    description: Option<&'static str>,
-    owner_types: &'static [&'static str],
-    metafield_type: &'static str,
-    validations: &'static [(&'static str, &'static str)],
+    id: String,
+    namespace: String,
+    key: String,
+    name: String,
+    description: Option<String>,
+    owner_types: Vec<String>,
+    #[serde(rename = "type")]
+    metafield_type: String,
+    validations: Vec<StandardMetafieldDefinitionValidation>,
+    #[serde(default)]
+    derived_validations: Vec<StandardMetafieldDefinitionValidation>,
+    constraints: Option<StandardMetafieldDefinitionTemplateConstraints>,
 }
 
 struct StandardMetafieldDefinitionSelector<'a> {
@@ -1716,51 +1746,29 @@ struct StandardMetafieldDefinitionSelector<'a> {
     key: Option<&'a str>,
 }
 
-const STANDARD_METAFIELD_DEFINITION_TEMPLATES: &[StandardMetafieldDefinitionTemplate] = &[
-    StandardMetafieldDefinitionTemplate {
-        id: "gid://shopify/StandardMetafieldDefinitionTemplate/1",
-        namespace: "descriptors",
-        key: "subtitle",
-        name: "Product subtitle",
-        description: Some("Used as a shorthand for a product name"),
-        owner_types: &["PRODUCT", "PRODUCTVARIANT"],
-        metafield_type: "single_line_text_field",
-        validations: &[("max", "70")],
-    },
-    StandardMetafieldDefinitionTemplate {
-        id: "gid://shopify/StandardMetafieldDefinitionTemplate/2",
-        namespace: "descriptors",
-        key: "care_guide",
-        name: "Care guide",
-        description: Some("Instructions for taking care of a product or apparel"),
-        owner_types: &["PRODUCT", "PRODUCTVARIANT"],
-        metafield_type: "multi_line_text_field",
-        validations: &[("max", "500")],
-    },
-    StandardMetafieldDefinitionTemplate {
-        id: "gid://shopify/StandardMetafieldDefinitionTemplate/3",
-        namespace: "facts",
-        key: "isbn",
-        name: "ISBN",
-        description: Some("International Standard Book Number"),
-        owner_types: &["PRODUCT", "PRODUCTVARIANT"],
-        metafield_type: "single_line_text_field",
-        validations: &[(
-            "regex",
-            r"^((\d{3})?([-\s])?(\d{1,5})([-\s])?(\d{1,7})([-\s])?(\d{6})([-\s])?(\d{1}))$",
-        )],
-    },
-    StandardMetafieldDefinitionTemplate {
-        id: "gid://shopify/StandardMetafieldDefinitionTemplate/10004",
-        namespace: "shopify",
-        key: "color-pattern",
-        name: "Color pattern",
-        description: None,
-        owner_types: &["PRODUCT"],
-        metafield_type: "list.metaobject_reference",
-        validations: &[],
-    },
-];
+#[derive(Deserialize)]
+struct StandardMetafieldDefinitionValidation {
+    name: String,
+    value: String,
+}
+
+#[derive(Deserialize)]
+struct StandardMetafieldDefinitionTemplateConstraints {
+    key: String,
+    values: Vec<String>,
+}
+
+static STANDARD_METAFIELD_DEFINITION_CATALOG: OnceLock<StandardMetafieldDefinitionCatalog> =
+    OnceLock::new();
+
+fn standard_metafield_definition_templates() -> &'static [StandardMetafieldDefinitionTemplate] {
+    &STANDARD_METAFIELD_DEFINITION_CATALOG
+        .get_or_init(|| {
+            serde_json::from_str(include_str!("standard_metafield_definition_templates.json"))
+                .expect("standard metafield definition template catalog must be valid JSON")
+        })
+        .templates
+}
 
 // Translates deprecated standardMetafieldDefinitionEnable arguments into their
 // modern structured equivalents: useAsCollectionCondition/useAsAdminFilter map
@@ -1826,16 +1834,6 @@ fn translate_standard_enable_deprecated_storefront_access(
     args.insert("access".to_string(), ResolvedValue::Object(access));
 }
 
-fn metafield_definition_capability_enabled(
-    args: &BTreeMap<String, ResolvedValue>,
-    capability_key: &str,
-) -> bool {
-    resolved_object_field(args, "capabilities")
-        .and_then(|capabilities| resolved_object_field(&capabilities, capability_key))
-        .and_then(|capability| resolved_bool_field(&capability, "enabled"))
-        == Some(true)
-}
-
 fn metafield_definition_user_error(
     typename: &str,
     field: Value,
@@ -1843,6 +1841,15 @@ fn metafield_definition_user_error(
     code: &str,
 ) -> Value {
     user_error_typed(typename, field, message, Some(code))
+}
+
+fn metafield_definition_user_error_with_code_value(
+    typename: &str,
+    field: Value,
+    message: &str,
+    code: Value,
+) -> Value {
+    user_error_typed_with_code_value(typename, field, message, code)
 }
 
 pub(in crate::proxy) fn metafield_definition_store_key(
@@ -1941,6 +1948,34 @@ fn metafield_definition_standard_template_immutable_field_errors(
     errors
 }
 
+fn metafield_definition_name_description_length_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    typename: &str,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if let Some(name) = resolved_string_field(input, "name") {
+        if name.chars().count() > 255 {
+            errors.push(metafield_definition_user_error(
+                typename,
+                json!(["definition", "name"]),
+                "Name is too long (maximum is 255 characters)",
+                "TOO_LONG",
+            ));
+        }
+    }
+    if let Some(description) = resolved_string_field(input, "description") {
+        if description.chars().count() > 255 {
+            errors.push(metafield_definition_user_error(
+                typename,
+                json!(["definition", "description"]),
+                "Description is too long (maximum is 255 characters)",
+                "TOO_LONG",
+            ));
+        }
+    }
+    errors
+}
+
 fn metafield_definition_delete_namespace_is_reserved(namespace: &str) -> bool {
     namespace.starts_with("app--")
         || matches!(
@@ -1954,6 +1989,36 @@ fn public_metafield_definition_value(mut definition: Value) -> Value {
         object.remove(STANDARD_TEMPLATE_MARKER_FIELD);
     }
     definition
+}
+
+fn metafield_definition_null_payload(payload_field: &str, user_errors: Vec<Value>) -> Value {
+    let mut payload = serde_json::Map::new();
+    payload.insert(payload_field.to_string(), Value::Null);
+    payload.insert("userErrors".to_string(), Value::Array(user_errors));
+    Value::Object(payload)
+}
+
+fn metafield_definition_success_payload(payload_field: &str, definition: Value) -> Value {
+    let mut payload = serde_json::Map::new();
+    payload.insert(payload_field.to_string(), definition);
+    payload.insert("userErrors".to_string(), Value::Array(Vec::new()));
+    Value::Object(payload)
+}
+
+fn metafield_definition_update_null_payload(user_errors: Vec<Value>) -> Value {
+    let mut payload = serde_json::Map::new();
+    payload.insert("updatedDefinition".to_string(), Value::Null);
+    payload.insert("userErrors".to_string(), Value::Array(user_errors));
+    payload.insert("validationJob".to_string(), Value::Null);
+    Value::Object(payload)
+}
+
+fn metafield_definition_delete_null_payload(user_errors: Vec<Value>) -> Value {
+    let mut payload = serde_json::Map::new();
+    payload.insert("deletedDefinitionId".to_string(), Value::Null);
+    payload.insert("deletedDefinition".to_string(), Value::Null);
+    payload.insert("userErrors".to_string(), Value::Array(user_errors));
+    Value::Object(payload)
 }
 
 fn metafield_definition_payload_staged_id(payload: &Value) -> Option<String> {
@@ -2018,14 +2083,23 @@ fn metafield_definition_access_denied_response(root_field: &str) -> Response {
     }))
 }
 
-fn access_denied_for_reserved_metafield_namespace(input: &BTreeMap<String, ResolvedValue>) -> bool {
+fn access_denied_for_reserved_metafield_namespace(
+    request: &Request,
+    input: &BTreeMap<String, ResolvedValue>,
+) -> bool {
     let raw_namespace = resolved_string_field(input, "namespace");
     // A write targeting another app's reserved namespace
     // (`app--<other-id>--…`) is rejected with a top-level ACCESS_DENIED,
-    // since the proxy authenticates only as api client 347082227713.
-    if app_namespace_belongs_to_other_app(&canonical_app_metafield_namespace(
-        raw_namespace.as_deref(),
-    )) {
+    // using the request's api-client identity.
+    let api_client_id = request_app_namespace_api_client_id(request);
+    if raw_namespace.as_deref().is_some_and(|namespace| {
+        app_metafield_namespace_requires_api_client(Some(namespace)) && api_client_id.is_none()
+    }) {
+        return true;
+    }
+    let namespace =
+        canonical_app_metafield_namespace(raw_namespace.as_deref(), api_client_id.as_deref());
+    if app_namespace_belongs_to_other_app(&namespace, api_client_id.as_deref()) {
         return true;
     }
     raw_namespace.as_deref() == Some("shopify") && resolved_object_field(input, "access").is_some()
@@ -2037,28 +2111,33 @@ fn metafield_definition_create_errors_for_namespace(
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     let key = resolved_string_field(input, "key").unwrap_or_default();
-    if namespace.chars().count() < 3 {
+    let namespace_key_errors = metafield_namespace_key_validation(namespace, &key);
+    let namespace_length_error = namespace_key_errors
+        .iter()
+        .copied()
+        .find(|error| error.0 == "namespace");
+    let key_length_error = namespace_key_errors
+        .iter()
+        .copied()
+        .find(|error| error.0 == "key");
+    if let Some(error) = namespace_length_error {
         errors.push(metafield_definition_user_error(
             "MetafieldDefinitionCreateUserError",
-            json!(["definition", "namespace"]),
-            "Namespace is too short (minimum is 3 characters)",
-            "TOO_SHORT",
+            json!(["definition", error.0]),
+            error.2,
+            error.1,
         ));
-    } else if namespace.chars().count() > 255 {
-        errors.push(metafield_definition_user_error(
-            "MetafieldDefinitionCreateUserError",
-            json!(["definition", "namespace"]),
-            "Namespace is too long (maximum is 255 characters)",
-            "TOO_LONG",
-        ));
-    } else if !metafield_definition_token_chars_valid(namespace) {
+    }
+    if namespace_length_error.is_none() && !token_chars_valid(namespace) {
         errors.push(metafield_definition_user_error(
             "MetafieldDefinitionCreateUserError",
             json!(["definition", "namespace"]),
             "Namespace contains one or more invalid characters.",
             "INVALID_CHARACTER",
         ));
-    } else if matches!(namespace, "shopify_standard" | "protected") {
+    } else if namespace_length_error.is_none()
+        && matches!(namespace, "shopify_standard" | "protected")
+    {
         errors.push(metafield_definition_user_error(
             "MetafieldDefinitionCreateUserError",
             json!(["definition", "namespace"]),
@@ -2066,21 +2145,15 @@ fn metafield_definition_create_errors_for_namespace(
             "RESERVED",
         ));
     }
-    if key.chars().count() < 2 {
+    if let Some(error) = key_length_error {
         errors.push(metafield_definition_user_error(
             "MetafieldDefinitionCreateUserError",
-            json!(["definition", "key"]),
-            "Key is too short (minimum is 2 characters)",
-            "TOO_SHORT",
+            json!(["definition", error.0]),
+            error.2,
+            error.1,
         ));
-    } else if key.chars().count() > 64 {
-        errors.push(metafield_definition_user_error(
-            "MetafieldDefinitionCreateUserError",
-            json!(["definition", "key"]),
-            "Key is too long (maximum is 64 characters)",
-            "TOO_LONG",
-        ));
-    } else if !metafield_definition_token_chars_valid(&key) {
+    }
+    if key_length_error.is_none() && !token_chars_valid(&key) {
         errors.push(metafield_definition_user_error(
             "MetafieldDefinitionCreateUserError",
             json!(["definition", "key"]),
@@ -2088,26 +2161,10 @@ fn metafield_definition_create_errors_for_namespace(
             "INVALID_CHARACTER",
         ));
     }
-    if let Some(name) = resolved_string_field(input, "name") {
-        if name.chars().count() > 255 {
-            errors.push(metafield_definition_user_error(
-                "MetafieldDefinitionCreateUserError",
-                json!(["definition", "name"]),
-                "Name is too long (maximum is 255 characters)",
-                "TOO_LONG",
-            ));
-        }
-    }
-    if let Some(description) = resolved_string_field(input, "description") {
-        if description.chars().count() > 255 {
-            errors.push(metafield_definition_user_error(
-                "MetafieldDefinitionCreateUserError",
-                json!(["definition", "description"]),
-                "Description is too long (maximum is 255 characters)",
-                "TOO_LONG",
-            ));
-        }
-    }
+    errors.extend(metafield_definition_name_description_length_errors(
+        input,
+        "MetafieldDefinitionCreateUserError",
+    ));
     let metafield_type = resolved_string_field(input, "type").unwrap_or_default();
     if !metafield_definition_type_allowed(&metafield_type) {
         errors.push(metafield_definition_user_error(
@@ -2118,6 +2175,14 @@ fn metafield_definition_create_errors_for_namespace(
                 metafield_definition_valid_type_message()
             ),
             "INCLUSION",
+        ));
+    }
+    if metafield_definition_type_is_standard_definition_only(&metafield_type) {
+        errors.push(metafield_definition_user_error_with_code_value(
+            "MetafieldDefinitionCreateUserError",
+            json!(["definition"]),
+            metafield_definition_standard_only_type_message(),
+            Value::Null,
         ));
     }
     if let Some(access) = resolved_object_field(input, "access") {
@@ -2139,7 +2204,7 @@ fn metafield_definition_validation_errors(
     update: bool,
     existing: Option<&Value>,
 ) -> Vec<Value> {
-    let validations = list_object_field(input, "validations");
+    let validations = resolved_object_list_field(input, "validations");
     let metafield_type = resolved_string_field(input, "type")
         .or_else(|| {
             existing.and_then(|definition| definition["type"]["name"].as_str().map(str::to_string))
@@ -2276,12 +2341,6 @@ fn metafield_definition_validation_errors(
     errors
 }
 
-fn metafield_definition_token_chars_valid(value: &str) -> bool {
-    value
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
-}
-
 pub(in crate::proxy) fn metafield_definition_type_allowed(value: &str) -> bool {
     // Derive the accepted set directly from the advertised valid-types message so
     // the validator and the error text can never drift apart (Shopify lists every
@@ -2292,7 +2351,15 @@ pub(in crate::proxy) fn metafield_definition_type_allowed(value: &str) -> bool {
 }
 
 pub(in crate::proxy) fn metafield_definition_valid_type_message() -> &'static str {
-    "antenna_gain, area, battery_charge_capacity, battery_energy_capacity, boolean, capacitance, color, concentration, data_storage_capacity, data_transfer_rate, date_time, date, dimension, display_density, distance, duration, electric_current, electrical_resistance, energy, frequency, id, illuminance, inductance, json, language, link, list.antenna_gain, list.area, list.battery_charge_capacity, list.battery_energy_capacity, list.capacitance, list.color, list.concentration, list.data_storage_capacity, list.data_transfer_rate, list.date_time, list.date, list.dimension, list.display_density, list.distance, list.duration, list.electric_current, list.electrical_resistance, list.energy, list.frequency, list.illuminance, list.inductance, list.link, list.luminous_flux, list.mass_flow_rate, list.number_decimal, list.number_integer, list.power, list.pressure, list.rating, list.resolution, list.rotational_speed, list.single_line_text_field, list.sound_level, list.speed, list.temperature, list.thermal_power, list.url, list.voltage, list.volume, list.volumetric_flow_rate, list.weight, luminous_flux, mass_flow_rate, money, multi_line_text_field, number_decimal, number_integer, power, pressure, rating, resolution, rich_text_field, rotational_speed, single_line_text_field, sound_level, speed, temperature, thermal_power, url, voltage, volume, volumetric_flow_rate, weight, company_reference, list.company_reference, customer_reference, list.customer_reference, product_reference, list.product_reference, collection_reference, list.collection_reference, variant_reference, list.variant_reference, file_reference, list.file_reference, product_taxonomy_value_reference, list.product_taxonomy_value_reference, metaobject_reference, list.metaobject_reference, mixed_reference, list.mixed_reference, page_reference, list.page_reference, article_reference, list.article_reference, order_reference, list.order_reference"
+    "antenna_gain, area, battery_charge_capacity, battery_energy_capacity, boolean, capacitance, color, concentration, data_storage_capacity, data_transfer_rate, date_time, date, dimension, display_density, distance, duration, electric_current, electrical_resistance, energy, frequency, id, illuminance, inductance, json, jurisdiction, language, link, list.antenna_gain, list.area, list.battery_charge_capacity, list.battery_energy_capacity, list.capacitance, list.color, list.concentration, list.data_storage_capacity, list.data_transfer_rate, list.date_time, list.date, list.dimension, list.display_density, list.distance, list.duration, list.electric_current, list.electrical_resistance, list.energy, list.frequency, list.illuminance, list.inductance, list.jurisdiction, list.link, list.luminous_flux, list.mass_flow_rate, list.number_decimal, list.number_integer, list.power, list.pressure, list.rating, list.resolution, list.rotational_speed, list.single_line_text_field, list.sound_level, list.speed, list.temperature, list.thermal_power, list.url, list.voltage, list.volume, list.volumetric_flow_rate, list.weight, luminous_flux, mass_flow_rate, money, multi_line_text_field, number_decimal, number_integer, power, pressure, rating, resolution, rich_text_field, rotational_speed, single_line_text_field, sound_level, speed, temperature, thermal_power, url, voltage, volume, volumetric_flow_rate, weight, company_reference, list.company_reference, customer_reference, list.customer_reference, product_reference, list.product_reference, collection_reference, list.collection_reference, variant_reference, list.variant_reference, file_reference, list.file_reference, product_taxonomy_value_reference, list.product_taxonomy_value_reference, product_taxonomy_disclosure_reference, metaobject_reference, list.metaobject_reference, mixed_reference, list.mixed_reference, disclosure_reference, list.disclosure_reference, page_reference, list.page_reference, article_reference, list.article_reference, order_reference, list.order_reference"
+}
+
+pub(in crate::proxy) fn metafield_definition_type_is_standard_definition_only(value: &str) -> bool {
+    matches!(value, "disclosure_reference" | "list.disclosure_reference")
+}
+
+pub(in crate::proxy) fn metafield_definition_standard_only_type_message() -> &'static str {
+    "The disclosure_reference type can only be used in standard definitions provided by Shopify."
 }
 
 fn metafield_definition_type(name: &str) -> Value {
@@ -2303,18 +2370,24 @@ fn metafield_definition_type(name: &str) -> Value {
 }
 
 fn metafield_definition_type_category(name: &str) -> &'static str {
-    if name == "id" {
-        "ID"
-    } else if name.ends_with("_reference") || name.contains("_reference") {
-        "REFERENCE"
-    } else if name.contains("number") || matches!(name, "rating" | "money") {
-        "NUMBER"
-    } else if matches!(name, "json" | "rich_text_field") {
-        "JSON"
-    } else if matches!(name, "boolean") {
-        "TRUE_FALSE"
-    } else {
-        "TEXT"
+    if let Some(inner) = name.strip_prefix("list.") {
+        return metafield_definition_type_category(inner);
+    }
+    match name {
+        "id" => "ID",
+        value if value.ends_with("_reference") || value.contains("_reference") => "REFERENCE",
+        "number_integer" | "number_decimal" | "integer" | "float" => "NUMBER",
+        "date" | "date_time" => "DATE_TIME",
+        "rating" => "RATING",
+        "money" => "MONEY",
+        "color" => "COLOR",
+        "link" => "LINK",
+        "url" => "URL",
+        "json" => "JSON",
+        "language" => "LANGUAGE",
+        "boolean" => "TRUE_FALSE",
+        value if is_measurement_metafield_type_name(value) => "MEASUREMENT",
+        _ => "TEXT",
     }
 }
 
@@ -2474,7 +2547,7 @@ fn apply_metafield_definition_capability_derived_fields(definition: &mut Value) 
 
 fn metafield_definition_validations(input: &BTreeMap<String, ResolvedValue>) -> Value {
     Value::Array(
-        list_object_field(input, "validations")
+        resolved_object_list_field(input, "validations")
             .into_iter()
             .filter_map(|validation| {
                 Some(json!({
@@ -2519,10 +2592,19 @@ fn metafield_definition_constraints(input: &BTreeMap<String, ResolvedValue>) -> 
     })
 }
 
-fn metafield_definition_constraints_for_key(key: &str) -> Value {
+fn metafield_definition_constraints_from_template(
+    constraints: &StandardMetafieldDefinitionTemplateConstraints,
+) -> Value {
     json!({
-        "key": key,
-        "values": {"nodes": [], "pageInfo": empty_page_info()}
+        "key": &constraints.key,
+        "values": {
+            "nodes": constraints
+                .values
+                .iter()
+                .map(|value| json!({"value": value}))
+                .collect::<Vec<_>>(),
+            "pageInfo": empty_page_info()
+        }
     })
 }
 
@@ -2649,7 +2731,7 @@ fn standard_metafield_definition_template_by_selector(
     namespace: Option<&str>,
     key: Option<&str>,
     owner_type: &str,
-) -> Result<StandardMetafieldDefinitionTemplate, Value> {
+) -> Result<&'static StandardMetafieldDefinitionTemplate, Value> {
     if id.is_none() && (namespace.is_none() || key.is_none()) {
         return Err(metafield_definition_user_error(
             "StandardMetafieldDefinitionEnableUserError",
@@ -2659,13 +2741,15 @@ fn standard_metafield_definition_template_by_selector(
         ));
     }
     let template = if let Some(id) = id {
-        STANDARD_METAFIELD_DEFINITION_TEMPLATES
+        standard_metafield_definition_templates()
             .iter()
             .find(|template| template.id == id)
     } else {
-        STANDARD_METAFIELD_DEFINITION_TEMPLATES
+        standard_metafield_definition_templates()
             .iter()
-            .find(|template| Some(template.namespace) == namespace && Some(template.key) == key)
+            .find(|template| {
+                Some(template.namespace.as_str()) == namespace && Some(template.key.as_str()) == key
+            })
     };
     let Some(template) = template else {
         let (field, message) = if id.is_some() {
@@ -2686,7 +2770,11 @@ fn standard_metafield_definition_template_by_selector(
             "TEMPLATE_NOT_FOUND",
         ));
     };
-    if !template.owner_types.contains(&owner_type) {
+    if !template
+        .owner_types
+        .iter()
+        .any(|template_owner_type| template_owner_type == owner_type)
+    {
         return Err(metafield_definition_user_error(
             "StandardMetafieldDefinitionEnableUserError",
             json!(["id"]),
@@ -2694,5 +2782,5 @@ fn standard_metafield_definition_template_by_selector(
             "TEMPLATE_NOT_FOUND",
         ));
     }
-    Ok(*template)
+    Ok(template)
 }

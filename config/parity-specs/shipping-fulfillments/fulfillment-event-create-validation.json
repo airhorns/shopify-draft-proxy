@@ -12,14 +12,14 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-event-create-validation.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-event-create-validation.graphql",
     "apiVersion": "2026-04",
     "variablesCapturePath": "$.unknownFulfillmentEventCreate.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-582/HAR-744 captured Admin GraphQL 2026-04 fulfillmentEventCreate validation and success behavior against a disposable fulfilled order. Public Admin GraphQL does not expose a code field on this mutation's UserError; selecting userErrors.code returns top-level undefinedField, so executable parity compares public field/message shape while runtime tests assert the ticket's source-backed local code values. Invalid FulfillmentEventStatus variables fail top-level INVALID_VARIABLE coercion and the captured enum includes DELAYED and CARRIER_PICKED_UP; invalid-enum parity compares that GraphQL validation envelope. The fixture also records that public 2026-04 accepted an event after fulfillmentCancel on the sampled fulfillment; the proxy retains the HAR-582 internal-source cancellation guard as the documented public-vs-internal boundary.",
+  "notes": "Captured Admin GraphQL 2026-04 fulfillmentEventCreate validation and success behavior against a disposable fulfilled order. Public Admin GraphQL does not expose a code field on this mutation's UserError; selecting userErrors.code returns top-level undefinedField, so executable parity compares public field/message shape while runtime tests assert the local code projection for internal validation branches. Invalid FulfillmentEventStatus variables fail top-level INVALID_VARIABLE coercion and the captured enum includes DELAYED and CARRIER_PICKED_UP; invalid-enum parity compares that GraphQL validation envelope. The fixture also records that public 2026-04 accepted an event after fulfillmentCancel on the sampled fulfillment; `fulfillment-state-preconditions` now replays the accepted cancelled-fulfillment branch.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

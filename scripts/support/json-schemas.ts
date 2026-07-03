@@ -161,6 +161,11 @@ export const parityComparisonModeSchema = z.enum([
 ]);
 export type ParityComparisonMode = z.infer<typeof parityComparisonModeSchema>;
 
+export const parityProxyConfigSchema = z.strictObject({
+  readMode: z.enum(['snapshot', 'live-hybrid', 'passthrough']).optional(),
+});
+export type ParityProxyConfig = z.infer<typeof parityProxyConfigSchema>;
+
 export const paritySpecSchema = z
   .strictObject({
     scenarioId: z.string().optional(),
@@ -168,6 +173,7 @@ export const paritySpecSchema = z
     scenarioStatus: z.string().optional(),
     assertionKinds: z.array(z.string()).optional(),
     comparisonMode: parityComparisonModeSchema.optional(),
+    proxyConfig: parityProxyConfigSchema.optional(),
     proxyRequest: parityProxyRequestSpecSchema.optional(),
     comparison: comparisonContractSchema.optional(),
     liveCaptureFiles: z.array(z.string()).optional(),
@@ -178,6 +184,18 @@ export const paritySpecSchema = z
   .superRefine((spec, ctx) => {
     if (spec.scenarioStatus !== 'captured') {
       return;
+    }
+
+    const localRuntimeOnlineStoreCapture = spec.liveCaptureFiles?.find(
+      (captureFile) =>
+        captureFile.startsWith('fixtures/conformance/local-runtime/') && captureFile.includes('/online-store/'),
+    );
+    if (localRuntimeOnlineStoreCapture) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['liveCaptureFiles'],
+        message: `Online-store parity specs must not use local-runtime fixtures as capture evidence: ${localRuntimeOnlineStoreCapture}`,
+      });
     }
 
     if (!spec.comparisonMode) {

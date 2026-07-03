@@ -1,0 +1,28 @@
+{
+  "scenarioId": "domain-primary-domain-read",
+  "operationNames": ["domain"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/admin-platform/domain-primary-domain-read.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/domain-primary-domain-read.graphql",
+    "variablesPath": "config/parity-requests/admin-platform/domain-primary-domain-read.variables.json",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured direct Admin GraphQL domain(id:) read for the live shop primary domain. The captured domain id is not the legacy local Domain/1000 id; parity replays through live-hybrid passthrough when the proxy has not yet hydrated that domain locally.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "primary-domain-data",
+        "capturePath": "$.captures.primaryDomainRead.result.payload.data.domain",
+        "proxyPath": "$.data.domain",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

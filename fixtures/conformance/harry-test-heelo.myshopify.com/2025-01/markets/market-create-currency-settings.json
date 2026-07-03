@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-06-13T20:05:24.161Z",
+  "capturedAt": "2026-06-26T00:15:47.446Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "cases": [
@@ -8,7 +8,7 @@
       "query": "#graphql\nmutation MarketCreateCurrencySettings($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      status\n      enabled\n      currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n        localCurrencies\n        roundingEnabled\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "name": "Draft Proxy Currency Settings 20260613200520 Local Currencies",
+          "name": "Draft Proxy Currency Settings 20260626001542 Local Currencies",
           "status": "ACTIVE",
           "enabled": true,
           "currencySettings": {
@@ -23,8 +23,8 @@
           "data": {
             "marketCreate": {
               "market": {
-                "id": "gid://shopify/Market/98514960690",
-                "name": "Draft Proxy Currency Settings 20260613200520 Local Currencies",
+                "id": "gid://shopify/Market/98667004210",
+                "name": "Draft Proxy Currency Settings 20260626001542 Local Currencies",
                 "status": "ACTIVE",
                 "enabled": true,
                 "currencySettings": {
@@ -57,15 +57,15 @@
       "name": "marketReadLocalCurrencies",
       "query": "#graphql\nquery MarketCreateCurrencySettingsRead($id: ID!) {\n  market(id: $id) {\n    id\n    name\n    status\n    enabled\n    currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n      localCurrencies\n      roundingEnabled\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Market/98514960690"
+        "id": "gid://shopify/Market/98667004210"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "market": {
-              "id": "gid://shopify/Market/98514960690",
-              "name": "Draft Proxy Currency Settings 20260613200520 Local Currencies",
+              "id": "gid://shopify/Market/98667004210",
+              "name": "Draft Proxy Currency Settings 20260626001542 Local Currencies",
               "status": "ACTIVE",
               "enabled": true,
               "currencySettings": {
@@ -97,7 +97,7 @@
       "query": "#graphql\nmutation MarketCreateCurrencySettings($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      status\n      enabled\n      currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n        localCurrencies\n        roundingEnabled\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "name": "Draft Proxy Currency Settings 20260613200520 Rounding",
+          "name": "Draft Proxy Currency Settings 20260626001542 Rounding",
           "status": "ACTIVE",
           "enabled": true,
           "currencySettings": {
@@ -112,8 +112,8 @@
           "data": {
             "marketCreate": {
               "market": {
-                "id": "gid://shopify/Market/98514993458",
-                "name": "Draft Proxy Currency Settings 20260613200520 Rounding",
+                "id": "gid://shopify/Market/98667036978",
+                "name": "Draft Proxy Currency Settings 20260626001542 Rounding",
                 "status": "ACTIVE",
                 "enabled": true,
                 "currencySettings": {
@@ -146,15 +146,15 @@
       "name": "marketReadRoundingEnabled",
       "query": "#graphql\nquery MarketCreateCurrencySettingsRead($id: ID!) {\n  market(id: $id) {\n    id\n    name\n    status\n    enabled\n    currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n      localCurrencies\n      roundingEnabled\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Market/98514993458"
+        "id": "gid://shopify/Market/98667036978"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "market": {
-              "id": "gid://shopify/Market/98514993458",
-              "name": "Draft Proxy Currency Settings 20260613200520 Rounding",
+              "id": "gid://shopify/Market/98667036978",
+              "name": "Draft Proxy Currency Settings 20260626001542 Rounding",
               "status": "ACTIVE",
               "enabled": true,
               "currencySettings": {
@@ -186,7 +186,7 @@
       "query": "#graphql\nmutation MarketCreateCurrencySettings($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      status\n      enabled\n      currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n        localCurrencies\n        roundingEnabled\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "name": "Draft Proxy Currency Settings 20260613200520 Manual Rate",
+          "name": "Draft Proxy Currency Settings 20260626001542 Manual Rate",
           "currencySettings": {
             "baseCurrency": "USD",
             "baseCurrencyManualRate": 0
@@ -227,7 +227,7 @@
       "query": "#graphql\nmutation MarketCreateCurrencySettings($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      status\n      enabled\n      currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n        localCurrencies\n        roundingEnabled\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "name": "Draft Proxy Currency Settings 20260613200520 Euro",
+          "name": "Draft Proxy Currency Settings 20260626001542 Euro",
           "currencySettings": {
             "baseCurrency": "EUR"
           }
@@ -239,8 +239,8 @@
           "data": {
             "marketCreate": {
               "market": {
-                "id": "gid://shopify/Market/98515058994",
-                "name": "Draft Proxy Currency Settings 20260613200520 Euro",
+                "id": "gid://shopify/Market/98667102514",
+                "name": "Draft Proxy Currency Settings 20260626001542 Euro",
                 "status": "DRAFT",
                 "enabled": false,
                 "currencySettings": {
@@ -273,15 +273,15 @@
       "name": "marketReadEuroCurrencyName",
       "query": "#graphql\nquery MarketCreateCurrencySettingsRead($id: ID!) {\n  market(id: $id) {\n    id\n    name\n    status\n    enabled\n    currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n      localCurrencies\n      roundingEnabled\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Market/98515058994"
+        "id": "gid://shopify/Market/98667102514"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "market": {
-              "id": "gid://shopify/Market/98515058994",
-              "name": "Draft Proxy Currency Settings 20260613200520 Euro",
+              "id": "gid://shopify/Market/98667102514",
+              "name": "Draft Proxy Currency Settings 20260626001542 Euro",
               "status": "DRAFT",
               "enabled": false,
               "currencySettings": {
@@ -307,6 +307,135 @@
           }
         }
       }
+    },
+    {
+      "name": "marketCreateXafCurrency",
+      "query": "#graphql\nmutation MarketCreateCurrencySettings($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      status\n      enabled\n      currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n        localCurrencies\n        roundingEnabled\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Draft Proxy Currency Settings 20260626001542 XAF",
+          "currencySettings": {
+            "baseCurrency": "XAF"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/98667135282",
+                "name": "Draft Proxy Currency Settings 20260626001542 XAF",
+                "status": "DRAFT",
+                "enabled": false,
+                "currencySettings": {
+                  "baseCurrency": {
+                    "currencyCode": "XAF",
+                    "currencyName": "Central African CFA Franc"
+                  },
+                  "localCurrencies": false,
+                  "roundingEnabled": false
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketReadXafCurrency",
+      "query": "#graphql\nquery MarketCreateCurrencySettingsRead($id: ID!) {\n  market(id: $id) {\n    id\n    name\n    status\n    enabled\n    currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n      localCurrencies\n      roundingEnabled\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/98667135282"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "market": {
+              "id": "gid://shopify/Market/98667135282",
+              "name": "Draft Proxy Currency Settings 20260626001542 XAF",
+              "status": "DRAFT",
+              "enabled": false,
+              "currencySettings": {
+                "baseCurrency": {
+                  "currencyCode": "XAF",
+                  "currencyName": "Central African CFA Franc"
+                },
+                "localCurrencies": false,
+                "roundingEnabled": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketCreateUnknownCurrencyCoercion",
+      "query": "#graphql\nmutation MarketCreateCurrencySettings($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      status\n      enabled\n      currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n        localCurrencies\n        roundingEnabled\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Draft Proxy Currency Settings 20260626001542 Unknown",
+          "currencySettings": {
+            "baseCurrency": "ZZZ"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type MarketCreateInput! was provided invalid value for currencySettings.baseCurrency (Expected \"ZZZ\" to be one of: USD, EUR, GBP, CAD, AFN, ALL, DZD, AOA, ARS, AMD, AWG, AUD, BBD, AZN, BDT, BSD, BHD, BIF, BYN, BZD, BMD, BTN, BAM, BRL, BOB, BWP, BND, BGN, MMK, KHR, CVE, KYD, XAF, CLP, CNY, COP, KMF, CDF, CRC, HRK, CZK, DKK, DJF, DOP, XCD, EGP, ERN, ETB, FKP, XPF, FJD, GIP, GMD, GHS, GTQ, GYD, GEL, GNF, HTG, HNL, HKD, HUF, ISK, INR, IDR, ILS, IRR, IQD, JMD, JPY, JEP, JOD, KZT, KES, KID, KWD, KGS, LAK, LVL, LBP, LSL, LRD, LYD, LTL, MGA, MKD, MOP, MWK, MVR, MRU, MXN, MYR, MUR, MDL, MAD, MNT, MZN, NAD, NPR, ANG, NZD, NIO, NGN, NOK, OMR, PAB, PKR, PGK, PYG, PEN, PHP, PLN, QAR, RON, RUB, RWF, WST, SHP, SAR, RSD, SCR, SLL, SGD, SDG, SOS, SYP, ZAR, KRW, SSP, SBD, LKR, SRD, SZL, SEK, CHF, TWD, THB, TJS, TZS, TOP, TTD, TND, TRY, TMT, UGX, UAH, AED, UYU, UZS, VUV, VES, VND, XOF, YER, ZMW, USDC, BYR, STD, STN, VED, VEF, XXX)",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 39
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "name": "Draft Proxy Currency Settings 20260626001542 Unknown",
+                  "currencySettings": {
+                    "baseCurrency": "ZZZ"
+                  }
+                },
+                "problems": [
+                  {
+                    "path": ["currencySettings", "baseCurrency"],
+                    "explanation": "Expected \"ZZZ\" to be one of: USD, EUR, GBP, CAD, AFN, ALL, DZD, AOA, ARS, AMD, AWG, AUD, BBD, AZN, BDT, BSD, BHD, BIF, BYN, BZD, BMD, BTN, BAM, BRL, BOB, BWP, BND, BGN, MMK, KHR, CVE, KYD, XAF, CLP, CNY, COP, KMF, CDF, CRC, HRK, CZK, DKK, DJF, DOP, XCD, EGP, ERN, ETB, FKP, XPF, FJD, GIP, GMD, GHS, GTQ, GYD, GEL, GNF, HTG, HNL, HKD, HUF, ISK, INR, IDR, ILS, IRR, IQD, JMD, JPY, JEP, JOD, KZT, KES, KID, KWD, KGS, LAK, LVL, LBP, LSL, LRD, LYD, LTL, MGA, MKD, MOP, MWK, MVR, MRU, MXN, MYR, MUR, MDL, MAD, MNT, MZN, NAD, NPR, ANG, NZD, NIO, NGN, NOK, OMR, PAB, PKR, PGK, PYG, PEN, PHP, PLN, QAR, RON, RUB, RWF, WST, SHP, SAR, RSD, SCR, SLL, SGD, SDG, SOS, SYP, ZAR, KRW, SSP, SBD, LKR, SRD, SZL, SEK, CHF, TWD, THB, TJS, TZS, TOP, TTD, TND, TRY, TMT, UGX, UAH, AED, UYU, UZS, VUV, VES, VND, XOF, YER, ZMW, USDC, BYR, STD, STN, VED, VEF, XXX"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
     }
   ],
   "cleanupCases": [
@@ -314,14 +443,14 @@
       "name": "marketDeleteCleanup",
       "query": "#graphql\nmutation MarketCreateCurrencySettingsCleanup($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Market/98515058994"
+        "id": "gid://shopify/Market/98667135282"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "marketDelete": {
-              "deletedId": "gid://shopify/Market/98515058994",
+              "deletedId": "gid://shopify/Market/98667135282",
               "userErrors": []
             }
           },
@@ -343,14 +472,14 @@
       "name": "marketDeleteCleanup",
       "query": "#graphql\nmutation MarketCreateCurrencySettingsCleanup($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Market/98514993458"
+        "id": "gid://shopify/Market/98667102514"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "marketDelete": {
-              "deletedId": "gid://shopify/Market/98514993458",
+              "deletedId": "gid://shopify/Market/98667102514",
               "userErrors": []
             }
           },
@@ -372,14 +501,43 @@
       "name": "marketDeleteCleanup",
       "query": "#graphql\nmutation MarketCreateCurrencySettingsCleanup($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Market/98514960690"
+        "id": "gid://shopify/Market/98667036978"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "marketDelete": {
-              "deletedId": "gid://shopify/Market/98514960690",
+              "deletedId": "gid://shopify/Market/98667036978",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketDeleteCleanup",
+      "query": "#graphql\nmutation MarketCreateCurrencySettingsCleanup($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/98667004210"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/98667004210",
               "userErrors": []
             }
           },

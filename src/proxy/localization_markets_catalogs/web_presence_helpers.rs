@@ -106,6 +106,7 @@ pub(in crate::proxy) fn web_presence_validate_routing_and_uniqueness(
     existing_records: &BTreeMap<String, Value>,
     current_id: Option<&str>,
     is_create: bool,
+    linked_domain: Option<&Value>,
     errors: &mut Vec<Value>,
 ) {
     let has_domain = draft.domain_id.is_some();
@@ -116,7 +117,7 @@ pub(in crate::proxy) fn web_presence_validate_routing_and_uniqueness(
     // real domain fails with DOMAIN_NOT_FOUND, reported ahead of any locale errors
     // already collected by web_presence_draft_from_input.
     if has_domain {
-        if is_create && draft.domain_id.as_deref() != Some("gid://shopify/Domain/1000") {
+        if is_create && linked_domain.is_none() {
             errors.insert(
                 0,
                 market_user_error(
@@ -243,7 +244,7 @@ pub(in crate::proxy) fn web_presence_subfolder_taken(
 pub(in crate::proxy) fn normalize_shopify_locale(raw_locale: &str) -> Option<String> {
     let mut parts = raw_locale.split('-');
     let language = parts.next()?.to_ascii_lowercase();
-    if !shopify_language_subtag_is_supported(&language) {
+    if !default_available_language_subtag_is_supported(&language) {
         return None;
     }
     let mut normalized = vec![language];
@@ -263,12 +264,6 @@ pub(in crate::proxy) fn normalize_shopify_locale(raw_locale: &str) -> Option<Str
     Some(normalized.join("-"))
 }
 
-fn shopify_language_subtag_is_supported(language: &str) -> bool {
-    default_available_locales()
-        .keys()
-        .any(|locale| locale.split('-').next() == Some(language))
-}
-
 pub(in crate::proxy) fn invalid_locale_message(invalid_locales: &[String]) -> String {
     match invalid_locales {
         [] => "Invalid locale codes".to_string(),
@@ -285,25 +280,16 @@ pub(in crate::proxy) fn invalid_locale_message(invalid_locales: &[String]) -> St
 pub(in crate::proxy) fn market_web_presence_helper_record(
     draft: &WebPresenceDraft,
     shop_domain: &str,
+    linked_domain: Option<&Value>,
 ) -> Value {
     let shop_origin = format!("https://{shop_domain}");
-    // A linked custom domain routes through its own host, not the shop's myshopify
-    // domain. The local runtime seeds the same Domain/1000 -> acme.myshopify.com
-    // mapping the top-level `domain(id:)` query exposes (see dispatch.rs); unknown
-    // domain ids are rejected before this record is built.
-    let linked_domain_host = draft
-        .domain_id
-        .as_deref()
-        .and_then(web_presence_linked_domain_host);
-    let domain = match (&draft.domain_id, &linked_domain_host) {
-        (Some(domain_id), Some(host)) => json!({
-            "id": domain_id,
-            "host": host,
-            "url": format!("https://{host}"),
-            "sslEnabled": true
-        }),
-        _ => Value::Null,
-    };
+    // A linked custom domain routes through its own host, not the shop's
+    // myshopify domain. The domain is resolved from the proxy's effective shop
+    // state, so restored/hydrated stores are not limited to a single baked id.
+    let linked_domain_host = linked_domain
+        .and_then(|domain| domain.get("host"))
+        .and_then(Value::as_str);
+    let domain = linked_domain.cloned().unwrap_or(Value::Null);
     // Shopify lists root URLs as the default locale first, then the alternate
     // locales sorted alphabetically by locale code (the `alternateLocales` field
     // itself preserves the caller's input order; only `rootUrls` is sorted).
@@ -344,16 +330,6 @@ pub(in crate::proxy) fn market_web_presence_helper_record(
     })
 }
 
-/// Resolves a linked custom-domain id to its host. Only Domain/1000 is seeded in
-/// the local runtime (mirroring the top-level `domain(id:)` query in dispatch.rs);
-/// any other id returns None and is rejected upstream as DOMAIN_NOT_FOUND.
-pub(in crate::proxy) fn web_presence_linked_domain_host(domain_id: &str) -> Option<&'static str> {
-    match domain_id {
-        "gid://shopify/Domain/1000" => Some("acme.myshopify.com"),
-        _ => None,
-    }
-}
-
 pub(in crate::proxy) fn locale_record(locale: &str, primary: bool) -> Value {
     json!({
         "locale": locale,
@@ -364,15 +340,11 @@ pub(in crate::proxy) fn locale_record(locale: &str, primary: bool) -> Value {
 }
 
 fn shopify_locale_name(locale: &str) -> String {
-    let locales = default_available_locales();
-    if let Some(name) = locales.get(locale) {
-        return name.clone();
+    if let Some(name) = default_available_locale_name(locale) {
+        return name.to_string();
     }
     let language = locale.split('-').next().unwrap_or(locale);
-    locales
-        .iter()
-        .find_map(|(available_locale, name)| {
-            (available_locale.split('-').next() == Some(language)).then(|| name.clone())
-        })
-        .unwrap_or_else(|| "English".to_string())
+    default_available_language_subtag_name(language)
+        .unwrap_or("English")
+        .to_string()
 }

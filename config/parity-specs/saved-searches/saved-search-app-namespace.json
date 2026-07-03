@@ -12,17 +12,17 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-app-namespace.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
     "variablesCapturePath": "$.savedSearchCreateAppNamespace.variables",
     "apiVersion": "2025-01",
     "headers": {
-      "x-shopify-draft-proxy-api-client-id": "347082227713"
+      "x-shopify-draft-proxy-api-client-id": "999999999999"
     }
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live Shopify evidence for SavedSearch query-input app namespace resolution. Shopify resolves bare metafields.$app.<key> query tokens to metafields.app--<api_client_id>.<key> before creating or updating the SavedSearch record. Downstream productSavedSearches currently escapes the hyphens in the stored query string, so parity keeps that one string as an expected difference while strictly comparing searchTerms and filters.",
+  "notes": "Live Shopify evidence for SavedSearch query-input app namespace resolution. Shopify resolves bare metafields.$app.<key> query tokens to metafields.app--<api_client_id>.<key> before creating or updating the SavedSearch record. The live capture uses the installed conformance app, while proxy replay deliberately uses x-shopify-draft-proxy-api-client-id 999999999999 to prove the local handler resolves $app from the request identity instead of a captured app id. Downstream productSavedSearches currently escapes the hyphens in Shopify's stored query string, so parity keeps that string as an expected difference while strictly comparing the rest of the payload.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -42,6 +42,16 @@
             "path": "$.savedSearch.legacyResourceId",
             "matcher": "non-empty-string",
             "reason": "The proxy derives the legacy resource id from its deterministic local SavedSearch id while Shopify returned the live store legacy id."
+          },
+          {
+            "path": "$.savedSearch.query",
+            "matcher": "exact-string:metafields.app--999999999999.tier:gold",
+            "reason": "Proxy replay uses a non-conformance-app API client id to prove $app resolution is request scoped."
+          },
+          {
+            "path": "$.savedSearch.filters[0].key",
+            "matcher": "exact-string:metafields.app--999999999999.tier",
+            "reason": "Proxy replay uses a non-conformance-app API client id to prove filter projection follows request-scoped $app resolution."
           }
         ]
       },
@@ -55,7 +65,7 @@
           "variablesCapturePath": "$.productSavedSearchesAfterCreate.variables",
           "apiVersion": "2025-01",
           "headers": {
-            "x-shopify-draft-proxy-api-client-id": "347082227713"
+            "x-shopify-draft-proxy-api-client-id": "999999999999"
           }
         },
         "expectedDifferences": [
@@ -66,8 +76,13 @@
           },
           {
             "path": "$.productSavedSearches.nodes[0].query",
-            "matcher": "exact-string:metafields.app--347082227713.tier:gold",
-            "reason": "Shopify downstream SavedSearch.query escaped hyphens in app--<api_client_id>; the proxy currently stores the unescaped resolved namespace while matching filters/searchTerms."
+            "matcher": "exact-string:metafields.app--999999999999.tier:gold",
+            "reason": "Shopify downstream SavedSearch.query escaped hyphens for the live conformance app; proxy replay uses the non-conformance app id and stores the unescaped resolved namespace while matching filters/searchTerms."
+          },
+          {
+            "path": "$.productSavedSearches.nodes[0].filters[0].key",
+            "matcher": "exact-string:metafields.app--999999999999.tier",
+            "reason": "Proxy replay uses a non-conformance-app API client id to prove downstream filters follow request-scoped $app resolution."
           }
         ]
       },
@@ -90,7 +105,7 @@
           },
           "apiVersion": "2025-01",
           "headers": {
-            "x-shopify-draft-proxy-api-client-id": "347082227713"
+            "x-shopify-draft-proxy-api-client-id": "999999999999"
           }
         },
         "expectedDifferences": [
@@ -103,6 +118,16 @@
             "path": "$.savedSearch.legacyResourceId",
             "matcher": "non-empty-string",
             "reason": "The proxy derives the legacy resource id from its deterministic local SavedSearch id while Shopify returned the live store legacy id."
+          },
+          {
+            "path": "$.savedSearch.query",
+            "matcher": "exact-string:metafields.app--999999999999.vip:true",
+            "reason": "Proxy replay uses a non-conformance-app API client id to prove $app resolution is request scoped."
+          },
+          {
+            "path": "$.savedSearch.filters[0].key",
+            "matcher": "exact-string:metafields.app--999999999999.vip",
+            "reason": "Proxy replay uses a non-conformance-app API client id to prove filter projection follows request-scoped $app resolution."
           }
         ]
       },
@@ -116,7 +141,7 @@
           "variablesCapturePath": "$.productSavedSearchesAfterUpdate.variables",
           "apiVersion": "2025-01",
           "headers": {
-            "x-shopify-draft-proxy-api-client-id": "347082227713"
+            "x-shopify-draft-proxy-api-client-id": "999999999999"
           }
         },
         "expectedDifferences": [
@@ -127,8 +152,13 @@
           },
           {
             "path": "$.productSavedSearches.nodes[0].query",
-            "matcher": "exact-string:metafields.app--347082227713.vip:true",
-            "reason": "Shopify downstream SavedSearch.query escaped hyphens in app--<api_client_id>; the proxy currently stores the unescaped resolved namespace while matching filters/searchTerms."
+            "matcher": "exact-string:metafields.app--999999999999.vip:true",
+            "reason": "Shopify downstream SavedSearch.query escaped hyphens for the live conformance app; proxy replay uses the non-conformance app id and stores the unescaped resolved namespace while matching filters/searchTerms."
+          },
+          {
+            "path": "$.productSavedSearches.nodes[0].filters[0].key",
+            "matcher": "exact-string:metafields.app--999999999999.vip",
+            "reason": "Proxy replay uses a non-conformance-app API client id to prove downstream filters follow request-scoped $app resolution."
           }
         ]
       },
@@ -148,7 +178,7 @@
           },
           "apiVersion": "2025-01",
           "headers": {
-            "x-shopify-draft-proxy-api-client-id": "347082227713"
+            "x-shopify-draft-proxy-api-client-id": "999999999999"
           }
         },
         "expectedDifferences": [

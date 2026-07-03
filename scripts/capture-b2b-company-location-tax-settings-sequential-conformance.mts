@@ -193,6 +193,39 @@ try {
     locationBulkLocationId: companyLocationId,
   };
 
+  const registrationOnlyTaxUpdate = await runRequired(
+    taxUpdateDocument,
+    {
+      companyLocationId,
+      taxRegistrationId: 'B2B-TAX-REGISTRATION-ONLY',
+    },
+    'companyLocationTaxSettingsUpdate',
+    'registration-only tax settings update',
+  );
+
+  const readAfterRegistrationOnly = await runRequired(
+    taxReadDocument,
+    readVariables,
+    'companyLocation',
+    'read after registration-only tax settings update',
+  );
+
+  const noKnobsTaxUpdate = await runRequired(
+    taxUpdateDocument,
+    {
+      companyLocationId,
+    },
+    'companyLocationTaxSettingsUpdate',
+    'no-knob tax settings update',
+  );
+
+  const readAfterNoKnobs = await runRequired(
+    taxReadDocument,
+    readVariables,
+    'companyLocation',
+    'read after no-knob tax settings update',
+  );
+
   const initialTaxUpdate = await runRequired(
     taxUpdateDocument,
     {
@@ -254,9 +287,13 @@ try {
         storeDomain,
         apiVersion,
         intent: {
-          plan: 'Create a disposable B2B company/location, update location tax settings through assign/remove combinations, read back taxSettings after each relevant write, then delete the company.',
+          plan: 'Create a disposable B2B company/location, update location tax settings through registration-only, no-knob, and assign/remove combinations, read back taxSettings after each relevant write, then delete the company.',
         },
         companyCreate,
+        registrationOnlyTaxUpdate,
+        readAfterRegistrationOnly,
+        noKnobsTaxUpdate,
+        readAfterNoKnobs,
         initialTaxUpdate,
         removeAbsentTaxUpdate,
         readAfterRemoveAbsent,

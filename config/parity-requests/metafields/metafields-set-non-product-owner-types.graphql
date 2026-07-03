@@ -1,0 +1,36 @@
+mutation MetafieldsSetNonProductOwnerTypes($metafields: [MetafieldsSetInput!]!) {
+  metafieldsSet(metafields: $metafields) {
+    metafields {
+      id
+      namespace
+      key
+      type
+      value
+      compareDigest
+      createdAt
+      updatedAt
+      ownerType
+      owner {
+        __typename
+        ... on Page {
+          id
+        }
+        ... on Location {
+          id
+        }
+        ... on Market {
+          id
+        }
+        ... on Article {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementIndex
+    }
+  }
+}

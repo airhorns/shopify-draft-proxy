@@ -1,0 +1,138 @@
+{
+  "scenarioId": "metafieldsSet-custom-namespace-typed-keys",
+  "operationNames": ["metafieldsSet", "product"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafieldsSet-custom-namespace-typed-keys.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafieldsSet-custom-namespace-typed-keys.graphql",
+    "variablesCapturePath": "$.set.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture proves product-owned metafieldsSet preserves non-empty values for custom namespace keys whose names match custom-data field types. Shopify compareDigest tokens are opaque while local staged metafields use deterministic actual-value digests, so parity asserts non-empty digest shape while strict value/jsonValue parity proves the silent-empty-record regression is fixed.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.metafields[*].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "The local proxy stages synthetic metafield IDs while Shopify returns live IDs."
+      },
+      {
+        "path": "$.metafields[*].compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest is opaque while local staged metafields use deterministic actual-value digests."
+      },
+      {
+        "path": "$.metafields[*].createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The local proxy timestamps staged metafields at replay time."
+      },
+      {
+        "path": "$.metafields[*].updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The local proxy timestamps staged metafields at replay time."
+      },
+      {
+        "path": "$.jsonField.id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "The downstream local read returns a staged synthetic metafield ID."
+      },
+      {
+        "path": "$.jsonField.compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest is opaque while local staged metafields use deterministic actual-value digests."
+      },
+      {
+        "path": "$.jsonField.createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream local read timestamps staged metafields at replay time."
+      },
+      {
+        "path": "$.jsonField.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream local read timestamps staged metafields at replay time."
+      },
+      {
+        "path": "$.ratingField.id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "The downstream local read returns a staged synthetic metafield ID."
+      },
+      {
+        "path": "$.ratingField.compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest is opaque while local staged metafields use deterministic actual-value digests."
+      },
+      {
+        "path": "$.ratingField.createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream local read timestamps staged metafields at replay time."
+      },
+      {
+        "path": "$.ratingField.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream local read timestamps staged metafields at replay time."
+      },
+      {
+        "path": "$.moneyField.id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "The downstream local read returns a staged synthetic metafield ID."
+      },
+      {
+        "path": "$.moneyField.compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest is opaque while local staged metafields use deterministic actual-value digests."
+      },
+      {
+        "path": "$.moneyField.createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream local read timestamps staged metafields at replay time."
+      },
+      {
+        "path": "$.moneyField.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream local read timestamps staged metafields at replay time."
+      },
+      {
+        "path": "$.metafields.nodes[*].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "The downstream local read returns staged synthetic metafield IDs."
+      },
+      {
+        "path": "$.metafields.nodes[*].compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest is opaque while local staged metafields use deterministic actual-value digests."
+      },
+      {
+        "path": "$.metafields.nodes[*].createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream local read timestamps staged metafields at replay time."
+      },
+      {
+        "path": "$.metafields.nodes[*].updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream local read timestamps staged metafields at replay time."
+      }
+    ],
+    "targets": [
+      {
+        "name": "custom-typed-keys-set-payload",
+        "capturePath": "$.set.response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet"
+      },
+      {
+        "name": "custom-typed-keys-read-after-set",
+        "capturePath": "$.readAfterSet.response.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafieldsSet-custom-namespace-typed-keys-read.graphql",
+          "variablesCapturePath": "$.readAfterSet.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

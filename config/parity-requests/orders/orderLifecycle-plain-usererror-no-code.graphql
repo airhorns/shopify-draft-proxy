@@ -1,0 +1,47 @@
+mutation OrderLifecyclePlainUserErrorNoCode(
+  $updateInput: OrderInput!
+  $closeInput: OrderCloseInput!
+  $openInput: OrderOpenInput!
+  $markAsPaidInput: OrderMarkAsPaidInput!
+) {
+  update: orderUpdate(input: $updateInput) {
+    order {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  close: orderClose(input: $closeInput) {
+    order {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  open: orderOpen(input: $openInput) {
+    order {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  markAsPaid: orderMarkAsPaid(input: $markAsPaidInput) {
+    order {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

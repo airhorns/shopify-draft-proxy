@@ -1,16 +1,16 @@
 {
-  "capturedAt": "2026-06-24T00:07:37.210Z",
+  "capturedAt": "2026-07-03T11:09:31.671Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "seed": {
-    "productId": "gid://shopify/Product/10220288508210",
-    "defaultVariantId": "gid://shopify/ProductVariant/51359217451314",
+    "productId": "gid://shopify/Product/10230743531826",
+    "defaultVariantId": "gid://shopify/ProductVariant/51419265368370",
     "createProductResponse": {
       "data": {
         "productCreate": {
           "product": {
-            "id": "gid://shopify/Product/10220288508210",
-            "title": "Bulk Variant Validation 1782259646230"
+            "id": "gid://shopify/Product/10230743531826",
+            "title": "Bulk Variant Validation 1783076960570"
           },
           "userErrors": []
         }
@@ -31,37 +31,37 @@
       "data": {
         "productOptionsCreate": {
           "product": {
-            "id": "gid://shopify/Product/10220288508210",
+            "id": "gid://shopify/Product/10230743531826",
             "options": [
               {
-                "id": "gid://shopify/ProductOption/12777562210610",
+                "id": "gid://shopify/ProductOption/12789249605938",
                 "name": "Color",
                 "values": ["Red"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/8215337697586",
+                    "id": "gid://shopify/ProductOptionValue/8258361590066",
                     "name": "Red",
                     "hasVariants": true
                   },
                   {
-                    "id": "gid://shopify/ProductOptionValue/8215337730354",
+                    "id": "gid://shopify/ProductOptionValue/8258361622834",
                     "name": "Blue",
                     "hasVariants": false
                   }
                 ]
               },
               {
-                "id": "gid://shopify/ProductOption/12777562243378",
+                "id": "gid://shopify/ProductOption/12789249638706",
                 "name": "Size",
                 "values": ["Small"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/8215337763122",
+                    "id": "gid://shopify/ProductOptionValue/8258361655602",
                     "name": "Small",
                     "hasVariants": true
                   },
                   {
-                    "id": "gid://shopify/ProductOptionValue/8215337795890",
+                    "id": "gid://shopify/ProductOptionValue/8258361688370",
                     "name": "Large",
                     "hasVariants": false
                   }
@@ -71,7 +71,7 @@
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51359217451314",
+                  "id": "gid://shopify/ProductVariant/51419265368370",
                   "title": "Red / Small"
                 }
               ]
@@ -100,7 +100,7 @@
       "variables": {
         "ids": ["gid://shopify/Product/999999999999999999"]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
@@ -124,25 +124,25 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10220288508210"]
+        "ids": ["gid://shopify/Product/10230743531826"]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10220288508210",
-                "title": "Bulk Variant Validation 1782259646230",
-                "handle": "bulk-variant-validation-1782259646230",
+                "id": "gid://shopify/Product/10230743531826",
+                "title": "Bulk Variant Validation 1783076960570",
+                "handle": "bulk-variant-validation-1783076960570",
                 "status": "DRAFT",
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51359217451314",
+                      "id": "gid://shopify/ProductVariant/51419265368370",
                       "title": "Red / Small",
                       "sku": null,
                       "barcode": null,
@@ -162,7 +162,7 @@
                         }
                       ],
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53464043487538",
+                        "id": "gid://shopify/InventoryItem/53524318486834",
                         "tracked": false,
                         "requiresShipping": true
                       }
@@ -196,25 +196,25 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10220288508210"]
+        "ids": ["gid://shopify/Product/10230743531826"]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10220288508210",
-                "title": "Bulk Variant Validation 1782259646230",
-                "handle": "bulk-variant-validation-1782259646230",
+                "id": "gid://shopify/Product/10230743531826",
+                "title": "Bulk Variant Validation 1783076960570",
+                "handle": "bulk-variant-validation-1783076960570",
                 "status": "DRAFT",
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51359217451314",
+                      "id": "gid://shopify/ProductVariant/51419265368370",
                       "title": "Red / Small",
                       "sku": null,
                       "barcode": null,
@@ -234,7 +234,7 @@
                         }
                       ],
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53464043487538",
+                        "id": "gid://shopify/InventoryItem/53524318486834",
                         "tracked": false,
                         "requiresShipping": true
                       }
@@ -268,25 +268,25 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10220288508210"]
+        "ids": ["gid://shopify/Product/10230743531826"]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10220288508210",
-                "title": "Bulk Variant Validation 1782259646230",
-                "handle": "bulk-variant-validation-1782259646230",
+                "id": "gid://shopify/Product/10230743531826",
+                "title": "Bulk Variant Validation 1783076960570",
+                "handle": "bulk-variant-validation-1783076960570",
                 "status": "DRAFT",
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51359217451314",
+                      "id": "gid://shopify/ProductVariant/51419265368370",
                       "title": "Red / Small",
                       "sku": null,
                       "barcode": null,
@@ -306,7 +306,7 @@
                         }
                       ],
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53464043487538",
+                        "id": "gid://shopify/InventoryItem/53524318486834",
                         "tracked": false,
                         "requiresShipping": true
                       }
@@ -340,25 +340,25 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10220288508210"]
+        "ids": ["gid://shopify/Product/10230743531826"]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10220288508210",
-                "title": "Bulk Variant Validation 1782259646230",
-                "handle": "bulk-variant-validation-1782259646230",
+                "id": "gid://shopify/Product/10230743531826",
+                "title": "Bulk Variant Validation 1783076960570",
+                "handle": "bulk-variant-validation-1783076960570",
                 "status": "DRAFT",
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51359217451314",
+                      "id": "gid://shopify/ProductVariant/51419265368370",
                       "title": "Red / Small",
                       "sku": null,
                       "barcode": null,
@@ -378,7 +378,7 @@
                         }
                       ],
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53464043487538",
+                        "id": "gid://shopify/InventoryItem/53524318486834",
                         "tracked": false,
                         "requiresShipping": true
                       }
@@ -412,25 +412,25 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10220288508210"]
+        "ids": ["gid://shopify/Product/10230743531826"]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10220288508210",
-                "title": "Bulk Variant Validation 1782259646230",
-                "handle": "bulk-variant-validation-1782259646230",
+                "id": "gid://shopify/Product/10230743531826",
+                "title": "Bulk Variant Validation 1783076960570",
+                "handle": "bulk-variant-validation-1783076960570",
                 "status": "DRAFT",
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51359217451314",
+                      "id": "gid://shopify/ProductVariant/51419265368370",
                       "title": "Red / Small",
                       "sku": null,
                       "barcode": null,
@@ -450,7 +450,7 @@
                         }
                       ],
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53464043487538",
+                        "id": "gid://shopify/InventoryItem/53524318486834",
                         "tracked": false,
                         "requiresShipping": true
                       }
@@ -484,25 +484,25 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10220288508210"]
+        "ids": ["gid://shopify/Product/10230743531826"]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10220288508210",
-                "title": "Bulk Variant Validation 1782259646230",
-                "handle": "bulk-variant-validation-1782259646230",
+                "id": "gid://shopify/Product/10230743531826",
+                "title": "Bulk Variant Validation 1783076960570",
+                "handle": "bulk-variant-validation-1783076960570",
                 "status": "DRAFT",
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51359217451314",
+                      "id": "gid://shopify/ProductVariant/51419265368370",
                       "title": "Red / Small",
                       "sku": null,
                       "barcode": null,
@@ -522,7 +522,7 @@
                         }
                       ],
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53464043487538",
+                        "id": "gid://shopify/InventoryItem/53524318486834",
                         "tracked": false,
                         "requiresShipping": true
                       }
@@ -558,7 +558,7 @@
       "variables": {
         "ids": ["gid://shopify/Product/999999999999999999"]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
@@ -582,25 +582,25 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10220288508210"]
+        "ids": ["gid://shopify/Product/10230743531826"]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10220288508210",
-                "title": "Bulk Variant Validation 1782259646230",
-                "handle": "bulk-variant-validation-1782259646230",
+                "id": "gid://shopify/Product/10230743531826",
+                "title": "Bulk Variant Validation 1783076960570",
+                "handle": "bulk-variant-validation-1783076960570",
                 "status": "DRAFT",
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51359217451314",
+                      "id": "gid://shopify/ProductVariant/51419265368370",
                       "title": "Red / Small",
                       "sku": null,
                       "barcode": null,
@@ -620,7 +620,7 @@
                         }
                       ],
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53464043487538",
+                        "id": "gid://shopify/InventoryItem/53524318486834",
                         "tracked": false,
                         "requiresShipping": true
                       }
@@ -654,25 +654,25 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10220288508210"]
+        "ids": ["gid://shopify/Product/10230743531826"]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10220288508210",
-                "title": "Bulk Variant Validation 1782259646230",
-                "handle": "bulk-variant-validation-1782259646230",
+                "id": "gid://shopify/Product/10230743531826",
+                "title": "Bulk Variant Validation 1783076960570",
+                "handle": "bulk-variant-validation-1783076960570",
                 "status": "DRAFT",
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51359217451314",
+                      "id": "gid://shopify/ProductVariant/51419265368370",
                       "title": "Red / Small",
                       "sku": null,
                       "barcode": null,
@@ -692,7 +692,7 @@
                         }
                       ],
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53464043487538",
+                        "id": "gid://shopify/InventoryItem/53524318486834",
                         "tracked": false,
                         "requiresShipping": true
                       }
@@ -726,25 +726,25 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10220288508210", "gid://shopify/ProductVariant/999999999999999999"]
+        "ids": ["gid://shopify/Product/10230743531826", "gid://shopify/ProductVariant/999999999999999999"]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10220288508210",
-                "title": "Bulk Variant Validation 1782259646230",
-                "handle": "bulk-variant-validation-1782259646230",
+                "id": "gid://shopify/Product/10230743531826",
+                "title": "Bulk Variant Validation 1783076960570",
+                "handle": "bulk-variant-validation-1783076960570",
                 "status": "DRAFT",
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51359217451314",
+                      "id": "gid://shopify/ProductVariant/51419265368370",
                       "title": "Red / Small",
                       "sku": null,
                       "barcode": null,
@@ -764,7 +764,7 @@
                         }
                       ],
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53464043487538",
+                        "id": "gid://shopify/InventoryItem/53524318486834",
                         "tracked": false,
                         "requiresShipping": true
                       }
@@ -799,25 +799,25 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10220288508210", "gid://shopify/ProductVariant/51359217451314"]
+        "ids": ["gid://shopify/Product/10230743531826", "gid://shopify/ProductVariant/51419265368370"]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10220288508210",
-                "title": "Bulk Variant Validation 1782259646230",
-                "handle": "bulk-variant-validation-1782259646230",
+                "id": "gid://shopify/Product/10230743531826",
+                "title": "Bulk Variant Validation 1783076960570",
+                "handle": "bulk-variant-validation-1783076960570",
                 "status": "DRAFT",
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51359217451314",
+                      "id": "gid://shopify/ProductVariant/51419265368370",
                       "title": "Red / Small",
                       "sku": null,
                       "barcode": null,
@@ -837,7 +837,7 @@
                         }
                       ],
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53464043487538",
+                        "id": "gid://shopify/InventoryItem/53524318486834",
                         "tracked": false,
                         "requiresShipping": true
                       }
@@ -853,7 +853,7 @@
                 }
               },
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "barcode": null,
@@ -873,21 +873,21 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 },
                 "product": {
-                  "id": "gid://shopify/Product/10220288508210",
-                  "title": "Bulk Variant Validation 1782259646230",
-                  "handle": "bulk-variant-validation-1782259646230",
+                  "id": "gid://shopify/Product/10230743531826",
+                  "title": "Bulk Variant Validation 1783076960570",
+                  "handle": "bulk-variant-validation-1783076960570",
                   "status": "DRAFT",
                   "totalInventory": 0,
                   "tracksInventory": false,
                   "variants": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/ProductVariant/51359217451314",
+                        "id": "gid://shopify/ProductVariant/51419265368370",
                         "title": "Red / Small",
                         "sku": null,
                         "barcode": null,
@@ -907,7 +907,7 @@
                           }
                         ],
                         "inventoryItem": {
-                          "id": "gid://shopify/InventoryItem/53464043487538",
+                          "id": "gid://shopify/InventoryItem/53524318486834",
                           "tracked": false,
                           "requiresShipping": true
                         }
@@ -935,25 +935,25 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10220288508210", "gid://shopify/ProductVariant/51359217451314"]
+        "ids": ["gid://shopify/Product/10230743531826", "gid://shopify/ProductVariant/51419265368370"]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10220288508210",
-                "title": "Bulk Variant Validation 1782259646230",
-                "handle": "bulk-variant-validation-1782259646230",
+                "id": "gid://shopify/Product/10230743531826",
+                "title": "Bulk Variant Validation 1783076960570",
+                "handle": "bulk-variant-validation-1783076960570",
                 "status": "DRAFT",
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51359217451314",
+                      "id": "gid://shopify/ProductVariant/51419265368370",
                       "title": "Red / Small",
                       "sku": null,
                       "barcode": null,
@@ -973,7 +973,7 @@
                         }
                       ],
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53464043487538",
+                        "id": "gid://shopify/InventoryItem/53524318486834",
                         "tracked": false,
                         "requiresShipping": true
                       }
@@ -989,7 +989,7 @@
                 }
               },
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "barcode": null,
@@ -1009,21 +1009,21 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 },
                 "product": {
-                  "id": "gid://shopify/Product/10220288508210",
-                  "title": "Bulk Variant Validation 1782259646230",
-                  "handle": "bulk-variant-validation-1782259646230",
+                  "id": "gid://shopify/Product/10230743531826",
+                  "title": "Bulk Variant Validation 1783076960570",
+                  "handle": "bulk-variant-validation-1783076960570",
                   "status": "DRAFT",
                   "totalInventory": 0,
                   "tracksInventory": false,
                   "variants": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/ProductVariant/51359217451314",
+                        "id": "gid://shopify/ProductVariant/51419265368370",
                         "title": "Red / Small",
                         "sku": null,
                         "barcode": null,
@@ -1043,7 +1043,7 @@
                           }
                         ],
                         "inventoryItem": {
-                          "id": "gid://shopify/InventoryItem/53464043487538",
+                          "id": "gid://shopify/InventoryItem/53524318486834",
                           "tracked": false,
                           "requiresShipping": true
                         }
@@ -1072,28 +1072,28 @@
       "operationName": "ProductsHydrateNodes",
       "variables": {
         "ids": [
-          "gid://shopify/Product/10220288508210",
-          "gid://shopify/ProductVariant/51359217451314",
+          "gid://shopify/Product/10230743531826",
+          "gid://shopify/ProductVariant/51419265368370",
           "gid://shopify/ProductVariant/999999999999999999"
         ]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10220288508210",
-                "title": "Bulk Variant Validation 1782259646230",
-                "handle": "bulk-variant-validation-1782259646230",
+                "id": "gid://shopify/Product/10230743531826",
+                "title": "Bulk Variant Validation 1783076960570",
+                "handle": "bulk-variant-validation-1783076960570",
                 "status": "DRAFT",
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51359217451314",
+                      "id": "gid://shopify/ProductVariant/51419265368370",
                       "title": "Red / Small",
                       "sku": null,
                       "barcode": null,
@@ -1113,7 +1113,7 @@
                         }
                       ],
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53464043487538",
+                        "id": "gid://shopify/InventoryItem/53524318486834",
                         "tracked": false,
                         "requiresShipping": true
                       }
@@ -1129,7 +1129,7 @@
                 }
               },
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "barcode": null,
@@ -1149,21 +1149,21 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 },
                 "product": {
-                  "id": "gid://shopify/Product/10220288508210",
-                  "title": "Bulk Variant Validation 1782259646230",
-                  "handle": "bulk-variant-validation-1782259646230",
+                  "id": "gid://shopify/Product/10230743531826",
+                  "title": "Bulk Variant Validation 1783076960570",
+                  "handle": "bulk-variant-validation-1783076960570",
                   "status": "DRAFT",
                   "totalInventory": 0,
                   "tracksInventory": false,
                   "variants": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/ProductVariant/51359217451314",
+                        "id": "gid://shopify/ProductVariant/51419265368370",
                         "title": "Red / Small",
                         "sku": null,
                         "barcode": null,
@@ -1183,7 +1183,7 @@
                           }
                         ],
                         "inventoryItem": {
-                          "id": "gid://shopify/InventoryItem/53464043487538",
+                          "id": "gid://shopify/InventoryItem/53524318486834",
                           "tracked": false,
                           "requiresShipping": true
                         }
@@ -1214,7 +1214,7 @@
       "variables": {
         "ids": ["gid://shopify/Product/999999999999999999"]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
@@ -1227,7 +1227,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1992,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }
@@ -1238,25 +1238,25 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10220288508210"]
+        "ids": ["gid://shopify/Product/10230743531826"]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10220288508210",
-                "title": "Bulk Variant Validation 1782259646230",
-                "handle": "bulk-variant-validation-1782259646230",
+                "id": "gid://shopify/Product/10230743531826",
+                "title": "Bulk Variant Validation 1783076960570",
+                "handle": "bulk-variant-validation-1783076960570",
                 "status": "DRAFT",
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51359217451314",
+                      "id": "gid://shopify/ProductVariant/51419265368370",
                       "title": "Red / Small",
                       "sku": null,
                       "barcode": null,
@@ -1276,7 +1276,7 @@
                         }
                       ],
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53464043487538",
+                        "id": "gid://shopify/InventoryItem/53524318486834",
                         "tracked": false,
                         "requiresShipping": true
                       }
@@ -1310,25 +1310,25 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10220288508210", "gid://shopify/ProductVariant/999999999999999999"]
+        "ids": ["gid://shopify/Product/10230743531826", "gid://shopify/ProductVariant/999999999999999999"]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10220288508210",
-                "title": "Bulk Variant Validation 1782259646230",
-                "handle": "bulk-variant-validation-1782259646230",
+                "id": "gid://shopify/Product/10230743531826",
+                "title": "Bulk Variant Validation 1783076960570",
+                "handle": "bulk-variant-validation-1783076960570",
                 "status": "DRAFT",
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51359217451314",
+                      "id": "gid://shopify/ProductVariant/51419265368370",
                       "title": "Red / Small",
                       "sku": null,
                       "barcode": null,
@@ -1348,7 +1348,7 @@
                         }
                       ],
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53464043487538",
+                        "id": "gid://shopify/InventoryItem/53524318486834",
                         "tracked": false,
                         "requiresShipping": true
                       }
@@ -1384,28 +1384,28 @@
       "operationName": "ProductsHydrateNodes",
       "variables": {
         "ids": [
-          "gid://shopify/Product/10220288508210",
-          "gid://shopify/ProductVariant/51359217451314",
+          "gid://shopify/Product/10230743531826",
+          "gid://shopify/ProductVariant/51419265368370",
           "gid://shopify/ProductVariant/999999999999999999"
         ]
       },
-      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10220288508210",
-                "title": "Bulk Variant Validation 1782259646230",
-                "handle": "bulk-variant-validation-1782259646230",
+                "id": "gid://shopify/Product/10230743531826",
+                "title": "Bulk Variant Validation 1783076960570",
+                "handle": "bulk-variant-validation-1783076960570",
                 "status": "DRAFT",
                 "totalInventory": 0,
                 "tracksInventory": false,
                 "variants": {
                   "nodes": [
                     {
-                      "id": "gid://shopify/ProductVariant/51359217451314",
+                      "id": "gid://shopify/ProductVariant/51419265368370",
                       "title": "Red / Small",
                       "sku": null,
                       "barcode": null,
@@ -1425,7 +1425,7 @@
                         }
                       ],
                       "inventoryItem": {
-                        "id": "gid://shopify/InventoryItem/53464043487538",
+                        "id": "gid://shopify/InventoryItem/53524318486834",
                         "tracked": false,
                         "requiresShipping": true
                       }
@@ -1441,7 +1441,7 @@
                 }
               },
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "barcode": null,
@@ -1461,21 +1461,21 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 },
                 "product": {
-                  "id": "gid://shopify/Product/10220288508210",
-                  "title": "Bulk Variant Validation 1782259646230",
-                  "handle": "bulk-variant-validation-1782259646230",
+                  "id": "gid://shopify/Product/10230743531826",
+                  "title": "Bulk Variant Validation 1783076960570",
+                  "handle": "bulk-variant-validation-1783076960570",
                   "status": "DRAFT",
                   "totalInventory": 0,
                   "tracksInventory": false,
                   "variants": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/ProductVariant/51359217451314",
+                        "id": "gid://shopify/ProductVariant/51419265368370",
                         "title": "Red / Small",
                         "sku": null,
                         "barcode": null,
@@ -1495,7 +1495,7 @@
                           }
                         ],
                         "inventoryItem": {
-                          "id": "gid://shopify/InventoryItem/53464043487538",
+                          "id": "gid://shopify/InventoryItem/53524318486834",
                           "tracked": false,
                           "requiresShipping": true
                         }
@@ -1514,6 +1514,278 @@
               "throttleStatus": {
                 "maximumAvailable": 2000,
                 "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10230743531826", "gid://shopify/ProductVariant/51419265368370"]
+      },
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10230743531826",
+                "title": "Bulk Variant Validation 1783076960570",
+                "handle": "bulk-variant-validation-1783076960570",
+                "status": "DRAFT",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51419265368370",
+                      "title": "Red / Small",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Red"
+                        },
+                        {
+                          "name": "Size",
+                          "value": "Small"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53524318486834",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                },
+                "collections": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51419265368370",
+                "title": "Red / Small",
+                "sku": null,
+                "barcode": null,
+                "price": "0.00",
+                "compareAtPrice": null,
+                "taxable": true,
+                "inventoryPolicy": "DENY",
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53524318486834",
+                  "tracked": false,
+                  "requiresShipping": true
+                },
+                "product": {
+                  "id": "gid://shopify/Product/10230743531826",
+                  "title": "Bulk Variant Validation 1783076960570",
+                  "handle": "bulk-variant-validation-1783076960570",
+                  "status": "DRAFT",
+                  "totalInventory": 0,
+                  "tracksInventory": false,
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/51419265368370",
+                        "title": "Red / Small",
+                        "sku": null,
+                        "barcode": null,
+                        "price": "0.00",
+                        "compareAtPrice": null,
+                        "taxable": true,
+                        "inventoryPolicy": "DENY",
+                        "inventoryQuantity": 0,
+                        "selectedOptions": [
+                          {
+                            "name": "Color",
+                            "value": "Red"
+                          },
+                          {
+                            "name": "Size",
+                            "value": "Small"
+                          }
+                        ],
+                        "inventoryItem": {
+                          "id": "gid://shopify/InventoryItem/53524318486834",
+                          "tracked": false,
+                          "requiresShipping": true
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10230743531826", "gid://shopify/ProductVariant/51419265368370"]
+      },
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10230743531826",
+                "title": "Bulk Variant Validation 1783076960570",
+                "handle": "bulk-variant-validation-1783076960570",
+                "status": "DRAFT",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51419265368370",
+                      "title": "Red / Small",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Color",
+                          "value": "Red"
+                        },
+                        {
+                          "name": "Size",
+                          "value": "Small"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53524318486834",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                },
+                "collections": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              {
+                "id": "gid://shopify/ProductVariant/51419265368370",
+                "title": "Red / Small",
+                "sku": null,
+                "barcode": null,
+                "price": "0.00",
+                "compareAtPrice": null,
+                "taxable": true,
+                "inventoryPolicy": "DENY",
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53524318486834",
+                  "tracked": false,
+                  "requiresShipping": true
+                },
+                "product": {
+                  "id": "gid://shopify/Product/10230743531826",
+                  "title": "Bulk Variant Validation 1783076960570",
+                  "handle": "bulk-variant-validation-1783076960570",
+                  "status": "DRAFT",
+                  "totalInventory": 0,
+                  "tracksInventory": false,
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/51419265368370",
+                        "title": "Red / Small",
+                        "sku": null,
+                        "barcode": null,
+                        "price": "0.00",
+                        "compareAtPrice": null,
+                        "taxable": true,
+                        "inventoryPolicy": "DENY",
+                        "inventoryQuantity": 0,
+                        "selectedOptions": [
+                          {
+                            "name": "Color",
+                            "value": "Red"
+                          },
+                          {
+                            "name": "Size",
+                            "value": "Small"
+                          }
+                        ],
+                        "inventoryItem": {
+                          "id": "gid://shopify/InventoryItem/53524318486834",
+                          "tracked": false,
+                          "requiresShipping": true
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1975,
                 "restoreRate": 100
               }
             }
@@ -1562,7 +1834,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1983,
                 "restoreRate": 100
               }
             }
@@ -1572,7 +1844,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -1608,7 +1880,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -1623,7 +1895,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -1634,7 +1906,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -1670,7 +1942,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -1685,7 +1957,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -1699,7 +1971,7 @@
       "name": "create-empty-batch",
       "request": {
         "variables": {
-          "productId": "gid://shopify/Product/10220288508210",
+          "productId": "gid://shopify/Product/10230743531826",
           "variants": []
         }
       },
@@ -1709,7 +1981,7 @@
           "data": {
             "productVariantsBulkCreate": {
               "product": {
-                "id": "gid://shopify/Product/10220288508210",
+                "id": "gid://shopify/Product/10230743531826",
                 "totalInventory": 0,
                 "tracksInventory": false
               },
@@ -1733,7 +2005,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -1769,7 +2041,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -1784,7 +2056,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -1795,7 +2067,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -1831,7 +2103,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -1846,7 +2118,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -1860,7 +2132,7 @@
       "name": "create-duplicate-option-values",
       "request": {
         "variables": {
-          "productId": "gid://shopify/Product/10220288508210",
+          "productId": "gid://shopify/Product/10230743531826",
           "variants": [
             {
               "optionValues": [
@@ -1874,7 +2146,7 @@
                 }
               ],
               "inventoryItem": {
-                "sku": "PVV-646230-DUP"
+                "sku": "PVV-960570-DUP"
               }
             }
           ]
@@ -1912,7 +2184,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -1948,7 +2220,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -1963,7 +2235,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -1974,7 +2246,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -2010,7 +2282,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -2025,7 +2297,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -2039,7 +2311,7 @@
       "name": "create-option-does-not-exist",
       "request": {
         "variables": {
-          "productId": "gid://shopify/Product/10220288508210",
+          "productId": "gid://shopify/Product/10230743531826",
           "variants": [
             {
               "optionValues": [
@@ -2049,7 +2321,7 @@
                 }
               ],
               "inventoryItem": {
-                "sku": "PVV-646230-NOOPT"
+                "sku": "PVV-960570-NOOPT"
               }
             }
           ]
@@ -2087,7 +2359,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -2123,7 +2395,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -2138,7 +2410,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -2149,7 +2421,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -2185,7 +2457,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -2200,7 +2472,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -2214,7 +2486,7 @@
       "name": "create-missing-required-option",
       "request": {
         "variables": {
-          "productId": "gid://shopify/Product/10220288508210",
+          "productId": "gid://shopify/Product/10230743531826",
           "variants": [
             {
               "optionValues": [
@@ -2224,7 +2496,7 @@
                 }
               ],
               "inventoryItem": {
-                "sku": "PVV-646230-MISS"
+                "sku": "PVV-960570-MISS"
               }
             }
           ]
@@ -2262,7 +2534,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -2298,7 +2570,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -2313,7 +2585,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -2324,7 +2596,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -2360,7 +2632,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -2375,7 +2647,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -2389,7 +2661,7 @@
       "name": "create-invalid-inventory-location",
       "request": {
         "variables": {
-          "productId": "gid://shopify/Product/10220288508210",
+          "productId": "gid://shopify/Product/10230743531826",
           "variants": [
             {
               "optionValues": [
@@ -2409,7 +2681,7 @@
                 }
               ],
               "inventoryItem": {
-                "sku": "PVV-646230-INVLOC"
+                "sku": "PVV-960570-INVLOC"
               }
             }
           ]
@@ -2447,7 +2719,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -2483,7 +2755,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -2498,7 +2770,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -2509,7 +2781,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -2545,7 +2817,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -2560,7 +2832,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -2574,7 +2846,7 @@
       "name": "create-mixed-valid-invalid",
       "request": {
         "variables": {
-          "productId": "gid://shopify/Product/10220288508210",
+          "productId": "gid://shopify/Product/10230743531826",
           "variants": [
             {
               "optionValues": [
@@ -2588,7 +2860,7 @@
                 }
               ],
               "inventoryItem": {
-                "sku": "PVV-646230-VALID"
+                "sku": "PVV-960570-VALID"
               }
             },
             {
@@ -2599,7 +2871,7 @@
                 }
               ],
               "inventoryItem": {
-                "sku": "PVV-646230-BAD"
+                "sku": "PVV-960570-BAD"
               }
             }
           ]
@@ -2637,7 +2909,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -2673,7 +2945,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -2688,7 +2960,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -2699,7 +2971,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -2735,7 +3007,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -2750,7 +3022,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -2800,7 +3072,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -2836,7 +3108,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -2851,7 +3123,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -2862,7 +3134,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -2898,7 +3170,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -2913,7 +3185,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -2927,7 +3199,7 @@
       "name": "update-empty-batch",
       "request": {
         "variables": {
-          "productId": "gid://shopify/Product/10220288508210",
+          "productId": "gid://shopify/Product/10230743531826",
           "variants": []
         }
       },
@@ -2937,7 +3209,7 @@
           "data": {
             "productVariantsBulkUpdate": {
               "product": {
-                "id": "gid://shopify/Product/10220288508210",
+                "id": "gid://shopify/Product/10230743531826",
                 "totalInventory": 0,
                 "tracksInventory": false
               },
@@ -2961,7 +3233,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -2997,7 +3269,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -3012,7 +3284,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -3023,7 +3295,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -3059,7 +3331,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -3074,7 +3346,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -3088,11 +3360,11 @@
       "name": "update-missing-variant-id",
       "request": {
         "variables": {
-          "productId": "gid://shopify/Product/10220288508210",
+          "productId": "gid://shopify/Product/10230743531826",
           "variants": [
             {
               "inventoryItem": {
-                "sku": "PVV-646230-NOID"
+                "sku": "PVV-960570-NOID"
               }
             }
           ]
@@ -3104,7 +3376,7 @@
           "data": {
             "productVariantsBulkUpdate": {
               "product": {
-                "id": "gid://shopify/Product/10220288508210",
+                "id": "gid://shopify/Product/10230743531826",
                 "totalInventory": 0,
                 "tracksInventory": false
               },
@@ -3134,7 +3406,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -3170,7 +3442,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -3185,7 +3457,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -3196,7 +3468,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -3232,7 +3504,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -3247,7 +3519,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -3261,12 +3533,12 @@
       "name": "update-unknown-variant-id",
       "request": {
         "variables": {
-          "productId": "gid://shopify/Product/10220288508210",
+          "productId": "gid://shopify/Product/10230743531826",
           "variants": [
             {
               "id": "gid://shopify/ProductVariant/999999999999999999",
               "inventoryItem": {
-                "sku": "PVV-646230-UNKVAR"
+                "sku": "PVV-960570-UNKVAR"
               }
             }
           ]
@@ -3278,7 +3550,7 @@
           "data": {
             "productVariantsBulkUpdate": {
               "product": {
-                "id": "gid://shopify/Product/10220288508210",
+                "id": "gid://shopify/Product/10230743531826",
                 "totalInventory": 0,
                 "tracksInventory": false
               },
@@ -3308,7 +3580,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -3344,7 +3616,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -3359,7 +3631,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -3370,7 +3642,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -3406,7 +3678,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -3421,7 +3693,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -3435,10 +3707,10 @@
       "name": "update-invalid-inventory-quantities",
       "request": {
         "variables": {
-          "productId": "gid://shopify/Product/10220288508210",
+          "productId": "gid://shopify/Product/10230743531826",
           "variants": [
             {
-              "id": "gid://shopify/ProductVariant/51359217451314",
+              "id": "gid://shopify/ProductVariant/51419265368370",
               "inventoryQuantities": [
                 {
                   "availableQuantity": 4,
@@ -3455,7 +3727,7 @@
           "data": {
             "productVariantsBulkUpdate": {
               "product": {
-                "id": "gid://shopify/Product/10220288508210",
+                "id": "gid://shopify/Product/10230743531826",
                 "totalInventory": 0,
                 "tracksInventory": false
               },
@@ -3485,7 +3757,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -3521,7 +3793,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -3536,7 +3808,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -3547,7 +3819,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -3583,7 +3855,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -3598,7 +3870,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -3612,10 +3884,10 @@
       "name": "update-option-does-not-exist",
       "request": {
         "variables": {
-          "productId": "gid://shopify/Product/10220288508210",
+          "productId": "gid://shopify/Product/10230743531826",
           "variants": [
             {
-              "id": "gid://shopify/ProductVariant/51359217451314",
+              "id": "gid://shopify/ProductVariant/51419265368370",
               "optionValues": [
                 {
                   "optionName": "Material",
@@ -3632,7 +3904,7 @@
           "data": {
             "productVariantsBulkUpdate": {
               "product": {
-                "id": "gid://shopify/Product/10220288508210",
+                "id": "gid://shopify/Product/10230743531826",
                 "totalInventory": 0,
                 "tracksInventory": false
               },
@@ -3662,7 +3934,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -3698,7 +3970,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -3713,7 +3985,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -3724,7 +3996,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -3760,7 +4032,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -3775,7 +4047,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -3789,18 +4061,18 @@
       "name": "update-mixed-valid-invalid",
       "request": {
         "variables": {
-          "productId": "gid://shopify/Product/10220288508210",
+          "productId": "gid://shopify/Product/10230743531826",
           "variants": [
             {
-              "id": "gid://shopify/ProductVariant/51359217451314",
+              "id": "gid://shopify/ProductVariant/51419265368370",
               "inventoryItem": {
-                "sku": "PVV-646230-UPVALID"
+                "sku": "PVV-960570-UPVALID"
               }
             },
             {
               "id": "gid://shopify/ProductVariant/999999999999999999",
               "inventoryItem": {
-                "sku": "PVV-646230-UPBAD"
+                "sku": "PVV-960570-UPBAD"
               }
             }
           ]
@@ -3812,7 +4084,7 @@
           "data": {
             "productVariantsBulkUpdate": {
               "product": {
-                "id": "gid://shopify/Product/10220288508210",
+                "id": "gid://shopify/Product/10230743531826",
                 "totalInventory": 0,
                 "tracksInventory": false
               },
@@ -3842,7 +4114,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -3878,7 +4150,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -3893,7 +4165,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -3904,7 +4176,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -3940,7 +4212,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -3955,7 +4227,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -4004,7 +4276,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -4040,7 +4312,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -4055,7 +4327,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -4066,7 +4338,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -4102,7 +4374,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -4117,7 +4389,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -4131,7 +4403,7 @@
       "name": "delete-empty-batch",
       "request": {
         "variables": {
-          "productId": "gid://shopify/Product/10220288508210",
+          "productId": "gid://shopify/Product/10230743531826",
           "variantsIds": []
         }
       },
@@ -4141,7 +4413,7 @@
           "data": {
             "productVariantsBulkDelete": {
               "product": {
-                "id": "gid://shopify/Product/10220288508210",
+                "id": "gid://shopify/Product/10230743531826",
                 "totalInventory": 0,
                 "tracksInventory": false
               },
@@ -4164,7 +4436,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -4200,7 +4472,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -4215,7 +4487,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -4226,7 +4498,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -4262,7 +4534,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -4277,7 +4549,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -4291,7 +4563,7 @@
       "name": "delete-unknown-variant-id",
       "request": {
         "variables": {
-          "productId": "gid://shopify/Product/10220288508210",
+          "productId": "gid://shopify/Product/10230743531826",
           "variantsIds": ["gid://shopify/ProductVariant/999999999999999999"]
         }
       },
@@ -4326,7 +4598,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -4362,7 +4634,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -4377,7 +4649,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -4388,7 +4660,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -4424,7 +4696,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -4439,7 +4711,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -4453,9 +4725,9 @@
       "name": "delete-mixed-valid-invalid",
       "request": {
         "variables": {
-          "productId": "gid://shopify/Product/10220288508210",
+          "productId": "gid://shopify/Product/10230743531826",
           "variantsIds": [
-            "gid://shopify/ProductVariant/51359217451314",
+            "gid://shopify/ProductVariant/51419265368370",
             "gid://shopify/ProductVariant/999999999999999999"
           ]
         }
@@ -4491,7 +4763,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -4527,7 +4799,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -4542,7 +4814,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -4553,7 +4825,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -4589,7 +4861,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -4604,7 +4876,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -4618,10 +4890,10 @@
       "name": "update-options-and-option-values-conflict",
       "request": {
         "variables": {
-          "productId": "gid://shopify/Product/10220288508210",
+          "productId": "gid://shopify/Product/10230743531826",
           "variants": [
             {
-              "id": "gid://shopify/ProductVariant/51359217451314",
+              "id": "gid://shopify/ProductVariant/51419265368370",
               "options": ["Blue", "Large"],
               "optionValues": [
                 {
@@ -4653,7 +4925,7 @@
                 "code": "INVALID_VARIABLE",
                 "value": [
                   {
-                    "id": "gid://shopify/ProductVariant/51359217451314",
+                    "id": "gid://shopify/ProductVariant/51419265368370",
                     "options": ["Blue", "Large"],
                     "optionValues": [
                       {
@@ -4681,7 +4953,7 @@
       "atomicNoWrite": true,
       "before": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -4717,7 +4989,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -4732,7 +5004,7 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }
@@ -4743,7 +5015,7 @@
       },
       "after": {
         "product": {
-          "id": "gid://shopify/Product/10220288508210",
+          "id": "gid://shopify/Product/10230743531826",
           "totalInventory": 0,
           "tracksInventory": false,
           "options": [
@@ -4779,7 +5051,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51359217451314",
+                "id": "gid://shopify/ProductVariant/51419265368370",
                 "title": "Red / Small",
                 "sku": null,
                 "inventoryQuantity": 0,
@@ -4794,7 +5066,399 @@
                   }
                 ],
                 "inventoryItem": {
-                  "id": "gid://shopify/InventoryItem/53464043487538",
+                  "id": "gid://shopify/InventoryItem/53524318486834",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "update-inventory-item-cost-negative",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10230743531826",
+          "variants": [
+            {
+              "id": "gid://shopify/ProductVariant/51419265368370",
+              "inventoryItem": {
+                "cost": "-5"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": {
+                "id": "gid://shopify/Product/10230743531826",
+                "totalInventory": 0,
+                "tracksInventory": false
+              },
+              "productVariants": [
+                {
+                  "id": "gid://shopify/ProductVariant/51419265368370",
+                  "title": "Red / Small",
+                  "sku": null,
+                  "inventoryQuantity": 0,
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Red"
+                    },
+                    {
+                      "name": "Size",
+                      "value": "Small"
+                    }
+                  ]
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["variants", "0"],
+                  "message": "must be greater than or equal to 0",
+                  "code": null
+                },
+                {
+                  "field": ["variants", "0", "inventoryItem", "cost"],
+                  "message": "Cost per item must be greater than or equal to 0",
+                  "code": "GREATER_THAN_OR_EQUAL_TO"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10230743531826",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51419265368370",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53524318486834",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10230743531826",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51419265368370",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53524318486834",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "update-inventory-item-cost-too-large",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10230743531826",
+          "variants": [
+            {
+              "id": "gid://shopify/ProductVariant/51419265368370",
+              "inventoryItem": {
+                "cost": "1000000000000000000"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": {
+                "id": "gid://shopify/Product/10230743531826",
+                "totalInventory": 0,
+                "tracksInventory": false
+              },
+              "productVariants": [
+                {
+                  "id": "gid://shopify/ProductVariant/51419265368370",
+                  "title": "Red / Small",
+                  "sku": null,
+                  "inventoryQuantity": 0,
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Red"
+                    },
+                    {
+                      "name": "Size",
+                      "value": "Small"
+                    }
+                  ]
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["variants", "0"],
+                  "message": "must be less than 1000000000000000000",
+                  "code": null
+                },
+                {
+                  "field": ["variants", "0", "inventoryItem", "cost"],
+                  "message": "Cost per item must be less than 1000000000000000000",
+                  "code": "INVALID_INPUT"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10230743531826",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51419265368370",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53524318486834",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10230743531826",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51419265368370",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53524318486834",
                   "tracked": false,
                   "requiresShipping": true
                 }

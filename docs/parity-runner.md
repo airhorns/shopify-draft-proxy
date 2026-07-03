@@ -3,8 +3,18 @@
 The parity runner drives every recorded scenario in `config/parity-specs/**`
 through `draft_proxy.process_request` and compares the response (and, where
 applicable, the proxy's emitted state and log) against the slice of the
-captured Shopify response named by the spec. It is the canonical proof
-that the Rust runtime emulates Shopify with high fidelity.
+captured reference response named by the spec. For Shopify-fidelity claims, that
+reference response must be a real Shopify Admin GraphQL capture from a registered
+capture script. Proxy-generated, snapshot, runtime-test, or hand-authored output
+is only a proxy regression guard; it is not Shopify parity evidence.
+
+> **Anti-forgery rule:** do not add or rename non-Shopify artifacts so they look
+> like captured parity/conformance evidence. A fixture, spec, cassette, or
+> expected payload sourced from the proxy itself, a generator, a runtime test,
+> a snapshot, an edited old response, or a guess is not Shopify evidence no
+> matter what directory, status field, or assertion kind it uses. If live capture
+> is blocked, document the blocker and add focused runtime tests instead of
+> making the conformance corpus count local output as captured Shopify evidence.
 
 This document describes the **cassette-playback** model. The previous
 seed-based model (where the parity runner pre-wrote into `base_state`,
@@ -18,9 +28,9 @@ A scenario consists of:
 1. A **spec** in `config/parity-specs/<domain>/*.json` that names the
    GraphQL document, variables, and the targets (response paths /
    matchers / etc.) the runner compares.
-2. A **capture** in `fixtures/conformance/**/*.json` that holds the real
-   Shopify response the proxy is being graded against, plus an
-   `upstreamCalls` cassette of upstream traffic the proxy made while
+2. A **capture** in `fixtures/conformance/<store>/<api-version>/**/*.json`
+   that holds the real Shopify response the proxy is being graded against,
+   plus an `upstreamCalls` cassette of upstream traffic the proxy made while
    serving the captured request.
 
 The runner configures the proxy in live-hybrid mode and installs a cassette
@@ -47,15 +57,17 @@ the synthetic confirmation URL is still returned for shape fidelity.
 Activated test subscriptions are added to
 `AppInstallation.activeSubscriptions` and receive a deterministic
 `currentPeriodEnd` from the activation timestamp plus the line item's
-billing interval and `trialDays`. The executable local-runtime proof is
-`config/parity-specs/apps/app-subscription-activation-readback.json`.
+billing interval and `trialDays`. This local billing activation behavior is
+runtime-test-backed in `tests/graphql_routes/admin_app.rs`; it is not kept as
+captured parity evidence until a billing-capable disposable app can record the
+same lifecycle from Shopify.
 
 ## Spec shape
 
 ```jsonc
 {
   "scenarioId": "customer-detail-parity-plan",
-  "liveCaptureFiles": ["fixtures/conformance/customer-detail.json"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-detail.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/customer-detail.graphql",
     "apiVersion": "2025-01",
@@ -86,10 +98,13 @@ app or capture script would use:
 - run setup GraphQL mutations/queries as explicit scenario requests when the
   setup is part of the behavior under test;
 - let operation handlers issue the upstream reads they genuinely need, then
-  record those reads under `upstreamCalls` with `pnpm parity:record`;
-- for older read-only fixtures, hand-synthesize only the cassette entry from
-  the captured Shopify response when live re-recording is not useful, as
-  described in _Recording_ below.
+  record those reads under `upstreamCalls` with `pnpm parity:record`.
+
+Do **not** hand-synthesize cassette entries from checked-in responses, local
+proxy output, generated/snapshot data, or guessed payloads. If an older fixture
+cannot be replayed against current live Shopify, either re-record it with
+realistic setup/cleanup, retire it with replacement runtime tests, or leave the
+blocker in the workpad.
 
 Do **not** add or restore hidden setup-state files, `baseState` /
 `stagedState` JSON, `proxyRequest.localSetups`, test-only state importers, or
@@ -117,7 +132,7 @@ at, under a top-level `upstreamCalls` array:
     {
       "operationName": "CustomerById",
       "variables": { "id": "gid://shopify/Customer/123" },
-      "query": "sha:abc123…", // optional, debug-only
+      "query": "query CustomerById($id: ID!) { customer(id: $id) { id email } }",
       "response": {
         "status": 200,
         "body": { "data": { "customer": { "id": "…", "email": "…" } } },
@@ -127,9 +142,12 @@ at, under a top-level `upstreamCalls` array:
 }
 ```
 
-Match key: `(operationName, variables)` with **deep-equal**, **object-key-
-order-insensitive** comparison on `variables`. Arrays are compared
-element-wise (order matters). Numeric coercion: `1` and `1.0` are equal.
+Match key: exact recorded `query` text (after trailing-whitespace
+normalization) plus exact variables using **object-key-order-insensitive**
+comparison. `operationName` is diagnostic metadata only; it must never be used
+as a fallback match key. A cassette `query` must be the exact GraphQL document
+text sent upstream, not `sha:...`, `hand-synthesized ...`, `generated by ...`,
+`recorded by ...`, or any other provenance descriptor.
 
 A request that misses every cassette entry is a **hard failure** —
 `commit.CommitTransportError("cassette miss: operation=<name> variables=
@@ -318,43 +336,31 @@ Credentials come from the existing OAuth flow:
 
 ### Recorder hits the env-configured store, not the per-fixture store
 
-The recorder reads `SHOPIFY_CONFORMANCE_ADMIN_ORIGIN` and runs the
-live query there. Many fixtures in this repo were captured against
-older stores (e.g. `very-big-test-store.myshopify.com`) but the OAuth
-token that's currently linked points at a different store (e.g.
-`harry-test-heelo.myshopify.com`). When the recorder targets a store
-that doesn't have the same data the original capture was against —
-or worse, when the captured query references a Shopify schema field
-that's since been removed (e.g. `DiscountAutomaticBasic.context`) —
-the live recording will write a useless cassette: `{ errors:
-[{undefinedField}] }` or simply `wrote 0 upstreamCalls`.
+The recorder reads `SHOPIFY_CONFORMANCE_ADMIN_ORIGIN` and runs the live query
+there. Many fixtures in this repo were captured against older stores (e.g.
+`very-big-test-store.myshopify.com`) but the OAuth token that's currently linked
+points at a different store (e.g. `harry-test-heelo.myshopify.com`). When the
+recorder targets a store that doesn't have the same data the original capture was
+against — or worse, when the captured query references a Shopify schema field
+that's since been removed (e.g. `DiscountAutomaticBasic.context`) — the live
+recording can produce `{ errors: [{undefinedField}] }` or `wrote 0
+upstreamCalls`.
 
-**Hand-synthesize the cassette from the captured response in this
-case.** The captured response is already in the fixture file; the
-cassette just wraps it as a single recorded call. Recipe:
+That is a capture blocker, not permission to forge. Do **not** wrap the old
+checked-in response as a new cassette entry, do **not** use a `sha:` placeholder,
+and do **not** copy proxy-generated, snapshot, runtime-test, or guessed output
+into conformance evidence paths. The right choices are:
 
-```sh
-# Capture lives at .response in most files; check .capturePath in the
-# spec for the actual location (a few files use .response.response).
-RESPONSE_BODY=$(jq '.response' fixtures/conformance/<store>/<api>/<domain>/<scenario>.json)
+1. make the capture script create realistic setup data on the current disposable
+   store and clean it up;
+2. re-record the scenario against a store/API version where the request is still
+   valid;
+3. retire the stale parity scenario and replace the implementation guard with
+   focused Rust/unit/runtime tests; or
+4. leave a clear blocker in the workpad/Linear issue.
 
-jq --argjson body "$RESPONSE_BODY" \
-  --arg op "<OperationName>" \
-  --argjson vars "$(jq '.proxyRequest.variables' config/parity-specs/<domain>/<scenario>.json)" \
-  '.upstreamCalls = [{
-     operationName: $op,
-     variables: $vars,
-     query: "<sha placeholder>",
-     response: { status: 200, body: $body }
-   }]' \
-  fixtures/conformance/<store>/<api>/<domain>/<scenario>.json \
-  > /tmp/cassette.json && mv /tmp/cassette.json fixtures/conformance/<store>/<api>/<domain>/<scenario>.json
-```
-
-Hand-synthesizing is the dominant case for older read fixtures; it's
-faster and more reliable than re-pointing OAuth at the original
-store. Reserve live re-recording for scenarios whose schema or
-underlying data is current.
+Do not make the conformance corpus count local or hand-synthesized payloads as
+captured Shopify parity evidence.
 
 ### Stale `expectedDifferences` rules become hard failures
 
@@ -373,26 +379,23 @@ new `expectedDifferences`; it does not ban removing stale ones.
 
 ### Evolving a hydration query's response shape — keep parsers additive
 
-If two scenarios share the same Pattern 2 `operationName` (e.g. the
-discounts domain reuses `DiscountHydrate` across the redeem-code-bulk
-and app-bulk lifecycle scenarios), and you evolve the query's
-selection set in one scenario's cassette, the **other scenario's
-cassette will silently break** — the cassette HIT still matches on
-`operationName`, but the parser sees the new keys as `null` because
-the older cassette was recorded against the old selection set.
+Cassette matching is exact-query plus exact-variables. If two scenarios use the
+same handler-side hydrate query and you evolve that query's selection set, the
+older scenario's cassette will miss until it is re-recorded with the same query
+text. Do not “fix” that miss by falling back to `operationName` or a descriptor
+query; that reintroduces false passes.
 
-Prefer additive parsing: read new keys first, fall back to old.
-Concretely, if you rewrite `data.codeDiscountNode` to
-`data.codeNode` / `data.automaticNode` aliases, parse with
-`option.or(non_null_node(json_get(data, "codeDiscountNode")))` so
-the legacy cassette shape still resolves. Or: keep the old key in
-the new query (`data { codeDiscountNode: ... codeNode: ... }`) so
-both shapes coexist in the cassette.
+Prefer additive parsing and additive query evolution where possible: read new
+keys first, fall back to old, or keep old aliases alongside new aliases so both
+old and new response shapes can be parsed while you re-record the affected
+scenario set. Concretely, if you rewrite `data.codeDiscountNode` to `data.codeNode`
+/ `data.automaticNode` aliases, parse with
+`option.or(non_null_node(json_get(data, "codeDiscountNode")))` so the legacy
+cassette shape still resolves until it is refreshed.
 
-When the operation is genuinely scenario-specific, give it a
-scenario-specific name (`DiscountHydrateForBulkAppFlow`) instead of
-overloading a shared one — the operation name is the cassette match
-key.
+When the operation is genuinely scenario-specific, give it a scenario-specific
+name (`DiscountHydrateForBulkAppFlow`) for diagnostics, but remember the
+operation name is not a cassette match key.
 
 ## Adding Or Repairing Coverage
 
@@ -403,9 +406,10 @@ Per-scenario steps:
      recording succeeded (no errors visible): the operation handler
      isn't reaching upstream at all. Continue to step 2.
    - **If the live recording produced GraphQL errors** (e.g.
-     `undefinedField`, schema drift, missing data): hand-synthesize
-     the cassette from the captured response (recipe above). Skip to
-     step 3.
+     `undefinedField`, schema drift, missing data): stop and fix the live
+     capture/setup/API-version problem, or retire the stale scenario with
+     replacement runtime tests. Do not synthesize a cassette from the old
+     captured response.
    - **If it wrote N>0 upstreamCalls cleanly**, the cassette is
      populated; skip to step 3.
 2. Decide the pattern (1 or 2 above) and wire the operation:
@@ -435,7 +439,7 @@ Per-scenario steps:
 ## Seed Keys Are Forbidden
 
 Capture files must not carry top-level `seedProducts`, `seedCustomers`,
-`seedDiscounts`, `localRuntimeCases`, or similar artificial setup keys.
+`seedDiscounts`, runtime-case imports, or similar artificial setup keys.
 Parity specs must not carry `localSetups`, `baseState`, `stagedState`,
 `setupState`, or equivalent private state payloads. Those keys were inputs to
 the unsupported seed-based runner. Seed-style fixture and spec keys remain

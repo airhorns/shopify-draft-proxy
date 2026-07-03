@@ -1,0 +1,267 @@
+{
+  "scenarioId": "orderEditCommit-success-messages",
+  "operationNames": ["orderCreate", "orderClose", "orderEditBegin", "orderEditSetQuantity", "orderEditCommit"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-edit-commit-success-messages.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderEditCommit-success-messages-create.graphql",
+    "variablesCapturePath": "$.cases.notifyFalse.create.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify 2026-04 successMessages branches for orderEditCommit: default update message when notifyCustomer is false, Notification sent for a paid order, Invoice sent for a balance-due order, and Order unarchived before the notify message when committing an edit reopens a closed order.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "notify-false-create-user-errors",
+        "capturePath": "$.cases.notifyFalse.create.response.payload.data.orderCreate.userErrors",
+        "proxyPath": "$.data.orderCreate.userErrors"
+      },
+      {
+        "name": "notify-false-begin-user-errors",
+        "capturePath": "$.cases.notifyFalse.begin.response.payload.data.orderEditBegin.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-success-messages-begin.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditBegin.userErrors"
+      },
+      {
+        "name": "notify-false-set-quantity-user-errors",
+        "capturePath": "$.cases.notifyFalse.setQuantity.response.payload.data.orderEditSetQuantity.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-success-messages-setQuantity.graphql",
+          "variables": {
+            "id": {
+              "fromPreviousProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "lineItemId": {
+              "fromPreviousProxyPath": "$.data.orderEditBegin.calculatedOrder.lineItems.nodes[0].id"
+            },
+            "quantity": 1
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditSetQuantity.userErrors"
+      },
+      {
+        "name": "notify-false-success-messages",
+        "capturePath": "$.cases.notifyFalse.commit.response.payload.data.orderEditCommit.successMessages",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-success-messages-commit.graphql",
+          "variables": {
+            "id": {
+              "fromPreviousProxyPath": "$.data.orderEditSetQuantity.calculatedOrder.id"
+            },
+            "notifyCustomer": false,
+            "staffNote": "order edit commit success messages notify-false"
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditCommit.successMessages"
+      },
+      {
+        "name": "paid-notify-create-user-errors",
+        "capturePath": "$.cases.paidNotify.create.response.payload.data.orderCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-success-messages-create.graphql",
+          "variablesCapturePath": "$.cases.paidNotify.create.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderCreate.userErrors"
+      },
+      {
+        "name": "paid-notify-begin-user-errors",
+        "capturePath": "$.cases.paidNotify.begin.response.payload.data.orderEditBegin.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-success-messages-begin.graphql",
+          "variables": {
+            "id": {
+              "fromPreviousProxyPath": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditBegin.userErrors"
+      },
+      {
+        "name": "paid-notify-set-quantity-user-errors",
+        "capturePath": "$.cases.paidNotify.setQuantity.response.payload.data.orderEditSetQuantity.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-success-messages-setQuantity.graphql",
+          "variables": {
+            "id": {
+              "fromPreviousProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "lineItemId": {
+              "fromPreviousProxyPath": "$.data.orderEditBegin.calculatedOrder.lineItems.nodes[0].id"
+            },
+            "quantity": 1
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditSetQuantity.userErrors"
+      },
+      {
+        "name": "paid-notify-success-messages",
+        "capturePath": "$.cases.paidNotify.commit.response.payload.data.orderEditCommit.successMessages",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-success-messages-commit.graphql",
+          "variables": {
+            "id": {
+              "fromPreviousProxyPath": "$.data.orderEditSetQuantity.calculatedOrder.id"
+            },
+            "notifyCustomer": true,
+            "staffNote": "order edit commit success messages paid-notify"
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditCommit.successMessages"
+      },
+      {
+        "name": "balance-notify-create-user-errors",
+        "capturePath": "$.cases.balanceNotify.create.response.payload.data.orderCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-success-messages-create.graphql",
+          "variablesCapturePath": "$.cases.balanceNotify.create.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderCreate.userErrors"
+      },
+      {
+        "name": "balance-notify-begin-user-errors",
+        "capturePath": "$.cases.balanceNotify.begin.response.payload.data.orderEditBegin.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-success-messages-begin.graphql",
+          "variables": {
+            "id": {
+              "fromPreviousProxyPath": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditBegin.userErrors"
+      },
+      {
+        "name": "balance-notify-set-quantity-user-errors",
+        "capturePath": "$.cases.balanceNotify.setQuantity.response.payload.data.orderEditSetQuantity.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-success-messages-setQuantity.graphql",
+          "variables": {
+            "id": {
+              "fromPreviousProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "lineItemId": {
+              "fromPreviousProxyPath": "$.data.orderEditBegin.calculatedOrder.lineItems.nodes[0].id"
+            },
+            "quantity": 1
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditSetQuantity.userErrors"
+      },
+      {
+        "name": "balance-notify-success-messages",
+        "capturePath": "$.cases.balanceNotify.commit.response.payload.data.orderEditCommit.successMessages",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-success-messages-commit.graphql",
+          "variables": {
+            "id": {
+              "fromPreviousProxyPath": "$.data.orderEditSetQuantity.calculatedOrder.id"
+            },
+            "notifyCustomer": true,
+            "staffNote": "order edit commit success messages balance-notify"
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditCommit.successMessages"
+      },
+      {
+        "name": "unarchive-notify-create-user-errors",
+        "capturePath": "$.cases.unarchiveNotify.create.response.payload.data.orderCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-success-messages-create.graphql",
+          "variablesCapturePath": "$.cases.unarchiveNotify.create.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderCreate.userErrors"
+      },
+      {
+        "name": "unarchive-notify-close-state",
+        "capturePath": "$.cases.unarchiveNotify.close.response.payload.data.orderClose.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-success-messages-close.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPreviousProxyPath": "$.data.orderCreate.order.id"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderClose.order",
+        "selectedPaths": ["$.closed"]
+      },
+      {
+        "name": "unarchive-notify-begin-user-errors",
+        "capturePath": "$.cases.unarchiveNotify.begin.response.payload.data.orderEditBegin.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-success-messages-begin.graphql",
+          "variables": {
+            "id": {
+              "fromPreviousProxyPath": "$.data.orderClose.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditBegin.userErrors"
+      },
+      {
+        "name": "unarchive-notify-set-quantity-user-errors",
+        "capturePath": "$.cases.unarchiveNotify.setQuantity.response.payload.data.orderEditSetQuantity.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-success-messages-setQuantity.graphql",
+          "variables": {
+            "id": {
+              "fromPreviousProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "lineItemId": {
+              "fromPreviousProxyPath": "$.data.orderEditBegin.calculatedOrder.lineItems.nodes[0].id"
+            },
+            "quantity": 1
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditSetQuantity.userErrors"
+      },
+      {
+        "name": "unarchive-notify-success-messages-and-open-state",
+        "capturePath": "$.cases.unarchiveNotify.commit.response.payload.data.orderEditCommit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditCommit-success-messages-commit.graphql",
+          "variables": {
+            "id": {
+              "fromPreviousProxyPath": "$.data.orderEditSetQuantity.calculatedOrder.id"
+            },
+            "notifyCustomer": true,
+            "staffNote": "order edit commit success messages unarchive-notify"
+          },
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data.orderEditCommit",
+        "selectedPaths": ["$.successMessages", "$.order.closed", "$.order.closedAt"]
+      }
+    ]
+  }
+}

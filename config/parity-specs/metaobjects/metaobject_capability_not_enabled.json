@@ -3,29 +3,17 @@
   "operationNames": ["metaobjectDefinitionCreate", "metaobjectCreate", "metaobjectUpdate", "metaobjectUpsert"],
   "scenarioStatus": "captured",
   "assertionKinds": ["user-errors-parity", "runtime-staging"],
-  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/metaobjects/metaobject-capability-not-enabled.json"],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-capability-not-enabled.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metaobjects/metaobject-capability-definition-create.graphql",
     "apiVersion": "2026-04",
-    "variables": {
-      "definition": {
-        "type": "codex_capability_not_enabled",
-        "name": "Capability Not Enabled",
-        "displayNameKey": "title",
-        "fieldDefinitions": [
-          {
-            "key": "title",
-            "name": "Title",
-            "type": "single_line_text_field",
-            "required": true
-          }
-        ]
-      }
-    }
+    "variablesCapturePath": "$.definitionCreate.request.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable local-runtime parity for metaobject entry capability guardrails. The scenario creates a definition with publishable and onlineStore disabled by omission, then verifies create/update/upsert userErrors for capability input without pre-seeding state or runtime Shopify writes.",
+  "notes": "Live 2026-04 parity for metaobject entry capability guardrails. The scenario creates a definition with publishable and onlineStore disabled by omission, then verifies create/update/upsert userErrors for capability input without pre-seeding state or runtime Shopify writes.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -34,7 +22,14 @@
         "name": "definition-with-disabled-capabilities",
         "capturePath": "$.definitionCreate.response.data.metaobjectDefinitionCreate",
         "proxyPath": "$.data.metaobjectDefinitionCreate",
-        "upstreamCapturePath": null
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy stages a synthetic definition ID while Shopify returns the live definition ID."
+          }
+        ]
       },
       {
         "name": "valid-row-create",
@@ -44,14 +39,15 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/metaobjects/metaobject-capability-create.graphql",
           "apiVersion": "2026-04",
-          "variables": {
-            "metaobject": {
-              "type": "codex_capability_not_enabled",
-              "handle": "existing",
-              "fields": [{ "key": "title", "value": "Original" }]
-            }
+          "variablesCapturePath": "$.validCreate.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy stages a synthetic metaobject ID while Shopify returns the live metaobject ID."
           }
-        }
+        ]
       },
       {
         "name": "update-disabled-online-store",
@@ -66,12 +62,7 @@
               "fromPreviousProxyPath": "$.data.metaobjectCreate.metaobject.id"
             },
             "metaobject": {
-              "capabilities": {
-                "onlineStore": {
-                  "templateSuffix": "landing"
-                }
-              },
-              "fields": [{ "key": "title", "value": "Changed" }]
+              "fromCapturePath": "$.updateOnlineStore.request.variables.metaobject"
             }
           }
         }
@@ -84,18 +75,7 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/metaobjects/metaobject-capability-create.graphql",
           "apiVersion": "2026-04",
-          "variables": {
-            "metaobject": {
-              "type": "codex_capability_not_enabled",
-              "handle": "rejected-publishable",
-              "capabilities": {
-                "publishable": {
-                  "status": "ACTIVE"
-                }
-              },
-              "fields": [{ "key": "title", "value": "Rejected" }]
-            }
-          }
+          "variablesCapturePath": "$.createPublishable.request.variables"
         }
       },
       {
@@ -106,23 +86,7 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/metaobjects/metaobject-capability-upsert.graphql",
           "apiVersion": "2026-04",
-          "variables": {
-            "handle": {
-              "type": "codex_capability_not_enabled",
-              "handle": "upserted"
-            },
-            "metaobject": {
-              "capabilities": {
-                "publishable": {
-                  "status": "ACTIVE"
-                },
-                "onlineStore": {
-                  "templateSuffix": "landing"
-                }
-              },
-              "fields": [{ "key": "title", "value": "Upserted" }]
-            }
-          }
+          "variablesCapturePath": "$.upsertBoth.request.variables"
         }
       }
     ]

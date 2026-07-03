@@ -2,6 +2,18 @@ use super::common::*;
 use pretty_assertions::assert_eq;
 use shopify_draft_proxy::proxy::Response;
 
+fn platform_inventory_base_product(id: &str, title: &str) -> ProductRecord {
+    ProductRecord {
+        id: id.to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
+        title: title.to_string(),
+        handle: title.to_ascii_lowercase().replace(' ', "-"),
+        status: "ACTIVE".to_string(),
+        ..ProductRecord::default()
+    }
+}
+
 fn fulfillment_order_hydrate_transport(
     orders: Vec<Value>,
 ) -> impl Fn(Request) -> Response + Send + Sync + 'static {
@@ -55,16 +67,21 @@ fn fulfillment_order_order_fixture(
     quantity: i64,
     status: &str,
 ) -> Value {
-    let supported_actions = if status == "SCHEDULED" {
-        json!([{ "action": "MARK_AS_OPEN" }])
-    } else {
-        json!([
+    let supported_actions = match status {
+        "SCHEDULED" => json!([{ "action": "MARK_AS_OPEN" }]),
+        "CLOSED" | "CANCELLED" => json!([]),
+        "ON_HOLD" => json!([
+            { "action": "RELEASE_HOLD" },
+            { "action": "HOLD" },
+            { "action": "MOVE" }
+        ]),
+        _ => json!([
             { "action": "CREATE_FULFILLMENT" },
             { "action": "REPORT_PROGRESS" },
             { "action": "MOVE" },
             { "action": "HOLD" },
             { "action": "SPLIT" }
-        ])
+        ]),
     };
     json!({
         "id": order_id,
@@ -152,6 +169,96 @@ fn create_fulfillment_order_test_order(proxy: &mut DraftProxy, quantity: i64) ->
     (order, fulfillment_order)
 }
 
+fn create_inventory_item_for_location_test(proxy: &mut DraftProxy, title: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocationInventoryItem($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              variants(first: 1) {
+                nodes { inventoryItem { id } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": title } }),
+    ));
+    assert_eq!(
+        response.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["inventoryItem"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+fn inventory_level_id_for_platform_test(inventory_item_id: &str, location_id: &str) -> String {
+    let item_tail = inventory_item_id
+        .rsplit('/')
+        .next()
+        .unwrap_or(inventory_item_id)
+        .split('?')
+        .next()
+        .unwrap_or(inventory_item_id);
+    let location_tail = location_id
+        .rsplit('/')
+        .next()
+        .unwrap_or(location_id)
+        .split('?')
+        .next()
+        .unwrap_or(location_id);
+    format!(
+        "gid://shopify/InventoryLevel/{item_tail}-{location_tail}?inventory_item_id={inventory_item_id}"
+    )
+}
+
+fn create_location_for_platform_test(proxy: &mut DraftProxy, name: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreatePlatformLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "input": { "name": name, "address": { "countryCode": "CA" } } }),
+    ));
+    assert_eq!(
+        response.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+fn set_location_active_for_platform_test(proxy: &mut DraftProxy, location_id: &str, active: bool) {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SetPlatformLocationActive($id: ID!, $input: LocationEditInput!) {
+          locationEdit(id: $id, input: $input) {
+            location { id isActive }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": location_id, "input": { "active": active } }),
+    ));
+    assert_eq!(
+        response.body["data"]["locationEdit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["locationEdit"]["location"]["isActive"],
+        json!(active)
+    );
+}
+
 #[test]
 fn admin_platform_job_unknown_job_gid_returns_completed_job_shape() {
     let mut proxy = snapshot_proxy();
@@ -212,6 +319,307 @@ fn admin_platform_job_non_job_gid_returns_resource_not_found_error() {
         json!("RESOURCE_NOT_FOUND")
     );
     assert_eq!(response.body["errors"][0]["path"], json!(["poll"]));
+}
+
+#[test]
+fn domain_id_resolves_from_shop_domains() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    let mut restored = dump.body.clone();
+    restored["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/restored",
+        "name": "Restored shop",
+        "myshopifyDomain": "restored-shop.myshopify.com",
+        "primaryDomain": {
+            "id": "gid://shopify/Domain/987654321",
+            "host": "restored-shop.example",
+            "url": "https://restored-shop.example",
+            "sslEnabled": true
+        },
+        "currencyCode": "USD"
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query DomainFromRestoredShop($id: ID!) {
+          domain(id: $id) {
+            id
+            host
+            url
+            sslEnabled
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Domain/987654321" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["domain"],
+        json!({
+            "id": "gid://shopify/Domain/987654321",
+            "host": "restored-shop.example",
+            "url": "https://restored-shop.example",
+            "sslEnabled": true
+        })
+    );
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownDomainFromRestoredShop($id: ID!) {
+          domain(id: $id) { id host url sslEnabled }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Domain/404404404" }),
+    ));
+    assert_eq!(unknown.status, 200);
+    assert_eq!(unknown.body["data"]["domain"], Value::Null);
+}
+
+#[test]
+fn domain_id_resolves_after_live_hybrid_shop_hydration() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default().to_string();
+            captured_calls.lock().unwrap().push(query);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "shop": {
+                            "id": "gid://shopify/Shop/live",
+                            "name": "Live hydrated shop",
+                            "myshopifyDomain": "live-hydrated.myshopify.com",
+                            "primaryDomain": {
+                                "id": "gid://shopify/Domain/222333444",
+                                "host": "live-hydrated.example",
+                                "url": "https://live-hydrated.example",
+                                "sslEnabled": true
+                            },
+                            "currencyCode": "CAD"
+                        }
+                    }
+                }),
+            }
+        });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateShopDomain {
+          shop {
+            id
+            name
+            myshopifyDomain
+            primaryDomain { id host url sslEnabled }
+            currencyCode
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(hydrate.status, 200);
+    assert_eq!(
+        hydrate.body["data"]["shop"]["primaryDomain"]["id"],
+        json!("gid://shopify/Domain/222333444")
+    );
+
+    let domain = proxy.process_request(json_graphql_request(
+        r#"
+        query DomainAfterShopHydrate($id: ID!) {
+          domain(id: $id) { id host url sslEnabled }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Domain/222333444" }),
+    ));
+
+    assert_eq!(domain.status, 200);
+    assert_eq!(
+        domain.body["data"]["domain"],
+        json!({
+            "id": "gid://shopify/Domain/222333444",
+            "host": "live-hydrated.example",
+            "url": "https://live-hydrated.example",
+            "sslEnabled": true
+        })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn dump_restore_round_trips_hydrated_shop_identity() {
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|_| Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "shop": {
+                        "id": "gid://shopify/Shop/live-round-trip",
+                        "name": "Restored live shop",
+                        "myshopifyDomain": "restored-live.myshopify.com",
+                        "primaryDomain": {
+                            "id": "gid://shopify/Domain/444555666",
+                            "host": "restored-live.example",
+                            "url": "https://restored-live.example",
+                            "sslEnabled": true
+                        },
+                        "currencyCode": "EUR"
+                    }
+                }
+            }),
+        });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateShopForDumpRestore {
+          shop {
+            id
+            name
+            myshopifyDomain
+            primaryDomain { id host url sslEnabled }
+            currencyCode
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(hydrate.status, 200);
+    assert_eq!(
+        hydrate.body["data"]["shop"]["id"],
+        json!("gid://shopify/Shop/live-round-trip")
+    );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["baseState"]["shop"]["primaryDomain"]["id"],
+        json!("gid://shopify/Domain/444555666")
+    );
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let restored_shop = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredHydratedShop {
+          shop {
+            id
+            name
+            myshopifyDomain
+            primaryDomain { id host url sslEnabled }
+            currencyCode
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(restored_shop.status, 200);
+    assert_eq!(
+        restored_shop.body["data"]["shop"],
+        hydrate.body["data"]["shop"]
+    );
+
+    let restored_domain = restored.process_request(json_graphql_request(
+        r#"
+        query RestoredHydratedDomain($id: ID!) {
+          domain(id: $id) { id host url sslEnabled }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Domain/444555666" }),
+    ));
+    assert_eq!(restored_domain.status, 200);
+    assert_eq!(
+        restored_domain.body["data"]["domain"]["host"],
+        json!("restored-live.example")
+    );
+}
+
+#[test]
+fn domain_id_live_hybrid_forwards_cold_domain_reads() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            captured_calls.lock().unwrap().push(body.clone());
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "domain": {
+                            "id": "gid://shopify/Domain/777888999",
+                            "host": "cold-live.example",
+                            "url": "https://cold-live.example",
+                            "sslEnabled": true
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdDomainRead($id: ID!) {
+          domain(id: $id) { id host url sslEnabled }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Domain/777888999" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["domain"],
+        json!({
+            "id": "gid://shopify/Domain/777888999",
+            "host": "cold-live.example",
+            "url": "https://cold-live.example",
+            "sslEnabled": true
+        })
+    );
+    assert_eq!(
+        upstream_calls.lock().unwrap()[0]["variables"],
+        json!({ "id": "gid://shopify/Domain/777888999" })
+    );
+}
+
+#[test]
+fn cold_snapshot_shop_baseline_leaves_identity_absent() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query ColdShopIdentity {
+          shop {
+            id
+            name
+            myshopifyDomain
+            primaryDomain { id host url sslEnabled }
+            currencyCode
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"]["shop"], json!({}));
 }
 
 #[test]
@@ -396,7 +804,7 @@ fn fulfillment_order_request_and_cancellation_transitions_stage_and_read_back() 
         json!("CANCELLATION_REJECTED")
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let operation_names = log["entries"]
         .as_array()
         .unwrap()
@@ -417,6 +825,153 @@ fn fulfillment_order_request_and_cancellation_transitions_stage_and_read_back() 
         .as_str()
         .unwrap()
         .contains("SubmitFulfillmentOrderRequest"));
+}
+
+#[test]
+fn assigned_fulfillment_orders_filters_by_assignment_status_and_location_ids() {
+    let mut proxy = snapshot_proxy();
+    let (_order, fulfillment_order) = create_fulfillment_order_test_order(&mut proxy, 2);
+    let fulfillment_order_id = fulfillment_order["id"].clone();
+    let fulfillment_order_line_item_id = fulfillment_order["lineItems"]["nodes"][0]["id"].clone();
+    let query = r#"
+        query AssignedFulfillmentOrdersFiltering($locationIds: [ID!]) {
+          requested: assignedFulfillmentOrders(
+            first: 10
+            assignmentStatus: FULFILLMENT_REQUESTED
+            locationIds: $locationIds
+            sortKey: ID
+          ) {
+            nodes {
+              id
+              requestStatus
+              assignedLocation { location { id } }
+              merchantRequests(first: 10) { nodes { kind responseData } }
+            }
+          }
+          accepted: assignedFulfillmentOrders(
+            first: 10
+            assignmentStatus: FULFILLMENT_ACCEPTED
+            locationIds: $locationIds
+            sortKey: ID
+          ) {
+            nodes { id requestStatus merchantRequests(first: 10) { nodes { kind responseData } } }
+          }
+          cancellationRequested: assignedFulfillmentOrders(
+            first: 10
+            assignmentStatus: CANCELLATION_REQUESTED
+            locationIds: $locationIds
+            sortKey: ID
+          ) {
+            nodes { id requestStatus merchantRequests(first: 10) { nodes { kind responseData } } }
+          }
+        }
+    "#;
+
+    let submit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SubmitFulfillmentOrderRequest($id: ID!, $lineItems: [FulfillmentOrderLineItemInput!]) {
+          fulfillmentOrderSubmitFulfillmentRequest(
+            id: $id
+            fulfillmentOrderLineItems: $lineItems
+            message: "please ship"
+            notifyCustomer: false
+          ) {
+            submittedFulfillmentOrder { id requestStatus }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": fulfillment_order_id,
+            "lineItems": [{ "id": fulfillment_order_line_item_id, "quantity": 1 }]
+        }),
+    ));
+    assert_eq!(
+        submit.body["data"]["fulfillmentOrderSubmitFulfillmentRequest"]["userErrors"],
+        json!([])
+    );
+
+    let requested =
+        proxy.process_request(json_graphql_request(query, json!({ "locationIds": null })));
+    assert_eq!(
+        requested.body["data"]["requested"]["nodes"][0]["id"],
+        fulfillment_order_id
+    );
+    assert_eq!(
+        requested.body["data"]["requested"]["nodes"][0]["requestStatus"],
+        json!("SUBMITTED")
+    );
+    assert_eq!(requested.body["data"]["accepted"]["nodes"], json!([]));
+    let assigned_location_id = requested.body["data"]["requested"]["nodes"][0]["assignedLocation"]
+        ["location"]["id"]
+        .clone();
+
+    let matching_location = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "locationIds": [assigned_location_id] }),
+    ));
+    assert_eq!(
+        matching_location.body["data"]["requested"]["nodes"][0]["id"],
+        fulfillment_order_id
+    );
+
+    let mismatched_location = proxy.process_request(json_graphql_request(
+        query,
+        json!({ "locationIds": ["gid://shopify/Location/not-this-order"] }),
+    ));
+    assert_eq!(
+        mismatched_location.body["data"]["requested"]["nodes"],
+        json!([])
+    );
+
+    let accept = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AcceptFulfillmentOrderRequest($id: ID!) {
+          fulfillmentOrderAcceptFulfillmentRequest(id: $id, message: "accepted") {
+            fulfillmentOrder { id requestStatus }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    assert_eq!(
+        accept.body["data"]["fulfillmentOrderAcceptFulfillmentRequest"]["userErrors"],
+        json!([])
+    );
+    let accepted =
+        proxy.process_request(json_graphql_request(query, json!({ "locationIds": null })));
+    assert_eq!(accepted.body["data"]["requested"]["nodes"], json!([]));
+    assert_eq!(
+        accepted.body["data"]["accepted"]["nodes"][0]["id"],
+        fulfillment_order_id
+    );
+
+    let submit_cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SubmitFulfillmentOrderCancellationRequest($id: ID!) {
+          fulfillmentOrderSubmitCancellationRequest(id: $id, message: "cancel please") {
+            fulfillmentOrder { id requestStatus merchantRequests(first: 10) { nodes { kind responseData } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    assert_eq!(
+        submit_cancel.body["data"]["fulfillmentOrderSubmitCancellationRequest"]["userErrors"],
+        json!([])
+    );
+    let cancellation_requested =
+        proxy.process_request(json_graphql_request(query, json!({ "locationIds": null })));
+    assert_eq!(
+        cancellation_requested.body["data"]["cancellationRequested"]["nodes"][0]["id"],
+        fulfillment_order_id
+    );
+    assert_eq!(
+        cancellation_requested.body["data"]["accepted"]["nodes"],
+        json!([])
+    );
 }
 
 #[test]
@@ -825,8 +1380,17 @@ fn fulfillment_order_split_hydrates_observed_fulfillment_orders_without_order_ow
 }
 
 #[test]
-fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locally() {
+fn backup_region_update_uses_staged_market_region_and_computed_coercion_locations() {
     let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    let mut restored = dump.body.clone();
+    restored["state"]["baseState"]["shop"]["shopAddress"]["countryCodeV2"] = json!("CA");
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
 
     let omitted = proxy.process_request(json_graphql_request(
         r#"
@@ -842,12 +1406,7 @@ fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locall
     assert_eq!(
         omitted.body["data"]["backupRegionUpdate"],
         json!({
-            "backupRegion": {
-                "__typename": "MarketRegionCountry",
-                "id": "gid://shopify/MarketRegionCountry/4062110417202",
-                "name": "Canada",
-                "code": "CA"
-            },
+            "backupRegion": null,
             "userErrors": []
         })
     );
@@ -865,152 +1424,10 @@ fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locall
     ));
     assert_eq!(null_region.body, omitted.body);
 
-    let captured_countries = [
-        (
-            "AE",
-            "gid://shopify/MarketRegionCountry/4062110482738",
-            "United Arab Emirates",
-        ),
-        (
-            "AT",
-            "gid://shopify/MarketRegionCountry/4062110515506",
-            "Austria",
-        ),
-        (
-            "AU",
-            "gid://shopify/MarketRegionCountry/4062110548274",
-            "Australia",
-        ),
-        (
-            "BE",
-            "gid://shopify/MarketRegionCountry/4062110581042",
-            "Belgium",
-        ),
-        (
-            "CA",
-            "gid://shopify/MarketRegionCountry/4062110417202",
-            "Canada",
-        ),
-        (
-            "CH",
-            "gid://shopify/MarketRegionCountry/4062110613810",
-            "Switzerland",
-        ),
-        (
-            "CZ",
-            "gid://shopify/MarketRegionCountry/4062110646578",
-            "Czechia",
-        ),
-        (
-            "DE",
-            "gid://shopify/MarketRegionCountry/4062110679346",
-            "Germany",
-        ),
-        (
-            "DK",
-            "gid://shopify/MarketRegionCountry/4062110712114",
-            "Denmark",
-        ),
-        (
-            "ES",
-            "gid://shopify/MarketRegionCountry/4062110744882",
-            "Spain",
-        ),
-        (
-            "FI",
-            "gid://shopify/MarketRegionCountry/4062110777650",
-            "Finland",
-        ),
-        (
-            "MX",
-            "gid://shopify/MarketRegionCountry/4062111334706",
-            "Mexico",
-        ),
-        (
-            "US",
-            "gid://shopify/MarketRegionCountry/4062110449970",
-            "United States",
-        ),
-    ];
-
-    for (code, id, name) in captured_countries {
-        let update = proxy.process_request(json_graphql_request(
-            &format!(
-                r#"
-                mutation BackupRegionUpdateCaptured {{
-                  backupRegionUpdate(region: {{ countryCode: {code} }}) {{
-                    backupRegion {{ __typename id name ... on MarketRegionCountry {{ code }} }}
-                    userErrors {{ field message code }}
-                  }}
-                }}
-                "#
-            ),
-            json!({}),
-        ));
-        assert_eq!(
-            update.body["data"]["backupRegionUpdate"],
-            json!({
-                "backupRegion": {
-                    "__typename": "MarketRegionCountry",
-                    "id": id,
-                    "name": name,
-                    "code": code
-                },
-                "userErrors": []
-            })
-        );
-    }
-
-    let read = proxy.process_request(json_graphql_request(
+    let valid_country_without_market = proxy.process_request(json_graphql_request(
         r#"
-        query BackupRegionRead {
-          backupRegion { __typename id name ... on MarketRegionCountry { code } }
-        }
-        "#,
-        json!({}),
-    ));
-    assert_eq!(
-        read.body["data"]["backupRegion"],
-        json!({
-            "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062110449970",
-            "name": "United States",
-            "code": "US"
-        })
-    );
-
-    let node = proxy.process_request(json_graphql_request(
-        r#"
-        query BackupRegionNode($ids: [ID!]!) {
-          nodes(ids: $ids) { __typename ... on MarketRegionCountry { id name code } }
-        }
-        "#,
-        json!({ "ids": ["gid://shopify/MarketRegionCountry/4062110482738"] }),
-    ));
-    assert_eq!(node.body["data"]["nodes"][0], json!(null));
-
-    let staged_node = proxy.process_request(json_graphql_request(
-        r#"
-        query BackupRegionNode($ids: [ID!]!) {
-          nodes(ids: $ids) { __typename ... on MarketRegionCountry { id name code } }
-        }
-        "#,
-        json!({ "ids": ["gid://shopify/MarketRegionCountry/4062110449970"] }),
-    ));
-    assert_eq!(
-        staged_node.body["data"]["nodes"][0],
-        json!({
-            "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062110449970",
-            "name": "United States",
-            "code": "US"
-        })
-    );
-
-    let invalid = proxy.process_request(json_graphql_request(
-        r#"
-        mutation BackupRegionUpdateInvalid {
-          backupRegionUpdate(region: { countryCode: ZZ }) {
+        mutation BackupRegionUpdateValidCountryWithoutMarket {
+          backupRegionUpdate(region: { countryCode: JP }) {
             backupRegion { id }
             userErrors { field message code }
           }
@@ -1019,7 +1436,7 @@ fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locall
         json!({}),
     ));
     assert_eq!(
-        invalid.body["data"]["backupRegionUpdate"],
+        valid_country_without_market.body["data"]["backupRegionUpdate"],
         json!({
             "backupRegion": null,
             "userErrors": [{
@@ -1030,7 +1447,145 @@ fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locall
         })
     );
 
-    let invalid_with_typename = proxy.process_request(json_graphql_request(
+    let current_country = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateCurrentCountry {
+          backupRegionUpdate(region: { countryCode: CA }) {
+            backupRegion { __typename id name ... on MarketRegionCountry { code } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        current_country.body["data"]["backupRegionUpdate"],
+        json!({
+            "backupRegion": {
+                "__typename": "MarketRegionCountry",
+                "id": "gid://shopify/MarketRegionCountry/local-CA",
+                "name": "Canada",
+                "code": "CA"
+            },
+            "userErrors": []
+        })
+    );
+    let current_region = current_country.body["data"]["backupRegionUpdate"]["backupRegion"].clone();
+
+    let current_node = proxy.process_request(json_graphql_request(
+        r#"
+        query BackupRegionCurrentCountryNode($ids: [ID!]!) {
+          nodes(ids: $ids) { __typename ... on MarketRegionCountry { id name code } }
+        }
+        "#,
+        json!({ "ids": [current_region["id"].as_str().unwrap()] }),
+    ));
+    assert_eq!(current_node.body["data"]["nodes"][0], current_region);
+
+    let created_market = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateJapanMarket {
+          marketCreate(input: { name: "Japan", enabled: true, regions: [{ countryCode: "JP" }] }) {
+            market {
+              id
+              name
+              enabled
+              status
+              type
+              conditions { regionsCondition { regions(first: 5) { nodes { code } } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        created_market.body["data"]["marketCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        created_market.body["data"]["marketCreate"]["market"]["conditions"]["regionsCondition"]
+            ["regions"]["nodes"],
+        json!([{ "code": "JP" }])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateJapan {
+          backupRegionUpdate(region: { countryCode: JP }) {
+            backupRegion { __typename id name ... on MarketRegionCountry { code } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let updated_region = update.body["data"]["backupRegionUpdate"]["backupRegion"].clone();
+    assert_eq!(
+        update.body["data"]["backupRegionUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(updated_region["__typename"], json!("MarketRegionCountry"));
+    assert_eq!(updated_region["name"], json!("Japan"));
+    assert_eq!(updated_region["code"], json!("JP"));
+    let region_id = updated_region["id"]
+        .as_str()
+        .expect("backup region id is selected")
+        .to_string();
+    assert!(
+        region_id.starts_with("gid://shopify/Market/Region/"),
+        "locally staged market region ids must come from the modeled market region node, got {region_id}"
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BackupRegionRead {
+          backupRegion { __typename id name ... on MarketRegionCountry { code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(read.body["data"]["backupRegion"], updated_region);
+
+    let node = proxy.process_request(json_graphql_request(
+        r#"
+        query BackupRegionNode($ids: [ID!]!) {
+          nodes(ids: $ids) { __typename ... on MarketRegionCountry { id name code } }
+        }
+        "#,
+        json!({ "ids": [
+            "gid://shopify/MarketRegionCountry/4062110482738",
+            region_id
+        ] }),
+    ));
+    assert_eq!(node.body["data"]["nodes"][0], json!(null));
+    assert_eq!(node.body["data"]["nodes"][1], updated_region);
+
+    let valid_uncovered_country = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateUncoveredValidCountry {
+          backupRegionUpdate(region: { countryCode: ZZ }) {
+            backupRegion { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        valid_uncovered_country.body["data"]["backupRegionUpdate"],
+        json!({
+            "backupRegion": null,
+            "userErrors": [{
+                "field": ["region"],
+                "message": "Region not found.",
+                "code": "REGION_NOT_FOUND"
+            }]
+        })
+    );
+
+    let uncovered_with_typename = proxy.process_request(json_graphql_request(
         r#"
         mutation BackupRegionUpdateValidationTypename {
           backupRegionUpdate(region: { countryCode: ZZ }) {
@@ -1042,7 +1597,7 @@ fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locall
         json!({}),
     ));
     assert_eq!(
-        invalid_with_typename.body["data"]["backupRegionUpdate"]["userErrors"][0]["__typename"],
+        uncovered_with_typename.body["data"]["backupRegionUpdate"]["userErrors"][0]["__typename"],
         json!("MarketUserError")
     );
 
@@ -1098,39 +1653,284 @@ fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locall
         );
     }
 
-    let missing_country_code = proxy.process_request(json_graphql_request(
+    let invalid_country_location_query = r#"
+        mutation BackupRegionUpdateInvalidCountryLocation {
+          backupRegionUpdate(
+            region: {
+              countryCode: XX
+            }
+          ) { backupRegion { id } userErrors { field code } }
+        }
+        "#;
+    let expected_line = invalid_country_location_query
+        .lines()
+        .position(|line| line.contains("region: {"))
+        .map(|index| index + 1)
+        .unwrap();
+    let expected_column = invalid_country_location_query
+        .lines()
+        .find(|line| line.contains("region: {"))
+        .and_then(|line| line.find('{'))
+        .map(|index| index + 1)
+        .unwrap();
+    let invalid_country_location = proxy.process_request(json_graphql_request(
+        invalid_country_location_query,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_country_location.body["errors"][0]["extensions"]["code"],
+        json!("argumentLiteralsIncompatible")
+    );
+    assert_eq!(
+        invalid_country_location.body["errors"][0]["locations"][0],
+        json!({ "line": expected_line, "column": expected_column })
+    );
+    assert_ne!(
+        invalid_country_location.body["errors"][0]["locations"][0],
+        json!({ "line": 2, "column": 30 })
+    );
+}
+
+#[test]
+fn backup_region_update_uses_delegate_token_scopes_for_access_denied() {
+    let mut proxy = snapshot_proxy();
+    let created_market = proxy.process_request(json_graphql_request(
         r#"
-        mutation BackupRegionUpdateMissingCountryCode {
-          backupRegionUpdate(region: {}) { backupRegion { id } userErrors { field code } }
+        mutation CreateJapanMarketForScopedBackupRegion {
+          marketCreate(input: { name: "Japan", enabled: true, regions: [{ countryCode: "JP" }] }) {
+            market { id }
+            userErrors { field message code }
+          }
         }
         "#,
         json!({}),
     ));
     assert_eq!(
-        missing_country_code.body["errors"][0]["extensions"]["code"],
-        json!("missingRequiredInputObjectAttribute")
+        created_market.body["data"]["marketCreate"]["userErrors"],
+        json!([])
     );
 
-    let mut access_request = json_graphql_request(
+    let mut markets_delegate_request = json_graphql_request(
         r#"
-        mutation BackupRegionUpdateIdempotent {
-          backupRegionUpdate(region: { countryCode: CA }) { backupRegion { id } userErrors { field message code } }
+        mutation CreateMarketsDelegate {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_markets", "write_markets"], expiresIn: 300 }) {
+            delegateAccessToken { accessToken accessScopes }
+            userErrors { field message code }
+          }
         }
         "#,
         json!({}),
     );
-    access_request.headers.insert(
-        "X-Shopify-Access-Token".to_string(),
-        "shpat_delegate_proxy_1".to_string(),
+    markets_delegate_request.headers.insert(
+        "x-shopify-draft-proxy-access-scopes".to_string(),
+        "read_products,write_products,read_markets,write_markets".to_string(),
     );
-    let access_denied = proxy.process_request(access_request);
+    let markets_delegate = proxy.process_request(markets_delegate_request);
     assert_eq!(
-        access_denied.body["data"]["backupRegionUpdate"],
-        json!(null)
+        markets_delegate.body["data"]["delegateAccessTokenCreate"]["userErrors"],
+        json!([])
+    );
+    let markets_token = markets_delegate.body["data"]["delegateAccessTokenCreate"]
+        ["delegateAccessToken"]["accessToken"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(markets_token, "shpat_delegate_proxy_1");
+
+    let mut allowed_request = json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateAllowedDelegate {
+          backupRegionUpdate(region: { countryCode: JP }) {
+            backupRegion { id name ... on MarketRegionCountry { code } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    allowed_request
+        .headers
+        .insert("X-Shopify-Access-Token".to_string(), markets_token);
+    let allowed = proxy.process_request(allowed_request);
+    assert_eq!(
+        allowed.body["data"]["backupRegionUpdate"]["userErrors"],
+        json!([])
     );
     assert_eq!(
-        access_denied.body["errors"][0]["extensions"]["code"],
+        allowed.body["data"]["backupRegionUpdate"]["backupRegion"]["code"],
+        json!("JP")
+    );
+
+    let product_delegate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateProductOnlyDelegate {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) {
+            delegateAccessToken { accessToken accessScopes }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        product_delegate.body["data"]["delegateAccessTokenCreate"]["userErrors"],
+        json!([])
+    );
+    let product_token = product_delegate.body["data"]["delegateAccessTokenCreate"]
+        ["delegateAccessToken"]["accessToken"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(product_token, "shpat_delegate_proxy_2");
+
+    let mut denied_request = json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateDeniedDelegate {
+          backupRegionUpdate(region: { countryCode: JP }) {
+            backupRegion { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    denied_request
+        .headers
+        .insert("X-Shopify-Access-Token".to_string(), product_token);
+    let denied = proxy.process_request(denied_request);
+    assert_eq!(denied.body["data"]["backupRegionUpdate"], json!(null));
+    assert_eq!(
+        denied.body["errors"][0]["extensions"]["code"],
         json!("ACCESS_DENIED")
+    );
+}
+
+#[test]
+fn backup_region_update_hydrates_market_region_from_upstream_in_live_hybrid() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body =
+                serde_json::from_str::<Value>(&request.body).expect("upstream GraphQL body parses");
+            captured_calls.lock().unwrap().push(body.clone());
+            match body["operationName"].as_str() {
+                Some("BackupRegionAccessScopes") => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "currentAppInstallation": {
+                                "accessScopes": [
+                                    { "handle": "read_markets" },
+                                    { "handle": "write_markets" }
+                                ]
+                            }
+                        }
+                    }),
+                },
+                Some("BackupRegionMarketsHydrate") => Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "markets": {
+                                "nodes": [{
+                                    "id": "gid://shopify/Market/97997685042",
+                                    "name": "Japan",
+                                    "handle": "japan",
+                                    "status": "ACTIVE",
+                                    "enabled": true,
+                                    "type": "REGION",
+                                    "conditions": {
+                                        "regionsCondition": {
+                                            "regions": {
+                                                "nodes": [{
+                                                    "__typename": "MarketRegionCountry",
+                                                    "id": "gid://shopify/MarketRegionCountry/shop-jp",
+                                                    "name": "Japan",
+                                                    "code": "JP"
+                                                }]
+                                            }
+                                        }
+                                    }
+                                }]
+                            }
+                        }
+                    }),
+                },
+                other => panic!("unexpected upstream operation: {other:?} body={body}"),
+            }
+        });
+
+    let mut update_request = json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateHydratedJapan {
+          backupRegionUpdate(region: { countryCode: JP }) {
+            backupRegion { __typename id name ... on MarketRegionCountry { code } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    update_request.headers.insert(
+        "X-Shopify-Access-Token".to_string(),
+        "parent-live-token".to_string(),
+    );
+    let update = proxy.process_request(update_request);
+    assert_eq!(
+        update.body["data"]["backupRegionUpdate"],
+        json!({
+            "backupRegion": {
+                "__typename": "MarketRegionCountry",
+                "id": "gid://shopify/MarketRegionCountry/shop-jp",
+                "name": "Japan",
+                "code": "JP"
+            },
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BackupRegionReadAfterHydrate {
+          backupRegion { __typename id name ... on MarketRegionCountry { code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read.body["data"]["backupRegion"],
+        update.body["data"]["backupRegionUpdate"]["backupRegion"]
+    );
+
+    let node = proxy.process_request(json_graphql_request(
+        r#"
+        query BackupRegionNodeAfterHydrate {
+          nodes(ids: ["gid://shopify/MarketRegionCountry/shop-jp"]) {
+            __typename
+            ... on MarketRegionCountry { id name code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        node.body["data"]["nodes"][0],
+        update.body["data"]["backupRegionUpdate"]["backupRegion"]
+    );
+    assert_eq!(
+        upstream_calls
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|body| body["operationName"].as_str().unwrap().to_string())
+            .collect::<Vec<_>>(),
+        vec![
+            "BackupRegionAccessScopes".to_string(),
+            "BackupRegionMarketsHydrate".to_string()
+        ]
     );
 }
 
@@ -1698,9 +2498,25 @@ fn flow_trigger_receive_accepts_local_handle_and_preserves_commit_log() {
 }
 
 #[test]
-fn location_activate_limit_relocation_and_control_branches_match_local_runtime() {
+fn location_activate_limit_and_control_branches_use_store_state() {
     let mut proxy = snapshot_proxy();
-    let query = r#"
+    let add_query = r#"
+        mutation LocationActivateLimitSetupAdd($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id name isActive }
+            userErrors { field code message }
+          }
+        }
+    "#;
+    let deactivate_query = r#"
+        mutation LocationActivateLimitSetupDeactivate($locationId: ID!, $idempotencyKey: String!) {
+          locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
+            location { id isActive }
+            locationDeactivateUserErrors { field code message }
+          }
+        }
+    "#;
+    let activate_query = r#"
         mutation LocationActivateLimitAndRelocation($locationId: ID!, $idempotencyKey: String!) {
           locationActivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
             location { id isActive }
@@ -1709,30 +2525,172 @@ fn location_activate_limit_relocation_and_control_branches_match_local_runtime()
         }
     "#;
 
+    let add_location = |proxy: &mut DraftProxy, name: &str| -> String {
+        let response = proxy.process_request(json_graphql_request(
+            add_query,
+            json!({
+                "input": {
+                    "name": name,
+                    "fulfillsOnlineOrders": false,
+                    "address": {
+                        "countryCode": "US",
+                        "address1": "1 Activation Limit St",
+                        "city": "New York",
+                        "zip": "10001"
+                    }
+                }
+            }),
+        ));
+        assert_eq!(
+            response.body["data"]["locationAdd"]["userErrors"],
+            json!([])
+        );
+        response.body["data"]["locationAdd"]["location"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    };
+
+    let control_id = add_location(&mut proxy, "Activation control");
+    let deactivate_control = proxy.process_request(json_graphql_request(
+        deactivate_query,
+        json!({ "locationId": control_id.clone(), "idempotencyKey": "activate-control-deactivate" }),
+    ));
+    assert_eq!(
+        deactivate_control.body["data"]["locationDeactivate"]["locationDeactivateUserErrors"],
+        json!([])
+    );
+
+    let control = proxy.process_request(json_graphql_request(
+        activate_query,
+        json!({ "locationId": control_id.clone(), "idempotencyKey": "activate-control" }),
+    ));
+    assert_eq!(
+        control.body["data"]["locationActivate"],
+        json!({
+            "location": { "id": control.body["data"]["locationActivate"]["location"]["id"].clone(), "isActive": true },
+            "locationActivateUserErrors": []
+        })
+    );
+
+    let target_id = add_location(&mut proxy, "Activation limit target");
+    let deactivate_target = proxy.process_request(json_graphql_request(
+        deactivate_query,
+        json!({ "locationId": target_id.clone(), "idempotencyKey": "activate-limit-deactivate" }),
+    ));
+    assert_eq!(
+        deactivate_target.body["data"]["locationDeactivate"]["locationDeactivateUserErrors"],
+        json!([])
+    );
+    for index in 0..199 {
+        add_location(&mut proxy, &format!("Activation cap filler {index}"));
+    }
+
     let limit = proxy.process_request(json_graphql_request(
-        query,
-        json!({ "locationId": "gid://shopify/Location/activate-limit", "idempotencyKey": "activate-limit" }),
+        activate_query,
+        json!({ "locationId": target_id.clone(), "idempotencyKey": "activate-limit" }),
     ));
     assert_eq!(
         limit.body["data"]["locationActivate"],
         json!({
-            "location": { "id": "gid://shopify/Location/activate-limit", "isActive": false },
+            "location": { "id": limit.body["data"]["locationActivate"]["location"]["id"].clone(), "isActive": false },
             "locationActivateUserErrors": [{
                 "field": ["locationId"],
                 "code": "LOCATION_LIMIT",
-                "message": "Your shop has reached its location limit."
+                "message": "Shop has reached its location limit."
             }]
         })
     );
+}
+
+#[test]
+fn location_activate_ongoing_relocation_branch_uses_hydrated_upstream_state() {
+    let target_id = "gid://shopify/Location/hydrated-relocation";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).unwrap();
+            let query = body["query"].as_str().unwrap_or_default();
+            let response_body = if query.contains("StorePropertiesLocationHydrate") {
+                json!({
+                    "data": {
+                        "location": {
+                            "__typename": "Location",
+                            "id": target_id,
+                            "legacyResourceId": "hydrated-relocation",
+                            "name": "Hydrated relocation",
+                            "activatable": true,
+                            "addressVerified": true,
+                            "createdAt": "2026-06-30T00:00:00Z",
+                            "deactivatable": true,
+                            "deactivatedAt": "2026-06-30T00:00:00Z",
+                            "deletable": true,
+                            "fulfillsOnlineOrders": false,
+                            "hasActiveInventory": false,
+                            "hasUnfulfilledOrders": false,
+                            "isActive": false,
+                            "isFulfillmentService": false,
+                            "isPrimary": false,
+                            "shipsInventory": false,
+                            "updatedAt": "2026-06-30T00:00:00Z",
+                            "hasOngoingRelocation": true,
+                            "fulfillmentService": null,
+                            "address": null,
+                            "suggestedAddresses": [],
+                            "metafield": null,
+                            "metafields": {
+                                "nodes": [],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": null,
+                                    "endCursor": null
+                                }
+                            },
+                            "inventoryLevels": {
+                                "nodes": [],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": null,
+                                    "endCursor": null
+                                }
+                            }
+                        }
+                    }
+                })
+            } else {
+                json!({
+                    "data": {
+                        "shop": { "resourceLimits": { "locationLimit": 200 } },
+                        "locations": {
+                            "nodes": [{ "id": "gid://shopify/Location/primary", "isActive": true, "isFulfillmentService": false }],
+                            "pageInfo": { "hasNextPage": false }
+                        }
+                    }
+                })
+            };
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: response_body,
+            }
+        });
 
     let relocation = proxy.process_request(json_graphql_request(
-        query,
-        json!({ "locationId": "gid://shopify/Location/activate-relocation", "idempotencyKey": "activate-relocation" }),
+        r#"
+        mutation HydratedRelocationActivate($locationId: ID!, $idempotencyKey: String!) {
+          locationActivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
+            location { id isActive }
+            locationActivateUserErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "locationId": target_id, "idempotencyKey": "hydrated-relocation" }),
     ));
     assert_eq!(
         relocation.body["data"]["locationActivate"],
         json!({
-            "location": { "id": "gid://shopify/Location/activate-relocation", "isActive": false },
+            "location": { "id": target_id, "isActive": false },
             "locationActivateUserErrors": [{
                 "field": ["locationId"],
                 "code": "HAS_ONGOING_RELOCATION",
@@ -1740,60 +2698,47 @@ fn location_activate_limit_relocation_and_control_branches_match_local_runtime()
             }]
         })
     );
-
-    let control = proxy.process_request(json_graphql_request(
-        query,
-        json!({ "locationId": "gid://shopify/Location/activate-control", "idempotencyKey": "activate-control" }),
-    ));
-    assert_eq!(
-        control.body["data"]["locationActivate"],
-        json!({
-            "location": { "id": "gid://shopify/Location/activate-control", "isActive": true },
-            "locationActivateUserErrors": []
-        })
-    );
 }
 
 #[test]
-fn location_add_resource_limit_guard_matches_local_runtime_without_logging_rejections() {
+fn location_add_resource_limit_guard_uses_store_state_without_logging_rejections() {
     let mut proxy = snapshot_proxy();
-    let seed_query = r#"
-        mutation LocationActivateLimitAndRelocation($locationId: ID!, $idempotencyKey: String!) {
-          locationActivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
-            location { id isActive }
-            locationActivateUserErrors { field code message }
-          }
-        }
-    "#;
-
-    let seed = proxy.process_request(json_graphql_request(
-        seed_query,
-        json!({
-            "locationId": "gid://shopify/Location/location-add-limit-seed",
-            "idempotencyKey": "location-add-limit-seed"
-        }),
-    ));
-    assert_eq!(
-        seed.body["data"]["locationActivate"],
-        json!({
-            "location": { "id": "gid://shopify/Location/location-add-limit-seed", "isActive": false },
-            "locationActivateUserErrors": [{
-                "field": ["locationId"],
-                "code": "LOCATION_LIMIT",
-                "message": "Your shop has reached its location limit."
-            }]
-        })
-    );
-
-    let add = proxy.process_request(json_graphql_request(
-        r#"
+    let add_query = r#"
         mutation LocationAddResourceLimitReached($input: LocationAddInput!) {
           locationAdd(input: $input) {
             location { id name }
             userErrors { field code message }
           }
         }
-        "#,
+    "#;
+    for index in 0..200 {
+        let seeded = proxy.process_request(json_graphql_request(
+            add_query,
+            json!({
+                "input": {
+                    "name": format!("Proxy Cap Seed {index}"),
+                    "address": {
+                        "countryCode": "US",
+                        "address1": "1 Resource Limit St",
+                        "city": "New York",
+                        "zip": "10001"
+                    }
+                }
+            }),
+        ));
+        assert_eq!(seeded.body["data"]["locationAdd"]["userErrors"], json!([]));
+    }
+    let baseline_log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    let baseline_entries = baseline_log.body["entries"].as_array().unwrap().len();
+    assert_eq!(baseline_entries, 200);
+
+    let add = proxy.process_request(json_graphql_request(
+        add_query,
         json!({
             "input": {
                 "name": "Proxy Cap Overflow 20260508142042",
@@ -1824,12 +2769,20 @@ fn location_add_resource_limit_guard_matches_local_runtime_without_logging_rejec
         headers: Default::default(),
         body: String::new(),
     });
-    assert_eq!(log.body, json!({ "entries": [] }));
+    assert_eq!(
+        log.body["entries"].as_array().unwrap().len(),
+        baseline_entries,
+        "rejected over-cap locationAdd must not append a staged mutation log entry"
+    );
 }
 
 #[test]
 fn generic_location_add_stages_location_and_downstream_reads() {
-    let mut proxy = snapshot_proxy();
+    let product_id = "gid://shopify/Product/9101";
+    let mut proxy = snapshot_proxy().with_base_products(vec![platform_inventory_base_product(
+        product_id,
+        "Generic Location Add Product",
+    )]);
     let add = proxy.process_request(json_graphql_request(
         r#"
         mutation GenericLocationAdd($input: LocationAddInput!) {
@@ -2026,7 +2979,8 @@ fn generic_location_add_stages_location_and_downstream_reads() {
         })
     );
 
-    let inventory_item_id = "gid://shopify/InventoryItem/generic-location-add";
+    let inventory_item_id =
+        create_inventory_item_for_location_test(&mut proxy, "Generic location add inventory item");
     let set_quantities = r#"
         mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
           inventorySetQuantities(input: $input) {
@@ -2295,7 +3249,7 @@ fn generic_location_edit_stages_location_validates_and_downstream_reads() {
         json!({ "id": primary_id, "name": "Edited Primary" })
     );
 
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     let roots: Vec<_> = log["entries"]
         .as_array()
         .unwrap()
@@ -2557,16 +3511,20 @@ fn generic_location_activate_rejects_non_unique_active_name() {
         })
     );
     assert_eq!(
-        proxy.get_log_snapshot()["entries"],
+        log_snapshot(&proxy)["entries"],
         json!([]),
         "rejected activation must not append a staged mutation log entry"
     );
-    assert_eq!(upstream_calls.lock().unwrap().len(), 2);
+    assert_eq!(upstream_calls.lock().unwrap().len(), 3);
 }
 
 #[test]
 fn generic_location_delete_stages_tombstone_and_cascades_inventory_levels() {
-    let mut proxy = snapshot_proxy();
+    let product_id = "gid://shopify/Product/9102";
+    let mut proxy = snapshot_proxy().with_base_products(vec![platform_inventory_base_product(
+        product_id,
+        "Generic Location Delete Product",
+    )]);
     let target_add = proxy.process_request(json_graphql_request(
         r#"
         mutation LocationDeleteSeed($input: LocationAddInput!) {
@@ -2611,7 +3569,8 @@ fn generic_location_delete_stages_tombstone_and_cascades_inventory_levels() {
         })
     );
 
-    let inventory_item_id = "gid://shopify/InventoryItem/delete-cascade";
+    let inventory_item_id =
+        create_inventory_item_for_location_test(&mut proxy, "Delete cascade inventory item");
     let seed_inventory = proxy.process_request(json_graphql_request(
         r#"
         mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
@@ -2772,7 +3731,7 @@ fn generic_location_delete_stages_tombstone_and_cascades_inventory_levels() {
         })
     );
     assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["deletedLocationIds"],
+        state_snapshot(&proxy)["stagedState"]["deletedLocationIds"],
         json!([target_id])
     );
 }
@@ -2831,6 +3790,9 @@ fn location_edit_and_delete_are_local_in_live_hybrid_mode() {
         .as_str()
         .unwrap()
         .to_string();
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+    *upstream_calls.lock().unwrap() = 0;
+    upstream_requests.lock().unwrap().clear();
 
     let edit = proxy.process_request(json_graphql_request(
         r#"
@@ -2931,11 +3893,144 @@ fn location_edit_and_delete_are_local_in_live_hybrid_mode() {
 }
 
 #[test]
+fn location_deactivate_recomputes_inventory_for_hydrated_base_location() {
+    let location_id = "gid://shopify/Location/live-inventory-base";
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            captured_calls.lock().unwrap().push(body.clone());
+            let requested_ids = body["variables"]["ids"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+            if requested_ids
+                .iter()
+                .any(|id| id.as_str() == Some(location_id))
+            {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "__typename": "Location",
+                                "id": location_id,
+                                "name": "Live Inventory Base",
+                                "isActive": true,
+                                "deactivatable": true,
+                                "deletable": false,
+                                "fulfillsOnlineOrders": false,
+                                "hasActiveInventory": false,
+                                "hasUnfulfilledOrders": false,
+                                "isFulfillmentService": false,
+                                "shipsInventory": true
+                            }]
+                        }
+                    }),
+                }
+            } else if body["variables"]["id"] == location_id {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "location": {
+                                "id": location_id,
+                                "name": "Live Inventory Base",
+                                "isActive": true,
+                                "deactivatable": true,
+                                "deletable": false,
+                                "fulfillsOnlineOrders": false,
+                                "hasActiveInventory": false,
+                                "hasUnfulfilledOrders": false,
+                                "isFulfillmentService": false,
+                                "shipsInventory": true
+                            }
+                        }
+                    }),
+                }
+            } else {
+                Response {
+                    status: 599,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "unexpected upstream call" }] }),
+                }
+            }
+        });
+    let inventory_item_id =
+        create_inventory_item_for_location_test(&mut proxy, "Hydrated location inventory guard");
+
+    let seed_inventory = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedHydratedLocationInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            inventoryAdjustmentGroup { changes { location { id } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "available",
+                "reason": "correction",
+                "ignoreCompareQuantity": true,
+                "quantities": [{
+                    "inventoryItemId": inventory_item_id,
+                    "locationId": location_id,
+                    "quantity": 7
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        seed_inventory.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationDeactivateHydratedInventory($locationId: ID!) {
+          locationDeactivate(locationId: $locationId) @idempotent(key: "hydrated-inventory") {
+            location { id isActive hasActiveInventory }
+            locationDeactivateUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["locationDeactivate"],
+        json!({
+            "location": {
+                "id": location_id,
+                "isActive": true,
+                "hasActiveInventory": true
+            },
+            "locationDeactivateUserErrors": [{
+                "field": ["locationId"],
+                "message": "Location could not be deactivated without specifying where to relocate inventory stocked at the location.",
+                "code": "HAS_ACTIVE_INVENTORY_ERROR"
+            }]
+        })
+    );
+
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0]["variables"], json!({ "ids": [location_id] }));
+}
+
+#[test]
 fn location_deactivate_with_destination_relocates_and_merges_inventory_quantities() {
     let mut proxy = snapshot_proxy();
-    let source_location_id = "gid://shopify/Location/1";
-    let destination_location_id = "gid://shopify/Location/2";
-    let inventory_item_id = "gid://shopify/InventoryItem/tracked";
+    let source_location_id = create_location_for_platform_test(&mut proxy, "Source location");
+    let destination_location_id =
+        create_location_for_platform_test(&mut proxy, "Destination location");
+    let inventory_item_id =
+        create_inventory_item_for_location_test(&mut proxy, "Relocation inventory item");
+    let destination_level_id =
+        inventory_level_id_for_platform_test(&inventory_item_id, &destination_location_id);
     let set_quantities = r#"
         mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
           inventorySetQuantities(input: $input) {
@@ -3011,9 +4106,9 @@ fn location_deactivate_with_destination_relocates_and_merges_inventory_quantitie
         json!({
             "locationsCount": { "count": 1, "precision": "EXACT" },
             "inventoryLevel": null,
-            "inventoryLevels": {
+                "inventoryLevels": {
                 "nodes": [{
-                    "id": "gid://shopify/InventoryLevel/tracked-2?inventory_item_id=gid://shopify/InventoryItem/tracked",
+                    "id": destination_level_id,
                     "location": { "id": destination_location_id, "name": "Destination location" },
                     "quantities": [
                         { "name": "available", "quantity": 14 },
@@ -3028,9 +4123,14 @@ fn location_deactivate_with_destination_relocates_and_merges_inventory_quantitie
 #[test]
 fn location_deactivate_user_error_does_not_relocate_inventory_quantities() {
     let mut proxy = snapshot_proxy();
-    let source_location_id = "gid://shopify/Location/1";
-    let inactive_destination_location_id = "gid://shopify/Location/inactive";
-    let inventory_item_id = "gid://shopify/InventoryItem/tracked";
+    let source_location_id = create_location_for_platform_test(&mut proxy, "Source location");
+    let inactive_destination_location_id =
+        create_location_for_platform_test(&mut proxy, "Inactive destination location");
+    set_location_active_for_platform_test(&mut proxy, &inactive_destination_location_id, false);
+    let inventory_item_id =
+        create_inventory_item_for_location_test(&mut proxy, "Relocation guard inventory item");
+    let source_level_id =
+        inventory_level_id_for_platform_test(&inventory_item_id, &source_location_id);
     let set_quantities = r#"
         mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
           inventorySetQuantities(input: $input) {
@@ -3109,7 +4209,7 @@ fn location_deactivate_user_error_does_not_relocate_inventory_quantities() {
         json!({
             "locationsCount": { "count": 2, "precision": "EXACT" },
             "inventoryLevel": {
-                "id": "gid://shopify/InventoryLevel/tracked-1?inventory_item_id=gid://shopify/InventoryItem/tracked",
+                "id": source_level_id,
                 "location": { "id": source_location_id, "name": "Source location" },
                 "quantities": [
                     { "name": "available", "quantity": 5 },
@@ -3316,8 +4416,8 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         r#"
         mutation HoldNumericFulfillmentOrder($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {
           fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
-            fulfillmentHold { id handle reason reasonNotes heldByRequestingApp }
-            fulfillmentOrder { id status fulfillmentHolds { id handle } lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { fulfillableQuantity } } } }
+            fulfillmentHold { id handle reason reasonNotes displayReason heldByRequestingApp }
+            fulfillmentOrder { id status fulfillmentHolds { id handle reason displayReason } lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { fulfillableQuantity } } } }
             remainingFulfillmentOrder { id status lineItems(first: 5) { nodes { totalQuantity remainingQuantity } } }
             userErrors { field message code }
           }
@@ -3326,7 +4426,7 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         json!({
             "id": fulfillment_order_id,
             "fulfillmentHold": {
-                "reason": "OTHER",
+                "reason": "AWAITING_RETURN_ITEMS",
                 "reasonNotes": "wait",
                 "handle": "numeric-hold",
                 "fulfillmentOrderLineItems": [{ "id": line_item_id, "quantity": 1 }]
@@ -3336,7 +4436,19 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
     assert_eq!(hold.status, 200);
     let hold_payload = &hold.body["data"]["fulfillmentOrderHold"];
     assert_eq!(hold_payload["userErrors"], json!([]));
+    assert_eq!(
+        hold_payload["fulfillmentHold"]["reason"],
+        json!("AWAITING_RETURN_ITEMS")
+    );
+    assert_eq!(
+        hold_payload["fulfillmentHold"]["displayReason"],
+        json!("Exchange items awaiting return delivery")
+    );
     assert_eq!(hold_payload["fulfillmentOrder"]["status"], json!("ON_HOLD"));
+    assert_eq!(
+        hold_payload["fulfillmentOrder"]["fulfillmentHolds"][0]["displayReason"],
+        json!("Exchange items awaiting return delivery")
+    );
     assert_eq!(
         hold_payload["fulfillmentOrder"]["lineItems"]["nodes"][0]["remainingQuantity"],
         json!(1)
@@ -3349,9 +4461,9 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
     let after_hold = proxy.process_request(json_graphql_request(
         r#"
         query ReadHeldFulfillmentOrder($orderId: ID!, $fulfillmentOrderId: ID!) {
-          order(id: $orderId) { id fulfillmentOrders(first: 10) { nodes { id status fulfillmentHolds { id handle } } } }
-          fulfillmentOrder(id: $fulfillmentOrderId) { id status }
-          manualHoldsFulfillmentOrders(first: 10) { nodes { id status } }
+          order(id: $orderId) { id fulfillmentOrders(first: 10) { nodes { id status fulfillmentHolds { id handle reason displayReason } } } }
+          fulfillmentOrder(id: $fulfillmentOrderId) { id status fulfillmentHolds { reason displayReason } }
+          manualHoldsFulfillmentOrders(first: 10) { nodes { id status fulfillmentHolds { reason displayReason } } }
         }
         "#,
         json!({ "orderId": order_id, "fulfillmentOrderId": fulfillment_order_id }),
@@ -3363,6 +4475,15 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
     assert_eq!(
         after_hold.body["data"]["manualHoldsFulfillmentOrders"]["nodes"][0]["id"],
         json!(fulfillment_order_id)
+    );
+    assert_eq!(
+        after_hold.body["data"]["fulfillmentOrder"]["fulfillmentHolds"][0]["displayReason"],
+        json!("Exchange items awaiting return delivery")
+    );
+    assert_eq!(
+        after_hold.body["data"]["manualHoldsFulfillmentOrders"]["nodes"][0]["fulfillmentHolds"][0]
+            ["displayReason"],
+        json!("Exchange items awaiting return delivery")
     );
 
     let hold_id = hold_payload["fulfillmentHold"]["id"].as_str().unwrap();
@@ -3405,10 +4526,14 @@ fn fulfillment_order_hold_release_stages_real_numeric_ids_and_downstream_reads()
         after_release.body["data"]["order"]["fulfillmentOrders"]["nodes"][1]["status"],
         json!("CLOSED")
     );
-    assert!(proxy.get_log_snapshot()["entries"][0]["rawBody"]
+    assert!(log_snapshot(&proxy)["entries"][0]["rawBody"]
         .as_str()
         .unwrap()
         .contains("HoldNumericFulfillmentOrder"));
+    assert_eq!(
+        log_snapshot(&proxy)["entries"][0]["variables"]["fulfillmentHold"]["reason"],
+        json!("AWAITING_RETURN_ITEMS")
+    );
 }
 
 #[test]
@@ -3444,11 +4569,61 @@ fn fulfillment_order_status_deadline_move_and_cancel_stage_real_numeric_ids() {
         json!("OPEN")
     );
 
+    let unknown_destination = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MoveNumericFulfillmentOrderUnknownLocation($id: ID!) {
+          fulfillmentOrderMove(id: $id, newLocationId: "gid://shopify/Location/7002555") {
+            movedFulfillmentOrder { id }
+            originalFulfillmentOrder { id }
+            remainingFulfillmentOrder { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    assert_eq!(
+        unknown_destination.body["data"]["fulfillmentOrderMove"],
+        json!({
+            "movedFulfillmentOrder": null,
+            "originalFulfillmentOrder": null,
+            "remainingFulfillmentOrder": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Location not found.",
+                "code": null
+            }]
+        })
+    );
+
+    let destination = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedFulfillmentOrderMoveDestination($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Numeric FO Move Destination",
+                "address": { "countryCode": "CA" }
+            }
+        }),
+    ));
+    assert_eq!(
+        destination.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    let destination_location = destination.body["data"]["locationAdd"]["location"].clone();
+    let destination_location_id = destination_location["id"].as_str().unwrap();
+
     let move_response = proxy.process_request(json_graphql_request(
         r#"
         mutation MoveNumericFulfillmentOrder($id: ID!, $newLocationId: ID!, $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]) {
           fulfillmentOrderMove(id: $id, newLocationId: $newLocationId, fulfillmentOrderLineItems: $fulfillmentOrderLineItems) {
-            movedFulfillmentOrder { id status assignedLocation { location { id } } lineItems(first: 5) { nodes { remainingQuantity } } }
+            movedFulfillmentOrder { id status updatedAt assignedLocation { name location { id name } } lineItems(first: 5) { nodes { remainingQuantity } } }
             originalFulfillmentOrder { id lineItems(first: 5) { nodes { remainingQuantity } } }
             remainingFulfillmentOrder { id lineItems(first: 5) { nodes { remainingQuantity } } }
             userErrors { field message code }
@@ -3457,7 +4632,7 @@ fn fulfillment_order_status_deadline_move_and_cancel_stage_real_numeric_ids() {
         "#,
         json!({
             "id": fulfillment_order_id,
-            "newLocationId": "gid://shopify/Location/55",
+            "newLocationId": destination_location_id,
             "fulfillmentOrderLineItems": [{ "id": line_item_id, "quantity": 1 }]
         }),
     ));
@@ -3470,7 +4645,21 @@ fn fulfillment_order_status_deadline_move_and_cancel_stage_real_numeric_ids() {
     assert_eq!(
         move_response.body["data"]["fulfillmentOrderMove"]["movedFulfillmentOrder"]
             ["assignedLocation"]["location"]["id"],
-        json!("gid://shopify/Location/55")
+        destination_location["id"]
+    );
+    assert_eq!(
+        move_response.body["data"]["fulfillmentOrderMove"]["movedFulfillmentOrder"]
+            ["assignedLocation"]["location"]["name"],
+        destination_location["name"]
+    );
+    assert_eq!(
+        move_response.body["data"]["fulfillmentOrderMove"]["movedFulfillmentOrder"]
+            ["assignedLocation"]["name"],
+        destination_location["name"]
+    );
+    assert_ne!(
+        move_response.body["data"]["fulfillmentOrderMove"]["movedFulfillmentOrder"]["updatedAt"],
+        json!("2026-05-11T10:00:00Z")
     );
 
     let progress = proxy.process_request(json_graphql_request(
@@ -3736,10 +4925,23 @@ fn fulfillment_order_close_reschedule_and_reroute_return_guardrail_payloads() {
 }
 
 #[test]
-fn fulfillment_order_move_assignment_status_allows_cancellation_assignment_states() {
-    let mut proxy = snapshot_proxy();
+fn fulfillment_order_move_uses_staged_destination_location_state() {
+    let order_id = "gid://shopify/Order/7004001";
+    let fulfillment_order_id = "gid://shopify/FulfillmentOrder/70040011";
+    let line_item_id = "gid://shopify/FulfillmentOrderLineItem/70040012";
+    let mut proxy =
+        snapshot_proxy().with_upstream_transport(fulfillment_order_hydrate_transport(vec![
+            fulfillment_order_order_fixture(
+                order_id,
+                "#7004",
+                fulfillment_order_id,
+                line_item_id,
+                1,
+                "OPEN",
+            ),
+        ]));
     let query = r#"
-        fragment FulfillmentOrderMoveValidationFields on FulfillmentOrder {
+        fragment FulfillmentOrderMoveLocationFields on FulfillmentOrder {
           id
           status
           requestStatus
@@ -3747,61 +4949,108 @@ fn fulfillment_order_move_assignment_status_allows_cancellation_assignment_state
           assignedLocation { name location { id name } }
           lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }
         }
-        mutation FulfillmentOrderMoveValidationMove($id: ID!, $newLocationId: ID!, $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]) {
+        mutation FulfillmentOrderMoveWithStagedDestination($id: ID!, $newLocationId: ID!, $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]) {
           fulfillmentOrderMove(id: $id, newLocationId: $newLocationId, fulfillmentOrderLineItems: $fulfillmentOrderLineItems) {
-            movedFulfillmentOrder { ...FulfillmentOrderMoveValidationFields }
-            originalFulfillmentOrder { ...FulfillmentOrderMoveValidationFields }
-            remainingFulfillmentOrder { ...FulfillmentOrderMoveValidationFields }
+            movedFulfillmentOrder { ...FulfillmentOrderMoveLocationFields }
+            originalFulfillmentOrder { ...FulfillmentOrderMoveLocationFields }
+            remainingFulfillmentOrder { ...FulfillmentOrderMoveLocationFields }
             userErrors { field message code }
           }
         }
     "#;
 
-    for id in [
-        "gid://shopify/FulfillmentOrder/move-assignment-cancellation-requested",
-        "gid://shopify/FulfillmentOrder/move-assignment-cancellation-rejected",
-    ] {
-        let response = proxy.process_request(json_graphql_request(
-            query,
-            json!({
-                "id": id,
-                "newLocationId": "gid://shopify/Location/move-assignment-destination",
-                "fulfillmentOrderLineItems": null
-            }),
-        ));
-        let payload = &response.body["data"]["fulfillmentOrderMove"];
-        assert_eq!(
-            payload["movedFulfillmentOrder"]["assignedLocation"]["location"]["id"],
-            json!("gid://shopify/Location/move-assignment-destination")
-        );
-        assert_eq!(
-            payload["originalFulfillmentOrder"]["assignedLocation"]["location"]["id"],
-            json!("gid://shopify/Location/move-assignment-destination")
-        );
-        assert_eq!(payload["remainingFulfillmentOrder"], json!(null));
-        assert_eq!(payload["userErrors"], json!([]));
-    }
-
-    let submitted = proxy.process_request(json_graphql_request(
+    let unstaged_destination = proxy.process_request(json_graphql_request(
         query,
         json!({
-            "id": "gid://shopify/FulfillmentOrder/move-assignment-submitted",
-            "newLocationId": "gid://shopify/Location/move-assignment-destination",
+            "id": fulfillment_order_id,
+            "newLocationId": "gid://shopify/Location/70040099",
             "fulfillmentOrderLineItems": null
         }),
     ));
     assert_eq!(
-        submitted.body["data"]["fulfillmentOrderMove"],
+        unstaged_destination.body["data"]["fulfillmentOrderMove"],
         json!({
             "movedFulfillmentOrder": null,
             "originalFulfillmentOrder": null,
             "remainingFulfillmentOrder": null,
             "userErrors": [{
-                "field": null,
-                "message": "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
+                "field": ["id"],
+                "message": "Location not found.",
                 "code": null
             }]
         })
+    );
+
+    let destination = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedMoveDestination($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Store-backed FO Destination",
+                "address": { "countryCode": "US" }
+            }
+        }),
+    ));
+    assert_eq!(
+        destination.body["data"]["locationAdd"]["userErrors"],
+        json!([])
+    );
+    let destination_location = destination.body["data"]["locationAdd"]["location"].clone();
+
+    let moved = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "id": fulfillment_order_id,
+            "newLocationId": destination_location["id"],
+            "fulfillmentOrderLineItems": null
+        }),
+    ));
+    let payload = &moved.body["data"]["fulfillmentOrderMove"];
+    assert_eq!(
+        payload["movedFulfillmentOrder"]["assignedLocation"]["location"]["id"],
+        destination_location["id"]
+    );
+    assert_eq!(
+        payload["movedFulfillmentOrder"]["assignedLocation"]["location"]["name"],
+        destination_location["name"]
+    );
+    assert_eq!(
+        payload["movedFulfillmentOrder"]["assignedLocation"]["name"],
+        destination_location["name"]
+    );
+    assert_eq!(
+        payload["originalFulfillmentOrder"]["assignedLocation"]["location"]["id"],
+        destination_location["id"]
+    );
+    assert_eq!(payload["remainingFulfillmentOrder"], json!(null));
+    assert_eq!(payload["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadMovedFulfillmentOrderLocation($orderId: ID!) {
+          order(id: $orderId) {
+            fulfillmentOrders(first: 5) {
+              nodes { id assignedLocation { name location { id name } } }
+            }
+          }
+        }
+        "#,
+        json!({ "orderId": order_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["order"]["fulfillmentOrders"]["nodes"][0]["assignedLocation"]["location"]
+            ["id"],
+        destination_location["id"]
+    );
+    assert_eq!(
+        read.body["data"]["order"]["fulfillmentOrders"]["nodes"][0]["assignedLocation"]["name"],
+        destination_location["name"]
     );
 }
 
@@ -3875,64 +5124,109 @@ fn fulfillment_order_open_rejects_already_open_without_mutating_hydrated_order()
             }] }
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
-fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() {
-    let mut proxy = snapshot_proxy();
-    let open = proxy.process_request(json_graphql_request(
-        r#"
-        mutation FulfillmentOrderStatusPreconditionOpen($id: ID!) {
-          fulfillmentOrderOpen(id: $id) {
-            fulfillmentOrder { id status updatedAt supportedActions { action } }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({ "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed" }),
-    ));
-    assert_eq!(
-        open.body["data"]["fulfillmentOrderOpen"],
-        json!({
-            "fulfillmentOrder": null,
-            "userErrors": [{
-                "field": ["id"],
-                "message": "Fulfillment order must be scheduled.",
-                "code": "INVALID_FULFILLMENT_ORDER_STATUS"
-            }]
-        })
-    );
+fn fulfillment_order_status_invalid_state_rejections_do_not_mutate_order_reads() {
+    for (status, status_message, supported_actions) in [
+        ("CLOSED", "closed", json!([])),
+        ("CANCELLED", "cancelled", json!([])),
+        (
+            "ON_HOLD",
+            "on_hold",
+            json!([
+                { "action": "RELEASE_HOLD" },
+                { "action": "HOLD" },
+                { "action": "MOVE" }
+            ]),
+        ),
+    ] {
+        let order_id = format!("gid://shopify/Order/open-invalid-{status_message}");
+        let fulfillment_order_id =
+            format!("gid://shopify/FulfillmentOrder/open-invalid-{status_message}");
+        let mut proxy =
+            snapshot_proxy().with_upstream_transport(fulfillment_order_hydrate_transport(vec![
+                fulfillment_order_order_fixture(
+                    &order_id,
+                    "#OPEN-INVALID",
+                    &fulfillment_order_id,
+                    &format!(
+                        "gid://shopify/FulfillmentOrderLineItem/open-invalid-{status_message}"
+                    ),
+                    1,
+                    status,
+                ),
+            ]));
 
-    let after_open = proxy.process_request(json_graphql_request(
-        r#"
-        query FulfillmentOrderStatusPreconditionOrderRead($orderId: ID!) {
-          order(id: $orderId) {
-            id
-            fulfillmentOrders(first: 10, includeClosed: true) {
-              nodes { id status updatedAt supportedActions { action } }
+        let open = proxy.process_request(json_graphql_request(
+            r#"
+            mutation FulfillmentOrderInvalidStateOpen($id: ID!) {
+              fulfillmentOrderOpen(id: $id) {
+                fulfillmentOrder { id status updatedAt supportedActions { action } }
+                userErrors { field message code }
+              }
             }
-          }
-        }
-        "#,
-        json!({ "orderId": "gid://shopify/Order/status-precondition-open-closed" }),
-    ));
-    assert_eq!(
-        after_open.body["data"]["order"],
-        json!({
-            "id": "gid://shopify/Order/status-precondition-open-closed",
-            "fulfillmentOrders": { "nodes": [{
-                "id": "gid://shopify/FulfillmentOrder/status-precondition-open-closed",
-                "status": "CLOSED",
-                "updatedAt": "2026-05-11T10:00:00Z",
-                "supportedActions": []
-            }] }
-        })
-    );
+            "#,
+            json!({ "id": fulfillment_order_id }),
+        ));
+        assert_eq!(
+            open.body["data"]["fulfillmentOrderOpen"],
+            json!({
+                "fulfillmentOrder": null,
+                "userErrors": [{
+                    "field": null,
+                    "message": format!("Expected fulfillment order status to be valid but it was {status_message}."),
+                    "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+                }]
+            })
+        );
+
+        let after_open = proxy.process_request(json_graphql_request(
+            r#"
+            query FulfillmentOrderInvalidStateOrderRead($orderId: ID!) {
+              order(id: $orderId) {
+                id
+                fulfillmentOrders(first: 10, includeClosed: true) {
+                  nodes { id status updatedAt supportedActions { action } }
+                }
+              }
+            }
+            "#,
+            json!({ "orderId": order_id }),
+        ));
+        assert_eq!(
+            after_open.body["data"]["order"],
+            json!({
+                "id": order_id,
+                "fulfillmentOrders": { "nodes": [{
+                    "id": fulfillment_order_id,
+                    "status": status,
+                    "updatedAt": "2026-06-15T11:00:00Z",
+                    "supportedActions": supported_actions
+                }] }
+            })
+        );
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    }
+
+    let order_id = "gid://shopify/Order/progress-invalid-scheduled";
+    let fulfillment_order_id = "gid://shopify/FulfillmentOrder/progress-invalid-scheduled";
+    let mut proxy =
+        snapshot_proxy().with_upstream_transport(fulfillment_order_hydrate_transport(vec![
+            fulfillment_order_order_fixture(
+                order_id,
+                "#PROGRESS-INVALID",
+                fulfillment_order_id,
+                "gid://shopify/FulfillmentOrderLineItem/progress-invalid-scheduled",
+                1,
+                "SCHEDULED",
+            ),
+        ]));
 
     let progress = proxy.process_request(json_graphql_request(
         r#"
-        mutation FulfillmentOrderStatusPreconditionReportProgress($id: ID!, $progressReport: FulfillmentOrderReportProgressInput) {
+        mutation FulfillmentOrderInvalidStateReportProgress($id: ID!, $progressReport: FulfillmentOrderReportProgressInput) {
           fulfillmentOrderReportProgress(id: $id, progressReport: $progressReport) {
             fulfillmentOrder { id status updatedAt supportedActions { action } }
             userErrors { field message code }
@@ -3940,8 +5234,8 @@ fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() 
         }
         "#,
         json!({
-            "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled",
-            "progressReport": { "reasonNotes": "local-runtime progress precondition" }
+            "id": fulfillment_order_id,
+            "progressReport": { "reasonNotes": "local-runtime progress invalid state" }
         }),
     ));
     assert_eq!(
@@ -3949,16 +5243,16 @@ fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() 
         json!({
             "fulfillmentOrder": null,
             "userErrors": [{
-                "field": ["id"],
-                "message": "Fulfillment order must be in progress.",
-                "code": "INVALID_FULFILLMENT_ORDER_STATUS"
+                "field": null,
+                "message": "Cannot report progress on a fulfillment order in this state.",
+                "code": "FULFILLMENT_ORDER_STATUS_INVALID"
             }]
         })
     );
 
     let after_progress = proxy.process_request(json_graphql_request(
         r#"
-        query FulfillmentOrderStatusPreconditionOrderRead($orderId: ID!) {
+        query FulfillmentOrderInvalidStateOrderRead($orderId: ID!) {
           order(id: $orderId) {
             id
             fulfillmentOrders(first: 10, includeClosed: true) {
@@ -3967,27 +5261,73 @@ fn fulfillment_order_status_precondition_rejections_do_not_mutate_order_reads() 
           }
         }
         "#,
-        json!({ "orderId": "gid://shopify/Order/status-precondition-progress-scheduled" }),
+        json!({ "orderId": order_id }),
     ));
     assert_eq!(
         after_progress.body["data"]["order"],
         json!({
-            "id": "gid://shopify/Order/status-precondition-progress-scheduled",
+            "id": order_id,
             "fulfillmentOrders": { "nodes": [{
-                "id": "gid://shopify/FulfillmentOrder/status-precondition-progress-scheduled",
+                "id": fulfillment_order_id,
                 "status": "SCHEDULED",
-                "updatedAt": "2026-05-11T10:05:00Z",
+                "updatedAt": "2026-06-15T11:00:00Z",
                 "supportedActions": [{ "action": "MARK_AS_OPEN" }]
             }] }
         })
     );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
 fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_orders() {
-    let mut proxy = snapshot_proxy();
+    let order_id = "gid://shopify/Order/7005001";
+    let open_a_id = "gid://shopify/FulfillmentOrder/70050011";
+    let open_b_id = "gid://shopify/FulfillmentOrder/70050012";
+    let closed_id = "gid://shopify/FulfillmentOrder/70050013";
+    let cancelled_id = "gid://shopify/FulfillmentOrder/70050014";
+    let unknown_id = "gid://shopify/FulfillmentOrder/70059998";
+    let mut order = fulfillment_order_order_fixture(
+        order_id,
+        "#7005",
+        open_a_id,
+        "gid://shopify/FulfillmentOrderLineItem/70050021",
+        1,
+        "OPEN",
+    );
+    for (fulfillment_order_id, line_item_id, status) in [
+        (
+            open_b_id,
+            "gid://shopify/FulfillmentOrderLineItem/70050022",
+            "OPEN",
+        ),
+        (
+            closed_id,
+            "gid://shopify/FulfillmentOrderLineItem/70050023",
+            "CLOSED",
+        ),
+        (
+            cancelled_id,
+            "gid://shopify/FulfillmentOrderLineItem/70050024",
+            "CANCELLED",
+        ),
+    ] {
+        let sibling = fulfillment_order_order_fixture(
+            order_id,
+            "#7005",
+            fulfillment_order_id,
+            line_item_id,
+            1,
+            status,
+        );
+        order["fulfillmentOrders"]["nodes"]
+            .as_array_mut()
+            .unwrap()
+            .push(sibling["fulfillmentOrders"]["nodes"][0].clone());
+    }
+    let mut proxy =
+        snapshot_proxy().with_upstream_transport(fulfillment_order_hydrate_transport(vec![order]));
     let read_query = r#"
-        query FulfillmentOrdersSetDeadlineValidationOrderRead($id: ID!) {
+        query FulfillmentOrdersSetDeadlineAtomicOrderRead($id: ID!) {
           order(id: $id) {
             id name displayFulfillmentStatus
             fulfillmentOrders(first: 10) { nodes { id status fulfillBy } }
@@ -3995,7 +5335,7 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
         }
     "#;
     let mutation = r#"
-        mutation FulfillmentOrdersSetDeadlineValidation($fulfillmentOrderIds: [ID!]!, $fulfillmentDeadline: DateTime!) {
+        mutation FulfillmentOrdersSetDeadlineAtomic($fulfillmentOrderIds: [ID!]!, $fulfillmentDeadline: DateTime!) {
           fulfillmentOrdersSetFulfillmentDeadline(fulfillmentOrderIds: $fulfillmentOrderIds, fulfillmentDeadline: $fulfillmentDeadline) {
             success
             userErrors { field message code }
@@ -4006,7 +5346,7 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
     let unknown = proxy.process_request(json_graphql_request(
         mutation,
         json!({
-            "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/9999999"],
+            "fulfillmentOrderIds": [unknown_id],
             "fulfillmentDeadline": "2026-12-01T00:00:00Z"
         }),
     ));
@@ -4025,7 +5365,7 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
     let mixed = proxy.process_request(json_graphql_request(
         mutation,
         json!({
-            "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/deadline-open-a", "gid://shopify/FulfillmentOrder/9999999"],
+            "fulfillmentOrderIds": [open_a_id, unknown_id],
             "fulfillmentDeadline": "2026-12-01T00:00:00Z"
         }),
     ));
@@ -4034,19 +5374,14 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
         unknown.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"]
     );
 
-    let after_mixed = proxy.process_request(json_graphql_request(
-        read_query,
-        json!({ "id": "gid://shopify/Order/deadline-validation" }),
-    ));
+    let after_mixed =
+        proxy.process_request(json_graphql_request(read_query, json!({ "id": order_id })));
     assert_eq!(
         after_mixed.body["data"]["order"]["fulfillmentOrders"]["nodes"][0]["fulfillBy"],
         json!(null)
     );
 
-    for id in [
-        "gid://shopify/FulfillmentOrder/deadline-closed",
-        "gid://shopify/FulfillmentOrder/deadline-cancelled",
-    ] {
+    for id in [closed_id, cancelled_id] {
         let rejected = proxy.process_request(json_graphql_request(
             mutation,
             json!({
@@ -4070,7 +5405,7 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
     let happy = proxy.process_request(json_graphql_request(
         mutation,
         json!({
-            "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/deadline-open-a", "gid://shopify/FulfillmentOrder/deadline-open-b"],
+            "fulfillmentOrderIds": [open_a_id, open_b_id],
             "fulfillmentDeadline": "2026-12-01T00:00:00Z"
         }),
     ));
@@ -4079,23 +5414,32 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
         json!({ "success": true, "userErrors": [] })
     );
 
-    let after_happy = proxy.process_request(json_graphql_request(
-        read_query,
-        json!({ "id": "gid://shopify/Order/deadline-validation" }),
-    ));
+    let after_happy =
+        proxy.process_request(json_graphql_request(read_query, json!({ "id": order_id })));
+    assert_eq!(after_happy.body["data"]["order"]["id"], json!(order_id));
+    assert_eq!(after_happy.body["data"]["order"]["name"], json!("#7005"));
+    let nodes = after_happy.body["data"]["order"]["fulfillmentOrders"]["nodes"]
+        .as_array()
+        .unwrap();
+    assert_eq!(nodes.len(), 4);
+    for (id, status, fulfill_by) in [
+        (open_a_id, "OPEN", json!("2026-12-01T00:00:00Z")),
+        (open_b_id, "OPEN", json!("2026-12-01T00:00:00Z")),
+        (closed_id, "CLOSED", Value::Null),
+        (cancelled_id, "CANCELLED", Value::Null),
+    ] {
+        let node = nodes
+            .iter()
+            .find(|node| node["id"].as_str() == Some(id))
+            .unwrap();
+        assert_eq!(
+            node,
+            &json!({ "id": id, "status": status, "fulfillBy": fulfill_by })
+        );
+    }
     assert_eq!(
-        after_happy.body["data"]["order"],
-        json!({
-            "id": "gid://shopify/Order/deadline-validation",
-            "name": "#DEADLINE-VALIDATION",
-            "displayFulfillmentStatus": "UNFULFILLED",
-            "fulfillmentOrders": { "nodes": [
-                { "id": "gid://shopify/FulfillmentOrder/deadline-open-a", "status": "OPEN", "fulfillBy": "2026-12-01T00:00:00Z" },
-                { "id": "gid://shopify/FulfillmentOrder/deadline-open-b", "status": "OPEN", "fulfillBy": "2026-12-01T00:00:00Z" },
-                { "id": "gid://shopify/FulfillmentOrder/deadline-closed", "status": "CLOSED", "fulfillBy": null },
-                { "id": "gid://shopify/FulfillmentOrder/deadline-cancelled", "status": "CANCELLED", "fulfillBy": null }
-            ] }
-        })
+        after_happy.body["data"]["order"]["displayFulfillmentStatus"],
+        json!("UNFULFILLED")
     );
 }
 
@@ -4257,7 +5601,7 @@ fn shop_policy_update_stages_policy_and_downstream_reads_locally() {
     assert_eq!(policy["body"], json!("<p>Hi</p>"));
     assert_eq!(
         policy["url"],
-        json!("https://harry-test-heelo.myshopify.com/policies/1.html?locale=en")
+        json!("https://shopify-draft-proxy.local/policies/1.html?locale=en")
     );
     assert_eq!(policy["translations"], json!([]));
 
@@ -4295,7 +5639,7 @@ fn shop_policy_update_stages_policy_and_downstream_reads_locally() {
     );
     assert_eq!(read.body["data"]["nodePolicy"]["id"], policy["id"]);
     assert_eq!(read.body["data"]["nodes"][0]["url"], policy["url"]);
-    let log = proxy.get_log_snapshot();
+    let log = log_snapshot(&proxy);
     assert_eq!(
         log["entries"][0]["stagedResourceIds"],
         json!([policy["id"]])
@@ -4465,7 +5809,7 @@ fn shop_policy_update_rejects_only_privacy_liquid_syntax_errors() {
             }]
         })
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
     let read_after_invalid = proxy.process_request(json_graphql_request(read_query, json!({})));
     assert_eq!(
         read_after_invalid.body["data"]["shop"]["shopPolicies"],
@@ -4546,7 +5890,7 @@ fn shop_policy_update_validation_branches_match_shopify_shapes() {
             "code": null
         }])
     );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 
     let max_body = "a".repeat(524_287);
     let max_response = proxy.process_request(json_graphql_request(

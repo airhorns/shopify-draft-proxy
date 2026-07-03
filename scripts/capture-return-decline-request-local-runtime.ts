@@ -1,8 +1,11 @@
 /* oxlint-disable no-console -- Capture scripts intentionally write status output to stdio. */
-import { spawnSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+
+import { createDraftProxy } from '../js/src/index.js';
 
 type JsonRecord = Record<string, unknown>;
 type GraphqlBody = {
@@ -36,18 +39,6 @@ const fixturePath = path.join(
   'orders',
   'return-lifecycle-local-staging.json',
 );
-
-function ensureGleamJsBuild(): void {
-  const result = spawnSync('corepack', ['pnpm', 'gleam:build:js'], {
-    cwd: repoRoot,
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-  });
-
-  if (result.status !== 0) {
-    throw new Error(`Gleam JS build failed with status ${String(result.status)}`);
-  }
-}
 
 async function readRequest(name: string): Promise<string> {
   return readFile(path.join(repoRoot, 'config', 'parity-requests', 'orders', name), 'utf8');
@@ -90,6 +81,56 @@ function extractOperationName(query: string): string {
   return query.match(/\b(?:query|mutation|subscription)\s+([A-Za-z_][A-Za-z0-9_]*)/)?.[1] ?? '';
 }
 
+async function startRecordedUpstreamServer(
+  calls: RecordedCall[],
+): Promise<{ origin: string; close: () => Promise<void> }> {
+  const server: Server = createServer((request, response) => {
+    let body = '';
+    request.setEncoding('utf8');
+    request.on('data', (chunk: string) => {
+      body += chunk;
+    });
+    request.on('end', () => {
+      try {
+        const parsed = JSON.parse(body || '{}') as GraphqlBody;
+        const operationName = parsed.operationName ?? extractOperationName(parsed.query);
+        const variables = parsed.variables ?? {};
+        const call = calls.find(
+          (candidate) => candidate.operationName === operationName && sameJson(candidate.variables, variables),
+        );
+        if (!call) {
+          response.writeHead(500, { 'content-type': 'application/json' });
+          response.end(
+            JSON.stringify({
+              errors: [
+                {
+                  message: `cassette miss: operation=${operationName} variables=${JSON.stringify(variables)}`,
+                },
+              ],
+            }),
+          );
+          return;
+        }
+        response.writeHead(call.response.status, { 'content-type': 'application/json' });
+        response.end(JSON.stringify(call.response.body));
+      } catch (error) {
+        response.writeHead(500, { 'content-type': 'application/json' });
+        response.end(JSON.stringify({ errors: [{ message: (error as Error).message }] }));
+      }
+    });
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address() as AddressInfo;
+  return {
+    origin: `http://127.0.0.1:${address.port}`,
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      }),
+  };
+}
+
 function makeOrderHydrationCall(seedOrder: JsonRecord): RecordedCall {
   return {
     operationName: 'OrdersOrderHydrate',
@@ -121,65 +162,23 @@ function assertResponseOk(response: ProxyResponse, context: string): JsonRecord 
 }
 
 async function runProxyRequest(
-  proxy: { processGraphQLRequest: (input: GraphqlBody) => Promise<ProxyResponse> },
+  proxy: { processGraphQLRequest: (input: GraphqlBody, options?: { apiVersion?: string }) => Promise<ProxyResponse> },
   query: string,
   variables: JsonRecord,
   context: string,
 ): Promise<JsonRecord> {
-  return assertResponseOk(await proxy.processGraphQLRequest({ query, variables }), context);
+  return assertResponseOk(await proxy.processGraphQLRequest({ query, variables }, { apiVersion }), context);
 }
-
-ensureGleamJsBuild();
 
 const fixture = readObject(JSON.parse(await readFile(fixturePath, 'utf8')), 'return lifecycle fixture');
 const seedOrder = readObject(fixture['seedOrder'], 'fixture.seedOrder');
 const upstreamCalls = [makeOrderHydrationCall(seedOrder)];
-
-const [{ createDraftProxy }, { Ok, Error: GleamError, toList }, { HttpOutcome, CommitTransportError }] =
-  await Promise.all([
-    import('../js/src/index.js'),
-    import(pathToFileURL(path.join(repoRoot, 'build', 'dev', 'javascript', 'prelude.mjs')).href),
-    import(
-      pathToFileURL(
-        path.join(
-          repoRoot,
-          'build',
-          'dev',
-          'javascript',
-          'shopify_draft_proxy',
-          'shopify_draft_proxy',
-          'proxy',
-          'commit.mjs',
-        ),
-      ).href
-    ),
-  ]);
+const upstreamServer = await startRecordedUpstreamServer(upstreamCalls);
 
 const proxy = createDraftProxy({
   readMode: 'live-hybrid',
   port: 0,
-  shopifyAdminOrigin: 'https://local-runtime.invalid',
-});
-
-proxy.installSyncTransport((request: JsonRecord) => {
-  try {
-    const body = JSON.parse(String(request['body'] ?? '{}')) as GraphqlBody;
-    const operationName = body.operationName ?? extractOperationName(body.query);
-    const variables = body.variables ?? {};
-    const call = upstreamCalls.find(
-      (candidate) => candidate.operationName === operationName && sameJson(candidate.variables, variables),
-    );
-
-    if (!call) {
-      return new GleamError(
-        new CommitTransportError(`cassette miss: operation=${operationName} variables=${JSON.stringify(variables)}`),
-      );
-    }
-
-    return new Ok(new HttpOutcome(call.response.status, JSON.stringify(call.response.body), toList([])));
-  } catch (error) {
-    return new GleamError(new CommitTransportError((error as Error).message));
-  }
+  shopifyAdminOrigin: upstreamServer.origin,
 });
 
 const returnRequestQuery = await readRequest('return-request-reverse-local-staging.graphql');
@@ -242,3 +241,5 @@ fixture['upstreamCalls'] = upstreamCalls;
 await mkdir(path.dirname(fixturePath), { recursive: true });
 await writeFile(fixturePath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
 console.log(`Wrote ${path.relative(repoRoot, fixturePath)}`);
+proxy.dispose();
+await upstreamServer.close();

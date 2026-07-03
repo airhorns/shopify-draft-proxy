@@ -1,0 +1,21 @@
+mutation OrderEditCommitSuccessMessagesBegin($id: ID!) {
+  orderEditBegin(id: $id) {
+    calculatedOrder {
+      id
+      originalOrder {
+        id
+        name
+      }
+      lineItems(first: 5) {
+        nodes {
+          id
+          quantity
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

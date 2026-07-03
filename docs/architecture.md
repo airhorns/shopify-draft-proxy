@@ -71,7 +71,7 @@ App/test harness
 - implement meta routes: health, config, log, state, reset, dump, and restore
 - keep Shopify-like Admin GraphQL route classification and request-body parsing separate from domain handlers
 - run version-scoped base GraphQL validation for captured parse, schema, variable, selection, and argument errors before local domain dispatch
-- run reusable captured-schema input validation before local mutation dispatch when a covered public Admin input object has recorded introspection evidence
+- run reusable captured-schema input validation before local mutation dispatch when a covered public Admin input object has recorded introspection evidence for the request API version
 - preserve `with_upstream_transport(...)` and `with_commit_transport(...)` test seams so behavior stays deterministic
 
 ### `src/proxy/commit.rs`
@@ -87,6 +87,7 @@ App/test harness
 - group supported runtime behavior by commerce area, including products/saved searches, localization/markets/catalogs, marketing/webhooks/inventory, online store, metaobjects, metafields, orders/payments, discounts/gift cards, B2B/customers, and admin/shipping/app helpers
 - keep local staging, overlay reads, selected-field projection, alias-safe response keys, and live-hybrid passthrough/reject behavior near the domain logic that owns it
 - use shared `Store` effective-get/list/count helpers for migrated product and saved-search read-after-write behavior, with base state, staged state, order arrays, and tombstones dumped/restored consistently
+- use the shared staged-connection query helpers for staged resource lists that need Shopify-like search filtering, sort-key mapping, `reverse`, cursor windows, and filtered counts; resource modules supply predicate and sort adapters while `connection.rs` owns the order of operations
 - share proxy-internal helpers only within `crate::proxy`; public package surface still flows through `DraftProxy`
 
 ### `src/graphql.rs`
@@ -156,12 +157,13 @@ The Python package is not a second proxy implementation and does not spawn the R
 - `scripts/check-protected-evidence-invariants.ts` compares protected evidence against `origin/main` and rejects unregistered changes.
 - `scripts/conformance-capture-index.ts`, `scripts/conformance-check.ts`, and `scripts/conformance-status-report.ts` maintain capture metadata and status reporting.
 - `src/operation_registry.rs` is the executable source of truth for operation metadata. TypeScript tooling loads the same metadata through the Rust `operation-registry-json` exporter instead of maintaining a second checked-in JSON registry.
+- Version-scoped Admin GraphQL schema introspection lives under `config/admin-graphql/<api-version>/`. `mutation-schema.json` captures mutation arguments and reachable input objects; `bulk-query-schema.json` captures output object/list/connection facts. Runtime validation selects these files by the request path's Admin API version instead of reusing the default-version schema for every supported route.
 
 ## State model
 
 The runtime should use normalized state rather than raw GraphQL blobs.
 
-`DraftProxy` owns a typed Rust `Store` for runtime resource state. Products and saved searches use normalized records with shared effective-read helpers, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary.
+`DraftProxy` owns a typed Rust `Store` for runtime resource state. Products and saved searches use normalized records with shared effective-read helpers, while other staged domain data also lives under `Store::staged` so reset, dump/restore plumbing, and future normalization work have one ownership boundary. Gift-card LiveHybrid hydration also stores known base gift-card records and gift-card configuration in `BaseState` so supported local mutations can overlay real upstream reads without runtime Shopify writes.
 
 The normalized product and saved-search portions currently include:
 
@@ -205,4 +207,4 @@ Keep Shopify-like versioned Admin API paths even when tests use local/snapshot m
 - Keep unsupported passthrough explicit in logs and docs.
 - Marking a root `implemented` only states that the proxy answers it locally; do not call an operation **supported** until its local lifecycle and downstream read-after-write effects are modeled from the store (tracked by runtime tests and conformance coverage).
 - Prefer conformance fixtures over guessed Shopify semantics.
-- Add tests before behavior changes and run the full Rust-port verification loop before pushing.
+- Add tests before behavior changes and run the full verification loop before pushing.

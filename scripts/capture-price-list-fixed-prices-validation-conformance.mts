@@ -44,6 +44,10 @@ const addDocument = await readFile(
   path.join('config', 'parity-requests', 'markets', 'price-list-fixed-prices-add-validation.graphql'),
   'utf8',
 );
+const addShortCircuitDocument = await readFile(
+  path.join('config', 'parity-requests', 'markets', 'price_list_fixed_prices_add_short_circuit.graphql'),
+  'utf8',
+);
 const updateDocument = await readFile(
   path.join('config', 'parity-requests', 'markets', 'price-list-fixed-prices-update-validation.graphql'),
   'utf8',
@@ -87,62 +91,8 @@ const setupQuery = `#graphql
   }
 `;
 
-const preflightDocument = `#graphql
-  query MarketsMutationPreflightHydrate($priceListId: ID!, $productId: ID!) {
-    priceList(id: $priceListId) {
-      __typename
-      id
-      name
-      currency
-      fixedPricesCount
-      prices(first: 20, originType: FIXED) {
-        edges {
-          cursor
-          node {
-            price {
-              amount
-              currencyCode
-            }
-            compareAtPrice {
-              amount
-              currencyCode
-            }
-            originType
-            variant {
-              id
-              sku
-              product {
-                id
-                title
-              }
-            }
-          }
-        }
-        pageInfo {
-          hasNextPage
-          hasPreviousPage
-          startCursor
-          endCursor
-        }
-      }
-    }
-    product(id: $productId) {
-      id
-      title
-      handle
-      status
-      variants(first: 10) {
-        nodes {
-          id
-          title
-          sku
-          price
-          compareAtPrice
-        }
-      }
-    }
-  }
-`;
+const preflightDocument =
+  'query MarketsMutationPreflightHydrate($priceListId: ID!, $variantIds: [ID!]!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productVariants: nodes(ids: $variantIds) { __typename ... on ProductVariant { id title sku price compareAtPrice product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } } }';
 
 function assertGraphqlOk(label: string, result: ConformanceGraphqlResult): void {
   if (result.status < 200 || result.status >= 300 || result.payload.errors) {
@@ -164,11 +114,46 @@ function alternateCurrency(currency: string): string {
   return currency === 'USD' ? 'CAD' : 'USD';
 }
 
+function pushUniqueString(values: string[], candidate: unknown): void {
+  if (typeof candidate === 'string' && candidate.length > 0 && !values.includes(candidate)) {
+    values.push(candidate);
+  }
+}
+
+function collectInputVariantIds(values: string[], inputs: unknown): void {
+  if (!Array.isArray(inputs)) return;
+  for (const input of inputs) {
+    if (typeof input === 'object' && input !== null && !Array.isArray(input)) {
+      pushUniqueString(values, (input as { variantId?: unknown }).variantId);
+    }
+  }
+}
+
+function collectVariantIds(values: string[], ids: unknown): void {
+  if (!Array.isArray(ids)) return;
+  for (const id of ids) {
+    pushUniqueString(values, id);
+  }
+}
+
+function fixedPriceVariantPreflightVariables(variables: Record<string, unknown>): Record<string, unknown> {
+  const variantIds: string[] = [];
+  collectInputVariantIds(variantIds, variables['prices']);
+  collectInputVariantIds(variantIds, variables['pricesToAdd']);
+  collectVariantIds(variantIds, variables['variantIds']);
+  collectVariantIds(variantIds, variables['variantIdsToDelete']);
+  return {
+    ...variables,
+    priceListId: variables['priceListId'] ?? null,
+    variantIds,
+  };
+}
+
 function preflightCall(variables: Record<string, unknown>, response: ConformanceGraphqlResult) {
   return {
     operationName: 'MarketsMutationPreflightHydrate',
     variables,
-    query: 'hand-synthesized from live capture setup baseline',
+    query: preflightDocument,
     response: {
       status: response.status,
       body: response.payload,
@@ -183,14 +168,11 @@ async function captureCase(
   name: string,
   document: string,
   variables: Record<string, unknown>,
-  productId: string,
 ): Promise<CapturedCase> {
-  const preflight = await runGraphqlRequest(preflightDocument, {
-    priceListId: variables['priceListId'],
-    productId,
-  });
+  const preflightVariables = fixedPriceVariantPreflightVariables(variables);
+  const preflight = await runGraphqlRequest(preflightDocument, preflightVariables);
   assertGraphqlOk(`${name} preflight`, preflight);
-  upstreamCalls.push(preflightCall(variables, preflight));
+  upstreamCalls.push(preflightCall(preflightVariables, preflight));
 
   const result = await runGraphqlRequest(document, variables);
   assertGraphqlOk(name, result);
@@ -256,11 +238,17 @@ const productId = product.id;
 const productTitle = product.title;
 const variantId = variant.id;
 const variantTitle = variant.title;
+const secondVariant =
+  product.variants?.nodes?.find((node) => typeof node?.id === 'string' && node.id !== variantId) ?? variant;
+const secondVariantId = secondVariant.id as string;
+const secondVariantTitle = secondVariant.title;
 const missingPriceListId = 'gid://shopify/PriceList/999999999999999';
 const missingVariantId = 'gid://shopify/ProductVariant/999999999999999';
 const mismatchCurrency = alternateCurrency(priceListCurrency);
 const matchingPrice = { amount: '812.34', currencyCode: priceListCurrency };
 const matchingPriceSecond = { amount: '813.45', currencyCode: priceListCurrency };
+const mismatchedCompareAtPrice = { amount: '912.34', currencyCode: mismatchCurrency };
+const mismatchedCompareAtPriceSecond = { amount: '913.45', currencyCode: mismatchCurrency };
 const updatedPrice = { amount: '818.88', currencyCode: priceListCurrency };
 const updatedPriceSecond = { amount: '819.99', currencyCode: priceListCurrency };
 const mismatchedPrice = { amount: '712.34', currencyCode: mismatchCurrency };
@@ -272,49 +260,50 @@ try {
   const preCleanup = await cleanupFixedPrice('pre-cleanup variant fixed price', priceListId, variantId);
 
   const cases = {
-    addCurrencyMismatch: await captureCase(
+    addCurrencyMismatch: await captureCase('priceListFixedPricesAdd', 'add currency mismatch', addDocument, {
+      priceListId,
+      prices: [{ variantId, price: mismatchedPrice }],
+    }),
+    addCompareAtCurrencyMismatch: await captureCase(
       'priceListFixedPricesAdd',
-      'add currency mismatch',
-      addDocument,
-      {
-        priceListId,
-        prices: [{ variantId, price: mismatchedPrice }],
-      },
-      productId,
-    ),
-    addVariantNotFound: await captureCase(
-      'priceListFixedPricesAdd',
-      'add variant not found',
-      addDocument,
-      {
-        priceListId,
-        prices: [{ variantId: missingVariantId, price: matchingPrice }],
-      },
-      productId,
-    ),
-    addPriceListNotFound: await captureCase(
-      'priceListFixedPricesAdd',
-      'add price list not found',
-      addDocument,
-      {
-        priceListId: missingPriceListId,
-        prices: [{ variantId, price: matchingPrice }],
-      },
-      productId,
-    ),
-    addDuplicateVariantId: await captureCase(
-      'priceListFixedPricesAdd',
-      'add duplicate variant id',
+      'add compare-at currency mismatch',
       addDocument,
       {
         priceListId,
         prices: [
-          { variantId, price: matchingPrice },
-          { variantId, price: matchingPriceSecond },
+          { variantId, price: matchingPrice, compareAtPrice: mismatchedCompareAtPrice },
+          {
+            variantId: secondVariantId,
+            price: mismatchedPrice,
+            compareAtPrice: mismatchedCompareAtPriceSecond,
+          },
         ],
       },
-      productId,
     ),
+    addVariantNotFound: await captureCase('priceListFixedPricesAdd', 'add variant not found', addDocument, {
+      priceListId,
+      prices: [{ variantId: missingVariantId, price: matchingPrice }],
+    }),
+    addMissingVariantCurrencyMismatchShortCircuit: await captureCase(
+      'priceListFixedPricesAdd',
+      'add missing variant currency mismatch short circuit',
+      addShortCircuitDocument,
+      {
+        priceListId,
+        prices: [{ variantId: missingVariantId, price: mismatchedPrice }],
+      },
+    ),
+    addPriceListNotFound: await captureCase('priceListFixedPricesAdd', 'add price list not found', addDocument, {
+      priceListId: missingPriceListId,
+      prices: [{ variantId, price: matchingPrice }],
+    }),
+    addDuplicateVariantId: await captureCase('priceListFixedPricesAdd', 'add duplicate variant id', addDocument, {
+      priceListId,
+      prices: [
+        { variantId, price: matchingPrice },
+        { variantId, price: matchingPriceSecond },
+      ],
+    }),
   };
 
   const postAddDuplicateCleanup = await cleanupFixedPrice('post-add-duplicate cleanup', priceListId, variantId);
@@ -329,30 +318,17 @@ try {
         pricesToAdd: [{ variantId, price: updatedPrice }],
         variantIdsToDelete: [],
       },
-      productId,
     ),
-    updateVariantNotFound: await captureCase(
-      'priceListFixedPricesUpdate',
-      'update variant not found',
-      updateDocument,
-      {
-        priceListId,
-        pricesToAdd: [{ variantId: missingVariantId, price: updatedPrice }],
-        variantIdsToDelete: [],
-      },
-      productId,
-    ),
-    updatePriceNotFixed: await captureCase(
-      'priceListFixedPricesUpdate',
-      'update price not fixed',
-      updateDocument,
-      {
-        priceListId,
-        pricesToAdd: [{ variantId, price: updatedPrice }],
-        variantIdsToDelete: [],
-      },
-      productId,
-    ),
+    updateVariantNotFound: await captureCase('priceListFixedPricesUpdate', 'update variant not found', updateDocument, {
+      priceListId,
+      pricesToAdd: [{ variantId: missingVariantId, price: updatedPrice }],
+      variantIdsToDelete: [],
+    }),
+    updatePriceNotFixed: await captureCase('priceListFixedPricesUpdate', 'update price not fixed', updateDocument, {
+      priceListId,
+      pricesToAdd: [{ variantId, price: updatedPrice }],
+      variantIdsToDelete: [],
+    }),
   };
 
   const seed = await seedFixedPrice('seed fixed price for update validation', priceListId, variantId, seedPrice);
@@ -367,7 +343,23 @@ try {
         pricesToAdd: [{ variantId, price: mismatchedPrice }],
         variantIdsToDelete: [],
       },
-      productId,
+    ),
+    updateCompareAtCurrencyMismatch: await captureCase(
+      'priceListFixedPricesUpdate',
+      'update compare-at currency mismatch',
+      updateDocument,
+      {
+        priceListId,
+        pricesToAdd: [
+          { variantId, price: updatedPrice, compareAtPrice: mismatchedCompareAtPrice },
+          {
+            variantId: secondVariantId,
+            price: mismatchedPrice,
+            compareAtPrice: mismatchedCompareAtPriceSecond,
+          },
+        ],
+        variantIdsToDelete: [],
+      },
     ),
     updateDuplicateVariantId: await captureCase(
       'priceListFixedPricesUpdate',
@@ -381,7 +373,6 @@ try {
         ],
         variantIdsToDelete: [],
       },
-      productId,
     ),
   };
 
@@ -396,28 +387,15 @@ try {
         priceListId: missingPriceListId,
         variantIds: [variantId],
       },
-      productId,
     ),
-    deleteVariantNotFound: await captureCase(
-      'priceListFixedPricesDelete',
-      'delete variant not found',
-      deleteDocument,
-      {
-        priceListId,
-        variantIds: [missingVariantId],
-      },
-      productId,
-    ),
-    deletePriceNotFixed: await captureCase(
-      'priceListFixedPricesDelete',
-      'delete price not fixed',
-      deleteDocument,
-      {
-        priceListId,
-        variantIds: [variantId],
-      },
-      productId,
-    ),
+    deleteVariantNotFound: await captureCase('priceListFixedPricesDelete', 'delete variant not found', deleteDocument, {
+      priceListId,
+      variantIds: [missingVariantId],
+    }),
+    deletePriceNotFixed: await captureCase('priceListFixedPricesDelete', 'delete price not fixed', deleteDocument, {
+      priceListId,
+      variantIds: [variantId],
+    }),
   };
 
   finalCleanup = await cleanupFixedPrice('final cleanup variant fixed price', priceListId, variantId);
@@ -435,6 +413,8 @@ try {
       productTitle,
       variantId,
       variantTitle,
+      secondVariantId,
+      secondVariantTitle,
       missingPriceListId,
       missingVariantId,
       mismatchCurrency,

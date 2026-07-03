@@ -80,5 +80,5 @@
       }
     ]
   },
-  "notes": "Live Admin GraphQL 2026-04 capture proves shopLocaleEnable, shopLocaleUpdate, and shopLocaleDisable reject primary-locale mutation attempts with coded ShopLocale userErrors. The shopLocaleUpdate primary guard covers both published:false and published:true, and shopLocaleUpdate distinguishes a missing locale with its own code even when marketWebPresenceIds are supplied."
+  "notes": "Live Admin GraphQL 2026-04 capture proves shopLocaleEnable, shopLocaleUpdate, and shopLocaleDisable reject primary-locale mutation attempts with plain UserError field/message payloads. The shopLocaleUpdate primary guard covers both published:false and published:true, and shopLocaleUpdate distinguishes a missing locale by message even when marketWebPresenceIds are supplied. The localization-shop-locale-usererror-no-code scenario covers the sibling schema-validation behavior for clients that select userErrors.code."
 }

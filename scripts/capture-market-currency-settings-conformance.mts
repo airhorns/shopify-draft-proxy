@@ -129,9 +129,10 @@ async function captureCase<TData>(
   name: string,
   query: string,
   variables: Record<string, unknown>,
+  options: { allowTopLevelErrors?: boolean } = {},
 ): Promise<CapturedCase<TData>> {
   const response = await runGraphqlRequest<TData>(query, variables);
-  if (response.status < 200 || response.status >= 300 || response.payload.errors) {
+  if (response.status < 200 || response.status >= 300 || (!options.allowTopLevelErrors && response.payload.errors)) {
     throw new Error(`${name} failed: ${JSON.stringify(response.payload)}`);
   }
 
@@ -198,6 +199,47 @@ function assertBaseCurrencyName(capture: CapturedCase<MarketCreateData>, code: s
       `Expected base currency ${code} / ${expected}, got ${JSON.stringify(baseCurrency)} in ${JSON.stringify(
         capture.response.payload,
       )}`,
+    );
+  }
+}
+
+function assertBaseCurrencyCode(capture: CapturedCase<MarketCreateData>, code: string): void {
+  const baseCurrency = marketCreate(capture)?.market?.currencySettings?.baseCurrency;
+  if (baseCurrency?.currencyCode !== code) {
+    throw new Error(`Expected base currency code ${code}, got ${JSON.stringify(baseCurrency)}`);
+  }
+}
+
+function assertInvalidCurrencyCoercion(capture: CapturedCase<MarketCreateData>, code: string): void {
+  const errors = capture.response.payload.errors;
+  if (!Array.isArray(errors)) {
+    throw new Error(
+      `Expected top-level INVALID_VARIABLE errors for ${code}: ${JSON.stringify(capture.response.payload)}`,
+    );
+  }
+  const found = errors.some((error) => {
+    if (typeof error !== 'object' || error === null || Array.isArray(error)) return false;
+    const extensions = (error as Record<string, unknown>)['extensions'];
+    if (typeof extensions !== 'object' || extensions === null || Array.isArray(extensions)) return false;
+    const problems = (extensions as Record<string, unknown>)['problems'];
+    return (
+      (extensions as Record<string, unknown>)['code'] === 'INVALID_VARIABLE' &&
+      Array.isArray(problems) &&
+      problems.some((problem) => {
+        if (typeof problem !== 'object' || problem === null || Array.isArray(problem)) return false;
+        return (
+          JSON.stringify((problem as Record<string, unknown>)['path']) ===
+          JSON.stringify(['currencySettings', 'baseCurrency'])
+        );
+      })
+    );
+  });
+  if (!found) {
+    throw new Error(`Expected CurrencyCode coercion error for ${code}: ${JSON.stringify(capture.response.payload)}`);
+  }
+  if (marketId(capture)) {
+    throw new Error(
+      `Invalid currency ${code} unexpectedly created a market: ${JSON.stringify(capture.response.payload)}`,
     );
   }
 }
@@ -286,6 +328,40 @@ try {
       id: euroCurrencyId,
     }),
   );
+
+  const xafCurrencyCreate = await captureCase<MarketCreateData>('marketCreateXafCurrency', marketCreateMutation, {
+    input: {
+      name: `Draft Proxy Currency Settings ${stamp} XAF`,
+      currencySettings: {
+        baseCurrency: 'XAF',
+      },
+    },
+  });
+  const xafCurrencyId = assertCreatedWithoutErrors(xafCurrencyCreate, 'XAF currency marketCreate');
+  assertBaseCurrencyCode(xafCurrencyCreate, 'XAF');
+  createdIds.push(xafCurrencyId);
+  cases.push(xafCurrencyCreate);
+  cases.push(
+    await captureCase<MarketReadData>('marketReadXafCurrency', marketReadQuery, {
+      id: xafCurrencyId,
+    }),
+  );
+
+  const unknownCurrencyInvalid = await captureCase<MarketCreateData>(
+    'marketCreateUnknownCurrencyCoercion',
+    marketCreateMutation,
+    {
+      input: {
+        name: `Draft Proxy Currency Settings ${stamp} Unknown`,
+        currencySettings: {
+          baseCurrency: 'ZZZ',
+        },
+      },
+    },
+    { allowTopLevelErrors: true },
+  );
+  assertInvalidCurrencyCoercion(unknownCurrencyInvalid, 'ZZZ');
+  cases.push(unknownCurrencyInvalid);
 } finally {
   for (const id of createdIds.toReversed()) {
     cleanupCases.push(
@@ -317,6 +393,9 @@ await writeFile(
 const manualRateErrors = userErrors(cases[4] as CapturedCase<MarketCreateData>);
 const euroBaseCurrency = marketCreate(cases[5] as CapturedCase<MarketCreateData>)?.market?.currencySettings
   ?.baseCurrency;
+const xafBaseCurrency = marketCreate(cases[7] as CapturedCase<MarketCreateData>)?.market?.currencySettings
+  ?.baseCurrency;
+const invalidCurrencyErrors = (cases[9] as CapturedCase<MarketCreateData>).response.payload.errors;
 console.log(
   JSON.stringify(
     {
@@ -328,6 +407,8 @@ console.log(
       cleanedUpMarkets: cleanupCases.length,
       manualRateErrors,
       euroBaseCurrency,
+      xafBaseCurrency,
+      invalidCurrencyErrors,
     },
     null,
     2,

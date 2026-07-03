@@ -1,40 +1,103 @@
 {
   "scenarioId": "localization-translations-market-scoped",
-  "operationNames": ["translationsRegister", "translationsRemove", "translatableResource", "markets"],
+  "operationNames": [
+    "productCreate",
+    "shopLocaleEnable",
+    "translationsRegister",
+    "translationsRemove",
+    "translatableResource",
+    "markets"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "mutation-lifecycle"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translations-market-scoped.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/localization_mutation_test.gleam"],
-  "proxyRequest": {
-    "documentPath": "config/parity-requests/localization/localization-translations-market-scoped-read.graphql",
-    "variablesCapturePath": "$.marketScopedTranslationLifecycle.readRequest.variables"
-  },
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
+        "name": "setup-enable-spanish-locale",
+        "capturePath": "$.setup.localeSetup.response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable.graphql",
+          "apiVersion": "2026-04",
+          "variables": { "locale": "es" }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.shopLocale",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The live shop may already have Spanish enabled, while parity replay enables it on a clean proxy so translationsRegister locale validation reaches the market-scoped branches."
+          },
+          {
+            "path": "$.userErrors",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The setup branch is environment-dependent and is not the behavior under test; market-scoped translation targets below are strict."
+          }
+        ]
+      },
+      {
+        "name": "setup-product-create",
+        "capturePath": "$.setup.productCreate.response.data.productCreate",
+        "proxyPath": "$.data.productCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-known-resource-product-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.setup.productCreate.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy allocates a synthetic product GID while Shopify returns a real disposable product GID."
+          }
+        ]
+      },
+      {
         "name": "translation-market-initial-read-data",
         "capturePath": "$.marketScopedTranslationLifecycle.readBeforeRegister.data.translatableResource",
         "proxyPath": "$.data.translatableResource",
-        "upstreamCapturePath": null,
-        "selectedPaths": ["$.resourceId", "$.translations"]
-      },
-      {
-        "name": "translation-market-source-backed-markets-read",
-        "capturePath": "$.marketScopedTranslationLifecycle.readBeforeRegister.data.markets",
-        "proxyPath": "$.data.markets",
-        "upstreamCapturePath": null,
-        "selectedPaths": ["$.nodes"]
+        "selectedPaths": ["$.resourceId", "$.translations"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-market-scoped-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "marketId": { "fromCapturePath": "$.marketScopedTranslationLifecycle.marketId" },
+            "resourceIds": [
+              {
+                "fromProxyResponse": "setup-product-create",
+                "path": "$.data.productCreate.product.id"
+              },
+              { "fromCapturePath": "$.marketScopedTranslationLifecycle.packingSlipResourceId" }
+            ],
+            "marketsFirst": {
+              "fromCapturePath": "$.marketScopedTranslationLifecycle.readRequest.variables.marketsFirst"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.resourceId",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy reads the staged synthetic product GID while Shopify reads the real disposable product GID."
+          }
+        ]
       },
       {
         "name": "translation-market-register-data",
         "capturePath": "$.marketScopedTranslationLifecycle.register.data.translationsRegister",
         "proxyPath": "$.data.translationsRegister",
-        "upstreamCapturePath": null,
         "selectedPaths": [
           "$.translations[0].key",
           "$.translations[0].value",
@@ -50,39 +113,70 @@
         ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
-          "variablesCapturePath": "$.marketScopedTranslationLifecycle.registerRequest.variables"
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "translations": {
+              "fromCapturePath": "$.marketScopedTranslationLifecycle.registerRequest.variables.translations"
+            }
+          }
         }
       },
       {
         "name": "translation-market-unknown-market-register-data",
         "capturePath": "$.marketScopedTranslationLifecycle.unknownMarketRegister.data.translationsRegister",
         "proxyPath": "$.data.translationsRegister",
-        "upstreamCapturePath": null,
         "selectedPaths": ["$.translations", "$.userErrors"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
-          "variablesCapturePath": "$.marketScopedTranslationLifecycle.unknownMarketRegisterRequest.variables"
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "translations": {
+              "fromCapturePath": "$.marketScopedTranslationLifecycle.unknownMarketRegisterRequest.variables.translations"
+            }
+          }
         }
       },
       {
         "name": "translation-market-unknown-market-remove-data",
         "capturePath": "$.marketScopedTranslationLifecycle.unknownMarketRemove.data.translationsRemove",
         "proxyPath": "$.data.translationsRemove",
-        "upstreamCapturePath": null,
         "selectedPaths": ["$.translations", "$.userErrors"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/localization/localization-translations-market-scoped-remove.graphql",
-          "variablesCapturePath": "$.marketScopedTranslationLifecycle.unknownMarketRemoveRequest.variables"
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "keys": {
+              "fromCapturePath": "$.marketScopedTranslationLifecycle.unknownMarketRemoveRequest.variables.keys"
+            },
+            "locales": {
+              "fromCapturePath": "$.marketScopedTranslationLifecycle.unknownMarketRemoveRequest.variables.locales"
+            },
+            "marketIds": {
+              "fromCapturePath": "$.marketScopedTranslationLifecycle.unknownMarketRemoveRequest.variables.marketIds"
+            }
+          }
         }
       },
       {
         "name": "translation-market-non-customizable-register-data",
         "capturePath": "$.marketScopedTranslationLifecycle.nonCustomizableRegister.data.translationsRegister",
         "proxyPath": "$.data.translationsRegister",
-        "upstreamCapturePath": null,
         "selectedPaths": ["$.translations", "$.userErrors"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
           "variablesCapturePath": "$.marketScopedTranslationLifecycle.nonCustomizableRegisterRequest.variables"
         }
       },
@@ -90,7 +184,6 @@
         "name": "translation-market-downstream-registered-data",
         "capturePath": "$.marketScopedTranslationLifecycle.readAfterRegister.data.translatableResource",
         "proxyPath": "$.data.translatableResource",
-        "upstreamCapturePath": null,
         "selectedPaths": [
           "$.resourceId",
           "$.translations[0].key",
@@ -101,14 +194,37 @@
         ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/localization/localization-translations-market-scoped-read.graphql",
-          "variablesCapturePath": "$.marketScopedTranslationLifecycle.readRequest.variables"
-        }
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "marketId": { "fromCapturePath": "$.marketScopedTranslationLifecycle.marketId" },
+            "resourceIds": [
+              {
+                "fromProxyResponse": "setup-product-create",
+                "path": "$.data.productCreate.product.id"
+              },
+              { "fromCapturePath": "$.marketScopedTranslationLifecycle.packingSlipResourceId" }
+            ],
+            "marketsFirst": {
+              "fromCapturePath": "$.marketScopedTranslationLifecycle.readRequest.variables.marketsFirst"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.resourceId",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy reads the staged synthetic product GID while Shopify reads the real disposable product GID."
+          }
+        ]
       },
       {
         "name": "translation-market-remove-data",
         "capturePath": "$.marketScopedTranslationLifecycle.remove.data.translationsRemove",
         "proxyPath": "$.data.translationsRemove",
-        "upstreamCapturePath": null,
         "selectedPaths": [
           "$.translations[0].key",
           "$.translations[0].value",
@@ -124,21 +240,53 @@
         ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/localization/localization-translations-market-scoped-remove.graphql",
-          "variablesCapturePath": "$.marketScopedTranslationLifecycle.removeRequest.variables"
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "keys": { "fromCapturePath": "$.marketScopedTranslationLifecycle.removeRequest.variables.keys" },
+            "locales": { "fromCapturePath": "$.marketScopedTranslationLifecycle.removeRequest.variables.locales" },
+            "marketIds": { "fromCapturePath": "$.marketScopedTranslationLifecycle.removeRequest.variables.marketIds" }
+          }
         }
       },
       {
         "name": "translation-market-downstream-removed-data",
         "capturePath": "$.marketScopedTranslationLifecycle.readAfterRemove.data.translatableResource",
         "proxyPath": "$.data.translatableResource",
-        "upstreamCapturePath": null,
         "selectedPaths": ["$.resourceId", "$.translations"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/localization/localization-translations-market-scoped-read.graphql",
-          "variablesCapturePath": "$.marketScopedTranslationLifecycle.readRequest.variables"
-        }
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "marketId": { "fromCapturePath": "$.marketScopedTranslationLifecycle.marketId" },
+            "resourceIds": [
+              {
+                "fromProxyResponse": "setup-product-create",
+                "path": "$.data.productCreate.product.id"
+              },
+              { "fromCapturePath": "$.marketScopedTranslationLifecycle.packingSlipResourceId" }
+            ],
+            "marketsFirst": {
+              "fromCapturePath": "$.marketScopedTranslationLifecycle.readRequest.variables.marketsFirst"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.resourceId",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy reads the staged synthetic product GID while Shopify reads the real disposable product GID."
+          }
+        ]
       }
     ]
   },
-  "notes": "Live Admin GraphQL 2026-04 capture creates a disposable product, enables the Spanish shop locale when needed, uses an existing market, proves translationsRegister rejects a fabricated market GID with MARKET_DOES_NOT_EXIST, proves translationsRemove with a fabricated market GID silently no-ops, proves PackingSlipTemplate body rejects market-custom content with RESOURCE_NOT_MARKET_CUSTOMIZABLE, registers market-scoped product title and product_type translations, reads them back through translatableResource(...).translations(locale:, marketId:), removes both requested key x locale x market combinations in one translationsRemove(marketIds:) call, and verifies the market-scoped downstream read is empty after cleanup."
+  "notes": "Live Admin GraphQL 2026-04 capture creates a disposable product, records a real Spanish shopLocaleEnable setup response, uses an existing market hydrated through upstreamCalls, proves translationsRegister rejects a non-sentinel fabricated market GID with MARKET_DOES_NOT_EXIST, proves translationsRemove with the fabricated market GID silently no-ops, proves PackingSlipTemplate body rejects market-custom content with RESOURCE_NOT_MARKET_CUSTOMIZABLE, registers market-scoped product title and product_type translations, reads them back through translatableResource(...).translations(locale:, marketId:), removes both requested key x locale x market combinations in one translationsRemove(marketIds:) call, and verifies the market-scoped downstream read is empty after cleanup. Proxy replay earns product and locale state through public GraphQL setup requests rather than hidden state seeding."
 }

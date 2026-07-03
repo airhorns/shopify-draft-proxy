@@ -1,0 +1,57 @@
+{
+  "scenarioId": "media-file-update-missing-id-coercion",
+  "operationNames": ["fileUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["schema-coercion", "payload-shape", "user-errors-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/file-update-missing-id-coercion.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/file_update_missing_id_coercion.graphql",
+    "variablesCapturePath": "$.cases.omittedId.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured public Admin GraphQL 2026-04 fileUpdate input coercion for omitted FileUpdateInput.id. Variable-supplied omitted ids return top-level INVALID_VARIABLE errors, inline omitted ids return missingRequiredInputObjectAttribute, and a supplied but unknown id remains a resolver-level FILE_DOES_NOT_EXIST userError.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "omitted-id-variable-coercion-envelope",
+        "capturePath": "$.cases.omittedId.response.payload",
+        "proxyPath": "$"
+      },
+      {
+        "name": "batch-omitted-id-variable-coercion-envelope",
+        "capturePath": "$.cases.batchOmittedId.response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/file_update_missing_id_coercion.graphql",
+          "variablesCapturePath": "$.cases.batchOmittedId.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "inline-omitted-id-coercion-envelope",
+        "capturePath": "$.cases.inlineOmittedId.response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/file_update_missing_id_coercion_inline.graphql",
+          "variablesCapturePath": "$.cases.inlineOmittedId.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "supplied-missing-id-still-user-error",
+        "capturePath": "$.cases.suppliedMissingId.response.payload.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/file_update_missing_id_coercion.graphql",
+          "variablesCapturePath": "$.cases.suppliedMissingId.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

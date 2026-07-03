@@ -35,6 +35,7 @@
         "selectedPaths": [
           "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.__typename",
           "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.title",
+          "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.summary",
           "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.asyncUsageCount",
           "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.discountClasses",
           "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.combinesWith",
@@ -52,6 +53,7 @@
         "selectedPaths": [
           "$.discountCodeBasicUpdate.codeDiscountNode.codeDiscount.__typename",
           "$.discountCodeBasicUpdate.codeDiscountNode.codeDiscount.title",
+          "$.discountCodeBasicUpdate.codeDiscountNode.codeDiscount.summary",
           "$.discountCodeBasicUpdate.codeDiscountNode.codeDiscount.asyncUsageCount",
           "$.discountCodeBasicUpdate.codeDiscountNode.codeDiscount.discountClasses",
           "$.discountCodeBasicUpdate.codeDiscountNode.codeDiscount.combinesWith",
@@ -239,5 +241,5 @@
       }
     ]
   },
-  "notes": "Promoted from captured-fixture to executable proxy comparison for 2026-04 native DiscountCodeBasic create, successful update to fixed amount, generic node(id:) readback after update, deactivate, activate, delete cleanup, and downstream reads after each transition. The code-basic fixture was re-recorded with Shopify's current `discountAmount` input field. Targets compare deterministic lifecycle fields and read-after-write state while leaving live IDs, timestamps, money currency defaults, generated summaries, and opaque cursors out of the contract."
+  "notes": "Promoted from captured-fixture to executable proxy comparison for 2026-04 native DiscountCodeBasic create, successful update to fixed amount, generic node(id:) readback after update, deactivate, activate, delete cleanup, and downstream reads after each transition. The code-basic fixture was re-recorded with Shopify's current `discountAmount` input field. Targets compare deterministic lifecycle fields, including Shopify's computed summary strings, and read-after-write state while leaving live IDs, timestamps, money currency defaults, and opaque cursors out of the contract."
 }

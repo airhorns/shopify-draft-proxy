@@ -28,21 +28,27 @@ pub(in crate::proxy) fn resource_id_tail(id: &str) -> &str {
         .unwrap_or_default()
 }
 
+pub(in crate::proxy) fn shopify_gid_tail_for_type<'a>(
+    id: &'a str,
+    resource_type: &str,
+) -> Option<&'a str> {
+    let rest = id.strip_prefix("gid://shopify/")?;
+    let (candidate_type, tail) = rest.split_once('/')?;
+    (candidate_type == resource_type && !tail.is_empty()).then_some(tail)
+}
+
+pub(in crate::proxy) fn is_shopify_gid_of_type(id: &str, resource_type: &str) -> bool {
+    shopify_gid_tail_for_type(id, resource_type).is_some()
+}
+
 pub(in crate::proxy) fn shopify_gid_resource_type(id: &str) -> Option<&str> {
     let rest = id.strip_prefix("gid://shopify/")?;
     let (resource_type, resource_id) = rest.split_once('/')?;
     (!resource_type.is_empty() && !resource_id.is_empty()).then_some(resource_type)
 }
 
-pub(in crate::proxy) fn metafield_owner_gid_resource_type(id: &str) -> &'static str {
-    match shopify_gid_resource_type(id) {
-        Some("ProductVariant") => "ProductVariant",
-        Some("Collection") => "Collection",
-        Some("Customer") => "Customer",
-        Some("Order") => "Order",
-        Some("Company") => "Company",
-        _ => "Product",
-    }
+pub(in crate::proxy) fn metafield_owner_gid_resource_type(id: &str) -> String {
+    shopify_gid_resource_type(id).unwrap_or(id).to_string()
 }
 
 impl DraftProxy {
@@ -53,7 +59,7 @@ impl DraftProxy {
     }
 
     /// Mint a plain `gid://shopify/<type>/<id>` without the proxy-synthetic
-    /// marker, mirroring Gleam `synthetic_identity.make_synthetic_gid`. Used for
+    /// marker. Used for
     /// entities (e.g. media files) the proxy fabricates with stable identifiers
     /// rather than commit-rewritten placeholders.
     pub(in crate::proxy) fn next_synthetic_gid(&mut self, resource_type: &str) -> String {
@@ -62,11 +68,7 @@ impl DraftProxy {
         shopify_gid(resource_type, id)
     }
 
-    /// Reserve a synthetic id for a mutation-log entry, mirroring the
-    /// `make_synthetic_gid(_, "MutationLogEntry")` reservation Gleam performs at
-    /// the start of every successful mutation. This keeps entity ids in lockstep
-    /// with the reference implementation (each mutation advances the counter once
-    /// for its log entry before allocating the resources it creates).
+    /// Reserve a synthetic id for a mutation-log entry at the start of every successful mutation. This keeps entity ids in lockstep with the current synthetic-id contract: each mutation advances the counter once for its log entry before allocating the resources it creates.
     pub(in crate::proxy) fn reserve_synthetic_log_id(&mut self) {
         self.next_synthetic_id += 1;
     }
@@ -100,6 +102,29 @@ mod tests {
     }
 
     #[test]
+    fn extracts_type_checked_shopify_gid_tails() {
+        assert_eq!(
+            shopify_gid_tail_for_type("gid://shopify/Product/42", "Product"),
+            Some("42")
+        );
+        assert_eq!(
+            shopify_gid_tail_for_type(
+                "gid://shopify/Product/42?shopify-draft-proxy=synthetic",
+                "Product"
+            ),
+            Some("42?shopify-draft-proxy=synthetic")
+        );
+        assert_eq!(
+            shopify_gid_tail_for_type("gid://shopify/Product/42", "Customer"),
+            None
+        );
+        assert!(is_shopify_gid_of_type(
+            "gid://shopify/Product/42",
+            "Product"
+        ));
+    }
+
+    #[test]
     fn extracts_shopify_gid_resource_types_only_for_complete_shopify_gids() {
         assert_eq!(
             shopify_gid_resource_type("gid://shopify/Customer/123"),
@@ -123,7 +148,7 @@ mod tests {
     }
 
     #[test]
-    fn maps_known_metafield_owner_gid_types_with_product_default() {
+    fn maps_metafield_owner_gid_types_without_collapsing_unknown_resource_types() {
         assert_eq!(
             metafield_owner_gid_resource_type("gid://shopify/ProductVariant/1"),
             "ProductVariant"
@@ -134,8 +159,8 @@ mod tests {
         );
         assert_eq!(
             metafield_owner_gid_resource_type("gid://shopify/Unknown/1"),
-            "Product"
+            "Unknown"
         );
-        assert_eq!(metafield_owner_gid_resource_type("not-a-gid"), "Product");
+        assert_eq!(metafield_owner_gid_resource_type("not-a-gid"), "not-a-gid");
     }
 }
