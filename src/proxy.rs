@@ -263,6 +263,7 @@ type MetafieldDefinitionKey = (String, String, String);
 struct StagedState {
     products: StagedRecords<ProductRecord>,
     product_variants: StagedRecords<ProductVariantRecord>,
+    product_feeds: StagedRecords<Value>,
     selling_plan_groups: StagedRecords<SellingPlanGroupRecord>,
     saved_searches: StagedRecords<SavedSearchRecord>,
     shop_policies: StagedRecords<ShopPolicyRecord>,
@@ -725,6 +726,7 @@ impl Default for StagedState {
         Self {
             products: StagedRecords::default(),
             product_variants: StagedRecords::default(),
+            product_feeds: StagedRecords::default(),
             selling_plan_groups: StagedRecords::default(),
             saved_searches: StagedRecords::default(),
             shop_policies: StagedRecords::default(),
@@ -1237,6 +1239,32 @@ impl Store {
 
     fn has_collection_state(&self) -> bool {
         !self.staged.collections.is_empty() || !self.staged.collection_jobs.is_empty()
+    }
+
+    fn product_feed_by_id(&self, id: &str) -> Option<&Value> {
+        self.staged.product_feeds.get(id)
+    }
+
+    fn product_feeds(&self) -> Vec<Value> {
+        self.staged.product_feeds.values().cloned().collect()
+    }
+
+    fn has_product_feed_state(&self) -> bool {
+        !self.staged.product_feeds.is_empty()
+    }
+
+    fn product_feed_is_tombstoned(&self, id: &str) -> bool {
+        self.staged.product_feeds.is_tombstoned(id)
+    }
+
+    fn stage_product_feed(&mut self, feed: Value) {
+        if let Some(id) = feed.get("id").and_then(Value::as_str) {
+            self.staged.product_feeds.stage(id.to_string(), feed);
+        }
+    }
+
+    fn delete_product_feed(&mut self, id: &str) -> bool {
+        self.staged.product_feeds.tombstone_staged(id)
     }
 
     fn has_product(&self, id: &str) -> bool {
