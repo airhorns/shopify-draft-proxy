@@ -11076,6 +11076,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'webhooks',
+    captureId: 'webhook-subscription-pubsub-both-invalid',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-pubsub-both-invalid.ts',
+    purpose:
+      'Dedicated Pub/Sub webhook subscription create/update userErrors when pubSubProject and pubSubTopic are both invalid.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-pubsub-both-invalid.json`,
+      'config/parity-specs/webhooks/webhook-subscription-pubsub-both-invalid.json',
+    ],
+    cleanupBehavior:
+      'Records a rejected create branch, creates one temporary valid Pub/Sub subscription as the update target, records a rejected update branch, then deletes the temporary subscription.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Records that dedicated Pub/Sub roots accumulate project and topic validation userErrors in project-before-topic order.',
+  },
+  {
+    domain: 'webhooks',
     captureId: 'webhook-subscription-pub-sub-required-fields',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-pub-sub-required-fields-conformance.ts',

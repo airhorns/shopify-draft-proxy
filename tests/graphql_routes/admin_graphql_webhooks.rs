@@ -2205,6 +2205,37 @@ fn pubsub_gcp_project_and_topic_char_rules_match_shopify() {
         })
     );
 
+    let dedicated_create_both_invalid = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        mutation {
+          pubSubWebhookSubscriptionCreate(
+            topic: SHOP_UPDATE
+            webhookSubscription: { pubSubProject: "-bad", pubSubTopic: "1topic" }
+          ) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(dedicated_create_both_invalid.status, 200);
+    assert_eq!(
+        dedicated_create_both_invalid.body["data"]["pubSubWebhookSubscriptionCreate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [
+                {
+                    "field": ["webhookSubscription", "pubSubProject"],
+                    "message": "Google Cloud Pub/Sub project ID is not valid"
+                },
+                {
+                    "field": ["webhookSubscription", "pubSubTopic"],
+                    "message": "Google Cloud Pub/Sub topic ID is not valid"
+                }
+            ]
+        })
+    );
+
     let unified_percent_topic = proxy.process_request(json_graphql_request(
         r#"# RustWebhookLocalRuntime
         mutation {
@@ -2245,6 +2276,37 @@ fn pubsub_gcp_project_and_topic_char_rules_match_shopify() {
         })
     );
 
+    let unified_create_both_invalid = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        mutation {
+          webhookSubscriptionCreate(
+            topic: SHOP_UPDATE
+            webhookSubscription: { uri: "pubsub://-bad:1topic", format: JSON }
+          ) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(unified_create_both_invalid.status, 200);
+    assert_eq!(
+        unified_create_both_invalid.body["data"]["webhookSubscriptionCreate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [
+                {
+                    "field": ["webhookSubscription", "callbackUrl"],
+                    "message": "Address is invalid"
+                },
+                {
+                    "field": ["webhookSubscription", "callbackUrl"],
+                    "message": "Address is not a valid GCP project id."
+                }
+            ]
+        })
+    );
+
     let dedicated_update_percent_topic = proxy.process_request(json_graphql_request(
         r#"# RustWebhookLocalRuntime
         mutation($id: ID!) {
@@ -2278,6 +2340,37 @@ fn pubsub_gcp_project_and_topic_char_rules_match_shopify() {
             "__typename": "WebhookPubSubEndpoint",
             "pubSubProject": "123456789012",
             "pubSubTopic": "next%25topic"
+        })
+    );
+
+    let dedicated_update_both_invalid = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        mutation($id: ID!) {
+          pubSubWebhookSubscriptionUpdate(
+            id: $id
+            webhookSubscription: { pubSubProject: "-bad", pubSubTopic: "1topic" }
+          ) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "id": dedicated_id }),
+    ));
+    assert_eq!(dedicated_update_both_invalid.status, 200);
+    assert_eq!(
+        dedicated_update_both_invalid.body["data"]["pubSubWebhookSubscriptionUpdate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [
+                {
+                    "field": ["webhookSubscription", "pubSubProject"],
+                    "message": "Google Cloud Pub/Sub project ID is not valid"
+                },
+                {
+                    "field": ["webhookSubscription", "pubSubTopic"],
+                    "message": "Google Cloud Pub/Sub topic ID is not valid"
+                }
+            ]
         })
     );
 
