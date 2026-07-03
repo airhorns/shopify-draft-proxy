@@ -2361,6 +2361,146 @@ fn market_web_presence_current_runtime_helpers_stage_and_validate() {
 }
 
 #[test]
+fn market_web_presence_delete_only_blocks_primary_domain_host() {
+    let create_query = r#"
+        mutation RustMarketWebPresenceDeleteDomainGuardCreate($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence {
+              id
+              subfolderSuffix
+              domain { id host }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let delete_query = r#"
+        mutation RustMarketWebPresenceDeleteDomainGuardDelete($id: ID!) {
+          webPresenceDelete(id: $id) {
+            deletedId
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let read_query = r#"
+        query RustMarketWebPresenceDeleteDomainGuardRead {
+          webPresences(first: 10) {
+            nodes { id domain { host } subfolderSuffix }
+          }
+        }
+    "#;
+
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    restored["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/web-presence-delete-domain-guard",
+        "myshopifyDomain": "guard-shop.myshopify.com",
+        "primaryDomain": {
+            "id": "gid://shopify/Domain/2001",
+            "host": "primary.example.com",
+            "url": "https://primary.example.com",
+            "sslEnabled": true
+        },
+        "domains": [
+            {
+                "id": "gid://shopify/Domain/2002",
+                "host": "secondary.example.com",
+                "url": "https://secondary.example.com",
+                "sslEnabled": true
+            }
+        ]
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let primary = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "en", "domainId": "gid://shopify/Domain/2001"}}),
+    ));
+    assert_eq!(
+        primary.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    let primary_id = primary.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let secondary = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "en", "domainId": "gid://shopify/Domain/2002"}}),
+    ));
+    assert_eq!(
+        secondary.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    let secondary_id = secondary.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let subfolder = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"defaultLocale": "en", "subfolderSuffix": "fallback"}}),
+    ));
+    assert_eq!(
+        subfolder.body["data"]["webPresenceCreate"]["userErrors"],
+        json!([])
+    );
+    let subfolder_id = subfolder.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let blocked_primary = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({"id": primary_id}),
+    ));
+    assert_eq!(
+        blocked_primary.body["data"]["webPresenceDelete"],
+        json!({
+            "deletedId": null,
+            "userErrors": [{
+                "__typename": "MarketUserError",
+                "field": ["id"],
+                "message": "The shop must have a web presence that uses the primary domain.",
+                "code": "SHOP_MUST_HAVE_PRIMARY_DOMAIN_WEB_PRESENCE"
+            }]
+        })
+    );
+
+    let deleted_secondary = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({"id": secondary_id}),
+    ));
+    assert_eq!(
+        deleted_secondary.body["data"]["webPresenceDelete"],
+        json!({"deletedId": secondary_id, "userErrors": []})
+    );
+
+    let deleted_subfolder = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({"id": subfolder_id}),
+    ));
+    assert_eq!(
+        deleted_subfolder.body["data"]["webPresenceDelete"],
+        json!({"deletedId": subfolder_id, "userErrors": []})
+    );
+
+    let read = proxy.process_request(json_graphql_request(read_query, json!({})));
+    assert_eq!(
+        read.body["data"]["webPresences"]["nodes"],
+        json!([{ "id": primary_id, "domain": { "host": "primary.example.com" }, "subfolderSuffix": null }])
+    );
+}
+
+#[test]
 fn market_web_presence_locale_catalog_accepts_supported_languages_beyond_legacy_allowlist() {
     let create_query = r#"
         mutation RustMarketWebPresenceLocaleCatalogCreate($input: WebPresenceCreateInput!) {

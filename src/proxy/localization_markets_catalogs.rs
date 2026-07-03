@@ -2529,8 +2529,7 @@ impl DraftProxy {
 
     /// Stage a `webPresenceDelete`. Shopify rejects deleting a presence that does
     /// not exist (`WEB_PRESENCE_NOT_FOUND`) and refuses to delete the presence that
-    /// serves the shop's primary domain (`SHOP_MUST_HAVE_PRIMARY_DOMAIN_WEB_PRESENCE`);
-    /// only subfolder presences (which carry a null `domain`) can be removed.
+    /// serves the shop's primary domain (`SHOP_MUST_HAVE_PRIMARY_DOMAIN_WEB_PRESENCE`).
     pub(in crate::proxy) fn web_presence_delete_payload(&mut self, id: &str) -> Value {
         let Some(record) = self.store.staged.web_presences.get(id) else {
             return json!({
@@ -2538,7 +2537,7 @@ impl DraftProxy {
                 "userErrors": [market_user_error(vec!["id"], "The market web presence wasn't found.", json!("WEB_PRESENCE_NOT_FOUND"))]
             });
         };
-        if record.get("domain").is_some_and(|domain| !domain.is_null()) {
+        if web_presence_targets_shop_primary_host(&self.store, record) {
             return json!({
                 "deletedId": null,
                 "userErrors": [market_user_error(vec!["id"], "The shop must have a web presence that uses the primary domain.", json!("SHOP_MUST_HAVE_PRIMARY_DOMAIN_WEB_PRESENCE"))]
@@ -3626,7 +3625,8 @@ impl DraftProxy {
         // Shop record (primaryDomain etc.) for web-presence reads.
         if let Some(shop) = data.get("shop").filter(|shop| shop.is_object()) {
             if shop.get("id").and_then(Value::as_str).is_some() {
-                shallow_merge_object(&mut self.store.base.shop, shop.clone());
+                self.store.base.shop =
+                    shallow_merged_object(self.store.base.shop.clone(), shop.clone());
             }
         }
         let hydrate_nodes = data
@@ -4330,6 +4330,58 @@ fn observed_web_presence_shop_domain(store: &Store) -> Option<String> {
         }
     }
     fallback
+}
+
+fn web_presence_targets_shop_primary_host(store: &Store, record: &Value) -> bool {
+    let Some(target_host) = record
+        .get("domain")
+        .and_then(web_presence_domain_normalized_host)
+    else {
+        return false;
+    };
+    web_presence_primary_domain_host(store).as_deref() == Some(target_host.as_str())
+}
+
+fn web_presence_primary_domain_host(store: &Store) -> Option<String> {
+    let shop = store.effective_shop();
+    shop.get("primaryDomain")
+        .and_then(web_presence_domain_normalized_host)
+        .or_else(|| {
+            shop.get("myshopifyDomain")
+                .and_then(Value::as_str)
+                .and_then(web_presence_normalized_host)
+        })
+}
+
+fn web_presence_domain_normalized_host(domain: &Value) -> Option<String> {
+    domain
+        .get("host")
+        .and_then(Value::as_str)
+        .and_then(web_presence_normalized_host)
+        .or_else(|| {
+            domain
+                .get("url")
+                .and_then(Value::as_str)
+                .and_then(web_presence_normalized_host)
+        })
+}
+
+fn web_presence_normalized_host(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let without_scheme = trimmed
+        .strip_prefix("https://")
+        .or_else(|| trimmed.strip_prefix("http://"))
+        .unwrap_or(trimmed);
+    without_scheme
+        .split('/')
+        .next()
+        .map(str::trim)
+        .map(|host| host.trim_end_matches('.'))
+        .filter(|host| !host.is_empty())
+        .map(str::to_ascii_lowercase)
 }
 
 fn web_presence_host(url: &str) -> Option<String> {
