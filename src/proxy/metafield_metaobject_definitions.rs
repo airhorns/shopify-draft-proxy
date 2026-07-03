@@ -3,8 +3,11 @@ use crate::graphql::ParsedDocument;
 use serde::Deserialize;
 use std::sync::OnceLock;
 
+// Source: fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-resource-type-limit.json
 const METAFIELD_DEFINITION_RESOURCE_TYPE_LIMIT: usize = 256;
+// Source: fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-pin-limit-and-constraint-guard.json
 const PINNED_DEFINITION_LIMIT: usize = 20;
+// Source: fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-capability-eligibility.json
 const ADMIN_FILTERABLE_DEFINITION_LIMIT: usize = 50;
 const STANDARD_TEMPLATE_MARKER_FIELD: &str = "__shopifyDraftProxyStandardTemplateId";
 const RESERVED_NAMESPACE_ORPHANED_METAFIELDS_MESSAGE: &str =
@@ -16,7 +19,7 @@ fn pinned_definition_limit_message() -> String {
 
 fn metafield_definition_resource_type_limit_message() -> String {
     format!(
-        "You can only have {METAFIELD_DEFINITION_RESOURCE_TYPE_LIMIT} definitions per resource type."
+        "Stores can only have {METAFIELD_DEFINITION_RESOURCE_TYPE_LIMIT} definitions for each store resource."
     )
 }
 
