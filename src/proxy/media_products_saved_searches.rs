@@ -2918,10 +2918,7 @@ impl DraftProxy {
             .product_staged_or_base(id)
             .or_else(|| self.hydrate_product_for_tags(id, request))
         else {
-            return MutationOutcome::response(json_error(
-                400,
-                "No mutation dispatcher implemented for product tags id",
-            ));
+            return tags_not_found_mutation_outcome("Product", id, root_field, field);
         };
 
         let tags = normalized_taggable_tags_argument(field.arguments.get("tags"));
@@ -2998,10 +2995,7 @@ impl DraftProxy {
         let Some(mut record) =
             self.taggable_resource_staged_or_hydrated(resource_type, id, request)
         else {
-            return MutationOutcome::response(json_error(
-                400,
-                "No mutation dispatcher implemented for taggable resource id",
-            ));
+            return tags_not_found_mutation_outcome(resource_type, id, root_field, field);
         };
 
         let existing_tags = taggable_record_tags(&record);
@@ -3360,6 +3354,31 @@ impl DraftProxy {
         }
         errors
     }
+}
+
+fn tags_not_found_mutation_outcome(
+    resource_type: &str,
+    id: &str,
+    root_field: &str,
+    field: &RootFieldSelection,
+) -> MutationOutcome {
+    let payload = json!({
+        "node": Value::Null,
+        "userErrors": [user_error_omit_code(
+            ["id"],
+            &format!("{resource_type} does not exist"),
+            None,
+        )],
+    });
+
+    MutationOutcome::staged(
+        ok_json(json!({
+            "data": {
+                field.response_key.clone(): selected_json(&payload, &field.selection)
+            }
+        })),
+        LogDraft::staged(root_field, "products", vec![id.to_string()]),
+    )
 }
 
 // Resolves the `metafields` input list for a metafieldsSet/metafieldsDelete
