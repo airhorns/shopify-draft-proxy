@@ -7390,12 +7390,60 @@ fn draft_order_complete_replays_resulting_order_and_gateway_paths() {
         json!({"id": unknown_id, "paymentGatewayId": "gid://shopify/PaymentGateway/not-installed", "paymentPending": false}),
     ));
     assert_eq!(
-        unknown_complete.body["data"]["draftOrderComplete"]["draftOrder"],
+        unknown_complete.body["data"]["draftOrderComplete"]["draftOrder"]["id"],
+        unknown_id
+    );
+    assert_eq!(
+        unknown_complete.body["data"]["draftOrderComplete"]["draftOrder"]["status"],
+        json!("OPEN")
+    );
+    assert_eq!(
+        unknown_complete.body["data"]["draftOrderComplete"]["draftOrder"]["order"],
         Value::Null
     );
     assert_eq!(
-        unknown_complete.body["data"]["draftOrderComplete"]["userErrors"][0]["field"],
-        json!(["paymentGatewayId"])
+        unknown_complete.body["data"]["draftOrderComplete"]["userErrors"],
+        json!([{ "field": null, "message": "Invalid payment gateway" }])
+    );
+}
+
+#[test]
+fn draft_order_complete_rejects_user_error_code_selection() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation DraftOrderCompleteUserErrorNoCode($id: ID!) {
+          draftOrderComplete(id: $id, paymentGatewayId: "gid://shopify/PaymentGateway/not-installed") {
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "id": "gid://shopify/DraftOrder/1" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert!(response.body.get("data").is_none());
+    let errors = response.body["errors"].as_array().unwrap();
+    assert_eq!(errors.len(), 1);
+    assert_eq!(
+        errors[0]["message"],
+        json!("Field 'code' doesn't exist on type 'UserError'")
+    );
+    assert_eq!(
+        errors[0]["path"],
+        json!([
+            "mutation DraftOrderCompleteUserErrorNoCode",
+            "draftOrderComplete",
+            "userErrors",
+            "code"
+        ])
+    );
+    assert_eq!(
+        errors[0]["extensions"],
+        json!({
+            "code": "undefinedField",
+            "typeName": "UserError",
+            "fieldName": "code"
+        })
     );
 }
 
@@ -7466,7 +7514,7 @@ fn complete_draft_for_payment_terms_completion_test(
                     }
                   }
                 }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }
             "#,
@@ -7490,7 +7538,7 @@ fn complete_draft_for_payment_terms_completion_test(
                     }
                   }
                 }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }
             "#,
@@ -7721,7 +7769,7 @@ fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
                 }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,

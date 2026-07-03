@@ -6970,6 +6970,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'draft-orders',
+    captureId: 'draft-order-complete-invalid-payment-gateway',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-draft-order-complete-invalid-payment-gateway-conformance.ts',
+    purpose:
+      'Records draftOrderComplete(paymentGatewayId:) with a gateway ID that does not resolve to an enabled manual payment gateway, plus the public schema rejection for selecting code on draftOrderComplete.userErrors.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draft-order-complete-invalid-payment-gateway.json`,
+      'config/parity-specs/orders/draftOrderComplete-invalid-payment-gateway.json',
+      'config/parity-requests/orders/draftOrderComplete-invalid-payment-gateway.graphql',
+      'config/parity-requests/orders/draftOrderComplete-user-error-code-selection.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable ready draft, records rejected completion and schema-validation branches, then deletes the still-open draft in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
     captureId: 'draft-order-complete-payment-terms-pending',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-draft-order-complete-payment-terms-pending-conformance.ts',
@@ -7413,6 +7431,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_draft_orders', 'write_draft_orders', 'read_products'],
     fixtureOutputs: [
       `${LOCAL_RUNTIME_ROOT}draft-order-complete-payment-gateway-paths.json`,
+      'config/parity-specs/orders/draftOrderComplete-paymentGateway-paths.json',
+      'config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-complete.graphql',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-by-id-not-found.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-create-from-order-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-delete-parity.json',
