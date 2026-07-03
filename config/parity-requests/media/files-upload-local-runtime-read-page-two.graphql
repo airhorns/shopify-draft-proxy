@@ -1,5 +1,5 @@
-query FileAcknowledgeUpdateFailedDownstreamRead {
-  files(first: 1, reverse: true) {
+query FilesUploadLocalRuntimeReadPageTwo($after: String!) {
+  files(first: 1, after: $after, reverse: true, sortKey: ID) {
     nodes {
       id
       alt
@@ -11,6 +11,18 @@ query FileAcknowledgeUpdateFailedDownstreamRead {
           width
           height
         }
+        preview {
+          image {
+            url
+          }
+        }
+      }
+    }
+    edges {
+      cursor
+      node {
+        id
+        alt
       }
     }
     pageInfo {

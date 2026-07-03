@@ -6808,6 +6808,98 @@ fn order_payment_transactions_use_order_transaction_state_not_magic_values() {
 }
 
 #[test]
+fn transaction_void_code_flow_preserves_payment_currency_without_order_currency() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/transaction-void-codes-order-create.graphql"
+        ),
+        json!({
+            "order": {
+                "email": "transaction-void-codes@example.com",
+                "test": true,
+                "lineItems": [{
+                    "title": "transaction void code parity",
+                    "quantity": 1,
+                    "priceSet": {
+                        "shopMoney": {
+                            "amount": "25.00",
+                            "currencyCode": "CAD"
+                        }
+                    },
+                    "requiresShipping": false,
+                    "taxable": false
+                }],
+                "transactions": [{
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "test": true,
+                    "amountSet": {
+                        "shopMoney": {
+                            "amount": "25.00",
+                            "currencyCode": "CAD"
+                        }
+                    }
+                }]
+            },
+            "options": null
+        }),
+    ));
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    assert_eq!(
+        create.body["data"]["orderCreate"]["order"]["transactions"][0]["amountSet"]["shopMoney"]
+            ["currencyCode"],
+        json!("CAD")
+    );
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let parent_transaction_id =
+        create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone();
+
+    let capture = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/transaction-void-codes-order-capture.graphql"
+        ),
+        json!({
+            "input": {
+                "id": order_id,
+                "parentTransactionId": parent_transaction_id.clone(),
+                "amount": "25.00",
+                "currency": "CAD"
+            }
+        }),
+    ));
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        capture.body["data"]["orderCapture"]["transaction"]["kind"],
+        json!("CAPTURE")
+    );
+
+    let void = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/payments/transaction-void-codes-transaction-void.graphql"
+        ),
+        json!({ "id": parent_transaction_id }),
+    ));
+    assert_eq!(
+        void.body["data"]["transactionVoid"]["transaction"],
+        Value::Null
+    );
+    assert_eq!(
+        void.body["data"]["transactionVoid"]["userErrors"][0],
+        json!({
+            "field": ["parentTransactionId"],
+            "message": "Parent transaction require a parent_id referring to a voidable transaction",
+            "code": "AUTH_NOT_VOIDABLE"
+        })
+    );
+}
+
+#[test]
 fn order_mark_as_paid_stages_from_stored_order_without_money_selection() {
     let mut proxy = snapshot_proxy();
 
