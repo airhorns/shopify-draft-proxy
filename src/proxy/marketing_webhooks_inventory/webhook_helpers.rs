@@ -591,28 +591,27 @@ impl DraftProxy {
             if pubsub_parts.is_none() || project.is_empty() || topic.is_empty() {
                 errors.push(callback_err("Address protocol pubsub:// is not supported"));
                 errors.push(callback_err("Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic"));
-            } else if !valid_gcp_project_id(project) {
-                if root_field.starts_with("pubSubWebhookSubscription") {
+            } else if root_field.starts_with("pubSubWebhookSubscription") {
+                if !valid_gcp_project_id(project) {
                     errors.push(user_error_omit_code(
                         ["webhookSubscription", "pubSubProject"],
                         "Google Cloud Pub/Sub project ID is not valid",
                         None,
                     ));
-                } else {
-                    errors.push(callback_err("Address is invalid"));
-                    errors.push(callback_err("Address is not a valid GCP project id."));
                 }
-            } else if !valid_gcp_pubsub_topic_id(topic) {
-                if root_field.starts_with("pubSubWebhookSubscription") {
+                if !valid_gcp_pubsub_topic_id(topic) {
                     errors.push(user_error_omit_code(
                         ["webhookSubscription", "pubSubTopic"],
                         "Google Cloud Pub/Sub topic ID is not valid",
                         None,
                     ));
-                } else {
-                    errors.push(callback_err("Address is invalid"));
-                    errors.push(callback_err("Address is not a valid GCP topic id."));
                 }
+            } else if !valid_gcp_project_id(project) {
+                errors.push(callback_err("Address is invalid"));
+                errors.push(callback_err("Address is not a valid GCP project id."));
+            } else if !valid_gcp_pubsub_topic_id(topic) {
+                errors.push(callback_err("Address is invalid"));
+                errors.push(callback_err("Address is not a valid GCP topic id."));
             }
         }
         if uri.starts_with("arn:aws:events:") {
