@@ -1465,6 +1465,19 @@ impl DraftProxy {
     }
 }
 
+fn app_granted_access_scopes(request: &Request) -> Vec<String> {
+    request_header(request, "x-shopify-draft-proxy-access-scopes")
+        .map(|header| {
+            header
+                .split(',')
+                .map(str::trim)
+                .filter(|scope| !scope.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn resource_feedback_scope_is_explicitly_missing(request: &Request) -> bool {
     request_header(request, "x-shopify-draft-proxy-access-scopes").is_some()
         && !app_granted_access_scopes(request)
