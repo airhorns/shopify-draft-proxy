@@ -3100,7 +3100,17 @@ fn bundled_price_list_web_presence_mutations_stage_through_helper_path() {
 
 #[test]
 fn bundled_quantity_rules_delete_checks_staged_price_list_existence() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/quantity-rule-observed".to_string(),
+        title: "Quantity rule observed product".to_string(),
+        handle: "quantity-rule-observed-product".to_string(),
+        variants: vec![json!({
+            "id": "gid://shopify/ProductVariant/49875425296690",
+            "title": "Observed variant",
+            "sku": "OBSERVED"
+        })],
+        ..ProductRecord::default()
+    }]);
 
     let create_price_list = proxy.process_request(json_graphql_request(
         r#"
@@ -3157,6 +3167,47 @@ fn bundled_quantity_rules_delete_checks_staged_price_list_existence() {
         })
     );
 
+    let bundled_unknown_variant = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesDeleteBundledUnknownVariant(
+          $updateId: ID!
+          $updateInput: PriceListUpdateInput!
+          $priceListId: ID!
+          $variantIds: [ID!]!
+        ) {
+          priceListUpdate(id: $updateId, input: $updateInput) {
+            priceList { id name }
+            userErrors { __typename field message code }
+          }
+          quantityRulesDelete(priceListId: $priceListId, variantIds: $variantIds) {
+            deletedQuantityRulesVariantIds
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "updateId": price_list_id,
+            "updateInput": { "name": "Quantity Rule Prices Missing Variant" },
+            "priceListId": price_list_id,
+            "variantIds": [
+                "gid://shopify/ProductVariant/49875425296690",
+                "gid://shopify/ProductVariant/49875425296691"
+            ]
+        }),
+    ));
+    assert_eq!(
+        bundled_unknown_variant.body["data"]["quantityRulesDelete"],
+        json!({
+            "deletedQuantityRulesVariantIds": [],
+            "userErrors": [{
+                "__typename": "QuantityRuleUserError",
+                "field": ["variantIds", "1"],
+                "message": "Product variant ID does not exist.",
+                "code": "PRODUCT_VARIANT_DOES_NOT_EXIST"
+            }]
+        })
+    );
+
     let bundled_unknown_price_list = proxy.process_request(json_graphql_request(
         r#"
         mutation QuantityRulesDeleteBundledUnknownPriceList(
@@ -3191,6 +3242,52 @@ fn bundled_quantity_rules_delete_checks_staged_price_list_existence() {
                 "field": ["priceListId"],
                 "message": "Price list does not exist.",
                 "code": "PRICE_LIST_DOES_NOT_EXIST"
+            }]
+        })
+    );
+}
+
+#[test]
+fn quantity_rules_delete_uses_observed_variant_state_for_standalone_root() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/quantity-rule-standalone".to_string(),
+        title: "Quantity rule standalone product".to_string(),
+        handle: "quantity-rule-standalone-product".to_string(),
+        variants: vec![json!({
+            "id": "gid://shopify/ProductVariant/50000000000001",
+            "title": "Standalone observed variant",
+            "sku": "STANDALONE"
+        })],
+        ..ProductRecord::default()
+    }]);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesDeleteObservedVariants($priceListId: ID!, $variantIds: [ID!]!) {
+          quantityRulesDelete(priceListId: $priceListId, variantIds: $variantIds) {
+            deletedQuantityRulesVariantIds
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": "gid://shopify/PriceList/32128106802",
+            "variantIds": [
+                "gid://shopify/ProductVariant/50000000000001",
+                "gid://shopify/ProductVariant/50000000000002"
+            ]
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["quantityRulesDelete"],
+        json!({
+            "deletedQuantityRulesVariantIds": [],
+            "userErrors": [{
+                "__typename": "QuantityRuleUserError",
+                "field": ["variantIds", "1"],
+                "message": "Product variant ID does not exist.",
+                "code": "PRODUCT_VARIANT_DOES_NOT_EXIST"
             }]
         })
     );

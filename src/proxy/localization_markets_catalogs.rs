@@ -347,8 +347,8 @@ impl DraftProxy {
                     )
                 }
                 "translatableResource" => {
-                    let resource_id = resolved_string_field(&field.arguments, "resourceId")
-                        .unwrap_or_else(|| "gid://shopify/Product/9801098789170".to_string());
+                    let resource_id =
+                        resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
                     if !self.localization_translatable_resource_exists(&resource_id) {
                         Value::Null
                     } else {
@@ -2394,13 +2394,13 @@ impl DraftProxy {
             .contains_key(price_list_id.as_str())
         {
             json!({"deletedQuantityRulesVariantIds": [], "userErrors": [quantity_rule_error(vec!["priceListId"], "PRICE_LIST_DOES_NOT_EXIST", "Price list does not exist.")]})
-        } else if variant_ids
-            .iter()
-            .any(|id| id == "gid://shopify/ProductVariant/0")
-        {
-            json!({"deletedQuantityRulesVariantIds": [], "userErrors": [quantity_rule_error(vec!["variantIds", "0"], "PRODUCT_VARIANT_DOES_NOT_EXIST", "Product variant ID does not exist.")]})
         } else {
-            json!({"deletedQuantityRulesVariantIds": variant_ids, "userErrors": []})
+            let variant_errors = quantity_rules_delete_variant_errors(&self.store, &variant_ids);
+            if variant_errors.is_empty() {
+                json!({"deletedQuantityRulesVariantIds": variant_ids, "userErrors": []})
+            } else {
+                json!({"deletedQuantityRulesVariantIds": [], "userErrors": variant_errors})
+            }
         };
         selected_json(&payload, &field.selection)
     }
@@ -2849,9 +2849,9 @@ impl DraftProxy {
         root_payload_json(fields, |field| {
             Some(match field.name.as_str() {
                 "marketLocalizableResource" => {
-                    let resource_id = resolved_string_field(&field.arguments, "resourceId")
-                        .unwrap_or_else(|| "gid://shopify/Metafield/localizable".to_string());
-                    if resource_id.contains("missing") {
+                    let resource_id =
+                        resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
+                    if !self.market_localizable_resource_exists(&resource_id) {
                         Value::Null
                     } else {
                         let market_filter = market_localizations_market_filter(&field.selection);
@@ -2910,6 +2910,24 @@ impl DraftProxy {
             "marketLocalizableContent": content,
             "marketLocalizations": localizations
         })
+    }
+
+    fn market_localizable_resource_exists(&self, resource_id: &str) -> bool {
+        !resource_id.is_empty()
+            && (self
+                .store
+                .staged
+                .localization_resources
+                .contains_key(resource_id)
+                || self
+                    .store
+                    .staged
+                    .localization_translations
+                    .iter()
+                    .any(|translation| {
+                        translation["resourceId"].as_str() == Some(resource_id)
+                            && !translation["market"].is_null()
+                    }))
     }
 
     pub(in crate::proxy) fn market_localization_mutation_data(
@@ -3234,12 +3252,9 @@ impl DraftProxy {
             if let Some(supplied_digest) =
                 resolved_object_string(translation_input, "translatableContentDigest")
             {
-                let digest_invalid = supplied_digest.starts_with("invalid-")
-                    || self
-                        .localization_source_content_value(&resource_id, &key)
-                        .is_some_and(|value| {
-                            localization_content_digest(&value) != supplied_digest
-                        });
+                let digest_invalid = self
+                    .localization_source_content_value(&resource_id, &key)
+                    .is_some_and(|value| localization_content_digest(&value) != supplied_digest);
                 if digest_invalid {
                     user_errors.push(user_error(
                         json!(["translations", field_index, "translatableContentDigest"]),
@@ -3396,14 +3411,11 @@ impl DraftProxy {
     ) -> Value {
         let resource_type = resolved_string_field(&field.arguments, "resourceType")
             .unwrap_or_else(|| "PRODUCT".to_string());
-        let mut records = self
+        let records = self
             .localization_translatable_resource_ids()
             .into_iter()
             .filter(|id| localization_resource_type_matches(id, &resource_type))
             .collect::<Vec<_>>();
-        if records.is_empty() {
-            records.push(default_localization_resource_id(&resource_type));
-        }
         selected_typed_connection_with_args(
             &records,
             &field.arguments,
@@ -4042,6 +4054,9 @@ impl DraftProxy {
         &self,
         resource_id: &str,
     ) -> bool {
+        if resource_id.is_empty() {
+            return false;
+        }
         if resource_id.starts_with("gid://shopify/Product/") {
             return self.store.has_localization_product(resource_id);
         }
@@ -4766,13 +4781,4 @@ pub(in crate::proxy) fn localization_resource_type_matches(
         return false;
     };
     gid_type.eq_ignore_ascii_case(&resource_type.replace('_', ""))
-}
-
-pub(in crate::proxy) fn default_localization_resource_id(resource_type: &str) -> String {
-    let gid_type = match resource_type.to_ascii_uppercase().as_str() {
-        "COLLECTION" => "Collection",
-        "ONLINE_STORE_THEME" => "OnlineStoreTheme",
-        _ => "Product",
-    };
-    shopify_gid(gid_type, "9801098789170")
 }
