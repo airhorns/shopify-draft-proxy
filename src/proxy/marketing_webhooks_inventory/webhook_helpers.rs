@@ -1131,16 +1131,24 @@ fn webhook_subscription_effective_api_version(request: &Request) -> Option<Strin
 }
 
 fn webhook_subscription_api_version_record(handle: Option<&str>) -> Value {
-    let handle = handle
-        .map(str::trim)
-        .filter(|handle| !handle.is_empty())
-        .unwrap_or("2026-04")
-        .to_string();
-    let (display_name, supported) = match handle.as_str() {
-        "2026-04" => ("2026-04 (Latest)".to_string(), true),
-        "2026-07" => ("2026-07 (Release candidate)".to_string(), false),
-        "unstable" => ("unstable".to_string(), false),
-        _ => (handle.clone(), true),
+    let handle = match handle.map(str::trim).filter(|handle| !handle.is_empty()) {
+        Some(handle) => handle.to_string(),
+        None => latest_supported_admin_graphql_version()
+            .unwrap_or("2026-04")
+            .to_string(),
+    };
+    let (display_name, supported) = if supported_admin_graphql_version(&handle) {
+        if Some(handle.as_str()) == latest_supported_admin_graphql_version() {
+            (format!("{handle} (Latest)"), true)
+        } else {
+            (handle.clone(), true)
+        }
+    } else {
+        match handle.as_str() {
+            "2026-07" => ("2026-07 (Release candidate)".to_string(), false),
+            "unstable" => ("unstable".to_string(), false),
+            _ => (handle.clone(), false),
+        }
     };
     json!({
         "handle": handle,

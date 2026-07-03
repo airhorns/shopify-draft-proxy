@@ -10,6 +10,17 @@ const BULK_OPERATION_QUERY_STORAGE_BYTE_LIMIT: usize = 65_535;
 // the cassette's recorded `query`, since the strict cassette matches query text exactly.
 const BULK_OPERATION_RUN_QUERY_PROXY_FALLBACK_QUERY: &str = "mutation BulkOperationRunQueryProxyFallback($query: String!) { bulkOperationRunQuery(query: $query) { bulkOperation { id status type } userErrors { field message code } } }";
 
+#[derive(Clone, Copy)]
+struct BulkOperationRecordSpec<'a> {
+    id: &'a str,
+    status: &'a str,
+    operation_type: &'a str,
+    query: &'a str,
+    count: &'a str,
+    created_at: &'a str,
+    file_size: &'a str,
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn bulk_operation_result_jsonl(&self, artifact_id: &str) -> Response {
         let Some(result) = self.store.staged.bulk_operation_results.get(artifact_id) else {
@@ -26,11 +37,11 @@ impl DraftProxy {
     }
 
     fn bulk_operation_result_artifact_url(&self, id: &str) -> String {
-        format!(
-            "https://localhost:{}{}",
-            self.config.port,
-            bulk_operation_result_artifact_path(id)
-        )
+        bulk_operation_result_artifact_url_for_port(self.config.port, id)
+    }
+
+    fn bulk_operation_record(&self, spec: BulkOperationRecordSpec<'_>) -> Value {
+        bulk_operation_record_value(spec, self.bulk_operation_result_artifact_url(spec.id))
     }
 
     fn stage_bulk_operation_result(&mut self, id: &str, jsonl: String) {
@@ -334,15 +345,15 @@ impl DraftProxy {
         let created_at = self.next_product_timestamp();
         let result_jsonl = self.bulk_operation_run_query_result_jsonl(&query_text);
         let (object_count, file_size) = bulk_operation_result_metadata(&result_jsonl);
-        let mut terminal_operation = bulk_operation_record_with(
-            &id,
-            "COMPLETED",
-            &query_text,
-            &object_count,
-            &created_at,
-            &file_size,
-        );
-        terminal_operation["url"] = json!(self.bulk_operation_result_artifact_url(&id));
+        let terminal_operation = self.bulk_operation_record(BulkOperationRecordSpec {
+            id: &id,
+            status: "COMPLETED",
+            operation_type: "QUERY",
+            query: &query_text,
+            count: &object_count,
+            created_at: &created_at,
+            file_size: &file_size,
+        });
         self.stage_bulk_operation_result(&id, result_jsonl);
         self.store
             .staged
@@ -357,7 +368,15 @@ impl DraftProxy {
         );
 
         let payload = json!({
-            "bulkOperation": bulk_operation_record_with(&id, "CREATED", &query_text, "0", &created_at, "0"),
+            "bulkOperation": self.bulk_operation_record(BulkOperationRecordSpec {
+                id: &id,
+                status: "CREATED",
+                operation_type: "QUERY",
+                query: &query_text,
+                count: "0",
+                created_at: &created_at,
+                file_size: "0",
+            }),
             "userErrors": []
         });
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
@@ -464,16 +483,15 @@ impl DraftProxy {
 
         let id = self.next_bulk_operation_gid();
         let created_at = self.next_product_timestamp();
-        let mut terminal_operation = bulk_operation_record_with_type(
-            &id,
-            "COMPLETED",
-            "MUTATION",
-            &mutation_text,
-            "0",
-            &created_at,
-            "0",
-        );
-        terminal_operation["url"] = json!(self.bulk_operation_result_artifact_url(&id));
+        let terminal_operation = self.bulk_operation_record(BulkOperationRecordSpec {
+            id: &id,
+            status: "COMPLETED",
+            operation_type: "MUTATION",
+            query: &mutation_text,
+            count: "0",
+            created_at: &created_at,
+            file_size: "0",
+        });
         self.stage_bulk_operation_result(&id, String::new());
         self.store
             .staged
@@ -488,15 +506,15 @@ impl DraftProxy {
         );
 
         let payload = json!({
-            "bulkOperation": bulk_operation_record_with_type(
-                &id,
-                "CREATED",
-                "MUTATION",
-                &mutation_text,
-                "0",
-                &created_at,
-                "0"
-            ),
+            "bulkOperation": self.bulk_operation_record(BulkOperationRecordSpec {
+                id: &id,
+                status: "CREATED",
+                operation_type: "MUTATION",
+                query: &mutation_text,
+                count: "0",
+                created_at: &created_at,
+                file_size: "0",
+            }),
             "userErrors": []
         });
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
@@ -628,45 +646,26 @@ impl DraftProxy {
     }
 }
 
-pub(in crate::proxy) fn bulk_operation_record_with(
-    id: &str,
-    status: &str,
-    query: &str,
-    count: &str,
-    created_at: &str,
-    file_size: &str,
-) -> Value {
-    bulk_operation_record_with_type(id, status, "QUERY", query, count, created_at, file_size)
-}
-
-pub(in crate::proxy) fn bulk_operation_record_with_type(
-    id: &str,
-    status: &str,
-    operation_type: &str,
-    query: &str,
-    count: &str,
-    created_at: &str,
-    file_size: &str,
-) -> Value {
-    let completed = status == "COMPLETED";
+fn bulk_operation_record_value(spec: BulkOperationRecordSpec<'_>, artifact_url: String) -> Value {
+    let completed = spec.status == "COMPLETED";
     let file_size_value = if completed {
-        json!(file_size)
+        json!(spec.file_size)
     } else {
         Value::Null
     };
     json!({
-        "id": id,
-        "status": status,
-        "type": operation_type,
+        "id": spec.id,
+        "status": spec.status,
+        "type": spec.operation_type,
         "errorCode": null,
-        "createdAt": created_at,
-        "completedAt": if completed { json!(created_at) } else { Value::Null },
-        "objectCount": if completed { count } else { "0" },
-        "rootObjectCount": if completed { count } else { "0" },
+        "createdAt": spec.created_at,
+        "completedAt": if completed { json!(spec.created_at) } else { Value::Null },
+        "objectCount": if completed { spec.count } else { "0" },
+        "rootObjectCount": if completed { spec.count } else { "0" },
         "fileSize": file_size_value,
-        "url": if completed { json!(format!("https://localhost/__meta/bulk-operations/{}/result.jsonl", resource_id_path_tail(id))) } else { Value::Null },
+        "url": if completed { json!(artifact_url) } else { Value::Null },
         "partialDataUrl": null,
-        "query": query
+        "query": spec.query
     })
 }
 
@@ -830,6 +829,31 @@ mod tests {
             9
         );
     }
+
+    #[test]
+    fn completed_bulk_operation_record_uses_configured_artifact_url_builder() {
+        let proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::Snapshot,
+            unsupported_mutation_mode: None,
+            port: 3123,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        });
+        let operation = proxy.bulk_operation_record(BulkOperationRecordSpec {
+            id: "gid://shopify/BulkOperation/123",
+            status: "COMPLETED",
+            operation_type: "QUERY",
+            query: "{ products { edges { node { id } } } }",
+            count: "1",
+            created_at: "2024-01-01T00:00:00Z",
+            file_size: "10",
+        });
+        assert_eq!(
+            operation["url"],
+            json!("https://localhost:3123/__meta/bulk-operations/123/result.jsonl")
+        );
+    }
 }
 
 /// Top-level root field name of a bulk query document (e.g. `products`, `orders`),
@@ -843,6 +867,14 @@ fn bulk_operation_result_artifact_path(id: &str) -> String {
     format!(
         "/__meta/bulk-operations/{}/result.jsonl",
         resource_id_path_tail(id)
+    )
+}
+
+fn bulk_operation_result_artifact_url_for_port(port: u16, id: &str) -> String {
+    format!(
+        "https://localhost:{}{}",
+        port,
+        bulk_operation_result_artifact_path(id)
     )
 }
 
