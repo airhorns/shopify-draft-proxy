@@ -44,6 +44,7 @@ Several generic serializers live under `src/proxy/` and should be reused before 
 - `src/proxy/selection.rs` owns alias-aware selected-field projection helpers such as `selected_json(...)`, `nullable_selected_json(...)`, `nested_selected_fields(...)`, `selected_child_selection(...)`, and `selected_fields_named(...)`.
 - `src/proxy/connection.rs` owns generic Shopify connection envelope helpers such as `connection_json(...)`, `connection_json_with_cursor(...)`, `selected_connection_json(...)`, `selected_empty_connection_json(...)`, `selected_typed_connection(...)`, `connection_window(...)`, `connection_page_info(...)`, and `empty_page_info(...)`.
 - `src/proxy/connection.rs` also owns `count_object(...)` and `count_object_with_precision(...)` for Shopify `Count` objects. Do not rebuild `{ count, precision }` envelopes inline.
+- `src/proxy/connection.rs` owns the staged-resource query path `staged_connection_query(...)` / `selected_staged_connection_with_args(...)`. Use it for staged reads that need resource-specific search decisions, sort-key mapping, `reverse`, cursor windowing, and filtered counts to stay in one order of operations.
 - `src/proxy/product_helpers.rs` owns product/saved-search JSON builders and product-specific serializers; generic connection and Count envelopes belong in `connection.rs`.
 
 Prefer passing domain-specific sort/filter/cursor decisions into these helpers rather than duplicating connection envelope construction.

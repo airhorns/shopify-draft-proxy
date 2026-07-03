@@ -206,8 +206,8 @@ pub(in crate::proxy) fn normalize_order_name(name: &str) -> String {
 }
 
 /// Evaluate one `key:value` search term against an order projection. Returns
-/// `None` for terms we do not model so an unknown term never silently drops a
-/// row (callers treat `None` as "not a filter we enforce" → keep the order).
+/// `None` for terms we do not model so the staged connection engine can make
+/// unsupported predicate handling explicit instead of silently keeping rows.
 pub(in crate::proxy) fn order_matches_term(order: &Value, key: &str, value: &str) -> Option<bool> {
     let value = value.trim();
     match key {
@@ -258,23 +258,38 @@ pub(in crate::proxy) fn order_matches_term(order: &Value, key: &str, value: &str
     }
 }
 
-/// Match an order against a Shopify `query:` search string. Terms are
-/// whitespace-separated and ANDed together (Shopify's default). Quoted values
-/// are not modelled here; the catalog scenarios use bare values. An empty query
-/// matches everything.
-pub(in crate::proxy) fn order_matches_query(order: &Value, query: &str) -> bool {
+pub(in crate::proxy) fn order_search_decision(
+    order: &Value,
+    query: Option<&str>,
+) -> StagedSearchDecision {
+    let Some(query) = query else {
+        return StagedSearchDecision::Match;
+    };
     let query = query.trim();
     if query.is_empty() {
-        return true;
+        return StagedSearchDecision::Match;
     }
-    query.split_whitespace().all(|term| {
-        match term.split_once(':') {
-            // Terms we model must match; terms we do not model are ignored so an
-            // unrecognized term never spuriously empties the result set.
-            Some((key, value)) => order_matches_term(order, key, value).unwrap_or(true),
-            None => true,
+    for term in query.split_whitespace() {
+        if let Some((key, value)) = term.split_once(':') {
+            match order_matches_term(order, key, value) {
+                Some(true) => {}
+                Some(false) => return StagedSearchDecision::NoMatch,
+                None => return StagedSearchDecision::Unsupported,
+            }
         }
-    })
+    }
+    StagedSearchDecision::Match
+}
+
+fn order_gid_tail_sort_value(order: &Value) -> StagedSortValue {
+    let tail = order
+        .get("id")
+        .and_then(Value::as_str)
+        .map(resource_id_tail)
+        .unwrap_or_default();
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
 }
 
 /// Sort key for the orders connection: `(timestamp, numeric id)`, both ascending.
@@ -282,8 +297,11 @@ pub(in crate::proxy) fn order_matches_query(order: &Value, query: &str) -> bool 
 /// chronological order; the numeric id is a stable tiebreak (and the sole key
 /// when a projection omits the timestamp, e.g. a status-only node). Callers
 /// reverse the sorted vector for `reverse: true`.
-pub(in crate::proxy) fn order_sort_value(order: &Value, sort_key: &str) -> (String, i64) {
-    let date_field = match sort_key {
+pub(in crate::proxy) fn order_staged_sort_key(
+    order: &Value,
+    sort_key: Option<&str>,
+) -> StagedSortKey {
+    let date_field = match sort_key.unwrap_or("CREATED_AT") {
         "UPDATED_AT" => "updatedAt",
         "PROCESSED_AT" => "processedAt",
         // CREATED_AT (and any sort key we do not specialize) falls back to
@@ -295,13 +313,10 @@ pub(in crate::proxy) fn order_sort_value(order: &Value, sort_key: &str) -> (Stri
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string();
-    let numeric_id = order
-        .get("id")
-        .and_then(Value::as_str)
-        .map(resource_id_tail)
-        .and_then(|tail| tail.parse::<i64>().ok())
-        .unwrap_or(0);
-    (date, numeric_id)
+    vec![
+        StagedSortValue::String(date),
+        order_gid_tail_sort_value(order),
+    ]
 }
 
 pub(in crate::proxy) fn orders_error(field: &[&str], message: &str, code: &str) -> Value {
@@ -1157,40 +1172,37 @@ impl DraftProxy {
     /// `query:` filter, ordered by `sortKey`/`reverse`. The returned values are
     /// whole orders (not yet selection-projected) so the caller can window them
     /// and then project both `nodes` and `pageInfo` through the field selection.
-    pub(super) fn matching_orders_sorted(
+    pub(super) fn matching_orders_query(
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
-    ) -> Vec<Value> {
-        let query_arg = resolved_string_field(arguments, "query").unwrap_or_default();
-        // Enum arguments resolve to their variant name as a string.
-        let sort_key = resolved_string_field(arguments, "sortKey").unwrap_or_default();
-        let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
-        let mut matched = self
-            .store
-            .staged
-            .orders
-            .values()
-            .filter(|order| order_matches_query(order, &query_arg))
-            .cloned()
-            .collect::<Vec<_>>();
-        matched.sort_by_key(|a| order_sort_value(a, &sort_key));
-        if reverse {
-            matched.reverse();
-        }
-        matched
+    ) -> StagedConnectionResult<Value> {
+        staged_connection_query(
+            self.store
+                .staged
+                .orders
+                .values()
+                .cloned()
+                .collect::<Vec<_>>(),
+            arguments,
+            order_search_decision,
+            order_staged_sort_key,
+            value_id_cursor,
+        )
     }
 
     pub(super) fn staged_orders_connection(&self, field: &RootFieldSelection) -> Value {
-        let matched = self.matching_orders_sorted(&field.arguments);
+        let result = self.matching_orders_query(&field.arguments);
         // Window with the order id as the opaque cursor. The next-page request in
         // the catalog scenario feeds this connection's own `endCursor` back as
         // `after`, so the cursor only needs to round-trip with itself — it is not
         // compared against Shopify's recorded opaque cursors.
-        selected_connection_json_with_args(
-            matched,
-            &field.arguments,
+        selected_json(
+            &connection_json_with_cursor(
+                result.records,
+                |_, order| value_id_cursor(order),
+                result.page_info,
+            ),
             &field.selection,
-            value_id_cursor,
         )
     }
 
@@ -1198,20 +1210,11 @@ impl DraftProxy {
     /// `limit` precision semantics — capped at `limit` and reported `AT_LEAST`
     /// when more matches exist than the limit, otherwise the exact total.
     pub(super) fn staged_orders_count(&self, field: &RootFieldSelection) -> Value {
-        let query_arg = resolved_string_field(&field.arguments, "query").unwrap_or_default();
-        let matched = self
-            .store
-            .staged
-            .orders
-            .values()
-            .filter(|order| order_matches_query(order, &query_arg))
-            .count();
-        let (count, precision) = match resolved_int_field(&field.arguments, "limit") {
-            Some(limit) if limit >= 0 && matched as i64 > limit => (limit as usize, "AT_LEAST"),
-            _ => (matched, "EXACT"),
-        };
         selected_json(
-            &count_object_with_precision(count, precision),
+            &staged_count_with_limit_precision(
+                self.matching_orders_query(&field.arguments).total_count,
+                &field.arguments,
+            ),
             &field.selection,
         )
     }
