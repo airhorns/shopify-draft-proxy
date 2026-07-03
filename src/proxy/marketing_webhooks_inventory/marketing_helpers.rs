@@ -91,6 +91,7 @@ pub(in crate::proxy) fn marketing_activity_from_input(
     api_client_id: Option<String>,
     new_marketing_event_id: Option<String>,
     timestamp: &str,
+    shop_currency_code: &str,
 ) -> Value {
     let old = existing.cloned().unwrap_or_else(|| json!({}));
     let title = resolved_string_field(&input, "title").unwrap_or_else(|| {
@@ -157,7 +158,7 @@ pub(in crate::proxy) fn marketing_activity_from_input(
         .unwrap_or_else(|| shopify_gid("MarketingEvent", "local"));
     let status_label = marketing_status_label(&status, &tactic, None);
     let budget = resolved_object_field(&input, "budget")
-        .map(marketing_budget_json)
+        .map(|budget| marketing_budget_json(budget, shop_currency_code))
         .unwrap_or_else(|| old.get("budget").cloned().unwrap_or(Value::Null));
     let ad_spend = resolved_object_field(&input, "adSpend")
         .map(|obj| {
@@ -166,7 +167,7 @@ pub(in crate::proxy) fn marketing_activity_from_input(
                     .map(|a| normalize_money_amount(&a))
                     .unwrap_or_default(),
                 "currencyCode": resolved_string_field(&obj, "currencyCode")
-                    .unwrap_or_else(|| "USD".to_string())
+                    .unwrap_or_else(|| shop_currency_code.to_string())
             })
         })
         .unwrap_or_else(|| old.get("adSpend").cloned().unwrap_or(Value::Null));
@@ -236,6 +237,7 @@ pub(in crate::proxy) fn native_marketing_activity_from_input(
     existing: Option<&Value>,
     api_client_id: Option<String>,
     timestamp: &str,
+    shop_currency_code: &str,
 ) -> Value {
     if !input.contains_key("title") {
         if let Some(title) = input.get("marketingActivityTitle").cloned() {
@@ -249,8 +251,15 @@ pub(in crate::proxy) fn native_marketing_activity_from_input(
                 .and_then(|old| old.get("targetStatus").cloned())
                 .unwrap_or(Value::Null)
         });
-    let mut activity =
-        marketing_activity_from_input(id, input, existing, api_client_id, None, timestamp);
+    let mut activity = marketing_activity_from_input(
+        id,
+        input,
+        existing,
+        api_client_id,
+        None,
+        timestamp,
+        shop_currency_code,
+    );
     activity["isExternal"] = json!(false);
     activity["inMainWorkflowVersion"] = json!(true);
     activity["targetStatus"] = target_status;
@@ -287,13 +296,16 @@ pub(in crate::proxy) fn native_marketing_activity_extension_error(
     }
 }
 
-pub(in crate::proxy) fn marketing_budget_json(input: BTreeMap<String, ResolvedValue>) -> Value {
+pub(in crate::proxy) fn marketing_budget_json(
+    input: BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
+) -> Value {
     let total = resolved_object_field(&input, "total").unwrap_or_default();
     json!({
         "budgetType": resolved_string_field(&input, "budgetType").unwrap_or_else(|| "DAILY".to_string()),
         "total": {
             "amount": resolved_string_field(&total, "amount").unwrap_or_else(|| "0.00".to_string()),
-            "currencyCode": resolved_string_field(&total, "currencyCode").unwrap_or_else(|| "USD".to_string())
+            "currencyCode": resolved_string_field(&total, "currencyCode").unwrap_or_else(|| shop_currency_code.to_string())
         }
     })
 }
@@ -301,8 +313,9 @@ pub(in crate::proxy) fn marketing_budget_json(input: BTreeMap<String, ResolvedVa
 pub(in crate::proxy) fn marketing_engagement_from_input(
     input: &BTreeMap<String, ResolvedValue>,
     activity: Option<&Value>,
+    shop_currency_code: &str,
 ) -> Value {
-    let money = |key: &str| marketing_money_json(input, key);
+    let money = |key: &str| marketing_money_json(input, key, shop_currency_code);
     json!({
         "__typename": "MarketingEngagement",
         "occurredOn": resolved_string_field(input, "occurredOn"),
@@ -326,13 +339,14 @@ pub(in crate::proxy) fn marketing_engagement_from_input(
 pub(in crate::proxy) fn marketing_money_json(
     input: &BTreeMap<String, ResolvedValue>,
     key: &str,
+    shop_currency_code: &str,
 ) -> Value {
     let Some(obj) = resolved_object_field(input, key) else {
         return Value::Null;
     };
     json!({
         "amount": resolved_string_field(&obj, "amount").unwrap_or_default(),
-        "currencyCode": resolved_string_field(&obj, "currencyCode").unwrap_or_else(|| "USD".to_string())
+        "currencyCode": resolved_string_field(&obj, "currencyCode").unwrap_or_else(|| shop_currency_code.to_string())
     })
 }
 
@@ -737,6 +751,7 @@ impl DraftProxy {
         }
         let id = self.next_proxy_synthetic_gid("MarketingActivity");
         let timestamp = self.next_product_timestamp();
+        let shop_currency_code = self.store.shop_currency_code();
         let activity = native_marketing_activity_from_input(
             &id,
             input,
@@ -746,6 +761,7 @@ impl DraftProxy {
                 .get("x-shopify-draft-proxy-api-client-id")
                 .cloned(),
             &timestamp,
+            &shop_currency_code,
         );
         self.store
             .staged
@@ -767,6 +783,7 @@ impl DraftProxy {
             .unwrap_or_else(|| self.next_proxy_synthetic_gid("MarketingActivity"));
         let existing = self.store.staged.marketing_activities.get(&id).cloned();
         let timestamp = self.next_product_timestamp();
+        let shop_currency_code = self.store.shop_currency_code();
         let activity = native_marketing_activity_from_input(
             &id,
             input,
@@ -776,6 +793,7 @@ impl DraftProxy {
                 .get("x-shopify-draft-proxy-api-client-id")
                 .cloned(),
             &timestamp,
+            &shop_currency_code,
         );
         self.store
             .staged
@@ -1016,6 +1034,8 @@ impl DraftProxy {
             id
         });
         let existing = self.store.staged.marketing_activities.get(&id).cloned();
+        let timestamp = self.next_product_timestamp();
+        let shop_currency_code = self.store.shop_currency_code();
         let activity = marketing_activity_from_input(
             &id,
             input,
@@ -1025,7 +1045,8 @@ impl DraftProxy {
                 .get("x-shopify-draft-proxy-api-client-id")
                 .cloned(),
             new_marketing_event_id,
-            &self.next_product_timestamp(),
+            &timestamp,
+            &shop_currency_code,
         );
         self.store
             .staged
@@ -1177,7 +1198,9 @@ impl DraftProxy {
             );
         }
         if has_channel {
-            let engagement = marketing_engagement_from_input(&engagement_input, None);
+            let shop_currency_code = self.store.shop_currency_code();
+            let engagement =
+                marketing_engagement_from_input(&engagement_input, None, &shop_currency_code);
             return selected_json(
                 &marketing_engagement_payload(Some(engagement), Vec::new()),
                 &field.selection,
@@ -1228,7 +1251,9 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        let engagement = marketing_engagement_from_input(&engagement_input, Some(activity));
+        let shop_currency_code = self.store.shop_currency_code();
+        let engagement =
+            marketing_engagement_from_input(&engagement_input, Some(activity), &shop_currency_code);
         // Shopify accepts engagement metrics but does not fold engagement ad spend
         // back into the MarketingActivity.adSpend field in these captures.
         selected_json(
