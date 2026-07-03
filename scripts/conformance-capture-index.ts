@@ -6891,6 +6891,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'fulfillment-unknown-not-found',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-fulfillment-unknown-not-found-conformance.mts',
+    purpose:
+      'fulfillmentCancel and fulfillmentTrackingInfoUpdate not-found userErrors for well-formed never-created Fulfillment GIDs.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-unknown-not-found.json`,
+      'config/parity-specs/orders/fulfillment-unknown-not-found.json',
+      'config/parity-requests/orders/fulfillmentCancel-unknown-id-not-found.graphql',
+      'config/parity-requests/orders/fulfillmentTrackingInfoUpdate-unknown-id-not-found.graphql',
+    ],
+    cleanupBehavior:
+      'Uses fixed never-created Fulfillment GIDs only; Shopify returns userErrors before mutation so no cleanup is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'draft-orders-status-query-read',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-draft-orders-status-query-conformance.ts',
@@ -7128,6 +7146,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'draft-orders',
+    captureId: 'draft-order-complete-invalid-payment-gateway',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-draft-order-complete-invalid-payment-gateway-conformance.ts',
+    purpose:
+      'Records draftOrderComplete(paymentGatewayId:) with a gateway ID that does not resolve to an enabled manual payment gateway, plus the public schema rejection for selecting code on draftOrderComplete.userErrors.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draft-order-complete-invalid-payment-gateway.json`,
+      'config/parity-specs/orders/draftOrderComplete-invalid-payment-gateway.json',
+      'config/parity-requests/orders/draftOrderComplete-invalid-payment-gateway.graphql',
+      'config/parity-requests/orders/draftOrderComplete-user-error-code-selection.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable ready draft, records rejected completion and schema-validation branches, then deletes the still-open draft in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
     captureId: 'draft-order-complete-payment-terms-pending',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-draft-order-complete-payment-terms-pending-conformance.ts',
@@ -7287,6 +7323,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-lifecycle-plain-usererror-no-code',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-lifecycle-plain-usererror-no-code-conformance.mts',
+    purpose:
+      'orderUpdate, orderClose, orderOpen, and orderMarkAsPaid reject userErrors.code selection because their payloads expose plain UserError.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderLifecycle-plain-usererror-no-code.json`,
+      'config/parity-specs/orders/orderLifecycle-plain-usererror-no-code.json',
+      'config/parity-requests/orders/orderLifecycle-plain-usererror-no-code.graphql',
+      'config/parity-requests/orders/orderLifecycle-plain-usererror-no-code.variables.json',
+    ],
+    cleanupBehavior:
+      'Validation-only capture; selecting userErrors.code fails before order lifecycle resolvers run, so no order state is mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-create-math-matrix',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-order-create-math-matrix-conformance.ts',
@@ -7378,18 +7432,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-create-preconditions-conformance.ts',
     purpose:
-      'fulfillmentCreate cancelled/closed fulfillment order, over-quantity, in-progress, and happy-path public Admin API behavior.',
+      'fulfillmentCreate and fulfillmentCreateV2 missing fulfillment order, non-positive quantity, cancelled/closed fulfillment order, over-quantity, in-progress, and happy-path public Admin API behavior.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}fulfillment-create-preconditions.json`,
       'config/parity-specs/orders/fulfillmentCreate-preconditions.json',
       'config/parity-requests/orders/fulfillmentCreate-preconditions.graphql',
+      'config/parity-requests/orders/fulfillmentCreateV2-preconditions.graphql',
     ],
     cleanupBehavior:
       'Creates disposable test orders, cancels/deletes where possible, and deletes fulfilled orders after capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'Public fulfillmentCreate userErrors expose field/message only; Admin 2026-04 accepts fulfillmentCreate after fulfillmentOrderReportProgress leaves the fulfillment order IN_PROGRESS.',
+      'Public fulfillmentCreate and fulfillmentCreateV2 userErrors expose field/message only; non-positive line-item quantities use indexed quantity paths, and Admin 2026-04 accepts fulfillmentCreate after fulfillmentOrderReportProgress leaves the fulfillment order IN_PROGRESS.',
   },
   {
     domain: 'orders',
@@ -7429,6 +7484,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'Public Admin GraphQL 2026-04 treats already-cancelled cancel, tracking update on cancelled fulfillment, event creation on cancelled fulfillment, and cancel after delivered event as accepted branches with empty userErrors.',
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-refund-fulfillment-usererror-no-code',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-order-plain-user-error-code-selection-conformance.mts',
+    purpose:
+      'refundCreate and fulfillment mutation payloads reject userErrors.code selection because their payloads expose plain UserError.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-refund-fulfillment-usererror-no-code.json`,
+      'config/parity-specs/orders/order-refund-fulfillment-usererror-no-code.json',
+      'config/parity-requests/orders/order-refund-fulfillment-usererror-no-code.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only capture; selecting userErrors.code fails before refund or fulfillment resolvers run, so no order state is mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'orders',
@@ -7571,6 +7643,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_draft_orders', 'write_draft_orders', 'read_products'],
     fixtureOutputs: [
       `${LOCAL_RUNTIME_ROOT}draft-order-complete-payment-gateway-paths.json`,
+      'config/parity-specs/orders/draftOrderComplete-paymentGateway-paths.json',
+      'config/parity-requests/orders/draftOrderComplete-paymentGateway-paths-complete.graphql',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-by-id-not-found.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-create-from-order-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-delete-parity.json',

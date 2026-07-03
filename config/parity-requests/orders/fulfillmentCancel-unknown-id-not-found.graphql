@@ -1,0 +1,11 @@
+mutation FulfillmentCancelUnknownNotFound($id: ID!) {
+  fulfillmentCancel(id: $id) {
+    fulfillment {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -87,6 +87,7 @@ App/test harness
 - group supported runtime behavior by commerce area, including products/saved searches, localization/markets/catalogs, marketing/webhooks/inventory, online store, metaobjects, metafields, orders/payments, discounts/gift cards, B2B/customers, and admin/shipping/app helpers
 - keep local staging, overlay reads, selected-field projection, alias-safe response keys, and live-hybrid passthrough/reject behavior near the domain logic that owns it
 - use shared `Store` effective-get/list/count helpers for migrated product and saved-search read-after-write behavior, with base state, staged state, order arrays, and tombstones dumped/restored consistently
+- use the shared staged-connection query helpers for staged resource lists that need Shopify-like search filtering, sort-key mapping, `reverse`, cursor windows, and filtered counts; resource modules supply predicate and sort adapters while `connection.rs` owns the order of operations
 - share proxy-internal helpers only within `crate::proxy`; public package surface still flows through `DraftProxy`
 
 ### `src/graphql.rs`

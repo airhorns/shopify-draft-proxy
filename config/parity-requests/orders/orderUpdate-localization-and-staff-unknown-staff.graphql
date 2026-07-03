@@ -6,7 +6,6 @@ mutation OrderUpdateLocalizationUnknownStaff($input: OrderInput!) {
     userErrors {
       field
       message
-      code
     }
   }
 }

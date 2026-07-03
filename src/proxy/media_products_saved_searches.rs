@@ -33,6 +33,35 @@ const PRODUCT_PAYLOAD_SHOP_HYDRATE_QUERY: &str = r#"#graphql
 const PRODUCT_VARIANTS_BULK_CREATE_INVENTORY_QUANTITIES_LIMIT: usize = 50_000;
 const PRODUCT_VARIANTS_BULK_CREATE_DEFAULT_LOCATION_LIMIT: usize = 200;
 
+fn normalized_sort_string(value: &str) -> StagedSortValue {
+    StagedSortValue::String(value.to_ascii_lowercase())
+}
+
+fn gid_tail_sort_string(id: &str) -> StagedSortValue {
+    let tail = resource_id_tail(id);
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn product_staged_sort_key(product: &ProductRecord, sort_key: Option<&str>) -> StagedSortKey {
+    let primary = match sort_key.unwrap_or("CREATED_AT") {
+        "TITLE" => normalized_sort_string(&product.title),
+        "VENDOR" => normalized_sort_string(&product.vendor),
+        "PRODUCT_TYPE" => normalized_sort_string(&product.product_type),
+        "PUBLISHED_AT" => product
+            .extra_fields
+            .get("publishedAt")
+            .and_then(Value::as_str)
+            .map(|value| StagedSortValue::String(value.to_string()))
+            .unwrap_or(StagedSortValue::Null),
+        "UPDATED_AT" => StagedSortValue::String(product.updated_at.clone()),
+        "ID" => gid_tail_sort_string(&product.id),
+        _ => StagedSortValue::String(product.created_at.clone()),
+    };
+    vec![primary, gid_tail_sort_string(&product.id)]
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn record_passthrough_log_entry(
         &mut self,
@@ -291,11 +320,13 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         root_selection: &[SelectedField],
     ) -> Value {
-        let products = self.products_filtered_by_search_query(arguments.get("query"));
-        selected_typed_connection_with_args(
-            &products,
+        let products = self.store.products();
+        selected_staged_connection_with_args(
+            products,
             arguments,
             root_selection,
+            |product, query| self.product_search_decision(product, query),
+            product_staged_sort_key,
             |product, selections| {
                 let variants = self.store.product_variants_for_product(&product.id);
                 let base = product_json_with_variants_and_currency(
@@ -318,8 +349,14 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn products_count_field(&self, field: &RootFieldSelection) -> Value {
         let count = if field.arguments.contains_key("query") {
-            self.products_filtered_by_search_query(field.arguments.get("query"))
-                .len()
+            staged_connection_query(
+                self.store.products(),
+                &field.arguments,
+                |product, query| self.product_search_decision(product, query),
+                product_staged_sort_key,
+                |product| product_cursor(product).to_string(),
+            )
+            .total_count
         } else {
             self.store.product_count()
         };
@@ -335,15 +372,26 @@ impl DraftProxy {
             return products;
         };
         products.retain(|product| {
-            let variants = self.store.product_variants_for_product(&product.id);
-            product_matches_search_query(
-                product,
-                &variants,
-                self.store.staged.product_search_tags.get(&product.id),
-                query,
-            )
+            self.product_search_decision(product, Some(query)) == StagedSearchDecision::Match
         });
         products
+    }
+
+    fn product_search_decision(
+        &self,
+        product: &ProductRecord,
+        query: Option<&str>,
+    ) -> StagedSearchDecision {
+        let Some(query) = query else {
+            return StagedSearchDecision::Match;
+        };
+        let variants = self.store.product_variants_for_product(&product.id);
+        StagedSearchDecision::from_bool(product_matches_search_query(
+            product,
+            &variants,
+            self.store.staged.product_search_tags.get(&product.id),
+            query,
+        ))
     }
 
     fn product_payload_shop_needs_hydration(&self, shop_selection: &[SelectedField]) -> bool {
