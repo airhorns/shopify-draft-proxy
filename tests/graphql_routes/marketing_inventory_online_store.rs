@@ -8218,6 +8218,214 @@ fn metaobject_auto_handles_and_fallback_display_names_follow_core_shapes() {
 }
 
 #[test]
+fn metaobject_create_and_upsert_validate_explicit_handles_before_staging() {
+    let mut proxy = snapshot_proxy();
+    create_metaobject_definition_for_test(
+        &mut proxy,
+        "handle_validation_type",
+        vec![
+            json!({"key": "title", "name": "Title", "type": "single_line_text_field", "required": false}),
+        ],
+    );
+
+    let create_query = r#"
+        mutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle type displayName }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let update_query = r#"
+        mutation UpdateMetaobject($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id handle type displayName }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let upsert_query = r#"
+        mutation UpsertMetaobject($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject { id handle type displayName }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#;
+    let read_query = r#"
+        query ReadHandleValidationState($type: String!, $handle: MetaobjectHandleInput!) {
+          definition: metaobjectDefinitionByType(type: $type) { metaobjectsCount }
+          entries: metaobjects(type: $type, first: 10) { nodes { id handle } }
+          byHandle: metaobjectByHandle(handle: $handle) { id handle }
+        }
+        "#;
+
+    let invalid_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "handle_validation_type",
+            "handle": "hello world!",
+            "fields": [{"key": "title", "value": "Handle hello world!"}]
+        }}),
+    ));
+    assert_eq!(
+        invalid_create.body["data"]["metaobjectCreate"],
+        json!({
+            "metaobject": null,
+            "userErrors": [{
+                "field": ["metaobject", "handle"],
+                "message": "Handle is invalid",
+                "code": "INVALID",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let too_long = "x".repeat(256);
+    let too_long_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "handle_validation_type",
+            "handle": too_long,
+            "fields": [{"key": "title", "value": "Handle too long"}]
+        }}),
+    ));
+    assert_eq!(
+        too_long_create.body["data"]["metaobjectCreate"],
+        json!({
+            "metaobject": null,
+            "userErrors": [{
+                "field": ["metaobject", "handle"],
+                "message": "Handle is too long (maximum is 255 characters)",
+                "code": "TOO_LONG",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let invalid_upsert = proxy.process_request(json_graphql_request(
+        upsert_query,
+        json!({
+            "handle": {"type": "handle_validation_type", "handle": "hello world!"},
+            "metaobject": {"fields": [{"key": "title", "value": "Handle hello world!"}]}
+        }),
+    ));
+    assert_eq!(
+        invalid_upsert.body["data"]["metaobjectUpsert"],
+        json!({
+            "metaobject": null,
+            "userErrors": [{
+                "field": ["handle", "handle"],
+                "message": "Handle is invalid",
+                "code": "INVALID",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let too_long = "x".repeat(256);
+    let too_long_upsert = proxy.process_request(json_graphql_request(
+        upsert_query,
+        json!({
+            "handle": {"type": "handle_validation_type", "handle": too_long},
+            "metaobject": {"fields": [{"key": "title", "value": "Handle too long"}]}
+        }),
+    ));
+    assert_eq!(
+        too_long_upsert.body["data"]["metaobjectUpsert"],
+        json!({
+            "metaobject": null,
+            "userErrors": [{
+                "field": ["handle", "handle"],
+                "message": "Handle is too long (maximum is 255 characters)",
+                "code": "TOO_LONG",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let after_rejects = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({
+            "type": "handle_validation_type",
+            "handle": {"type": "handle_validation_type", "handle": "hello-world"}
+        }),
+    ));
+    assert_eq!(
+        after_rejects.body["data"]["definition"]["metaobjectsCount"],
+        json!(0)
+    );
+    assert_eq!(after_rejects.body["data"]["entries"]["nodes"], json!([]));
+    assert_eq!(after_rejects.body["data"]["byHandle"], Value::Null);
+
+    let blank_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"metaobject": {
+            "type": "handle_validation_type",
+            "handle": "",
+            "fields": [{"key": "title", "value": "Blank create"}]
+        }}),
+    ));
+    assert_eq!(
+        blank_create.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    let blank_create_metaobject = &blank_create.body["data"]["metaobjectCreate"]["metaobject"];
+    let blank_create_id = blank_create_metaobject["id"].as_str().unwrap().to_string();
+    let blank_create_handle = blank_create_metaobject["handle"].as_str().unwrap();
+    assert!(!blank_create_handle.is_empty());
+    assert_eq!(
+        blank_create_metaobject["displayName"],
+        json!("Blank create")
+    );
+
+    let blank_upsert = proxy.process_request(json_graphql_request(
+        upsert_query,
+        json!({
+            "handle": {"type": "handle_validation_type", "handle": ""},
+            "metaobject": {"fields": [{"key": "title", "value": "Blank upsert"}]}
+        }),
+    ));
+    assert_eq!(
+        blank_upsert.body["data"]["metaobjectUpsert"]["userErrors"],
+        json!([])
+    );
+    let blank_upsert_metaobject = &blank_upsert.body["data"]["metaobjectUpsert"]["metaobject"];
+    let blank_upsert_handle = blank_upsert_metaobject["handle"].as_str().unwrap();
+    assert!(!blank_upsert_handle.is_empty());
+    assert_ne!(blank_upsert_handle, blank_create_handle);
+    assert_eq!(
+        blank_upsert_metaobject["displayName"],
+        json!("Blank upsert")
+    );
+
+    let update_invalid = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": blank_create_id, "metaobject": {
+            "handle": "hello world!",
+            "fields": [{"key": "title", "value": "Update invalid"}]
+        }}),
+    ));
+    assert_eq!(
+        update_invalid.body["data"]["metaobjectUpdate"],
+        json!({
+            "metaobject": null,
+            "userErrors": [{
+                "field": ["metaobject", "handle"],
+                "message": "Handle is invalid",
+                "code": "INVALID",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+}
+
+#[test]
 fn metaobject_create_validates_definition_fields_and_capabilities() {
     let mut proxy = snapshot_proxy();
 
