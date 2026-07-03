@@ -5,13 +5,5 @@ query SegmentPayloadNonNullFieldsRead($id: ID!) {
     query
     creationDate
     lastEditDate
-    tagMigrated
-    valid
-    percentageSnapshot
-    percentageSnapshotUpdatedAt
-    translation
-    author {
-      name
-    }
   }
 }
