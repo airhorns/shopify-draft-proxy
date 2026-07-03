@@ -6,10 +6,13 @@ impl DraftProxy {
         request: &Request,
         fields: &[RootFieldSelection],
     ) -> Response {
-        if self.online_store_content_query_needs_upstream(fields) {
+        if self.online_store_content_query_needs_upstream(fields)
+            || self.online_store_sales_channel_query_needs_upstream(fields)
+        {
             let response = (self.upstream_transport)(request.clone());
             if response.status < 400 {
                 self.observe_online_store_content_response(&response.body);
+                self.observe_online_store_sales_channel_response(&response.body);
             }
             return response;
         }
@@ -97,12 +100,7 @@ impl DraftProxy {
                             .staged
                             .online_store_integrations
                             .values()
-                            .filter(|record| {
-                                matches!(
-                                    record.get("__typename").and_then(Value::as_str),
-                                    Some("AppleApplication" | "AndroidApplication")
-                                )
-                            })
+                            .filter(|record| is_mobile_platform_application_record(record))
                             .cloned()
                             .collect();
                         records.sort_by_key(value_id_cursor);
@@ -137,6 +135,7 @@ impl DraftProxy {
                 return ok_json(json!({ "errors": [error] }));
             }
         }
+
         let data = root_payload_json(fields, |field| {
             let value = if let Some(value) =
                 self.online_store_content_mutation_value(field, request, &mut staged_ids)
@@ -192,6 +191,116 @@ impl DraftProxy {
             );
         }
         ok_json(json!({ "data": data }))
+    }
+
+    fn online_store_sales_channel_query_needs_upstream(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return false;
+        }
+        let has_sales_channel_root = fields
+            .iter()
+            .any(|field| is_online_store_sales_channel_query_root(&field.name));
+        let all_requested_sales_roots_need_upstream = fields
+            .iter()
+            .filter(|field| is_online_store_sales_channel_query_root(&field.name))
+            .all(|field| self.sales_channel_field_needs_upstream(field));
+        let has_local_integration_state = !self.store.staged.online_store_integrations.is_empty();
+        has_sales_channel_root
+            && fields.iter().all(|field| {
+                is_online_store_sales_channel_query_root(&field.name)
+                    || is_online_store_content_query_root(&field.name)
+            })
+            && (!fields
+                .iter()
+                .any(|field| is_online_store_content_query_root(&field.name))
+                || !self.has_online_store_content_state())
+            && fields
+                .iter()
+                .any(|field| self.sales_channel_field_needs_upstream(field))
+            && (!has_local_integration_state || all_requested_sales_roots_need_upstream)
+    }
+
+    fn sales_channel_field_needs_upstream(&self, field: &RootFieldSelection) -> bool {
+        match field.name.as_str() {
+            "theme" => self
+                .singular_sales_channel_record_needs_upstream(field, is_online_store_theme_record),
+            "themes" => !self.any_sales_channel_record(is_online_store_theme_record),
+            "scriptTag" => self.singular_sales_channel_record_needs_upstream(
+                field,
+                is_online_store_script_tag_record,
+            ),
+            "scriptTags" => !self.any_sales_channel_record(is_online_store_script_tag_record),
+            "webPixel" => {
+                self.singular_sales_channel_record_needs_upstream(field, is_web_pixel_record)
+            }
+            "serverPixel" => {
+                self.singular_sales_channel_record_needs_upstream(field, is_server_pixel_record)
+            }
+            "mobilePlatformApplication" => self.singular_sales_channel_record_needs_upstream(
+                field,
+                is_mobile_platform_application_record,
+            ),
+            "mobilePlatformApplications" => {
+                !self.any_sales_channel_record(is_mobile_platform_application_record)
+            }
+            _ => false,
+        }
+    }
+
+    fn singular_sales_channel_record_needs_upstream(
+        &self,
+        field: &RootFieldSelection,
+        predicate: fn(&Value) -> bool,
+    ) -> bool {
+        match resolved_string_field(&field.arguments, "id") {
+            Some(id) if !id.is_empty() => !self
+                .store
+                .staged
+                .online_store_integrations
+                .get(&id)
+                .is_some_and(predicate),
+            _ => !self.any_sales_channel_record(predicate),
+        }
+    }
+
+    fn any_sales_channel_record(&self, predicate: fn(&Value) -> bool) -> bool {
+        self.store
+            .staged
+            .online_store_integrations
+            .values()
+            .any(predicate)
+    }
+
+    fn observe_online_store_sales_channel_response(&mut self, body: &Value) {
+        let Some(data) = body.get("data") else {
+            return;
+        };
+        self.observe_online_store_sales_channel_node(data);
+    }
+
+    fn observe_online_store_sales_channel_node(&mut self, node: &Value) {
+        match node {
+            Value::Array(entries) => {
+                for entry in entries {
+                    self.observe_online_store_sales_channel_node(entry);
+                }
+            }
+            Value::Object(object) => {
+                if let Some((id, record)) = observed_sales_channel_record(node) {
+                    self.store
+                        .staged
+                        .online_store_integrations
+                        .insert(id, record);
+                }
+                for value in object.values() {
+                    self.observe_online_store_sales_channel_node(value);
+                }
+            }
+            _ => {}
+        }
     }
 
     pub(in crate::proxy) fn next_online_store_id(&mut self, typename: &str) -> String {
@@ -535,7 +644,25 @@ impl DraftProxy {
                 )],
             );
         }
-        let mut record = self.store.staged.online_store_integrations.get(&id).cloned().unwrap_or_else(|| json!({"id": id, "src": "https://cdn.example.test/app.js", "displayScope": "ALL", "event": "onload", "cache": false}));
+        let Some(mut record) = self
+            .store
+            .staged
+            .online_store_integrations
+            .get(&id)
+            .filter(|record| is_online_store_script_tag_record(record))
+            .cloned()
+        else {
+            return script_tag_payload(
+                &field.selection,
+                None,
+                vec![user_error_typed(
+                    "ScriptTagUserError",
+                    ["id"],
+                    "Script tag not found",
+                    Some("NOT_FOUND"),
+                )],
+            );
+        };
         if let Some(src) = resolved_string_field(input, "src") {
             record["src"] = json!(src);
         }
@@ -1301,4 +1428,56 @@ impl DraftProxy {
             Vec::new(),
         )
     }
+}
+
+fn is_online_store_sales_channel_query_root(root: &str) -> bool {
+    matches!(
+        root,
+        "mobilePlatformApplication"
+            | "mobilePlatformApplications"
+            | "scriptTag"
+            | "scriptTags"
+            | "serverPixel"
+            | "theme"
+            | "themes"
+            | "webPixel"
+    )
+}
+
+fn observed_sales_channel_record(record: &Value) -> Option<(String, Value)> {
+    let id = record.get("id").and_then(Value::as_str)?.to_string();
+    let typename = record
+        .get("__typename")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .or_else(|| shopify_gid_resource_type(&id).map(str::to_string))?;
+    let mut record = record.clone();
+    match typename.as_str() {
+        "OnlineStoreTheme" => {
+            record["__typename"] = json!("OnlineStoreTheme");
+            if record.get("files").is_none() {
+                record["files"] = json!({"nodes": []});
+            }
+        }
+        "ScriptTag" => {}
+        "WebPixel" => {
+            record["__typename"] = json!("WebPixel");
+        }
+        "ServerPixel" => {
+            record["__typename"] = json!("ServerPixel");
+        }
+        "AppleApplication" | "AndroidApplication" => {
+            record["__typename"] = json!(typename);
+        }
+        "MobilePlatformApplication" => {
+            if record.get("__typename").is_none() {
+                record["__typename"] = json!("MobilePlatformApplication");
+            }
+        }
+        "StorefrontAccessToken" => {
+            record["__typename"] = json!("StorefrontAccessToken");
+        }
+        _ => return None,
+    }
+    Some((id, record))
 }

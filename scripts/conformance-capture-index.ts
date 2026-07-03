@@ -6168,6 +6168,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/online-store/online-store-integrations-local-staging.json',
       'config/parity-specs/online-store/integration-delete-not-found-codes.json',
       'config/parity-specs/online-store/online-store-integration-root-dispatch-local-runtime.json',
+      'config/parity-specs/online-store/sales-channel-cold-read-forwarding.json',
       'config/parity-specs/online-store/theme-files-checksums-and-validation.json',
       `${LOCAL_RUNTIME_ROOT}script-tag-update-validation.json`,
       `${LOCAL_RUNTIME_ROOT}online-store-blog-commentable-local-staging.json`,
