@@ -6328,6 +6328,44 @@ fn gift_card_live_hybrid_cold_reads_forward_upstream_without_local_overlay() {
 }
 
 #[test]
+fn gift_card_snapshot_legacy_seed_id_without_state_returns_not_found() {
+    let mut proxy = snapshot_proxy();
+    let legacy_id = "gid://shopify/GiftCard/654773256498";
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"query GiftCardLegacySeedIdWithoutState($id: ID!, $query: String!) {
+          card: giftCard(id: $id) {
+            id
+            lastCharacters
+            balance { amount currencyCode }
+            customer { id }
+            recipientAttributes { message }
+          }
+          cards: giftCards(first: 2, query: $query, sortKey: ID) {
+            nodes { id lastCharacters }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+          count: giftCardsCount(query: $query) { count precision }
+        }"#,
+        json!({ "id": legacy_id, "query": "id:654773256498" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"]["card"], Value::Null);
+    assert_eq!(
+        response.body["data"]["cards"],
+        json!({
+            "nodes": [],
+            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+        })
+    );
+    assert_eq!(
+        response.body["data"]["count"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+}
+
+#[test]
 fn gift_card_update_hydrates_non_seed_live_hybrid_card_before_staging() {
     let hits = Arc::new(Mutex::new(0usize));
     let hit_counter = Arc::clone(&hits);
@@ -6453,6 +6491,74 @@ fn gift_card_update_hydrates_non_seed_live_hybrid_card_before_staging() {
     assert_eq!(
         read.body["data"]["configuration"]["issueLimit"],
         json!({ "amount": "3000.0", "currencyCode": "USD" })
+    );
+}
+
+#[test]
+fn gift_card_update_hydrates_legacy_seed_id_live_hybrid_card_before_staging() {
+    let hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&hits);
+    let upstream_id = "gid://shopify/GiftCard/654773256498";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *hit_counter.lock().unwrap() += 1;
+            assert!(
+                request.body.contains("GiftCardHydrate"),
+                "legacy id mutation should hydrate upstream before staging, got {}",
+                request.body
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "giftCard": upstream_gift_card_fixture(upstream_id, "USD"),
+                        "giftCardConfiguration": {
+                            "issueLimit": { "amount": "3000.0", "currencyCode": "USD" },
+                            "purchaseLimit": { "amount": "14000.0", "currencyCode": "USD" }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardUpdateHydratesFormerSeedCard($id: ID!) {
+          giftCardUpdate(id: $id, input: { note: "updated hydrated seed id" }) {
+            giftCard {
+              id
+              note
+              balance { amount currencyCode }
+              customer { id }
+              recipientAttributes { message }
+            }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "id": upstream_id }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(*hits.lock().unwrap(), 1);
+    assert_eq!(
+        update.body["data"]["giftCardUpdate"],
+        json!({
+            "giftCard": {
+                "id": upstream_id,
+                "note": "updated hydrated seed id",
+                "balance": { "amount": "25.0", "currencyCode": "USD" },
+                "customer": { "id": "gid://shopify/Customer/424242" },
+                "recipientAttributes": null
+            },
+            "userErrors": []
+        })
+    );
+    assert!(
+        !update
+            .body
+            .to_string()
+            .contains("gid://shopify/Customer/10552623464754"),
+        "hydrated former seed id must not leak the old baked customer id"
     );
 }
 
@@ -7068,6 +7174,60 @@ fn gift_card_notification_uses_hydrated_trial_shop_plan() {
 fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_success_credit() {
     let mut proxy = cad_snapshot_proxy();
 
+    let setup = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardTransactionValidationSetup {
+          active: giftCardCreate(input: { initialValue: "5", code: "txnactive1" }) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+          expired: giftCardCreate(input: { initialValue: "5", code: "txnexpired1", expiresOn: "2020-01-01" }) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+          deactivationTarget: giftCardCreate(input: { initialValue: "5", code: "txndeact1" }) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(setup.status, 200);
+    assert_eq!(setup.body["data"]["active"]["userErrors"], json!([]));
+    assert_eq!(setup.body["data"]["expired"]["userErrors"], json!([]));
+    assert_eq!(
+        setup.body["data"]["deactivationTarget"]["userErrors"],
+        json!([])
+    );
+    let active_id = json_string(
+        &setup.body["data"]["active"]["giftCard"]["id"],
+        "active gift card id",
+    );
+    let expired_id = json_string(
+        &setup.body["data"]["expired"]["giftCard"]["id"],
+        "expired gift card id",
+    );
+    let deactivated_id = json_string(
+        &setup.body["data"]["deactivationTarget"]["giftCard"]["id"],
+        "deactivated gift card id",
+    );
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardTransactionValidationDeactivate($id: ID!) {
+          giftCardDeactivate(id: $id) {
+            giftCard { id enabled }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "id": deactivated_id.clone() }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["giftCardDeactivate"],
+        json!({
+            "giftCard": { "id": deactivated_id, "enabled": false },
+            "userErrors": []
+        })
+    );
+
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardTransactionValidation($activeId: ID!, $expiredId: ID!, $deactivatedId: ID!, $validCreditInput: GiftCardCreditInput!, $mismatchCreditInput: GiftCardCreditInput!, $futureCreditInput: GiftCardCreditInput!, $preEpochCreditInput: GiftCardCreditInput!, $validDebitInput: GiftCardDebitInput!, $futureDebitInput: GiftCardDebitInput!, $preEpochDebitInput: GiftCardDebitInput!) {
           expiredCredit: giftCardCredit(id: $expiredId, creditInput: $validCreditInput) { giftCardCreditTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
@@ -7082,9 +7242,9 @@ fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_succ
           successCredit: giftCardCredit(id: $activeId, creditInput: $validCreditInput) { giftCardCreditTransaction { id __typename processedAt amount { amount currencyCode } } userErrors { field code message } }
         }"#,
         json!({
-            "activeId": "gid://shopify/GiftCard/654808252722",
-            "expiredId": "gid://shopify/GiftCard/654808285490",
-            "deactivatedId": "gid://shopify/GiftCard/654808318258",
+            "activeId": active_id,
+            "expiredId": expired_id,
+            "deactivatedId": deactivated_id,
             "validCreditInput": { "creditAmount": { "amount": "5.00", "currencyCode": "CAD" } },
             "mismatchCreditInput": { "creditAmount": { "amount": "5.00", "currencyCode": "EUR" } },
             "futureCreditInput": { "processedAt": "2030-01-01T00:00:00Z", "creditAmount": { "amount": "5.00", "currencyCode": "CAD" } },
@@ -7107,7 +7267,7 @@ fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_succ
             "futureDebit": { "giftCardDebitTransaction": null, "userErrors": [{ "field": ["debitInput", "processedAt"], "code": "INVALID", "message": "The processed date must not be in the future." }] },
             "preEpochDebit": { "giftCardDebitTransaction": null, "userErrors": [{ "field": ["debitInput", "processedAt"], "code": "INVALID", "message": "A valid processed date must be used." }] },
             "deactivatedDebit": { "giftCardDebitTransaction": null, "userErrors": [{ "field": ["id"], "code": "INVALID", "message": "The gift card is deactivated." }] },
-            "successCredit": { "giftCardCreditTransaction": { "id": "gid://shopify/GiftCardCreditTransaction/1", "__typename": "GiftCardCreditTransaction", "processedAt": "2024-01-01T00:00:01.000Z", "amount": { "amount": "5.0", "currencyCode": "CAD" } }, "userErrors": [] }
+            "successCredit": { "giftCardCreditTransaction": { "id": "gid://shopify/GiftCardCreditTransaction/4", "__typename": "GiftCardCreditTransaction", "processedAt": "2024-01-01T00:00:03.000Z", "amount": { "amount": "5.0", "currencyCode": "CAD" } }, "userErrors": [] }
         })
     );
 
@@ -7120,7 +7280,7 @@ fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_succ
             }
           }
         }"#,
-        json!({ "id": "gid://shopify/GiftCard/654808252722" }),
+        json!({ "id": active_id }),
     ));
     assert_eq!(
         read.body["data"]["giftCard"],
@@ -7128,7 +7288,7 @@ fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_succ
             "balance": { "amount": "10.0", "currencyCode": "CAD" },
             "transactions": {
                 "nodes": [{
-                    "processedAt": "2024-01-01T00:00:01.000Z",
+                    "processedAt": "2024-01-01T00:00:03.000Z",
                     "amount": { "amount": "5.0", "currencyCode": "CAD" }
                 }]
             }
@@ -8356,6 +8516,24 @@ fn gift_card_expiry_uses_utc_fallback_when_shop_timezone_is_missing() {
 fn gift_card_credit_limit_rejects_credit_but_allows_followup_debit_transaction() {
     let mut proxy = cad_snapshot_proxy();
 
+    let setup = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardCreditLimitSetup {
+          giftCardCreate(input: { initialValue: "3000", code: "txnboundary1" }) {
+            giftCard { id balance { amount currencyCode } }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        setup.body["data"]["giftCardCreate"]["userErrors"],
+        json!([])
+    );
+    let boundary_id = json_string(
+        &setup.body["data"]["giftCardCreate"]["giftCard"]["id"],
+        "boundary gift card id",
+    );
+
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardCreditLimitExceeded($boundaryId: ID!, $creditInput: GiftCardCreditInput!, $debitInput: GiftCardDebitInput!) {
           overLimitCredit: giftCardCredit(id: $boundaryId, creditInput: $creditInput) {
@@ -8368,7 +8546,7 @@ fn gift_card_credit_limit_rejects_credit_but_allows_followup_debit_transaction()
           }
         }"#,
         json!({
-            "boundaryId": "gid://shopify/GiftCard/654867595570",
+            "boundaryId": boundary_id,
             "creditInput": { "creditAmount": { "amount": "0.01", "currencyCode": "CAD" } },
             "debitInput": { "debitAmount": { "amount": "0.01", "currencyCode": "CAD" } }
         }),

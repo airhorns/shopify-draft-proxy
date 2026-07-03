@@ -3834,15 +3834,18 @@ fn discount_country_summary_name(country_code: &str) -> String {
     .to_string()
 }
 
-pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str, shop_currency_code: &str) -> Value {
+pub(in crate::proxy) fn gift_card_lifecycle_base_card(
+    id: &str,
+    _shop_currency_code: &str,
+) -> Value {
     let timestamp = default_product_timestamp();
     json!({
         "__typename": "GiftCard",
         "id": id,
         "legacyResourceId": resource_id_path_tail(id),
-        "lastCharacters": "2053",
-        "maskedCode": "•••• •••• •••• 2053",
-        "giftCardCode": synthetic_gift_card_code_from_id(id),
+        "lastCharacters": null,
+        "maskedCode": null,
+        "giftCardCode": null,
         "enabled": true,
         "deactivatedAt": null,
         "disabledAt": null,
@@ -3851,22 +3854,12 @@ pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str, shop_currency_co
         "templateSuffix": null,
         "createdAt": timestamp.clone(),
         "updatedAt": timestamp,
-        "initialValue": money_value("5.0", shop_currency_code),
-        "balance": money_value("5.0", shop_currency_code),
-        "customer": { "id": "gid://shopify/Customer/10552623464754" },
-        "recipientAttributes": {
-            "message": "HAR-464 recipient message",
-            "preferredName": "HAR-464 recipient",
-            "sendNotificationAt": null,
-            "recipient": { "id": "gid://shopify/Customer/10552623464754" }
-        },
+        "initialValue": null,
+        "balance": null,
+        "customer": null,
+        "recipientAttributes": null,
         "transactions": connection_json(Vec::new())
     })
-}
-
-fn synthetic_gift_card_code_from_id(id: &str) -> String {
-    let tail = resource_id_tail(id);
-    format!("giftcard{tail:0>8}")
 }
 
 pub(in crate::proxy) fn gift_card_configuration_record(shop_currency_code: &str) -> Value {
