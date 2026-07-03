@@ -8076,6 +8076,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-lifecycle-cross-kind-id',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-lifecycle-cross-kind-id-conformance.ts',
+    purpose:
+      'Wrong-kind id handling for discount lifecycle roots and discountRedeemCodeBulkAdd against disposable code and automatic discounts.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-lifecycle-cross-kind-id.json`,
+      'config/parity-specs/discounts/discount-lifecycle-cross-kind-id.json',
+      'config/parity-requests/discounts/discount-lifecycle-cross-kind-id-setup.graphql',
+      'config/parity-requests/discounts/discount-lifecycle-cross-kind-id-mutations.graphql',
+      'config/parity-requests/discounts/discount-lifecycle-cross-kind-id-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable code discount and one disposable automatic discount, captures rejected cross-kind lifecycle and redeem-code bulk-add mutations, verifies readback, then deletes both discounts.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-code-basic-name-alias-independence',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-name-alias-independence-conformance.ts',

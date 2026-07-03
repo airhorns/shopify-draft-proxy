@@ -2822,6 +2822,251 @@ fn discount_lifecycle_unknown_ids_use_type_specific_not_found_messages() {
 }
 
 #[test]
+fn discount_lifecycle_cross_kind_ids_are_not_found_and_do_not_mutate_records() {
+    let mut proxy = snapshot_proxy();
+
+    let setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountLifecycleCrossKindSetup($codeInput: DiscountCodeBasicInput!, $automaticInput: DiscountAutomaticBasicInput!) {
+          codeSetup: discountCodeBasicCreate(basicCodeDiscount: $codeInput) {
+            codeDiscountNode { id codeDiscount { ... on DiscountCodeBasic { status codesCount { count precision } } } }
+            userErrors { field message code extraInfo }
+          }
+          automaticSetup: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticInput) {
+            automaticDiscountNode { id automaticDiscount { ... on DiscountAutomaticBasic { status } } }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "codeInput": {
+                "title": "Cross-kind code lifecycle",
+                "code": "CROSS-KIND-CODE",
+                "startsAt": "2026-04-01T00:00:00Z",
+                "context": { "all": "ALL" },
+                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+            },
+            "automaticInput": {
+                "title": "Cross-kind automatic lifecycle",
+                "startsAt": "2026-04-01T00:00:00Z",
+                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+            }
+        }),
+    ));
+    assert_eq!(setup.status, 200);
+    assert_eq!(setup.body["data"]["codeSetup"]["userErrors"], json!([]));
+    assert_eq!(
+        setup.body["data"]["automaticSetup"]["userErrors"],
+        json!([])
+    );
+    let code_id = json_string(
+        &setup.body["data"]["codeSetup"]["codeDiscountNode"]["id"],
+        "cross-kind code id",
+    );
+    let automatic_id = json_string(
+        &setup.body["data"]["automaticSetup"]["automaticDiscountNode"]["id"],
+        "cross-kind automatic id",
+    );
+
+    let transitions = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountLifecycleCrossKindTransitions($codeId: ID!, $automaticId: ID!) {
+          codeActivateAutomatic: discountCodeActivate(id: $automaticId) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          codeDeactivateAutomatic: discountCodeDeactivate(id: $automaticId) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          automaticActivateCode: discountAutomaticActivate(id: $codeId) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          automaticDeactivateCode: discountAutomaticDeactivate(id: $codeId) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          bulkAddAutomatic: discountRedeemCodeBulkAdd(discountId: $automaticId, codes: [{ code: "CROSSKIND1" }]) {
+            bulkCreation { done codesCount importedCount failedCount }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "codeId": code_id, "automaticId": automatic_id }),
+    ));
+    assert_eq!(transitions.status, 200);
+    for response_key in ["codeActivateAutomatic", "codeDeactivateAutomatic"] {
+        assert_eq!(
+            transitions.body["data"][response_key]["codeDiscountNode"],
+            json!(null)
+        );
+        assert_eq!(
+            transitions.body["data"][response_key]["userErrors"],
+            json!([{ "field": ["id"], "message": "Code discount does not exist.", "code": "INVALID", "extraInfo": null }])
+        );
+    }
+    for response_key in ["automaticActivateCode", "automaticDeactivateCode"] {
+        assert_eq!(
+            transitions.body["data"][response_key]["automaticDiscountNode"],
+            json!(null)
+        );
+        assert_eq!(
+            transitions.body["data"][response_key]["userErrors"],
+            json!([{ "field": ["id"], "message": "Automatic discount does not exist.", "code": "INVALID", "extraInfo": null }])
+        );
+    }
+    assert_eq!(
+        transitions.body["data"]["bulkAddAutomatic"]["bulkCreation"],
+        json!(null)
+    );
+    assert_eq!(
+        transitions.body["data"]["bulkAddAutomatic"]["userErrors"],
+        json!([{ "field": ["discountId"], "message": "Code discount does not exist.", "code": "INVALID", "extraInfo": null }])
+    );
+
+    let deletes = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountLifecycleCrossKindDeletes($codeId: ID!, $automaticId: ID!) {
+          codeDeleteAutomatic: discountCodeDelete(id: $automaticId) {
+            deletedCodeDiscountId
+            userErrors { field message code extraInfo }
+          }
+          automaticDeleteCode: discountAutomaticDelete(id: $codeId) {
+            deletedAutomaticDiscountId
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "codeId": code_id, "automaticId": automatic_id }),
+    ));
+    assert_eq!(deletes.status, 200);
+    assert_eq!(
+        deletes.body["data"]["codeDeleteAutomatic"]["deletedCodeDiscountId"],
+        json!(null)
+    );
+    assert_eq!(
+        deletes.body["data"]["codeDeleteAutomatic"]["userErrors"],
+        json!([{ "field": ["id"], "message": "Code discount does not exist.", "code": "INVALID", "extraInfo": null }])
+    );
+    assert_eq!(
+        deletes.body["data"]["automaticDeleteCode"]["deletedAutomaticDiscountId"],
+        json!(null)
+    );
+    assert_eq!(
+        deletes.body["data"]["automaticDeleteCode"]["userErrors"],
+        json!([{ "field": ["id"], "message": "Automatic discount does not exist.", "code": "INVALID", "extraInfo": null }])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountLifecycleCrossKindRead($codeId: ID!, $automaticId: ID!, $rejectedCode: String!) {
+          codeDiscountNode(id: $codeId) {
+            id
+            codeDiscount { ... on DiscountCodeBasic { status codesCount { count precision } } }
+          }
+          automaticDiscountNode(id: $automaticId) {
+            id
+            automaticDiscount { ... on DiscountAutomaticBasic { status } }
+          }
+          rejectedCodeLookup: codeDiscountNodeByCode(code: $rejectedCode) { id }
+        }
+        "#,
+        json!({ "codeId": code_id, "automaticId": automatic_id, "rejectedCode": "CROSSKIND1" }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["codeDiscountNode"]["codeDiscount"]["status"],
+        json!("ACTIVE")
+    );
+    assert_eq!(
+        read.body["data"]["codeDiscountNode"]["codeDiscount"]["codesCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["automaticDiscountNode"]["automaticDiscount"]["status"],
+        json!("ACTIVE")
+    );
+    assert_eq!(read.body["data"]["rejectedCodeLookup"], json!(null));
+}
+
+#[test]
+fn discount_redeem_code_bulk_add_rejects_code_app_discount_ids() {
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_upstream_transport(|request| discount_app_function_upstream_response(request, true));
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountRedeemCodeBulkAddCodeAppSetup($input: DiscountCodeAppInput!) {
+          discountCodeAppCreate(codeAppDiscount: $input) {
+            codeAppDiscount {
+              discountId
+              codes(first: 5) { nodes { code } }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Code app bulk add target",
+                "code": "APP-BULK-BASE",
+                "startsAt": "2026-05-05T00:00:00Z",
+                "functionHandle": "discount-function",
+                "discountClasses": ["ORDER"]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["discountCodeAppCreate"]["userErrors"],
+        json!([])
+    );
+    let code_app_id = json_string(
+        &create.body["data"]["discountCodeAppCreate"]["codeAppDiscount"]["discountId"],
+        "code app discount id",
+    );
+
+    let bulk_add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountRedeemCodeBulkAddCodeApp($discountId: ID!) {
+          discountRedeemCodeBulkAdd(discountId: $discountId, codes: [{ code: "APP-BULK-ADDED" }]) {
+            bulkCreation { done codesCount importedCount failedCount }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "discountId": code_app_id }),
+    ));
+    assert_eq!(
+        bulk_add.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"],
+        json!(null)
+    );
+    assert_eq!(
+        bulk_add.body["data"]["discountRedeemCodeBulkAdd"]["userErrors"],
+        json!([{ "field": ["discountId"], "message": "Code discount does not exist.", "code": "INVALID", "extraInfo": null }])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DiscountRedeemCodeBulkAddCodeAppRead($discountId: ID!, $rejectedCode: String!) {
+          codeDiscountNode(id: $discountId) {
+            id
+            codeDiscount { ... on DiscountCodeApp { codes(first: 5) { nodes { code } } } }
+          }
+          rejectedCodeLookup: codeDiscountNodeByCode(code: $rejectedCode) { id }
+        }
+        "#,
+        json!({ "discountId": code_app_id, "rejectedCode": "APP-BULK-ADDED" }),
+    ));
+    assert_eq!(
+        read.body["data"]["codeDiscountNode"]["codeDiscount"]["codes"]["nodes"],
+        json!([{ "code": "APP-BULK-BASE" }])
+    );
+    assert_eq!(read.body["data"]["rejectedCodeLookup"], json!(null));
+}
+
+#[test]
 fn discount_activate_deactivate_noops_preserve_captured_timestamp_shapes() {
     let mut proxy = snapshot_proxy();
 
