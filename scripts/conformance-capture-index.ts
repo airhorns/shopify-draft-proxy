@@ -2580,6 +2580,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-catalog-connection',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-metafield-definition-catalog-connection-conformance.mts',
+    purpose:
+      'metafieldDefinitions catalog query filtering, sortKey/reverse ordering, and first/after cursor windowing over disposable product-owned definitions.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-catalog-connection.json`,
+      'config/parity-specs/metafields/metafield-definition-catalog-connection.json',
+      'config/parity-requests/metafields/metafield-definition-catalog-connection-create.graphql',
+      'config/parity-requests/metafields/metafield-definition-catalog-connection-first-page.graphql',
+      'config/parity-requests/metafields/metafield-definition-catalog-connection-after.graphql',
+      'config/parity-requests/metafields/metafield-definition-catalog-connection-sort-query.graphql',
+    ],
+    cleanupBehavior:
+      'Creates three disposable PRODUCT metafield definitions, records catalog reads, then deletes them.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'standard-metafield-definition-enable-reenable-idempotent',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-standard-metafield-definition-enable-reenable-idempotent.mts',
