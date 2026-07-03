@@ -7646,7 +7646,7 @@ fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
 
     let first_capture = capture_proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/order-payment-capture-local-staging.graphql"),
-        json!({"input": {"id": create.body["data"]["orderCreate"]["order"]["id"].clone(), "parentTransactionId": create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone(), "amount": "10.00", "currency": "CAD", "finalCapture": false}}),
+        json!({"input": {"id": create.body["data"]["orderCreate"]["order"]["id"].clone(), "parentTransactionId": create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone(), "amount": "10.00", "currency": "CAD"}}),
     ));
     assert_eq!(
         first_capture.body["data"]["orderCapture"]["order"]["displayFinancialStatus"],
@@ -7659,7 +7659,7 @@ fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
 
     let final_capture = capture_proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/order-payment-capture-local-staging.graphql"),
-        json!({"input": {"id": create.body["data"]["orderCreate"]["order"]["id"].clone(), "parentTransactionId": create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone(), "amount": "15.00", "currency": "CAD", "finalCapture": true}}),
+        json!({"input": {"id": create.body["data"]["orderCreate"]["order"]["id"].clone(), "parentTransactionId": create.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone(), "amount": "15.00", "currency": "CAD", "finalCapture": null}}),
     ));
     let final_order = final_capture.body["data"]["orderCapture"]["order"].clone();
     assert_eq!(final_order["displayFinancialStatus"], json!("PAID"));
@@ -7735,6 +7735,84 @@ fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
 }
 
 #[test]
+fn order_capture_rejects_boolean_final_capture_for_manual_gateway_without_side_effects() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-create-local-staging.graphql"
+        ),
+        json!({
+            "order": {
+                "currency": "CAD",
+                "transactions": [{
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": { "shopMoney": { "amount": "20.00", "currencyCode": "CAD" } }
+                }],
+                "lineItems": [{
+                    "title": "manual final capture unsupported",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "20.00", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"]
+        .as_str()
+        .expect("order id")
+        .to_string();
+    let parent_transaction_id = create.body["data"]["orderCreate"]["order"]["transactions"][0]
+        ["id"]
+        .as_str()
+        .expect("parent transaction id")
+        .to_string();
+    let expected_error = json!([{
+        "field": null,
+        "message": "Setting final capture is not supported for this transaction's payment gateway. Please remove the parameter or set it to null, then try again."
+    }]);
+
+    for final_capture in [true, false] {
+        let log_before = log_snapshot(&proxy);
+        let state_before = state_snapshot(&proxy);
+        let order_before = state_before["stagedState"]["orders"][&order_id].clone();
+
+        let capture = proxy.process_request(json_graphql_request(
+            include_str!(
+                "../../config/parity-requests/orders/order-payment-capture-local-staging.graphql"
+            ),
+            json!({
+                "input": {
+                    "id": order_id,
+                    "parentTransactionId": parent_transaction_id,
+                    "amount": "5.00",
+                    "currency": "CAD",
+                    "finalCapture": final_capture
+                }
+            }),
+        ));
+
+        assert_eq!(capture.status, 200);
+        assert_eq!(
+            capture.body["data"]["orderCapture"]["transaction"],
+            Value::Null
+        );
+        assert_eq!(
+            capture.body["data"]["orderCapture"]["userErrors"],
+            expected_error
+        );
+        assert_eq!(log_snapshot(&proxy), log_before);
+        assert_eq!(
+            state_snapshot(&proxy)["stagedState"]["orders"][&order_id],
+            order_before
+        );
+    }
+}
+
+#[test]
 fn order_payment_transactions_dispatch_by_root_for_ordinary_operation_names() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
@@ -7766,8 +7844,7 @@ fn order_payment_transactions_dispatch_by_root_for_ordinary_operation_names() {
                 "id": order_id.clone(),
                 "parentTransactionId": authorization_id.clone(),
                 "amount": "10.00",
-                "currency": "CAD",
-                "finalCapture": false
+                "currency": "CAD"
             }
         }),
     ));

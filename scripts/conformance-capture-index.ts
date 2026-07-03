@@ -9167,6 +9167,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_orders', 'write_orders'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}order-capture-validation.json`,
+      'config/parity-specs/payments/order_capture_final_capture_unsupported_gateway.json',
       'config/parity-specs/payments/order_capture_validation.json',
       'config/parity-requests/payments/order-capture-validation-order-capture.graphql',
       'config/parity-requests/payments/order-capture-validation-order-create.graphql',
