@@ -2974,8 +2974,16 @@ fn metafield_definition_delete_rejects_reserved_namespace_without_delete_all_fla
         .as_str()
         .unwrap()
         .to_string();
+    let app_request = |query: &str, variables: serde_json::Value| {
+        let mut request = json_graphql_request(query, variables);
+        request.headers.insert(
+            "x-shopify-draft-proxy-api-client-id".to_string(),
+            "347082227713".to_string(),
+        );
+        request
+    };
 
-    let create_definition = proxy.process_request(json_graphql_request(
+    let create_definition = proxy.process_request(app_request(
         r#"
         mutation ReservedNamespaceDefinitionCreate($definition: MetafieldDefinitionInput!) {
           metafieldDefinitionCreate(definition: $definition) {
@@ -3004,7 +3012,7 @@ fn metafield_definition_delete_rejects_reserved_namespace_without_delete_all_fla
         json!([])
     );
 
-    let set = proxy.process_request(json_graphql_request(
+    let set = proxy.process_request(app_request(
         r#"
         mutation ReservedNamespaceAssociatedMetafieldSet($metafields: [MetafieldsSetInput!]!) {
           metafieldsSet(metafields: $metafields) {
@@ -3025,7 +3033,7 @@ fn metafield_definition_delete_rejects_reserved_namespace_without_delete_all_fla
     ));
     assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
 
-    let guarded_delete = proxy.process_request(json_graphql_request(
+    let guarded_delete = proxy.process_request(app_request(
         r#"
         mutation ReservedNamespaceDefinitionDeleteNoFlag {
           metafieldDefinitionDelete(
@@ -3053,7 +3061,7 @@ fn metafield_definition_delete_rejects_reserved_namespace_without_delete_all_fla
         })
     );
 
-    let read_after_guard = proxy.process_request(json_graphql_request(
+    let read_after_guard = proxy.process_request(app_request(
         r#"
         query ReservedNamespaceDefinitionReadAfterGuard {
           metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: "$app:settings", key: "config" }) {
@@ -3072,7 +3080,7 @@ fn metafield_definition_delete_rejects_reserved_namespace_without_delete_all_fla
         })
     );
 
-    let delete_all = proxy.process_request(json_graphql_request(
+    let delete_all = proxy.process_request(app_request(
         r#"
         mutation ReservedNamespaceDefinitionDeleteAll {
           metafieldDefinitionDelete(
@@ -3099,7 +3107,7 @@ fn metafield_definition_delete_rejects_reserved_namespace_without_delete_all_fla
         json!([])
     );
 
-    let read_metafield_after_delete_all = proxy.process_request(json_graphql_request(
+    let read_metafield_after_delete_all = proxy.process_request(app_request(
         r#"
         query ReservedNamespaceMetafieldReadAfterDeleteAll($id: ID!) {
           product(id: $id) {

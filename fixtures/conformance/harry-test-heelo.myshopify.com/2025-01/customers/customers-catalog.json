@@ -18,9 +18,9 @@
             "verifiedEmail": true,
             "taxExempt": false,
             "state": "DISABLED",
-            "numberOfOrders": "5",
+            "numberOfOrders": "13",
             "amountSpent": {
-              "amount": "4941.0",
+              "amount": "11884.9",
               "currencyCode": "CAD"
             },
             "defaultEmailAddress": {
@@ -38,7 +38,7 @@
               "formattedArea": "Ottawa, Canada"
             },
             "createdAt": "2025-03-26T19:51:37Z",
-            "updatedAt": "2026-04-25T23:58:18Z"
+            "updatedAt": "2026-05-06T02:40:36Z"
           }
         },
         {
@@ -152,9 +152,9 @@
                     "verifiedEmail": true,
                     "taxExempt": false,
                     "state": "DISABLED",
-                    "numberOfOrders": "5",
+                    "numberOfOrders": "13",
                     "amountSpent": {
-                      "amount": "4941.0",
+                      "amount": "11884.9",
                       "currencyCode": "CAD"
                     },
                     "defaultEmailAddress": {
@@ -172,7 +172,7 @@
                       "formattedArea": "Ottawa, Canada"
                     },
                     "createdAt": "2025-03-26T19:51:37Z",
-                    "updatedAt": "2026-04-25T23:58:18Z"
+                    "updatedAt": "2026-05-06T02:40:36Z"
                   }
                 },
                 {
