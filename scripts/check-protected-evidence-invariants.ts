@@ -16,6 +16,10 @@ const registeredProtectedEvidenceRemovals = new Set([
   'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-local-staging.json',
   'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-remote-create-validation.json',
   'fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-shop-pay-guards.json',
+  'fixtures/conformance/local-runtime/2026-04/media/file-acknowledge-update-failed-local-runtime.json',
+  'fixtures/conformance/local-runtime/2026-04/media/file-update-product-reference-local-runtime.json',
+  'fixtures/conformance/local-runtime/2026-04/media/files-upload-local-runtime.json',
+  'fixtures/conformance/local-runtime/2026-04/media/media-file-acknowledge-update-failed-semantics.json',
   'fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json',
   'fixtures/conformance/local-runtime/2026-04/payments/payment-terms-delete-owner-cascade.json',
   'fixtures/conformance/local-runtime/2026-05/payments/payment-reminder-send-shape.json',
@@ -81,7 +85,12 @@ const changed = result.stdout
   .filter((entry) => entry.path.length > 0);
 
 const unregistered = changed.filter(({ status, path: changedPath }) => {
-  if (status === 'D') return !registeredProtectedEvidenceRemovals.has(changedPath);
+  if (status === 'D') {
+    return (
+      !registeredProtectedEvidenceRemovals.has(changedPath) &&
+      !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath))
+    );
+  }
   return (
     existsSync(changedPath) && !registeredFixtureOutputs.some((output) => fixtureOutputMatchesPath(output, changedPath))
   );
