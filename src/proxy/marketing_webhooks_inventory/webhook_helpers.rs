@@ -177,6 +177,37 @@ pub(in crate::proxy) fn webhook_uri_host(uri: &str) -> Option<String> {
     )
 }
 
+fn webhook_uri_unsupported_protocol(uri: &str) -> Option<&str> {
+    if uri.trim().is_empty()
+        || uri.starts_with("https://")
+        || uri.starts_with("http://")
+        || uri.starts_with("kafka://")
+        || uri.starts_with("pubsub://")
+        || uri.starts_with("arn:aws:events:")
+    {
+        return None;
+    }
+
+    let (scheme, _) = uri.split_once("://")?;
+    (!scheme.is_empty()
+        && scheme
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '+' | '-' | '.')))
+    .then_some(scheme)
+}
+
+fn webhook_https_uri_is_invalid(uri: &str) -> bool {
+    if !uri.starts_with("https://") {
+        return false;
+    }
+
+    url::Url::parse(uri)
+        .ok()
+        .filter(|parsed| parsed.scheme() == "https")
+        .and_then(|parsed| parsed.host_str().map(str::to_string))
+        .is_none_or(|host| host.is_empty())
+}
+
 pub(in crate::proxy) fn webhook_subscription_legacy_id(id: &str) -> String {
     resource_id_tail(id).to_string()
 }
@@ -565,6 +596,7 @@ impl DraftProxy {
             .or_else(|| record["callbackUrl"].as_str())
             .unwrap_or_default();
         let address_field = webhook_subscription_address_error_field(root_field);
+        let address_err = |message| user_error_omit_code(address_field.clone(), message, None);
         let callback_err =
             |message| user_error_omit_code(["webhookSubscription", "callbackUrl"], message, None);
         if uri.trim().is_empty() {
@@ -576,6 +608,20 @@ impl DraftProxy {
         if uri.starts_with("kafka://") {
             errors.push(callback_err("Address protocol kafka:// is not supported"));
             errors.push(callback_err("Address is not a valid kafka topic"));
+        }
+        let invalid_http_address = webhook_https_uri_is_invalid(uri)
+            || (!uri.trim().is_empty()
+                && !uri.starts_with("http://")
+                && !uri.starts_with("kafka://")
+                && !uri.starts_with("pubsub://")
+                && !uri.starts_with("arn:aws:events:")
+                && !uri.starts_with("https://"));
+        if let Some(protocol) = webhook_uri_unsupported_protocol(uri) {
+            errors.push(address_err(&format!(
+                "Address protocol {protocol}:// is not supported"
+            )));
+        } else if invalid_http_address {
+            errors.push(address_err("Address is invalid"));
         }
         if uri.len() > 65_535 {
             errors.push(callback_err("Address is too big (maximum is 64 KB)"));

@@ -1110,6 +1110,187 @@ fn webhook_subscription_validation_guards_match_old_gleam_cases() {
 }
 
 #[test]
+fn webhook_subscription_scheme_allowlist_rejects_non_https_and_invalid_https_without_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let assert_create_rejected = |proxy: &mut DraftProxy, uri: &str, expected_error: Value| {
+        let response = proxy.process_request(json_graphql_request(
+            r#"
+            mutation WebhookSubscriptionCreateSchemeAllowlist(
+              $webhookSubscription: WebhookSubscriptionInput!
+            ) {
+              webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: $webhookSubscription) {
+                webhookSubscription {
+                  id
+                  endpoint {
+                    __typename
+                    ... on WebhookHttpEndpoint { callbackUrl }
+                  }
+                }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "webhookSubscription": {
+                    "uri": uri,
+                    "format": "JSON"
+                }
+            }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["webhookSubscriptionCreate"],
+            json!({
+                "webhookSubscription": null,
+                "userErrors": [expected_error]
+            }),
+            "unexpected create rejection payload for {uri}"
+        );
+    };
+
+    assert_create_rejected(
+        &mut proxy,
+        "ftp://webhook-test.example.com/hook",
+        json!({
+            "field": ["webhookSubscription", "callbackUrl"],
+            "message": "Address protocol ftp:// is not supported"
+        }),
+    );
+    assert_create_rejected(
+        &mut proxy,
+        "ws://webhook-test.example.com/hook",
+        json!({
+            "field": ["webhookSubscription", "callbackUrl"],
+            "message": "Address protocol ws:// is not supported"
+        }),
+    );
+    assert_create_rejected(
+        &mut proxy,
+        "https://",
+        json!({
+            "field": ["webhookSubscription", "callbackUrl"],
+            "message": "Address is invalid"
+        }),
+    );
+
+    let eventbridge = proxy.process_request(json_graphql_request(
+        r#"
+        mutation EventBridgeWebhookSubscriptionCreateSchemeAllowlist {
+          eventBridgeWebhookSubscriptionCreate(
+            topic: SHOP_UPDATE
+            webhookSubscription: { arn: "ftp://webhook-test.example.com/hook" }
+          ) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        eventbridge.body["data"]["eventBridgeWebhookSubscriptionCreate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [{
+                "field": ["webhookSubscription", "arn"],
+                "message": "Address protocol ftp:// is not supported"
+            }]
+        })
+    );
+
+    assert_eq!(
+        proxy
+            .process_request(json_graphql_request(
+                "# RustWebhookLocalRuntime\nquery { webhookSubscriptionsCount { count } }",
+                json!({}),
+            ))
+            .body["data"]["webhookSubscriptionsCount"],
+        json!({ "count": 0 }),
+        "rejected creates should not stage webhook subscriptions"
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"],
+        json!([]),
+        "rejected creates should not append mutation log entries"
+    );
+
+    let baseline = proxy.process_request(json_graphql_request(
+        r#"
+        mutation WebhookSubscriptionCreateUpdateBaseline {
+          webhookSubscriptionCreate(
+            topic: SHOP_UPDATE
+            webhookSubscription: { uri: "https://example.com/scheme-allowlist-baseline", format: JSON }
+          ) {
+            webhookSubscription { id uri }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        baseline.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    let baseline_id = baseline.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]
+        ["id"]
+        .as_str()
+        .expect("baseline create should return an id")
+        .to_string();
+    let log_after_baseline = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+
+    let rejected_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation WebhookSubscriptionUpdateSchemeAllowlist(
+          $id: ID!
+          $webhookSubscription: WebhookSubscriptionInput!
+        ) {
+          webhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id uri }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": baseline_id,
+            "webhookSubscription": {
+                "uri": "ftp://webhook-test.example.com/hook",
+                "format": "JSON"
+            }
+        }),
+    ));
+    assert_eq!(
+        rejected_update.body["data"]["webhookSubscriptionUpdate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [{
+                "field": ["webhookSubscription", "callbackUrl"],
+                "message": "Address protocol ftp:// is not supported"
+            }]
+        })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_after_baseline,
+        "rejected update should not append a mutation log entry"
+    );
+
+    let detail = proxy.process_request(json_graphql_request(
+        "query WebhookSubscriptionAfterRejectedSchemeUpdate($id: ID!) { webhookSubscription(id: $id) { id uri } webhookSubscriptionsCount { count } }",
+        json!({ "id": baseline_id }),
+    ));
+    assert_eq!(
+        detail.body["data"]["webhookSubscription"]["uri"],
+        json!("https://example.com/scheme-allowlist-baseline")
+    );
+    assert_eq!(
+        detail.body["data"]["webhookSubscriptionsCount"],
+        json!({ "count": 1 })
+    );
+}
+
+#[test]
 fn webhook_subscription_filter_byte_size_validation_matches_shopify_ordering() {
     let mut proxy = snapshot_proxy();
     let at_limit_filter = format!("id:{}", "1".repeat(65_532));

@@ -10746,6 +10746,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'webhooks',
+    captureId: 'webhook-subscription-scheme-allowlist',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-scheme-allowlist.ts',
+    purpose:
+      'Webhook subscription non-HTTPS/non-cloud URI scheme and bare HTTPS validation branches for create/update.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-scheme-allowlist.json`,
+      'config/parity-specs/webhooks/webhook-subscription-scheme-allowlist.json',
+    ],
+    cleanupBehavior:
+      'Creates one temporary HTTP webhook subscription for update validation, then deletes it during cleanup; invalid create branches are validation-only.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'webhooks',
     captureId: 'webhook-subscription-dedicated-cloud-destinations',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-dedicated-cloud-destinations-conformance.ts',
