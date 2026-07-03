@@ -6507,6 +6507,66 @@ fn localization_translations_register_validation_order_matches_shopify_precedenc
         })
     );
 
+    let non_enabled_unknown_market = locale_proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": locale_resource_id.as_str(),
+            "translations": [{
+                "locale": "it",
+                "key": "title",
+                "value": "Ciao",
+                "translatableContentDigest": "digest",
+                "marketId": "gid://shopify/Market/424242"
+            }]
+        }),
+    ));
+    assert_eq!(
+        non_enabled_unknown_market.body["data"]["translationsRegister"],
+        json!({
+            "translations": [],
+            "userErrors": [{
+                "field": ["translations", "0", "marketId"],
+                "message": "The market corresponding to the `marketId` argument doesn't exist",
+                "code": "MARKET_DOES_NOT_EXIST"
+            }]
+        })
+    );
+
+    let primary_unknown_market = locale_proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": locale_resource_id.as_str(),
+            "translations": [{
+                "locale": "en",
+                "key": "title",
+                "value": "Hello",
+                "translatableContentDigest": "digest",
+                "marketId": "gid://shopify/Market/424242"
+            }]
+        }),
+    ));
+    assert_eq!(
+        primary_unknown_market.body["data"]["translationsRegister"],
+        json!({
+            "translations": [],
+            "userErrors": [{
+                "field": ["translations", "0", "marketId"],
+                "message": "The market corresponding to the `marketId` argument doesn't exist",
+                "code": "MARKET_DOES_NOT_EXIST"
+            }]
+        })
+    );
+
     let mut market_proxy = snapshot_proxy();
     let market_resource_id = create_fallback_localization_product(&mut market_proxy);
     let enable = market_proxy.process_request(json_graphql_request(

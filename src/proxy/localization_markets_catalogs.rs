@@ -3174,6 +3174,15 @@ impl DraftProxy {
             let field_index = index.to_string();
             let locale = resolved_object_string(translation_input, "locale")
                 .unwrap_or_else(|| "fr".to_string());
+            let market_id = resolved_object_string(translation_input, "marketId");
+            if matches!(market_id.as_deref(), Some(id) if !self.market_exists(id)) {
+                user_errors.push(user_error(
+                    json!(["translations", field_index, "marketId"]),
+                    "The market corresponding to the `marketId` argument doesn't exist",
+                    Some("MARKET_DOES_NOT_EXIST"),
+                ));
+                continue;
+            }
             if locale == primary_locale {
                 user_errors.push(user_error(
                     json!(["translations", field_index, "locale"]),
@@ -3187,15 +3196,6 @@ impl DraftProxy {
                     json!(["translations", field_index, "locale"]),
                     "Locale is not a valid locale for the shop",
                     Some("INVALID_LOCALE_FOR_SHOP"),
-                ));
-                continue;
-            }
-            let market_id = resolved_object_string(translation_input, "marketId");
-            if matches!(market_id.as_deref(), Some(id) if !self.market_exists(id)) {
-                user_errors.push(user_error(
-                    json!(["translations", field_index, "marketId"]),
-                    "The market corresponding to the `marketId` argument doesn't exist",
-                    Some("MARKET_DOES_NOT_EXIST"),
                 ));
                 continue;
             }

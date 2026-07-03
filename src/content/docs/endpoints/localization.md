@@ -87,10 +87,12 @@ translation-key/locale/market combination that exists in staged state. An empty
 `translations: null, userErrors: []` payload.
 For `translationsRegister` rows that violate multiple rules, captured Shopify
 behavior validates locale and market gates before translation-record value and
-digest validation; the market-scoped value-matches-base-translation check runs
-before digest validation, so the local first `userErrors` entry follows that
-precedence. Captured Shopify behavior accepts a market-scoped value matching the
-source content when no shop-level translation exists for that locale/key.
+digest validation, and market existence wins before locale enablement or
+primary-locale validation when a row violates both. The market-scoped
+value-matches-base-translation check runs before digest validation, so the local
+first `userErrors` entry follows that precedence. Captured Shopify behavior
+accepts a market-scoped value matching the source content when no shop-level
+translation exists for that locale/key.
 Market-scoped `translationsRegister` checks market existence from store state or
 upstream hydration and limits market-customizable translation keys to modeled
 resource/key pairs. Modeled Product keys include `title`, `body_html`, and
