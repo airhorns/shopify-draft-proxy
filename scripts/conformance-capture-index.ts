@@ -7328,6 +7328,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-refund-fulfillment-usererror-no-code',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-order-plain-user-error-code-selection-conformance.mts',
+    purpose:
+      'refundCreate and fulfillment mutation payloads reject userErrors.code selection because their payloads expose plain UserError.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-refund-fulfillment-usererror-no-code.json`,
+      'config/parity-specs/orders/order-refund-fulfillment-usererror-no-code.json',
+      'config/parity-requests/orders/order-refund-fulfillment-usererror-no-code.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only capture; selecting userErrors.code fails before refund or fulfillment resolvers run, so no order state is mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-edit-lifecycle-user-errors',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-edit-lifecycle-user-errors-conformance.mts',
