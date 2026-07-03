@@ -501,20 +501,13 @@ export async function grantStorefrontAccessToken({
   );
 
   if (status < 200 || status >= 300) {
-    throw new Error(
-      `storefrontAccessTokenCreate request failed with status ${status}: ${JSON.stringify(payload)}`,
-    );
+    throw new Error(`storefrontAccessTokenCreate request failed with status ${status}: ${JSON.stringify(payload)}`);
   }
 
-  const createPayload = readUnknownProperty(
-    readUnknownProperty(payload, 'data'),
-    'storefrontAccessTokenCreate',
-  );
+  const createPayload = readUnknownProperty(readUnknownProperty(payload, 'data'), 'storefrontAccessTokenCreate');
   const userErrors = readArrayProperty(createPayload, 'userErrors');
   if (userErrors.length > 0) {
-    throw new Error(
-      `storefrontAccessTokenCreate returned userErrors: ${JSON.stringify(userErrors)}`,
-    );
+    throw new Error(`storefrontAccessTokenCreate returned userErrors: ${JSON.stringify(userErrors)}`);
   }
 
   const tokenNode = readUnknownProperty(createPayload, 'storefrontAccessToken');
@@ -527,10 +520,7 @@ export async function grantStorefrontAccessToken({
     .filter((handle): handle is string => typeof handle === 'string' && handle.length > 0);
 
   const storedAuth: StoredStorefrontAuth = {
-    shop: (adminOrigin.startsWith('https://') ? adminOrigin.slice(8) : adminOrigin).replace(
-      /\/$/u,
-      '',
-    ),
+    shop: (adminOrigin.startsWith('https://') ? adminOrigin.slice(8) : adminOrigin).replace(/\/$/u, ''),
     storefront_access_token: storefrontToken,
     storefront_token_id: tokenId,
     storefront_token_title: title,

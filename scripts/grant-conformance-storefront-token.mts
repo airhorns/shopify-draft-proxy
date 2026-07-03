@@ -1,10 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status output to stdio. */
 import 'dotenv/config';
 
-import {
-  SHOPIFY_CONFORMANCE_STOREFRONT_AUTH_PATH,
-  grantStorefrontAccessToken,
-} from './shopify-conformance-auth.mjs';
+import { SHOPIFY_CONFORMANCE_STOREFRONT_AUTH_PATH, grantStorefrontAccessToken } from './shopify-conformance-auth.mjs';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 
 const { adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
