@@ -32,6 +32,7 @@ type ProxyRequestSpec = {
   variables?: Record<string, unknown>;
   variablesPath?: string;
   variablesCapturePath?: string;
+  apiSurface?: 'admin' | 'storefront';
   apiVersion?: string;
   headers?: Record<string, string>;
 };
@@ -465,6 +466,14 @@ async function hydrateCapturedProductDomainNodes(
   await sendProxyRequest(proxy, hydrateRequest);
 }
 
+function proxyGraphqlPath(request: ProxyRequestSpec | undefined): string {
+  const apiVersion = request?.apiVersion ?? defaultAdminApiVersion;
+  if (request?.apiSurface === 'storefront') {
+    return `/api/${apiVersion}/graphql.json`;
+  }
+  return `/admin/api/${apiVersion}/graphql.json`;
+}
+
 async function loadRequest(
   request: ProxyRequestSpec | undefined,
   capture: unknown,
@@ -504,7 +513,7 @@ async function loadRequest(
     query,
     variables,
     headers: request.headers ?? {},
-    path: `/admin/api/${request.apiVersion ?? defaultAdminApiVersion}/graphql.json`,
+    path: proxyGraphqlPath(request),
   };
 }
 

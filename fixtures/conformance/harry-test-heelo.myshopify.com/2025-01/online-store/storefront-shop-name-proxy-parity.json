@@ -1,0 +1,47 @@
+{
+  "scenarioId": "storefront-shop-name-proxy-parity",
+  "capturedAt": "2026-07-03T18:50:16.146Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "apiSurface": "storefront",
+  "endpoint": "https://harry-test-heelo.myshopify.com/api/2025-01/graphql.json",
+  "authMode": "no-storefront-token",
+  "primary": {
+    "operationName": "StorefrontShopNameProxyParity",
+    "query": "query StorefrontShopNameProxyParity {\n  shop {\n    name\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 400,
+      "body": {
+        "errors": [
+          {
+            "message": "Online Store channel is locked.",
+            "extensions": {
+              "code": "BAD_REQUEST"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "StorefrontShopNameProxyParity",
+      "query": "query StorefrontShopNameProxyParity {\n  shop {\n    name\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "status": 400,
+        "body": {
+          "errors": [
+            {
+              "message": "Online Store channel is locked.",
+              "extensions": {
+                "code": "BAD_REQUEST"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
 import { recordedCallMatchesBody, validateRecordedUpstreamCalls } from '../../scripts/parity-cassette.js';
+import { paritySpecSchema } from '../../scripts/support/json-schemas.js';
 
 const repoRoot = new URL('../..', import.meta.url);
 const paritySpecRoot = new URL('../../config/parity-specs/', import.meta.url);
@@ -27,6 +28,40 @@ function countParitySpecs(directory: URL): number {
 }
 
 describe('Rust parity runner cassette matching', () => {
+  it('accepts Storefront API parity requests as first-class captured scenario inputs', () => {
+    expect(
+      paritySpecSchema.parse({
+        scenarioId: 'storefront-shop-name-proxy-parity',
+        operationNames: ['shop'],
+        scenarioStatus: 'captured',
+        assertionKinds: ['storefront-api-proxy'],
+        comparisonMode: 'captured-vs-proxy-request',
+        liveCaptureFiles: [
+          'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/storefront-shop-name-proxy-parity.json',
+        ],
+        proxyRequest: {
+          apiSurface: 'storefront',
+          apiVersion: '2025-01',
+          documentPath: 'config/parity-requests/online-store/storefront-shop-name.graphql',
+          headers: {
+            'X-Shopify-Storefront-Access-Token': 'shpat_redacted',
+          },
+        },
+        comparison: {
+          mode: 'strict-json',
+          expectedDifferences: [],
+          targets: [
+            {
+              name: 'storefront-shop-name',
+              capturePath: '$.primary.response.body',
+              proxyPath: '$',
+            },
+          ],
+        },
+      }).proxyRequest?.apiSurface,
+    ).toBe('storefront');
+  });
+
   it('matches recorded upstream calls only by exact query text and exact variables', () => {
     const query = `
       query ProductsHydrateNodes($ids: [ID!]!) {

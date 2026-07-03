@@ -44,6 +44,7 @@ type SpecTargetRequest = {
   variables?: Record<string, unknown>;
   variablesPath?: string;
   variablesCapturePath?: string;
+  apiSurface?: 'admin' | 'storefront';
   apiVersion?: string;
   headers?: Record<string, string>;
 };
@@ -133,14 +134,24 @@ async function findSpecForScenario(scenarioId: string): Promise<string> {
   throw new Error(`No parity spec with scenarioId "${scenarioId}" found under config/parity-specs/`);
 }
 
+function proxyGraphqlPath(request: SpecTargetRequest | undefined, defaultApiVersion: string): string {
+  const apiVersion = request?.apiVersion ?? defaultApiVersion;
+  if (request?.apiSurface === 'storefront') {
+    return `/api/${apiVersion}/graphql.json`;
+  }
+  return `/admin/api/${apiVersion}/graphql.json`;
+}
+
 function loadDocumentVariablesAndHeaders(
   request: SpecTargetRequest | undefined,
   capture: unknown,
+  defaultApiVersion: string,
 ): {
   document: string;
   variables: Record<string, unknown>;
   headers: Record<string, string>;
   apiVersion?: string;
+  path: string;
 } | null {
   if (!request || (!request.documentPath && !request.documentCapturePath)) return null;
   let document: string;
@@ -170,7 +181,13 @@ function loadDocumentVariablesAndHeaders(
   } else if (request.variables) {
     variables = request.variables;
   }
-  return { document, variables, headers: request.headers ?? {}, apiVersion: request.apiVersion };
+  return {
+    document,
+    variables,
+    headers: request.headers ?? {},
+    apiVersion: request.apiVersion,
+    path: proxyGraphqlPath(request, defaultApiVersion),
+  };
 }
 
 function resolveJsonPath(value: unknown, path: string): unknown {
@@ -390,13 +407,13 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
     const runtimeProxy = proxy as {
       processGraphQLRequest: (
         body: unknown,
-        options: { headers?: Record<string, string>; apiVersion?: string },
+        options: { headers?: Record<string, string>; apiVersion?: string; path?: string },
       ) => Promise<RecordedResponse>;
     };
 
     const responsesByName = new Map<string, RecordedResponse>();
 
-    const primary = loadDocumentVariablesAndHeaders(spec.proxyRequest, capture);
+    const primary = loadDocumentVariablesAndHeaders(spec.proxyRequest, capture, defaultApiVersion);
     const targetsWithOwnRequest: { target: SpecTarget; requestName: string }[] = [];
     for (const target of spec.comparison?.targets ?? []) {
       if (target.proxyRequest && target.proxyRequest.documentPath) {
@@ -420,14 +437,14 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
           query: primary.document,
           variables,
         },
-        { headers: primary.headers, apiVersion: primary.apiVersion ?? defaultApiVersion },
+        { headers: primary.headers, apiVersion: primary.apiVersion ?? defaultApiVersion, path: primary.path },
       )) as RecordedResponse;
       responsesByName.set('primary', primaryResponse);
       previousResponse = primaryResponse;
       logRecordedResponse('primary', primaryResponse);
     }
     for (const { target, requestName } of targetsWithOwnRequest) {
-      const loaded = loadDocumentVariablesAndHeaders(target.proxyRequest, capture);
+      const loaded = loadDocumentVariablesAndHeaders(target.proxyRequest, capture, defaultApiVersion);
       if (!loaded) continue;
       const variables = substituteVariables(loaded.variables, {
         capture,
@@ -440,7 +457,7 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
           query: loaded.document,
           variables,
         },
-        { headers: loaded.headers, apiVersion: loaded.apiVersion ?? defaultApiVersion },
+        { headers: loaded.headers, apiVersion: loaded.apiVersion ?? defaultApiVersion, path: loaded.path },
       )) as RecordedResponse;
       responsesByName.set(requestName, response);
       previousResponse = response;

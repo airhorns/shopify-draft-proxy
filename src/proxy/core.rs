@@ -72,6 +72,7 @@ impl DraftProxy {
                 self.bulk_operation_result_jsonl(&artifact_id)
             }
             Route::Graphql => self.dispatch_graphql(&request),
+            Route::StorefrontGraphql => (self.upstream_transport)(request.clone()),
             Route::NotFound => json_error(404, "Not found"),
             Route::MethodNotAllowed => json_error(405, "Method not allowed"),
         }

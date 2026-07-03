@@ -1,0 +1,29 @@
+{
+  "scenarioId": "storefront-shop-name-proxy-parity",
+  "operationNames": ["shop"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["storefront-api-proxy", "passthrough", "locked-channel-error"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/storefront-shop-name-proxy-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/storefront.rs"],
+  "proxyRequest": {
+    "apiSurface": "storefront",
+    "documentPath": "config/parity-requests/online-store/storefront-shop-name.graphql",
+    "variablesCapturePath": "$.primary.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "storefront-locked-channel-error",
+        "capturePath": "$.primary.response.body",
+        "proxyPath": "$"
+      }
+    ]
+  },
+  "notes": "First Storefront API proxy parity scenario. The current conformance shop returns Shopify's real locked Online Store channel error without a Storefront token, so the fixture records that safe no-token Storefront API response and proves the proxy forwards /api/<version>/graphql.json requests through the Storefront route instead of Admin GraphQL local dispatch."
+}

@@ -80,6 +80,7 @@ export const parityProxyRequestSpecSchema = z.strictObject({
   variablesPath: z.string().nullable().optional(),
   variablesCapturePath: z.string().nullable().optional(),
   variables: graphqlVariablesSchema.optional(),
+  apiSurface: z.enum(['admin', 'storefront']).optional(),
   apiVersion: z
     .string()
     .regex(/^\d{4}-\d{2}$/u)
