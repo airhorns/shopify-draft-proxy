@@ -1,0 +1,21 @@
+query CustomerPaymentMethodNoAutoSeed {
+  baseCard: customerPaymentMethod(
+    id: "gid://shopify/CustomerPaymentMethod/base-card"
+    showRevoked: true
+  ) {
+    id
+    instrument {
+      __typename
+    }
+    customer {
+      id
+    }
+  }
+  customer(id: "gid://shopify/Customer/8801") {
+    paymentMethods(first: 10, showRevoked: true) {
+      nodes {
+        id
+      }
+    }
+  }
+}

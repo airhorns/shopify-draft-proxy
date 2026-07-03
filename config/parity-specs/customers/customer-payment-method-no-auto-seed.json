@@ -1,0 +1,31 @@
+{
+  "scenarioId": "customer-payment-method-no-auto-seed",
+  "operationNames": ["customerPaymentMethod", "customer"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["snapshot-read", "no-fixture-seeding", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/customers/customer-payment-method-no-auto-seed.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "proxyConfig": {
+    "readMode": "snapshot"
+  },
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-payment-method-no-auto-seed.graphql",
+    "variables": {},
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unhydrated-customer-payment-methods-stay-empty",
+        "capturePath": "$.expected.response",
+        "proxyPath": "$"
+      }
+    ]
+  },
+  "notes": "Local-runtime parity for the customer payment-method anti-seeding regression. Before the de-seeding change, this request would have materialized the sentinel base-card method and Customer/8801 paymentMethods from fixture state; the protected contract is null/empty snapshot behavior until payment methods are hydrated or staged through public runtime paths."
+}
