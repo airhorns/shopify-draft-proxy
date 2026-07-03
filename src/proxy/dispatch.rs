@@ -1403,6 +1403,7 @@ impl DraftProxy {
                     && matches!(
                         root_field,
                         "fulfillmentCreate"
+                            | "fulfillmentCreateV2"
                             | "fulfillmentCancel"
                             | "fulfillmentTrackingInfoUpdate"
                             | "fulfillmentEventCreate"

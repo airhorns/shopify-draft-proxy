@@ -100,6 +100,9 @@ The same capture showed that schema-current `priceListFixedPricesUpdate` uses
 the `pricesToAdd` argument name and creates a fixed row when the variant does
 not already have one. `priceListFixedPricesDelete` is the branch that rejects a
 known variant without a fixed row, with `PRICE_NOT_FIXED` at `variantIds[i]`.
+For fixed-price add/update rows that have both a missing `variantId` and a
+price-list currency mismatch, Shopify reports only `VARIANT_NOT_FOUND` for that
+row and skips the currency validation for the same index.
 The checked-in anchor is the
 `price-list-fixed-prices-*-*.json` Markets parity set backed by
 `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-fixed-prices-validation.json`.
@@ -3095,6 +3098,7 @@ Capture prerequisites and safety constraints:
 - Duplication data and update URLs must remain local/synthetic in runtime support; do not fetch real encrypted duplication data or expiring customer payment update links unless recording an intentional scrubbed conformance fixture with suitable scopes and cleanup.
 - Revoked payment methods must stay hidden from root and customer-owned lookups unless `showRevoked: true` is supplied. `customerPaymentMethodSendUpdateEmail` and `paymentReminderSend` are locally buffered/staged customer-visible side effects; the runtime must not deliver customer email upstream outside explicit commit replay.
 - HAR-915 live schema probes for `orderCapture` on `2025-01`, `2025-04`, supported public versions `2025-07`, `2025-10`, `2026-01`, `2026-04`, and `unstable` all exposed `OrderCapturePayload.userErrors` as plain `UserError` with only `field` and `message`; `OrderCaptureUserError` was absent and selecting `code` failed schema validation. Keep public order-capture parity on the public shape, and keep the draft proxy's local/internal code-bearing validation contract in runtime tests unless a future captured schema proves a public/private code field.
+- Captured public `orderCapture` evidence for a manual-gateway authorization rejects any boolean `finalCapture` argument before staging a capture. The public shape is `transaction: null` plus `userErrors: [{ field: null, message: "Setting final capture is not supported for this transaction's payment gateway. Please remove the parameter or set it to null, then try again." }]`. Omitted `finalCapture` and explicit `null` are ordinary capture inputs; the separate Shopify Payments/non-multi-capturable `finalCapture: false` message should not be modeled until a Shopify Payments authorization lifecycle is captured.
 - order payment captures and voids require order write scopes plus merchant permissions (`capture_payments_for_orders` for capture and cancel-order permission for void) and an isolated authorized transaction because successful paths capture or void real payment authorization
 - mandate payment requires `write_payment_mandate`, `pay_orders_by_vaulted_card` permission, mandate-backed schedule data, idempotency-key coverage, and Shopify Plus coverage for amount-specific branches
 - payment terms template reads are captured and locally modeled as a catalog; payment terms lifecycle writes are locally staged for existing order/draft-order graph records and backed by executable parity against a disposable draft-order lifecycle fixture because the real mutations change due dates and payment status
@@ -3164,6 +3168,7 @@ Captured facts:
 - duplicate `customerAddressCreate` returns payload `userErrors[{ field: ["address"], message: "Address already exists" }]`
 - deleting the default address promotes the remaining address to `Customer.defaultAddress`; omitted/null `setAsDefault` does not replace an existing default
 - the bounded maximum-address probe successfully created 105 addresses without a Shopify failure, so local staging should not enforce a lower artificial limit
+- address phone normalization is best-effort and deliberately ignores the address country: a formatted international value with a leading `+` is compacted to E.164, digit-shaped no-`+` values such as `(613) 450-4538` and `450-4538` normalize through the captured shop calling-code path, and unparseable values such as `613` or `not a phone` stay raw
 
 Practical rule:
 
@@ -3965,3 +3970,17 @@ Practical rule:
 - keep restored media parity request documents on public fields only, and use
   reverse-order immediate reads when the scenario needs the newly created file
   without relying on full file-search semantics.
+
+## 93. `bulkOperationRunMutation` rejects empty staged uploads before throttling
+
+Admin GraphQL 2026-04 rejects a zero-byte `BULK_MUTATION_VARIABLES` staged
+upload before creating a mutation bulk operation. The payload is
+`bulkOperation: null` with one userError at `field: null`, message
+`The input file is empty.`, and code `INVALID_STAGED_UPLOAD_FILE`.
+
+Practical rule:
+
+- treat resolved staged-upload size `0` as a file validation error before
+  same-type `OPERATION_IN_PROGRESS` throttling
+- keep the oversized and empty-file messages distinct even though both use
+  `INVALID_STAGED_UPLOAD_FILE`

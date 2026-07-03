@@ -498,6 +498,164 @@ fn assert_starts_at_required_error(data: &Value, alias: &str, node_field: &str, 
     );
 }
 
+fn create_discount_ref_product(proxy: &mut DraftProxy) -> (String, String) {
+    let product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDiscountRefProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Discount reference product" } }),
+    ));
+    assert_eq!(
+        product.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = json_string(
+        &product.body["data"]["productCreate"]["product"]["id"],
+        "discount reference product id",
+    );
+    let variant = create_legacy_variant(proxy, &product_id, "DISCOUNT-REF-VARIANT", "10.00");
+    let variant_id = json_string(&variant["id"], "discount reference variant id");
+    (product_id, variant_id)
+}
+
+fn create_discount_ref_collection(proxy: &mut DraftProxy) -> String {
+    let collection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDiscountRefCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "Discount reference collection" } }),
+    ));
+    assert_eq!(
+        collection.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    json_string(
+        &collection.body["data"]["collectionCreate"]["collection"]["id"],
+        "discount reference collection id",
+    )
+}
+
+fn basic_code_discount_input(title: &str, code: &str, items: Value) -> Value {
+    json!({
+        "title": title,
+        "code": code,
+        "startsAt": "2026-04-25T00:00:00Z",
+        "context": { "all": "ALL" },
+        "customerGets": {
+            "value": { "percentage": 0.1 },
+            "items": items
+        }
+    })
+}
+
+fn create_basic_code_discount(proxy: &mut DraftProxy, title: &str, code: &str) -> String {
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBasicCodeDiscount($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": basic_code_discount_input(title, code, json!({ "all": true })) }),
+    ));
+    assert_eq!(
+        create.body["data"]["discountCodeBasicCreate"]["userErrors"],
+        json!([])
+    );
+    json_string(
+        &create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
+        "basic code discount id",
+    )
+}
+
+fn bxgy_code_discount_input(title: &str, code: &str, product_id: &str) -> Value {
+    json!({
+        "title": title,
+        "code": code,
+        "startsAt": "2026-04-25T00:00:00Z",
+        "context": { "all": "ALL" },
+        "customerBuys": {
+            "value": { "quantity": "1" },
+            "items": { "products": { "productsToAdd": [product_id] } }
+        },
+        "customerGets": {
+            "value": {
+                "discountOnQuantity": {
+                    "quantity": "1",
+                    "effect": { "percentage": 0.5 }
+                }
+            },
+            "items": { "products": { "productsToAdd": [product_id] } }
+        }
+    })
+}
+
+fn create_bxgy_code_discount(
+    proxy: &mut DraftProxy,
+    title: &str,
+    code: &str,
+    product_id: &str,
+) -> String {
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBxgyCodeDiscount($input: DiscountCodeBxgyInput!) {
+          discountCodeBxgyCreate(bxgyCodeDiscount: $input) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": bxgy_code_discount_input(title, code, product_id) }),
+    ));
+    assert_eq!(
+        create.body["data"]["discountCodeBxgyCreate"]["userErrors"],
+        json!([])
+    );
+    json_string(
+        &create.body["data"]["discountCodeBxgyCreate"]["codeDiscountNode"]["id"],
+        "bxgy code discount id",
+    )
+}
+
+fn create_free_shipping_code_discount(proxy: &mut DraftProxy, title: &str, code: &str) -> String {
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateFreeShippingCodeDiscount($input: DiscountCodeFreeShippingInput!) {
+          discountCodeFreeShippingCreate(freeShippingCodeDiscount: $input) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": title,
+            "code": code,
+            "startsAt": "2026-04-25T00:00:00Z",
+            "destination": { "all": true }
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["discountCodeFreeShippingCreate"]["userErrors"],
+        json!([])
+    );
+    json_string(
+        &create.body["data"]["discountCodeFreeShippingCreate"]["codeDiscountNode"]["id"],
+        "free shipping code discount id",
+    )
+}
+
 #[test]
 fn discount_stage_locally_roots_dispatch_by_root_field_not_operation_name_or_alias() {
     let hits = Arc::new(Mutex::new(0usize));
@@ -784,6 +942,408 @@ fn discount_native_update_preserves_existing_starts_at_when_omitted() {
         update.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]
             ["startsAt"],
         json!("2026-04-27T19:31:14Z")
+    );
+}
+
+#[test]
+fn discount_code_basic_update_rejects_taken_code_and_invalid_item_refs() {
+    let mut proxy = snapshot_proxy();
+    let (product_id, variant_id) = create_discount_ref_product(&mut proxy);
+    let collection_id = create_discount_ref_collection(&mut proxy);
+    let first_id = create_basic_code_discount(&mut proxy, "Reference first", "REFSAVE10");
+    let second_id = create_basic_code_discount(&mut proxy, "Reference second", "REFSAVE20");
+
+    let update = r#"
+        mutation UpdateBasicCodeDiscount($id: ID!, $input: DiscountCodeBasicInput!) {
+          discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+    "#;
+    let taken = proxy.process_request(json_graphql_request(
+        update,
+        json!({
+            "id": second_id,
+            "input": basic_code_discount_input("Reference second taken", "REFSAVE10", json!({ "all": true }))
+        }),
+    ));
+    assert_eq!(
+        taken.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        taken.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([{
+            "field": ["basicCodeDiscount", "code"],
+            "message": "Code must be unique. Please try a different code.",
+            "code": "TAKEN",
+            "extraInfo": null
+        }])
+    );
+
+    let own_code = proxy.process_request(json_graphql_request(
+        update,
+        json!({
+            "id": first_id.clone(),
+            "input": basic_code_discount_input("Reference first unchanged code", "REFSAVE10", json!({ "all": true }))
+        }),
+    ));
+    assert_eq!(
+        own_code.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["id"],
+        json!(first_id)
+    );
+    assert_eq!(
+        own_code.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let invalid_product_zero = proxy.process_request(json_graphql_request(
+        update,
+        json!({
+            "id": first_id,
+            "input": basic_code_discount_input(
+                "Reference invalid product zero",
+                "REFSAVE10",
+                json!({ "products": { "productsToAdd": ["gid://shopify/Product/0"] } })
+            )
+        }),
+    ));
+    assert_eq!(
+        invalid_product_zero.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        invalid_product_zero.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([{
+            "field": ["basicCodeDiscount", "customerGets", "items", "products", "productsToAdd"],
+            "message": "Product with id: 0 is invalid",
+            "code": "INVALID",
+            "extraInfo": null
+        }])
+    );
+
+    let invalid_product_unknown = proxy.process_request(json_graphql_request(
+        update,
+        json!({
+            "id": own_code.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["id"],
+            "input": basic_code_discount_input(
+                "Reference invalid product unknown",
+                "REFSAVE10",
+                json!({ "products": { "productsToAdd": ["gid://shopify/Product/999999"] } })
+            )
+        }),
+    ));
+    assert_eq!(
+        invalid_product_unknown.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([{
+            "field": ["basicCodeDiscount", "customerGets", "items", "products", "productsToAdd"],
+            "message": "Product with id: 999999 is invalid",
+            "code": "INVALID",
+            "extraInfo": null
+        }])
+    );
+
+    let invalid_variant = proxy.process_request(json_graphql_request(
+        update,
+        json!({
+            "id": own_code.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["id"],
+            "input": basic_code_discount_input(
+                "Reference invalid variant",
+                "REFSAVE10",
+                json!({ "products": { "productVariantsToAdd": ["gid://shopify/ProductVariant/999998"] } })
+            )
+        }),
+    ));
+    assert_eq!(
+        invalid_variant.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([{
+            "field": ["basicCodeDiscount", "customerGets", "items", "products", "productVariantsToAdd"],
+            "message": "Product variant with id: 999998 is invalid",
+            "code": "INVALID",
+            "extraInfo": null
+        }])
+    );
+
+    let invalid_collection = proxy.process_request(json_graphql_request(
+        update,
+        json!({
+            "id": own_code.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["id"],
+            "input": basic_code_discount_input(
+                "Reference invalid collection",
+                "REFSAVE10",
+                json!({ "collections": { "add": ["gid://shopify/Collection/999997"] } })
+            )
+        }),
+    ));
+    assert_eq!(
+        invalid_collection.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([{
+            "field": ["basicCodeDiscount", "customerGets", "items", "collections", "add"],
+            "message": "Collection with id: 999997 is invalid",
+            "code": "INVALID",
+            "extraInfo": null
+        }])
+    );
+
+    let conflict = proxy.process_request(json_graphql_request(
+        update,
+        json!({
+            "id": own_code.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["id"],
+            "input": basic_code_discount_input(
+                "Reference conflict",
+                "REFSAVE10",
+                json!({
+                    "products": { "productsToAdd": [product_id], "productVariantsToAdd": [variant_id] },
+                    "collections": { "add": [collection_id] }
+                })
+            )
+        }),
+    ));
+    assert_eq!(
+        conflict.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        conflict.body["data"]["discountCodeBasicUpdate"]["userErrors"],
+        json!([{
+            "field": ["basicCodeDiscount", "customerGets", "items", "collections", "add"],
+            "message": "Cannot entitle collections in combination with product variants or products",
+            "code": "CONFLICT",
+            "extraInfo": null
+        }])
+    );
+}
+
+#[test]
+fn discount_code_update_uniqueness_applies_to_bxgy_and_free_shipping_roots() {
+    let mut proxy = snapshot_proxy();
+    let (product_id, _) = create_discount_ref_product(&mut proxy);
+
+    let bxgy_first =
+        create_bxgy_code_discount(&mut proxy, "BXGY reference first", "BXGYREF10", &product_id);
+    let bxgy_second = create_bxgy_code_discount(
+        &mut proxy,
+        "BXGY reference second",
+        "BXGYREF20",
+        &product_id,
+    );
+    let bxgy_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateBxgyCodeDiscount($id: ID!, $input: DiscountCodeBxgyInput!) {
+          discountCodeBxgyUpdate(id: $id, bxgyCodeDiscount: $input) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "id": bxgy_second,
+            "input": bxgy_code_discount_input("BXGY reference second taken", "BXGYREF10", &product_id)
+        }),
+    ));
+    assert_synthetic_gid(&bxgy_first, "DiscountCodeNode");
+    assert_eq!(
+        bxgy_update.body["data"]["discountCodeBxgyUpdate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        bxgy_update.body["data"]["discountCodeBxgyUpdate"]["userErrors"],
+        json!([{
+            "field": ["bxgyCodeDiscount", "code"],
+            "message": "Code must be unique. Please try a different code.",
+            "code": "TAKEN",
+            "extraInfo": null
+        }])
+    );
+
+    let shipping_first =
+        create_free_shipping_code_discount(&mut proxy, "Shipping reference first", "SHIPREF10");
+    let shipping_second =
+        create_free_shipping_code_discount(&mut proxy, "Shipping reference second", "SHIPREF20");
+    let shipping_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateFreeShippingCodeDiscount($id: ID!, $input: DiscountCodeFreeShippingInput!) {
+          discountCodeFreeShippingUpdate(id: $id, freeShippingCodeDiscount: $input) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "id": shipping_second,
+            "input": {
+                "title": "Shipping reference second taken",
+                "code": "SHIPREF10",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "destination": { "all": true }
+            }
+        }),
+    ));
+    assert_synthetic_gid(&shipping_first, "DiscountCodeNode");
+    assert_eq!(
+        shipping_update.body["data"]["discountCodeFreeShippingUpdate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        shipping_update.body["data"]["discountCodeFreeShippingUpdate"]["userErrors"],
+        json!([{
+            "field": ["freeShippingCodeDiscount", "code"],
+            "message": "Code must be unique. Please try a different code.",
+            "code": "TAKEN",
+            "extraInfo": null
+        }])
+    );
+}
+
+#[test]
+fn discount_automatic_update_rejects_invalid_item_refs() {
+    let mut proxy = snapshot_proxy();
+    let (product_id, _) = create_discount_ref_product(&mut proxy);
+    let collection_id = create_discount_ref_collection(&mut proxy);
+
+    let automatic_basic = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateAutomaticBasic($input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Automatic basic reference",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    assert_eq!(
+        automatic_basic.body["data"]["discountAutomaticBasicCreate"]["userErrors"],
+        json!([])
+    );
+    let automatic_basic_id = json_string(
+        &automatic_basic.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]
+            ["id"],
+        "automatic basic discount id",
+    );
+
+    let automatic_basic_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateAutomaticBasic($id: ID!, $input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $input) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "id": automatic_basic_id,
+            "input": {
+                "title": "Automatic basic invalid product",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "customerGets": {
+                    "value": { "percentage": 0.1 },
+                    "items": { "products": { "productsToAdd": ["gid://shopify/Product/0"] } }
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        automatic_basic_update.body["data"]["discountAutomaticBasicUpdate"]
+            ["automaticDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        automatic_basic_update.body["data"]["discountAutomaticBasicUpdate"]["userErrors"],
+        json!([{
+            "field": ["automaticBasicDiscount", "customerGets", "items", "products", "productsToAdd"],
+            "message": "Product with id: 0 is invalid",
+            "code": "INVALID",
+            "extraInfo": null
+        }])
+    );
+
+    let automatic_bxgy = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateAutomaticBxgy($input: DiscountAutomaticBxgyInput!) {
+          discountAutomaticBxgyCreate(automaticBxgyDiscount: $input) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Automatic BXGY reference",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "customerBuys": {
+                "value": { "quantity": "1" },
+                "items": { "products": { "productsToAdd": [product_id.clone()] } }
+            },
+            "customerGets": {
+                "value": {
+                    "discountOnQuantity": {
+                        "quantity": "1",
+                        "effect": { "percentage": 0.5 }
+                    }
+                },
+                "items": { "products": { "productsToAdd": [product_id.clone()] } }
+            }
+        }}),
+    ));
+    assert_eq!(
+        automatic_bxgy.body["data"]["discountAutomaticBxgyCreate"]["userErrors"],
+        json!([])
+    );
+    let automatic_bxgy_id = json_string(
+        &automatic_bxgy.body["data"]["discountAutomaticBxgyCreate"]["automaticDiscountNode"]["id"],
+        "automatic bxgy discount id",
+    );
+
+    let automatic_bxgy_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateAutomaticBxgy($id: ID!, $input: DiscountAutomaticBxgyInput!) {
+          discountAutomaticBxgyUpdate(id: $id, automaticBxgyDiscount: $input) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "id": automatic_bxgy_id,
+            "input": {
+                "title": "Automatic BXGY conflict",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "customerBuys": {
+                    "value": { "quantity": "1" },
+                    "items": { "products": { "productsToAdd": [product_id.clone()] } }
+                },
+                "customerGets": {
+                    "value": {
+                        "discountOnQuantity": {
+                            "quantity": "1",
+                            "effect": { "percentage": 0.5 }
+                        }
+                    },
+                    "items": {
+                        "products": { "productsToAdd": [product_id] },
+                        "collections": { "add": [collection_id] }
+                    }
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        automatic_bxgy_update.body["data"]["discountAutomaticBxgyUpdate"]["automaticDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        automatic_bxgy_update.body["data"]["discountAutomaticBxgyUpdate"]["userErrors"],
+        json!([{
+            "field": ["automaticBxgyDiscount", "customerGets", "items", "collections", "add"],
+            "message": "Cannot entitle collections in combination with product variants or products",
+            "code": "CONFLICT",
+            "extraInfo": null
+        }])
     );
 }
 
@@ -4645,6 +5205,75 @@ fn localization_translations_register_multi_row_round_trip_and_indexed_errors() 
             { "key": "meta_title", "value": "Titre SEO", "locale": "fr", "outdated": false, "updatedAt": mixed.body["data"]["translationsRegister"]["translations"][0]["updatedAt"], "market": null },
             { "key": "title", "value": "Titre local rafraichi", "locale": "fr", "outdated": false, "updatedAt": refreshed_title_updated_at, "market": null }
         ])
+    );
+}
+
+#[test]
+fn localization_translations_remove_empty_keys_is_noop_and_preserves_read_after() {
+    let mut proxy = snapshot_proxy();
+    let resource_id = "gid://shopify/Product/9801098789170";
+    let title_digest = fallback_product_title_digest();
+
+    let enable = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleEnable($locale: String!) {
+          shopLocaleEnable(locale: $locale) { userErrors { field message } }
+        }"#,
+        json!({ "locale": "fr" }),
+    ));
+    assert_eq!(
+        enable.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+
+    let registered = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale outdated updatedAt market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": resource_id,
+            "translations": [
+                { "locale": "fr", "key": "title", "value": "Titre local", "translatableContentDigest": title_digest },
+                { "locale": "fr", "key": "body_html", "value": "Description locale", "translatableContentDigest": "digest-body" }
+            ]
+        }),
+    ));
+    let expected_translations = json!([
+        { "key": "title", "value": "Titre local", "locale": "fr", "outdated": false, "updatedAt": registered.body["data"]["translationsRegister"]["translations"][0]["updatedAt"], "market": null },
+        { "key": "body_html", "value": "Description locale", "locale": "fr", "outdated": false, "updatedAt": registered.body["data"]["translationsRegister"]["translations"][1]["updatedAt"], "market": null }
+    ]);
+    assert_eq!(
+        registered.body["data"]["translationsRegister"]["translations"],
+        expected_translations
+    );
+
+    let remove = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRemoveEmptyKeys($resourceId: ID!, $keys: [String!]!, $locales: [String!]!) {
+          translationsRemove(resourceId: $resourceId, translationKeys: $keys, locales: $locales) {
+            translations { key value locale outdated updatedAt market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "resourceId": resource_id, "keys": [], "locales": ["fr"] }),
+    ));
+    assert_eq!(
+        remove.body["data"]["translationsRemove"],
+        json!({ "translations": null, "userErrors": [] })
+    );
+
+    let read_after_remove = proxy.process_request(json_graphql_request(
+        r#"query LocalizationTranslationsReadAfterEmptyKeyRemove($resourceId: ID!) {
+          translatableResource(resourceId: $resourceId) {
+            translations(locale: "fr") { key value locale outdated updatedAt market { id } }
+          }
+        }"#,
+        json!({ "resourceId": resource_id }),
+    ));
+    assert_eq!(
+        read_after_remove.body["data"]["translatableResource"]["translations"],
+        expected_translations
     );
 }
 

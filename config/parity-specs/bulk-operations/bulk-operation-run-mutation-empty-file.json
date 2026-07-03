@@ -1,0 +1,75 @@
+{
+  "scenarioId": "bulk-operation-run-mutation-empty-file",
+  "operationNames": ["stagedUploadsCreate", "bulkOperationRunMutation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-guardrails", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-empty-file.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-empty-file-staged-upload.graphql",
+    "variablesCapturePath": "$.setup.stagedUpload.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "empty-file-staged-upload-user-errors",
+        "capturePath": "$.setup.stagedUpload.response.data.stagedUploadsCreate.userErrors",
+        "proxyPath": "$.data.stagedUploadsCreate.userErrors"
+      },
+      {
+        "name": "empty-file-upload-content",
+        "capturePath": "$.scenarioId",
+        "proxyUpload": {
+          "method": "PUT",
+          "path": {
+            "fromPrimaryProxyPath": "$.data.stagedUploadsCreate.stagedTargets[0].resourceUrl"
+          },
+          "body": {
+            "fromCapturePath": "$.setup.uploadContent"
+          }
+        }
+      },
+      {
+        "name": "empty-file-run-mutation-bulk-operation-null",
+        "capturePath": "$.validation.run.response.data.bulkOperationRunMutation.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunMutation.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-empty-file.graphql",
+          "variables": {
+            "mutation": {
+              "fromCapturePath": "$.validation.run.variables.mutation"
+            },
+            "path": {
+              "fromPrimaryProxyPath": "$.data.stagedUploadsCreate.stagedTargets[0].resourceUrl"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "empty-file-run-mutation-user-errors",
+        "capturePath": "$.validation.run.response.data.bulkOperationRunMutation.userErrors",
+        "proxyPath": "$.data.bulkOperationRunMutation.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-empty-file.graphql",
+          "variables": {
+            "mutation": {
+              "fromCapturePath": "$.validation.run.variables.mutation"
+            },
+            "path": {
+              "fromPrimaryProxyPath": "$.data.stagedUploadsCreate.stagedTargets[0].resourceUrl"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Captures Shopify Admin GraphQL rejecting a zero-byte BULK_MUTATION_VARIABLES staged upload for bulkOperationRunMutation with INVALID_STAGED_UPLOAD_FILE, bulkOperation: null, and the empty-file message. Replay earns the staged upload through stagedUploadsCreate and the public staged-upload HTTP route before invoking bulkOperationRunMutation."
+}

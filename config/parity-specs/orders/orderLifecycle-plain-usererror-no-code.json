@@ -1,0 +1,28 @@
+{
+  "scenarioId": "orderLifecycle-plain-usererror-no-code",
+  "operationNames": ["orderUpdate", "orderClose", "orderOpen", "orderMarkAsPaid"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "schema-validation", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderLifecycle-plain-usererror-no-code.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderLifecycle-plain-usererror-no-code.graphql",
+    "variablesCapturePath": "$.codeSelection.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "order-lifecycle-user-errors-reject-code-selection",
+        "capturePath": "$.codeSelection.response.payload",
+        "proxyPath": "$"
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture proves orderUpdate, orderClose, orderOpen, and orderMarkAsPaid expose plain UserError payloads for userErrors. Selecting userErrors.code is rejected by GraphQL validation with undefinedField before any order lifecycle resolver can mutate state."
+}

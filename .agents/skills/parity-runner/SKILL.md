@@ -60,6 +60,18 @@ eval "$(mise env)" && corepack pnpm parity -- --all
   `corepack pnpm conformance:check`, `corepack pnpm rust:test`, and
   `corepack pnpm typecheck`.
 
+## Evidence Boundary
+
+`corepack pnpm parity -- <scenario-id>` is only Shopify-fidelity evidence when
+the spec compares against real Shopify capture files produced by a registered
+capture script and any `upstreamCalls` entries store exact GraphQL documents plus
+variables. Do not create or rename proxy-generated fixtures, snapshot outputs,
+hand-authored payloads, generated cassettes, or runtime-test artifacts to satisfy
+review requests for parity, conformance, captured evidence, or “a scenario that
+would have failed before this change.” Those are proxy-only regression guards;
+keep them in runtime/unit tests and do not make discovery/status tooling count
+them as captured Shopify evidence.
+
 ## Setup State Guardrail
 
 Do not repair a parity failure by adding or restoring pre-seeded proxy state.

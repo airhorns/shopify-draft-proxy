@@ -151,6 +151,9 @@ async function captureGraphql(name: string, query: string, variables: Record<str
 
 const cleanup: Capture[] = [];
 let hyphenDefinitionId: string | null = null;
+let validJurisdictionDefinitionId: string | null = null;
+let validListJurisdictionDefinitionId: string | null = null;
+let validProductTaxonomyDisclosureReferenceDefinitionId: string | null = null;
 
 const reservedHandle = await captureGraphql('reserved-field-key', createDefinitionMutation, {
   definition: definition(`field_validation_reserved_${runId}`, 'Reserved Field Key', 'handle', [field('handle')]),
@@ -183,6 +186,70 @@ const unsupportedListFieldType = await captureGraphql('unsupported-list-field-ty
   ]),
 });
 assertHasUserErrors(unsupportedListFieldType);
+
+const validJurisdiction = await captureGraphql('valid-jurisdiction-field-type', createDefinitionMutation, {
+  definition: definition(`field_validation_jurisdiction_${runId}`, 'Valid Jurisdiction Field Type', 'jurisdiction', [
+    typedField('jurisdiction', 'jurisdiction'),
+  ]),
+});
+assertNoUserErrors(validJurisdiction);
+validJurisdictionDefinitionId = readDefinitionId(validJurisdiction.response);
+
+const validListJurisdiction = await captureGraphql('valid-list-jurisdiction-field-type', createDefinitionMutation, {
+  definition: definition(
+    `field_validation_list_jurisdiction_${runId}`,
+    'Valid List Jurisdiction Field Type',
+    'jurisdictions',
+    [typedField('jurisdictions', 'list.jurisdiction')],
+  ),
+});
+assertNoUserErrors(validListJurisdiction);
+validListJurisdictionDefinitionId = readDefinitionId(validListJurisdiction.response);
+
+const validProductTaxonomyDisclosureReference = await captureGraphql(
+  'valid-product-taxonomy-disclosure-reference-field-type',
+  createDefinitionMutation,
+  {
+    definition: definition(
+      `field_validation_product_taxonomy_disclosure_${runId}`,
+      'Valid Product Taxonomy Disclosure Reference Field Type',
+      'product_taxonomy_disclosure',
+      [typedField('product_taxonomy_disclosure', 'product_taxonomy_disclosure_reference')],
+    ),
+  },
+);
+assertNoUserErrors(validProductTaxonomyDisclosureReference);
+validProductTaxonomyDisclosureReferenceDefinitionId = readDefinitionId(
+  validProductTaxonomyDisclosureReference.response,
+);
+
+const standardOnlyDisclosureReference = await captureGraphql(
+  'standard-only-disclosure-reference-field-type',
+  createDefinitionMutation,
+  {
+    definition: definition(
+      `field_validation_disclosure_reference_${runId}`,
+      'Standard Only Disclosure Reference Field Type',
+      'disclosure',
+      [typedField('disclosure', 'disclosure_reference')],
+    ),
+  },
+);
+assertHasUserErrors(standardOnlyDisclosureReference);
+
+const standardOnlyListDisclosureReference = await captureGraphql(
+  'standard-only-list-disclosure-reference-field-type',
+  createDefinitionMutation,
+  {
+    definition: definition(
+      `field_validation_list_disclosure_reference_${runId}`,
+      'Standard Only List Disclosure Reference Field Type',
+      'disclosures',
+      [typedField('disclosures', 'list.disclosure_reference')],
+    ),
+  },
+);
+assertHasUserErrors(standardOnlyListDisclosureReference);
 
 const hyphenKey = await captureGraphql('hyphen-field-key', createDefinitionMutation, {
   definition: definition(`field_validation_hyphen_${runId}`, 'Hyphen Field Key', 'field-key', [field('field-key')]),
@@ -219,6 +286,31 @@ if (hyphenDefinitionId !== null) {
     await captureGraphql('cleanup-metaobject-definition-delete', deleteDefinitionMutation, { id: hyphenDefinitionId }),
   );
 }
+if (validJurisdictionDefinitionId !== null) {
+  cleanup.push(
+    await captureGraphql('cleanup-valid-jurisdiction-definition-delete', deleteDefinitionMutation, {
+      id: validJurisdictionDefinitionId,
+    }),
+  );
+}
+if (validListJurisdictionDefinitionId !== null) {
+  cleanup.push(
+    await captureGraphql('cleanup-valid-list-jurisdiction-definition-delete', deleteDefinitionMutation, {
+      id: validListJurisdictionDefinitionId,
+    }),
+  );
+}
+if (validProductTaxonomyDisclosureReferenceDefinitionId !== null) {
+  cleanup.push(
+    await captureGraphql(
+      'cleanup-valid-product-taxonomy-disclosure-reference-definition-delete',
+      deleteDefinitionMutation,
+      {
+        id: validProductTaxonomyDisclosureReferenceDefinitionId,
+      },
+    ),
+  );
+}
 
 await mkdir(outputDir, { recursive: true });
 await writeFile(
@@ -229,16 +321,24 @@ await writeFile(
       storeDomain,
       apiVersion,
       summary:
-        'MetaobjectDefinitionCreate field validation capture for reserved field keys, duplicate field input, displayNameKey resolution, hyphen key acceptance, max field count, and reserved shopify--form type max field count.',
+        'MetaobjectDefinitionCreate field validation capture for reserved field keys, duplicate field input, displayNameKey resolution, valid current field types, invalid field types, hyphen key acceptance, max field count, and reserved shopify--form type max field count.',
       seed: {
         runId,
         hyphenDefinitionId,
+        validJurisdictionDefinitionId,
+        validListJurisdictionDefinitionId,
+        validProductTaxonomyDisclosureReferenceDefinitionId,
       },
       reservedHandle,
       duplicateKey,
       missingDisplayNameKey,
       unknownFieldType,
       unsupportedListFieldType,
+      validJurisdiction,
+      validListJurisdiction,
+      validProductTaxonomyDisclosureReference,
+      standardOnlyDisclosureReference,
+      standardOnlyListDisclosureReference,
       hyphenKey,
       tooManyFields,
       reservedShopifyFormTooManyFields,
