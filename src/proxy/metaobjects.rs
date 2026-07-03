@@ -391,13 +391,29 @@ fn resolved_metaobject_definition_type_arg(
 
 fn canonical_metaobject_definition_type(raw: &str, request: &Request) -> String {
     let resolved = if let Some(suffix) = raw.strip_prefix("$app:") {
-        let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id")
-            .unwrap_or_else(|| "347082227713".to_string());
-        format!("app--{api_client_id}--{suffix}")
+        request_app_namespace_api_client_id(request)
+            .map(|api_client_id| format!("app--{api_client_id}--{suffix}"))
+            .unwrap_or_else(|| raw.to_string())
     } else {
         raw.to_string()
     };
     resolved.to_lowercase()
+}
+
+fn metaobject_definition_type_identity_error(
+    input: &BTreeMap<String, ResolvedValue>,
+    request: &Request,
+) -> Option<Value> {
+    let raw_type = resolved_string_field(input, "type")?;
+    (raw_type.starts_with("$app:") && request_app_namespace_api_client_id(request).is_none()).then(
+        || {
+            metaobject_field_error(
+                vec!["definition", "type"],
+                APP_NAMESPACE_IDENTITY_REQUIRED_MESSAGE,
+                "NOT_AUTHORIZED",
+            )
+        },
+    )
 }
 
 const MIN_FIELD_KEY_LENGTH: usize = 2;
@@ -3909,11 +3925,17 @@ impl DraftProxy {
             .iter()
             .filter(|(id, _)| !self.store.staged.metaobject_definitions.is_tombstoned(id))
             .count();
-        let validation_errors = metaobject_definition_create_validation_errors(
-            &definition_input,
-            &meta_type,
-            existing_definitions,
-        );
+        let validation_errors = if let Some(error) =
+            metaobject_definition_type_identity_error(&definition_input, request)
+        {
+            vec![error]
+        } else {
+            metaobject_definition_create_validation_errors(
+                &definition_input,
+                &meta_type,
+                existing_definitions,
+            )
+        };
         if !validation_errors.is_empty() {
             return selected_json(
                 &json!({"metaobjectDefinition": null, "userErrors": validation_errors}),

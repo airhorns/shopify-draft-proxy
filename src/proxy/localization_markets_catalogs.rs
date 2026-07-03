@@ -334,8 +334,8 @@ impl DraftProxy {
                     )
                 }
                 "translatableResource" => {
-                    let resource_id = resolved_string_field(&field.arguments, "resourceId")
-                        .unwrap_or_else(|| "gid://shopify/Product/9801098789170".to_string());
+                    let resource_id =
+                        resolved_string_field(&field.arguments, "resourceId").unwrap_or_default();
                     if !self.localization_translatable_resource_exists(&resource_id) {
                         Value::Null
                     } else {
@@ -3377,14 +3377,11 @@ impl DraftProxy {
     ) -> Value {
         let resource_type = resolved_string_field(&field.arguments, "resourceType")
             .unwrap_or_else(|| "PRODUCT".to_string());
-        let mut records = self
+        let records = self
             .localization_translatable_resource_ids()
             .into_iter()
             .filter(|id| localization_resource_type_matches(id, &resource_type))
             .collect::<Vec<_>>();
-        if records.is_empty() {
-            records.push(default_localization_resource_id(&resource_type));
-        }
         selected_typed_connection_with_args(
             &records,
             &field.arguments,
@@ -4747,13 +4744,4 @@ pub(in crate::proxy) fn localization_resource_type_matches(
         return false;
     };
     gid_type.eq_ignore_ascii_case(&resource_type.replace('_', ""))
-}
-
-pub(in crate::proxy) fn default_localization_resource_id(resource_type: &str) -> String {
-    let gid_type = match resource_type.to_ascii_uppercase().as_str() {
-        "COLLECTION" => "Collection",
-        "ONLINE_STORE_THEME" => "OnlineStoreTheme",
-        _ => "Product",
-    };
-    shopify_gid(gid_type, "9801098789170")
 }

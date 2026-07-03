@@ -8,6 +8,19 @@ fn sha256_hex(value: &str) -> String {
     format!("{:x}", hasher.finalize())
 }
 
+fn app_namespace_graphql_request(
+    query: &str,
+    variables: serde_json::Value,
+    api_client_id: &str,
+) -> Request {
+    let mut request = json_graphql_request(query, variables);
+    request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        api_client_id.to_string(),
+    );
+    request
+}
+
 fn assert_no_staged_markets(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
     let state = state_snapshot(proxy);
     let staged_markets = &state["stagedState"]["markets"];
@@ -1555,18 +1568,22 @@ fn owner_scoped_metafields_do_not_leak_between_products() {
 #[test]
 fn metafields_app_namespace_set_delete_stages_product_readback() {
     let mut proxy = snapshot_proxy();
+    let api_client_id = "999999999999";
+    let canonical_namespace = "app--999999999999--value_namespace_mowuw5ai";
+    let default_namespace = "app--999999999999";
 
-    let set_canonical = proxy.process_request(json_graphql_request(
+    let set_canonical = proxy.process_request(app_namespace_graphql_request(
         r#"
         mutation MetafieldsSetAppNamespaceResolution($metafields: [MetafieldsSetInput!]!) {
           metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message code elementIndex } }
         }
         "#,
         json!({"metafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": "$app:value_namespace_mowuw5ai", "key": "tier", "type": "single_line_text_field", "value": "gold"}]}),
+        api_client_id,
     ));
     assert_eq!(
         set_canonical.body["data"]["metafieldsSet"]["metafields"][0]["namespace"],
-        json!("app--347082227713--value_namespace_mowuw5ai")
+        json!(canonical_namespace)
     );
 
     let read_after_canonical = proxy.process_request(json_graphql_request(
@@ -1579,41 +1596,43 @@ fn metafields_app_namespace_set_delete_stages_product_readback() {
           }
         }
         "#,
-        json!({"productId": "gid://shopify/Product/10180596236594", "canonicalNamespace": "app--347082227713--value_namespace_mowuw5ai", "defaultNamespace": "app--347082227713", "key": "tier", "defaultKey": "default_mowuw5ai"}),
+        json!({"productId": "gid://shopify/Product/10180596236594", "canonicalNamespace": canonical_namespace, "defaultNamespace": default_namespace, "key": "tier", "defaultKey": "default_mowuw5ai"}),
     ));
     assert_eq!(
         read_after_canonical.body["data"]["product"],
         json!({
             "id": "gid://shopify/Product/10180596236594",
-            "canonical": {"id": "gid://shopify/Metafield/1", "namespace": "app--347082227713--value_namespace_mowuw5ai", "key": "tier", "type": "single_line_text_field", "value": "gold"},
+            "canonical": {"id": "gid://shopify/Metafield/1", "namespace": canonical_namespace, "key": "tier", "type": "single_line_text_field", "value": "gold"},
             "defaulted": null
         })
     );
 
-    let set_default = proxy.process_request(json_graphql_request(
+    let set_default = proxy.process_request(app_namespace_graphql_request(
         r#"
         mutation MetafieldsSetAppNamespaceResolution($metafields: [MetafieldsSetInput!]!) {
           metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message code elementIndex } }
         }
         "#,
         json!({"metafields": [{"ownerId": "gid://shopify/Product/10180596236594", "key": "default_mowuw5ai", "type": "single_line_text_field", "value": "silver"}]}),
+        api_client_id,
     ));
     assert_eq!(
         set_default.body["data"]["metafieldsSet"]["metafields"][0]["namespace"],
-        json!("app--347082227713")
+        json!(default_namespace)
     );
 
-    let delete_canonical = proxy.process_request(json_graphql_request(
+    let delete_canonical = proxy.process_request(app_namespace_graphql_request(
         r#"
         mutation MetafieldsDeleteAppNamespaceResolution($metafields: [MetafieldIdentifierInput!]!) {
           metafieldsDelete(metafields: $metafields) { deletedMetafields { ownerId namespace key } userErrors { field message } }
         }
         "#,
         json!({"metafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": "$app:value_namespace_mowuw5ai", "key": "tier"}]}),
+        api_client_id,
     ));
     assert_eq!(
         delete_canonical.body["data"]["metafieldsDelete"],
-        json!({"deletedMetafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": "app--347082227713--value_namespace_mowuw5ai", "key": "tier"}], "userErrors": []})
+        json!({"deletedMetafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": canonical_namespace, "key": "tier"}], "userErrors": []})
     );
 
     let post_delete = proxy.process_request(json_graphql_request(
@@ -1626,15 +1645,40 @@ fn metafields_app_namespace_set_delete_stages_product_readback() {
           }
         }
         "#,
-        json!({"productId": "gid://shopify/Product/10180596236594", "canonicalNamespace": "app--347082227713--value_namespace_mowuw5ai", "defaultNamespace": "app--347082227713", "key": "tier", "defaultKey": "default_mowuw5ai"}),
+        json!({"productId": "gid://shopify/Product/10180596236594", "canonicalNamespace": canonical_namespace, "defaultNamespace": default_namespace, "key": "tier", "defaultKey": "default_mowuw5ai"}),
     ));
     assert_eq!(
         post_delete.body["data"]["product"],
         json!({
             "id": "gid://shopify/Product/10180596236594",
             "canonical": null,
-            "defaulted": {"id": "gid://shopify/Metafield/2", "namespace": "app--347082227713", "key": "default_mowuw5ai", "type": "single_line_text_field", "value": "silver"}
+            "defaulted": {"id": "gid://shopify/Metafield/2", "namespace": default_namespace, "key": "default_mowuw5ai", "type": "single_line_text_field", "value": "silver"}
         })
+    );
+}
+
+#[test]
+fn metafields_app_namespace_requires_request_api_client_id() {
+    let mut proxy = snapshot_proxy();
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldsSetAppNamespaceResolution($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) { metafields { namespace key } userErrors { field message code elementIndex } }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": "gid://shopify/Product/10180596236594", "namespace": "$app:value_namespace_mowuw5ai", "key": "tier", "type": "single_line_text_field", "value": "gold"}]}),
+    ));
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["metafieldsSet"]["metafields"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["userErrors"],
+        json!([{
+            "field": ["metafields", "0", "namespace"],
+            "message": "API client identity is required to resolve or authorize app-reserved namespaces and types.",
+            "code": "APP_NOT_AUTHORIZED",
+            "elementIndex": null
+        }])
     );
 }
 
@@ -1987,6 +2031,26 @@ fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
             {"locale": "fr", "url": "https://shopify-draft-proxy.local/fr-intl/"}
         ])
     );
+
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
+    assert_eq!(dump.status, 200);
+    let mut restored_state = dump.body;
+    restored_state["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/domain-helper",
+        "myshopifyDomain": "shopify-draft-proxy.local",
+        "primaryDomain": {
+            "id": "gid://shopify/Domain/1000",
+            "host": "shopify-draft-proxy.local",
+            "url": "https://shopify-draft-proxy.local",
+            "sslEnabled": true
+        }
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored_state.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
 
     let domain = proxy.process_request(json_graphql_request(
         create_query,
@@ -5987,9 +6051,10 @@ fn product_metafields_set_stages_product_owned_readbacks() {
             snapshot_proxy()
         };
 
-        let mutation = proxy.process_request(json_graphql_request(
+        let mutation = proxy.process_request(app_namespace_graphql_request(
             mutation_query,
             fixture["mutation"]["variables"].clone(),
+            "347082227713",
         ));
         assert_eq!(mutation.status, 200, "{case}");
         assert_eq!(
@@ -7316,11 +7381,7 @@ fn product_update_unknown_fixture_id_returns_local_user_error_without_replay() {
         delete.body["data"]["productDelete"],
         json!({
             "deletedProductId": null,
-            "shop": {
-                "id": "gid://shopify/Shop/0",
-                "name": "Shopify Draft Proxy",
-                "myshopifyDomain": "shopify-draft-proxy.local"
-            },
+            "shop": {},
             "userErrors": [{
                 "field": ["id"],
                 "message": "Product does not exist"

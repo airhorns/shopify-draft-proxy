@@ -29,6 +29,13 @@ pub(in crate::proxy) fn is_server_pixel_record(record: &Value) -> bool {
     record_matches_type(record, "ServerPixel")
 }
 
+pub(in crate::proxy) fn is_mobile_platform_application_record(record: &Value) -> bool {
+    matches!(
+        record.get("__typename").and_then(Value::as_str),
+        Some("AppleApplication" | "AndroidApplication")
+    ) || record_matches_type(record, "MobilePlatformApplication")
+}
+
 pub(in crate::proxy) fn is_storefront_access_token_record(record: &Value) -> bool {
     record_matches_type(record, "StorefrontAccessToken")
 }

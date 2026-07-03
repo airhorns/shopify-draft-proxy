@@ -992,17 +992,25 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        let expected_kind = discount_kind_for_lifecycle_root(&field.name);
         let activating = field.name.ends_with("Activate");
         let mut record = match self.discount_record(&id).cloned() {
-            Some(record) => record,
+            Some(record) if discount_kind(&record) == expected_kind => record,
+            Some(_) => {
+                return MutationFieldOutcome::unlogged(discount_payload_for_root(
+                    &field.name,
+                    Value::Null,
+                    vec![discount_unknown_id_user_error(&field.name)],
+                ))
+            }
             None => match self.hydrate_discount_record(request, &id) {
                 // Not staged locally: hydrate the discount from upstream so the
                 // transition applies against its real dates/status.
-                Some(record) => record,
+                Some(record) if discount_kind(&record) == expected_kind => record,
                 // A truly-unknown id hydrates to nothing. Activate/deactivate of an
                 // unknown id reports the type-specific "Code/Automatic discount does
                 // not exist." message, the same phrasing delete uses.
-                None => {
+                _ => {
                     return MutationFieldOutcome::unlogged(discount_payload_for_root(
                         &field.name,
                         Value::Null,
@@ -1141,7 +1149,11 @@ impl DraftProxy {
 
     fn discount_delete(&mut self, field: &RootFieldSelection) -> MutationFieldOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-        let exists = self.discount_record(&id).is_some();
+        let expected_kind = discount_kind_for_lifecycle_root(&field.name);
+        let exists = self
+            .discount_record(&id)
+            .map(|record| discount_kind(record) == expected_kind)
+            .unwrap_or(false);
         if !exists {
             return MutationFieldOutcome::unlogged(discount_delete_payload(
                 &field.name,
@@ -1306,7 +1318,11 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
         let discount_id = resolved_string_field(&field.arguments, "discountId").unwrap_or_default();
-        if self.discount_record(&discount_id).is_none() {
+        if !self
+            .discount_record(&discount_id)
+            .map(discount_record_accepts_redeem_code_bulk_add)
+            .unwrap_or(false)
+        {
             return MutationFieldOutcome::unlogged(json!({
                 "bulkCreation": Value::Null,
                 "userErrors": [discount_user_error(vec!["discountId"], "Code discount does not exist.", "INVALID")]
@@ -3126,6 +3142,23 @@ fn discount_kind(record: &Value) -> &str {
     record["kind"].as_str().unwrap_or_default()
 }
 
+fn discount_kind_for_lifecycle_root(root: &str) -> &'static str {
+    if root.starts_with("discountAutomatic") {
+        "automatic"
+    } else {
+        "code"
+    }
+}
+
+fn discount_record_accepts_redeem_code_bulk_add(record: &Value) -> bool {
+    discount_kind(record) == "code"
+        && record
+            .get("typename")
+            .and_then(Value::as_str)
+            .map(|typename| typename != "DiscountCodeApp")
+            .unwrap_or(true)
+}
+
 fn discount_record_codes(record: &Value) -> Vec<String> {
     let mut codes = Vec::new();
     if let Some(redeem_codes) = record.get("codes").and_then(Value::as_array) {
@@ -3848,15 +3881,18 @@ fn discount_country_summary_name(country_code: &str) -> String {
     .to_string()
 }
 
-pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str, shop_currency_code: &str) -> Value {
+pub(in crate::proxy) fn gift_card_lifecycle_base_card(
+    id: &str,
+    _shop_currency_code: &str,
+) -> Value {
     let timestamp = default_product_timestamp();
     json!({
         "__typename": "GiftCard",
         "id": id,
         "legacyResourceId": resource_id_path_tail(id),
-        "lastCharacters": "2053",
-        "maskedCode": "•••• •••• •••• 2053",
-        "giftCardCode": synthetic_gift_card_code_from_id(id),
+        "lastCharacters": null,
+        "maskedCode": null,
+        "giftCardCode": null,
         "enabled": true,
         "deactivatedAt": null,
         "disabledAt": null,
@@ -3865,22 +3901,12 @@ pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str, shop_currency_co
         "templateSuffix": null,
         "createdAt": timestamp.clone(),
         "updatedAt": timestamp,
-        "initialValue": money_value("5.0", shop_currency_code),
-        "balance": money_value("5.0", shop_currency_code),
-        "customer": { "id": "gid://shopify/Customer/10552623464754" },
-        "recipientAttributes": {
-            "message": "HAR-464 recipient message",
-            "preferredName": "HAR-464 recipient",
-            "sendNotificationAt": null,
-            "recipient": { "id": "gid://shopify/Customer/10552623464754" }
-        },
+        "initialValue": null,
+        "balance": null,
+        "customer": null,
+        "recipientAttributes": null,
         "transactions": connection_json(Vec::new())
     })
-}
-
-fn synthetic_gift_card_code_from_id(id: &str) -> String {
-    let tail = resource_id_tail(id);
-    format!("giftcard{tail:0>8}")
 }
 
 pub(in crate::proxy) fn gift_card_configuration_record(shop_currency_code: &str) -> Value {

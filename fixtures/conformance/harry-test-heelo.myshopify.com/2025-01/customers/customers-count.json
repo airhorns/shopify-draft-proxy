@@ -5,15 +5,15 @@
   },
   "data": {
     "total": {
-      "count": 70,
+      "count": 1232,
       "precision": "EXACT"
     },
     "matching": {
-      "count": 70,
+      "count": 1232,
       "precision": "EXACT"
     },
     "disabled": {
-      "count": 70,
+      "count": 1232,
       "precision": "EXACT"
     }
   },
@@ -67,20 +67,21 @@
         "query": "email:grace@example.com",
         "disabledQuery": "state:DISABLED"
       },
+      "query": "query CustomersCountRead($query: String!, $disabledQuery: String!) {\n  total: customersCount {\n    count\n    precision\n  }\n  matching: customersCount(query: $query) {\n    count\n    precision\n  }\n  disabled: customersCount(query: $disabledQuery) {\n    count\n    precision\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
             "total": {
-              "count": 70,
+              "count": 1232,
               "precision": "EXACT"
             },
             "matching": {
-              "count": 70,
+              "count": 1232,
               "precision": "EXACT"
             },
             "disabled": {
-              "count": 70,
+              "count": 1232,
               "precision": "EXACT"
             }
           },
@@ -128,8 +129,7 @@
             ]
           }
         }
-      },
-      "query": "query CustomersCountRead($query: String!, $disabledQuery: String!) {\n  total: customersCount {\n    count\n    precision\n  }\n  matching: customersCount(query: $query) {\n    count\n    precision\n  }\n  disabled: customersCount(query: $disabledQuery) {\n    count\n    precision\n  }\n}\n"
+      }
     }
   ]
 }
