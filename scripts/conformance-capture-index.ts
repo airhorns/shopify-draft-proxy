@@ -4667,6 +4667,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'price-list-create-catalog-order',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-price-list-create-catalog-order-conformance.ts',
+    purpose:
+      'priceListCreate validation order when catalogId errors are combined with duplicate-name or parent-adjustment errors.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}price-list-create-catalog-order.json`,
+      'config/parity-specs/markets/price_list_create_catalog_order.json',
+      'config/parity-requests/markets/price-list-create-catalog-order-markets-read.graphql',
+      'config/parity-requests/markets/price-list-create-catalog-order.graphql',
+      'config/parity-requests/markets/catalog-create-relation-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable price lists and one market catalog for setup, records validation failures that do not create records, then deletes all created price lists and catalogs.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Public Admin GraphQL 2026-04 returns CATALOG_DOES_NOT_EXIST or CATALOG_TAKEN at input.catalogId before duplicate-name TAKEN or invalid parent adjustment validation.',
+  },
+  {
+    domain: 'markets',
     captureId: 'price-list-name-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-price-list-name-validation-conformance.ts',

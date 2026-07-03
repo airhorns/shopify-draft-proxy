@@ -4999,6 +4999,35 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
         json!([])
     );
 
+    let mut duplicate_name_missing_catalog_proxy = snapshot_proxy();
+    let baseline = duplicate_name_missing_catalog_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "EU Prices", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}}),
+    ));
+    assert_eq!(
+        baseline.body["data"]["priceListCreate"]["userErrors"],
+        json!([])
+    );
+    let duplicate_name_missing_catalog =
+        duplicate_name_missing_catalog_proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": {"name": "EU Prices", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalogId": missing_catalog_id}}),
+        ));
+    assert_eq!(
+        duplicate_name_missing_catalog.body["data"]["priceListCreate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog does not exist.", "code": "CATALOG_DOES_NOT_EXIST"}]})
+    );
+
+    let missing_catalog_invalid_adjustment =
+        duplicate_name_missing_catalog_proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": {"name": "Catalog Before Adjustment", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 250}}, "catalogId": missing_catalog_id}}),
+        ));
+    assert_eq!(
+        missing_catalog_invalid_adjustment.body["data"]["priceListCreate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog does not exist.", "code": "CATALOG_DOES_NOT_EXIST"}]})
+    );
+
     let mut wrong_type_proxy = snapshot_proxy();
     let wrong_type_create = wrong_type_proxy.process_request(json_graphql_request(
         create_query,
@@ -5073,6 +5102,14 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
     ));
     assert_eq!(
         taken_create.body["data"]["priceListCreate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog has a price list already assigned.", "code": "CATALOG_TAKEN"}]})
+    );
+    let taken_catalog_duplicate_name = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "First Catalog PL", "currency": "DKK", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalogId": first_catalog_id}}),
+    ));
+    assert_eq!(
+        taken_catalog_duplicate_name.body["data"]["priceListCreate"],
         json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog has a price list already assigned.", "code": "CATALOG_TAKEN"}]})
     );
 

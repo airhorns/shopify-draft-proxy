@@ -1840,6 +1840,20 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> PriceListFieldOutcome {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let catalog_id = resolved_string_field(&input, "catalogId");
+        if let Some(catalog_id) = catalog_id.as_deref() {
+            if price_list_catalog_id_has_wrong_gid_type(catalog_id) {
+                return PriceListFieldOutcome::resource_not_found(catalog_id, field);
+            }
+            if let Some(error) = self.price_list_catalog_validation_error(catalog_id, None) {
+                return PriceListFieldOutcome::price_list_with_user_errors(
+                    field,
+                    Value::Null,
+                    vec![error],
+                );
+            }
+        }
+
         let name = resolved_string_field(&input, "name").unwrap_or_default();
         if let Some(error) = price_list_name_error(&self.store.staged.price_lists, &name, None) {
             return PriceListFieldOutcome::price_list_error(field, error);
@@ -1865,20 +1879,6 @@ impl DraftProxy {
             return PriceListFieldOutcome::price_list_error(field, error);
         }
         let adjustment_type = resolved_string_field(&adjustment, "type").unwrap_or_default();
-
-        let catalog_id = resolved_string_field(&input, "catalogId");
-        if let Some(catalog_id) = catalog_id.as_deref() {
-            if price_list_catalog_id_has_wrong_gid_type(catalog_id) {
-                return PriceListFieldOutcome::resource_not_found(catalog_id, field);
-            }
-            if let Some(error) = self.price_list_catalog_validation_error(catalog_id, None) {
-                return PriceListFieldOutcome::price_list_with_user_errors(
-                    field,
-                    Value::Null,
-                    vec![error],
-                );
-            }
-        }
 
         let id = self.next_price_list_id();
         let price_list = price_list_record(
