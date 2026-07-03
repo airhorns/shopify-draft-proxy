@@ -1805,7 +1805,11 @@ impl DraftProxy {
                     .iter()
                     .all(|field| field == "quantityPricingByVariantUpdate")
                 {
-                    return quantity_pricing_by_variant_update_response(&query, &variables);
+                    return quantity_pricing_by_variant_update_response(
+                        &query,
+                        &variables,
+                        &self.store,
+                    );
                 } else if operation.root_fields.iter().all(|field| {
                     matches!(field.as_str(), "quantityRulesAdd" | "quantityRulesDelete")
                 }) {
