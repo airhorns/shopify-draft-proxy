@@ -36,6 +36,13 @@ the mandate payment composite reference, idempotency, missing-`mandateId`, and
 `autoCapture: false` authorization branches; it is not real gateway or
 mandate-service execution.
 
+Local order payment staging derives omitted transaction amounts from the
+staged order's `totalOutstandingSet`; if that money bag cannot be resolved, the
+mutation returns a local `userErrors` payload instead of inventing a payment
+amount. `orderCreateMandatePayment` mints order-transaction identifiers through
+the proxy's staged order-transaction allocator and derives the returned job
+completion flag from the staged mandate transaction state.
+
 `paymentReminderSend` remains in the sensitive side-effect bucket: the proxy
 records local reminder intent for `PaymentSchedule` IDs and never sends customer
 email at runtime. Live success capture still needs a safe
