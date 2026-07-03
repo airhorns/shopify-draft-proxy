@@ -96,8 +96,11 @@ upstream hydration and limits market-customizable translation keys to modeled
 resource/key pairs. Modeled Product keys include `title`, `body_html`, and
 `product_type`; modeled Collection keys include `title` and `body_html`.
 Unmodeled market-custom resources such as `PackingSlipTemplate.body` return
-`RESOURCE_NOT_MARKET_CUSTOMIZABLE`. `translationsRemove` with an unknown
-market ID follows the captured Shopify no-op shape without staging removals.
+`RESOURCE_NOT_MARKET_CUSTOMIZABLE`. Missing Product or Collection IDs, and
+resource types the proxy cannot resolve locally such as absent `Menu` IDs,
+return `RESOURCE_NOT_FOUND` on `translationsRegister` and `translationsRemove`
+before staging any translation rows. `translationsRemove` with an unknown market
+ID follows the captured Shopify no-op shape without staging removals.
 
 For modeled Product resources, `translatableResource`,
 `translatableResources`, and `translatableResourcesByIds` project
