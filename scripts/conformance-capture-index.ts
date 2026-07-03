@@ -12059,23 +12059,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
-    captureId: 'customer-payment-method-no-auto-seed',
-    scriptPath: 'scripts/capture-customer-payment-method-no-auto-seed-local-runtime.ts',
-    purpose:
-      'Local-runtime parity proving unhydrated customer payment-method reads do not auto-seed sentinel fixture records under real customer IDs.',
-    requiredAuthScopes: ['local-runtime fixture evidence; no live Shopify write required'],
-    fixtureOutputs: [
-      'fixtures/conformance/local-runtime/2026-04/customers/customer-payment-method-no-auto-seed.json',
-      'config/parity-specs/customers/customer-payment-method-no-auto-seed.json',
-      'config/parity-requests/customers/customer-payment-method-no-auto-seed.graphql',
-    ],
-    cleanupBehavior: 'Local-runtime snapshot read only; no live Shopify objects are created.',
-    expectedStatusChecks: ['conformance:status', 'conformance:check', 'conformance:parity', 'rust:test'],
-    notes:
-      'Live customer-payment-method success captures remain blocked by missing read_customer_payment_methods/write_customer_payment_methods scopes.',
-  },
-  {
-    domain: 'customers',
     captureId: 'customer-invite-email-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-customer-invite-email-validation-conformance.ts',
