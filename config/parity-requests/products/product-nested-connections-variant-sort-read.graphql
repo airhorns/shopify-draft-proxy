@@ -1,0 +1,42 @@
+#graphql
+query ProductNestedConnectionsVariantSortRead($productId: ID!) {
+  product(id: $productId) {
+    byFullTitle: variants(first: 10, sortKey: FULL_TITLE) {
+      nodes { sku title }
+    }
+    byId: variants(first: 10, sortKey: ID) {
+      nodes { sku title }
+    }
+    byInventoryLevelsAvailable: variants(first: 10, sortKey: INVENTORY_LEVELS_AVAILABLE) {
+      nodes { sku inventoryQuantity }
+    }
+    byInventoryManagement: variants(first: 10, sortKey: INVENTORY_MANAGEMENT) {
+      nodes { sku inventoryItem { tracked } }
+    }
+    byInventoryPolicyReverse: variants(first: 10, sortKey: INVENTORY_POLICY, reverse: true) {
+      nodes { sku inventoryPolicy }
+    }
+    byInventoryQuantityReverse: variants(first: 10, sortKey: INVENTORY_QUANTITY, reverse: true) {
+      nodes { sku inventoryQuantity }
+    }
+    byNameReverseWindow: variants(first: 2, sortKey: NAME, reverse: true) {
+      nodes { sku title }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+    byPopular: variants(first: 10, sortKey: POPULAR) {
+      nodes { sku position }
+    }
+    byPositionReverse: variants(first: 10, sortKey: POSITION, reverse: true) {
+      nodes { sku position }
+    }
+    byRelevanceReverse: variants(first: 10, sortKey: RELEVANCE, reverse: true) {
+      nodes { sku position }
+    }
+    bySku: variants(first: 10, sortKey: SKU) {
+      nodes { sku title }
+    }
+    byTitle: variants(first: 10, sortKey: TITLE) {
+      nodes { sku title }
+    }
+  }
+}
