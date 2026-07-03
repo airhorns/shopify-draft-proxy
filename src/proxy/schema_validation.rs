@@ -731,6 +731,17 @@ fn output_field_type(field: &Value) -> Option<OutputFieldType> {
     Some(OutputFieldType { named_type })
 }
 
+pub(in crate::proxy) fn public_admin_output_field_named_type(
+    parent_type: &str,
+    field_name: &str,
+) -> Option<&'static str> {
+    public_admin_output_schema()
+        .fields_by_parent
+        .get(parent_type)?
+        .get(field_name)
+        .map(|field_type| field_type.named_type.as_str())
+}
+
 fn plain_user_error_code_selection_errors(
     query: &str,
     document: &ParsedDocument,

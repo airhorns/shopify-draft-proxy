@@ -3965,3 +3965,25 @@ Practical rule:
 - keep restored media parity request documents on public fields only, and use
   reverse-order immediate reads when the scenario needs the newly created file
   without relying on full file-search semantics.
+
+## 93. Bulk mutation nested connections hit the count validator first
+
+Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` returns
+`Bulk mutations cannot contain more than 1 connection.` for
+`bulkOperationRunMutation` inner documents that select a connection nested under
+another connection, such as `productCreate { product { variants { edges { node
+{ media { ... } } } } } }`. The public response does not reach the
+`connection_nested_too_deep` message for that shape because the connection-count
+validator wins first.
+
+The same store and a 2025-01 probe showed the same count-first response. Single
+shallow connection selections, and single connections reached through ordinary
+object/list fields, pass the analyzer and proceed to staged-file lookup.
+
+Practical rule:
+
+- run the `bulkOperationRunMutation` connection count check before the nesting
+  depth check
+- keep nested-connection parity targets pinned to the public count-precedence
+  response unless a future capture finds a public document that isolates the
+  depth message
