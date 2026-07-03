@@ -400,6 +400,27 @@ fn bulk_operation_completed_url_is_absolute_and_serves_jsonl_artifact() {
     let parsed_url = url::Url::parse(url).expect("bulk artifact url parses");
     assert_eq!(parsed_url.scheme(), "https");
     assert_eq!(parsed_url.host_str(), Some("localhost"));
+    assert_eq!(parsed_url.port(), Some(0));
+
+    let connection_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadProductBulkArtifactConnection {
+          bulkOperations(first: 5) {
+            nodes { id url }
+            edges { node { id url } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let connection_url = connection_read.body["data"]["bulkOperations"]["nodes"][0]["url"]
+        .as_str()
+        .unwrap();
+    assert_eq!(connection_url, url);
+    assert_eq!(
+        connection_read.body["data"]["bulkOperations"]["edges"][0]["node"]["url"],
+        json!(url)
+    );
 
     let artifact = proxy.process_request(request_with_body("GET", parsed_url.path(), ""));
     assert_eq!(artifact.status, 200);
@@ -1089,6 +1110,136 @@ fn bulk_operation_run_mutation_validates_without_dispatcher_errors() {
             "{name}"
         );
     }
+}
+
+#[test]
+fn bulk_operation_run_mutation_rejects_too_many_schema_connections_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let log_before = log_snapshot(&proxy);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { variants(first: 1) { edges { node { id } } } media(first: 1) { edges { node { id } } } } } }",
+            "path": "valid"
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": ["mutation"],
+            "message": "Bulk mutations cannot contain more than 1 connection.",
+            "code": null
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy),
+        log_before,
+        "too-many-connections validation must not append a mutation log entry"
+    );
+
+    let current = proxy.process_request(json_graphql_request(
+        r#"
+        query CurrentMutation {
+          currentBulkOperation(type: MUTATION) { id }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(current.body["data"]["currentBulkOperation"], Value::Null);
+}
+
+#[test]
+fn bulk_operation_run_mutation_nested_connection_returns_count_error_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let log_before = log_snapshot(&proxy);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { variants(first: 1) { edges { node { id media(first: 1) { edges { node { id } } } } } } } } }",
+            "path": "valid"
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": ["mutation"],
+            "message": "Bulk mutations cannot contain more than 1 connection.",
+            "code": null
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy),
+        log_before,
+        "nested-connection validation must not append a mutation log entry"
+    );
+}
+
+#[test]
+fn bulk_operation_run_mutation_allows_one_shallow_schema_connection() {
+    let mut proxy = snapshot_proxy();
+    let path = staged_bulk_mutation_upload_path(&mut proxy, "one-shallow-connection.jsonl", "42");
+    let log_len_before = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { variants(first: 1) { edges { node { id } } } } } }",
+            "path": path
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"]["status"],
+        json!("CREATED")
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"]["type"],
+        json!("MUTATION")
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_before + 1
+    );
 }
 
 fn staged_bulk_mutation_upload_path(

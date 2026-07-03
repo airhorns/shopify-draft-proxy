@@ -3,7 +3,7 @@
   "recordedAt": "2026-05-06T00:00:00.000Z",
   "source": "local-runtime",
   "apiVersion": "2026-04",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "coveredOperations": ["orderDelete", "order", "fulfillmentOrder", "return", "abandonedCheckouts"],
   "requests": {
     "unknownOrderDelete": {

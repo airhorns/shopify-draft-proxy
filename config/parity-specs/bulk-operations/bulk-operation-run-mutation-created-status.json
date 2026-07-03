@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-created-status.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/bulk_operations_test.gleam", "js/test/http-adapter.test.ts"],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs", "js/test/http-adapter.test.ts"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-created-status.graphql",
     "variablesCapturePath": "$.missingUpload.run.variables"

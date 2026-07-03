@@ -3506,7 +3506,7 @@ fn product_variant_media_empty_media_ids_return_blank_without_staging() {
 }
 
 #[test]
-fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests() {
+fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
 
     let publication_validation = proxy.process_request(json_graphql_request(

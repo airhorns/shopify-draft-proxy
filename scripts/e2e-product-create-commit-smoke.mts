@@ -1,18 +1,14 @@
 // @ts-nocheck
 /* oxlint-disable no-console -- CLI smoke script intentionally writes status output to stdout. */
 /**
- * Live end-to-end smoke for the JavaScript/Node path.
+ * Live end-to-end smoke for the JavaScript/Node shim.
  *
- * Boots an in-process Node HTTP app (`createApp`) backed by the JS-target
- * Gleam proxy in live-hybrid mode, stages 3 productCreate mutations
- * through it, asserts the staged IDs are synthetic and not yet visible
- * upstream, runs `/__meta/commit` to replay through real Shopify, then
- * cleans up the committed products. Mirrors
- * `elixir_smoke/test/live_hybrid_e2e_test.exs` — the two together
- * are the cross-target proof that committable mutations behave the
- * same on Erlang and JavaScript.
+ * Boots an in-process Node HTTP app (`createApp`) backed by the Rust runtime in
+ * live-hybrid mode, stages 3 productCreate mutations through it, asserts the
+ * staged IDs are synthetic and not yet visible upstream, runs `/__meta/commit`
+ * to replay through real Shopify, then cleans up the committed products.
  *
- * Run via:  `pnpm e2e:product-create-commit-smoke`
+ * Run via:  `corepack pnpm e2e:product-create-commit-smoke`
  */
 import 'dotenv/config';
 

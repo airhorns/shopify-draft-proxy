@@ -22,7 +22,6 @@ When a task asks for **parity**, **conformance**, **captured evidence**, or a sc
 - The runtime is **Rust**, centered on `src/proxy.rs`, `src/graphql.rs`, `src/operation_registry.rs`, and `src/bin/shopify-draft-proxy-server.rs`.
 - The TypeScript package surface in `js/src/` is a thin embeddable shim around the Rust HTTP runtime.
 - Operation registry metadata lives in `src/operation_registry.rs`; TypeScript tooling reads it through the Rust `operation-registry-json` exporter so there is no second checked-in registry source.
-- No Gleam source or build steps remain. Do not reintroduce Gleam runtime code, BEAM/Elixir smoke tests, or Gleam build requirements.
 
 ## Non-negotiables
 
@@ -88,7 +87,7 @@ When a task asks for **parity**, **conformance**, **captured evidence**, or a sc
 
 ## Verification loop
 
-Run the full Rust-port gate before pushing:
+Run the full verification gate before pushing:
 
 ```bash
 corepack pnpm conformance:fixture-invariants

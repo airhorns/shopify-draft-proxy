@@ -66,5 +66,5 @@
       }
     ]
   },
-  "notes": "Captured live Shopify refundCreate missing-order, over-refund line quantity, and amount guardrails against a paid order with an existing partial refund. The same capture records allowOverRefunding:true still failing for the current conformance app, so the local allowOverRefunding success branch is covered by the focused Gleam runtime test rather than by a strict live target."
+  "notes": "Captured live Shopify refundCreate missing-order, over-refund line quantity, and amount guardrails against a paid order with an existing partial refund. The same capture records allowOverRefunding:true still failing for the current conformance app, so the local allowOverRefunding success branch is covered by the focused runtime test rather than by a strict live target."
 }

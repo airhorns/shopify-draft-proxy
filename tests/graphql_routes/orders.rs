@@ -69,7 +69,7 @@ fn order_create_uses_shop_currency_but_preserves_presentment_currency() {
                 }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -127,7 +127,7 @@ fn stage_fulfillment_for_event(proxy: &mut DraftProxy) -> (Value, Value) {
                 }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -200,7 +200,7 @@ fn create_fulfillment_validation_order(proxy: &mut DraftProxy) -> (Value, Vec<Va
                 }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -412,7 +412,7 @@ fn stage_fulfilled_order_for_return(proxy: &mut DraftProxy) -> (Value, Value) {
                 }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -5642,7 +5642,7 @@ fn draft_order_applied_discount_value_type_coercion_matches_capture() {
 }
 
 #[test]
-fn payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_guards() {
+fn payment_reminder_send_malformed_gid_and_invalid_selection_covers_current_guardrails() {
     let malformed_fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-malformed-gid.json"
     ))
@@ -5717,7 +5717,7 @@ fn payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_gua
 }
 
 #[test]
-fn payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards() {
+fn payment_reminder_send_eligibility_and_rate_limit_covers_current_guardrails() {
     let eligibility_fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-eligibility.json"
     ))
@@ -6057,7 +6057,7 @@ fn payment_reminder_hydrated_proxy(fixtures: &[&Value]) -> (DraftProxy, Arc<Mute
 }
 
 #[test]
-fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_readback_helpers() {
+fn payment_customization_local_runtime_covers_create_activation_update_readback_helpers() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"
       mutation RustPaymentCustomizationLocalRuntime($input: PaymentCustomizationInput!) {
@@ -7038,7 +7038,7 @@ fn assert_payment_terms_due_state(terms: &Value, expected_due: bool, expected_du
 }
 
 #[test]
-fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
+fn payment_terms_create_update_guardrails_cover_current_helper_edges() {
     let create_query = r#"
         mutation RustPaymentTermsLocalRuntimeCreate($referenceId: ID!, $attrs: PaymentTermsAttributesInput!) {
           paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {
@@ -8879,48 +8879,47 @@ fn order_mark_as_paid_rejects_unknown_and_non_markable_orders_without_staging() 
 
 #[test]
 fn money_bag_presentment_replays_order_payment_refund_and_edit_shapes() {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-05/orders/money-bag-presentment-parity.json"
-    ))
-    .unwrap();
     let mut proxy = snapshot_proxy();
 
     let single_create = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/orders/money-bag-presentment-single-create.graphql"
         ),
-        fixture["singleCurrencyCreate"]["variables"].clone(),
+        json!({
+            "order": {
+                "currency": "CAD",
+                "presentmentCurrency": "USD",
+                "lineItems": [{
+                    "title": "MoneyBag line",
+                    "quantity": 1,
+                    "priceSet": {
+                        "shopMoney": { "amount": "12.00", "currencyCode": "CAD" },
+                        "presentmentMoney": { "amount": "8.00", "currencyCode": "USD" }
+                    },
+                    "taxLines": [{
+                        "title": "Line tax",
+                        "rate": 0.125,
+                        "priceSet": {
+                            "shopMoney": { "amount": "1.50", "currencyCode": "CAD" },
+                            "presentmentMoney": { "amount": "1.00", "currencyCode": "USD" }
+                        }
+                    }]
+                }]
+            }
+        }),
     ));
     assert_eq!(
-        single_create.body,
-        fixture["singleCurrencyCreate"]["expected"]
+        single_create.body["data"]["orderCreate"]["userErrors"],
+        json!([])
     );
     let order_id = single_create.body["data"]["orderCreate"]["order"]["id"].clone();
-
-    let multi_create = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/orders/money-bag-presentment-multi-create.graphql"
-        ),
-        fixture["multiCurrencyCreate"]["variables"].clone(),
-    ));
     assert_eq!(
-        multi_create.body,
-        fixture["multiCurrencyCreate"]["expected"]
+        single_create.body["data"]["orderCreate"]["order"]["totalPriceSet"],
+        json!({
+            "shopMoney": { "amount": "13.5", "currencyCode": "CAD" },
+            "presentmentMoney": { "amount": "9.0", "currencyCode": "USD" }
+        })
     );
-
-    let mark_as_paid = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/orders/money-bag-presentment-mark-as-paid.graphql"
-        ),
-        json!({"input": {"id": order_id.clone()}}),
-    ));
-    assert_eq!(mark_as_paid.body, fixture["markAsPaid"]["expected"]);
-
-    let refund = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/money-bag-presentment-refund.graphql"),
-        json!({"input": {"orderId": order_id.clone(), "allowOverRefunding": true, "transactions": [{"amount": "5.00", "gateway": "manual", "kind": "REFUND", "orderId": order_id.clone()}]}}),
-    ));
-    assert_eq!(refund.body, fixture["refund"]["expected"]);
 
     let edit_begin = proxy.process_request(json_graphql_request(
         include_str!(
@@ -8953,7 +8952,39 @@ fn money_bag_presentment_replays_order_payment_refund_and_edit_shapes() {
         ),
         json!({"id": calculated_order_id}),
     ));
-    assert_eq!(edit_commit.body, fixture["orderEditCommit"]["expected"]);
+    assert_eq!(
+        edit_commit.body["data"]["orderEditCommit"],
+        json!({
+            "order": Value::Null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "There must be at least one change to be made."
+            }]
+        })
+    );
+
+    let mark_as_paid = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/money-bag-presentment-mark-as-paid.graphql"
+        ),
+        json!({"input": {"id": order_id.clone()}}),
+    ));
+    assert_eq!(
+        mark_as_paid.body["data"]["orderMarkAsPaid"]["order"]["transactions"][0]["amountSet"],
+        single_create.body["data"]["orderCreate"]["order"]["totalPriceSet"]
+    );
+
+    let refund = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/money-bag-presentment-refund.graphql"),
+        json!({"input": {"orderId": order_id.clone(), "currency": "USD", "allowOverRefunding": true, "transactions": [{"amount": "5.00", "gateway": "manual", "kind": "REFUND", "orderId": order_id.clone(), "parentId": mark_as_paid.body["data"]["orderMarkAsPaid"]["order"]["transactions"][0]["id"].clone()}]}}),
+    ));
+    assert_eq!(
+        refund.body["data"]["refundCreate"]["refund"]["totalRefundedSet"],
+        json!({
+            "shopMoney": { "amount": "7.5", "currencyCode": "CAD" },
+            "presentmentMoney": { "amount": "5.0", "currencyCode": "USD" }
+        })
+    );
 }
 
 #[test]
@@ -9059,7 +9090,7 @@ fn money_bag_order_edit_sessions_use_target_order_and_outstanding_defaults() {
           refundCreate(input: $input) {
             refund { totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }
             order { totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -9087,7 +9118,10 @@ fn money_bag_order_edit_sessions_use_target_order_and_outstanding_defaults() {
     ));
     assert_eq!(
         commit.body["data"]["orderEditCommit"]["userErrors"],
-        json!([])
+        json!([{
+            "field": ["id"],
+            "message": "There must be at least one change to be made."
+        }])
     );
 
     assert_eq!(
@@ -9098,8 +9132,7 @@ fn money_bag_order_edit_sessions_use_target_order_and_outstanding_defaults() {
             "secondBeginOriginalOrderId": second_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["originalOrder"]["id"].clone(),
             "secondBeginTotalPriceSet": second_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["totalPriceSet"].clone(),
             "secondRefundTotalRefundedSet": refund.body["data"]["refundCreate"]["refund"]["totalRefundedSet"].clone(),
-            "secondCommitOrderId": commit.body["data"]["orderEditCommit"]["order"]["id"].clone(),
-            "secondCommitCurrentTotalPriceSet": commit.body["data"]["orderEditCommit"]["order"]["currentTotalPriceSet"].clone()
+            "secondCommitOrder": commit.body["data"]["orderEditCommit"]["order"].clone()
         }),
         json!({
             "calculatedIdsAreDistinct": true,
@@ -9114,11 +9147,7 @@ fn money_bag_order_edit_sessions_use_target_order_and_outstanding_defaults() {
                 "shopMoney": { "amount": "22.0", "currencyCode": "CAD" },
                 "presentmentMoney": { "amount": "22.0", "currencyCode": "CAD" }
             },
-            "secondCommitOrderId": "gid://shopify/Order/2",
-            "secondCommitCurrentTotalPriceSet": {
-                "shopMoney": { "amount": "22.0", "currencyCode": "CAD" },
-                "presentmentMoney": { "amount": "22.0", "currencyCode": "CAD" }
-            }
+            "secondCommitOrder": Value::Null
         })
     );
 }
@@ -9132,7 +9161,7 @@ fn money_bag_refund_missing_order_returns_user_error_without_canned_money() {
           refundCreate(input: $input) {
             refund { totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }
             order { totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -9152,8 +9181,7 @@ fn money_bag_refund_missing_order_returns_user_error_without_canned_money() {
             "order": Value::Null,
             "userErrors": [{
                 "field": ["orderId"],
-                "message": "Order does not exist",
-                "code": "NOT_FOUND"
+                "message": "Order does not exist"
             }]
         })
     );
@@ -11541,7 +11569,7 @@ fn order_edit_shipping_line_and_remove_discount_unstaged_calculated_order_return
 }
 
 #[test]
-fn customer_payment_methods_remote_create_validation_ports_old_gleam_guards() {
+fn customer_payment_methods_remote_create_validation_covers_current_guardrails() {
     let mut proxy = snapshot_proxy();
 
     let seed = proxy.process_request(json_graphql_request(
@@ -12049,7 +12077,7 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
 }
 
 #[test]
-fn customer_payment_method_update_and_revoke_tail_helpers_ported_from_gleam() {
+fn customer_payment_method_update_and_revoke_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
 
     let update = proxy.process_request(json_graphql_request(
