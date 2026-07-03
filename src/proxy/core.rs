@@ -627,6 +627,18 @@ impl DraftProxy {
         if let Some(session_order_id) = &self.store.staged.order_edit_existing_session_order_id {
             snapshot["stagedState"]["orderEditExistingSessionOrderId"] = json!(session_order_id);
         }
+        if !self
+            .store
+            .staged
+            .order_edit_money_bag_calculated_order_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["orderEditMoneyBagCalculatedOrderIds"] = json!(self
+                .store
+                .staged
+                .order_edit_money_bag_calculated_order_ids
+                .clone());
+        }
         if let Some(mode) = &self.store.staged.order_edit_existing_mode {
             snapshot["stagedState"]["orderEditExistingMode"] = json!(mode);
         }
@@ -848,9 +860,9 @@ impl DraftProxy {
             .cloned();
         let base_shop = state["baseState"]
             .get("shop")
-            .filter(|shop| shop.is_object())
+            .filter(|shop| shop.is_object() || shop.is_null())
             .cloned()
-            .unwrap_or_else(|| Store::with_default_baseline().base.shop);
+            .unwrap_or(Value::Null);
         let mut base_shop_policies =
             shop_policy_state_map_from_json(&state["baseState"]["shopPolicies"]);
         let mut base_shop_policy_order =
@@ -897,17 +909,14 @@ impl DraftProxy {
                         "name": "English",
                         "primary": true,
                         "published": true,
-                        "marketWebPresences": [{
-                            "id": "gid://shopify/MarketWebPresence/62842765618",
-                            "subfolderSuffix": null
-                        }]
+                        "marketWebPresences": []
                     }),
                 )])
             });
         self.store.base.localization_product_ids = state["baseState"]
             .get("localizationProductIds")
             .map(string_array_from_json)
-            .unwrap_or_else(|| vec![LOCALIZATION_BASELINE_PRODUCT_ID.to_string()])
+            .unwrap_or_default()
             .into_iter()
             .collect();
         self.store.staged.publication_ids =
@@ -1292,6 +1301,8 @@ impl DraftProxy {
             .get("orderEditExistingSessionOrderId")
             .and_then(Value::as_str)
             .map(str::to_string);
+        self.store.staged.order_edit_money_bag_calculated_order_ids =
+            string_map_from_json(state["stagedState"].get("orderEditMoneyBagCalculatedOrderIds"));
         self.store.staged.order_edit_existing_mode = state["stagedState"]
             .get("orderEditExistingMode")
             .and_then(Value::as_str)
@@ -1621,6 +1632,20 @@ fn value_map_from_json(value: Option<&Value>) -> BTreeMap<String, Value> {
             records
                 .iter()
                 .map(|(id, record)| (id.clone(), record.clone()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn string_map_from_json(value: Option<&Value>) -> BTreeMap<String, String> {
+    value
+        .and_then(Value::as_object)
+        .map(|records| {
+            records
+                .iter()
+                .filter_map(|(key, value)| {
+                    value.as_str().map(|value| (key.clone(), value.to_string()))
+                })
                 .collect()
         })
         .unwrap_or_default()

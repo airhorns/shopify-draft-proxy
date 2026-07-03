@@ -211,6 +211,7 @@ pub(in crate::proxy) fn normalize_order_name(name: &str) -> String {
 pub(in crate::proxy) fn order_matches_term(order: &Value, key: &str, value: &str) -> Option<bool> {
     let value = value.trim();
     match key {
+        "id" => Some(order_matches_id(order, value)),
         "tag" => {
             let want = value.to_ascii_lowercase();
             Some(
@@ -254,8 +255,132 @@ pub(in crate::proxy) fn order_matches_term(order: &Value, key: &str, value: &str
                 .and_then(Value::as_str)
                 .is_some_and(|status| status.eq_ignore_ascii_case(value)),
         ),
+        "status" => Some(order_matches_status(order, value)),
+        "created_at" => Some(order_matches_datetime_comparator(
+            order.get("createdAt").and_then(Value::as_str),
+            value,
+        )),
+        "updated_at" => Some(order_matches_datetime_comparator(
+            order.get("updatedAt").and_then(Value::as_str),
+            value,
+        )),
+        "processed_at" => Some(order_matches_datetime_comparator(
+            order.get("processedAt").and_then(Value::as_str),
+            value,
+        )),
         _ => None,
     }
+}
+
+fn order_matches_id(order: &Value, value: &str) -> bool {
+    let value = value.trim_matches('"').trim_matches('\'');
+    order
+        .get("id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| resource_id_tail(id) == value || resource_id_path_tail(id) == value)
+}
+
+fn order_matches_status(order: &Value, value: &str) -> bool {
+    let cancelled = order
+        .get("cancelledAt")
+        .is_some_and(|cancelled_at| !cancelled_at.is_null())
+        || order
+            .get("cancelReason")
+            .is_some_and(|cancel_reason| !cancel_reason.is_null());
+    let closed = order
+        .get("closed")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        || order
+            .get("closedAt")
+            .is_some_and(|closed_at| !closed_at.is_null());
+    match value.to_ascii_lowercase().as_str() {
+        "any" => true,
+        "cancelled" | "canceled" => cancelled,
+        "closed" => closed && !cancelled,
+        "open" => !closed && !cancelled,
+        _ => false,
+    }
+}
+
+fn order_matches_datetime_comparator(actual: Option<&str>, query_value: &str) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    let query_value = query_value.trim_matches('"').trim_matches('\'');
+    if query_value.is_empty() {
+        return false;
+    }
+    let (operator, expected) = order_search_comparator(query_value);
+    if expected.is_empty() {
+        return false;
+    }
+    let actual = order_search_datetime_value(actual, expected);
+    match operator {
+        "<" => actual < expected,
+        "<=" => actual <= expected,
+        ">" => actual > expected,
+        ">=" => actual >= expected,
+        _ => actual.starts_with(expected),
+    }
+}
+
+fn order_search_comparator(value: &str) -> (&str, &str) {
+    for operator in [">=", "<=", ">", "<", "="] {
+        if let Some(rest) = value.strip_prefix(operator) {
+            return (operator, rest);
+        }
+    }
+    ("=", value)
+}
+
+fn order_search_datetime_value<'a>(actual: &'a str, expected: &str) -> &'a str {
+    if expected.contains('T') {
+        actual
+    } else {
+        actual
+            .split_once('T')
+            .map(|(date, _)| date)
+            .unwrap_or(actual)
+    }
+}
+
+fn order_matches_free_text(order: &Value, value: &str) -> bool {
+    let value = value.trim().trim_matches('"').trim_matches('\'');
+    if value.is_empty() {
+        return true;
+    }
+    order_matches_id(order, value)
+        || order_search_string_matches(order.get("name").and_then(Value::as_str), value)
+        || order_search_string_matches(order.get("email").and_then(Value::as_str), value)
+        || order
+            .get("tags")
+            .and_then(Value::as_array)
+            .is_some_and(|tags| {
+                tags.iter()
+                    .filter_map(Value::as_str)
+                    .any(|tag| order_search_string_matches(Some(tag), value))
+            })
+}
+
+fn order_search_string_matches(actual: Option<&str>, query_value: &str) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    let actual = actual.to_ascii_lowercase();
+    let query_value = query_value
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_ascii_lowercase();
+    if query_value.is_empty() {
+        return true;
+    }
+    if let Some(prefix) = query_value.strip_suffix('*') {
+        return actual
+            .split(|ch: char| !ch.is_ascii_alphanumeric())
+            .any(|part| part.starts_with(prefix));
+    }
+    actual.contains(&query_value)
 }
 
 pub(in crate::proxy) fn order_search_decision(
@@ -270,12 +395,17 @@ pub(in crate::proxy) fn order_search_decision(
         return StagedSearchDecision::Match;
     }
     for term in query.split_whitespace() {
+        if term.eq_ignore_ascii_case("AND") {
+            continue;
+        }
         if let Some((key, value)) = term.split_once(':') {
             match order_matches_term(order, key, value) {
                 Some(true) => {}
                 Some(false) => return StagedSearchDecision::NoMatch,
                 None => return StagedSearchDecision::Unsupported,
             }
+        } else if !order_matches_free_text(order, term) {
+            return StagedSearchDecision::NoMatch;
         }
     }
     StagedSearchDecision::Match
@@ -703,6 +833,10 @@ pub(in crate::proxy) fn order_create_line_item_record(
         .as_ref()
         .map(|id| json!({ "id": id }))
         .unwrap_or(Value::Null);
+    let selling_plan = resolved_string_field(input, "sellingPlanId")
+        .or_else(|| resolved_string_field(input, "sellingPlanName"))
+        .map(|name| json!({ "name": name }))
+        .unwrap_or(Value::Null);
     let weight = resolved_object_field(input, "weight")
         .map(|weight| {
             json!({
@@ -722,6 +856,7 @@ pub(in crate::proxy) fn order_create_line_item_record(
         "variant": variant,
         "productId": product_id,
         "product": product,
+        "sellingPlan": selling_plan,
         "customAttributes": custom_attributes,
         "requiresShipping": resolved_bool_field(input, "requiresShipping").unwrap_or(true),
         "taxable": resolved_bool_field(input, "taxable").unwrap_or(true),
@@ -1076,6 +1211,19 @@ pub(in crate::proxy) fn normalize_hydrated_order(order: &mut Value) {
 }
 
 impl DraftProxy {
+    fn order_line_inventory_item_id(
+        &self,
+        line_item: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<String> {
+        resolved_string_field(line_item, "inventoryItemId").or_else(|| {
+            let variant_id = resolved_string_field(line_item, "variantId")?;
+            self.store
+                .product_variant_by_id(&variant_id)
+                .map(|variant| variant.inventory_item.id.clone())
+                .or_else(|| Some(shopify_gid("InventoryItem", resource_id_tail(&variant_id))))
+        })
+    }
+
     pub(in crate::proxy) fn order_create_local_data(
         &mut self,
         request: &Request,
@@ -1423,20 +1571,6 @@ impl DraftProxy {
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,
         )
-    }
-
-    fn order_line_inventory_item_id(
-        &self,
-        line_item: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<String> {
-        resolved_string_field(line_item, "inventoryItemId").or_else(|| {
-            resolved_string_field(line_item, "variantId").map(|variant_id| {
-                self.store
-                    .product_variant_by_id(&variant_id)
-                    .map(|variant| variant.inventory_item.id.clone())
-                    .unwrap_or_else(|| shopify_gid("InventoryItem", resource_id_tail(&variant_id)))
-            })
-        })
     }
 
     pub(super) fn stage_order_lifecycle(
@@ -1958,6 +2092,8 @@ impl DraftProxy {
             "cancelReason": Value::Null,
             "createdAt": "2024-01-01T00:00:00.000Z",
             "updatedAt": "2024-01-01T00:00:00.000Z",
+            "processedAt": resolved_string_field(order_input, "processedAt")
+                .unwrap_or_else(|| "2024-01-01T00:00:00.000Z".to_string()),
             "customer": resolved_string_field(order_input, "customerId")
                 .map(|id| {
                     // A locally-staged customer carries the authoritative identity

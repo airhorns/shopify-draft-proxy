@@ -386,12 +386,7 @@ impl DraftProxy {
             return StagedSearchDecision::Match;
         };
         let variants = self.store.product_variants_for_product(&product.id);
-        StagedSearchDecision::from_bool(product_matches_search_query(
-            product,
-            &variants,
-            self.store.staged.product_search_tags.get(&product.id),
-            query,
-        ))
+        StagedSearchDecision::from_bool(product_matches_search_query(product, &variants, query))
     }
 
     fn product_payload_shop_needs_hydration(&self, shop_selection: &[SelectedField]) -> bool {
@@ -1689,6 +1684,7 @@ impl DraftProxy {
 
         let mut user_errors = Vec::new();
         for (index, input) in variants_input.iter().enumerate() {
+            let error_count_before_variant = user_errors.len();
             user_errors.extend(product_variant_input_user_errors_with_prefix(
                 input,
                 &["variants".to_string(), index.to_string()],
@@ -1696,8 +1692,10 @@ impl DraftProxy {
             user_errors.extend(Self::product_variant_bulk_option_user_errors(
                 input, &product, index, false,
             ));
-            user_errors
-                .extend(self.product_variant_bulk_inventory_location_user_errors(input, index));
+            if user_errors.len() == error_count_before_variant {
+                user_errors
+                    .extend(self.product_variant_bulk_inventory_location_user_errors(input, index));
+            }
         }
         if user_errors.is_empty() {
             user_errors.extend(Self::product_variant_bulk_duplicate_tuple_user_errors(
@@ -2920,14 +2918,6 @@ impl DraftProxy {
                 "No mutation dispatcher implemented for product tags id",
             ));
         };
-
-        if !self.store.staged.product_search_tags.contains_key(id) {
-            let search_tags = product.tags.iter().cloned().collect();
-            self.store
-                .staged
-                .product_search_tags
-                .insert(id.clone(), search_tags);
-        }
 
         let tags = normalized_taggable_tags_argument(field.arguments.get("tags"));
         match root_field {

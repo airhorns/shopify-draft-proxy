@@ -180,19 +180,6 @@ impl DraftProxy {
             }
         }
 
-        let required_field_errors = inputs
-            .iter()
-            .enumerate()
-            .filter_map(|(index, input)| validate_file_update_required_fields(input, index))
-            .collect::<Vec<_>>();
-        if !required_field_errors.is_empty() {
-            return MutationOutcome::response(media_file_update_error_response(
-                &response_key,
-                &payload_selection,
-                required_field_errors,
-            ));
-        }
-
         // Hydrate referenced products and file-update targets from upstream so
         // existence/validation checks run against the real records (Gleam parity:
         // maybe_hydrate_referenced_products + maybe_hydrate_file_update_targets).
@@ -1128,23 +1115,6 @@ fn validate_file_create_input(
             }
         }
         _ => {}
-    }
-    None
-}
-
-fn validate_file_update_required_fields(
-    input: &BTreeMap<String, ResolvedValue>,
-    index: usize,
-) -> Option<Value> {
-    if resolved_string_field(input, "id")
-        .filter(|value| !value.is_empty())
-        .is_none()
-    {
-        return Some(user_error(
-            ["files", index.to_string().as_str(), "id"],
-            "File id is required",
-            Some("REQUIRED"),
-        ));
     }
     None
 }

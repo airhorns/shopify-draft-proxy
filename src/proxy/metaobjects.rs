@@ -397,13 +397,29 @@ fn resolved_metaobject_definition_type_arg(
 
 fn canonical_metaobject_definition_type(raw: &str, request: &Request) -> String {
     let resolved = if let Some(suffix) = raw.strip_prefix("$app:") {
-        let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id")
-            .unwrap_or_else(|| "347082227713".to_string());
-        format!("app--{api_client_id}--{suffix}")
+        request_app_namespace_api_client_id(request)
+            .map(|api_client_id| format!("app--{api_client_id}--{suffix}"))
+            .unwrap_or_else(|| raw.to_string())
     } else {
         raw.to_string()
     };
     resolved.to_lowercase()
+}
+
+fn metaobject_definition_type_identity_error(
+    input: &BTreeMap<String, ResolvedValue>,
+    request: &Request,
+) -> Option<Value> {
+    let raw_type = resolved_string_field(input, "type")?;
+    (raw_type.starts_with("$app:") && request_app_namespace_api_client_id(request).is_none()).then(
+        || {
+            metaobject_field_error(
+                vec!["definition", "type"],
+                APP_NAMESPACE_IDENTITY_REQUIRED_MESSAGE,
+                "NOT_AUTHORIZED",
+            )
+        },
+    )
 }
 
 const MIN_FIELD_KEY_LENGTH: usize = 2;
@@ -566,6 +582,14 @@ fn metaobject_definition_create_validation_errors(
                     metafield_definition_valid_type_message()
                 ),
                 "INCLUSION",
+                json!(key),
+                Value::Null,
+            ));
+        } else if metafield_definition_type_is_standard_definition_only(&field_type) {
+            errors.push(metaobject_user_error(
+                vec!["definition", "fieldDefinitions", &index_string],
+                metafield_definition_standard_only_type_message(),
+                "INVALID",
                 json!(key),
                 Value::Null,
             ));
@@ -3135,6 +3159,14 @@ impl DraftProxy {
             validation_errors =
                 metaobject_required_field_errors_for_upsert(validation_errors, &definition);
         }
+        if let Some(handle) = resolved_string_field(input, "handle") {
+            if !handle.is_empty() {
+                validation_errors.extend(metaobject_handle_validation_errors(
+                    &handle,
+                    vec!["metaobject", "handle"],
+                ));
+            }
+        }
         if !validation_errors.is_empty() {
             return self.selected_metaobject_payload(
                 &json!({"metaobject": null, "userErrors": validation_errors}),
@@ -3393,6 +3425,16 @@ impl DraftProxy {
                 &field.selection,
             );
         };
+        if !meta_handle_input.is_empty() {
+            let locator_errors =
+                metaobject_handle_validation_errors(&meta_handle_input, vec!["handle", "handle"]);
+            if !locator_errors.is_empty() {
+                return self.selected_metaobject_payload(
+                    &json!({"metaobject": null, "userErrors": locator_errors}),
+                    &field.selection,
+                );
+            }
+        }
         if let Some(existing) = self
             .metaobject_by_type_and_handle(&meta_type, &meta_handle)
             .or_else(|| self.hydrate_metaobject_by_handle(request, &meta_type, &meta_handle))
@@ -3889,11 +3931,17 @@ impl DraftProxy {
             .iter()
             .filter(|(id, _)| !self.store.staged.metaobject_definitions.is_tombstoned(id))
             .count();
-        let validation_errors = metaobject_definition_create_validation_errors(
-            &definition_input,
-            &meta_type,
-            existing_definitions,
-        );
+        let validation_errors = if let Some(error) =
+            metaobject_definition_type_identity_error(&definition_input, request)
+        {
+            vec![error]
+        } else {
+            metaobject_definition_create_validation_errors(
+                &definition_input,
+                &meta_type,
+                existing_definitions,
+            )
+        };
         if !validation_errors.is_empty() {
             return selected_json(
                 &json!({"metaobjectDefinition": null, "userErrors": validation_errors}),
