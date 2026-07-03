@@ -4656,6 +4656,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'web-presence-create-requires-domain-or-subfolder',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-web-presence-create-requires-domain-or-subfolder-conformance.mts',
+    purpose:
+      'Focused webPresenceCreate validation for missing domainId and subfolderSuffix, proving the exact REQUIRES_DOMAIN_OR_SUBFOLDER userError message.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}web-presence-create-requires-domain-or-subfolder.json`,
+      'config/parity-specs/markets/web-presence-create-requires-domain-or-subfolder.json',
+      'config/parity-requests/markets/web-presence-create-requires-domain-or-subfolder.graphql',
+    ],
+    cleanupBehavior: 'Validation-only mutation rejects before creating a web presence; no cleanup is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-lifecycle-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-lifecycle-validation-conformance.mts',
