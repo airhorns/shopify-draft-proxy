@@ -107,12 +107,12 @@
   "setup": {
     "products": [
       {
-        "id": "gid://shopify/Product/10176763724082",
-        "title": "HAR-599 BXGY buy product 1777935893444"
+        "id": "gid://shopify/Product/10230743892274",
+        "title": "Conformance BXGY buy product 1783077184967"
       },
       {
-        "id": "gid://shopify/Product/10176763756850",
-        "title": "HAR-599 BXGY get product 1777935893444"
+        "id": "gid://shopify/Product/10230743925042",
+        "title": "Conformance BXGY get product 1783077184967"
       }
     ]
   },
@@ -120,8 +120,8 @@
     "query": "mutation DiscountBxgyDisallowedValueShapes(\n  $codePercentage: DiscountCodeBxgyInput!\n  $codeDiscountAmount: DiscountCodeBxgyInput!\n  $codeSubscription: DiscountCodeBxgyInput!\n  $codeOneTime: DiscountCodeBxgyInput!\n  $automaticPercentage: DiscountAutomaticBxgyInput!\n  $automaticDiscountAmount: DiscountAutomaticBxgyInput!\n  $automaticSubscription: DiscountAutomaticBxgyInput!\n  $automaticOneTime: DiscountAutomaticBxgyInput!\n) {\n  codePercentage: discountCodeBxgyCreate(bxgyCodeDiscount: $codePercentage) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeDiscountAmount: discountCodeBxgyCreate(bxgyCodeDiscount: $codeDiscountAmount) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeSubscription: discountCodeBxgyCreate(bxgyCodeDiscount: $codeSubscription) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeOneTime: discountCodeBxgyCreate(bxgyCodeDiscount: $codeOneTime) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticPercentage: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticPercentage) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticDiscountAmount: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticDiscountAmount) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticSubscription: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticSubscription) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticOneTime: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticOneTime) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
     "variables": {
       "codePercentage": {
-        "title": "HAR-599 code BXGY PCT 1777935893444",
-        "code": "HAR599PCT1777935893444",
+        "title": "Conformance code BXGY PCT 1783077184967",
+        "code": "DRAFTPCT1783077184967",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -137,7 +137,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+              "productsToAdd": ["gid://shopify/Product/10230743892274"]
             }
           }
         },
@@ -147,14 +147,14 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+              "productsToAdd": ["gid://shopify/Product/10230743925042"]
             }
           }
         }
       },
       "codeDiscountAmount": {
-        "title": "HAR-599 code BXGY AMT 1777935893444",
-        "code": "HAR599AMT1777935893444",
+        "title": "Conformance code BXGY AMT 1783077184967",
+        "code": "DRAFTAMT1783077184967",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -170,7 +170,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+              "productsToAdd": ["gid://shopify/Product/10230743892274"]
             }
           }
         },
@@ -183,14 +183,14 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+              "productsToAdd": ["gid://shopify/Product/10230743925042"]
             }
           }
         }
       },
       "codeSubscription": {
-        "title": "HAR-599 code BXGY SUB 1777935893444",
-        "code": "HAR599SUB1777935893444",
+        "title": "Conformance code BXGY SUB 1783077184967",
+        "code": "DRAFTSUB1783077184967",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -206,7 +206,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+              "productsToAdd": ["gid://shopify/Product/10230743892274"]
             }
           }
         },
@@ -221,15 +221,15 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+              "productsToAdd": ["gid://shopify/Product/10230743925042"]
             }
           },
           "appliesOnSubscription": true
         }
       },
       "codeOneTime": {
-        "title": "HAR-599 code BXGY OTP 1777935893444",
-        "code": "HAR599OTP1777935893444",
+        "title": "Conformance code BXGY OTP 1783077184967",
+        "code": "DRAFTOTP1783077184967",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -245,7 +245,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+              "productsToAdd": ["gid://shopify/Product/10230743892274"]
             }
           }
         },
@@ -260,14 +260,14 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+              "productsToAdd": ["gid://shopify/Product/10230743925042"]
             }
           },
           "appliesOnOneTimePurchase": false
         }
       },
       "automaticPercentage": {
-        "title": "HAR-599 automatic BXGY PCT 1777935893444",
+        "title": "Conformance automatic BXGY PCT 1783077184967",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -283,7 +283,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+              "productsToAdd": ["gid://shopify/Product/10230743892274"]
             }
           }
         },
@@ -293,13 +293,13 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+              "productsToAdd": ["gid://shopify/Product/10230743925042"]
             }
           }
         }
       },
       "automaticDiscountAmount": {
-        "title": "HAR-599 automatic BXGY AMT 1777935893444",
+        "title": "Conformance automatic BXGY AMT 1783077184967",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -315,7 +315,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+              "productsToAdd": ["gid://shopify/Product/10230743892274"]
             }
           }
         },
@@ -328,13 +328,13 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+              "productsToAdd": ["gid://shopify/Product/10230743925042"]
             }
           }
         }
       },
       "automaticSubscription": {
-        "title": "HAR-599 automatic BXGY SUB 1777935893444",
+        "title": "Conformance automatic BXGY SUB 1783077184967",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -350,7 +350,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+              "productsToAdd": ["gid://shopify/Product/10230743892274"]
             }
           }
         },
@@ -365,14 +365,14 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+              "productsToAdd": ["gid://shopify/Product/10230743925042"]
             }
           },
           "appliesOnSubscription": true
         }
       },
       "automaticOneTime": {
-        "title": "HAR-599 automatic BXGY OTP 1777935893444",
+        "title": "Conformance automatic BXGY OTP 1783077184967",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -388,7 +388,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763724082"]
+              "productsToAdd": ["gid://shopify/Product/10230743892274"]
             }
           }
         },
@@ -403,7 +403,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10176763756850"]
+              "productsToAdd": ["gid://shopify/Product/10230743925042"]
             }
           },
           "appliesOnOneTimePurchase": false
@@ -530,7 +530,7 @@
     {
       "data": {
         "productDelete": {
-          "deletedProductId": "gid://shopify/Product/10176763756850",
+          "deletedProductId": "gid://shopify/Product/10230743925042",
           "userErrors": []
         }
       },
@@ -540,7 +540,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1934,
+            "currentlyAvailable": 1926,
             "restoreRate": 100
           }
         }
@@ -549,7 +549,7 @@
     {
       "data": {
         "productDelete": {
-          "deletedProductId": "gid://shopify/Product/10176763724082",
+          "deletedProductId": "gid://shopify/Product/10230743892274",
           "userErrors": []
         }
       },
@@ -559,7 +559,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1971,
+            "currentlyAvailable": 1945,
             "restoreRate": 100
           }
         }

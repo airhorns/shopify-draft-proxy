@@ -36,7 +36,7 @@ const scopeProbe = await probeDiscountConformanceScopes(adminOptions);
 assertDiscountConformanceScopes(scopeProbe);
 
 const runId = Date.now();
-const titlePrefix = `HAR597CLASS${runId}`;
+const titlePrefix = `DRAFTCLASS${runId}`;
 const startsAt = new Date(Date.now() - 60_000).toISOString();
 const productQuery = `discount_class:product ${titlePrefix}`;
 
@@ -336,7 +336,7 @@ try {
   const createVariables = {
     basicAll: {
       title: `${titlePrefix} basic order`,
-      code: `HAR597ORDER${runId}`,
+      code: `DRAFTORDER${runId}`,
       startsAt,
       context: {
         all: 'ALL',
@@ -348,7 +348,7 @@ try {
     },
     basicProduct: {
       title: `${titlePrefix} basic product`,
-      code: `HAR597PRODUCT${runId}`,
+      code: `DRAFTPRODUCT${runId}`,
       startsAt,
       context: {
         all: 'ALL',
@@ -360,7 +360,7 @@ try {
     },
     basicCollection: {
       title: `${titlePrefix} basic collection`,
-      code: `HAR597COLL${runId}`,
+      code: `DRAFTCOLL${runId}`,
       startsAt,
       context: {
         all: 'ALL',
@@ -372,7 +372,7 @@ try {
     },
     bxgy: {
       title: `${titlePrefix} bxgy product`,
-      code: `HAR597BXGY${runId}`,
+      code: `DRAFTBXGY${runId}`,
       startsAt,
       context: {
         all: 'ALL',
@@ -393,7 +393,7 @@ try {
     },
     freeShipping: {
       title: `${titlePrefix} free shipping`,
-      code: `HAR597SHIP${runId}`,
+      code: `DRAFTSHIP${runId}`,
       startsAt,
       context: {
         all: 'ALL',

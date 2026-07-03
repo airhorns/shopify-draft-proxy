@@ -178,7 +178,7 @@ if (issueLimitAmount === null || issueLimitCurrency === null) {
 const issueLimitCents = decimalToCents(issueLimitAmount);
 if (issueLimitCents <= 0n) {
   throw new Error(
-    `giftCardConfiguration.issueLimit must be non-zero for HAR-767 capture; got ${issueLimitAmount} ${issueLimitCurrency}.`,
+    `giftCardConfiguration.issueLimit must be non-zero for Conformance capture; got ${issueLimitAmount} ${issueLimitCurrency}.`,
   );
 }
 
@@ -206,7 +206,7 @@ await writeFile(
       storeDomain,
       apiVersion,
       notes: [
-        'HAR-767 captures giftCardCreate initialValue validation against giftCardConfiguration.issueLimit.',
+        'Conformance captures giftCardCreate initialValue validation against giftCardConfiguration.issueLimit.',
         `The captured shop issue limit is ${issueLimitAmount} ${issueLimitCurrency}; boundary uses the exact limit, overByCent adds $0.01, and wellOver uses 1000000.0.`,
         'The boundary success gift card is deactivated during cleanup. Rejected branches should not create gift-card records.',
       ],

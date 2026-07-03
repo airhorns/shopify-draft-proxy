@@ -102,7 +102,7 @@ const scopeProbe = await probeDiscountConformanceScopes(adminOptions);
 assertDiscountConformanceScopes(scopeProbe);
 
 const runId = Date.now();
-const marker = `har933-customer-selection-${runId}`;
+const marker = `draft-customer-selection-${runId}`;
 const startsAt = '2026-04-25T00:00:00Z';
 const cleanup: JsonRecord = {};
 
@@ -204,7 +204,7 @@ try {
     input: {
       firstName: 'Discount',
       lastName: 'Customer Selection',
-      email: `har933-customer-selection-${runId}@example.com`,
+      email: `draft-customer-selection-${runId}@example.com`,
       tags: [marker],
     },
   });
@@ -212,32 +212,32 @@ try {
   customerId = readRequiredString(customerCreate, ['data', 'customerCreate', 'customer', 'id'], 'customerCreate setup');
 
   const segmentCreate = await runGraphqlRaw(segmentCreateDocument, {
-    name: `HAR-933 customer selection ${runId}`,
+    name: `Conformance customer selection ${runId}`,
     query: `customer_tags CONTAINS '${marker}'`,
   });
   assertSuccess(segmentCreate, 'segmentCreate setup');
   segmentId = readRequiredString(segmentCreate, ['data', 'segmentCreate', 'segment', 'id'], 'segmentCreate setup');
 
   const allWithCustomersVariables = {
-    input: inputWithCustomerSelection(`HAR933CUST${runId}`, {
+    input: inputWithCustomerSelection(`DRAFTCUST${runId}`, {
       all: true,
       customers: { add: [customerId] },
     }),
   };
   const allWithSavedSearchesVariables = {
-    input: inputWithCustomerSelection(`HAR933SAVE${runId}`, {
+    input: inputWithCustomerSelection(`DRAFTSAVE${runId}`, {
       all: true,
       customerSavedSearches: { add: ['gid://shopify/SavedSearch/1'] },
     }),
   };
   const allWithSegmentsVariables = {
-    input: inputWithCustomerSelection(`HAR933SEG${runId}`, {
+    input: inputWithCustomerSelection(`DRAFTSEG${runId}`, {
       all: true,
       customerSegments: { add: [segmentId] },
     }),
   };
   const happyCustomersVariables = {
-    input: inputWithCustomerSelection(`HAR933OK${runId}`, {
+    input: inputWithCustomerSelection(`DRAFTOK${runId}`, {
       customers: { add: [customerId] },
     }),
   };

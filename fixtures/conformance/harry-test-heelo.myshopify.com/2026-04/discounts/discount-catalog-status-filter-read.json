@@ -1,0 +1,83 @@
+{
+  "variables": {
+    "query": "status:active title:'Conformance catalog detail code 1783078137310'",
+    "first": 2,
+    "sortKey": "TITLE",
+    "reverse": false,
+    "countLimit": 10000
+  },
+  "response": {
+    "data": {
+      "discountNodes": {
+        "nodes": [],
+        "edges": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "discountNodesCount": {
+        "count": 1,
+        "precision": "EXACT"
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 24,
+        "actualQueryCost": 13,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1901,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "DiscountCatalogEmptyRead",
+      "variables": {
+        "query": "status:active title:'Conformance catalog detail code 1783078137310'",
+        "first": 2,
+        "sortKey": "TITLE",
+        "reverse": false,
+        "countLimit": 10000
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "discountNodes": {
+              "nodes": [],
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "discountNodesCount": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 24,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1901,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "query": "query DiscountCatalogEmptyRead(\n  $query: String\n  $first: Int!\n  $sortKey: DiscountSortKeys\n  $reverse: Boolean\n  $countLimit: Int\n) {\n  discountNodes(first: $first, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    nodes {\n      id\n      discount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          codes(first: 2) {\n            nodes {\n              code\n            }\n          }\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        discount {\n          __typename\n          ... on DiscountCodeBasic {\n            title\n            status\n            summary\n            startsAt\n            endsAt\n            createdAt\n            updatedAt\n            asyncUsageCount\n            discountClasses\n            combinesWith {\n              productDiscounts\n              orderDiscounts\n              shippingDiscounts\n            }\n            codes(first: 2) {\n              nodes {\n                code\n              }\n            }\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  discountNodesCount(query: $query, limit: $countLimit) {\n    count\n    precision\n  }\n}\n"
+    }
+  ]
+}

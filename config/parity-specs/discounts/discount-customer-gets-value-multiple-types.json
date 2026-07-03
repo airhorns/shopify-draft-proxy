@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.cases.create.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-782 captures Shopify Admin GraphQL 2026-04 rejecting customerGets.value inputs with multiple value branches as a top-level BadRequest-style GraphQL error rather than mutation-scoped DiscountUserError payloads.",
+  "notes": "This scenario captures Shopify Admin GraphQL 2026-04 rejecting customerGets.value inputs with multiple value branches as a top-level BadRequest-style GraphQL error rather than mutation-scoped DiscountUserError payloads.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

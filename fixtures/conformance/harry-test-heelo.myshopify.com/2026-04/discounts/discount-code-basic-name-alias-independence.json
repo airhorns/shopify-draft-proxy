@@ -1,20 +1,20 @@
 {
   "scenarioId": "discount-code-basic-name-alias-independence",
-  "capturedAt": "2026-06-14T00:59:17.442Z",
+  "capturedAt": "2026-07-03T11:13:56.723Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "variables": {
-    "id": "gid://shopify/DiscountCodeNode/1653935243570",
-    "code": "HAR1404NAME1781398756977"
+    "id": "gid://shopify/DiscountCodeNode/1657961414962",
+    "code": "DRAFTNAME1783077236354"
   },
   "requests": {
     "create": {
       "query": "#graphql\n  mutation CreateDiscountForNameIndependence($input: DiscountCodeBasicInput!) {\n    madeDiscount: discountCodeBasicCreate(basicCodeDiscount: $input) {\n      codeDiscountNode {\n        id\n        codeDiscount {\n          __typename\n          ... on DiscountCodeBasic {\n            title\n            status\n            asyncUsageCount\n            discountClasses\n            combinesWith {\n              productDiscounts\n              orderDiscounts\n              shippingDiscounts\n            }\n            codes(first: 1) {\n              nodes {\n                code\n                asyncUsageCount\n              }\n            }\n            context {\n              __typename\n              ... on DiscountBuyerSelectionAll {\n                all\n              }\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
         "input": {
-          "title": "HAR-1404 name independence 1781398756977",
-          "code": "HAR1404NAME1781398756977",
-          "startsAt": "2026-06-14T00:58:16.977Z",
+          "title": "Conformance name independence 1783077236354",
+          "code": "DRAFTNAME1783077236354",
+          "startsAt": "2026-07-03T11:12:56.354Z",
           "combinesWith": {
             "productDiscounts": false,
             "orderDiscounts": true,
@@ -37,7 +37,7 @@
     "cleanup": {
       "query": "#graphql\n  mutation CleanupDiscountNameIndependence($id: ID!) {\n    discountCodeDelete(id: $id) {\n      deletedCodeDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1653935243570"
+        "id": "gid://shopify/DiscountCodeNode/1657961414962"
       }
     }
   },
@@ -150,10 +150,10 @@
       "data": {
         "madeDiscount": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1653935243570",
+            "id": "gid://shopify/DiscountCodeNode/1657961414962",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "HAR-1404 name independence 1781398756977",
+              "title": "Conformance name independence 1783077236354",
               "status": "ACTIVE",
               "asyncUsageCount": 0,
               "discountClasses": ["ORDER"],
@@ -165,7 +165,7 @@
               "codes": {
                 "nodes": [
                   {
-                    "code": "HAR1404NAME1781398756977",
+                    "code": "DRAFTNAME1783077236354",
                     "asyncUsageCount": 0
                   }
                 ]
@@ -197,7 +197,7 @@
     "payload": {
       "data": {
         "discountCodeDelete": {
-          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1653935243570",
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657961414962",
           "userErrors": []
         }
       },

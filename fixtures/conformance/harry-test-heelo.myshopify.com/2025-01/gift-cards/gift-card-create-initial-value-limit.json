@@ -1,9 +1,9 @@
 {
-  "capturedAt": "2026-05-05T21:59:56.907Z",
+  "capturedAt": "2026-07-03T11:11:13.417Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "notes": [
-    "HAR-767 captures giftCardCreate initialValue validation against giftCardConfiguration.issueLimit.",
+    "Conformance captures giftCardCreate initialValue validation against giftCardConfiguration.issueLimit.",
     "The captured shop issue limit is 3000.0 CAD; boundary uses the exact limit, overByCent adds $0.01, and wellOver uses 1000000.0.",
     "The boundary success gift card is deactivated during cleanup. Rejected branches should not create gift-card records."
   ],
@@ -62,7 +62,7 @@
           "data": {
             "boundarySuccess": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/654853800242",
+                "id": "gid://shopify/GiftCard/662478750002",
                 "initialValue": {
                   "amount": "3000.0",
                   "currencyCode": "CAD"
@@ -115,7 +115,7 @@
       "label": "cleanupDeactivate:boundarySuccess",
       "query": "#graphql\n      mutation GiftCardCreateInitialValueLimitCleanup($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            code\n            message\n          }\n        }\n      }\n    ",
       "variables": {
-        "id": "gid://shopify/GiftCard/654853800242"
+        "id": "gid://shopify/GiftCard/662478750002"
       },
       "response": {
         "status": 200,
@@ -123,9 +123,9 @@
           "data": {
             "giftCardDeactivate": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/654853800242",
+                "id": "gid://shopify/GiftCard/662478750002",
                 "enabled": false,
-                "deactivatedAt": "2026-05-05T21:59:56Z"
+                "deactivatedAt": "2026-07-03T11:11:13Z"
               },
               "userErrors": []
             }
@@ -136,7 +136,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1977,
+                "currentlyAvailable": 1975,
                 "restoreRate": 100
               }
             }

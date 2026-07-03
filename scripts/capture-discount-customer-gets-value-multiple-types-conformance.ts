@@ -48,7 +48,7 @@ const cleanupDocument = `#graphql
 
 function basicInput(code: string): Record<string, unknown> {
   return {
-    title: `HAR-782 ${code}`,
+    title: `Conformance ${code}`,
     code,
     startsAt: '2026-04-25T00:00:00Z',
     combinesWith: {
@@ -76,11 +76,11 @@ function basicInput(code: string): Record<string, unknown> {
 
 const stamp = Date.now();
 const createVariables = {
-  input: basicInput(`HAR782CREATE${stamp}`),
+  input: basicInput(`DRAFTCREATE${stamp}`),
 };
 const setupVariables = {
   input: {
-    ...basicInput(`HAR782SETUP${stamp}`),
+    ...basicInput(`DRAFTSETUP${stamp}`),
     customerGets: {
       value: {
         percentage: 0.1,
@@ -94,7 +94,7 @@ const setupVariables = {
 const updateVariables = {
   id: '',
   input: {
-    ...basicInput(`HAR782UPDATE${stamp}`),
+    ...basicInput(`DRAFTUPDATE${stamp}`),
     customerGets: {
       value: {
         percentage: 0.2,

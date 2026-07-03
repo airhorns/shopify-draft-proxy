@@ -7768,6 +7768,54 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-catalog-detail-reads',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-catalog-detail-reads-conformance.ts',
+    purpose:
+      'Re-home discount catalog and native detail read parity evidence onto the current conformance store with neutral disposable discount data.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-automatic-basic-detail-read.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-catalog-code-filter-empty-read.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-catalog-empty-read.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-catalog-non-empty-read.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-catalog-status-filter-read.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-code-basic-detail-read.json',
+      'config/parity-specs/discounts/discount-automatic-basic-detail-read.json',
+      'config/parity-specs/discounts/discount-catalog-code-filter-empty-read.json',
+      'config/parity-specs/discounts/discount-catalog-empty-read.json',
+      'config/parity-specs/discounts/discount-catalog-non-empty-read.json',
+      'config/parity-specs/discounts/discount-catalog-status-filter-read.json',
+      'config/parity-specs/discounts/discount-code-basic-detail-read.json',
+      'config/parity-requests/discounts/discount-automatic-basic-detail-read.graphql',
+      'config/parity-requests/discounts/discount-catalog-empty-read.graphql',
+      'config/parity-requests/discounts/discount-code-basic-detail-read.graphql',
+    ],
+    cleanupBehavior: 'Deletes the disposable code and automatic discounts after recording the read fixtures.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-automatic-basic-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-automatic-basic-lifecycle-conformance.ts',
+    purpose: 'DiscountAutomaticBasic create/update/deactivate/activate/delete lifecycle parity evidence.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-automatic-basic-lifecycle.json',
+      'config/parity-specs/discounts/discount-automatic-basic-lifecycle.json',
+      'config/parity-requests/discounts/discount-automatic-basic-lifecycle-create.graphql',
+      'config/parity-requests/discounts/discount-automatic-basic-lifecycle-update.graphql',
+      'config/parity-requests/discounts/discount-automatic-basic-lifecycle-deactivate.graphql',
+      'config/parity-requests/discounts/discount-automatic-basic-lifecycle-activate.graphql',
+      'config/parity-requests/discounts/discount-automatic-basic-lifecycle-delete.graphql',
+      'config/parity-requests/discounts/discount-shop-currency-hydrate.graphql',
+    ],
+    cleanupBehavior: 'Deletes the disposable automatic discount after the lifecycle capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discounts',
     scriptPath: 'scripts/capture-discount-conformance.ts',
     purpose: 'Discount read roots and baseline validation branches.',
@@ -7970,7 +8018,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-discount-bxgy-lifecycle-conformance.ts',
     purpose: 'Buy-X-get-Y code and automatic discount lifecycle behavior.',
     requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
-    fixtureOutputs: [`${CAPTURE_ROOT}discount-bxgy-lifecycle.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-bxgy-lifecycle.json`,
+      'config/parity-specs/discounts/discount-bxgy-lifecycle.json',
+    ],
     cleanupBehavior: 'Deletes created discounts/products/collections in reverse-order cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -8165,7 +8216,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Creates two disposable products, one disposable code-basic discount, and one disposable code-BXGY discount; deletes discounts and products during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'The public 2026-04 conformance store still returns null error codes for the update-only rejection branches; HAR-605 intentionally models INVALID from the referenced Shopify source path.',
+      'The public 2026-04 conformance store still returns null error codes for the update-only rejection branches; the local model intentionally preserves INVALID from the referenced Shopify source path.',
   },
   {
     domain: 'discounts',
@@ -8209,6 +8260,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}discount-validation-branches.json`,
       `${CAPTURE_ROOT}discount-code-required-blank-validation.json`,
+      'config/parity-specs/discounts/discount-code-required-blank-validation.json',
       'config/parity-requests/discounts/discount-uniqueness-check.graphql',
     ],
     cleanupBehavior: 'Validation-oriented; deletes any created disposable discount artifacts.',
@@ -8527,7 +8579,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'Live Shopify 2026-04 returns `Ends at needs to be after starts_at`, which differs from the HAR-595 issue text but is preserved for captured Admin API parity.',
+      'Live Shopify 2026-04 returns `Ends at needs to be after starts_at`, which differs from the older ticket wording but is preserved for captured Admin API parity.',
   },
   {
     domain: 'apps',
@@ -8640,7 +8692,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/functions/functions-live-owner-metadata-read.json',
     ],
     cleanupBehavior:
-      'Creates validation/cart-transform probe resources only after validation branches are captured, then deletes HAR-416 validations and cart transforms for the captured Function; no Shopify Function execution or tax callbacks are invoked.',
+      'Creates validation/cart-transform probe resources only after validation branches are captured, then deletes the captured validations and cart transforms for the Function; no Shopify Function execution or tax callbacks are invoked.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -11100,6 +11152,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}gift-card-lifecycle.json`,
       'config/parity-specs/gift-cards/gift-card-lifecycle.json',
+      'config/parity-specs/gift-cards/gift-card-search-filters.json',
     ],
     cleanupBehavior:
       'Creates a disposable customer and gift card, records transaction/search lifecycle behavior, deletes the customer when possible, and deactivates the gift card; notification roots are not executed.',

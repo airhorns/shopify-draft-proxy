@@ -4,14 +4,14 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "selected-fields", "pagination-shape", "search-sort-contract"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discounts/discount-catalog-non-empty-read.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-catalog-non-empty-read.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/discounts/discount-catalog-empty-read.graphql",
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable parity coverage for a non-empty discountNodes/discountNodesCount catalog after creating a temporary DiscountCodeBasic fixture. The parity harness seeds the captured discount node as base state before issuing the local read.",
+  "notes": "Executable parity coverage for a non-empty discountNodes/discountNodesCount catalog after creating a temporary DiscountCodeBasic fixture. The live read uses a neutral title filter to isolate the disposable discount on the shared conformance store.",
   "comparison": {
     "mode": "strict-json",
     "targets": [

@@ -1,23 +1,23 @@
 {
   "variables": {
-    "runId": 1777950382203,
-    "titlePrefix": "HAR597CLASS1777950382203",
-    "productQuery": "discount_class:product HAR597CLASS1777950382203"
+    "runId": 1783077196864,
+    "titlePrefix": "DRAFTCLASS1783077196864",
+    "productQuery": "discount_class:product DRAFTCLASS1783077196864"
   },
   "requests": {
     "setupProduct": {
       "query": "#graphql\n  mutation DiscountClassInferenceProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "product": {
-          "title": "HAR597CLASS1777950382203 product entitlement"
+          "title": "DRAFTCLASS1783077196864 product entitlement"
         }
       },
       "response": {
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10177002799410",
-              "title": "HAR597CLASS1777950382203 product entitlement"
+              "id": "gid://shopify/Product/10230744056114",
+              "title": "DRAFTCLASS1783077196864 product entitlement"
             },
             "userErrors": []
           }
@@ -39,15 +39,15 @@
       "query": "#graphql\n  mutation DiscountClassInferenceProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "product": {
-          "title": "HAR597CLASS1777950382203 bxgy buy"
+          "title": "DRAFTCLASS1783077196864 bxgy buy"
         }
       },
       "response": {
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10177002832178",
-              "title": "HAR597CLASS1777950382203 bxgy buy"
+              "id": "gid://shopify/Product/10230744088882",
+              "title": "DRAFTCLASS1783077196864 bxgy buy"
             },
             "userErrors": []
           }
@@ -69,15 +69,15 @@
       "query": "#graphql\n  mutation DiscountClassInferenceCollectionCreate($input: CollectionInput!) {\n    collectionCreate(input: $input) {\n      collection {\n        id\n        title\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
         "input": {
-          "title": "HAR597CLASS1777950382203 collection entitlement"
+          "title": "DRAFTCLASS1783077196864 collection entitlement"
         }
       },
       "response": {
         "data": {
           "collectionCreate": {
             "collection": {
-              "id": "gid://shopify/Collection/512409665842",
-              "title": "HAR597CLASS1777950382203 collection entitlement"
+              "id": "gid://shopify/Collection/514070249778",
+              "title": "DRAFTCLASS1783077196864 collection entitlement"
             },
             "userErrors": []
           }
@@ -101,8 +101,8 @@
         "data": {
           "collectionAddProducts": {
             "collection": {
-              "id": "gid://shopify/Collection/512409665842",
-              "title": "HAR597CLASS1777950382203 collection entitlement"
+              "id": "gid://shopify/Collection/514070249778",
+              "title": "DRAFTCLASS1783077196864 collection entitlement"
             },
             "userErrors": []
           }
@@ -124,9 +124,9 @@
       "query": "#graphql\n  mutation DiscountClassInferenceCreate(\n    $basicAll: DiscountCodeBasicInput!\n    $basicProduct: DiscountCodeBasicInput!\n    $basicCollection: DiscountCodeBasicInput!\n    $bxgy: DiscountCodeBxgyInput!\n    $freeShipping: DiscountCodeFreeShippingInput!\n  ) {\n    basicAll: discountCodeBasicCreate(basicCodeDiscount: $basicAll) {\n      codeDiscountNode {\n        id\n        codeDiscount {\n          __typename\n          ... on DiscountCodeBasic {\n            title\n            discountClasses\n          }\n        }\n      }\n      #graphql\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n    basicProduct: discountCodeBasicCreate(basicCodeDiscount: $basicProduct) {\n      codeDiscountNode {\n        id\n        codeDiscount {\n          __typename\n          ... on DiscountCodeBasic {\n            title\n            discountClasses\n          }\n        }\n      }\n      #graphql\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n    basicCollection: discountCodeBasicCreate(basicCodeDiscount: $basicCollection) {\n      codeDiscountNode {\n        id\n        codeDiscount {\n          __typename\n          ... on DiscountCodeBasic {\n            title\n            discountClasses\n          }\n        }\n      }\n      #graphql\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n    bxgy: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgy) {\n      codeDiscountNode {\n        id\n        codeDiscount {\n          __typename\n          ... on DiscountCodeBxgy {\n            title\n            discountClasses\n          }\n        }\n      }\n      #graphql\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n    freeShipping: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShipping) {\n      codeDiscountNode {\n        id\n        codeDiscount {\n          __typename\n          ... on DiscountCodeFreeShipping {\n            title\n            discountClasses\n          }\n        }\n      }\n      #graphql\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
         "basicAll": {
-          "title": "HAR597CLASS1777950382203 basic order",
-          "code": "HAR597ORDER1777950382203",
-          "startsAt": "2026-05-05T03:05:22.203Z",
+          "title": "DRAFTCLASS1783077196864 basic order",
+          "code": "DRAFTORDER1783077196864",
+          "startsAt": "2026-07-03T11:12:16.864Z",
           "context": {
             "all": "ALL"
           },
@@ -140,9 +140,9 @@
           }
         },
         "basicProduct": {
-          "title": "HAR597CLASS1777950382203 basic product",
-          "code": "HAR597PRODUCT1777950382203",
-          "startsAt": "2026-05-05T03:05:22.203Z",
+          "title": "DRAFTCLASS1783077196864 basic product",
+          "code": "DRAFTPRODUCT1783077196864",
+          "startsAt": "2026-07-03T11:12:16.864Z",
           "context": {
             "all": "ALL"
           },
@@ -152,15 +152,15 @@
             },
             "items": {
               "products": {
-                "productsToAdd": ["gid://shopify/Product/10177002799410"]
+                "productsToAdd": ["gid://shopify/Product/10230744056114"]
               }
             }
           }
         },
         "basicCollection": {
-          "title": "HAR597CLASS1777950382203 basic collection",
-          "code": "HAR597COLL1777950382203",
-          "startsAt": "2026-05-05T03:05:22.203Z",
+          "title": "DRAFTCLASS1783077196864 basic collection",
+          "code": "DRAFTCOLL1783077196864",
+          "startsAt": "2026-07-03T11:12:16.864Z",
           "context": {
             "all": "ALL"
           },
@@ -170,15 +170,15 @@
             },
             "items": {
               "collections": {
-                "add": ["gid://shopify/Collection/512409665842"]
+                "add": ["gid://shopify/Collection/514070249778"]
               }
             }
           }
         },
         "bxgy": {
-          "title": "HAR597CLASS1777950382203 bxgy product",
-          "code": "HAR597BXGY1777950382203",
-          "startsAt": "2026-05-05T03:05:22.203Z",
+          "title": "DRAFTCLASS1783077196864 bxgy product",
+          "code": "DRAFTBXGY1783077196864",
+          "startsAt": "2026-07-03T11:12:16.864Z",
           "context": {
             "all": "ALL"
           },
@@ -188,7 +188,7 @@
             },
             "items": {
               "products": {
-                "productsToAdd": ["gid://shopify/Product/10177002832178"]
+                "productsToAdd": ["gid://shopify/Product/10230744088882"]
               }
             }
           },
@@ -203,15 +203,15 @@
             },
             "items": {
               "products": {
-                "productsToAdd": ["gid://shopify/Product/10177002799410"]
+                "productsToAdd": ["gid://shopify/Product/10230744056114"]
               }
             }
           }
         },
         "freeShipping": {
-          "title": "HAR597CLASS1777950382203 free shipping",
-          "code": "HAR597SHIP1777950382203",
-          "startsAt": "2026-05-05T03:05:22.203Z",
+          "title": "DRAFTCLASS1783077196864 free shipping",
+          "code": "DRAFTSHIP1783077196864",
+          "startsAt": "2026-07-03T11:12:16.864Z",
           "context": {
             "all": "ALL"
           },
@@ -224,7 +224,7 @@
     "readProductClass": {
       "query": "#graphql\n  query DiscountClassInferenceRead($productQuery: String!) {\n    discountNodesCount(query: $productQuery) {\n      count\n      precision\n    }\n  }\n",
       "variables": {
-        "productQuery": "discount_class:product HAR597CLASS1777950382203"
+        "productQuery": "discount_class:product DRAFTCLASS1783077196864"
       }
     }
   },
@@ -233,10 +233,10 @@
       "data": {
         "basicAll": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640294351154",
+            "id": "gid://shopify/DiscountCodeNode/1657960857906",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "HAR597CLASS1777950382203 basic order",
+              "title": "DRAFTCLASS1783077196864 basic order",
               "discountClasses": ["ORDER"]
             }
           },
@@ -244,10 +244,10 @@
         },
         "basicProduct": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640294383922",
+            "id": "gid://shopify/DiscountCodeNode/1657960890674",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "HAR597CLASS1777950382203 basic product",
+              "title": "DRAFTCLASS1783077196864 basic product",
               "discountClasses": ["PRODUCT"]
             }
           },
@@ -255,10 +255,10 @@
         },
         "basicCollection": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640294416690",
+            "id": "gid://shopify/DiscountCodeNode/1657960923442",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "HAR597CLASS1777950382203 basic collection",
+              "title": "DRAFTCLASS1783077196864 basic collection",
               "discountClasses": ["PRODUCT"]
             }
           },
@@ -266,10 +266,10 @@
         },
         "bxgy": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640294449458",
+            "id": "gid://shopify/DiscountCodeNode/1657960956210",
             "codeDiscount": {
               "__typename": "DiscountCodeBxgy",
-              "title": "HAR597CLASS1777950382203 bxgy product",
+              "title": "DRAFTCLASS1783077196864 bxgy product",
               "discountClasses": ["PRODUCT"]
             }
           },
@@ -277,10 +277,10 @@
         },
         "freeShipping": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640294482226",
+            "id": "gid://shopify/DiscountCodeNode/1657960988978",
             "codeDiscount": {
               "__typename": "DiscountCodeFreeShipping",
-              "title": "HAR597CLASS1777950382203 free shipping",
+              "title": "DRAFTCLASS1783077196864 free shipping",
               "discountClasses": ["SHIPPING"]
             }
           },
@@ -329,7 +329,57 @@
         "payload": {
           "data": {
             "discountCodeDelete": {
-              "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640294482226",
+              "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657960988978",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1939,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "discountCodeDelete": {
+              "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657960956210",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "discountCodeDelete": {
+              "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657960923442",
               "userErrors": []
             }
           },
@@ -354,7 +404,7 @@
         "payload": {
           "data": {
             "discountCodeDelete": {
-              "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640294449458",
+              "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657960890674",
               "userErrors": []
             }
           },
@@ -364,7 +414,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1962,
+                "currentlyAvailable": 1940,
                 "restoreRate": 100
               }
             }
@@ -379,7 +429,7 @@
         "payload": {
           "data": {
             "discountCodeDelete": {
-              "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640294416690",
+              "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657960857906",
               "userErrors": []
             }
           },
@@ -389,57 +439,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1933,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "status": "fulfilled",
-      "value": {
-        "status": 200,
-        "payload": {
-          "data": {
-            "discountCodeDelete": {
-              "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640294383922",
-              "userErrors": []
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1972,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "status": "fulfilled",
-      "value": {
-        "status": 200,
-        "payload": {
-          "data": {
-            "discountCodeDelete": {
-              "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640294351154",
-              "userErrors": []
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1924,
+                "currentlyAvailable": 1970,
                 "restoreRate": 100
               }
             }
@@ -454,7 +454,7 @@
         "payload": {
           "data": {
             "collectionDelete": {
-              "deletedCollectionId": "gid://shopify/Collection/512409665842",
+              "deletedCollectionId": "gid://shopify/Collection/514070249778",
               "userErrors": []
             }
           },
@@ -464,7 +464,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1943,
+                "currentlyAvailable": 1960,
                 "restoreRate": 100
               }
             }
@@ -479,7 +479,7 @@
         "payload": {
           "data": {
             "productDelete": {
-              "deletedProductId": "gid://shopify/Product/10177002832178",
+              "deletedProductId": "gid://shopify/Product/10230744088882",
               "userErrors": []
             }
           },
@@ -489,7 +489,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1981,
+                "currentlyAvailable": 1950,
                 "restoreRate": 100
               }
             }
@@ -504,7 +504,7 @@
         "payload": {
           "data": {
             "productDelete": {
-              "deletedProductId": "gid://shopify/Product/10177002799410",
+              "deletedProductId": "gid://shopify/Product/10230744056114",
               "userErrors": []
             }
           },
@@ -514,7 +514,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1952,
+                "currentlyAvailable": 1931,
                 "restoreRate": 100
               }
             }

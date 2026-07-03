@@ -1,17 +1,17 @@
 {
   "scenarioId": "discount-code-basic-detail-read",
-  "operationNames": ["discountNode", "codeDiscountNode", "codeDiscountNodeByCode"],
+  "operationNames": ["discountNode", "codeDiscountNodeByCode"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "selected-fields", "nested-object-graph", "empty-connection-shape"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discounts/discount-code-basic-detail-read.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-code-basic-detail-read.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/discounts/discount-code-basic-detail-read.graphql",
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable parity coverage for singular native DiscountCodeBasic detail roots after creating a temporary code discount. The parity harness seeds the captured detail node as normalized discount state before issuing local discountNode/codeDiscountNode/codeDiscountNodeByCode reads. The summary target explicitly protects Shopify's computed amount-off summary string.",
+  "notes": "Executable parity coverage for singular native DiscountCodeBasic detail roots after creating a temporary code discount. The current live capture keeps discountNode and codeDiscountNodeByCode in one operation; Shopify 2026-04 returned an internal error when the same request also selected codeDiscountNode(id:). The summary target explicitly protects Shopify's computed amount-off summary string.",
   "comparison": {
     "mode": "strict-json",
     "targets": [

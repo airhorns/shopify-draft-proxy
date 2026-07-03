@@ -183,38 +183,38 @@ if (!wrongApiHandle) {
 
 const stamp = Date.now();
 const unknownFunctionId = '00000000-0000-0000-0000-000000000000';
-const unknownFunctionHandle = 'har-783-uninstalled-handle';
+const unknownFunctionHandle = 'conformance-uninstalled-handle';
 const variables = {
   missingCode: {
-    title: 'HAR-783 Missing Code',
-    code: `HAR783MISS${stamp}`,
+    title: 'Conformance Missing Code',
+    code: `DRAFTMISS${stamp}`,
     startsAt: '2026-04-25T00:00:00Z',
   },
   multipleCode: {
-    title: 'HAR-783 Multiple Code',
-    code: `HAR783MULT${stamp}`,
+    title: 'Conformance Multiple Code',
+    code: `DRAFTMULT${stamp}`,
     startsAt: '2026-04-25T00:00:00Z',
     functionId: unknownFunctionId,
     functionHandle: wrongApiHandle,
   },
   unknownIdCode: {
-    title: 'HAR-783 Unknown Code',
-    code: `HAR783UNK${stamp}`,
+    title: 'Conformance Unknown Code',
+    code: `DRAFTUNK${stamp}`,
     startsAt: '2026-04-25T00:00:00Z',
     functionId: unknownFunctionId,
   },
   wrongApiCode: {
-    title: 'HAR-783 Wrong API Code',
-    code: `HAR783WRONG${stamp}`,
+    title: 'Conformance Wrong API Code',
+    code: `DRAFTWRONG${stamp}`,
     startsAt: '2026-04-25T00:00:00Z',
     functionHandle: wrongApiHandle,
   },
   missingAutomatic: {
-    title: 'HAR-783 Missing Auto',
+    title: 'Conformance Missing Auto',
     startsAt: '2026-04-25T00:00:00Z',
   },
   unknownHandleAutomatic: {
-    title: 'HAR-783 Unknown Auto',
+    title: 'Conformance Unknown Auto',
     startsAt: '2026-04-25T00:00:00Z',
     functionHandle: unknownFunctionHandle,
   },
@@ -246,7 +246,7 @@ const output = {
     captureHydrateCall(unknownFunctionHandle, []),
   ],
   notes:
-    'HAR-783 validation-only capture. The conformance app has no released discount Function, but its released cart-transform Function proves the wrong-API branch without creating app discounts.',
+    'Conformance validation-only capture. The conformance app has no released discount Function, but its released cart-transform Function proves the wrong-API branch without creating app discounts.',
 };
 
 await writeFile(outputPath, `${JSON.stringify(output, null, 2)}\n`, 'utf8');

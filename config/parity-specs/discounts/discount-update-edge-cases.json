@@ -55,7 +55,7 @@
           {
             "path": "$[0].code",
             "matcher": "exact-string:INVALID",
-            "reason": "The live 2026-04 store still returns null here, but HAR-605 is explicitly scoped to the Shopify update-only code path whose DiscountUserError default is INVALID."
+            "reason": "The live 2026-04 store still returns null here, but this scenario is explicitly scoped to the Shopify update-only code path whose DiscountUserError default is INVALID."
           }
         ],
         "proxyRequest": {
@@ -113,7 +113,7 @@
           {
             "path": "$[0].code",
             "matcher": "exact-string:INVALID",
-            "reason": "The live 2026-04 store still returns null here, but HAR-605 is explicitly scoped to the Shopify update-only code path whose DiscountUserError default is INVALID."
+            "reason": "The live 2026-04 store still returns null here, but this scenario is explicitly scoped to the Shopify update-only code path whose DiscountUserError default is INVALID."
           }
         ],
         "proxyRequest": {
@@ -123,5 +123,5 @@
       }
     ]
   },
-  "notes": "Live 2026-04 evidence for discountCodeBasicUpdate update-only edge cases. The capture waits for a redeem-code bulk-add lookup to become visible before attempting the code change, verifies BXGY-to-basic coercion through __typename, and records the unknown-id branch. The local proxy intentionally emits INVALID for the update-only error codes per HAR-605's internal Shopify source note even though the current public conformance store still returned null for those code fields."
+  "notes": "Live 2026-04 evidence for discountCodeBasicUpdate update-only edge cases. The capture waits for a redeem-code bulk-add lookup to become visible before attempting the code change, verifies BXGY-to-basic coercion through __typename, and records the unknown-id branch. The local proxy intentionally emits INVALID for the update-only error codes per the internal Shopify source note even though the current public conformance store still returned null for those code fields."
 }

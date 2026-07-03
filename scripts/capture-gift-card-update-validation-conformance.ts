@@ -342,10 +342,10 @@ try {
   const customerA = await createCustomer(
     'customerACreate',
     {
-      email: `har694-a-${stamp}@example.com`,
-      firstName: 'HAR694',
+      email: `draft-a-${stamp}@example.com`,
+      firstName: 'DRAFT',
       lastName: 'Customer A',
-      note: 'Disposable HAR-694 gift-card update validation customer A.',
+      note: 'Disposable Conformance gift-card update validation customer A.',
     },
     setupIds,
   );
@@ -355,10 +355,10 @@ try {
   const customerB = await createCustomer(
     'customerBCreate',
     {
-      email: `har694-b-${stamp}@example.com`,
-      firstName: 'HAR694',
+      email: `draft-b-${stamp}@example.com`,
+      firstName: 'DRAFT',
       lastName: 'Customer B',
-      note: 'Disposable HAR-694 gift-card update validation customer B.',
+      note: 'Disposable Conformance gift-card update validation customer B.',
     },
     setupIds,
   );
@@ -374,7 +374,7 @@ try {
     {
       initialValue: '5.00',
       code: `H694A${runSuffix}`,
-      note: 'HAR-694 active update validation card.',
+      note: 'Conformance active update validation card.',
       customerId: customerAId,
     },
     setupIds,
@@ -387,7 +387,7 @@ try {
     {
       initialValue: '5.00',
       code: `H694B${runSuffix}`,
-      note: 'HAR-694 deactivated update validation card.',
+      note: 'Conformance deactivated update validation card.',
     },
     setupIds,
   );
@@ -401,13 +401,13 @@ try {
   setup.push(await deactivateGiftCard('cardBDeactivate', cardBId));
 
   const proxyVariables = {
-    activeId: 'gid://shopify/GiftCard/har694-active',
-    deactivatedId: 'gid://shopify/GiftCard/har694-deactivated',
+    activeId: 'gid://shopify/GiftCard/draft-active',
+    deactivatedId: 'gid://shopify/GiftCard/draft-deactivated',
     missingCustomerId: 'gid://shopify/Customer/999999999999',
     recipientId: customerBId,
     tooLongPreferredName: 'x'.repeat(256),
     tooLongMessage: 'x'.repeat(201),
-    successNote: 'HAR-694 updated note',
+    successNote: 'Conformance updated note',
   };
   const liveVariables = {
     ...proxyVariables,
@@ -450,7 +450,7 @@ try {
         storeDomain,
         apiVersion,
         notes: [
-          'HAR-694 captures live giftCardUpdate validation branches for deactivated-card protected fields, missing update arguments, missing changed customerId, recipient text length, and success.',
+          'Conformance captures live giftCardUpdate validation branches for deactivated-card protected fields, missing update arguments, missing changed customerId, recipient text length, and success.',
           'The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so the live request records field/message only; expected replay data adds the typed code values required by the internal GiftCardErrorCode contract.',
           'Setup creates disposable Customer A/B plus active/deactivated gift cards; cleanup deactivates setup gift cards and deletes setup customers.',
         ],

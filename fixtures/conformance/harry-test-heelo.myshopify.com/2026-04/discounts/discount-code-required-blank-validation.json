@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-06-22T02:22:23.672Z",
+  "capturedAt": "2026-07-03T11:14:25.572Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "accessScopes": {
@@ -109,7 +109,7 @@
     "query": "mutation DiscountCodeRequiredBlankValidation(\n  $basicMissing: DiscountCodeBasicInput!\n  $basicEmpty: DiscountCodeBasicInput!\n  $basicNewline: DiscountCodeBasicInput!\n  $basicTooLong: DiscountCodeBasicInput!\n  $bxgyMissing: DiscountCodeBxgyInput!\n  $bxgyEmpty: DiscountCodeBxgyInput!\n  $bxgyNewline: DiscountCodeBxgyInput!\n  $freeShippingMissing: DiscountCodeFreeShippingInput!\n  $freeShippingEmpty: DiscountCodeFreeShippingInput!\n  $freeShippingNewline: DiscountCodeFreeShippingInput!\n) {\n  basicMissing: discountCodeBasicCreate(basicCodeDiscount: $basicMissing) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  basicEmpty: discountCodeBasicCreate(basicCodeDiscount: $basicEmpty) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  basicNewline: discountCodeBasicCreate(basicCodeDiscount: $basicNewline) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  basicTooLong: discountCodeBasicCreate(basicCodeDiscount: $basicTooLong) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  bxgyMissing: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyMissing) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  bxgyEmpty: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyEmpty) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  bxgyNewline: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyNewline) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  freeShippingMissing: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingMissing) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  freeShippingEmpty: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingEmpty) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  freeShippingNewline: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingNewline) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
     "variables": {
       "basicMissing": {
-        "title": "HAR-198 HAR596BASICMISSING1782094942210",
+        "title": "Conformance DRAFTBASICMISSING1783077263420",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": false,
@@ -134,7 +134,7 @@
         }
       },
       "basicEmpty": {
-        "title": "HAR-198 ",
+        "title": "Conformance ",
         "code": "",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
@@ -160,7 +160,7 @@
         }
       },
       "basicNewline": {
-        "title": "HAR-198 abc\ndef",
+        "title": "Conformance abc\ndef",
         "code": "abc\ndef",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
@@ -186,7 +186,7 @@
         }
       },
       "basicTooLong": {
-        "title": "HAR-596 basic too long 1782094942210",
+        "title": "Conformance basic too long 1783077263420",
         "code": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
@@ -212,7 +212,7 @@
         }
       },
       "bxgyMissing": {
-        "title": "HAR-596 BXGY HAR596BXGYMISSING1782094942210",
+        "title": "Conformance BXGY DRAFTBXGYMISSING1783077263420",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -249,7 +249,7 @@
         }
       },
       "bxgyEmpty": {
-        "title": "HAR-596 BXGY ",
+        "title": "Conformance BXGY ",
         "code": "",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
@@ -287,7 +287,7 @@
         }
       },
       "bxgyNewline": {
-        "title": "HAR-596 BXGY abc\ndef",
+        "title": "Conformance BXGY abc\ndef",
         "code": "abc\ndef",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
@@ -325,7 +325,7 @@
         }
       },
       "freeShippingMissing": {
-        "title": "HAR-596 free shipping HAR596FREEMISSING1782094942210",
+        "title": "Conformance free shipping DRAFTFREEMISSING1783077263420",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": false,
@@ -340,7 +340,7 @@
         }
       },
       "freeShippingEmpty": {
-        "title": "HAR-596 free shipping ",
+        "title": "Conformance free shipping ",
         "code": "",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
@@ -356,7 +356,7 @@
         }
       },
       "freeShippingNewline": {
-        "title": "HAR-596 free shipping abc\ndef",
+        "title": "Conformance free shipping abc\ndef",
         "code": "abc\ndef",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
@@ -491,7 +491,7 @@
           "actualQueryCost": 100,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1801,
+            "currentlyAvailable": 1900,
             "restoreRate": 100
           }
         }

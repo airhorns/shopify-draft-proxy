@@ -2,6 +2,7 @@ use crate::proxy::*;
 
 const GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS: i64 = 90;
 const GIFT_CARD_NO_CONTACT_RECIPIENT_ID: &str = "gid://shopify/Customer/no-contact-recipient";
+const GIFT_CARD_CONFIGURATION_HYDRATE_QUERY: &str = "#graphql\n  query GiftCardCreateConfiguration {\n    giftCardConfiguration {\n      issueLimit { amount currencyCode }\n      purchaseLimit { amount currencyCode }\n    }\n  }\n";
 const GIFT_CARD_MUTATION_HYDRATE_QUERY: &str = r#"#graphql
     query GiftCardHydrate($id: ID!) {
       giftCard(id: $id) {
@@ -187,10 +188,9 @@ impl DraftProxy {
                         &field.selection,
                     )
                 }
-                "giftCardConfiguration" => selected_json(
-                    &gift_card_configuration_record(&self.store.shop_currency_code()),
-                    &field.selection,
-                ),
+                "giftCardConfiguration" => {
+                    selected_json(&self.gift_card_configuration_record(), &field.selection)
+                }
                 _ => return None,
             })
         })
@@ -327,6 +327,7 @@ impl DraftProxy {
     }
 
     fn overlay_gift_card_read_response(&self, fields: &[RootFieldSelection], data: &mut Value) {
+        let upstream_connection_ids_by_query = self.gift_card_connection_ids_by_query(fields, data);
         for field in fields {
             match field.name.as_str() {
                 "giftCard" => {
@@ -347,7 +348,11 @@ impl DraftProxy {
                 "giftCardsCount" => {
                     let query =
                         resolved_string_field(&field.arguments, "query").unwrap_or_default();
-                    self.overlay_gift_card_count(&mut data[&field.response_key], &query);
+                    self.overlay_gift_card_count(
+                        &mut data[&field.response_key],
+                        &query,
+                        upstream_connection_ids_by_query.get(&query),
+                    );
                 }
                 "giftCardConfiguration" => {
                     data[&field.response_key] =
@@ -356,6 +361,25 @@ impl DraftProxy {
                 _ => {}
             }
         }
+    }
+
+    fn gift_card_connection_ids_by_query(
+        &self,
+        fields: &[RootFieldSelection],
+        data: &Value,
+    ) -> BTreeMap<String, BTreeSet<String>> {
+        let mut ids_by_query: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for field in fields {
+            if field.name != "giftCards" {
+                continue;
+            }
+            let query = resolved_string_field(&field.arguments, "query").unwrap_or_default();
+            ids_by_query
+                .entry(query)
+                .or_default()
+                .extend(gift_card_connection_ids(&data[&field.response_key]));
+        }
+        ids_by_query
     }
 
     fn overlay_gift_card_connection(
@@ -437,16 +461,22 @@ impl DraftProxy {
         }
     }
 
-    fn overlay_gift_card_count(&self, count: &mut Value, query: &str) {
+    fn overlay_gift_card_count(
+        &self,
+        count: &mut Value,
+        query: &str,
+        upstream_connection_ids: Option<&BTreeSet<String>>,
+    ) {
         let mut delta = 0i64;
         for (id, card) in &self.store.staged.gift_cards {
             let staged_matches = gift_card_matches_search_query(card, query);
-            let base_matches = self
-                .store
-                .base
-                .gift_cards
-                .get(id)
-                .is_some_and(|base| gift_card_matches_search_query(base, query));
+            let base_matches = upstream_connection_ids.is_some_and(|ids| ids.contains(id))
+                || self
+                    .store
+                    .base
+                    .gift_cards
+                    .get(id)
+                    .is_some_and(|base| gift_card_matches_search_query(base, query));
             match (base_matches, staged_matches) {
                 (false, true) => delta += 1,
                 (true, false) => delta -= 1,
@@ -491,6 +521,9 @@ impl DraftProxy {
             .map(|value| money_amount_string_from_resolved(Some(value)))
             .unwrap_or_else(|| "0".to_string());
         let amount_number = amount.parse::<f64>().unwrap_or(0.0);
+        if user_errors.is_empty() {
+            self.hydrate_gift_card_configuration_for_mutation(request);
+        }
         if user_errors.is_empty() && amount_number <= 0.0 {
             user_errors.push(gift_card_user_error(
                 &field.name,
@@ -534,12 +567,12 @@ impl DraftProxy {
             .unwrap_or_else(|| synthetic_gift_card_code(&id));
         let last_characters = gift_card_code_last_characters(&code);
         let notify = resolved_bool_field(&input, "notify").unwrap_or(true);
-        let shop_currency_code = self.store.shop_currency_code();
-        let mut card = gift_card_lifecycle_base_card(&id, &shop_currency_code);
+        let currency_code = self.gift_card_configuration_currency();
+        let mut card = gift_card_lifecycle_base_card(&id, &currency_code);
         card["lastCharacters"] = json!(last_characters);
         card["maskedCode"] = json!(format!("•••• •••• •••• {last_characters}"));
         card["giftCardCode"] = json!(code);
-        card["initialValue"] = money_value(&amount, &shop_currency_code);
+        card["initialValue"] = money_value(&amount, &currency_code);
         card["balance"] = card["initialValue"].clone();
         card["notify"] = json!(notify);
         card["source"] = json!("api_client");
@@ -990,6 +1023,25 @@ impl DraftProxy {
         self.hydrate_gift_card_with_query(request, id, GIFT_CARD_NOTIFICATION_HYDRATE_QUERY)
     }
 
+    fn hydrate_gift_card_configuration_for_mutation(&mut self, request: &Request) {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || self.store.base.gift_card_configuration.is_some()
+        {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": GIFT_CARD_CONFIGURATION_HYDRATE_QUERY,
+                "operationName": "GiftCardCreateConfiguration",
+                "variables": {},
+            }),
+        );
+        if (200..300).contains(&response.status) {
+            self.observe_gift_card_configuration(&response.body["data"]["giftCardConfiguration"]);
+        }
+    }
+
     fn hydrate_gift_card_with_query(
         &mut self,
         request: &Request,
@@ -1097,7 +1149,7 @@ impl DraftProxy {
     }
 
     fn gift_card_issue_limit_amount(&self) -> f64 {
-        gift_card_configuration_record(&self.store.shop_currency_code())["issueLimit"]["amount"]
+        self.gift_card_configuration_record()["issueLimit"]["amount"]
             .as_str()
             .and_then(|value| value.parse::<f64>().ok())
             .unwrap_or(3000.0)
@@ -1325,14 +1377,14 @@ impl DraftProxy {
 fn gift_card_seed_record(id: &str, shop_currency_code: &str) -> Option<Value> {
     let mut card = gift_card_lifecycle_base_card(id, shop_currency_code);
     match id {
-        "gid://shopify/GiftCard/har694-active"
+        "gid://shopify/GiftCard/draft-active"
         | "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic"
         | "gid://shopify/GiftCard/654773256498"
         | "gid://shopify/GiftCard/654865301810"
         | "gid://shopify/GiftCard/654808252722"
         | "gid://shopify/GiftCard/trial-assignment"
         | "gid://shopify/GiftCard/trial-update-card" => Some(card),
-        "gid://shopify/GiftCard/har694-deactivated"
+        "gid://shopify/GiftCard/draft-deactivated"
         | "gid://shopify/GiftCard/deactivated"
         | "gid://shopify/GiftCard/654808318258"
         | "gid://shopify/GiftCard/654904197426" => {
@@ -1553,6 +1605,25 @@ fn gift_card_template_suffix_json(value: Value) -> Value {
         return value;
     };
     json!(template.strip_prefix("gift_card.").unwrap_or(template))
+}
+
+fn gift_card_connection_ids(connection: &Value) -> BTreeSet<String> {
+    let mut ids = BTreeSet::new();
+    if let Some(nodes) = connection.get("nodes").and_then(Value::as_array) {
+        for node in nodes {
+            if let Some(id) = node.get("id").and_then(Value::as_str) {
+                ids.insert(id.to_string());
+            }
+        }
+    }
+    if let Some(edges) = connection.get("edges").and_then(Value::as_array) {
+        for edge in edges {
+            if let Some(id) = edge["node"].get("id").and_then(Value::as_str) {
+                ids.insert(id.to_string());
+            }
+        }
+    }
+    ids
 }
 
 fn gift_card_is_deactivated(card: &Value) -> bool {

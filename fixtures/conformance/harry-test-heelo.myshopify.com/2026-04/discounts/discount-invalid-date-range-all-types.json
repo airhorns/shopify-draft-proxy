@@ -1,7 +1,7 @@
 {
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "capturedAt": "2026-05-05T03:05:59.564Z",
+  "capturedAt": "2026-07-03T11:13:51.916Z",
   "accessScopes": {
     "availableScopes": [
       "read_assigned_fulfillment_orders",
@@ -114,8 +114,8 @@
       "query": "mutation DiscountInvalidDateRangeCodeBasic($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "HAR-595 code basic invalid dates 1777950358794",
-          "code": "HAR595BASIC1777950358794",
+          "title": "Conformance code basic invalid dates 1783077231218",
+          "code": "DRAFTBASIC1783077231218",
           "startsAt": "2026-06-01T00:00:00Z",
           "endsAt": "2026-05-01T00:00:00Z",
           "combinesWith": {
@@ -167,8 +167,8 @@
       "query": "mutation DiscountInvalidDateRangeCodeBxgy($input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyCreate(bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "HAR-595 code BXGY invalid dates 1777950358794",
-          "code": "HAR595BXGY1777950358794",
+          "title": "Conformance code BXGY invalid dates 1783077231218",
+          "code": "DRAFTBXGY1783077231218",
           "startsAt": "2026-06-01T00:00:00Z",
           "endsAt": "2026-05-01T00:00:00Z",
           "combinesWith": {
@@ -226,7 +226,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1982,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -237,8 +237,8 @@
       "query": "mutation DiscountInvalidDateRangeCodeFreeShipping($input: DiscountCodeFreeShippingInput!) {\n  discountCodeFreeShippingCreate(freeShippingCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "HAR-595 code free shipping invalid dates 1777950358794",
-          "code": "HAR595SHIP1777950358794",
+          "title": "Conformance code free shipping invalid dates 1783077231218",
+          "code": "DRAFTSHIP1783077231218",
           "startsAt": "2026-06-01T00:00:00Z",
           "endsAt": "2026-05-01T00:00:00Z",
           "combinesWith": {
@@ -274,7 +274,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1988,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -285,7 +285,7 @@
       "query": "mutation DiscountInvalidDateRangeAutomaticBxgy($input: DiscountAutomaticBxgyInput!) {\n  discountAutomaticBxgyCreate(automaticBxgyDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "HAR-595 automatic BXGY invalid dates 1777950358794",
+          "title": "Conformance automatic BXGY invalid dates 1783077231218",
           "startsAt": "2026-06-01T00:00:00Z",
           "endsAt": "2026-05-01T00:00:00Z",
           "combinesWith": {
@@ -354,7 +354,7 @@
       "query": "mutation DiscountInvalidDateRangeAutomaticFreeShipping($input: DiscountAutomaticFreeShippingInput!) {\n  discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: $input) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "HAR-595 automatic free shipping invalid dates 1777950358794",
+          "title": "Conformance automatic free shipping invalid dates 1783077231218",
           "startsAt": "2026-06-01T00:00:00Z",
           "endsAt": "2026-05-01T00:00:00Z",
           "combinesWith": {

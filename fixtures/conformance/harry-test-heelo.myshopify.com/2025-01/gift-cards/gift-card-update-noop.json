@@ -1,9 +1,9 @@
 {
-  "capturedAt": "2026-05-05T21:43:30.881Z",
+  "capturedAt": "2026-07-03T11:11:19.550Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "notes": [
-    "HAR-766 captures live giftCardUpdate no-op behavior for note, expiresOn, and templateSuffix inputs whose values already equal the current gift card.",
+    "Conformance captures live giftCardUpdate no-op behavior for note, expiresOn, and templateSuffix inputs whose values already equal the current gift card.",
     "Shopify accepts present editable keys even when the values do not change, touches updatedAt, and still rejects an input object with no editable keys.",
     "The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so the live request records field/message only; expected replay data adds the typed code for the empty-input branch.",
     "Setup creates one disposable gift card with known editable fields; cleanup deactivates the setup gift card."
@@ -12,14 +12,14 @@
     "create": {
       "input": {
         "initialValue": "5.00",
-        "code": "H766Nmot5nq92",
-        "note": "HAR-766 no-op current note",
+        "code": "H766Nmr4u1zm0",
+        "note": "Conformance no-op current note",
         "expiresOn": "2030-01-01",
         "templateSuffix": "birthday"
       }
     },
     "noop": {
-      "note": "HAR-766 no-op current note",
+      "note": "Conformance no-op current note",
       "expiresOn": "2030-01-01",
       "templateSuffix": "birthday"
     }
@@ -31,8 +31,8 @@
       "variables": {
         "input": {
           "initialValue": "5.00",
-          "code": "H766Nmot5nq92",
-          "note": "HAR-766 no-op current note",
+          "code": "H766Nmr4u1zm0",
+          "note": "Conformance no-op current note",
           "expiresOn": "2030-01-01",
           "templateSuffix": "birthday"
         }
@@ -43,12 +43,12 @@
           "data": {
             "giftCardCreate": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/654853603634",
-                "note": "HAR-766 no-op current note",
+                "id": "gid://shopify/GiftCard/662478782770",
+                "note": "Conformance no-op current note",
                 "expiresOn": "2030-01-01",
                 "templateSuffix": "birthday"
               },
-              "giftCardCode": "h766nmot5nq92",
+              "giftCardCode": "h766nmr4u1zm0",
               "userErrors": []
             }
           },
@@ -72,8 +72,8 @@
       "label": "updateNoop",
       "query": "#graphql\n  mutation GiftCardUpdateNoop(\n    $id: ID!\n    $note: String!\n    $expiresOn: Date!\n    $templateSuffix: String!\n  ) {\n    noteNoop: giftCardUpdate(id: $id, input: { note: $note }) {\n      giftCard {\n        id\n        note\n        updatedAt\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    expiresNoop: giftCardUpdate(id: $id, input: { expiresOn: $expiresOn }) {\n      giftCard {\n        id\n        expiresOn\n        updatedAt\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    templateNoop: giftCardUpdate(id: $id, input: { templateSuffix: $templateSuffix }) {\n      giftCard {\n        id\n        templateSuffix\n        updatedAt\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    emptyInput: giftCardUpdate(id: $id, input: {}) {\n      giftCard {\n        id\n        note\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/GiftCard/654853603634",
-        "note": "HAR-766 no-op current note",
+        "id": "gid://shopify/GiftCard/662478782770",
+        "note": "Conformance no-op current note",
         "expiresOn": "2030-01-01",
         "templateSuffix": "birthday"
       },
@@ -83,25 +83,25 @@
           "data": {
             "noteNoop": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/654853603634",
-                "note": "HAR-766 no-op current note",
-                "updatedAt": "2026-05-05T21:43:30Z"
+                "id": "gid://shopify/GiftCard/662478782770",
+                "note": "Conformance no-op current note",
+                "updatedAt": "2026-07-03T11:11:19Z"
               },
               "userErrors": []
             },
             "expiresNoop": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/654853603634",
+                "id": "gid://shopify/GiftCard/662478782770",
                 "expiresOn": "2030-01-01",
-                "updatedAt": "2026-05-05T21:43:30Z"
+                "updatedAt": "2026-07-03T11:11:19Z"
               },
               "userErrors": []
             },
             "templateNoop": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/654853603634",
+                "id": "gid://shopify/GiftCard/662478782770",
                 "templateSuffix": "birthday",
-                "updatedAt": "2026-05-05T21:43:30Z"
+                "updatedAt": "2026-07-03T11:11:19Z"
               },
               "userErrors": []
             },
@@ -134,25 +134,25 @@
     "data": {
       "noteNoop": {
         "giftCard": {
-          "id": "gid://shopify/GiftCard/654853603634",
-          "note": "HAR-766 no-op current note",
-          "updatedAt": "2026-05-05T21:43:30Z"
+          "id": "gid://shopify/GiftCard/662478782770",
+          "note": "Conformance no-op current note",
+          "updatedAt": "2026-07-03T11:11:19Z"
         },
         "userErrors": []
       },
       "expiresNoop": {
         "giftCard": {
-          "id": "gid://shopify/GiftCard/654853603634",
+          "id": "gid://shopify/GiftCard/662478782770",
           "expiresOn": "2030-01-01",
-          "updatedAt": "2026-05-05T21:43:30Z"
+          "updatedAt": "2026-07-03T11:11:19Z"
         },
         "userErrors": []
       },
       "templateNoop": {
         "giftCard": {
-          "id": "gid://shopify/GiftCard/654853603634",
+          "id": "gid://shopify/GiftCard/662478782770",
           "templateSuffix": "birthday",
-          "updatedAt": "2026-05-05T21:43:30Z"
+          "updatedAt": "2026-07-03T11:11:19Z"
         },
         "userErrors": []
       },
@@ -173,7 +173,7 @@
       "label": "cleanupDeactivate:noopCard",
       "query": "#graphql\n      mutation GiftCardUpdateNoopGiftCardDeactivate($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
       "variables": {
-        "id": "gid://shopify/GiftCard/654853603634"
+        "id": "gid://shopify/GiftCard/662478782770"
       },
       "response": {
         "status": 200,
@@ -181,9 +181,9 @@
           "data": {
             "giftCardDeactivate": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/654853603634",
+                "id": "gid://shopify/GiftCard/662478782770",
                 "enabled": false,
-                "deactivatedAt": "2026-05-05T21:43:30Z"
+                "deactivatedAt": "2026-07-03T11:11:19Z"
               },
               "userErrors": []
             }
@@ -194,7 +194,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1963,
+                "currentlyAvailable": 1962,
                 "restoreRate": 100
               }
             }

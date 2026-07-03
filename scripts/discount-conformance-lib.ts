@@ -354,7 +354,7 @@ export const DISCOUNT_CODE_DETAIL_QUERY = `#graphql
           }
         }
       }
-      metafield(namespace: "custom", key: "har192_missing") {
+      metafield(namespace: "custom", key: "draft_missing") {
         id
       }
       metafields(first: 2) {
@@ -680,11 +680,11 @@ export async function captureDiscountDetailEvidence(options: AdminGraphqlOptions
   const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient(options);
   const stamp = Date.now();
   const startsAt = '2026-04-25T00:00:00Z';
-  const code = `HAR192DETAIL${stamp}`;
+  const code = `DRAFTDETAIL${stamp}`;
 
   const codeCreateVariables = {
     input: {
-      title: `HAR-192 detail code ${stamp}`,
+      title: `Conformance detail code ${stamp}`,
       code,
       startsAt,
       endsAt: null,
@@ -719,7 +719,7 @@ export async function captureDiscountDetailEvidence(options: AdminGraphqlOptions
 
   const automaticCreateVariables = {
     input: {
-      title: `HAR-192 detail automatic ${stamp}`,
+      title: `Conformance detail automatic ${stamp}`,
       startsAt,
       endsAt: null,
       combinesWith: {

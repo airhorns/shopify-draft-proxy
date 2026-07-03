@@ -119,8 +119,8 @@ const cases = {
     query: documents.codeBasic,
     variables: {
       input: {
-        title: `HAR-595 code basic invalid dates ${suffix}`,
-        code: `HAR595BASIC${suffix}`,
+        title: `Conformance code basic invalid dates ${suffix}`,
+        code: `DRAFTBASIC${suffix}`,
         ...invertedDates(),
         combinesWith: {
           productDiscounts: false,
@@ -143,8 +143,8 @@ const cases = {
     query: documents.codeBxgy,
     variables: {
       input: {
-        title: `HAR-595 code BXGY invalid dates ${suffix}`,
-        code: `HAR595BXGY${suffix}`,
+        title: `Conformance code BXGY invalid dates ${suffix}`,
+        code: `DRAFTBXGY${suffix}`,
         ...invertedDates(),
         combinesWith: {
           productDiscounts: true,
@@ -184,8 +184,8 @@ const cases = {
     query: documents.codeFreeShipping,
     variables: {
       input: {
-        title: `HAR-595 code free shipping invalid dates ${suffix}`,
-        code: `HAR595SHIP${suffix}`,
+        title: `Conformance code free shipping invalid dates ${suffix}`,
+        code: `DRAFTSHIP${suffix}`,
         ...invertedDates(),
         combinesWith: {
           productDiscounts: false,
@@ -203,7 +203,7 @@ const cases = {
     query: documents.automaticBxgy,
     variables: {
       input: {
-        title: `HAR-595 automatic BXGY invalid dates ${suffix}`,
+        title: `Conformance automatic BXGY invalid dates ${suffix}`,
         ...invertedDates(),
         combinesWith: {
           productDiscounts: true,
@@ -243,7 +243,7 @@ const cases = {
     query: documents.automaticFreeShipping,
     variables: {
       input: {
-        title: `HAR-595 automatic free shipping invalid dates ${suffix}`,
+        title: `Conformance automatic free shipping invalid dates ${suffix}`,
         ...invertedDates(),
         combinesWith: {
           productDiscounts: false,

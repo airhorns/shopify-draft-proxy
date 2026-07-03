@@ -31,13 +31,13 @@ const scopeProbe = await probeDiscountConformanceScopes(adminOptions);
 assertDiscountConformanceScopes(scopeProbe);
 
 const runId = Date.now();
-const seedCode = `HAR784BASE${runId}`;
-const crossDiscountCode = `HAR784CROSS${runId}`;
-const existingFreshCode = `HAR784FRESH${runId}`;
-const duplicateCode = `HAR784DUP${runId}`;
-const validCode = `HAR784OK${runId}`;
-const newlineCode = `HAR784NL${runId}\nBAD`;
-const carriageReturnCode = `HAR784CR${runId}\rBAD`;
+const seedCode = `DRAFTBASE${runId}`;
+const crossDiscountCode = `DRAFTCROSS${runId}`;
+const existingFreshCode = `DRAFTFRESH${runId}`;
+const duplicateCode = `DRAFTDUP${runId}`;
+const validCode = `DRAFTOK${runId}`;
+const newlineCode = `DRAFTNL${runId}\nBAD`;
+const carriageReturnCode = `DRAFTCR${runId}\rBAD`;
 const longCode = 'X'.repeat(256);
 const startsAt = new Date(Date.now() - 60_000).toISOString();
 const unknownDiscountId = 'gid://shopify/DiscountCodeNode/0';
@@ -203,7 +203,7 @@ const uniquenessCheckDocument = await readFile(
 
 const createVariables = {
   input: {
-    title: `HAR-784 redeem code validation ${runId}`,
+    title: `Conformance redeem code validation ${runId}`,
     code: seedCode,
     startsAt,
     combinesWith: {
@@ -228,7 +228,7 @@ const createVariables = {
 const crossCreateVariables = {
   input: {
     ...createVariables.input,
-    title: `HAR-784 redeem code cross discount ${runId}`,
+    title: `Conformance redeem code cross discount ${runId}`,
     code: crossDiscountCode,
   },
 };
@@ -287,7 +287,7 @@ try {
   };
   const tooManyVariables = {
     discountId,
-    codes: Array.from({ length: 251 }, (_, index) => ({ code: `HAR784MAX${runId}-${index}` })),
+    codes: Array.from({ length: 251 }, (_, index) => ({ code: `DRAFTMAX${runId}-${index}` })),
   };
   const emptyCodesVariables = {
     discountId,

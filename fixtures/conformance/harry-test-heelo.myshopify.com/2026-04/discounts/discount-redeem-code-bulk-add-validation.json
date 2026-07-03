@@ -1,27 +1,27 @@
 {
   "variables": {
-    "discountId": "gid://shopify/DiscountCodeNode/1655830872370",
-    "crossDiscountId": "gid://shopify/DiscountCodeNode/1655830905138",
-    "seedCode": "HAR784BASE1782095860112",
-    "crossDiscountCode": "HAR784CROSS1782095860112",
-    "existingFreshCode": "HAR784FRESH1782095860112",
+    "discountId": "gid://shopify/DiscountCodeNode/1657961480498",
+    "crossDiscountId": "gid://shopify/DiscountCodeNode/1657961513266",
+    "seedCode": "DRAFTBASE1783077239595",
+    "crossDiscountCode": "DRAFTCROSS1783077239595",
+    "existingFreshCode": "DRAFTFRESH1783077239595",
     "unknownDiscountId": "gid://shopify/DiscountCodeNode/0",
-    "duplicateCode": "HAR784DUP1782095860112",
-    "validCode": "HAR784OK1782095860112",
-    "newlineCode": "HAR784NL1782095860112\nBAD",
-    "carriageReturnCode": "HAR784CR1782095860112\rBAD",
+    "duplicateCode": "DRAFTDUP1783077239595",
+    "validCode": "DRAFTOK1783077239595",
+    "newlineCode": "DRAFTNL1783077239595\nBAD",
+    "carriageReturnCode": "DRAFTCR1783077239595\rBAD",
     "longCode": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-    "invalidBulkCreationId": "gid://shopify/DiscountRedeemCodeBulkCreation/799635341618",
-    "existingConflictBulkCreationId": "gid://shopify/DiscountRedeemCodeBulkCreation/799635374386"
+    "invalidBulkCreationId": "gid://shopify/DiscountRedeemCodeBulkCreation/801901609266",
+    "existingConflictBulkCreationId": "gid://shopify/DiscountRedeemCodeBulkCreation/801901642034"
   },
   "requests": {
     "create": {
       "query": "#graphql\n  mutation DiscountRedeemCodeBulkValidationCreate($input: DiscountCodeBasicInput!) {\n    discountCodeBasicCreate(basicCodeDiscount: $input) {\n      codeDiscountNode {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
         "input": {
-          "title": "HAR-784 redeem code validation 1782095860112",
-          "code": "HAR784BASE1782095860112",
-          "startsAt": "2026-06-22T02:36:40.112Z",
+          "title": "Conformance redeem code validation 1783077239595",
+          "code": "DRAFTBASE1783077239595",
+          "startsAt": "2026-07-03T11:12:59.595Z",
           "combinesWith": {
             "productDiscounts": false,
             "orderDiscounts": true,
@@ -45,9 +45,9 @@
       "query": "#graphql\n  mutation DiscountRedeemCodeBulkValidationCreate($input: DiscountCodeBasicInput!) {\n    discountCodeBasicCreate(basicCodeDiscount: $input) {\n      codeDiscountNode {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
         "input": {
-          "title": "HAR-784 redeem code cross discount 1782095860112",
-          "code": "HAR784CROSS1782095860112",
-          "startsAt": "2026-06-22T02:36:40.112Z",
+          "title": "Conformance redeem code cross discount 1783077239595",
+          "code": "DRAFTCROSS1783077239595",
+          "startsAt": "2026-07-03T11:12:59.595Z",
           "combinesWith": {
             "productDiscounts": false,
             "orderDiscounts": true,
@@ -81,760 +81,760 @@
     "tooMany": {
       "query": "#graphql\n  mutation DiscountRedeemCodeBulkValidationAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) {\n    discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {\n      bulkCreation {\n        id\n        done\n        codesCount\n        importedCount\n        failedCount\n        codes(first: 10) {\n          nodes {\n            code\n            errors {\n              field\n              message\n              code\n              extraInfo\n            }\n            discountRedeemCode {\n              id\n              code\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
-        "discountId": "gid://shopify/DiscountCodeNode/1655830872370",
+        "discountId": "gid://shopify/DiscountCodeNode/1657961480498",
         "codes": [
           {
-            "code": "HAR784MAX1782095860112-0"
+            "code": "DRAFTMAX1783077239595-0"
           },
           {
-            "code": "HAR784MAX1782095860112-1"
+            "code": "DRAFTMAX1783077239595-1"
           },
           {
-            "code": "HAR784MAX1782095860112-2"
+            "code": "DRAFTMAX1783077239595-2"
           },
           {
-            "code": "HAR784MAX1782095860112-3"
+            "code": "DRAFTMAX1783077239595-3"
           },
           {
-            "code": "HAR784MAX1782095860112-4"
+            "code": "DRAFTMAX1783077239595-4"
           },
           {
-            "code": "HAR784MAX1782095860112-5"
+            "code": "DRAFTMAX1783077239595-5"
           },
           {
-            "code": "HAR784MAX1782095860112-6"
+            "code": "DRAFTMAX1783077239595-6"
           },
           {
-            "code": "HAR784MAX1782095860112-7"
+            "code": "DRAFTMAX1783077239595-7"
           },
           {
-            "code": "HAR784MAX1782095860112-8"
+            "code": "DRAFTMAX1783077239595-8"
           },
           {
-            "code": "HAR784MAX1782095860112-9"
+            "code": "DRAFTMAX1783077239595-9"
           },
           {
-            "code": "HAR784MAX1782095860112-10"
+            "code": "DRAFTMAX1783077239595-10"
           },
           {
-            "code": "HAR784MAX1782095860112-11"
+            "code": "DRAFTMAX1783077239595-11"
           },
           {
-            "code": "HAR784MAX1782095860112-12"
+            "code": "DRAFTMAX1783077239595-12"
           },
           {
-            "code": "HAR784MAX1782095860112-13"
+            "code": "DRAFTMAX1783077239595-13"
           },
           {
-            "code": "HAR784MAX1782095860112-14"
+            "code": "DRAFTMAX1783077239595-14"
           },
           {
-            "code": "HAR784MAX1782095860112-15"
+            "code": "DRAFTMAX1783077239595-15"
           },
           {
-            "code": "HAR784MAX1782095860112-16"
+            "code": "DRAFTMAX1783077239595-16"
           },
           {
-            "code": "HAR784MAX1782095860112-17"
+            "code": "DRAFTMAX1783077239595-17"
           },
           {
-            "code": "HAR784MAX1782095860112-18"
+            "code": "DRAFTMAX1783077239595-18"
           },
           {
-            "code": "HAR784MAX1782095860112-19"
+            "code": "DRAFTMAX1783077239595-19"
           },
           {
-            "code": "HAR784MAX1782095860112-20"
+            "code": "DRAFTMAX1783077239595-20"
           },
           {
-            "code": "HAR784MAX1782095860112-21"
+            "code": "DRAFTMAX1783077239595-21"
           },
           {
-            "code": "HAR784MAX1782095860112-22"
+            "code": "DRAFTMAX1783077239595-22"
           },
           {
-            "code": "HAR784MAX1782095860112-23"
+            "code": "DRAFTMAX1783077239595-23"
           },
           {
-            "code": "HAR784MAX1782095860112-24"
+            "code": "DRAFTMAX1783077239595-24"
           },
           {
-            "code": "HAR784MAX1782095860112-25"
+            "code": "DRAFTMAX1783077239595-25"
           },
           {
-            "code": "HAR784MAX1782095860112-26"
+            "code": "DRAFTMAX1783077239595-26"
           },
           {
-            "code": "HAR784MAX1782095860112-27"
+            "code": "DRAFTMAX1783077239595-27"
           },
           {
-            "code": "HAR784MAX1782095860112-28"
+            "code": "DRAFTMAX1783077239595-28"
           },
           {
-            "code": "HAR784MAX1782095860112-29"
+            "code": "DRAFTMAX1783077239595-29"
           },
           {
-            "code": "HAR784MAX1782095860112-30"
+            "code": "DRAFTMAX1783077239595-30"
           },
           {
-            "code": "HAR784MAX1782095860112-31"
+            "code": "DRAFTMAX1783077239595-31"
           },
           {
-            "code": "HAR784MAX1782095860112-32"
+            "code": "DRAFTMAX1783077239595-32"
           },
           {
-            "code": "HAR784MAX1782095860112-33"
+            "code": "DRAFTMAX1783077239595-33"
           },
           {
-            "code": "HAR784MAX1782095860112-34"
+            "code": "DRAFTMAX1783077239595-34"
           },
           {
-            "code": "HAR784MAX1782095860112-35"
+            "code": "DRAFTMAX1783077239595-35"
           },
           {
-            "code": "HAR784MAX1782095860112-36"
+            "code": "DRAFTMAX1783077239595-36"
           },
           {
-            "code": "HAR784MAX1782095860112-37"
+            "code": "DRAFTMAX1783077239595-37"
           },
           {
-            "code": "HAR784MAX1782095860112-38"
+            "code": "DRAFTMAX1783077239595-38"
           },
           {
-            "code": "HAR784MAX1782095860112-39"
+            "code": "DRAFTMAX1783077239595-39"
           },
           {
-            "code": "HAR784MAX1782095860112-40"
+            "code": "DRAFTMAX1783077239595-40"
           },
           {
-            "code": "HAR784MAX1782095860112-41"
+            "code": "DRAFTMAX1783077239595-41"
           },
           {
-            "code": "HAR784MAX1782095860112-42"
+            "code": "DRAFTMAX1783077239595-42"
           },
           {
-            "code": "HAR784MAX1782095860112-43"
+            "code": "DRAFTMAX1783077239595-43"
           },
           {
-            "code": "HAR784MAX1782095860112-44"
+            "code": "DRAFTMAX1783077239595-44"
           },
           {
-            "code": "HAR784MAX1782095860112-45"
+            "code": "DRAFTMAX1783077239595-45"
           },
           {
-            "code": "HAR784MAX1782095860112-46"
+            "code": "DRAFTMAX1783077239595-46"
           },
           {
-            "code": "HAR784MAX1782095860112-47"
+            "code": "DRAFTMAX1783077239595-47"
           },
           {
-            "code": "HAR784MAX1782095860112-48"
+            "code": "DRAFTMAX1783077239595-48"
           },
           {
-            "code": "HAR784MAX1782095860112-49"
+            "code": "DRAFTMAX1783077239595-49"
           },
           {
-            "code": "HAR784MAX1782095860112-50"
+            "code": "DRAFTMAX1783077239595-50"
           },
           {
-            "code": "HAR784MAX1782095860112-51"
+            "code": "DRAFTMAX1783077239595-51"
           },
           {
-            "code": "HAR784MAX1782095860112-52"
+            "code": "DRAFTMAX1783077239595-52"
           },
           {
-            "code": "HAR784MAX1782095860112-53"
+            "code": "DRAFTMAX1783077239595-53"
           },
           {
-            "code": "HAR784MAX1782095860112-54"
+            "code": "DRAFTMAX1783077239595-54"
           },
           {
-            "code": "HAR784MAX1782095860112-55"
+            "code": "DRAFTMAX1783077239595-55"
           },
           {
-            "code": "HAR784MAX1782095860112-56"
+            "code": "DRAFTMAX1783077239595-56"
           },
           {
-            "code": "HAR784MAX1782095860112-57"
+            "code": "DRAFTMAX1783077239595-57"
           },
           {
-            "code": "HAR784MAX1782095860112-58"
+            "code": "DRAFTMAX1783077239595-58"
           },
           {
-            "code": "HAR784MAX1782095860112-59"
+            "code": "DRAFTMAX1783077239595-59"
           },
           {
-            "code": "HAR784MAX1782095860112-60"
+            "code": "DRAFTMAX1783077239595-60"
           },
           {
-            "code": "HAR784MAX1782095860112-61"
+            "code": "DRAFTMAX1783077239595-61"
           },
           {
-            "code": "HAR784MAX1782095860112-62"
+            "code": "DRAFTMAX1783077239595-62"
           },
           {
-            "code": "HAR784MAX1782095860112-63"
+            "code": "DRAFTMAX1783077239595-63"
           },
           {
-            "code": "HAR784MAX1782095860112-64"
+            "code": "DRAFTMAX1783077239595-64"
           },
           {
-            "code": "HAR784MAX1782095860112-65"
+            "code": "DRAFTMAX1783077239595-65"
           },
           {
-            "code": "HAR784MAX1782095860112-66"
+            "code": "DRAFTMAX1783077239595-66"
           },
           {
-            "code": "HAR784MAX1782095860112-67"
+            "code": "DRAFTMAX1783077239595-67"
           },
           {
-            "code": "HAR784MAX1782095860112-68"
+            "code": "DRAFTMAX1783077239595-68"
           },
           {
-            "code": "HAR784MAX1782095860112-69"
+            "code": "DRAFTMAX1783077239595-69"
           },
           {
-            "code": "HAR784MAX1782095860112-70"
+            "code": "DRAFTMAX1783077239595-70"
           },
           {
-            "code": "HAR784MAX1782095860112-71"
+            "code": "DRAFTMAX1783077239595-71"
           },
           {
-            "code": "HAR784MAX1782095860112-72"
+            "code": "DRAFTMAX1783077239595-72"
           },
           {
-            "code": "HAR784MAX1782095860112-73"
+            "code": "DRAFTMAX1783077239595-73"
           },
           {
-            "code": "HAR784MAX1782095860112-74"
+            "code": "DRAFTMAX1783077239595-74"
           },
           {
-            "code": "HAR784MAX1782095860112-75"
+            "code": "DRAFTMAX1783077239595-75"
           },
           {
-            "code": "HAR784MAX1782095860112-76"
+            "code": "DRAFTMAX1783077239595-76"
           },
           {
-            "code": "HAR784MAX1782095860112-77"
+            "code": "DRAFTMAX1783077239595-77"
           },
           {
-            "code": "HAR784MAX1782095860112-78"
+            "code": "DRAFTMAX1783077239595-78"
           },
           {
-            "code": "HAR784MAX1782095860112-79"
+            "code": "DRAFTMAX1783077239595-79"
           },
           {
-            "code": "HAR784MAX1782095860112-80"
+            "code": "DRAFTMAX1783077239595-80"
           },
           {
-            "code": "HAR784MAX1782095860112-81"
+            "code": "DRAFTMAX1783077239595-81"
           },
           {
-            "code": "HAR784MAX1782095860112-82"
+            "code": "DRAFTMAX1783077239595-82"
           },
           {
-            "code": "HAR784MAX1782095860112-83"
+            "code": "DRAFTMAX1783077239595-83"
           },
           {
-            "code": "HAR784MAX1782095860112-84"
+            "code": "DRAFTMAX1783077239595-84"
           },
           {
-            "code": "HAR784MAX1782095860112-85"
+            "code": "DRAFTMAX1783077239595-85"
           },
           {
-            "code": "HAR784MAX1782095860112-86"
+            "code": "DRAFTMAX1783077239595-86"
           },
           {
-            "code": "HAR784MAX1782095860112-87"
+            "code": "DRAFTMAX1783077239595-87"
           },
           {
-            "code": "HAR784MAX1782095860112-88"
+            "code": "DRAFTMAX1783077239595-88"
           },
           {
-            "code": "HAR784MAX1782095860112-89"
+            "code": "DRAFTMAX1783077239595-89"
           },
           {
-            "code": "HAR784MAX1782095860112-90"
+            "code": "DRAFTMAX1783077239595-90"
           },
           {
-            "code": "HAR784MAX1782095860112-91"
+            "code": "DRAFTMAX1783077239595-91"
           },
           {
-            "code": "HAR784MAX1782095860112-92"
+            "code": "DRAFTMAX1783077239595-92"
           },
           {
-            "code": "HAR784MAX1782095860112-93"
+            "code": "DRAFTMAX1783077239595-93"
           },
           {
-            "code": "HAR784MAX1782095860112-94"
+            "code": "DRAFTMAX1783077239595-94"
           },
           {
-            "code": "HAR784MAX1782095860112-95"
+            "code": "DRAFTMAX1783077239595-95"
           },
           {
-            "code": "HAR784MAX1782095860112-96"
+            "code": "DRAFTMAX1783077239595-96"
           },
           {
-            "code": "HAR784MAX1782095860112-97"
+            "code": "DRAFTMAX1783077239595-97"
           },
           {
-            "code": "HAR784MAX1782095860112-98"
+            "code": "DRAFTMAX1783077239595-98"
           },
           {
-            "code": "HAR784MAX1782095860112-99"
+            "code": "DRAFTMAX1783077239595-99"
           },
           {
-            "code": "HAR784MAX1782095860112-100"
+            "code": "DRAFTMAX1783077239595-100"
           },
           {
-            "code": "HAR784MAX1782095860112-101"
+            "code": "DRAFTMAX1783077239595-101"
           },
           {
-            "code": "HAR784MAX1782095860112-102"
+            "code": "DRAFTMAX1783077239595-102"
           },
           {
-            "code": "HAR784MAX1782095860112-103"
+            "code": "DRAFTMAX1783077239595-103"
           },
           {
-            "code": "HAR784MAX1782095860112-104"
+            "code": "DRAFTMAX1783077239595-104"
           },
           {
-            "code": "HAR784MAX1782095860112-105"
+            "code": "DRAFTMAX1783077239595-105"
           },
           {
-            "code": "HAR784MAX1782095860112-106"
+            "code": "DRAFTMAX1783077239595-106"
           },
           {
-            "code": "HAR784MAX1782095860112-107"
+            "code": "DRAFTMAX1783077239595-107"
           },
           {
-            "code": "HAR784MAX1782095860112-108"
+            "code": "DRAFTMAX1783077239595-108"
           },
           {
-            "code": "HAR784MAX1782095860112-109"
+            "code": "DRAFTMAX1783077239595-109"
           },
           {
-            "code": "HAR784MAX1782095860112-110"
+            "code": "DRAFTMAX1783077239595-110"
           },
           {
-            "code": "HAR784MAX1782095860112-111"
+            "code": "DRAFTMAX1783077239595-111"
           },
           {
-            "code": "HAR784MAX1782095860112-112"
+            "code": "DRAFTMAX1783077239595-112"
           },
           {
-            "code": "HAR784MAX1782095860112-113"
+            "code": "DRAFTMAX1783077239595-113"
           },
           {
-            "code": "HAR784MAX1782095860112-114"
+            "code": "DRAFTMAX1783077239595-114"
           },
           {
-            "code": "HAR784MAX1782095860112-115"
+            "code": "DRAFTMAX1783077239595-115"
           },
           {
-            "code": "HAR784MAX1782095860112-116"
+            "code": "DRAFTMAX1783077239595-116"
           },
           {
-            "code": "HAR784MAX1782095860112-117"
+            "code": "DRAFTMAX1783077239595-117"
           },
           {
-            "code": "HAR784MAX1782095860112-118"
+            "code": "DRAFTMAX1783077239595-118"
           },
           {
-            "code": "HAR784MAX1782095860112-119"
+            "code": "DRAFTMAX1783077239595-119"
           },
           {
-            "code": "HAR784MAX1782095860112-120"
+            "code": "DRAFTMAX1783077239595-120"
           },
           {
-            "code": "HAR784MAX1782095860112-121"
+            "code": "DRAFTMAX1783077239595-121"
           },
           {
-            "code": "HAR784MAX1782095860112-122"
+            "code": "DRAFTMAX1783077239595-122"
           },
           {
-            "code": "HAR784MAX1782095860112-123"
+            "code": "DRAFTMAX1783077239595-123"
           },
           {
-            "code": "HAR784MAX1782095860112-124"
+            "code": "DRAFTMAX1783077239595-124"
           },
           {
-            "code": "HAR784MAX1782095860112-125"
+            "code": "DRAFTMAX1783077239595-125"
           },
           {
-            "code": "HAR784MAX1782095860112-126"
+            "code": "DRAFTMAX1783077239595-126"
           },
           {
-            "code": "HAR784MAX1782095860112-127"
+            "code": "DRAFTMAX1783077239595-127"
           },
           {
-            "code": "HAR784MAX1782095860112-128"
+            "code": "DRAFTMAX1783077239595-128"
           },
           {
-            "code": "HAR784MAX1782095860112-129"
+            "code": "DRAFTMAX1783077239595-129"
           },
           {
-            "code": "HAR784MAX1782095860112-130"
+            "code": "DRAFTMAX1783077239595-130"
           },
           {
-            "code": "HAR784MAX1782095860112-131"
+            "code": "DRAFTMAX1783077239595-131"
           },
           {
-            "code": "HAR784MAX1782095860112-132"
+            "code": "DRAFTMAX1783077239595-132"
           },
           {
-            "code": "HAR784MAX1782095860112-133"
+            "code": "DRAFTMAX1783077239595-133"
           },
           {
-            "code": "HAR784MAX1782095860112-134"
+            "code": "DRAFTMAX1783077239595-134"
           },
           {
-            "code": "HAR784MAX1782095860112-135"
+            "code": "DRAFTMAX1783077239595-135"
           },
           {
-            "code": "HAR784MAX1782095860112-136"
+            "code": "DRAFTMAX1783077239595-136"
           },
           {
-            "code": "HAR784MAX1782095860112-137"
+            "code": "DRAFTMAX1783077239595-137"
           },
           {
-            "code": "HAR784MAX1782095860112-138"
+            "code": "DRAFTMAX1783077239595-138"
           },
           {
-            "code": "HAR784MAX1782095860112-139"
+            "code": "DRAFTMAX1783077239595-139"
           },
           {
-            "code": "HAR784MAX1782095860112-140"
+            "code": "DRAFTMAX1783077239595-140"
           },
           {
-            "code": "HAR784MAX1782095860112-141"
+            "code": "DRAFTMAX1783077239595-141"
           },
           {
-            "code": "HAR784MAX1782095860112-142"
+            "code": "DRAFTMAX1783077239595-142"
           },
           {
-            "code": "HAR784MAX1782095860112-143"
+            "code": "DRAFTMAX1783077239595-143"
           },
           {
-            "code": "HAR784MAX1782095860112-144"
+            "code": "DRAFTMAX1783077239595-144"
           },
           {
-            "code": "HAR784MAX1782095860112-145"
+            "code": "DRAFTMAX1783077239595-145"
           },
           {
-            "code": "HAR784MAX1782095860112-146"
+            "code": "DRAFTMAX1783077239595-146"
           },
           {
-            "code": "HAR784MAX1782095860112-147"
+            "code": "DRAFTMAX1783077239595-147"
           },
           {
-            "code": "HAR784MAX1782095860112-148"
+            "code": "DRAFTMAX1783077239595-148"
           },
           {
-            "code": "HAR784MAX1782095860112-149"
+            "code": "DRAFTMAX1783077239595-149"
           },
           {
-            "code": "HAR784MAX1782095860112-150"
+            "code": "DRAFTMAX1783077239595-150"
           },
           {
-            "code": "HAR784MAX1782095860112-151"
+            "code": "DRAFTMAX1783077239595-151"
           },
           {
-            "code": "HAR784MAX1782095860112-152"
+            "code": "DRAFTMAX1783077239595-152"
           },
           {
-            "code": "HAR784MAX1782095860112-153"
+            "code": "DRAFTMAX1783077239595-153"
           },
           {
-            "code": "HAR784MAX1782095860112-154"
+            "code": "DRAFTMAX1783077239595-154"
           },
           {
-            "code": "HAR784MAX1782095860112-155"
+            "code": "DRAFTMAX1783077239595-155"
           },
           {
-            "code": "HAR784MAX1782095860112-156"
+            "code": "DRAFTMAX1783077239595-156"
           },
           {
-            "code": "HAR784MAX1782095860112-157"
+            "code": "DRAFTMAX1783077239595-157"
           },
           {
-            "code": "HAR784MAX1782095860112-158"
+            "code": "DRAFTMAX1783077239595-158"
           },
           {
-            "code": "HAR784MAX1782095860112-159"
+            "code": "DRAFTMAX1783077239595-159"
           },
           {
-            "code": "HAR784MAX1782095860112-160"
+            "code": "DRAFTMAX1783077239595-160"
           },
           {
-            "code": "HAR784MAX1782095860112-161"
+            "code": "DRAFTMAX1783077239595-161"
           },
           {
-            "code": "HAR784MAX1782095860112-162"
+            "code": "DRAFTMAX1783077239595-162"
           },
           {
-            "code": "HAR784MAX1782095860112-163"
+            "code": "DRAFTMAX1783077239595-163"
           },
           {
-            "code": "HAR784MAX1782095860112-164"
+            "code": "DRAFTMAX1783077239595-164"
           },
           {
-            "code": "HAR784MAX1782095860112-165"
+            "code": "DRAFTMAX1783077239595-165"
           },
           {
-            "code": "HAR784MAX1782095860112-166"
+            "code": "DRAFTMAX1783077239595-166"
           },
           {
-            "code": "HAR784MAX1782095860112-167"
+            "code": "DRAFTMAX1783077239595-167"
           },
           {
-            "code": "HAR784MAX1782095860112-168"
+            "code": "DRAFTMAX1783077239595-168"
           },
           {
-            "code": "HAR784MAX1782095860112-169"
+            "code": "DRAFTMAX1783077239595-169"
           },
           {
-            "code": "HAR784MAX1782095860112-170"
+            "code": "DRAFTMAX1783077239595-170"
           },
           {
-            "code": "HAR784MAX1782095860112-171"
+            "code": "DRAFTMAX1783077239595-171"
           },
           {
-            "code": "HAR784MAX1782095860112-172"
+            "code": "DRAFTMAX1783077239595-172"
           },
           {
-            "code": "HAR784MAX1782095860112-173"
+            "code": "DRAFTMAX1783077239595-173"
           },
           {
-            "code": "HAR784MAX1782095860112-174"
+            "code": "DRAFTMAX1783077239595-174"
           },
           {
-            "code": "HAR784MAX1782095860112-175"
+            "code": "DRAFTMAX1783077239595-175"
           },
           {
-            "code": "HAR784MAX1782095860112-176"
+            "code": "DRAFTMAX1783077239595-176"
           },
           {
-            "code": "HAR784MAX1782095860112-177"
+            "code": "DRAFTMAX1783077239595-177"
           },
           {
-            "code": "HAR784MAX1782095860112-178"
+            "code": "DRAFTMAX1783077239595-178"
           },
           {
-            "code": "HAR784MAX1782095860112-179"
+            "code": "DRAFTMAX1783077239595-179"
           },
           {
-            "code": "HAR784MAX1782095860112-180"
+            "code": "DRAFTMAX1783077239595-180"
           },
           {
-            "code": "HAR784MAX1782095860112-181"
+            "code": "DRAFTMAX1783077239595-181"
           },
           {
-            "code": "HAR784MAX1782095860112-182"
+            "code": "DRAFTMAX1783077239595-182"
           },
           {
-            "code": "HAR784MAX1782095860112-183"
+            "code": "DRAFTMAX1783077239595-183"
           },
           {
-            "code": "HAR784MAX1782095860112-184"
+            "code": "DRAFTMAX1783077239595-184"
           },
           {
-            "code": "HAR784MAX1782095860112-185"
+            "code": "DRAFTMAX1783077239595-185"
           },
           {
-            "code": "HAR784MAX1782095860112-186"
+            "code": "DRAFTMAX1783077239595-186"
           },
           {
-            "code": "HAR784MAX1782095860112-187"
+            "code": "DRAFTMAX1783077239595-187"
           },
           {
-            "code": "HAR784MAX1782095860112-188"
+            "code": "DRAFTMAX1783077239595-188"
           },
           {
-            "code": "HAR784MAX1782095860112-189"
+            "code": "DRAFTMAX1783077239595-189"
           },
           {
-            "code": "HAR784MAX1782095860112-190"
+            "code": "DRAFTMAX1783077239595-190"
           },
           {
-            "code": "HAR784MAX1782095860112-191"
+            "code": "DRAFTMAX1783077239595-191"
           },
           {
-            "code": "HAR784MAX1782095860112-192"
+            "code": "DRAFTMAX1783077239595-192"
           },
           {
-            "code": "HAR784MAX1782095860112-193"
+            "code": "DRAFTMAX1783077239595-193"
           },
           {
-            "code": "HAR784MAX1782095860112-194"
+            "code": "DRAFTMAX1783077239595-194"
           },
           {
-            "code": "HAR784MAX1782095860112-195"
+            "code": "DRAFTMAX1783077239595-195"
           },
           {
-            "code": "HAR784MAX1782095860112-196"
+            "code": "DRAFTMAX1783077239595-196"
           },
           {
-            "code": "HAR784MAX1782095860112-197"
+            "code": "DRAFTMAX1783077239595-197"
           },
           {
-            "code": "HAR784MAX1782095860112-198"
+            "code": "DRAFTMAX1783077239595-198"
           },
           {
-            "code": "HAR784MAX1782095860112-199"
+            "code": "DRAFTMAX1783077239595-199"
           },
           {
-            "code": "HAR784MAX1782095860112-200"
+            "code": "DRAFTMAX1783077239595-200"
           },
           {
-            "code": "HAR784MAX1782095860112-201"
+            "code": "DRAFTMAX1783077239595-201"
           },
           {
-            "code": "HAR784MAX1782095860112-202"
+            "code": "DRAFTMAX1783077239595-202"
           },
           {
-            "code": "HAR784MAX1782095860112-203"
+            "code": "DRAFTMAX1783077239595-203"
           },
           {
-            "code": "HAR784MAX1782095860112-204"
+            "code": "DRAFTMAX1783077239595-204"
           },
           {
-            "code": "HAR784MAX1782095860112-205"
+            "code": "DRAFTMAX1783077239595-205"
           },
           {
-            "code": "HAR784MAX1782095860112-206"
+            "code": "DRAFTMAX1783077239595-206"
           },
           {
-            "code": "HAR784MAX1782095860112-207"
+            "code": "DRAFTMAX1783077239595-207"
           },
           {
-            "code": "HAR784MAX1782095860112-208"
+            "code": "DRAFTMAX1783077239595-208"
           },
           {
-            "code": "HAR784MAX1782095860112-209"
+            "code": "DRAFTMAX1783077239595-209"
           },
           {
-            "code": "HAR784MAX1782095860112-210"
+            "code": "DRAFTMAX1783077239595-210"
           },
           {
-            "code": "HAR784MAX1782095860112-211"
+            "code": "DRAFTMAX1783077239595-211"
           },
           {
-            "code": "HAR784MAX1782095860112-212"
+            "code": "DRAFTMAX1783077239595-212"
           },
           {
-            "code": "HAR784MAX1782095860112-213"
+            "code": "DRAFTMAX1783077239595-213"
           },
           {
-            "code": "HAR784MAX1782095860112-214"
+            "code": "DRAFTMAX1783077239595-214"
           },
           {
-            "code": "HAR784MAX1782095860112-215"
+            "code": "DRAFTMAX1783077239595-215"
           },
           {
-            "code": "HAR784MAX1782095860112-216"
+            "code": "DRAFTMAX1783077239595-216"
           },
           {
-            "code": "HAR784MAX1782095860112-217"
+            "code": "DRAFTMAX1783077239595-217"
           },
           {
-            "code": "HAR784MAX1782095860112-218"
+            "code": "DRAFTMAX1783077239595-218"
           },
           {
-            "code": "HAR784MAX1782095860112-219"
+            "code": "DRAFTMAX1783077239595-219"
           },
           {
-            "code": "HAR784MAX1782095860112-220"
+            "code": "DRAFTMAX1783077239595-220"
           },
           {
-            "code": "HAR784MAX1782095860112-221"
+            "code": "DRAFTMAX1783077239595-221"
           },
           {
-            "code": "HAR784MAX1782095860112-222"
+            "code": "DRAFTMAX1783077239595-222"
           },
           {
-            "code": "HAR784MAX1782095860112-223"
+            "code": "DRAFTMAX1783077239595-223"
           },
           {
-            "code": "HAR784MAX1782095860112-224"
+            "code": "DRAFTMAX1783077239595-224"
           },
           {
-            "code": "HAR784MAX1782095860112-225"
+            "code": "DRAFTMAX1783077239595-225"
           },
           {
-            "code": "HAR784MAX1782095860112-226"
+            "code": "DRAFTMAX1783077239595-226"
           },
           {
-            "code": "HAR784MAX1782095860112-227"
+            "code": "DRAFTMAX1783077239595-227"
           },
           {
-            "code": "HAR784MAX1782095860112-228"
+            "code": "DRAFTMAX1783077239595-228"
           },
           {
-            "code": "HAR784MAX1782095860112-229"
+            "code": "DRAFTMAX1783077239595-229"
           },
           {
-            "code": "HAR784MAX1782095860112-230"
+            "code": "DRAFTMAX1783077239595-230"
           },
           {
-            "code": "HAR784MAX1782095860112-231"
+            "code": "DRAFTMAX1783077239595-231"
           },
           {
-            "code": "HAR784MAX1782095860112-232"
+            "code": "DRAFTMAX1783077239595-232"
           },
           {
-            "code": "HAR784MAX1782095860112-233"
+            "code": "DRAFTMAX1783077239595-233"
           },
           {
-            "code": "HAR784MAX1782095860112-234"
+            "code": "DRAFTMAX1783077239595-234"
           },
           {
-            "code": "HAR784MAX1782095860112-235"
+            "code": "DRAFTMAX1783077239595-235"
           },
           {
-            "code": "HAR784MAX1782095860112-236"
+            "code": "DRAFTMAX1783077239595-236"
           },
           {
-            "code": "HAR784MAX1782095860112-237"
+            "code": "DRAFTMAX1783077239595-237"
           },
           {
-            "code": "HAR784MAX1782095860112-238"
+            "code": "DRAFTMAX1783077239595-238"
           },
           {
-            "code": "HAR784MAX1782095860112-239"
+            "code": "DRAFTMAX1783077239595-239"
           },
           {
-            "code": "HAR784MAX1782095860112-240"
+            "code": "DRAFTMAX1783077239595-240"
           },
           {
-            "code": "HAR784MAX1782095860112-241"
+            "code": "DRAFTMAX1783077239595-241"
           },
           {
-            "code": "HAR784MAX1782095860112-242"
+            "code": "DRAFTMAX1783077239595-242"
           },
           {
-            "code": "HAR784MAX1782095860112-243"
+            "code": "DRAFTMAX1783077239595-243"
           },
           {
-            "code": "HAR784MAX1782095860112-244"
+            "code": "DRAFTMAX1783077239595-244"
           },
           {
-            "code": "HAR784MAX1782095860112-245"
+            "code": "DRAFTMAX1783077239595-245"
           },
           {
-            "code": "HAR784MAX1782095860112-246"
+            "code": "DRAFTMAX1783077239595-246"
           },
           {
-            "code": "HAR784MAX1782095860112-247"
+            "code": "DRAFTMAX1783077239595-247"
           },
           {
-            "code": "HAR784MAX1782095860112-248"
+            "code": "DRAFTMAX1783077239595-248"
           },
           {
-            "code": "HAR784MAX1782095860112-249"
+            "code": "DRAFTMAX1783077239595-249"
           },
           {
-            "code": "HAR784MAX1782095860112-250"
+            "code": "DRAFTMAX1783077239595-250"
           }
         ]
       }
@@ -842,35 +842,35 @@
     "emptyCodes": {
       "query": "#graphql\n  mutation DiscountRedeemCodeBulkValidationAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) {\n    discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {\n      bulkCreation {\n        id\n        done\n        codesCount\n        importedCount\n        failedCount\n        codes(first: 10) {\n          nodes {\n            code\n            errors {\n              field\n              message\n              code\n              extraInfo\n            }\n            discountRedeemCode {\n              id\n              code\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
-        "discountId": "gid://shopify/DiscountCodeNode/1655830872370",
+        "discountId": "gid://shopify/DiscountCodeNode/1657961480498",
         "codes": []
       }
     },
     "invalidCodes": {
       "query": "#graphql\n  mutation DiscountRedeemCodeBulkValidationAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) {\n    discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {\n      bulkCreation {\n        id\n        done\n        codesCount\n        importedCount\n        failedCount\n        codes(first: 10) {\n          nodes {\n            code\n            errors {\n              field\n              message\n              code\n              extraInfo\n            }\n            discountRedeemCode {\n              id\n              code\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
-        "discountId": "gid://shopify/DiscountCodeNode/1655830872370",
+        "discountId": "gid://shopify/DiscountCodeNode/1657961480498",
         "codes": [
           {
             "code": ""
           },
           {
-            "code": "HAR784NL1782095860112\nBAD"
+            "code": "DRAFTNL1783077239595\nBAD"
           },
           {
-            "code": "HAR784CR1782095860112\rBAD"
+            "code": "DRAFTCR1783077239595\rBAD"
           },
           {
             "code": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
           },
           {
-            "code": "HAR784DUP1782095860112"
+            "code": "DRAFTDUP1783077239595"
           },
           {
-            "code": "HAR784DUP1782095860112"
+            "code": "DRAFTDUP1783077239595"
           },
           {
-            "code": "HAR784OK1782095860112"
+            "code": "DRAFTOK1783077239595"
           }
         ]
       }
@@ -878,42 +878,42 @@
     "invalidCodesFinalRead": {
       "query": "#graphql\n  query DiscountRedeemCodeBulkValidationCreationRead($id: ID!) {\n    discountRedeemCodeBulkCreation(id: $id) {\n      done\n      codesCount\n      importedCount\n      failedCount\n      codes(first: 10) {\n        nodes {\n          code\n          errors {\n            field\n            message\n            code\n            extraInfo\n          }\n          discountRedeemCode {\n            code\n          }\n        }\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountRedeemCodeBulkCreation/799635341618"
+        "id": "gid://shopify/DiscountRedeemCodeBulkCreation/801901609266"
       }
     },
     "invalidCodesReadAfter": {
       "query": "#graphql\n  query DiscountRedeemCodeBulkValidationRead($discountId: ID!, $duplicateCode: String!, $validCode: String!) {\n    codeDiscountNode(id: $discountId) {\n      codeDiscount {\n        ... on DiscountCodeBasic {\n          codes(first: 10) {\n            nodes {\n              code\n            }\n          }\n          codesCount {\n            count\n            precision\n          }\n        }\n      }\n    }\n    duplicate: codeDiscountNodeByCode(code: $duplicateCode) {\n      id\n    }\n    valid: codeDiscountNodeByCode(code: $validCode) {\n      id\n    }\n  }\n",
       "variables": {
-        "discountId": "gid://shopify/DiscountCodeNode/1655830872370",
-        "duplicateCode": "HAR784DUP1782095860112",
-        "validCode": "HAR784OK1782095860112"
+        "discountId": "gid://shopify/DiscountCodeNode/1657961480498",
+        "duplicateCode": "DRAFTDUP1783077239595",
+        "validCode": "DRAFTOK1783077239595"
       }
     },
     "crossCodeUniquenessCheck": {
       "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
       "variables": {
-        "code": "HAR784CROSS1782095860112"
+        "code": "DRAFTCROSS1783077239595"
       }
     },
     "freshCodeUniquenessCheck": {
       "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
       "variables": {
-        "code": "HAR784FRESH1782095860112"
+        "code": "DRAFTFRESH1783077239595"
       }
     },
     "existingCodeConflicts": {
       "query": "#graphql\n  mutation DiscountRedeemCodeBulkValidationAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) {\n    discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {\n      bulkCreation {\n        id\n        done\n        codesCount\n        importedCount\n        failedCount\n        codes(first: 10) {\n          nodes {\n            code\n            errors {\n              field\n              message\n              code\n              extraInfo\n            }\n            discountRedeemCode {\n              id\n              code\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
-        "discountId": "gid://shopify/DiscountCodeNode/1655830872370",
+        "discountId": "gid://shopify/DiscountCodeNode/1657961480498",
         "codes": [
           {
-            "code": "HAR784BASE1782095860112"
+            "code": "DRAFTBASE1783077239595"
           },
           {
-            "code": "HAR784CROSS1782095860112"
+            "code": "DRAFTCROSS1783077239595"
           },
           {
-            "code": "HAR784FRESH1782095860112"
+            "code": "DRAFTFRESH1783077239595"
           }
         ]
       }
@@ -921,28 +921,28 @@
     "existingCodeConflictsFinalRead": {
       "query": "#graphql\n  query DiscountRedeemCodeBulkValidationCreationRead($id: ID!) {\n    discountRedeemCodeBulkCreation(id: $id) {\n      done\n      codesCount\n      importedCount\n      failedCount\n      codes(first: 10) {\n        nodes {\n          code\n          errors {\n            field\n            message\n            code\n            extraInfo\n          }\n          discountRedeemCode {\n            code\n          }\n        }\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountRedeemCodeBulkCreation/799635374386"
+        "id": "gid://shopify/DiscountRedeemCodeBulkCreation/801901642034"
       }
     },
     "existingCodeConflictsReadAfter": {
       "query": "#graphql\n  query DiscountRedeemCodeBulkValidationExistingRead(\n    $discountId: ID!\n    $sameDiscountCode: String!\n    $crossDiscountCode: String!\n    $freshCode: String!\n  ) {\n    codeDiscountNode(id: $discountId) {\n      codeDiscount {\n        ... on DiscountCodeBasic {\n          codes(first: 10) {\n            nodes {\n              code\n            }\n          }\n          codesCount {\n            count\n            precision\n          }\n        }\n      }\n    }\n    sameDiscount: codeDiscountNodeByCode(code: $sameDiscountCode) {\n      id\n    }\n    crossDiscount: codeDiscountNodeByCode(code: $crossDiscountCode) {\n      id\n    }\n    fresh: codeDiscountNodeByCode(code: $freshCode) {\n      id\n    }\n  }\n",
       "variables": {
-        "discountId": "gid://shopify/DiscountCodeNode/1655830872370",
-        "sameDiscountCode": "HAR784BASE1782095860112",
-        "crossDiscountCode": "HAR784CROSS1782095860112",
-        "freshCode": "HAR784FRESH1782095860112"
+        "discountId": "gid://shopify/DiscountCodeNode/1657961480498",
+        "sameDiscountCode": "DRAFTBASE1783077239595",
+        "crossDiscountCode": "DRAFTCROSS1783077239595",
+        "freshCode": "DRAFTFRESH1783077239595"
       }
     },
     "crossCleanup": {
       "query": "#graphql\n  mutation DiscountRedeemCodeBulkValidationDelete($id: ID!) {\n    discountCodeDelete(id: $id) {\n      deletedCodeDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1655830905138"
+        "id": "gid://shopify/DiscountCodeNode/1657961513266"
       }
     },
     "cleanup": {
       "query": "#graphql\n  mutation DiscountRedeemCodeBulkValidationDelete($id: ID!) {\n    discountCodeDelete(id: $id) {\n      deletedCodeDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1655830872370"
+        "id": "gid://shopify/DiscountCodeNode/1657961480498"
       }
     }
   },
@@ -1055,7 +1055,7 @@
       "data": {
         "discountCodeBasicCreate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1655830872370"
+            "id": "gid://shopify/DiscountCodeNode/1657961480498"
           },
           "userErrors": []
         }
@@ -1079,7 +1079,7 @@
       "data": {
         "discountCodeBasicCreate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1655830905138"
+            "id": "gid://shopify/DiscountCodeNode/1657961513266"
           },
           "userErrors": []
         }
@@ -1179,7 +1179,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1983,
+            "currentlyAvailable": 1974,
             "restoreRate": 100
           }
         }
@@ -1193,7 +1193,7 @@
         "data": {
           "discountRedeemCodeBulkAdd": {
             "bulkCreation": {
-              "id": "gid://shopify/DiscountRedeemCodeBulkCreation/799635341618",
+              "id": "gid://shopify/DiscountRedeemCodeBulkCreation/801901609266",
               "done": false,
               "codesCount": 7,
               "importedCount": 0,
@@ -1206,12 +1206,12 @@
                     "discountRedeemCode": null
                   },
                   {
-                    "code": "HAR784NL1782095860112\nBAD",
+                    "code": "DRAFTNL1783077239595\nBAD",
                     "errors": [],
                     "discountRedeemCode": null
                   },
                   {
-                    "code": "HAR784CR1782095860112\rBAD",
+                    "code": "DRAFTCR1783077239595\rBAD",
                     "errors": [],
                     "discountRedeemCode": null
                   },
@@ -1221,17 +1221,17 @@
                     "discountRedeemCode": null
                   },
                   {
-                    "code": "HAR784DUP1782095860112",
+                    "code": "DRAFTDUP1783077239595",
                     "errors": [],
                     "discountRedeemCode": null
                   },
                   {
-                    "code": "HAR784DUP1782095860112",
+                    "code": "DRAFTDUP1783077239595",
                     "errors": [],
                     "discountRedeemCode": null
                   },
                   {
-                    "code": "HAR784OK1782095860112",
+                    "code": "DRAFTOK1783077239595",
                     "errors": [],
                     "discountRedeemCode": null
                   }
@@ -1247,7 +1247,7 @@
             "actualQueryCost": 21,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1979,
+              "currentlyAvailable": 1965,
               "restoreRate": 100
             }
           }
@@ -1278,7 +1278,7 @@
                   "discountRedeemCode": null
                 },
                 {
-                  "code": "HAR784NL1782095860112\nBAD",
+                  "code": "DRAFTNL1783077239595\nBAD",
                   "errors": [
                     {
                       "field": ["code"],
@@ -1290,7 +1290,7 @@
                   "discountRedeemCode": null
                 },
                 {
-                  "code": "HAR784CR1782095860112\rBAD",
+                  "code": "DRAFTCR1783077239595\rBAD",
                   "errors": [
                     {
                       "field": ["code"],
@@ -1314,14 +1314,14 @@
                   "discountRedeemCode": null
                 },
                 {
-                  "code": "HAR784DUP1782095860112",
+                  "code": "DRAFTDUP1783077239595",
                   "errors": [],
                   "discountRedeemCode": {
-                    "code": "HAR784DUP1782095860112"
+                    "code": "DRAFTDUP1783077239595"
                   }
                 },
                 {
-                  "code": "HAR784DUP1782095860112",
+                  "code": "DRAFTDUP1783077239595",
                   "errors": [
                     {
                       "field": ["code"],
@@ -1333,10 +1333,10 @@
                   "discountRedeemCode": null
                 },
                 {
-                  "code": "HAR784OK1782095860112",
+                  "code": "DRAFTOK1783077239595",
                   "errors": [],
                   "discountRedeemCode": {
-                    "code": "HAR784OK1782095860112"
+                    "code": "DRAFTOK1783077239595"
                   }
                 }
               ]
@@ -1365,13 +1365,13 @@
               "codes": {
                 "nodes": [
                   {
-                    "code": "HAR784BASE1782095860112"
+                    "code": "DRAFTBASE1783077239595"
                   },
                   {
-                    "code": "HAR784DUP1782095860112"
+                    "code": "DRAFTDUP1783077239595"
                   },
                   {
-                    "code": "HAR784OK1782095860112"
+                    "code": "DRAFTOK1783077239595"
                   }
                 ]
               },
@@ -1382,10 +1382,10 @@
             }
           },
           "duplicate": {
-            "id": "gid://shopify/DiscountCodeNode/1655830872370"
+            "id": "gid://shopify/DiscountCodeNode/1657961480498"
           },
           "valid": {
-            "id": "gid://shopify/DiscountCodeNode/1655830872370"
+            "id": "gid://shopify/DiscountCodeNode/1657961480498"
           }
         },
         "extensions": {
@@ -1394,7 +1394,7 @@
             "actualQueryCost": 9,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1991,
+              "currentlyAvailable": 1988,
               "restoreRate": 100
             }
           }
@@ -1409,7 +1409,7 @@
         "data": {
           "discountRedeemCodeBulkAdd": {
             "bulkCreation": {
-              "id": "gid://shopify/DiscountRedeemCodeBulkCreation/799635374386",
+              "id": "gid://shopify/DiscountRedeemCodeBulkCreation/801901642034",
               "done": false,
               "codesCount": 3,
               "importedCount": 0,
@@ -1417,17 +1417,17 @@
               "codes": {
                 "nodes": [
                   {
-                    "code": "HAR784BASE1782095860112",
+                    "code": "DRAFTBASE1783077239595",
                     "errors": [],
                     "discountRedeemCode": null
                   },
                   {
-                    "code": "HAR784CROSS1782095860112",
+                    "code": "DRAFTCROSS1783077239595",
                     "errors": [],
                     "discountRedeemCode": null
                   },
                   {
-                    "code": "HAR784FRESH1782095860112",
+                    "code": "DRAFTFRESH1783077239595",
                     "errors": [],
                     "discountRedeemCode": null
                   }
@@ -1462,7 +1462,7 @@
             "codes": {
               "nodes": [
                 {
-                  "code": "HAR784BASE1782095860112",
+                  "code": "DRAFTBASE1783077239595",
                   "errors": [
                     {
                       "field": ["code"],
@@ -1474,7 +1474,7 @@
                   "discountRedeemCode": null
                 },
                 {
-                  "code": "HAR784CROSS1782095860112",
+                  "code": "DRAFTCROSS1783077239595",
                   "errors": [
                     {
                       "field": ["code"],
@@ -1486,10 +1486,10 @@
                   "discountRedeemCode": null
                 },
                 {
-                  "code": "HAR784FRESH1782095860112",
+                  "code": "DRAFTFRESH1783077239595",
                   "errors": [],
                   "discountRedeemCode": {
-                    "code": "HAR784FRESH1782095860112"
+                    "code": "DRAFTFRESH1783077239595"
                   }
                 }
               ]
@@ -1518,16 +1518,16 @@
               "codes": {
                 "nodes": [
                   {
-                    "code": "HAR784BASE1782095860112"
+                    "code": "DRAFTBASE1783077239595"
                   },
                   {
-                    "code": "HAR784DUP1782095860112"
+                    "code": "DRAFTDUP1783077239595"
                   },
                   {
-                    "code": "HAR784OK1782095860112"
+                    "code": "DRAFTOK1783077239595"
                   },
                   {
-                    "code": "HAR784FRESH1782095860112"
+                    "code": "DRAFTFRESH1783077239595"
                   }
                 ]
               },
@@ -1538,13 +1538,13 @@
             }
           },
           "sameDiscount": {
-            "id": "gid://shopify/DiscountCodeNode/1655830872370"
+            "id": "gid://shopify/DiscountCodeNode/1657961480498"
           },
           "crossDiscount": {
-            "id": "gid://shopify/DiscountCodeNode/1655830905138"
+            "id": "gid://shopify/DiscountCodeNode/1657961513266"
           },
           "fresh": {
-            "id": "gid://shopify/DiscountCodeNode/1655830872370"
+            "id": "gid://shopify/DiscountCodeNode/1657961480498"
           }
         },
         "extensions": {
@@ -1566,7 +1566,7 @@
     "payload": {
       "data": {
         "discountCodeDelete": {
-          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1655830905138",
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657961513266",
           "userErrors": []
         }
       },
@@ -1588,7 +1588,7 @@
     "payload": {
       "data": {
         "discountCodeDelete": {
-          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1655830872370",
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657961480498",
           "userErrors": []
         }
       },
@@ -1609,7 +1609,7 @@
     {
       "operationName": "DiscountUniquenessCheck",
       "variables": {
-        "code": "HAR784CROSS1782095860112"
+        "code": "DRAFTCROSS1783077239595"
       },
       "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
       "response": {
@@ -1617,7 +1617,7 @@
         "body": {
           "data": {
             "codeDiscountNodeByCode": {
-              "id": "gid://shopify/DiscountCodeNode/1655830905138"
+              "id": "gid://shopify/DiscountCodeNode/1657961513266"
             }
           },
           "extensions": {
@@ -1637,7 +1637,7 @@
     {
       "operationName": "DiscountUniquenessCheck",
       "variables": {
-        "code": "HAR784FRESH1782095860112"
+        "code": "DRAFTFRESH1783077239595"
       },
       "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
       "response": {

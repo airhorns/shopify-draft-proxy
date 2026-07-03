@@ -1,19 +1,19 @@
 {
   "variables": {
-    "scheduledCode": "HAR593S1777950794226",
-    "expiredCode": "HAR593E1777950794226",
-    "activeCode": "HAR593A1777950794226",
-    "scheduled": "gid://shopify/DiscountCodeNode/1640295530802",
-    "expired": "gid://shopify/DiscountCodeNode/1640295563570",
-    "active": "gid://shopify/DiscountCodeNode/1640295596338"
+    "scheduledCode": "DRAFTS1783077244719",
+    "expiredCode": "DRAFTE1783077244719",
+    "activeCode": "DRAFTA1783077244719",
+    "scheduled": "gid://shopify/DiscountCodeNode/1657961546034",
+    "expired": "gid://shopify/DiscountCodeNode/1657961578802",
+    "active": "gid://shopify/DiscountCodeNode/1657961611570"
   },
   "requests": {
     "create": {
       "query": "#graphql\n  mutation DiscountStatusTimeWindowDerivationCreate(\n    $scheduled: DiscountCodeBasicInput!\n    $expired: DiscountCodeBasicInput!\n    $active: DiscountCodeBasicInput!\n  ) {\n    scheduled: discountCodeBasicCreate(basicCodeDiscount: $scheduled) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        startsAt\n        endsAt\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n    expired: discountCodeBasicCreate(basicCodeDiscount: $expired) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        startsAt\n        endsAt\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n    active: discountCodeBasicCreate(basicCodeDiscount: $active) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        startsAt\n        endsAt\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
         "scheduled": {
-          "title": "HAR-593 scheduled 1777950794226",
-          "code": "HAR593S1777950794226",
+          "title": "Conformance scheduled 1783077244719",
+          "code": "DRAFTS1783077244719",
           "startsAt": "2099-01-01T00:00:00Z",
           "context": {
             "all": "ALL"
@@ -28,8 +28,8 @@
           }
         },
         "expired": {
-          "title": "HAR-593 expired 1777950794226",
-          "code": "HAR593E1777950794226",
+          "title": "Conformance expired 1783077244719",
+          "code": "DRAFTE1783077244719",
           "startsAt": "2019-01-01T00:00:00Z",
           "endsAt": "2020-01-01T00:00:00Z",
           "context": {
@@ -45,8 +45,8 @@
           }
         },
         "active": {
-          "title": "HAR-593 active 1777950794226",
-          "code": "HAR593A1777950794226",
+          "title": "Conformance active 1783077244719",
+          "code": "DRAFTA1783077244719",
           "startsAt": "2020-01-01T00:00:00Z",
           "endsAt": "2099-01-01T00:00:00Z",
           "context": {
@@ -66,11 +66,11 @@
     "read": {
       "query": "#graphql\n  query DiscountStatusTimeWindowDerivationRead(\n    $scheduledId: ID!\n    $expiredId: ID!\n    $activeId: ID!\n    $scheduledQuery: String!\n    $expiredQuery: String!\n  ) {\n    scheduledNode: codeDiscountNode(id: $scheduledId) {\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n        }\n      }\n    }\n    expiredNode: codeDiscountNode(id: $expiredId) {\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n        }\n      }\n    }\n    activeNode: discountNode(id: $activeId) {\n      discount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n        }\n      }\n    }\n    scheduledDiscountNodes: discountNodes(first: 5, query: $scheduledQuery) {\n      nodes {\n        discount {\n          __typename\n          ... on DiscountCodeBasic {\n            title\n            status\n          }\n        }\n      }\n    }\n    expiredDiscountNodesCount: discountNodesCount(query: $expiredQuery) {\n      count\n      precision\n    }\n  }\n",
       "variables": {
-        "scheduledId": "gid://shopify/DiscountCodeNode/1640295530802",
-        "expiredId": "gid://shopify/DiscountCodeNode/1640295563570",
-        "activeId": "gid://shopify/DiscountCodeNode/1640295596338",
-        "scheduledQuery": "status:scheduled title:'HAR-593 scheduled 1777950794226'",
-        "expiredQuery": "status:expired title:'HAR-593 expired 1777950794226'"
+        "scheduledId": "gid://shopify/DiscountCodeNode/1657961546034",
+        "expiredId": "gid://shopify/DiscountCodeNode/1657961578802",
+        "activeId": "gid://shopify/DiscountCodeNode/1657961611570",
+        "scheduledQuery": "status:scheduled title:'Conformance scheduled 1783077244719'",
+        "expiredQuery": "status:expired title:'Conformance expired 1783077244719'"
       }
     },
     "delete": {
@@ -180,17 +180,62 @@
     "missingScopes": [],
     "hasRequiredScopes": true
   },
-  "preCleanup": [],
+  "preCleanup": [
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657960595762",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657960628530",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
   "create": {
     "status": 200,
     "payload": {
       "data": {
         "scheduled": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640295530802",
+            "id": "gid://shopify/DiscountCodeNode/1657961546034",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "HAR-593 scheduled 1777950794226",
+              "title": "Conformance scheduled 1783077244719",
               "status": "SCHEDULED",
               "startsAt": "2099-01-01T00:00:00Z",
               "endsAt": null
@@ -200,10 +245,10 @@
         },
         "expired": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640295563570",
+            "id": "gid://shopify/DiscountCodeNode/1657961578802",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "HAR-593 expired 1777950794226",
+              "title": "Conformance expired 1783077244719",
               "status": "EXPIRED",
               "startsAt": "2019-01-01T00:00:00Z",
               "endsAt": "2020-01-01T00:00:00Z"
@@ -213,10 +258,10 @@
         },
         "active": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640295596338",
+            "id": "gid://shopify/DiscountCodeNode/1657961611570",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "HAR-593 active 1777950794226",
+              "title": "Conformance active 1783077244719",
               "status": "ACTIVE",
               "startsAt": "2020-01-01T00:00:00Z",
               "endsAt": "2099-01-01T00:00:00Z"
@@ -245,7 +290,7 @@
         "scheduledNode": {
           "codeDiscount": {
             "__typename": "DiscountCodeBasic",
-            "title": "HAR-593 scheduled 1777950794226",
+            "title": "Conformance scheduled 1783077244719",
             "status": "SCHEDULED",
             "startsAt": "2099-01-01T00:00:00Z",
             "endsAt": null
@@ -254,7 +299,7 @@
         "expiredNode": {
           "codeDiscount": {
             "__typename": "DiscountCodeBasic",
-            "title": "HAR-593 expired 1777950794226",
+            "title": "Conformance expired 1783077244719",
             "status": "EXPIRED",
             "startsAt": "2019-01-01T00:00:00Z",
             "endsAt": "2020-01-01T00:00:00Z"
@@ -263,7 +308,7 @@
         "activeNode": {
           "discount": {
             "__typename": "DiscountCodeBasic",
-            "title": "HAR-593 active 1777950794226",
+            "title": "Conformance active 1783077244719",
             "status": "ACTIVE",
             "startsAt": "2020-01-01T00:00:00Z",
             "endsAt": "2099-01-01T00:00:00Z"
@@ -274,7 +319,7 @@
             {
               "discount": {
                 "__typename": "DiscountCodeBasic",
-                "title": "HAR-593 scheduled 1777950794226",
+                "title": "Conformance scheduled 1783077244719",
                 "status": "SCHEDULED"
               }
             }
@@ -304,7 +349,7 @@
       "payload": {
         "data": {
           "discountCodeDelete": {
-            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640295530802",
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657961546034",
             "userErrors": []
           }
         },
@@ -314,7 +359,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1982,
+              "currentlyAvailable": 1979,
               "restoreRate": 100
             }
           }
@@ -326,7 +371,7 @@
       "payload": {
         "data": {
           "discountCodeDelete": {
-            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640295563570",
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657961578802",
             "userErrors": []
           }
         },
@@ -336,7 +381,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1985,
               "restoreRate": 100
             }
           }
@@ -348,7 +393,7 @@
       "payload": {
         "data": {
           "discountCodeDelete": {
-            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640295596338",
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657961611570",
             "userErrors": []
           }
         },
@@ -366,113 +411,5 @@
       }
     }
   },
-  "upstreamCalls": [
-    {
-      "operationName": "DiscountStatusTimeWindowDerivationRead",
-      "variables": {},
-      "query": "query DiscountStatusTimeWindowDerivationRead(\n  $scheduledId: ID!\n  $expiredId: ID!\n  $activeId: ID!\n  $scheduledQuery: String!\n  $expiredQuery: String!\n) {\n  scheduledNode: codeDiscountNode(id: $scheduledId) {\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        startsAt\n        endsAt\n      }\n    }\n  }\n  expiredNode: codeDiscountNode(id: $expiredId) {\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        startsAt\n        endsAt\n      }\n    }\n  }\n  activeNode: discountNode(id: $activeId) {\n    discount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        startsAt\n        endsAt\n      }\n    }\n  }\n  scheduledDiscountNodes: discountNodes(first: 5, query: $scheduledQuery) {\n    nodes {\n      discount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n        }\n      }\n    }\n  }\n  expiredDiscountNodesCount: discountNodesCount(query: $expiredQuery) {\n    count\n    precision\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "errors": [
-            {
-              "message": "Variable $scheduledId of type ID! was provided invalid value",
-              "locations": [
-                {
-                  "line": 2,
-                  "column": 3
-                }
-              ],
-              "extensions": {
-                "code": "INVALID_VARIABLE",
-                "value": null,
-                "problems": [
-                  {
-                    "path": [],
-                    "explanation": "Expected value to not be null"
-                  }
-                ]
-              }
-            },
-            {
-              "message": "Variable $expiredId of type ID! was provided invalid value",
-              "locations": [
-                {
-                  "line": 3,
-                  "column": 3
-                }
-              ],
-              "extensions": {
-                "code": "INVALID_VARIABLE",
-                "value": null,
-                "problems": [
-                  {
-                    "path": [],
-                    "explanation": "Expected value to not be null"
-                  }
-                ]
-              }
-            },
-            {
-              "message": "Variable $activeId of type ID! was provided invalid value",
-              "locations": [
-                {
-                  "line": 4,
-                  "column": 3
-                }
-              ],
-              "extensions": {
-                "code": "INVALID_VARIABLE",
-                "value": null,
-                "problems": [
-                  {
-                    "path": [],
-                    "explanation": "Expected value to not be null"
-                  }
-                ]
-              }
-            },
-            {
-              "message": "Variable $scheduledQuery of type String! was provided invalid value",
-              "locations": [
-                {
-                  "line": 5,
-                  "column": 3
-                }
-              ],
-              "extensions": {
-                "code": "INVALID_VARIABLE",
-                "value": null,
-                "problems": [
-                  {
-                    "path": [],
-                    "explanation": "Expected value to not be null"
-                  }
-                ]
-              }
-            },
-            {
-              "message": "Variable $expiredQuery of type String! was provided invalid value",
-              "locations": [
-                {
-                  "line": 6,
-                  "column": 3
-                }
-              ],
-              "extensions": {
-                "code": "INVALID_VARIABLE",
-                "value": null,
-                "problems": [
-                  {
-                    "path": [],
-                    "explanation": "Expected value to not be null"
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      }
-    }
-  ]
+  "upstreamCalls": []
 }

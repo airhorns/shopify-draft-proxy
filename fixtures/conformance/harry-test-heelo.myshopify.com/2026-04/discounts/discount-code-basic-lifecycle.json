@@ -1,17 +1,17 @@
 {
   "variables": {
-    "id": "gid://shopify/DiscountCodeNode/1638844039474",
-    "initialCode": "HAR193LIFE1777318334676",
-    "updatedCode": "HAR193LIVE1777318334676"
+    "id": "gid://shopify/DiscountCodeNode/1657961054514",
+    "initialCode": "DRAFTLIFE1783077206320",
+    "updatedCode": "DRAFTLIVE1783077206320"
   },
   "requests": {
     "create": {
       "query": "#graphql\n  mutation DiscountCodeBasicLifecycleCreate($input: DiscountCodeBasicInput!) {\n    discountCodeBasicCreate(basicCodeDiscount: $input) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        codes(first: 2) {\n          nodes {\n            id\n            code\n            asyncUsageCount\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        customerGets {\n          value {\n            __typename\n            ... on DiscountPercentage {\n              percentage\n            }\n            ... on DiscountAmount {\n              amount {\n                amount\n                currencyCode\n              }\n              appliesOnEachItem\n            }\n          }\n          items {\n            __typename\n            ... on AllDiscountItems {\n              allItems\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
         "input": {
-          "title": "HAR-193 lifecycle 1777318334676",
-          "code": "HAR193LIFE1777318334676",
-          "startsAt": "2026-04-27T19:31:14.676Z",
+          "title": "Conformance lifecycle 1783077206320",
+          "code": "DRAFTLIFE1783077206320",
+          "startsAt": "2026-07-03T11:12:26.320Z",
           "combinesWith": {
             "productDiscounts": false,
             "orderDiscounts": true,
@@ -39,11 +39,11 @@
     "update": {
       "query": "#graphql\n  mutation DiscountCodeBasicLifecycleUpdate($id: ID!, $input: DiscountCodeBasicInput!) {\n    discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        codes(first: 2) {\n          nodes {\n            id\n            code\n            asyncUsageCount\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        customerGets {\n          value {\n            __typename\n            ... on DiscountPercentage {\n              percentage\n            }\n            ... on DiscountAmount {\n              amount {\n                amount\n                currencyCode\n              }\n              appliesOnEachItem\n            }\n          }\n          items {\n            __typename\n            ... on AllDiscountItems {\n              allItems\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1638844039474",
+        "id": "gid://shopify/DiscountCodeNode/1657961054514",
         "input": {
-          "title": "HAR-193 lifecycle updated 1777318334676",
-          "code": "HAR193LIVE1777318334676",
-          "startsAt": "2026-04-27T19:31:14.676Z",
+          "title": "Conformance lifecycle updated 1783077206320",
+          "code": "DRAFTLIVE1783077206320",
+          "startsAt": "2026-07-03T11:12:26.320Z",
           "combinesWith": {
             "productDiscounts": false,
             "orderDiscounts": true,
@@ -74,19 +74,19 @@
     "deactivate": {
       "query": "#graphql\n  mutation DiscountCodeBasicLifecycleDeactivate($id: ID!) {\n    discountCodeDeactivate(id: $id) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        codes(first: 2) {\n          nodes {\n            id\n            code\n            asyncUsageCount\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        customerGets {\n          value {\n            __typename\n            ... on DiscountPercentage {\n              percentage\n            }\n            ... on DiscountAmount {\n              amount {\n                amount\n                currencyCode\n              }\n              appliesOnEachItem\n            }\n          }\n          items {\n            __typename\n            ... on AllDiscountItems {\n              allItems\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1638844039474"
+        "id": "gid://shopify/DiscountCodeNode/1657961054514"
       }
     },
     "activate": {
       "query": "#graphql\n  mutation DiscountCodeBasicLifecycleActivate($id: ID!) {\n    discountCodeActivate(id: $id) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        codes(first: 2) {\n          nodes {\n            id\n            code\n            asyncUsageCount\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        customerGets {\n          value {\n            __typename\n            ... on DiscountPercentage {\n              percentage\n            }\n            ... on DiscountAmount {\n              amount {\n                amount\n                currencyCode\n              }\n              appliesOnEachItem\n            }\n          }\n          items {\n            __typename\n            ... on AllDiscountItems {\n              allItems\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1638844039474"
+        "id": "gid://shopify/DiscountCodeNode/1657961054514"
       }
     },
     "delete": {
       "query": "#graphql\n  mutation DiscountCodeBasicLifecycleDelete($id: ID!) {\n    discountCodeDelete(id: $id) {\n      deletedCodeDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1638844039474"
+        "id": "gid://shopify/DiscountCodeNode/1657961054514"
       }
     },
     "read": {
@@ -96,6 +96,7 @@
   "scopeProbe": {
     "availableScopes": [
       "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
       "read_cash_tracking",
       "read_content",
       "read_customer_data_erasure",
@@ -120,10 +121,12 @@
       "read_merchant_managed_fulfillment_orders",
       "read_metaobject_definitions",
       "read_metaobjects",
+      "read_online_store_navigation",
       "read_order_edits",
       "read_orders",
       "read_payment_customizations",
       "read_payment_terms",
+      "read_privacy_settings",
       "read_product_listings",
       "read_products",
       "read_publications",
@@ -137,7 +140,9 @@
       "read_themes",
       "read_third_party_fulfillment_orders",
       "read_translations",
+      "read_validations",
       "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
       "write_cash_tracking",
       "write_content",
       "write_customer_data_erasure",
@@ -162,10 +167,12 @@
       "write_merchant_managed_fulfillment_orders",
       "write_metaobject_definitions",
       "write_metaobjects",
+      "write_online_store_navigation",
       "write_order_edits",
       "write_orders",
       "write_payment_customizations",
       "write_payment_terms",
+      "write_privacy_settings",
       "write_products",
       "write_publications",
       "write_purchase_options",
@@ -173,7 +180,8 @@
       "write_shipping",
       "write_store_credit_account_transactions",
       "write_third_party_fulfillment_orders",
-      "write_translations"
+      "write_translations",
+      "write_validations"
     ],
     "requiredScopes": [
       {
@@ -194,16 +202,16 @@
       "data": {
         "discountCodeBasicCreate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1638844039474",
+            "id": "gid://shopify/DiscountCodeNode/1657961054514",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "HAR-193 lifecycle 1777318334676",
+              "title": "Conformance lifecycle 1783077206320",
               "status": "ACTIVE",
               "summary": "10% off one-time purchase products • Minimum purchase of $1.00",
-              "startsAt": "2026-04-27T19:31:14Z",
+              "startsAt": "2026-07-03T11:12:26Z",
               "endsAt": null,
-              "createdAt": "2026-04-27T19:32:14Z",
-              "updatedAt": "2026-04-27T19:32:14Z",
+              "createdAt": "2026-07-03T11:13:26Z",
+              "updatedAt": "2026-07-03T11:13:26Z",
               "asyncUsageCount": 0,
               "discountClasses": ["ORDER"],
               "combinesWith": {
@@ -214,16 +222,16 @@
               "codes": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/DiscountRedeemCode/21545225453874",
-                    "code": "HAR193LIFE1777318334676",
+                    "id": "gid://shopify/DiscountRedeemCode/22242797748530",
+                    "code": "DRAFTLIFE1783077206320",
                     "asyncUsageCount": 0
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoyMTU0NTIyNTQ1Mzg3NCwibGFzdF92YWx1ZSI6IjIxNTQ1MjI1NDUzODc0In0=",
-                  "endCursor": "eyJsYXN0X2lkIjoyMTU0NTIyNTQ1Mzg3NCwibGFzdF92YWx1ZSI6IjIxNTQ1MjI1NDUzODc0In0="
+                  "startCursor": "eyJsYXN0X2lkIjoyMjI0Mjc5Nzc0ODUzMCwibGFzdF92YWx1ZSI6IjIyMjQyNzk3NzQ4NTMwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMjI0Mjc5Nzc0ODUzMCwibGFzdF92YWx1ZSI6IjIyMjQyNzk3NzQ4NTMwIn0="
                 }
               },
               "context": {
@@ -273,16 +281,16 @@
       "data": {
         "discountCodeBasicUpdate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1638844039474",
+            "id": "gid://shopify/DiscountCodeNode/1657961054514",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "HAR-193 lifecycle updated 1777318334676",
+              "title": "Conformance lifecycle updated 1783077206320",
               "status": "ACTIVE",
               "summary": "$5.00 off one-time purchase products • Minimum purchase of $2.00",
-              "startsAt": "2026-04-27T19:31:14Z",
+              "startsAt": "2026-07-03T11:12:26Z",
               "endsAt": null,
-              "createdAt": "2026-04-27T19:32:14Z",
-              "updatedAt": "2026-04-27T19:32:15Z",
+              "createdAt": "2026-07-03T11:13:26Z",
+              "updatedAt": "2026-07-03T11:13:26Z",
               "asyncUsageCount": 0,
               "discountClasses": ["ORDER"],
               "combinesWith": {
@@ -293,16 +301,16 @@
               "codes": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/DiscountRedeemCode/21545225453874",
-                    "code": "HAR193LIVE1777318334676",
+                    "id": "gid://shopify/DiscountRedeemCode/22242797748530",
+                    "code": "DRAFTLIVE1783077206320",
                     "asyncUsageCount": 0
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoyMTU0NTIyNTQ1Mzg3NCwibGFzdF92YWx1ZSI6IjIxNTQ1MjI1NDUzODc0In0=",
-                  "endCursor": "eyJsYXN0X2lkIjoyMTU0NTIyNTQ1Mzg3NCwibGFzdF92YWx1ZSI6IjIxNTQ1MjI1NDUzODc0In0="
+                  "startCursor": "eyJsYXN0X2lkIjoyMjI0Mjc5Nzc0ODUzMCwibGFzdF92YWx1ZSI6IjIyMjQyNzk3NzQ4NTMwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMjI0Mjc5Nzc0ODUzMCwibGFzdF92YWx1ZSI6IjIyMjQyNzk3NzQ4NTMwIn0="
                 }
               },
               "context": {
@@ -355,35 +363,38 @@
     "payload": {
       "data": {
         "discountNode": {
-          "id": "gid://shopify/DiscountCodeNode/1638844039474",
+          "id": "gid://shopify/DiscountCodeNode/1657961054514",
           "discount": {
             "__typename": "DiscountCodeBasic",
-            "title": "HAR-193 lifecycle updated 1777318334676",
+            "title": "Conformance lifecycle updated 1783077206320",
             "status": "ACTIVE"
           }
         },
         "codeDiscountNodeByCode": {
-          "id": "gid://shopify/DiscountCodeNode/1638844039474"
+          "id": "gid://shopify/DiscountCodeNode/1657961054514"
         },
         "discountNodes": {
           "nodes": [
             {
-              "id": "gid://shopify/DiscountCodeNode/1638844039474"
+              "id": "gid://shopify/DiscountCodeNode/1657960595762"
+            },
+            {
+              "id": "gid://shopify/DiscountCodeNode/1657960628530"
             }
           ]
         },
         "discountNodesCount": {
-          "count": 1,
+          "count": 3,
           "precision": "EXACT"
         }
       },
       "extensions": {
         "cost": {
           "requestedQueryCost": 18,
-          "actualQueryCost": 17,
+          "actualQueryCost": 18,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1980,
+            "currentlyAvailable": 1981,
             "restoreRate": 100
           }
         }
@@ -396,16 +407,16 @@
       "data": {
         "discountCodeDeactivate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1638844039474",
+            "id": "gid://shopify/DiscountCodeNode/1657961054514",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "HAR-193 lifecycle updated 1777318334676",
+              "title": "Conformance lifecycle updated 1783077206320",
               "status": "EXPIRED",
               "summary": "$5.00 off one-time purchase products • Minimum purchase of $2.00",
-              "startsAt": "2026-04-27T19:31:14Z",
-              "endsAt": "2026-04-27T19:32:15Z",
-              "createdAt": "2026-04-27T19:32:14Z",
-              "updatedAt": "2026-04-27T19:32:15Z",
+              "startsAt": "2026-07-03T11:12:26Z",
+              "endsAt": "2026-07-03T11:13:26Z",
+              "createdAt": "2026-07-03T11:13:26Z",
+              "updatedAt": "2026-07-03T11:13:26Z",
               "asyncUsageCount": 0,
               "discountClasses": ["ORDER"],
               "combinesWith": {
@@ -416,16 +427,16 @@
               "codes": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/DiscountRedeemCode/21545225453874",
-                    "code": "HAR193LIVE1777318334676",
+                    "id": "gid://shopify/DiscountRedeemCode/22242797748530",
+                    "code": "DRAFTLIVE1783077206320",
                     "asyncUsageCount": 0
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoyMTU0NTIyNTQ1Mzg3NCwibGFzdF92YWx1ZSI6IjIxNTQ1MjI1NDUzODc0In0=",
-                  "endCursor": "eyJsYXN0X2lkIjoyMTU0NTIyNTQ1Mzg3NCwibGFzdF92YWx1ZSI6IjIxNTQ1MjI1NDUzODc0In0="
+                  "startCursor": "eyJsYXN0X2lkIjoyMjI0Mjc5Nzc0ODUzMCwibGFzdF92YWx1ZSI6IjIyMjQyNzk3NzQ4NTMwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMjI0Mjc5Nzc0ODUzMCwibGFzdF92YWx1ZSI6IjIyMjQyNzk3NzQ4NTMwIn0="
                 }
               },
               "context": {
@@ -466,7 +477,7 @@
           "actualQueryCost": 20,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1973,
+            "currentlyAvailable": 1977,
             "restoreRate": 100
           }
         }
@@ -478,21 +489,28 @@
     "payload": {
       "data": {
         "discountNode": {
-          "id": "gid://shopify/DiscountCodeNode/1638844039474",
+          "id": "gid://shopify/DiscountCodeNode/1657961054514",
           "discount": {
             "__typename": "DiscountCodeBasic",
-            "title": "HAR-193 lifecycle updated 1777318334676",
+            "title": "Conformance lifecycle updated 1783077206320",
             "status": "EXPIRED"
           }
         },
         "codeDiscountNodeByCode": {
-          "id": "gid://shopify/DiscountCodeNode/1638844039474"
+          "id": "gid://shopify/DiscountCodeNode/1657961054514"
         },
         "discountNodes": {
-          "nodes": []
+          "nodes": [
+            {
+              "id": "gid://shopify/DiscountCodeNode/1657960595762"
+            },
+            {
+              "id": "gid://shopify/DiscountCodeNode/1657960628530"
+            }
+          ]
         },
         "discountNodesCount": {
-          "count": 0,
+          "count": 2,
           "precision": "EXACT"
         }
       },
@@ -502,7 +520,7 @@
           "actualQueryCost": 18,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1970,
+            "currentlyAvailable": 1976,
             "restoreRate": 100
           }
         }
@@ -515,16 +533,16 @@
       "data": {
         "discountCodeActivate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1638844039474",
+            "id": "gid://shopify/DiscountCodeNode/1657961054514",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "HAR-193 lifecycle updated 1777318334676",
+              "title": "Conformance lifecycle updated 1783077206320",
               "status": "ACTIVE",
               "summary": "$5.00 off one-time purchase products • Minimum purchase of $2.00",
-              "startsAt": "2026-04-27T19:31:14Z",
+              "startsAt": "2026-07-03T11:12:26Z",
               "endsAt": null,
-              "createdAt": "2026-04-27T19:32:14Z",
-              "updatedAt": "2026-04-27T19:32:15Z",
+              "createdAt": "2026-07-03T11:13:26Z",
+              "updatedAt": "2026-07-03T11:13:27Z",
               "asyncUsageCount": 0,
               "discountClasses": ["ORDER"],
               "combinesWith": {
@@ -535,16 +553,16 @@
               "codes": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/DiscountRedeemCode/21545225453874",
-                    "code": "HAR193LIVE1777318334676",
+                    "id": "gid://shopify/DiscountRedeemCode/22242797748530",
+                    "code": "DRAFTLIVE1783077206320",
                     "asyncUsageCount": 0
                   }
                 ],
                 "pageInfo": {
                   "hasNextPage": false,
                   "hasPreviousPage": false,
-                  "startCursor": "eyJsYXN0X2lkIjoyMTU0NTIyNTQ1Mzg3NCwibGFzdF92YWx1ZSI6IjIxNTQ1MjI1NDUzODc0In0=",
-                  "endCursor": "eyJsYXN0X2lkIjoyMTU0NTIyNTQ1Mzg3NCwibGFzdF92YWx1ZSI6IjIxNTQ1MjI1NDUzODc0In0="
+                  "startCursor": "eyJsYXN0X2lkIjoyMjI0Mjc5Nzc0ODUzMCwibGFzdF92YWx1ZSI6IjIyMjQyNzk3NzQ4NTMwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMjI0Mjc5Nzc0ODUzMCwibGFzdF92YWx1ZSI6IjIyMjQyNzk3NzQ4NTMwIn0="
                 }
               },
               "context": {
@@ -585,7 +603,7 @@
           "actualQueryCost": 20,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1963,
+            "currentlyAvailable": 1970,
             "restoreRate": 100
           }
         }
@@ -597,35 +615,38 @@
     "payload": {
       "data": {
         "discountNode": {
-          "id": "gid://shopify/DiscountCodeNode/1638844039474",
+          "id": "gid://shopify/DiscountCodeNode/1657961054514",
           "discount": {
             "__typename": "DiscountCodeBasic",
-            "title": "HAR-193 lifecycle updated 1777318334676",
+            "title": "Conformance lifecycle updated 1783077206320",
             "status": "ACTIVE"
           }
         },
         "codeDiscountNodeByCode": {
-          "id": "gid://shopify/DiscountCodeNode/1638844039474"
+          "id": "gid://shopify/DiscountCodeNode/1657961054514"
         },
         "discountNodes": {
           "nodes": [
             {
-              "id": "gid://shopify/DiscountCodeNode/1638844039474"
+              "id": "gid://shopify/DiscountCodeNode/1657960595762"
+            },
+            {
+              "id": "gid://shopify/DiscountCodeNode/1657960628530"
             }
           ]
         },
         "discountNodesCount": {
-          "count": 1,
+          "count": 3,
           "precision": "EXACT"
         }
       },
       "extensions": {
         "cost": {
           "requestedQueryCost": 18,
-          "actualQueryCost": 17,
+          "actualQueryCost": 18,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1966,
+            "currentlyAvailable": 1967,
             "restoreRate": 100
           }
         }
@@ -637,7 +658,7 @@
     "payload": {
       "data": {
         "discountCodeDelete": {
-          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1638844039474",
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657961054514",
           "userErrors": []
         }
       },
@@ -661,25 +682,31 @@
         "discountNode": null,
         "codeDiscountNodeByCode": null,
         "discountNodes": {
-          "nodes": []
+          "nodes": [
+            {
+              "id": "gid://shopify/DiscountCodeNode/1657960595762"
+            },
+            {
+              "id": "gid://shopify/DiscountCodeNode/1657960628530"
+            }
+          ]
         },
         "discountNodesCount": {
-          "count": 0,
+          "count": 2,
           "precision": "EXACT"
         }
       },
       "extensions": {
         "cost": {
           "requestedQueryCost": 18,
-          "actualQueryCost": 17,
+          "actualQueryCost": 16,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1983,
+            "currentlyAvailable": 1971,
             "restoreRate": 100
           }
         }
       }
     }
-  },
-  "upstreamCalls": []
+  }
 }
