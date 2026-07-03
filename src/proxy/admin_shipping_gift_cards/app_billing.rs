@@ -7,23 +7,84 @@ const APP_UNINSTALL_APP_NOT_FOUND_MESSAGE: &str = "App not found";
 const APP_UNINSTALL_APP_NOT_INSTALLED_MESSAGE: &str = "App is not installed on shop";
 
 impl DraftProxy {
+    pub(in crate::proxy) fn observe_current_app_installation_response(
+        &mut self,
+        request: &Request,
+        response: &Response,
+    ) {
+        let Some(observed) = response.body.pointer("/data/currentAppInstallation") else {
+            return;
+        };
+        if !observed.is_object() {
+            return;
+        }
+        let request_record = current_app_installation_from_request(request);
+        let request_app_id =
+            app_id_from_installation(&request_record).unwrap_or_else(|| request_app_gid(request));
+        let observed_app_id =
+            app_id_from_installation(observed).unwrap_or_else(|| request_app_id.clone());
+        let base = self
+            .store
+            .staged
+            .installed_apps
+            .get(&observed_app_id)
+            .cloned()
+            .unwrap_or(request_record);
+        let merged = merge_app_installation_json(&base, observed);
+        let app_id = app_id_from_installation(&merged).unwrap_or(observed_app_id);
+        self.store.staged.installed_apps.insert(app_id, merged);
+    }
+
+    fn ensure_current_app_installation(&mut self, request: &Request) -> String {
+        let app_id = request_app_gid(request);
+        self.store
+            .staged
+            .installed_apps
+            .entry(app_id.clone())
+            .or_insert_with(|| current_app_installation_from_request(request));
+        app_id
+    }
+
+    fn app_installation_for_app(&self, app_id: &str) -> Option<&Value> {
+        self.store.staged.installed_apps.get(app_id)
+    }
+
+    fn revoked_access_scopes_for_app(&self, app_id: &str) -> BTreeSet<String> {
+        self.store
+            .staged
+            .revoked_app_access_scopes
+            .get(app_id)
+            .cloned()
+            .unwrap_or_default()
+    }
+
     pub(in crate::proxy) fn current_app_installation_read_data(
-        &self,
+        &mut self,
+        request: &Request,
         fields: &[RootFieldSelection],
     ) -> Value {
+        let app_id = self.ensure_current_app_installation(request);
+        let installation = self.app_installation_for_app(&app_id).cloned();
+        let revoked_access_scopes = self.revoked_access_scopes_for_app(&app_id);
         root_payload_json(fields, |field| {
             if field.name != "currentAppInstallation" {
                 return None;
             }
-            let value = if self.store.staged.app_uninstalled {
+            let value = if self.store.staged.uninstalled_app_ids.contains(&app_id) {
                 Value::Null
             } else {
-                current_app_installation_json(
-                    &self.store.staged.app_subscriptions,
-                    &self.store.staged.app_one_time_purchases,
-                    &self.store.staged.revoked_app_access_scopes,
-                    &field.selection,
-                )
+                installation
+                    .as_ref()
+                    .map(|installation| {
+                        current_app_installation_json(
+                            installation,
+                            &self.store.staged.app_subscriptions,
+                            &self.store.staged.app_one_time_purchases,
+                            &revoked_access_scopes,
+                            &field.selection,
+                        )
+                    })
+                    .unwrap_or(Value::Null)
             };
             Some(value)
         })
@@ -59,16 +120,30 @@ impl DraftProxy {
         let requested_id = resolved_object_field(&arguments, "input")
             .and_then(|input| resolved_string_field(&input, "id"));
 
-        let (app, user_errors) = match requested_id.as_deref() {
-            Some("gid://shopify/App/expected") if self.store.staged.app_uninstalled => (
-                Value::Null,
-                vec![user_error(
-                    ["id"],
-                    APP_UNINSTALL_APP_NOT_INSTALLED_MESSAGE,
-                    Some("APP_NOT_INSTALLED"),
-                )],
-            ),
-            Some(id) if id != "gid://shopify/App/expected" && id != "gid://shopify/App/2" => (
+        let current_app_id = self.ensure_current_app_installation(request);
+        let target_app_id = requested_id
+            .as_deref()
+            .map(normalize_app_gid)
+            .unwrap_or_else(|| current_app_id.clone());
+
+        let (app, user_errors) = match self.app_installation_for_app(&target_app_id).cloned() {
+            Some(_)
+                if self
+                    .store
+                    .staged
+                    .uninstalled_app_ids
+                    .contains(&target_app_id) =>
+            {
+                (
+                    Value::Null,
+                    vec![user_error(
+                        ["id"],
+                        APP_UNINSTALL_APP_NOT_INSTALLED_MESSAGE,
+                        Some("APP_NOT_INSTALLED"),
+                    )],
+                )
+            }
+            None => (
                 Value::Null,
                 vec![user_error(
                     ["id"],
@@ -76,22 +151,37 @@ impl DraftProxy {
                     Some("APP_NOT_FOUND"),
                 )],
             ),
-            _ => {
-                self.store.staged.app_uninstalled = true;
+            Some(installation) => {
+                self.store
+                    .staged
+                    .uninstalled_app_ids
+                    .insert(target_app_id.clone());
                 for subscription in self.store.staged.app_subscriptions.values_mut() {
                     if let Value::Object(fields) = subscription {
                         fields.insert("status".to_string(), json!("CANCELLED"));
                     }
                 }
-                self.store.staged.delegate_access_tokens.clear();
+                self.store
+                    .staged
+                    .delegate_access_tokens
+                    .retain(|_, record| {
+                        record
+                            .get("apiClientId")
+                            .and_then(Value::as_str)
+                            .map(normalize_app_gid)
+                            .is_none_or(|api_client_id| api_client_id != target_app_id)
+                    });
                 self.record_mutation_log_entry(
                     request,
                     query,
                     variables,
                     "appUninstall",
-                    vec!["gid://shopify/App/expected".to_string()],
+                    vec![target_app_id.clone()],
                 );
-                (local_app_json(), vec![])
+                (
+                    installation.get("app").cloned().unwrap_or(Value::Null),
+                    vec![],
+                )
             }
         };
         ok_json(json!({
@@ -719,17 +809,33 @@ impl DraftProxy {
                 "The delegate token can't expire after the parent token.",
                 Some("EXPIRES_AFTER_PARENT"),
             ));
-        } else if let Some(scope) = scopes.iter().find(|scope| {
-            !matches!(
-                scope.as_str(),
-                "read_products" | "write_products" | "read_markets" | "write_markets"
-            )
-        }) {
-            user_errors.push(user_error(
-                Value::Null,
-                &format!("The access scope is invalid: {scope}"),
-                Some("UNKNOWN_SCOPES"),
-            ));
+        }
+        let app_id = self.ensure_current_app_installation(request);
+        let granted_scopes = self
+            .app_installation_for_app(&app_id)
+            .map(app_access_scope_handles)
+            .unwrap_or_default();
+        let legacy_default_scope = |scope: &str| {
+            self.app_installation_for_app(&app_id)
+                .and_then(|installation| installation.get("__draftProxySource"))
+                .and_then(Value::as_str)
+                == Some("default")
+                && matches!(
+                    scope,
+                    "read_products" | "write_products" | "read_markets" | "write_markets"
+                )
+        };
+        if user_errors.is_empty() {
+            if let Some(scope) = scopes
+                .iter()
+                .find(|scope| !granted_scopes.contains(*scope) && !legacy_default_scope(scope))
+            {
+                user_errors.push(user_error(
+                    Value::Null,
+                    &format!("The access scope is invalid: {scope}"),
+                    Some("UNKNOWN_SCOPES"),
+                ));
+            }
         }
 
         if !user_errors.is_empty() {
@@ -767,7 +873,6 @@ impl DraftProxy {
         );
         let parent_access_token =
             request_access_token(request).unwrap_or_else(|| "shpat_parent_default".to_string());
-        let api_client_id = request_api_client_id(request);
         let created_at = self.next_product_timestamp();
         let record = json!({
             "accessToken": token,
@@ -775,7 +880,7 @@ impl DraftProxy {
             "createdAt": created_at,
             "expiresIn": expires_in,
             "parentAccessToken": parent_access_token,
-            "apiClientId": api_client_id
+            "apiClientId": app_id
         });
         self.store
             .staged
@@ -832,7 +937,12 @@ impl DraftProxy {
                 "Access denied.",
                 "ACCESS_DENIED",
             ));
-        } else if self.store.staged.app_uninstalled {
+        } else if self
+            .store
+            .staged
+            .uninstalled_app_ids
+            .contains(&normalize_app_gid(&caller_api_client_id))
+        {
             user_errors.push(delegate_access_token_destroy_user_error(
                 "Access token does not exist.",
                 "ACCESS_TOKEN_NOT_FOUND",
@@ -842,7 +952,7 @@ impl DraftProxy {
                 .get("apiClientId")
                 .and_then(Value::as_str)
                 .unwrap_or("gid://shopify/App/local");
-            if token_api_client_id != caller_api_client_id {
+            if normalize_app_gid(token_api_client_id) != normalize_app_gid(&caller_api_client_id) {
                 user_errors.push(delegate_access_token_destroy_user_error(
                     "Access denied.",
                     "ACCESS_DENIED",
@@ -892,6 +1002,25 @@ impl DraftProxy {
             .unwrap_or_default();
 
         let mut user_errors = Vec::new();
+        let app_id = self.ensure_current_app_installation(request);
+        let installation = self.app_installation_for_app(&app_id).cloned();
+        let granted_scopes = installation
+            .as_ref()
+            .map(app_access_scope_handles)
+            .unwrap_or_default();
+        let required_scopes = installation
+            .as_ref()
+            .map(app_required_access_scope_handles)
+            .unwrap_or_default();
+        let legacy_default_scope = |scope: &str| {
+            installation
+                .as_ref()
+                .and_then(|installation| installation.get("__draftProxySource"))
+                .and_then(Value::as_str)
+                == Some("default")
+                && matches!(scope, "read_products" | "write_products")
+        };
+
         if app_revoke_access_scopes_missing_source_app(request) {
             user_errors.push(user_error(
                 ["id"],
@@ -901,14 +1030,14 @@ impl DraftProxy {
         } else {
             let has_unknown_scope = scopes
                 .iter()
-                .any(|scope| !matches!(scope.as_str(), "read_products" | "write_products"));
+                .any(|scope| !granted_scopes.contains(scope) && !legacy_default_scope(scope));
             if has_unknown_scope {
                 user_errors.push(user_error(
                     ["scopes"],
                     "The requested list of scopes to revoke includes invalid handles.",
                     Some("UNKNOWN_SCOPES"),
                 ));
-            } else if scopes.iter().any(|scope| scope == "read_products") {
+            } else if scopes.iter().any(|scope| required_scopes.contains(scope)) {
                 user_errors.push(user_error(
                     ["scopes"],
                     "Scopes that are declared as required cannot be revoked.",
@@ -922,11 +1051,18 @@ impl DraftProxy {
                 self.store
                     .staged
                     .revoked_app_access_scopes
+                    .entry(app_id.clone())
+                    .or_default()
                     .insert(scope.clone());
             }
             scopes
                 .iter()
-                .map(|scope| json!({ "handle": scope, "description": null }))
+                .map(|scope| {
+                    installation
+                        .as_ref()
+                        .map(|installation| app_access_scope_value(installation, scope))
+                        .unwrap_or_else(|| access_scope_json(scope, None))
+                })
                 .collect::<Vec<_>>()
         } else {
             Vec::new()

@@ -924,6 +924,212 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
 }
 
 #[test]
+fn app_identity_hydrates_real_installation_for_nodes_scopes_and_uninstall() {
+    let app_id = "gid://shopify/App/347082227713";
+    let installation_id = "gid://shopify/AppInstallation/913990517042";
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |_request| {
+            *captured_calls.lock().unwrap() += 1;
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "currentAppInstallation": {
+                            "id": installation_id,
+                            "accessScopes": [
+                                { "handle": "read_orders", "description": "Read orders" },
+                                { "handle": "write_orders", "description": "Modify orders" }
+                            ],
+                            "app": {
+                                "id": app_id,
+                                "handle": "hermes-conformance-products",
+                                "title": "hermes-conformance-products",
+                                "requestedAccessScopes": [
+                                    { "handle": "read_orders", "description": "Read orders" }
+                                ]
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    fn real_app_request(query: &str, variables: Value) -> Request {
+        let mut request = json_graphql_request(query, variables);
+        request.headers.insert(
+            "x-shopify-draft-proxy-api-client-id".to_string(),
+            "gid://shopify/App/347082227713".to_string(),
+        );
+        request
+    }
+
+    let hydrate = proxy.process_request(real_app_request(
+        r#"
+        query HydrateCurrentAppInstallation {
+          currentAppInstallation {
+            id
+            accessScopes { handle description }
+            app { id handle title requestedAccessScopes { handle } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        hydrate.body["data"]["currentAppInstallation"]["id"],
+        json!(installation_id)
+    );
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+
+    let installation_node = proxy.process_request(real_app_request(
+        r#"
+        query($id: ID!) {
+          node(id: $id) {
+            ... on AppInstallation {
+              id
+              app { id handle }
+              accessScopes { handle description }
+            }
+          }
+        }
+        "#,
+        json!({ "id": installation_id }),
+    ));
+    assert_eq!(
+        installation_node.body["data"]["node"],
+        json!({
+            "id": installation_id,
+            "app": { "id": app_id, "handle": "hermes-conformance-products" },
+            "accessScopes": [
+                { "handle": "read_orders", "description": "Read orders" },
+                { "handle": "write_orders", "description": "Modify orders" }
+            ]
+        })
+    );
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+
+    let delegate = proxy.process_request(real_app_request(
+        r#"
+        mutation {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_orders"], expiresIn: 300 }) {
+            delegateAccessToken { accessScopes }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        delegate.body["data"]["delegateAccessTokenCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        delegate.body["data"]["delegateAccessTokenCreate"]["delegateAccessToken"]["accessScopes"],
+        json!(["read_orders"])
+    );
+
+    let revoke = proxy.process_request(real_app_request(
+        r#"
+        mutation {
+          appRevokeAccessScopes(scopes: ["write_orders"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        revoke.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "revoked": [{ "handle": "write_orders", "description": "Modify orders" }],
+            "userErrors": []
+        })
+    );
+
+    let readback = proxy.process_request(real_app_request(
+        r#"
+        query {
+          currentAppInstallation { id accessScopes { handle } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        readback.body["data"]["currentAppInstallation"],
+        json!({
+            "id": installation_id,
+            "accessScopes": [{ "handle": "read_orders" }]
+        })
+    );
+
+    let unknown_uninstall = proxy.process_request(real_app_request(
+        r#"
+        mutation($input: AppUninstallInput) {
+          appUninstall(input: $input) {
+            app { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/App/9999999999" } }),
+    ));
+    assert_eq!(
+        unknown_uninstall.body["data"]["appUninstall"],
+        json!({
+            "app": null,
+            "userErrors": [{ "field": ["id"], "message": "App not found", "code": "APP_NOT_FOUND" }]
+        })
+    );
+
+    let uninstall = proxy.process_request(real_app_request(
+        r#"
+        mutation($input: AppUninstallInput) {
+          appUninstall(input: $input) {
+            app { id handle }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": app_id } }),
+    ));
+    assert_eq!(
+        uninstall.body["data"]["appUninstall"],
+        json!({
+            "app": { "id": app_id, "handle": "hermes-conformance-products" },
+            "userErrors": []
+        })
+    );
+
+    let app_node = proxy.process_request(real_app_request(
+        r#"
+        query($id: ID!) {
+          node(id: $id) {
+            ... on App { id handle }
+          }
+        }
+        "#,
+        json!({ "id": app_id }),
+    ));
+    assert_eq!(
+        app_node.body["data"]["node"],
+        json!({ "id": app_id, "handle": "hermes-conformance-products" })
+    );
+
+    let after_uninstall = proxy.process_request(real_app_request(
+        r#"query { currentAppInstallation { id } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        after_uninstall.body["data"]["currentAppInstallation"],
+        Value::Null
+    );
+}
+
+#[test]
 fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
     let mut proxy = snapshot_proxy();
 
@@ -1062,7 +1268,7 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
     assert_eq!(
         readback.body["data"]["currentAppInstallation"],
         json!({
-            "id": "gid://shopify/AppInstallation/expected",
+            "id": "gid://shopify/AppInstallation/local",
             "activeSubscriptions": [],
             "allSubscriptions": { "nodes": [{
                 "id": "gid://shopify/AppSubscription/expected",
@@ -1114,7 +1320,7 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
     assert_eq!(
         uninstall.body["data"]["appUninstall"],
         json!({
-            "app": { "id": "gid://shopify/App/expected", "handle": "shopify-draft-proxy" },
+            "app": { "id": "gid://shopify/App/local", "handle": "shopify-draft-proxy" },
             "userErrors": []
         })
     );
@@ -2311,7 +2517,7 @@ fn removed_app_billing_access_local_staging_scenario_has_rust_coverage() {
     ));
     assert_eq!(
         installation_node.body["data"]["node"]["id"],
-        json!("gid://shopify/AppInstallation/expected")
+        json!("gid://shopify/AppInstallation/local")
     );
 
     for id in [

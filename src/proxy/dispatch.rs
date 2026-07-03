@@ -588,58 +588,71 @@ impl DraftProxy {
     }
 
     fn app_node_value_by_id(&self, id: &str, selection: &[SelectedField]) -> Option<Value> {
-        match id {
-            "gid://shopify/AppInstallation/expected" if self.store.staged.app_uninstalled => {
-                Some(Value::Null)
+        for (app_id, installation) in &self.store.staged.installed_apps {
+            if app_installation_id(installation).as_deref() == Some(id) {
+                if self.store.staged.uninstalled_app_ids.contains(app_id) {
+                    return Some(Value::Null);
+                }
+                let revoked_access_scopes = self
+                    .store
+                    .staged
+                    .revoked_app_access_scopes
+                    .get(app_id)
+                    .cloned()
+                    .unwrap_or_default();
+                return Some(current_app_installation_json(
+                    installation,
+                    &self.store.staged.app_subscriptions,
+                    &self.store.staged.app_one_time_purchases,
+                    &revoked_access_scopes,
+                    selection,
+                ));
             }
-            "gid://shopify/AppInstallation/expected" => Some(current_app_installation_json(
-                &self.store.staged.app_subscriptions,
-                &self.store.staged.app_one_time_purchases,
-                &self.store.staged.revoked_app_access_scopes,
-                selection,
-            )),
-            "gid://shopify/App/expected" => Some(selected_json(&local_app_json(), selection)),
-            _ => self
-                .store
-                .staged
-                .app_subscriptions
-                .get(id)
-                .map(|subscription| {
-                    selected_json(
-                        subscription,
-                        &selected_fields_named(
-                            selection,
-                            &["__typename", "id", "status", "trialDays", "lineItems"],
-                        ),
-                    )
-                })
-                .or_else(|| {
-                    self.store
-                        .staged
-                        .app_one_time_purchases
-                        .get(id)
-                        .map(|purchase| {
-                            selected_json(
-                                purchase,
-                                &selected_fields_named(
-                                    selection,
-                                    &["id", "name", "status", "test", "price"],
-                                ),
-                            )
-                        })
-                })
-                .or_else(|| {
-                    self.find_staged_app_usage_record(id).map(|usage_record| {
+            if installation.pointer("/app/id").and_then(Value::as_str) == Some(id) {
+                return installation
+                    .get("app")
+                    .map(|app| selected_json(app, selection));
+            }
+        }
+        self.store
+            .staged
+            .app_subscriptions
+            .get(id)
+            .map(|subscription| {
+                selected_json(
+                    subscription,
+                    &selected_fields_named(
+                        selection,
+                        &["__typename", "id", "status", "trialDays", "lineItems"],
+                    ),
+                )
+            })
+            .or_else(|| {
+                self.store
+                    .staged
+                    .app_one_time_purchases
+                    .get(id)
+                    .map(|purchase| {
                         selected_json(
-                            &usage_record,
+                            purchase,
                             &selected_fields_named(
                                 selection,
-                                &["id", "description", "price", "subscriptionLineItem"],
+                                &["id", "name", "status", "test", "price"],
                             ),
                         )
                     })
-                }),
-        }
+            })
+            .or_else(|| {
+                self.find_staged_app_usage_record(id).map(|usage_record| {
+                    selected_json(
+                        &usage_record,
+                        &selected_fields_named(
+                            selection,
+                            &["id", "description", "price", "subscriptionLineItem"],
+                        ),
+                    )
+                })
+            })
     }
 
     pub(in crate::proxy) fn record_mutation_log_draft(
@@ -1043,18 +1056,37 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Query
                     && root_field == "currentAppInstallation" =>
             {
-                if self.store.staged.app_uninstalled
+                let request_app_id = request_app_gid(request);
+                if self
+                    .store
+                    .staged
+                    .uninstalled_app_ids
+                    .contains(&request_app_id)
+                    || self
+                        .store
+                        .staged
+                        .installed_apps
+                        .contains_key(&request_app_id)
                     || !self.store.staged.app_subscriptions.is_empty()
                     || !self.store.staged.app_one_time_purchases.is_empty()
-                    || !self.store.staged.revoked_app_access_scopes.is_empty()
+                    || self
+                        .store
+                        .staged
+                        .revoked_app_access_scopes
+                        .get(&request_app_id)
+                        .is_some_and(|scopes| !scopes.is_empty())
                     || self.config.read_mode == ReadMode::Snapshot
                 {
                     let fields = try_root_fields!(&query, &variables);
                     ok_json(json!({
-                        "data": self.current_app_installation_read_data(&fields)
+                        "data": self.current_app_installation_read_data(request, &fields)
                     }))
                 } else {
-                    (self.upstream_transport)(request.clone())
+                    let response = (self.upstream_transport)(request.clone());
+                    if response.status < 400 {
+                        self.observe_current_app_installation_response(request, &response);
+                    }
+                    response
                 }
             }
             (CapabilityDomain::Apps, CapabilityExecution::StageLocally)

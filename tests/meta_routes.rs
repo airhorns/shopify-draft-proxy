@@ -879,6 +879,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "discounts": {},
                     "draftOrderTags": {},
                     "giftCards": {},
+                    "installedApps": {},
                     "locallyCreatedCustomerIds": [],
                     "locationLimitReached": false,
                     "locationOrder": [],
@@ -1037,6 +1038,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "returnsByOrder": {},
                     "reverseDeliveries": {},
                     "reverseFulfillmentOrders": {},
+                    "revokedAppAccessScopes": {},
                     "savedSearchOrder": [
                         "gid://shopify/SavedSearch/4?shopify-draft-proxy=synthetic"
                     ],
@@ -1055,7 +1057,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "storeCreditAccounts": {},
                     "storeCreditTransactionOrder": [],
                     "storeCreditTransactions": {},
-                    "taggableResources": {}
+                    "taggableResources": {},
+                    "uninstalledAppIds": []
                 }
             }
         "##,

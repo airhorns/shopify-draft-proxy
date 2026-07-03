@@ -171,6 +171,11 @@ impl DraftProxy {
                 "deletedShopPolicyIds": self.store.staged.shop_policies.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "shippingPackages": self.store.staged.shipping_packages.records.clone(),
                 "deletedShippingPackageIds": deleted_shipping_package_ids,
+                "installedApps": self.store.staged.installed_apps.clone(),
+                "revokedAppAccessScopes": self.store.staged.revoked_app_access_scopes.iter().map(|(app_id, scopes)| {
+                    (app_id.clone(), scopes.iter().cloned().collect::<Vec<_>>())
+                }).collect::<BTreeMap<_, _>>(),
+                "uninstalledAppIds": self.store.staged.uninstalled_app_ids.iter().cloned().collect::<Vec<_>>(),
                 "delegatedAccessTokens": self.store.staged.delegate_access_tokens.clone(),
                 "customers": self.store.staged.customers.records.clone(),
                 "deletedCustomerIds": self.store.staged.customers.tombstones.iter().cloned().collect::<Vec<_>>(),
@@ -753,6 +758,31 @@ impl DraftProxy {
         );
         self.store.staged.collection_jobs =
             value_map_from_json(state["stagedState"].get("collectionJobs"));
+        self.store.staged.installed_apps =
+            value_map_from_json(state["stagedState"].get("installedApps"));
+        self.store.staged.revoked_app_access_scopes = state["stagedState"]
+            .get("revokedAppAccessScopes")
+            .and_then(Value::as_object)
+            .map(|records| {
+                records
+                    .iter()
+                    .map(|(app_id, scopes)| {
+                        (
+                            app_id.clone(),
+                            string_array_from_json(scopes).into_iter().collect(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.uninstalled_app_ids = state["stagedState"]
+            .get("uninstalledAppIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.delegate_access_tokens =
+            value_map_from_json(state["stagedState"].get("delegatedAccessTokens"));
         self.store.staged.online_store_integrations =
             value_map_from_json(state["stagedState"].get("onlineStoreIntegrations"));
         self.store.staged.online_store_blogs =
