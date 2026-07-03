@@ -2036,6 +2036,70 @@ fn metafield_definition_create_errors_for_namespace(
     errors
 }
 
+fn metafield_definition_validation_option_supported(metafield_type: &str, name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+    let scalar_type = metafield_type
+        .strip_prefix("list.")
+        .unwrap_or(metafield_type);
+    if metafield_type.starts_with("list.") && matches!(name, "list.min" | "list.max") {
+        return true;
+    }
+    match scalar_type {
+        "single_line_text_field" => matches!(name, "min" | "max" | "regex" | "choices"),
+        "multi_line_text_field" => matches!(name, "min" | "max" | "regex"),
+        "json" => matches!(name, "schema" | "min" | "max"),
+        "number_integer" | "integer" | "number_decimal" | "float" => {
+            matches!(name, "min" | "max")
+        }
+        "date" | "date_time" => matches!(name, "min" | "max"),
+        "rating" => matches!(name, "scale_min" | "scale_max"),
+        "metaobject_reference" => name == "metaobject_definition_id",
+        "mixed_reference" => name == "metaobject_definition_ids",
+        "file_reference" => name == "file_type_options",
+        "product_taxonomy_value_reference" => name == "product_taxonomy_attribute_handle",
+        "link" => name == "allowed_domains",
+        value if is_measurement_metafield_type_name(value) => matches!(name, "min" | "max"),
+        _ => false,
+    }
+}
+
+fn metafield_definition_validation_scalar_type(metafield_type: &str) -> &str {
+    metafield_type
+        .strip_prefix("list.")
+        .unwrap_or(metafield_type)
+}
+
+fn metafield_definition_validation_integer_type(metafield_type: &str) -> bool {
+    matches!(
+        metafield_definition_validation_scalar_type(metafield_type),
+        "number_integer" | "integer"
+    )
+}
+
+fn metafield_definition_validation_decimal_type(metafield_type: &str) -> bool {
+    matches!(
+        metafield_definition_validation_scalar_type(metafield_type),
+        "number_decimal" | "float"
+    )
+}
+
+fn parse_finite_decimal(value: &str) -> Option<f64> {
+    let parsed = value.parse::<f64>().ok()?;
+    parsed.is_finite().then_some(parsed)
+}
+
+fn metafield_definition_validation_comparable_min_max(
+    metafield_type: &str,
+    value: &str,
+) -> Option<f64> {
+    if metafield_definition_validation_decimal_type(metafield_type) {
+        return parse_finite_decimal(value);
+    }
+    value.parse::<i64>().ok().map(|value| value as f64)
+}
+
 fn metafield_definition_validation_errors(
     input: &BTreeMap<String, ResolvedValue>,
     typename: &str,
@@ -2062,7 +2126,7 @@ fn metafield_definition_validation_errors(
             ));
             return errors;
         }
-        if name == "totally_unknown_option" {
+        if !metafield_definition_validation_option_supported(&metafield_type, &name) {
             errors.push(metafield_definition_user_error(
                 typename,
                 json!(["definition", "validations"]),
@@ -2073,29 +2137,45 @@ fn metafield_definition_validation_errors(
             ));
             return errors;
         }
-        if matches!(name.as_str(), "min" | "max")
-            && metafield_type == "number_integer"
-            && value.parse::<i64>().is_err()
-        {
-            errors.push(metafield_definition_user_error(
-                typename,
-                json!(["definition", "validations"]),
-                &format!("Validations value for option {name} must be an integer."),
-                "INVALID_OPTION",
-            ));
-            return errors;
+        if matches!(name.as_str(), "min" | "max") {
+            if metafield_definition_validation_integer_type(&metafield_type)
+                && value.parse::<i64>().is_err()
+            {
+                errors.push(metafield_definition_user_error(
+                    typename,
+                    json!(["definition", "validations"]),
+                    &format!("Validations value for option {name} must be an integer."),
+                    "INVALID_OPTION",
+                ));
+                return errors;
+            }
+            if metafield_definition_validation_decimal_type(&metafield_type)
+                && parse_finite_decimal(&value).is_none()
+            {
+                errors.push(metafield_definition_user_error(
+                    typename,
+                    json!(["definition", "validations"]),
+                    &format!("Validations value for option {name} must be a decimal."),
+                    "INVALID_OPTION",
+                ));
+                return errors;
+            }
         }
     }
     let min = validations
         .iter()
         .find(|validation| resolved_string_field(validation, "name").as_deref() == Some("min"))
         .and_then(|validation| resolved_string_field(validation, "value"))
-        .and_then(|value| value.parse::<i64>().ok());
+        .and_then(|value| {
+            metafield_definition_validation_comparable_min_max(&metafield_type, &value)
+        });
     let max = validations
         .iter()
         .find(|validation| resolved_string_field(validation, "name").as_deref() == Some("max"))
         .and_then(|validation| resolved_string_field(validation, "value"))
-        .and_then(|value| value.parse::<i64>().ok());
+        .and_then(|value| {
+            metafield_definition_validation_comparable_min_max(&metafield_type, &value)
+        });
     if min.zip(max).is_some_and(|(min, max)| min > max) {
         errors.push(metafield_definition_user_error(
             typename,
