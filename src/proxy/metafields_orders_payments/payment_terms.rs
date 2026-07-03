@@ -929,9 +929,10 @@ impl DraftProxy {
             &presentment_amount,
             &presentment_currency,
         );
+        let order_name = self.next_order_name();
         let order = json!({
             "id": id,
-            "name": format!("#{}", self.store.staged.orders.len() + 1),
+            "name": order_name,
             "currentTotalPriceSet": price_set,
             "paymentTerms": Value::Null
         });

@@ -1932,9 +1932,10 @@ impl DraftProxy {
                 "gateway": "manual",
                 "amountSet": money_set(&amount, &currency_code)
         })];
+        let order_name = self.next_order_name();
         let mut order = json!({
             "id": order_id.clone(),
-            "name": format!("#{}", self.store.staged.orders.len() + 1),
+            "name": order_name,
             "sourceName": source_name,
             "note": order_note,
             "tags": order_tags,
