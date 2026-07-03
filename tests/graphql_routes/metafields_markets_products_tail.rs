@@ -2679,6 +2679,7 @@ fn market_create_validation_and_staging_helpers_match_current_behavior() {
     );
 
     let mut currency_proxy = snapshot_proxy();
+    restore_shop_currency(&mut currency_proxy, "CAD");
     let currency_create = currency_proxy.process_request(json_graphql_request(
         create_query,
         json!({"input": {"name": "Currency Flags", "status": "ACTIVE", "enabled": true, "currencySettings": {"baseCurrency": "USD", "localCurrencies": true, "roundingEnabled": true}}}),
@@ -2710,6 +2711,14 @@ fn market_create_validation_and_staging_helpers_match_current_behavior() {
     assert_eq!(
         eur_read.body["data"]["market"]["currencySettings"],
         eur_create.body["data"]["marketCreate"]["market"]["currencySettings"]
+    );
+    let shop_default_currency = currency_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Shop Currency Default", "currencySettings": {"localCurrencies": true}}}),
+    ));
+    assert_eq!(
+        shop_default_currency.body["data"]["marketCreate"]["market"]["currencySettings"],
+        json!({"baseCurrency": {"currencyCode": "CAD", "currencyName": "Canadian Dollar"}, "localCurrencies": true, "roundingEnabled": false})
     );
     for (code, name) in [
         ("GBP", "British Pound"),
@@ -2862,6 +2871,7 @@ fn market_create_validation_and_staging_helpers_match_current_behavior() {
 #[test]
 fn market_update_applies_scalar_inputs_and_keeps_partial_fields() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "CAD");
     let market_fields = r#"
       id name handle status enabled type
       conditions { regionsCondition { regions(first: 5) { nodes { code } } } }
@@ -3001,13 +3011,35 @@ fn market_update_applies_scalar_inputs_and_keeps_partial_fields() {
         json!(false)
     );
 
+    let default_currency_create = proxy.process_request(json_graphql_request(
+        &create_query,
+        json!({"input": {"name": "Default Currency Update", "status": "ACTIVE", "enabled": true}}),
+    ));
+    let default_currency_market_id = default_currency_create.body["data"]["marketCreate"]["market"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let default_currency_update = proxy.process_request(json_graphql_request(
+        &update_query,
+        json!({"id": default_currency_market_id, "input": {"currencySettings": {"roundingEnabled": true}}}),
+    ));
+    assert_eq!(
+        default_currency_update.body["data"]["marketUpdate"]["market"]["currencySettings"],
+        json!({
+            "baseCurrency": {"currencyCode": "CAD", "currencyName": "Canadian Dollar"},
+            "localCurrencies": false,
+            "roundingEnabled": true
+        })
+    );
+
     let log = log_snapshot(&proxy);
-    assert_eq!(log["entries"].as_array().unwrap().len(), 4);
+    assert_eq!(log["entries"].as_array().unwrap().len(), 6);
     assert!(log["entries"][1]["rawBody"]
         .as_str()
         .unwrap()
         .contains("MarketUpdateApplyScalars"));
-    assert!(log["entries"][3]["rawBody"]
+    assert!(log["entries"][5]["rawBody"]
         .as_str()
         .unwrap()
         .contains("MarketUpdateApplyScalars"));
@@ -5212,6 +5244,7 @@ fn price_list_create_update_delete_current_runtime_helpers_stage_and_validate() 
 #[test]
 fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write() {
     let mut proxy = snapshot_proxy();
+    restore_shop_currency(&mut proxy, "CAD");
     let market = proxy.process_request(json_graphql_request(
         r#"
         mutation MarketsOverlayColdFieldMarketCreate($input: MarketCreateInput!) {
@@ -5221,7 +5254,15 @@ fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write
           }
         }
         "#,
-        json!({"input": {"name": "Cold Field Market", "regions": [{"countryCode": "CA"}]}}),
+        json!({"input": {
+            "name": "Cold Field Market",
+            "enabled": true,
+            "regions": [{"countryCode": "CA"}],
+            "priceInclusions": {
+                "taxPricingStrategy": "INCLUDES_TAXES_IN_PRICE",
+                "dutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE"
+            }
+        }}),
     ));
     assert_eq!(market.body["data"]["marketCreate"]["userErrors"], json!([]));
     let market_id = market.body["data"]["marketCreate"]["market"]["id"]
@@ -5282,11 +5323,11 @@ fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write
     );
     assert_eq!(
         read.body["data"]["marketsResolvedValues"]["currencyCode"],
-        json!("USD")
+        json!("CAD")
     );
     assert_eq!(
         read.body["data"]["marketsResolvedValues"]["priceInclusivity"],
-        json!({ "dutiesIncluded": false, "taxesIncluded": false })
+        json!({ "dutiesIncluded": true, "taxesIncluded": true })
     );
     assert_eq!(
         read.body["data"]["marketsResolvedValues"]["catalogs"]["nodes"],
@@ -5295,6 +5336,45 @@ fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write
     assert_eq!(
         read.body["data"]["marketsResolvedValues"]["webPresences"]["edges"],
         json!([])
+    );
+}
+
+#[test]
+fn markets_resolved_values_falls_back_to_observed_shop_tax_inclusivity() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    restored["state"]["baseState"]["shop"] = json!({
+        "currencyCode": "GBP",
+        "taxesIncluded": true
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketsResolvedValuesShopTaxFallback {
+          marketsResolvedValues(buyerSignal: { countryCode: GB }) {
+            currencyCode
+            priceInclusivity { dutiesIncluded taxesIncluded }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["marketsResolvedValues"]["currencyCode"],
+        json!("GBP")
+    );
+    assert_eq!(
+        read.body["data"]["marketsResolvedValues"]["priceInclusivity"],
+        json!({ "dutiesIncluded": false, "taxesIncluded": true })
     );
 }
 

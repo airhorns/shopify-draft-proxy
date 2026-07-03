@@ -1156,13 +1156,28 @@ impl Store {
     }
 
     pub(in crate::proxy) fn shop_currency_code(&self) -> String {
+        self.observed_shop_currency_code()
+            .unwrap_or_else(|| "USD".to_string())
+    }
+
+    pub(in crate::proxy) fn observed_shop_currency_code(&self) -> Option<String> {
         self.base
             .shop
             .get("currencyCode")
             .and_then(Value::as_str)
             .filter(|currency| !currency.is_empty())
-            .unwrap_or("USD")
-            .to_string()
+            .map(str::to_string)
+    }
+
+    pub(in crate::proxy) fn shop_taxes_included(&self) -> Option<bool> {
+        self.base.shop.get("taxesIncluded").and_then(Value::as_bool)
+    }
+
+    pub(in crate::proxy) fn shop_duties_included(&self) -> Option<bool> {
+        self.base
+            .shop
+            .get("dutiesIncluded")
+            .and_then(Value::as_bool)
     }
 
     fn shop_money_format(&self) -> Option<String> {

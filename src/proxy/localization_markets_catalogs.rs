@@ -752,17 +752,12 @@ impl DraftProxy {
     }
 
     fn markets_resolved_values_value(&self, field: &RootFieldSelection) -> Value {
+        let price_inclusivity = self.markets_resolved_price_inclusivity(field);
         let mut payload = serde_json::Map::new();
         for selection in &field.selection {
             let value = match selection.name.as_str() {
                 "currencyCode" => Some(json!(self.store.shop_currency_code())),
-                "priceInclusivity" => Some(selected_json(
-                    &json!({
-                        "dutiesIncluded": false,
-                        "taxesIncluded": false
-                    }),
-                    &selection.selection,
-                )),
+                "priceInclusivity" => Some(selected_json(&price_inclusivity, &selection.selection)),
                 "catalogs" => {
                     let records = self
                         .store
@@ -802,6 +797,74 @@ impl DraftProxy {
             }
         }
         Value::Object(payload)
+    }
+
+    pub(in crate::proxy) fn hydrate_markets_resolved_values_pricing_if_selected(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) {
+        let mut needs_currency = false;
+        let mut needs_tax_flags = false;
+        for field in fields
+            .iter()
+            .filter(|field| field.name == "marketsResolvedValues")
+        {
+            needs_currency |= field
+                .selection
+                .iter()
+                .any(|selection| selection.name == "currencyCode");
+            needs_tax_flags |= field
+                .selection
+                .iter()
+                .any(|selection| selection.name == "priceInclusivity");
+        }
+        self.hydrate_shop_pricing_state_if_missing(request, needs_currency, needs_tax_flags);
+    }
+
+    pub(in crate::proxy) fn hydrate_market_currency_defaults_if_needed(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) {
+        let needs_currency = fields.iter().any(market_field_omits_base_currency);
+        self.hydrate_shop_pricing_state_if_missing(request, needs_currency, false);
+    }
+
+    fn markets_resolved_price_inclusivity(&self, field: &RootFieldSelection) -> Value {
+        let matched_market = self.markets_resolved_values_market(field);
+        let duties_included = matched_market
+            .and_then(market_duties_included)
+            .or_else(|| self.store.shop_duties_included())
+            .unwrap_or(false);
+        let taxes_included = matched_market
+            .and_then(market_taxes_included)
+            .or_else(|| self.store.shop_taxes_included())
+            .unwrap_or(false);
+        json!({
+            "dutiesIncluded": duties_included,
+            "taxesIncluded": taxes_included
+        })
+    }
+
+    fn markets_resolved_values_market(&self, field: &RootFieldSelection) -> Option<&Value> {
+        let buyer_country = resolved_object_field(&field.arguments, "buyerSignal")
+            .and_then(|buyer_signal| resolved_string_field(&buyer_signal, "countryCode"))
+            .map(|country_code| country_code.to_ascii_uppercase());
+        match buyer_country {
+            Some(country_code) => self.store.staged.markets.values().find(|market| {
+                market_record_enabled(market)
+                    && market_record_country_codes(market)
+                        .iter()
+                        .any(|code| code.eq_ignore_ascii_case(&country_code))
+            }),
+            None => self
+                .store
+                .staged
+                .markets
+                .values()
+                .find(|market| market_record_enabled(market)),
+        }
     }
 
     pub(in crate::proxy) fn market_create_mutation_data(
@@ -958,7 +1021,14 @@ impl DraftProxy {
         }
 
         let id = shopify_gid("Market", self.store.staged.markets.len() + 1);
-        let market = market_record_from_input(&id, &input, &name, &handle, &region_codes);
+        let market = market_record_from_input(
+            &id,
+            &input,
+            &name,
+            &handle,
+            &region_codes,
+            &self.store.shop_currency_code(),
+        );
         self.store.staged.markets.insert(id, market.clone());
         selected_market_payload(field, market, Vec::new())
     }
@@ -1060,7 +1130,13 @@ impl DraftProxy {
         }
 
         let mut updated_market = existing_market;
-        Self::apply_market_update_scalar_fields(&mut updated_market, &input, &id);
+        let shop_currency_code = self.store.shop_currency_code();
+        Self::apply_market_update_scalar_fields(
+            &mut updated_market,
+            &input,
+            &id,
+            &shop_currency_code,
+        );
         self.set_market_relation_fields(&mut updated_market, &id);
         self.store.staged.markets.insert(id, updated_market.clone());
         selected_market_payload(field, updated_market, Vec::new())
@@ -1070,6 +1146,7 @@ impl DraftProxy {
         market: &mut Value,
         input: &BTreeMap<String, ResolvedValue>,
         market_id: &str,
+        shop_currency_code: &str,
     ) {
         let Some(object) = market.as_object_mut() else {
             return;
@@ -1109,8 +1186,11 @@ impl DraftProxy {
             input.get("currencySettings"),
             Some(ResolvedValue::Object(_))
         ) {
-            let currency_settings =
-                market_update_currency_settings_json(object.get("currencySettings"), input);
+            let currency_settings = market_update_currency_settings_json(
+                object.get("currencySettings"),
+                input,
+                shop_currency_code,
+            );
             object.insert("currencySettings".to_string(), currency_settings);
         }
         if matches!(input.get("priceInclusions"), Some(ResolvedValue::Object(_))) {
@@ -4476,14 +4556,43 @@ fn market_record_region_type(market: &Value) -> bool {
     }
 }
 
+fn market_field_omits_base_currency(field: &RootFieldSelection) -> bool {
+    if !matches!(field.name.as_str(), "marketCreate" | "marketUpdate") {
+        return false;
+    }
+    let Some(currency_settings) = resolved_object_field(&field.arguments, "input")
+        .and_then(|input| resolved_object_field(&input, "currencySettings"))
+    else {
+        return false;
+    };
+    !currency_settings.contains_key("baseCurrency")
+}
+
+fn market_duties_included(market: &Value) -> Option<bool> {
+    match market["priceInclusions"]["inclusiveDutiesPricingStrategy"].as_str()? {
+        "INCLUDE_DUTIES_IN_PRICE" => Some(true),
+        "ADD_DUTIES_AT_CHECKOUT" | "NOT_INCLUDED" => Some(false),
+        _ => None,
+    }
+}
+
+fn market_taxes_included(market: &Value) -> Option<bool> {
+    match market["priceInclusions"]["inclusiveTaxPricingStrategy"].as_str()? {
+        "INCLUDES_TAXES_IN_PRICE" => Some(true),
+        "ADD_TAXES_AT_CHECKOUT" => Some(false),
+        _ => None,
+    }
+}
+
 fn market_update_currency_settings_json(
     existing: Option<&Value>,
     input: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
 ) -> Value {
     let currency_settings = resolved_object_field(input, "currencySettings").unwrap_or_default();
     let currency_code = resolved_string_field(&currency_settings, "baseCurrency")
         .or_else(|| value_string_field(existing, "baseCurrency", "currencyCode"))
-        .unwrap_or_else(|| "USD".to_string());
+        .unwrap_or_else(|| shop_currency_code.to_string());
     let currency_name = market_currency_name(&currency_code);
     json!({
         "baseCurrency": {

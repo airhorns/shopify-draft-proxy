@@ -140,6 +140,10 @@ impl DraftProxy {
                 } else if self.has_product_overlay_state()
                     || self.config.read_mode == ReadMode::Snapshot
                 {
+                    let fields = root_fields(query, variables).unwrap_or_default();
+                    if product_root_fields_select_shop_currency_money(&fields) {
+                        self.hydrate_shop_pricing_state_if_missing(request, true, false);
+                    }
                     // An overlay read reproduces staged inventory levels but not the
                     // opaque pagination cursors Shopify assigns each level edge: the
                     // node-hydrate warm path selects `inventoryLevels { nodes }`, never
@@ -149,7 +153,6 @@ impl DraftProxy {
                     // before serving, so the overlay read can fill them in for real
                     // instead of relying on seeded cursor state.
                     self.hydrate_inventory_level_cursors_for_read(request, query);
-                    let fields = root_fields(query, variables).unwrap_or_default();
                     ok_json(json!({
                         "data": self.product_overlay_read_data(&fields)
                     }))
@@ -169,6 +172,9 @@ impl DraftProxy {
             }
             "sellingPlanGroup" | "sellingPlanGroups" => {
                 let fields = try_root_fields!(query, variables);
+                if product_root_fields_select_shop_currency_money(&fields) {
+                    self.hydrate_shop_pricing_state_if_missing(request, true, false);
+                }
                 ok_json(json!({ "data": self.selling_plan_group_query_data(&fields) }))
             }
             "collections" => {
@@ -778,6 +784,12 @@ impl DraftProxy {
 
         let capability =
             operation_capability(&self.registry, operation.operation_type, Some(root_field));
+        if capability.domain == CapabilityDomain::Products
+            && operation.operation_type == OperationType::Mutation
+            && product_operation_selects_shop_currency_money(&query, &variables)
+        {
+            self.hydrate_shop_pricing_state_if_missing(request, true, false);
+        }
         // Discount bulk activate/deactivate/delete jobs run upstream (the async
         // `job` is the real recorded one), but the proxy must mirror their effect
         // onto its local overlay so later reads in the same scenario see the
@@ -1759,6 +1771,7 @@ impl DraftProxy {
                 {
                     return self.web_presence_helper_query(&query);
                 }
+                self.hydrate_markets_resolved_values_pricing_if_selected(request, &fields);
                 // A market-localizable resource read carries request-scoped
                 // staging (content/digest hydration), so it keeps its
                 // dedicated handler. Every other markets-domain read — even
@@ -1783,6 +1796,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation =>
             {
                 let fields = try_root_fields!(&query, &variables);
+                self.hydrate_market_currency_defaults_if_needed(request, &fields);
                 let data = if operation.root_fields.iter().all(|field| {
                     matches!(
                         field.as_str(),

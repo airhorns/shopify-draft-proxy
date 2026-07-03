@@ -1078,6 +1078,62 @@ pub(in crate::proxy) fn product_json_with_currency(
     product_json_with_variants_and_currency(product, &[], selections, currency_code)
 }
 
+pub(in crate::proxy) fn product_operation_selects_shop_currency_money(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    root_fields(query, variables)
+        .as_ref()
+        .is_some_and(|fields| product_root_fields_select_shop_currency_money(fields))
+}
+
+pub(in crate::proxy) fn product_root_fields_select_shop_currency_money(
+    fields: &[RootFieldSelection],
+) -> bool {
+    fields
+        .iter()
+        .any(product_root_field_selects_shop_currency_money)
+}
+
+fn product_root_field_selects_shop_currency_money(field: &RootFieldSelection) -> bool {
+    if product_selections_include_names(&field.selection, &["priceRange", "priceRangeV2"]) {
+        return true;
+    }
+    if !product_selections_include_names(&field.selection, &["adjustmentValue", "summary"]) {
+        return false;
+    }
+    if matches!(
+        field.name.as_str(),
+        "sellingPlanGroupCreate" | "sellingPlanGroupUpdate"
+    ) {
+        return resolved_value_contains_field(
+            &ResolvedValue::Object(field.arguments.clone()),
+            "fixedValue",
+        );
+    }
+    true
+}
+
+fn product_selections_include_names(selections: &[SelectedField], names: &[&str]) -> bool {
+    selections.iter().any(|selection| {
+        names.iter().any(|field_name| {
+            selection.name == *field_name || selection.response_key == *field_name
+        }) || product_selections_include_names(&selection.selection, names)
+    })
+}
+
+fn resolved_value_contains_field(value: &ResolvedValue, field_name: &str) -> bool {
+    match value {
+        ResolvedValue::Object(fields) => fields.iter().any(|(name, value)| {
+            name == field_name || resolved_value_contains_field(value, field_name)
+        }),
+        ResolvedValue::List(values) => values
+            .iter()
+            .any(|value| resolved_value_contains_field(value, field_name)),
+        _ => false,
+    }
+}
+
 #[derive(Clone, Copy)]
 enum ProductPriceRangeKind {
     Current,

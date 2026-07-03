@@ -83,14 +83,16 @@ Captured `marketCreate` name validation rejects blank names with `BLANK` then
 uniqueness as case-insensitive before handle generation.
 
 Staged `currencySettings.baseCurrency.currencyCode` preserves the requested
-enum value unchanged. `currencyName` is projected from a local ISO-4217
-display-name table for known codes, including the currencies observed in
-checked-in Markets conformance fixtures. If a future Shopify enum value is not
-yet mapped, the runtime returns `Unknown Currency` instead of echoing the ISO
-code as a misleading display name. Base-currency input uses Shopify-style
-`CurrencyCode` variable coercion: public enum values such as `XAF` stage
-locally, while non-enum values such as `ZZZ` return top-level
-`INVALID_VARIABLE` before resolver execution.
+enum value unchanged. When callers submit `currencySettings` without
+`baseCurrency`, the local market defaults the base currency from the observed
+shop currency rather than assuming a fixed store currency. `currencyName` is
+projected from a local ISO-4217 display-name table for known codes, including
+the currencies observed in checked-in Markets conformance fixtures. If a future
+Shopify enum value is not yet mapped, the runtime returns `Unknown Currency`
+instead of echoing the ISO code as a misleading display name. Base-currency
+input uses Shopify-style `CurrencyCode` variable coercion: public enum values
+such as `XAF` stage locally, while non-enum values such as `ZZZ` return
+top-level `INVALID_VARIABLE` before resolver execution.
 
 Catalog slices cover `catalogCreate`, `catalogUpdate`, `catalogContextUpdate`,
 `catalogDelete`, and downstream `catalog` / `catalogs` reads for staged market,
@@ -146,9 +148,13 @@ market-localizable resource state or staged market-scoped translations; unknown
 IDs return `null`.
 
 `marketsResolvedValues` and market/catalog/price-list reads have fixture-backed
-empty, fallback, and buyer-country behavior where captured. Unsupported
-catalog, price-list, B2B/app catalog, contextual pricing, and resolved-value
-derivations are not synthesized beyond the checked-in evidence.
+empty, fallback, and buyer-country behavior where captured. Resolved value
+`currencyCode` uses the observed shop currency, and `priceInclusivity` is
+derived from the matching active market's price-inclusion settings when the
+buyer country resolves to that market, then from observed shop tax-inclusion
+flags when no market-specific setting applies. Unsupported catalog, price-list,
+B2B/app catalog, contextual pricing, and richer resolved-value derivations are
+not synthesized beyond the checked-in evidence.
 
 ### Boundaries
 
