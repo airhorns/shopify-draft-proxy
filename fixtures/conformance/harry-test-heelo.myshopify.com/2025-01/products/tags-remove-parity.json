@@ -1,22 +1,22 @@
 {
   "seedProduct": {
-    "id": "gid://shopify/Product/10221211550002",
-    "title": "Hermes Product State Conformance 1782394032266",
-    "handle": "hermes-product-state-conformance-1782394032266",
+    "id": "gid://shopify/Product/10230769844530",
+    "title": "Hermes Product State Conformance 1783081819761",
+    "handle": "hermes-product-state-conformance-1783081819761",
     "status": "DRAFT",
-    "tags": ["existing", "hermes-state-1782394032266"]
+    "tags": ["existing", "hermes-state-1783081819761"]
   },
   "mutation": {
     "variables": {
-      "id": "gid://shopify/Product/10221211550002",
-      "tags": ["hermes-sale-1782394032266", "missing"]
+      "id": "gid://shopify/Product/10230769844530",
+      "tags": ["hermes-sale-1783081819761", "missing"]
     },
     "response": {
       "data": {
         "tagsRemove": {
           "node": {
-            "id": "gid://shopify/Product/10221211550002",
-            "tags": ["existing", "hermes-state-1782394032266", "hermes-summer-1782394032266"]
+            "id": "gid://shopify/Product/10230769844530",
+            "tags": ["existing", "hermes-state-1783081819761", "hermes-summer-1783081819761"]
           },
           "userErrors": []
         }
@@ -35,31 +35,61 @@
     }
   },
   "downstreamReadVariables": {
-    "id": "gid://shopify/Product/10221211550002",
-    "remainingQuery": "tag:hermes-summer-1782394032266",
-    "removedQuery": "tag:hermes-sale-1782394032266"
+    "id": "gid://shopify/Product/10230769844530",
+    "remainingQuery": "tag:hermes-summer-1783081819761",
+    "removedQuery": "tag:hermes-sale-1783081819761"
   },
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10221211550002",
-        "tags": ["existing", "hermes-state-1782394032266", "hermes-summer-1782394032266"]
+        "id": "gid://shopify/Product/10230769844530",
+        "tags": ["existing", "hermes-state-1783081819761", "hermes-summer-1783081819761"]
       },
       "remaining": {
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjoxMDIzMDc2OTg0NDUzMCwibGFzdF92YWx1ZSI6MTAyMzA3Njk4NDQ1MzB9",
+            "node": {
+              "id": "gid://shopify/Product/10230769844530",
+              "tags": ["existing", "hermes-state-1783081819761", "hermes-summer-1783081819761"]
+            }
+          }
+        ],
         "nodes": [
           {
-            "id": "gid://shopify/Product/10221211550002",
-            "tags": ["existing", "hermes-state-1782394032266", "hermes-summer-1782394032266"]
+            "id": "gid://shopify/Product/10230769844530",
+            "tags": ["existing", "hermes-state-1783081819761", "hermes-summer-1783081819761"]
           }
-        ]
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjoxMDIzMDc2OTg0NDUzMCwibGFzdF92YWx1ZSI6MTAyMzA3Njk4NDQ1MzB9",
+          "endCursor": "eyJsYXN0X2lkIjoxMDIzMDc2OTg0NDUzMCwibGFzdF92YWx1ZSI6MTAyMzA3Njk4NDQ1MzB9"
+        }
       },
       "removed": {
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjoxMDIzMDc2OTg0NDUzMCwibGFzdF92YWx1ZSI6MTAyMzA3Njk4NDQ1MzB9",
+            "node": {
+              "id": "gid://shopify/Product/10230769844530",
+              "tags": ["existing", "hermes-state-1783081819761", "hermes-summer-1783081819761"]
+            }
+          }
+        ],
         "nodes": [
           {
-            "id": "gid://shopify/Product/10221211550002",
-            "tags": ["existing", "hermes-state-1782394032266", "hermes-summer-1782394032266"]
+            "id": "gid://shopify/Product/10230769844530",
+            "tags": ["existing", "hermes-state-1783081819761", "hermes-summer-1783081819761"]
           }
-        ]
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjoxMDIzMDc2OTg0NDUzMCwibGFzdF92YWx1ZSI6MTAyMzA3Njk4NDQ1MzB9",
+          "endCursor": "eyJsYXN0X2lkIjoxMDIzMDc2OTg0NDUzMCwibGFzdF92YWx1ZSI6MTAyMzA3Njk4NDQ1MzB9"
+        }
       },
       "remainingCount": {
         "count": 1,
@@ -72,12 +102,80 @@
     },
     "extensions": {
       "cost": {
-        "requestedQueryCost": 33,
-        "actualQueryCost": 27,
+        "requestedQueryCost": 41,
+        "actualQueryCost": 29,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1973,
+          "currentlyAvailable": 1971,
           "restoreRate": 100
+        }
+      }
+    }
+  },
+  "delayedDownstreamRead": {
+    "waitMs": 60000,
+    "variables": {
+      "id": "gid://shopify/Product/10230769844530",
+      "remainingQuery": "tag:hermes-summer-1783081819761",
+      "removedQuery": "tag:hermes-sale-1783081819761"
+    },
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10230769844530",
+          "tags": ["existing", "hermes-state-1783081819761", "hermes-summer-1783081819761"]
+        },
+        "remaining": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMDIzMDc2OTg0NDUzMCwibGFzdF92YWx1ZSI6MTAyMzA3Njk4NDQ1MzB9",
+              "node": {
+                "id": "gid://shopify/Product/10230769844530",
+                "tags": ["existing", "hermes-state-1783081819761", "hermes-summer-1783081819761"]
+              }
+            }
+          ],
+          "nodes": [
+            {
+              "id": "gid://shopify/Product/10230769844530",
+              "tags": ["existing", "hermes-state-1783081819761", "hermes-summer-1783081819761"]
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxMDIzMDc2OTg0NDUzMCwibGFzdF92YWx1ZSI6MTAyMzA3Njk4NDQ1MzB9",
+            "endCursor": "eyJsYXN0X2lkIjoxMDIzMDc2OTg0NDUzMCwibGFzdF92YWx1ZSI6MTAyMzA3Njk4NDQ1MzB9"
+          }
+        },
+        "removed": {
+          "edges": [],
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        },
+        "remainingCount": {
+          "count": 1,
+          "precision": "EXACT"
+        },
+        "removedCount": {
+          "count": 0,
+          "precision": "EXACT"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 41,
+          "actualQueryCost": 31,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1969,
+            "restoreRate": 100
+          }
         }
       }
     }
@@ -86,9 +184,9 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10221211550002"]
+        "ids": ["gid://shopify/Product/10230769844530"]
       },
-      "query": "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n    }\n  }\n}",
+      "query": "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      availablePublicationsCount { count precision }\n      resourcePublicationsCount { count precision }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n      publications(first: 10) { nodes { isPublished publishDate product { id } } }\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
@@ -96,44 +194,63 @@
             "nodes": [
               {
                 "__typename": "Product",
-                "id": "gid://shopify/Product/10221211550002",
-                "legacyResourceId": "10221211550002",
-                "title": "Hermes Product State Conformance 1782394032266",
-                "handle": "hermes-product-state-conformance-1782394032266",
+                "id": "gid://shopify/Product/10230769844530",
+                "legacyResourceId": "10230769844530",
+                "title": "Hermes Product State Conformance 1783081819761",
+                "handle": "hermes-product-state-conformance-1783081819761",
                 "status": "ARCHIVED",
                 "vendor": "harry-test-heelo",
                 "productType": "",
                 "tags": [
                   "existing",
-                  "hermes-sale-1782394032266",
-                  "hermes-state-1782394032266",
-                  "hermes-summer-1782394032266"
+                  "hermes-sale-1783081819761",
+                  "hermes-state-1783081819761",
+                  "hermes-summer-1783081819761"
                 ],
                 "totalInventory": 0,
                 "tracksInventory": false,
-                "createdAt": "2026-06-25T13:27:12Z",
-                "updatedAt": "2026-06-25T13:27:22Z",
+                "createdAt": "2026-07-03T12:30:19Z",
+                "updatedAt": "2026-07-03T12:31:21Z",
                 "publishedAt": null,
                 "descriptionHtml": "",
-                "onlineStorePreviewUrl": "https://9kdqfqeu26vlyreq-92891250994.shopifypreview.com/products_preview?preview_key=9cb10ebf630610325ed2989fe064b665&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNi0yNVQxNDoyNzoyNC4xOTRaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--9d53616a5c1cda1b309897edc2f2e0b80afa2a30",
+                "onlineStorePreviewUrl": "https://5qlfa4wec6y4e585-92891250994.shopifypreview.com/products_preview?preview_key=2206920f7fd7f75597263bdd17e7b1d0&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNy0wM1QxMzozMjoyMi4xMDFaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--e649cdbdec03276800f4f7fd8a3dbaa19dabc813",
                 "templateSuffix": null,
                 "seo": {
                   "title": null,
                   "description": null
                 },
+                "availablePublicationsCount": {
+                  "count": 0,
+                  "precision": "EXACT"
+                },
+                "resourcePublicationsCount": {
+                  "count": 0,
+                  "precision": "EXACT"
+                },
                 "resourcePublicationsV2": {
                   "nodes": []
+                },
+                "publications": {
+                  "nodes": [
+                    {
+                      "isPublished": false,
+                      "publishDate": null,
+                      "product": {
+                        "id": "gid://shopify/Product/10230769844530"
+                      }
+                    }
+                  ]
                 }
               }
             ]
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 12,
-              "actualQueryCost": 9,
+              "requestedQueryCost": 24,
+              "actualQueryCost": 15,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1984,
                 "restoreRate": 100
               }
             }

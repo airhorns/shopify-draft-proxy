@@ -6175,8 +6175,11 @@ fn product_tags_add_remove_and_multi_resource_reads_match_captured_state() {
                 "id": "gid://shopify/Product/10173064872242",
                 "tags": ["existing", "hermes-sale-1777416213315", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
             },
-            "products": { "nodes": [] },
-            "productsCount": { "count": 0, "precision": "EXACT" }
+            "products": { "nodes": [{
+                "id": "gid://shopify/Product/10173064872242",
+                "tags": ["existing", "hermes-sale-1777416213315", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
+            }] },
+            "productsCount": { "count": 1, "precision": "EXACT" }
         })
     );
 
@@ -6241,9 +6244,9 @@ fn product_tags_add_remove_and_multi_resource_reads_match_captured_state() {
                 "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
             },
             "remaining": { "nodes": [{ "id": "gid://shopify/Product/10173064872242", "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"] }] },
-            "removed": { "nodes": [{ "id": "gid://shopify/Product/10173064872242", "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"] }] },
+            "removed": { "nodes": [] },
             "remainingCount": { "count": 1, "precision": "EXACT" },
-            "removedCount": { "count": 1, "precision": "EXACT" }
+            "removedCount": { "count": 0, "precision": "EXACT" }
         })
     );
 
@@ -6706,7 +6709,7 @@ fn polymorphic_tags_add_remove_split_and_match_case_insensitively() {
 }
 
 #[test]
-fn product_change_status_stages_archived_status_and_downstream_read_lag() {
+fn product_change_status_stages_archived_status_and_effective_downstream_read() {
     let mut proxy = snapshot_proxy().with_base_products(vec![product_state_test_product(
         "gid://shopify/Product/10173064872242",
         "Hermes Product State Conformance 1777416213315",
@@ -6790,8 +6793,11 @@ fn product_change_status_stages_archived_status_and_downstream_read_lag() {
                 "status": "ARCHIVED",
                 "updatedAt": "2026-04-28T22:43:34Z"
             },
-            "products": { "nodes": [] },
-            "productsCount": { "count": 0, "precision": "EXACT" }
+            "products": { "nodes": [{
+                "id": "gid://shopify/Product/10173064872242",
+                "status": "ARCHIVED"
+            }] },
+            "productsCount": { "count": 1, "precision": "EXACT" }
         })
     );
 }
