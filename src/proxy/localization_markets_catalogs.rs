@@ -3315,7 +3315,7 @@ impl DraftProxy {
         let keys = resolved_string_list_arg(&field.arguments, "translationKeys");
         let market_ids = resolved_string_list_arg(&field.arguments, "marketIds");
         let locales = resolved_string_list_arg(&field.arguments, "locales");
-        if locales.is_empty() {
+        if keys.is_empty() || locales.is_empty() {
             return selected_json(
                 &json!({ "translations": null, "userErrors": [] }),
                 &field.selection,
@@ -3325,8 +3325,7 @@ impl DraftProxy {
         let mut removed = Vec::new();
         let mut retained = Vec::new();
         for translation in self.store.staged.localization_translations.drain(..) {
-            let key_matches =
-                keys.is_empty() || keys.iter().any(|key| translation["key"] == json!(key));
+            let key_matches = keys.iter().any(|key| translation["key"] == json!(key));
             let locale_matches = locales
                 .iter()
                 .any(|locale| translation["locale"] == json!(locale));
