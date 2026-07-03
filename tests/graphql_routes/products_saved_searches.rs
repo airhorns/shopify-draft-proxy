@@ -1390,6 +1390,140 @@ fn legacy_product_variant_scalar_validation_rejects_before_staging() {
 }
 
 #[test]
+fn product_variants_bulk_create_rejects_inventory_item_cost_bounds_atomically() {
+    let product_id = "gid://shopify/Product/1";
+    let mut proxy = snapshot_proxy().with_base_products(vec![seed_product(product_id)]);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkCreateInvalidCost($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            product { variants(first: 10) { nodes { id } } }
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variants": [
+                { "price": "10.00", "inventoryItem": { "cost": "-5" } },
+                { "price": "11.00", "inventoryItem": { "cost": "1000000000000000000" } }
+            ]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productVariantsBulkCreate"],
+        json!({
+            "product": null,
+            "productVariants": [],
+            "userErrors": [
+                {
+                    "field": ["variants", "0"],
+                    "message": "must be greater than or equal to 0",
+                    "code": null
+                },
+                {
+                    "field": ["variants", "0", "inventoryItem", "cost"],
+                    "message": "Cost per item must be greater than or equal to 0",
+                    "code": "GREATER_THAN_OR_EQUAL_TO"
+                },
+                {
+                    "field": ["variants", "1"],
+                    "message": "must be less than 1000000000000000000",
+                    "code": null
+                },
+                {
+                    "field": ["variants", "1", "inventoryItem", "cost"],
+                    "message": "Cost per item must be less than 1000000000000000000",
+                    "code": "INVALID_INPUT"
+                }
+            ]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkCreateInvalidCostRead($productId: ID!) {
+          product(id: $productId) { variants(first: 10) { nodes { id } } }
+        }
+        "#,
+        json!({ "productId": product_id }),
+    ));
+    assert_eq!(read.body["data"]["product"]["variants"]["nodes"], json!([]));
+}
+
+#[test]
+fn product_set_rejects_inventory_item_cost_bounds_before_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductSetInvalidCost($input: ProductSetInput!) {
+          productSet(input: $input) {
+            product { id variants(first: 10) { nodes { sku } } }
+            productSetOperation { id status userErrors { field message code } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Cost validation product set",
+                "productOptions": [{
+                    "name": "Color",
+                    "values": [{ "name": "Red" }, { "name": "Blue" }]
+                }],
+                "variants": [
+                    {
+                        "optionValues": [{ "optionName": "Color", "name": "Red" }],
+                        "sku": "SET-RED",
+                        "price": "10.00",
+                        "inventoryItem": { "cost": "-1" }
+                    },
+                    {
+                        "optionValues": [{ "optionName": "Color", "name": "Blue" }],
+                        "sku": "SET-BLUE",
+                        "price": "11.00",
+                        "inventoryItem": { "cost": "1000000000000000000" }
+                    }
+                ]
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productSet"],
+        json!({
+            "product": null,
+            "productSetOperation": null,
+            "userErrors": [
+                {
+                    "field": ["input", "variants", "0", "inventoryItem", "cost"],
+                    "message": "Cost per item must be greater than or equal to 0",
+                    "code": "INVALID_VARIANT"
+                },
+                {
+                    "field": ["input", "variants", "1", "inventoryItem", "cost"],
+                    "message": "Cost per item must be less than 1000000000000000000",
+                    "code": "INVALID_VARIANT"
+                }
+            ]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["products"],
+        json!({}),
+        "rejected productSet should not stage a product"
+    );
+}
+
+#[test]
 fn product_variants_bulk_create_stages_locally_and_hydrates_downstream_reads() {
     let forwarded = Arc::new(Mutex::new(0usize));
     let captured = Arc::clone(&forwarded);
@@ -2447,6 +2581,88 @@ fn product_variants_bulk_update_delete_and_reorder_stage_atomically() {
     );
 
     assert_eq!(*forwarded.lock().unwrap(), 0);
+}
+
+#[test]
+fn product_variants_bulk_update_rejects_inventory_item_cost_bounds_atomically() {
+    let product_id = "gid://shopify/Product/1";
+    let mut proxy = snapshot_proxy().with_base_products(vec![seed_product(product_id)]);
+    let red = create_legacy_variant(&mut proxy, product_id, "RED", "10.00");
+    let blue = create_legacy_variant(&mut proxy, product_id, "BLUE", "11.00");
+    let red_id = red["id"].as_str().unwrap().to_string();
+    let blue_id = blue["id"].as_str().unwrap().to_string();
+    let log_entries_before = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkUpdateInvalidCost($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            productVariants { id sku price }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variants": [
+                {
+                    "id": red_id,
+                    "inventoryItem": { "cost": "1000000000000000000" }
+                },
+                {
+                    "id": blue_id,
+                    "inventoryItem": { "sku": "BLUE-UPDATED" }
+                }
+            ]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productVariantsBulkUpdate"]["productVariants"],
+        json!([
+            { "id": red_id, "sku": "RED", "price": "10.00" },
+            { "id": blue_id, "sku": "BLUE", "price": "11.00" }
+        ])
+    );
+    assert_eq!(
+        response.body["data"]["productVariantsBulkUpdate"]["userErrors"],
+        json!([
+            {
+                "field": ["variants", "0"],
+                "message": "must be less than 1000000000000000000",
+                "code": null
+            },
+            {
+                "field": ["variants", "0", "inventoryItem", "cost"],
+                "message": "Cost per item must be less than 1000000000000000000",
+                "code": "INVALID_INPUT"
+            }
+        ])
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_entries_before,
+        "rejected bulk update should not stage a mutation log entry"
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkUpdateInvalidCostRead($red: ID!, $blue: ID!) {
+          red: productVariant(id: $red) { sku price }
+          blue: productVariant(id: $blue) { sku price }
+        }
+        "#,
+        json!({ "red": red_id, "blue": blue_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["red"],
+        json!({"sku": "RED", "price": "10.00"})
+    );
+    assert_eq!(
+        read.body["data"]["blue"],
+        json!({"sku": "BLUE", "price": "11.00"})
+    );
 }
 
 #[test]

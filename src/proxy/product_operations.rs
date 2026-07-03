@@ -42,6 +42,17 @@ impl DraftProxy {
             return MutationOutcome::response(response);
         }
 
+        let variant_input_errors = product_set_variant_input_errors(&input);
+        if !variant_input_errors.is_empty() {
+            return MutationOutcome::response(self.product_set_user_error_response(
+                &response_key,
+                &payload_selection,
+                &product_selection,
+                None,
+                variant_input_errors,
+            ));
+        }
+
         // Reject input variants whose option-value combination duplicates an earlier
         // input variant. Shopify anchors one userError per later collision (the first
         // occurrence is accepted) and titles it with the variant's option values.
@@ -1120,6 +1131,23 @@ fn product_set_shape_error_response(
 fn product_set_option_values_over_limit(option: &BTreeMap<String, ResolvedValue>) -> bool {
     resolved_object_list_field(option, "values").len() > 100
         || resolved_object_list_field(option, "optionValues").len() > 100
+}
+
+fn product_set_variant_input_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    resolved_object_list_field(input, "variants")
+        .iter()
+        .enumerate()
+        .flat_map(|(index, variant)| {
+            product_variant_input_user_errors_with_prefix(
+                variant,
+                &[
+                    "input".to_string(),
+                    "variants".to_string(),
+                    index.to_string(),
+                ],
+            )
+        })
+        .collect()
 }
 
 fn product_set_options_json(

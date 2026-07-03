@@ -1142,7 +1142,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'product-set-validator',
     scriptPath: 'scripts/capture-product-set-validator-conformance.ts',
     purpose:
-      'productSet ProductSetShapeValidator guardrails, unknown-product validation, and asynchronous ProductSetOperation polling behavior.',
+      'productSet ProductSetShapeValidator guardrails, inventoryItem.cost validation, unknown-product validation, and asynchronous ProductSetOperation polling behavior.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_locations'],
     fixtureOutputs: [
       'config/parity-specs/products/productSet-parity-plan.json',
@@ -2001,11 +2001,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'product-variant-validations',
     scriptPath: 'scripts/capture-product-variant-validation-conformance.mts',
     purpose:
-      'Bulk variant validation atomicity for create/update/delete, including public-schema options-key rejection.',
+      'Bulk variant validation atomicity for create/update/delete, including inventoryItem.cost validation and public-schema options-key rejection.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_inventory'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-variants-bulk-validation-atomicity.json`,
       'config/parity-specs/products/product-variants-bulk-validation-atomicity.json',
+      'config/parity-requests/products/productVariantsBulkUpdate-validation-atomicity.graphql',
       'config/parity-requests/products/productVariantsBulkUpdate-validation-options.graphql',
     ],
     cleanupBehavior: 'Creates disposable products and removes them after validation probes.',
@@ -2035,7 +2036,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'product-variant-scalar-validations',
     scriptPath: 'scripts/capture-product-variant-scalar-validation-conformance.ts',
     purpose:
-      'productVariantsBulkCreate scalar, option, and inventory validation for price, compareAtPrice, weight, per-quantity bounds, cumulative inventoryQuantities count, per-variant inventory location count, SKU, barcode, option value length, option input conflicts, duplicate option tuples, and max input size.',
+      'productVariantsBulkCreate scalar, option, and inventory validation for price, compareAtPrice, inventoryItem.cost, weight, per-quantity bounds, cumulative inventoryQuantities count, per-variant inventory location count, SKU, barcode, option value length, option input conflicts, duplicate option tuples, and max input size.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_inventory'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}productVariantsBulkCreate-validation.json`,

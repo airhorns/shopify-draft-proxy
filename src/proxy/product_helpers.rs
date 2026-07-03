@@ -9,6 +9,7 @@ pub(in crate::proxy) use self::collections::*;
 pub(in crate::proxy) use self::saved_search::*;
 
 const PRODUCT_STATUS_BASE_VALUES: &[&str] = &["ACTIVE", "ARCHIVED", "DRAFT"];
+const VARIANT_MONEY_UPPER_BOUND: f64 = 1_000_000_000_000_000_000.0;
 
 // The batched node-hydrate query the proxy forwards to observe pre-existing
 // products / variants / collections in LiveHybrid. Shared verbatim with the
@@ -2592,7 +2593,7 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
                 "Price must be greater than or equal to 0",
                 Some("GREATER_THAN_OR_EQUAL_TO"),
             ));
-        } else if price >= 1_000_000_000_000_000_000.0 {
+        } else if price >= VARIANT_MONEY_UPPER_BOUND {
             errors.push(user_error(
                 prefixed_error_field(field_prefix, &["price"]),
                 "Price must be less than 1000000000000000000",
@@ -2602,7 +2603,7 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
     }
 
     if let Some(compare_at_price) = resolved_f64_path(input, &["compareAtPrice"]) {
-        if compare_at_price >= 1_000_000_000_000_000_000.0 {
+        if compare_at_price >= VARIANT_MONEY_UPPER_BOUND {
             errors.push(user_error(
                 prefixed_error_field(field_prefix, &["compareAtPrice"]),
                 "must be less than 1000000000000000000",
@@ -2650,10 +2651,48 @@ pub(in crate::proxy) fn product_variant_input_user_errors_with_prefix(
     }
 
     if let Some(inventory_item) = resolved_object_field(input, "inventoryItem") {
+        if let Some(cost) = resolved_f64_path(&inventory_item, &["cost"]) {
+            if cost < 0.0 {
+                if is_bulk_variant_error_prefix(field_prefix) {
+                    errors.push(user_error(
+                        prefixed_error_field(field_prefix, &[]),
+                        "must be greater than or equal to 0",
+                        None,
+                    ));
+                }
+                errors.push(user_error(
+                    prefixed_error_field(field_prefix, &["inventoryItem", "cost"]),
+                    "Cost per item must be greater than or equal to 0",
+                    Some(if is_product_set_variant_error_prefix(field_prefix) {
+                        "INVALID_VARIANT"
+                    } else {
+                        "GREATER_THAN_OR_EQUAL_TO"
+                    }),
+                ));
+            } else if cost >= VARIANT_MONEY_UPPER_BOUND {
+                if is_bulk_variant_error_prefix(field_prefix) {
+                    errors.push(user_error(
+                        prefixed_error_field(field_prefix, &[]),
+                        "must be less than 1000000000000000000",
+                        None,
+                    ));
+                }
+                errors.push(user_error(
+                    prefixed_error_field(field_prefix, &["inventoryItem", "cost"]),
+                    "Cost per item must be less than 1000000000000000000",
+                    Some(if is_product_set_variant_error_prefix(field_prefix) {
+                        "INVALID_VARIANT"
+                    } else {
+                        "INVALID_INPUT"
+                    }),
+                ));
+            }
+        }
+
         if resolved_string_field(&inventory_item, "sku")
             .is_some_and(|sku| sku.chars().count() > 255)
         {
-            let bulk_field = !field_prefix.is_empty();
+            let bulk_field = is_bulk_variant_error_prefix(field_prefix);
             errors.push(user_error(
                 if bulk_field {
                     prefixed_error_field(field_prefix, &[])
@@ -2739,11 +2778,22 @@ fn prefixed_error_field(prefix: &[String], suffix: &[&str]) -> Value {
     )
 }
 
+fn is_bulk_variant_error_prefix(prefix: &[String]) -> bool {
+    prefix.first().is_some_and(|field| field == "variants")
+}
+
+fn is_product_set_variant_error_prefix(prefix: &[String]) -> bool {
+    matches!(
+        prefix,
+        [input, variants, ..] if input == "input" && variants == "variants"
+    )
+}
+
 fn variant_weight_error_field(prefix: &[String]) -> Value {
-    if prefix.is_empty() {
-        prefixed_error_field(prefix, &["inventoryItem", "measurement", "weight"])
-    } else {
+    if is_bulk_variant_error_prefix(prefix) {
         prefixed_error_field(prefix, &[])
+    } else {
+        prefixed_error_field(prefix, &["inventoryItem", "measurement", "weight"])
     }
 }
 
