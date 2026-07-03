@@ -83,13 +83,16 @@ Captured `marketCreate` name validation rejects blank names with `BLANK` then
 uniqueness as case-insensitive before handle generation.
 
 Staged `currencySettings.baseCurrency.currencyCode` preserves the requested
-enum value unchanged. `currencyName` is projected from a local ISO-4217
-display-name table for known codes, including the currencies observed in
-checked-in Markets conformance fixtures. If a future Shopify enum value is not
-yet mapped, the runtime returns `Unknown Currency` instead of echoing the ISO
-code as a misleading display name. Base-currency input uses Shopify-style
-`CurrencyCode` variable coercion: public enum values such as `XAF` stage
-locally, while non-enum values such as `ZZZ` return top-level
+enum value unchanged. When `currencySettings` is present without an explicit
+`baseCurrency`, `marketCreate` and `marketUpdate` default the base currency to
+the proxy store's shop currency rather than to a fixture-specific currency.
+`currencyName` is projected from a local ISO-4217 display-name table for known
+codes, including the currencies observed in checked-in Markets conformance
+fixtures. If a future Shopify enum value is not yet mapped, the runtime returns
+`Unknown Currency` instead of echoing the ISO code as a misleading display name.
+Base-currency input uses Shopify-style `CurrencyCode` variable coercion: public
+enum values such as `XAF` stage locally, while non-enum values such as `ZZZ`
+return top-level
 `INVALID_VARIABLE` before resolver execution.
 
 Catalog slices cover `catalogCreate`, `catalogUpdate`, `catalogContextUpdate`,
@@ -135,10 +138,14 @@ payload validation as the standalone local paths. Market-localization slices
 stage and remove localized content for captured localizable resources, including
 unknown-resource, too-many-key, digest, market key, and no-op removal branches.
 
-`marketsResolvedValues` and market/catalog/price-list reads have fixture-backed
-empty, fallback, and buyer-country behavior where captured. Unsupported
-catalog, price-list, B2B/app catalog, contextual pricing, and resolved-value
-derivations are not synthesized beyond the checked-in evidence.
+`marketsResolvedValues` projects `currencyCode` from the proxy store's shop
+currency. For a buyer country that matches a staged market region, its
+`priceInclusivity` projection derives `dutiesIncluded` and `taxesIncluded`
+from that market's staged `priceInclusions`. Other
+`marketsResolvedValues` and market/catalog/price-list reads have
+fixture-backed empty, fallback, and buyer-country behavior where captured.
+Unsupported catalog, price-list, B2B/app catalog, contextual pricing, and
+resolved-value derivations are not synthesized beyond the checked-in evidence.
 
 ### Boundaries
 
