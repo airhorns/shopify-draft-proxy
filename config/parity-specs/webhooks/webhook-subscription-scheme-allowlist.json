@@ -1,0 +1,66 @@
+{
+  "scenarioId": "webhook-subscription-scheme-allowlist",
+  "operationNames": ["webhookSubscriptionCreate", "webhookSubscriptionUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-scheme-allowlist.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_graphql_webhooks.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.setup.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity for webhook subscription URI scheme allowlist validation. The primary request creates a temporary local subscription so update validation can run against an existing proxy ID; comparison targets cover rejected create/update branches.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-ftp-scheme-rejected",
+        "capturePath": "$.cases.createFtpSchemeRejected.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.cases.createFtpSchemeRejected.variables"
+        }
+      },
+      {
+        "name": "create-ws-scheme-rejected",
+        "capturePath": "$.cases.createWsSchemeRejected.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.cases.createWsSchemeRejected.variables"
+        }
+      },
+      {
+        "name": "create-bare-https-invalid",
+        "capturePath": "$.cases.createBareHttpsInvalid.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.cases.createBareHttpsInvalid.variables"
+        }
+      },
+      {
+        "name": "update-ftp-scheme-rejected",
+        "capturePath": "$.cases.updateFtpSchemeRejected.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.cases.updateFtpSchemeRejected.variables.webhookSubscription"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

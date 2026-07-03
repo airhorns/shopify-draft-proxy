@@ -1689,6 +1689,7 @@ impl DraftProxy {
 
         let mut user_errors = Vec::new();
         for (index, input) in variants_input.iter().enumerate() {
+            let error_count_before_variant = user_errors.len();
             user_errors.extend(product_variant_input_user_errors_with_prefix(
                 input,
                 &["variants".to_string(), index.to_string()],
@@ -1696,8 +1697,10 @@ impl DraftProxy {
             user_errors.extend(Self::product_variant_bulk_option_user_errors(
                 input, &product, index, false,
             ));
-            user_errors
-                .extend(self.product_variant_bulk_inventory_location_user_errors(input, index));
+            if user_errors.len() == error_count_before_variant {
+                user_errors
+                    .extend(self.product_variant_bulk_inventory_location_user_errors(input, index));
+            }
         }
         if user_errors.is_empty() {
             user_errors.extend(Self::product_variant_bulk_duplicate_tuple_user_errors(

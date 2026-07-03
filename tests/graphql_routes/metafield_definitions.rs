@@ -1755,6 +1755,27 @@ fn metafield_definition_create_input_validation_matches_live_branches_and_runtim
     assert!(unknown_type_message.contains("product_taxonomy_disclosure_reference"));
     assert!(unknown_type_message.contains("list.disclosure_reference"));
 
+    assert_eq!(
+        create(
+            &mut proxy,
+            json!({
+                "namespace": "loyalty",
+                "key": "disclosures",
+                "ownerType": "PRODUCT",
+                "name": "Disclosures",
+                "type": "list.disclosure_reference"
+            }),
+        ),
+        json!({
+            "createdDefinition": null,
+            "userErrors": [{
+                "field": ["definition"],
+                "message": "The disclosure_reference type can only be used in standard definitions provided by Shopify.",
+                "code": null
+            }]
+        })
+    );
+
     for namespace in ["shopify_standard", "protected"] {
         let reserved = create(
             &mut proxy,
@@ -1794,6 +1815,222 @@ fn metafield_definition_create_input_validation_matches_live_branches_and_runtim
             "message": "Name is too long (maximum is 255 characters)",
             "code": "TOO_LONG"
         }])
+    );
+}
+
+#[test]
+fn metafield_definition_update_validates_name_description_length_without_mutating() {
+    let mut proxy = snapshot_proxy();
+    let namespace = "length_update";
+    let key = "season";
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionUpdateLengthSetup($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id namespace key name description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "namespace": namespace,
+                "key": key,
+                "ownerType": "PRODUCT",
+                "name": "Season",
+                "description": "Original description",
+                "type": "single_line_text_field"
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let log_len_after_create = log_snapshot(&proxy)["entries"]
+        .as_array()
+        .expect("log entries after create")
+        .len();
+
+    let update = |proxy: &mut DraftProxy, definition: Value| {
+        proxy
+            .process_request(json_graphql_request(
+                r#"
+        mutation MetafieldDefinitionUpdateLength($definition: MetafieldDefinitionUpdateInput!) {
+          metafieldDefinitionUpdate(definition: $definition) {
+            updatedDefinition { namespace key name description }
+            userErrors { __typename field message code }
+            validationJob { id }
+          }
+        }
+        "#,
+                json!({ "definition": definition }),
+            ))
+            .body["data"]["metafieldDefinitionUpdate"]
+            .clone()
+    };
+    let read_definition = |proxy: &mut DraftProxy| {
+        proxy
+            .process_request(json_graphql_request(
+                r#"
+        query MetafieldDefinitionUpdateLengthRead($identifier: MetafieldDefinitionIdentifierInput!) {
+          metafieldDefinition(identifier: $identifier) {
+            namespace
+            key
+            name
+            description
+          }
+        }
+        "#,
+                json!({
+                    "identifier": {
+                        "ownerType": "PRODUCT",
+                        "namespace": namespace,
+                        "key": key
+                    }
+                }),
+            ))
+            .body["data"]["metafieldDefinition"]
+            .clone()
+    };
+
+    let too_long_name = update(
+        &mut proxy,
+        json!({
+            "ownerType": "PRODUCT",
+            "namespace": namespace,
+            "key": key,
+            "name": "N".repeat(256)
+        }),
+    );
+    assert_eq!(
+        too_long_name,
+        json!({
+            "updatedDefinition": null,
+            "userErrors": [{
+                "__typename": "MetafieldDefinitionUpdateUserError",
+                "field": ["definition", "name"],
+                "message": "Name is too long (maximum is 255 characters)",
+                "code": "TOO_LONG"
+            }],
+            "validationJob": null
+        })
+    );
+    assert_eq!(
+        read_definition(&mut proxy),
+        json!({
+            "namespace": namespace,
+            "key": key,
+            "name": "Season",
+            "description": "Original description"
+        })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_after_create
+    );
+
+    let too_long_description = update(
+        &mut proxy,
+        json!({
+            "ownerType": "PRODUCT",
+            "namespace": namespace,
+            "key": key,
+            "description": "D".repeat(256)
+        }),
+    );
+    assert_eq!(
+        too_long_description,
+        json!({
+            "updatedDefinition": null,
+            "userErrors": [{
+                "__typename": "MetafieldDefinitionUpdateUserError",
+                "field": ["definition", "description"],
+                "message": "Description is too long (maximum is 255 characters)",
+                "code": "TOO_LONG"
+            }],
+            "validationJob": null
+        })
+    );
+    assert_eq!(
+        read_definition(&mut proxy),
+        json!({
+            "namespace": namespace,
+            "key": key,
+            "name": "Season",
+            "description": "Original description"
+        })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        log_len_after_create
+    );
+
+    let boundary_name = "N".repeat(255);
+    let boundary_description = "D".repeat(255);
+    let boundary_update = update(
+        &mut proxy,
+        json!({
+            "ownerType": "PRODUCT",
+            "namespace": namespace,
+            "key": key,
+            "name": boundary_name,
+            "description": boundary_description
+        }),
+    );
+    assert_eq!(boundary_update["userErrors"], json!([]));
+    assert_eq!(
+        boundary_update["updatedDefinition"],
+        json!({
+            "namespace": namespace,
+            "key": key,
+            "name": "N".repeat(255),
+            "description": "D".repeat(255)
+        })
+    );
+
+    let mut restored = proxy
+        .process_request(request_with_body("POST", "/__meta/dump", "{}"))
+        .body;
+    let definitions = restored["state"]["stagedState"]["metafieldDefinitions"]
+        .as_object_mut()
+        .expect("staged metafield definitions");
+    let restored_definition = definitions
+        .values_mut()
+        .find(|definition| {
+            definition["namespace"].as_str() == Some(namespace)
+                && definition["key"].as_str() == Some(key)
+                && definition["ownerType"].as_str() == Some("PRODUCT")
+        })
+        .expect("created definition in staged state");
+    restored_definition["name"] = json!("L".repeat(256));
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let untouched_over_length_name = update(
+        &mut proxy,
+        json!({
+            "ownerType": "PRODUCT",
+            "namespace": namespace,
+            "key": key,
+            "description": "Only description touched"
+        }),
+    );
+    assert_eq!(untouched_over_length_name["userErrors"], json!([]));
+    assert_eq!(
+        untouched_over_length_name["updatedDefinition"],
+        json!({
+            "namespace": namespace,
+            "key": key,
+            "name": "L".repeat(256),
+            "description": "Only description touched"
+        })
     );
 }
 

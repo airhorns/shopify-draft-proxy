@@ -3360,7 +3360,7 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
         ),
         (
             json!({"title": "EU Catalog", "status": "ACTIVE", "context": {}}),
-            json!({"__typename": "CatalogUserError", "field": ["input", "context", "marketIds"], "message": "Market ids can't be blank", "code": "INVALID"}),
+            json!({"__typename": "CatalogUserError", "field": ["input", "context"], "message": "Must provide exactly one context type.", "code": "MUST_PROVIDE_EXACTLY_ONE_CONTEXT_TYPE"}),
         ),
         (
             json!({"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/404"]}}),
@@ -3639,6 +3639,46 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
         context_update.body["data"]["catalogContextUpdate"],
         json!({"catalog": {"id": "gid://shopify/MarketCatalog/3", "markets": {"nodes": [{"id": second_market_id}]}}, "userErrors": []})
     );
+}
+
+#[test]
+fn catalog_create_context_requires_exactly_one_context_type() {
+    let create_query = r#"
+        mutation CatalogCreateContextValidation($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let expected_error = json!({
+        "__typename": "CatalogUserError",
+        "field": ["input", "context"],
+        "message": "Must provide exactly one context type.",
+        "code": "MUST_PROVIDE_EXACTLY_ONE_CONTEXT_TYPE"
+    });
+
+    for input in [
+        json!({"title": "EU Catalog", "status": "ACTIVE", "context": {}}),
+        json!({
+            "title": "EU Catalog",
+            "status": "ACTIVE",
+            "context": {
+                "marketIds": ["gid://shopify/Market/1"],
+                "companyLocationIds": ["gid://shopify/CompanyLocation/1"]
+            }
+        }),
+    ] {
+        let mut proxy = snapshot_proxy();
+        let response =
+            proxy.process_request(json_graphql_request(create_query, json!({"input": input})));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["catalogCreate"],
+            json!({"catalog": null, "userErrors": [expected_error]})
+        );
+        assert_no_staged_catalogs(&proxy);
+    }
 }
 
 #[test]
@@ -4999,6 +5039,35 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
         json!([])
     );
 
+    let mut duplicate_name_missing_catalog_proxy = snapshot_proxy();
+    let baseline = duplicate_name_missing_catalog_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "EU Prices", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}}),
+    ));
+    assert_eq!(
+        baseline.body["data"]["priceListCreate"]["userErrors"],
+        json!([])
+    );
+    let duplicate_name_missing_catalog =
+        duplicate_name_missing_catalog_proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": {"name": "EU Prices", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalogId": missing_catalog_id}}),
+        ));
+    assert_eq!(
+        duplicate_name_missing_catalog.body["data"]["priceListCreate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog does not exist.", "code": "CATALOG_DOES_NOT_EXIST"}]})
+    );
+
+    let missing_catalog_invalid_adjustment =
+        duplicate_name_missing_catalog_proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": {"name": "Catalog Before Adjustment", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 250}}, "catalogId": missing_catalog_id}}),
+        ));
+    assert_eq!(
+        missing_catalog_invalid_adjustment.body["data"]["priceListCreate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog does not exist.", "code": "CATALOG_DOES_NOT_EXIST"}]})
+    );
+
     let mut wrong_type_proxy = snapshot_proxy();
     let wrong_type_create = wrong_type_proxy.process_request(json_graphql_request(
         create_query,
@@ -5073,6 +5142,14 @@ fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
     ));
     assert_eq!(
         taken_create.body["data"]["priceListCreate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog has a price list already assigned.", "code": "CATALOG_TAKEN"}]})
+    );
+    let taken_catalog_duplicate_name = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "First Catalog PL", "currency": "DKK", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalogId": first_catalog_id}}),
+    ));
+    assert_eq!(
+        taken_catalog_duplicate_name.body["data"]["priceListCreate"],
         json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog has a price list already assigned.", "code": "CATALOG_TAKEN"}]})
     );
 

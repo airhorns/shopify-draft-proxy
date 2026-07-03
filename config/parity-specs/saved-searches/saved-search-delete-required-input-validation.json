@@ -1,0 +1,56 @@
+{
+  "scenarioId": "saved-search-delete-required-input-validation",
+  "operationNames": ["savedSearchDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-required-input-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-missing-id-delete.graphql",
+    "variablesCapturePath": "$.savedSearchDeleteMissingId.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live evidence for SavedSearchDeleteInput.id required-input coercion. Shopify returns top-level GraphQL errors before resolver userErrors for inline missing id and variable-supplied missing/null id.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "inline missing id delete top-level errors",
+        "capturePath": "$.savedSearchDeleteMissingId.payload",
+        "proxyPath": "$",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-missing-id-delete.graphql",
+          "variables": {},
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "variable missing id delete top-level errors",
+        "capturePath": "$.savedSearchDeleteVariableMissingId.payload",
+        "proxyPath": "$",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-variable-missing-id-delete.graphql",
+          "variablesCapturePath": "$.savedSearchDeleteVariableMissingId.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "variable null id delete top-level errors",
+        "capturePath": "$.savedSearchDeleteVariableNullId.payload",
+        "proxyPath": "$",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-variable-missing-id-delete.graphql",
+          "variablesCapturePath": "$.savedSearchDeleteVariableNullId.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

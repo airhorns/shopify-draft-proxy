@@ -1,0 +1,89 @@
+{
+  "capturedAt": "2026-07-03T02:46:38.286Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": [
+    {
+      "name": "catalogCreateEmptyContext",
+      "query": "#graphql\nmutation CatalogCreateEmptyContext($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Empty Context Catalog",
+          "status": "ACTIVE",
+          "context": {}
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": null,
+              "userErrors": [
+                {
+                  "field": ["input", "context"],
+                  "message": "Must provide exactly one context type.",
+                  "code": "MUST_PROVIDE_EXACTLY_ONE_CONTEXT_TYPE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogCreateMultipleContextTypes",
+      "query": "#graphql\nmutation CatalogCreateEmptyContext($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Multiple Context Types Catalog",
+          "status": "ACTIVE",
+          "context": {
+            "marketIds": ["gid://shopify/Market/999999999999"],
+            "companyLocationIds": ["gid://shopify/CompanyLocation/999999999999"]
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": null,
+              "userErrors": [
+                {
+                  "field": ["input", "context"],
+                  "message": "Must provide exactly one context type.",
+                  "code": "MUST_PROVIDE_EXACTLY_ONE_CONTEXT_TYPE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

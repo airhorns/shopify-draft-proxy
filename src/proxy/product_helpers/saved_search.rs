@@ -164,12 +164,13 @@ pub(in crate::proxy) fn saved_search_required_input_error(
     let field = document.root_fields.iter().find(|field| {
         matches!(
             field.name.as_str(),
-            "savedSearchCreate" | "savedSearchUpdate"
+            "savedSearchCreate" | "savedSearchUpdate" | "savedSearchDelete"
         )
     })?;
     let input_type = match field.name.as_str() {
         "savedSearchCreate" => "SavedSearchCreateInput",
         "savedSearchUpdate" => "SavedSearchUpdateInput",
+        "savedSearchDelete" => "SavedSearchDeleteInput",
         _ => return None,
     };
     let variable_input = variables.get("input");
@@ -201,7 +202,19 @@ pub(in crate::proxy) fn saved_search_required_input_error(
         }
         if field.name == "savedSearchUpdate" && !input.contains_key("id") {
             errors.push(invalid_variable_required_field_error(
-                "id", input_type, value, 47,
+                "id",
+                input_type,
+                value.clone(),
+                47,
+            ));
+        }
+        if field.name == "savedSearchDelete"
+            && input
+                .get("id")
+                .is_none_or(|value| matches!(value, ResolvedValue::Null))
+        {
+            errors.push(invalid_variable_required_field_error(
+                "id", input_type, value, 45,
             ));
         }
         return (!errors.is_empty()).then(|| ok_json(json!({ "errors": errors })));
@@ -214,6 +227,7 @@ pub(in crate::proxy) fn saved_search_required_input_error(
             ("resourceType", "SearchResultType!"),
         ],
         "savedSearchUpdate" => &[("id", "ID!")],
+        "savedSearchDelete" => &[("id", "ID!")],
         _ => &[],
     };
     let errors = required_fields
