@@ -161,7 +161,7 @@ fn stage_fulfillment_for_event(proxy: &mut DraftProxy) -> (Value, Value) {
               displayStatus
               events(first: 5) { nodes { id status } }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -182,6 +182,212 @@ fn stage_fulfillment_for_event(proxy: &mut DraftProxy) -> (Value, Value) {
         order_id,
         create_fulfillment.body["data"]["fulfillmentCreate"]["fulfillment"]["id"].clone(),
     )
+}
+
+fn create_fulfillment_validation_order(proxy: &mut DraftProxy) -> (Value, Vec<Value>) {
+    let create_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateFulfillmentValidationOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              fulfillmentOrders(first: 5) {
+                nodes {
+                  id
+                  lineItems(first: 5) {
+                    nodes { id totalQuantity remainingQuantity }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "fulfillment-validation@example.test",
+                "lineItems": [
+                    {
+                        "title": "Fulfillment validation first line",
+                        "quantity": 2,
+                        "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+                    },
+                    {
+                        "title": "Fulfillment validation second line",
+                        "quantity": 2,
+                        "priceSet": { "shopMoney": { "amount": "18.00", "currencyCode": "USD" } }
+                    }
+                ]
+            }
+        }),
+    ));
+    assert_eq!(create_order.status, 200);
+    assert_eq!(
+        create_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let fulfillment_order =
+        &create_order.body["data"]["orderCreate"]["order"]["fulfillmentOrders"]["nodes"][0];
+    let line_ids = fulfillment_order["lineItems"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|line| line["id"].clone())
+        .collect::<Vec<_>>();
+    (fulfillment_order["id"].clone(), line_ids)
+}
+
+#[test]
+fn fulfillment_create_rejects_non_positive_line_item_quantity_with_indexed_path() {
+    let mut proxy = snapshot_proxy();
+    let (fulfillment_order_id, line_ids) = create_fulfillment_validation_order(&mut proxy);
+
+    for root in ["fulfillmentCreate", "fulfillmentCreateV2"] {
+        for quantity in [0, -1] {
+            let response = proxy.process_request(json_graphql_request(
+                &format!(
+                    r#"
+                    mutation FulfillmentCreateNonPositiveQuantity($fulfillment: FulfillmentInput!) {{
+                      {root}(fulfillment: $fulfillment) {{
+                        fulfillment {{ id }}
+                        userErrors {{ field message }}
+                      }}
+                    }}
+                    "#
+                ),
+                json!({
+                    "fulfillment": {
+                        "lineItemsByFulfillmentOrder": [{
+                            "fulfillmentOrderId": fulfillment_order_id,
+                            "fulfillmentOrderLineItems": [
+                                {
+                                    "id": line_ids[0],
+                                    "quantity": 1
+                                },
+                                {
+                                    "id": line_ids[1],
+                                    "quantity": quantity
+                                }
+                            ]
+                        }]
+                    }
+                }),
+            ));
+
+            assert_eq!(response.status, 200, "{root} quantity {quantity}");
+            assert_eq!(
+                response.body["data"][root]["userErrors"],
+                json!([{
+                    "field": [
+                        "fulfillment",
+                        "lineItemsByFulfillmentOrder",
+                        "0",
+                        "fulfillmentOrderLineItems",
+                        "1",
+                        "quantity"
+                    ],
+                    "message": "Quantity must be greater than 0"
+                }]),
+                "{root} quantity {quantity}"
+            );
+            assert_eq!(
+                response.body["data"][root]["fulfillment"],
+                Value::Null,
+                "{root} quantity {quantity}"
+            );
+        }
+    }
+}
+
+#[test]
+fn fulfillment_create_rejects_missing_fulfillment_order_with_shopify_message() {
+    let mut proxy = snapshot_proxy();
+
+    for root in ["fulfillmentCreate", "fulfillmentCreateV2"] {
+        let response = proxy.process_request(json_graphql_request(
+            &format!(
+                r#"
+                mutation FulfillmentCreateMissingOrder($fulfillment: FulfillmentInput!) {{
+                  {root}(fulfillment: $fulfillment) {{
+                    fulfillment {{ id }}
+                    userErrors {{ field message }}
+                  }}
+                }}
+                "#
+            ),
+            json!({
+                "fulfillment": {
+                    "lineItemsByFulfillmentOrder": [{
+                        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/999999999",
+                        "fulfillmentOrderLineItems": [{
+                            "id": "gid://shopify/FulfillmentOrderLineItem/999999998",
+                            "quantity": 1
+                        }]
+                    }]
+                }
+            }),
+        ));
+
+        assert_eq!(response.status, 200, "{root}");
+        assert_eq!(
+            response.body["data"][root],
+            json!({
+                "fulfillment": null,
+                "userErrors": [{
+                    "field": ["fulfillment"],
+                    "message": "Fulfillment order does not exist."
+                }]
+            }),
+            "{root}"
+        );
+    }
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn fulfillment_create_preserves_over_remaining_quantity_error() {
+    let mut proxy = snapshot_proxy();
+    let (fulfillment_order_id, line_ids) = create_fulfillment_validation_order(&mut proxy);
+
+    for root in ["fulfillmentCreate", "fulfillmentCreateV2"] {
+        let response = proxy.process_request(json_graphql_request(
+            &format!(
+                r#"
+                mutation FulfillmentCreateOverQuantity($fulfillment: FulfillmentInput!) {{
+                  {root}(fulfillment: $fulfillment) {{
+                    fulfillment {{ id }}
+                    userErrors {{ field message }}
+                  }}
+                }}
+                "#
+            ),
+            json!({
+                "fulfillment": {
+                    "lineItemsByFulfillmentOrder": [{
+                        "fulfillmentOrderId": fulfillment_order_id,
+                        "fulfillmentOrderLineItems": [{
+                            "id": line_ids[0],
+                            "quantity": 3
+                        }]
+                    }]
+                }
+            }),
+        ));
+
+        assert_eq!(response.status, 200, "{root}");
+        assert_eq!(
+            response.body["data"][root],
+            json!({
+                "fulfillment": null,
+                "userErrors": [{
+                    "field": ["fulfillment"],
+                    "message": "Invalid fulfillment order line item quantity requested."
+                }]
+            }),
+            "{root}"
+        );
+    }
 }
 
 struct ReturnRemovalSetup {
@@ -243,7 +449,7 @@ fn stage_fulfilled_order_for_return(proxy: &mut DraftProxy) -> (Value, Value) {
                 nodes { id quantity lineItem { id title } }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -276,6 +482,89 @@ fn return_removal_setup_from_payload(order_id: Value, payload: &Value) -> Return
         order_id,
         return_id: payload["return"]["id"].clone(),
         return_line_item_id: payload["return"]["returnLineItems"]["nodes"][0]["id"].clone(),
+    }
+}
+
+#[test]
+fn order_refund_and_fulfillment_plain_user_errors_reject_code_selection() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrdersPlainUserErrorCodeSelectionRejected {
+          refund: refundCreate(input: { orderId: "gid://shopify/Order/999999999" }) {
+            userErrors { field message code }
+          }
+          create: fulfillmentCreate(fulfillment: {
+            lineItemsByFulfillmentOrder: [{ fulfillmentOrderId: "gid://shopify/FulfillmentOrder/1" }]
+          }) {
+            userErrors { code }
+          }
+          createV2: fulfillmentCreateV2(fulfillment: {
+            lineItemsByFulfillmentOrder: [{ fulfillmentOrderId: "gid://shopify/FulfillmentOrder/1" }]
+          }) {
+            userErrors { code }
+          }
+          cancel: fulfillmentCancel(id: "gid://shopify/Fulfillment/1") {
+            userErrors { code }
+          }
+          tracking: fulfillmentTrackingInfoUpdate(
+            fulfillmentId: "gid://shopify/Fulfillment/1"
+            trackingInfoInput: { number: "TRACK-1" }
+          ) {
+            userErrors { code }
+          }
+          trackingV2: fulfillmentTrackingInfoUpdateV2(
+            fulfillmentId: "gid://shopify/Fulfillment/1"
+            trackingInfoInput: { number: "TRACK-1" }
+          ) {
+            userErrors { code }
+          }
+          event: fulfillmentEventCreate(fulfillmentEvent: {
+            fulfillmentId: "gid://shopify/Fulfillment/1"
+            status: IN_TRANSIT
+          }) {
+            userErrors { code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert!(response.body.get("data").is_none());
+    let errors = response.body["errors"].as_array().unwrap();
+    assert_eq!(errors.len(), 7);
+    for (error, response_key) in errors.iter().zip([
+        "refund",
+        "create",
+        "createV2",
+        "cancel",
+        "tracking",
+        "trackingV2",
+        "event",
+    ]) {
+        assert_eq!(
+            error["message"],
+            json!("Field 'code' doesn't exist on type 'UserError'")
+        );
+        assert_eq!(
+            error["path"],
+            json!([
+                "mutation OrdersPlainUserErrorCodeSelectionRejected",
+                response_key,
+                "userErrors",
+                "code"
+            ])
+        );
+        assert_eq!(
+            error["extensions"],
+            json!({
+                "code": "undefinedField",
+                "typeName": "UserError",
+                "fieldName": "code"
+            })
+        );
     }
 }
 
@@ -747,7 +1036,7 @@ fn stage_two_line_reverse_fulfillment_order(proxy: &mut DraftProxy) -> (Value, V
                 }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -1785,7 +2074,7 @@ fn fulfillment_lifecycle_stages_against_created_order_fulfillment_order() {
               status
               trackingInfo { number url company }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -1839,7 +2128,7 @@ fn fulfillment_lifecycle_stages_against_created_order_fulfillment_order() {
               status
               trackingInfo { number url company }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -1881,7 +2170,7 @@ fn fulfillment_lifecycle_stages_against_created_order_fulfillment_order() {
         mutation CancelFulfillment($id: ID!) {
           fulfillmentCancel(id: $id) {
             fulfillment { id status trackingInfo { number url company } }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2029,7 +2318,7 @@ fn fulfillment_create_names_are_order_scoped_sequence_numbers() {
               name
               status
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#;
@@ -2107,7 +2396,7 @@ fn fulfillment_event_create_stages_event_and_top_level_read_after_write() {
               latitude
               longitude
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2232,7 +2521,7 @@ fn fulfillment_event_create_rejects_unknown_real_fulfillment_gid() {
         mutation FulfillmentEventCreateUnknown($fulfillmentEvent: FulfillmentEventInput!) {
           fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
             fulfillmentEvent { id status }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2251,8 +2540,77 @@ fn fulfillment_event_create_rejects_unknown_real_fulfillment_gid() {
             "fulfillmentEvent": null,
             "userErrors": [{
                 "field": ["fulfillmentEvent", "fulfillmentId"],
-                "message": "Fulfillment does not exist.",
-                "code": "NOT_FOUND"
+                "message": "Fulfillment does not exist."
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn fulfillment_cancel_returns_not_found_for_unknown_fulfillment_gid() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentCancelUnknown($id: ID!) {
+          cancelAlias: fulfillmentCancel(id: $id) {
+            fulfillment { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Fulfillment/999999999" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["cancelAlias"],
+        json!({
+            "fulfillment": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Fulfillment not found."
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn fulfillment_tracking_update_returns_not_found_for_unknown_fulfillment_gid() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentTrackingInfoUpdateUnknown($fulfillmentId: ID!, $trackingInfoInput: FulfillmentTrackingInput!) {
+          trackingAlias: fulfillmentTrackingInfoUpdate(
+            fulfillmentId: $fulfillmentId
+            trackingInfoInput: $trackingInfoInput
+          ) {
+            fulfillment { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentId": "gid://shopify/Fulfillment/999999999",
+            "trackingInfoInput": {
+                "company": "UPS",
+                "number": "UNKNOWN-TRACK",
+                "url": "https://tracking.example/UNKNOWN-TRACK"
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["trackingAlias"],
+        json!({
+            "fulfillment": null,
+            "userErrors": [{
+                "field": ["fulfillmentId"],
+                "message": "Fulfillment does not exist."
             }]
         })
     );
@@ -2269,7 +2627,7 @@ fn fulfillment_cancel_and_tracking_accept_cancelled_or_delivered_fulfillments() 
         mutation CancelBeforeRetry($id: ID!) {
           fulfillmentCancel(id: $id) {
             fulfillment { id status displayStatus }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2285,7 +2643,7 @@ fn fulfillment_cancel_and_tracking_accept_cancelled_or_delivered_fulfillments() 
         mutation CancelAlreadyCancelled($id: ID!) {
           fulfillmentCancel(id: $id) {
             fulfillment { id status displayStatus }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2316,7 +2674,7 @@ fn fulfillment_cancel_and_tracking_accept_cancelled_or_delivered_fulfillments() 
               displayStatus
               trackingInfo { number url company }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2348,7 +2706,7 @@ fn fulfillment_cancel_and_tracking_accept_cancelled_or_delivered_fulfillments() 
         mutation MarkFulfillmentDelivered($fulfillmentEvent: FulfillmentEventInput!) {
           fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
             fulfillmentEvent { id status }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2370,7 +2728,7 @@ fn fulfillment_cancel_and_tracking_accept_cancelled_or_delivered_fulfillments() 
         mutation CancelDeliveredFulfillment($id: ID!) {
           fulfillmentCancel(id: $id) {
             fulfillment { id status displayStatus }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2416,7 +2774,7 @@ fn fulfillment_event_create_accepts_cancelled_parent_and_logs() {
         mutation CancelBeforeEvent($id: ID!) {
           fulfillmentCancel(id: $id) {
             fulfillment { id status displayStatus }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2432,7 +2790,7 @@ fn fulfillment_event_create_accepts_cancelled_parent_and_logs() {
         mutation FulfillmentEventCreateCancelled($fulfillmentEvent: FulfillmentEventInput!) {
           fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
             fulfillmentEvent { id status }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2519,7 +2877,7 @@ fn fulfillment_event_create_hydrates_real_fulfillment_without_passthrough_mutati
         mutation FulfillmentEventCreateHydrated($fulfillmentEvent: FulfillmentEventInput!) {
           fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
             fulfillmentEvent { id status message }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2782,7 +3140,7 @@ fn order_close_and_open_stage_lifecycle_state_and_reads() {
         mutation ClientNamedClose($input: OrderCloseInput!) {
           closeAlias: orderClose(input: $input) {
             order { id closed closedAt updatedAt }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2846,7 +3204,7 @@ fn order_close_and_open_stage_lifecycle_state_and_reads() {
         mutation ClientNamedOpen($input: OrderOpenInput!) {
           openAlias: orderOpen(input: $input) {
             order { id closed closedAt updatedAt }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2920,7 +3278,7 @@ fn order_close_and_open_unknown_ids_return_shopify_user_errors() {
         mutation CloseMissingOrder($input: OrderCloseInput!) {
           orderClose(input: $input) {
             order { id closed closedAt }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2939,7 +3297,7 @@ fn order_close_and_open_unknown_ids_return_shopify_user_errors() {
         mutation OpenMissingOrder($input: OrderOpenInput!) {
           orderOpen(input: $input) {
             order { id closed closedAt }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -2958,6 +3316,102 @@ fn order_close_and_open_unknown_ids_return_shopify_user_errors() {
     assert_eq!(log["entries"][0]["operationName"], json!("orderClose"));
     assert_eq!(log["entries"][1]["status"], json!("failed"));
     assert_eq!(log["entries"][1]["operationName"], json!("orderOpen"));
+}
+
+#[test]
+fn order_lifecycle_plain_user_errors_reject_code_selection() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/orderLifecycle-plain-usererror-no-code.graphql"
+        ),
+        serde_json::from_str(include_str!(
+            "../../config/parity-requests/orders/orderLifecycle-plain-usererror-no-code.variables.json"
+        ))
+        .unwrap(),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert!(response.body.get("data").is_none());
+    let errors = response.body["errors"].as_array().unwrap();
+    assert_eq!(errors.len(), 4);
+    for (error, response_key) in errors.iter().zip(["update", "close", "open", "markAsPaid"]) {
+        assert_eq!(
+            error["message"],
+            json!("Field 'code' doesn't exist on type 'UserError'")
+        );
+        assert_eq!(
+            error["path"],
+            json!([
+                "mutation OrderLifecyclePlainUserErrorNoCode",
+                response_key,
+                "userErrors",
+                "code"
+            ])
+        );
+        assert_eq!(
+            error["extensions"],
+            json!({
+                "code": "undefinedField",
+                "typeName": "UserError",
+                "fieldName": "code"
+            })
+        );
+        assert!(error["locations"][0]["line"].as_u64().is_some());
+        assert!(error["locations"][0]["column"].as_u64().is_some());
+    }
+}
+
+#[test]
+fn order_update_and_mark_as_paid_plain_user_errors_omit_codes() {
+    let mut proxy = snapshot_proxy();
+
+    let update_unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateMissingOrder($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Order/999999" } }),
+    ));
+    assert_eq!(
+        update_unknown.body["data"]["orderUpdate"],
+        json!({
+            "order": Value::Null,
+            "userErrors": [{ "field": ["id"], "message": "Order does not exist" }]
+        })
+    );
+    assert!(update_unknown.body["data"]["orderUpdate"]["userErrors"][0]
+        .get("code")
+        .is_none());
+
+    let unknown_mark = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownMarkAsPaid($input: OrderMarkAsPaidInput!) {
+          orderMarkAsPaid(input: $input) {
+            order { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Order/999999" } }),
+    ));
+    assert_eq!(
+        unknown_mark.body["data"]["orderMarkAsPaid"],
+        json!({
+            "order": Value::Null,
+            "userErrors": [{ "field": ["id"], "message": "Order does not exist" }]
+        })
+    );
+    assert!(
+        unknown_mark.body["data"]["orderMarkAsPaid"]["userErrors"][0]
+            .get("code")
+            .is_none()
+    );
 }
 
 #[test]
@@ -7701,7 +8155,7 @@ fn order_mark_as_paid_rejects_unknown_and_non_markable_orders_without_staging() 
         mutation UnknownMarkAsPaid($input: OrderMarkAsPaidInput!) {
           orderMarkAsPaid(input: $input) {
             order { id totalOutstandingSet { presentmentMoney { amount currencyCode } } }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -7771,7 +8225,7 @@ fn order_mark_as_paid_rejects_unknown_and_non_markable_orders_without_staging() 
                 }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#;
@@ -7801,6 +8255,9 @@ fn order_mark_as_paid_rejects_unknown_and_non_markable_orders_without_staging() 
         repeat.body["data"]["orderMarkAsPaid"]["userErrors"][0]["message"],
         json!("Order cannot be marked as paid.")
     );
+    assert!(repeat.body["data"]["orderMarkAsPaid"]["userErrors"][0]
+        .get("code")
+        .is_none());
     assert_eq!(
         repeat.body["data"]["orderMarkAsPaid"]["order"]["transactions"]
             .as_array()
@@ -7851,6 +8308,11 @@ fn order_mark_as_paid_rejects_unknown_and_non_markable_orders_without_staging() 
     assert_eq!(
         cancelled_mark.body["data"]["orderMarkAsPaid"]["userErrors"][0]["message"],
         json!("Order cannot be marked as paid.")
+    );
+    assert!(
+        cancelled_mark.body["data"]["orderMarkAsPaid"]["userErrors"][0]
+            .get("code")
+            .is_none()
     );
 
     let log = log_snapshot(&proxy);
@@ -8057,12 +8519,60 @@ fn draft_order_complete_replays_resulting_order_and_gateway_paths() {
         json!({"id": unknown_id, "paymentGatewayId": "gid://shopify/PaymentGateway/not-installed", "paymentPending": false}),
     ));
     assert_eq!(
-        unknown_complete.body["data"]["draftOrderComplete"]["draftOrder"],
+        unknown_complete.body["data"]["draftOrderComplete"]["draftOrder"]["id"],
+        unknown_id
+    );
+    assert_eq!(
+        unknown_complete.body["data"]["draftOrderComplete"]["draftOrder"]["status"],
+        json!("OPEN")
+    );
+    assert_eq!(
+        unknown_complete.body["data"]["draftOrderComplete"]["draftOrder"]["order"],
         Value::Null
     );
     assert_eq!(
-        unknown_complete.body["data"]["draftOrderComplete"]["userErrors"][0]["field"],
-        json!(["paymentGatewayId"])
+        unknown_complete.body["data"]["draftOrderComplete"]["userErrors"],
+        json!([{ "field": null, "message": "Invalid payment gateway" }])
+    );
+}
+
+#[test]
+fn draft_order_complete_rejects_user_error_code_selection() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation DraftOrderCompleteUserErrorNoCode($id: ID!) {
+          draftOrderComplete(id: $id, paymentGatewayId: "gid://shopify/PaymentGateway/not-installed") {
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "id": "gid://shopify/DraftOrder/1" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert!(response.body.get("data").is_none());
+    let errors = response.body["errors"].as_array().unwrap();
+    assert_eq!(errors.len(), 1);
+    assert_eq!(
+        errors[0]["message"],
+        json!("Field 'code' doesn't exist on type 'UserError'")
+    );
+    assert_eq!(
+        errors[0]["path"],
+        json!([
+            "mutation DraftOrderCompleteUserErrorNoCode",
+            "draftOrderComplete",
+            "userErrors",
+            "code"
+        ])
+    );
+    assert_eq!(
+        errors[0]["extensions"],
+        json!({
+            "code": "undefinedField",
+            "typeName": "UserError",
+            "fieldName": "code"
+        })
     );
 }
 
@@ -8133,7 +8643,7 @@ fn complete_draft_for_payment_terms_completion_test(
                     }
                   }
                 }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }
             "#,
@@ -8157,7 +8667,7 @@ fn complete_draft_for_payment_terms_completion_test(
                     }
                   }
                 }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }
             "#,
@@ -8388,7 +8898,7 @@ fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
                 }
               }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -8732,7 +9242,6 @@ fn refund_create_stages_refund_and_downstream_order_reads() {
             userErrors {
               field
               message
-              code
             }
           }
         }
@@ -8992,7 +9501,6 @@ fn refund_create_user_errors_do_not_fall_back_to_not_implemented_or_stage_state(
             userErrors {
               field
               message
-              code
             }
           }
         }
@@ -9016,12 +9524,11 @@ fn refund_create_user_errors_do_not_fall_back_to_not_implemented_or_stage_state(
         Value::Null
     );
     assert_eq!(
-        over_refund.body["data"]["refundCreate"]["userErrors"][0]["message"],
-        json!("Refund amount $15.00 is greater than net payment received $10.00")
-    );
-    assert_eq!(
-        over_refund.body["data"]["refundCreate"]["userErrors"][0]["code"],
-        json!("OVER_REFUND")
+        over_refund.body["data"]["refundCreate"]["userErrors"][0],
+        json!({
+            "field": null,
+            "message": "Refund amount $15.00 is greater than net payment received $10.00"
+        })
     );
     assert_ne!(
         over_refund.body["data"]["refundCreate"]["userErrors"][0]["message"],
@@ -9055,12 +9562,11 @@ fn refund_create_user_errors_do_not_fall_back_to_not_implemented_or_stage_state(
         Value::Null
     );
     assert_eq!(
-        over_quantity.body["data"]["refundCreate"]["userErrors"][0]["field"],
-        json!(["refundLineItems", "0", "quantity"])
-    );
-    assert_eq!(
-        over_quantity.body["data"]["refundCreate"]["userErrors"][0]["message"],
-        json!("Quantity cannot refund more items than were purchased")
+        over_quantity.body["data"]["refundCreate"]["userErrors"][0],
+        json!({
+            "field": ["refundLineItems", "0", "quantity"],
+            "message": "Quantity cannot refund more items than were purchased"
+        })
     );
 
     let log = log_snapshot(&proxy);

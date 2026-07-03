@@ -23,7 +23,6 @@ mutation DraftOrderCompletePaymentGatewayPathsComplete($id: ID!, $paymentGateway
     userErrors {
       field
       message
-      code
     }
   }
 }

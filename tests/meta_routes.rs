@@ -1314,7 +1314,7 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
               transactions(first: 5) { nodes { id kind status } }
             }
             order { id }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
     "#;
@@ -1442,7 +1442,7 @@ fn restore_state_advances_order_refund_transaction_and_bulk_job_counters() {
                 mutation MarkRestoredOrderPaid($input: OrderMarkAsPaidInput!) {
                   orderMarkAsPaid(input: $input) {
                     order { id transactions { id kind status } }
-                    userErrors { field message code }
+                    userErrors { field message }
                   }
                 }
             "#,

@@ -1,0 +1,38 @@
+{
+  "scenarioId": "fulfillment-unknown-not-found",
+  "operationNames": ["fulfillmentCancel", "fulfillmentTrackingInfoUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-atomicity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/fulfillment-unknown-not-found.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/fulfillmentCancel-unknown-id-not-found.graphql",
+    "variablesCapturePath": "$.fulfillmentCancel.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "notes": "Live Admin GraphQL 2025-01 evidence that `fulfillmentCancel` and `fulfillmentTrackingInfoUpdate` return HTTP 200 payloads with null fulfillment and field/message-only not-found userErrors for well-formed never-created Fulfillment GIDs. The capture uses fixed unknown GIDs and does not mutate Shopify resources.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "fulfillment-cancel-unknown-id-user-error",
+        "capturePath": "$.fulfillmentCancel.response.payload.data.fulfillmentCancel",
+        "proxyPath": "$.data.fulfillmentCancel"
+      },
+      {
+        "name": "fulfillment-tracking-info-update-unknown-id-user-error",
+        "capturePath": "$.fulfillmentTrackingInfoUpdate.response.payload.data.fulfillmentTrackingInfoUpdate",
+        "proxyPath": "$.data.fulfillmentTrackingInfoUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/fulfillmentTrackingInfoUpdate-unknown-id-not-found.graphql",
+          "variablesCapturePath": "$.fulfillmentTrackingInfoUpdate.request.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}
