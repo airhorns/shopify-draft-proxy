@@ -1,7 +1,6 @@
 use crate::proxy::*;
 
 const GIFT_CARD_SEND_NOTIFICATION_WINDOW_DAYS: i64 = 90;
-const GIFT_CARD_NO_CONTACT_RECIPIENT_ID: &str = "gid://shopify/Customer/no-contact-recipient";
 const GIFT_CARD_MUTATION_HYDRATE_QUERY: &str = r#"#graphql
     query GiftCardHydrate($id: ID!) {
       giftCard(id: $id) {
@@ -187,10 +186,9 @@ impl DraftProxy {
                         &field.selection,
                     )
                 }
-                "giftCardConfiguration" => selected_json(
-                    &gift_card_configuration_record(&self.store.shop_currency_code()),
-                    &field.selection,
-                ),
+                "giftCardConfiguration" => {
+                    selected_json(&self.gift_card_configuration_record(), &field.selection)
+                }
                 _ => return None,
             })
         })
@@ -1096,7 +1094,7 @@ impl DraftProxy {
     }
 
     fn gift_card_issue_limit_amount(&self) -> f64 {
-        gift_card_configuration_record(&self.store.shop_currency_code())["issueLimit"]["amount"]
+        self.gift_card_configuration_record()["issueLimit"]["amount"]
             .as_str()
             .and_then(|value| value.parse::<f64>().ok())
             .unwrap_or(3000.0)
@@ -1200,10 +1198,9 @@ impl DraftProxy {
             }
         }
         if let Some(recipient_id) = resolved_string_field(&recipient, "id") {
-            if recipient_id != GIFT_CARD_NO_CONTACT_RECIPIENT_ID
-                && self
-                    .gift_card_customer_record_for_reference(request, &recipient_id)
-                    .is_none()
+            if self
+                .gift_card_customer_record_for_reference(request, &recipient_id)
+                .is_none()
             {
                 return vec![gift_card_user_error(
                     root_field,
@@ -1237,16 +1234,13 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let recipient_id = resolved_string_field(input, "id").unwrap_or_default();
-        let recipient = if recipient_id == GIFT_CARD_NO_CONTACT_RECIPIENT_ID {
-            gift_card_no_contact_recipient_projection_json(&recipient_id)
-        } else {
-            self.store
-                .staged
-                .customers
-                .get(&recipient_id)
-                .map(gift_card_customer_projection_json)
-                .unwrap_or_else(|| json!({ "id": recipient_id }))
-        };
+        let recipient = self
+            .store
+            .staged
+            .customers
+            .get(&recipient_id)
+            .map(gift_card_customer_projection_json)
+            .unwrap_or_else(|| json!({ "id": recipient_id }));
         json!({
             "message": resolved_string_field(input, "message"),
             "preferredName": resolved_string_field(input, "preferredName"),
@@ -1763,16 +1757,6 @@ fn gift_card_customer_projection_json(customer: &Value) -> Value {
         "phone": customer.get("phone").cloned().unwrap_or(Value::Null),
         "defaultEmailAddress": customer.get("defaultEmailAddress").cloned().unwrap_or(Value::Null),
         "defaultPhoneNumber": customer.get("defaultPhoneNumber").cloned().unwrap_or(Value::Null)
-    })
-}
-
-fn gift_card_no_contact_recipient_projection_json(id: &str) -> Value {
-    json!({
-        "id": id,
-        "email": null,
-        "phone": null,
-        "defaultEmailAddress": null,
-        "defaultPhoneNumber": null
     })
 }
 

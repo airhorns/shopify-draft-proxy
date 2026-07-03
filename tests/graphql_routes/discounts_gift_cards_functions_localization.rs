@@ -7745,7 +7745,7 @@ fn gift_card_update_hydrates_legacy_seed_id_live_hybrid_card_before_staging() {
 }
 
 #[test]
-fn gift_card_configuration_and_create_limit_use_shop_currency() {
+fn gift_card_configuration_and_create_limit_use_base_configuration() {
     let mut proxy = snapshot_proxy();
     let dump = proxy
         .process_request(request_with_body(
@@ -7756,6 +7756,10 @@ fn gift_card_configuration_and_create_limit_use_shop_currency() {
         .body;
     let mut restored = dump.clone();
     restored["state"]["baseState"]["shop"]["currencyCode"] = json!("EUR");
+    restored["state"]["baseState"]["giftCardConfiguration"] = json!({
+        "issueLimit": { "amount": "2500.0", "currencyCode": "EUR" },
+        "purchaseLimit": { "amount": "9000.0", "currencyCode": "EUR" }
+    });
     let restore = proxy.process_request(request_with_body(
         "POST",
         "/__meta/restore",
@@ -7776,14 +7780,19 @@ fn gift_card_configuration_and_create_limit_use_shop_currency() {
     assert_eq!(
         configuration.body["data"]["giftCardConfiguration"],
         json!({
-            "issueLimit": { "amount": "3000.0", "currencyCode": "EUR" },
-            "purchaseLimit": { "amount": "14000.0", "currencyCode": "EUR" }
+            "issueLimit": { "amount": "2500.0", "currencyCode": "EUR" },
+            "purchaseLimit": { "amount": "9000.0", "currencyCode": "EUR" }
         })
     );
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardLimitUsesShopCurrency {
-          createOverLimit: giftCardCreate(input: { initialValue: "4000" }) {
+          createWithinLimit: giftCardCreate(input: { initialValue: "2400" }) {
+            giftCard { id balance { amount currencyCode } }
+            giftCardCode
+            userErrors { field code message }
+          }
+          createOverLimit: giftCardCreate(input: { initialValue: "2600" }) {
             giftCard { id }
             giftCardCode
             userErrors { field code message }
@@ -7793,15 +7802,25 @@ fn gift_card_configuration_and_create_limit_use_shop_currency() {
     ));
 
     assert_eq!(
-        response.body["data"]["createOverLimit"],
+        response.body["data"],
         json!({
-            "giftCard": null,
-            "giftCardCode": null,
-            "userErrors": [{
-                "field": ["input", "initialValue"],
-                "code": "GIFT_CARD_LIMIT_EXCEEDED",
-                "message": "can't exceed $3,000.00 EUR"
-            }]
+            "createWithinLimit": {
+                "giftCard": {
+                    "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
+                    "balance": { "amount": "2400.0", "currencyCode": "EUR" }
+                },
+                "giftCardCode": "giftcard00000001",
+                "userErrors": []
+            },
+            "createOverLimit": {
+                "giftCard": null,
+                "giftCardCode": null,
+                "userErrors": [{
+                    "field": ["input", "initialValue"],
+                    "code": "GIFT_CARD_LIMIT_EXCEEDED",
+                    "message": "can't exceed $2,500.00 EUR"
+                }]
+            }
         })
     );
 }
@@ -8323,16 +8342,13 @@ fn gift_card_notification_base_keyed_state_errors_emit_null_field() {
 }
 
 #[test]
-fn gift_card_notification_created_no_contact_recipient_emits_null_field() {
+fn gift_card_create_rejects_fabricated_no_contact_recipient_sentinel() {
     let mut proxy = snapshot_proxy();
 
     let create = proxy.process_request(json_graphql_request(
-        r#"mutation GiftCardCreateNoContactRecipient($recipientId: ID!) {
+        r#"mutation GiftCardCreateNoContactRecipientSentinel($recipientId: ID!) {
           giftCardCreate(input: { initialValue: "10", recipientAttributes: { id: $recipientId } }) {
-            giftCard {
-              id
-              recipientAttributes { recipient { id } }
-            }
+            giftCard { id }
             giftCardCode
             userErrors { field code message }
           }
@@ -8341,38 +8357,20 @@ fn gift_card_notification_created_no_contact_recipient_emits_null_field() {
     ));
     assert_eq!(create.status, 200);
     assert_eq!(
-        create.body["data"]["giftCardCreate"]["userErrors"],
-        json!([])
-    );
-    assert_eq!(
-        create.body["data"]["giftCardCreate"]["giftCard"]["recipientAttributes"]["recipient"]["id"],
-        json!("gid://shopify/Customer/no-contact-recipient")
-    );
-    let gift_card_id = create.body["data"]["giftCardCreate"]["giftCard"]["id"]
-        .as_str()
-        .expect("gift card id")
-        .to_string();
-
-    let notify = proxy.process_request(json_graphql_request(
-        r#"mutation GiftCardNotifyNoContactRecipient($id: ID!) {
-          giftCardSendNotificationToRecipient(id: $id) {
-            giftCard { id }
-            userErrors { field code message }
-          }
-        }"#,
-        json!({ "id": gift_card_id }),
-    ));
-
-    assert_eq!(
-        notify.body["data"]["giftCardSendNotificationToRecipient"],
+        create.body["data"]["giftCardCreate"],
         json!({
             "giftCard": null,
+            "giftCardCode": null,
             "userErrors": [{
-                "field": null,
-                "code": "INVALID",
-                "message": "The recipient has no contact information (e.g. email address or phone number)."
+                "field": ["input", "recipientAttributes", "id"],
+                "code": "RECIPIENT_NOT_FOUND",
+                "message": "Recipient could not be found"
             }]
         })
+    );
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["giftCards"],
+        json!({})
     );
 }
 
@@ -9108,6 +9106,13 @@ fn gift_card_create_omitted_optional_fields_are_null_and_supplied_values_round_t
             "userErrors": []
         })
     );
+    assert!(
+        !supplied_create
+            .body
+            .to_string()
+            .contains("no-contact-recipient"),
+        "real recipient create without customerId must not use the fabricated no-contact sentinel"
+    );
 
     let supplied_read = proxy.process_request(json_graphql_request(
         r#"query GiftCardCreateSuppliedRead($id: ID!) {
@@ -9129,6 +9134,13 @@ fn gift_card_create_omitted_optional_fields_are_null_and_supplied_values_round_t
     ));
     assert_eq!(supplied_read.status, 200);
     assert_eq!(supplied_read.body["data"]["giftCard"], supplied_card);
+    assert!(
+        !supplied_read
+            .body
+            .to_string()
+            .contains("no-contact-recipient"),
+        "real recipient readback must not use the fabricated no-contact sentinel"
+    );
 }
 
 #[test]
