@@ -1292,20 +1292,18 @@ fn validate_staged_upload_input(
         && resolved_string_field(input, "fileSize").is_none()
         && !matches!(input.get("fileSize"), Some(ResolvedValue::Int(_)))
     {
+        let resource_label = if resource == "VIDEO" {
+            "video"
+        } else {
+            "3D model"
+        };
         errors.push(user_error_omit_code(
             vec![
                 "input".to_string(),
                 index.to_string(),
                 "fileSize".to_string(),
             ],
-            &format!(
-                "file size is required for {} resources",
-                if resource == "VIDEO" {
-                    "video"
-                } else {
-                    "model3d"
-                }
-            ),
+            &format!("file size is required for {resource_label} resources"),
             None,
         ));
     }

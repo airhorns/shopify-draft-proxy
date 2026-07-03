@@ -16,7 +16,6 @@ mod returns;
 pub(in crate::proxy) use self::delivery_settings::*;
 pub(in crate::proxy) use self::events::*;
 pub(in crate::proxy) use self::payment_customizations::*;
-pub(in crate::proxy) use self::payment_reminders::*;
 pub(in crate::proxy) use self::payment_terms::*;
 pub(in crate::proxy) use self::quantity_pricing::*;
 pub(in crate::proxy) use self::quantity_rules::*;

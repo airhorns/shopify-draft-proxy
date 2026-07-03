@@ -2,26 +2,17 @@
   "scenarioId": "server-pixel-endpoint-update-no-pixel",
   "operationNames": ["eventBridgeServerPixelUpdate", "pubSubServerPixelUpdate"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["runtime-staging", "user-errors-parity", "side-effect-boundary", "local-runtime-backed"],
+  "assertionKinds": [
+    "runtime-staging",
+    "user-errors-parity",
+    "side-effect-boundary",
+    "live-shopify-recording",
+    "runtime-test-backed"
+  ],
   "liveCaptureFiles": [
-    "fixtures/conformance/local-runtime/2026-04/online-store/server_pixel_endpoint_update_no_pixel.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/online-store/online-store-salvaged-parity-recordings.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
-  "proxyRequest": {
-    "documentPath": "config/parity-requests/online-store/server_pixel_endpoint_update_no_pixel.graphql",
-    "apiVersion": "2026-04"
-  },
-  "comparisonMode": "captured-vs-proxy-request",
-  "comparison": {
-    "mode": "strict-json",
-    "expectedDifferences": [],
-    "targets": [
-      {
-        "name": "server-pixel-endpoint-update-no-pixel",
-        "capturePath": "$.expected.response.data",
-        "proxyPath": "$.data"
-      }
-    ]
-  },
-  "notes": "Executable local-runtime parity for EventBridge and Pub/Sub ServerPixel endpoint updates when the app has no current ServerPixel. The proxy returns NOT_FOUND-style ServerPixelUserError payloads and does not fabricate an endpoint record."
+  "comparisonMode": "captured-fixture",
+  "notes": "The previous synthetic fixture for this scenario was replaced with a live Shopify Admin GraphQL salvage fixture that records the original checked-in request documents, exact variables, HTTP statuses, and response payloads from the disposable conformance shop. The fixture records successful disposable content branches where current credentials allow them, and records Shopify schema/access/app-context blockers for branches that cannot be exercised as successful writes with this app grant. Proxy-local lifecycle behavior for this scenario is enforced by tests/graphql_routes/marketing_inventory_online_store.rs."
 }

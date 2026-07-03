@@ -1,19 +1,14 @@
 {
   "scenarioId": "orderDelete-cascade-and-deletability",
-  "operationNames": ["orderDelete", "order", "fulfillmentOrder", "return", "abandonedCheckouts"],
+  "operationNames": ["orderCreate", "orderDelete", "order", "orders", "ordersCount"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "mutation-lifecycle",
-    "downstream-read-parity",
-    "user-errors-parity",
-    "local-runtime-backed",
-    "no-upstream-passthrough"
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-delete-snapshot-staging.json"
   ],
-  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/orders/orderDelete-cascade-and-deletability.json"],
-  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/orders/orderDelete-cascade-and-deletability.graphql",
-    "variablesCapturePath": "$.requests.unknownOrderDelete.variables",
+    "documentPath": "config/parity-requests/orders/orderDelete-snapshot-staging-create.graphql",
+    "variablesCapturePath": "$.operations.deletableCreate.variables",
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
@@ -22,11 +17,179 @@
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "unknown-order",
-        "capturePath": "$.expected.unknownOrderDelete.data.orderDelete",
-        "proxyPath": "$.data.orderDelete"
+        "name": "deletable-order-create-baseline",
+        "capturePath": "$.operations.deletableCreate.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "selectedPaths": [
+          "$.order.email",
+          "$.order.displayFinancialStatus",
+          "$.order.displayFulfillmentStatus",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "successful-delete",
+        "capturePath": "$.operations.successDelete.response.payload.data.orderDelete",
+        "proxyPath": "$.data.orderDelete",
+        "expectedDifferences": [
+          {
+            "path": "$.deletedId",
+            "matcher": "shopify-gid:Order",
+            "reason": "Live Shopify and the local draft proxy necessarily allocate different order ids."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderDelete-snapshot-staging-delete.graphql",
+          "variables": {
+            "orderId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "downstream-read-after-delete",
+        "capturePath": "$.operations.downstreamAfterDelete.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderDelete-snapshot-staging-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "query": {
+              "fromCapturePath": "$.operations.downstreamAfterDelete.variables.query"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "repeated-delete-not-found",
+        "capturePath": "$.operations.repeatDelete.response.payload.data.orderDelete",
+        "proxyPath": "$.data.orderDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderDelete-snapshot-staging-delete.graphql",
+          "variables": {
+            "orderId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "fulfilled-order-create-baseline",
+        "capturePath": "$.operations.fulfilledSetupCreate.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "selectedPaths": [
+          "$.order.email",
+          "$.order.displayFinancialStatus",
+          "$.order.displayFulfillmentStatus",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderDelete-snapshot-staging-create.graphql",
+          "variables": {
+            "order": {
+              "email": "order-delete-local-fulfilled@example.com",
+              "note": "orderDelete snapshot staging local fulfilled setup",
+              "tags": ["order-delete-snapshot-staging", "conformance", "local-fulfilled"],
+              "test": true,
+              "currency": "USD",
+              "financialStatus": "PAID",
+              "fulfillmentStatus": "FULFILLED",
+              "lineItems": [
+                {
+                  "title": "Order delete local fulfilled setup",
+                  "quantity": 1,
+                  "priceSet": {
+                    "shopMoney": {
+                      "amount": "12.00",
+                      "currencyCode": "USD"
+                    }
+                  },
+                  "requiresShipping": false,
+                  "taxable": false,
+                  "sku": "order-delete-local-fulfilled"
+                }
+              ],
+              "transactions": [
+                {
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "test": true,
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "12.00",
+                      "currencyCode": "USD"
+                    }
+                  }
+                }
+              ]
+            },
+            "options": {
+              "inventoryBehaviour": "BYPASS",
+              "sendReceipt": false,
+              "sendFulfillmentReceipt": false
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "fulfilled-order-delete-success",
+        "capturePath": "$.operations.fulfilledDelete.response.payload.data.orderDelete",
+        "proxyPath": "$.data.orderDelete",
+        "expectedDifferences": [
+          {
+            "path": "$.deletedId",
+            "matcher": "shopify-gid:Order",
+            "reason": "Live Shopify and the local draft proxy necessarily allocate different order ids."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderDelete-snapshot-staging-delete.graphql",
+          "variables": {
+            "orderId": {
+              "fromProxyResponse": "fulfilled-order-create-baseline",
+              "path": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "fulfilled-order-read-after-delete",
+        "capturePath": "$.operations.fulfilledReadAfterDelete.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderDelete-snapshot-staging-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "fulfilled-order-create-baseline",
+              "path": "$.data.orderCreate.order.id"
+            },
+            "query": {
+              "fromCapturePath": "$.operations.fulfilledReadAfterDelete.variables.query"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "unknown-order-not-found",
+        "capturePath": "$.operations.unknownDelete.response.payload.data.orderDelete",
+        "proxyPath": "$.data.orderDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderDelete-snapshot-staging-delete.graphql",
+          "variablesCapturePath": "$.operations.unknownDelete.variables",
+          "apiVersion": "2026-04"
+        }
       }
     ]
   },
-  "notes": "Executable local-runtime parity for orderDelete deletability and cascade behavior. The generic parity request strictly checks the unknown-order NOT_FOUND branch with no upstream passthrough. The referenced runtime tests additionally prove paid orders return INVALID without deletedId or local mutation and successful deletes remove the order plus attached fulfillment-order/return reads, payment terms, and abandoned-checkout order linkage. Successful orderDelete is a supported local mutation and must not be sent upstream during proxy runtime, so the side-effecting lifecycle branches are runtime-test-backed rather than recorded as live Shopify writes."
+  "notes": "Live 2026-04 capture for orderDelete success, read-after-delete cascade, repeat-delete NOT_FOUND, paid fulfilled-order delete success, and unknown-order NOT_FOUND. The ticket expected a paid/fulfilled INVALID branch, but live probes against disposable direct-order, draft-completed, fulfilled, open-fulfillment-order, requested-return, refunded, cancelled, test, and non-test orders all returned successful orderDelete payloads and downstream null reads. The proxy replay stages an equivalent fulfilled order directly through orderCreate input because fulfillmentCreate is not part of this orderDelete local replay path, then compares orderDelete payloads plus downstream order/order connection/count effects without runtime Shopify writes. Replacement for retired synthetic/local-runtime orders evidence. This scenario ID is preserved for continuity but now reuses the real Shopify capture and proxy request contract from config/parity-specs/orders/orderDelete-snapshot-staging.json (orderDelete-snapshot-staging); the old local-runtime cassette is no longer parity evidence."
 }

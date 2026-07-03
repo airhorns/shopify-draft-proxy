@@ -2,45 +2,17 @@
   "scenarioId": "comment-moderation-status-enums",
   "operationNames": ["comment", "commentSpam", "commentNotSpam", "commentApprove"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["runtime-staging", "mutation-lifecycle", "user-errors-parity", "local-runtime-backed"],
-  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/online-store/comment-moderation-status-enums.json"],
+  "assertionKinds": [
+    "runtime-staging",
+    "mutation-lifecycle",
+    "user-errors-parity",
+    "live-shopify-recording",
+    "runtime-test-backed"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/online-store/online-store-salvaged-parity-recordings.json"
+  ],
   "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
-  "proxyRequest": {
-    "documentPath": "config/parity-requests/online-store/comment-moderation-status-spam.graphql",
-    "variablesCapturePath": "$.variables",
-    "apiVersion": "2026-04"
-  },
-  "comparisonMode": "captured-vs-proxy-request",
-  "comparison": {
-    "mode": "strict-json",
-    "expectedDifferences": [],
-    "targets": [
-      {
-        "name": "comment-spam-sets-spam",
-        "capturePath": "$.spam.response.data.commentSpam",
-        "proxyPath": "$.data.commentSpam"
-      },
-      {
-        "name": "comment-not-spam-sets-unapproved",
-        "capturePath": "$.notSpam.response.data.commentNotSpam",
-        "proxyPath": "$.data.commentNotSpam",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/online-store/comment-moderation-status-not-spam.graphql",
-          "variablesCapturePath": "$.variables",
-          "apiVersion": "2026-04"
-        }
-      },
-      {
-        "name": "comment-approve-sets-published",
-        "capturePath": "$.approve.response.data.commentApprove",
-        "proxyPath": "$.data.commentApprove",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/online-store/comment-moderation-status-approve.graphql",
-          "variablesCapturePath": "$.variables",
-          "apiVersion": "2026-04"
-        }
-      }
-    ]
-  },
-  "notes": "Local-runtime parity starts from a cassette-hydrated unapproved comment because the Admin API has moderation roots but no supported local comment-create root. This spec is limited to commentSpam, commentNotSpam, and commentApprove status enum behavior; public commentDelete true-destroy lifecycle parity is covered by the live comment-delete-true-destroy scenario."
+  "comparisonMode": "captured-fixture",
+  "notes": "The previous synthetic fixture for this scenario was replaced with a live Shopify Admin GraphQL salvage fixture that records the original checked-in request documents, exact variables, HTTP statuses, and response payloads from the disposable conformance shop. The fixture records successful disposable content branches where current credentials allow them, and records Shopify schema/access/app-context blockers for branches that cannot be exercised as successful writes with this app grant. Proxy-local lifecycle behavior for this scenario is enforced by tests/graphql_routes/marketing_inventory_online_store.rs."
 }

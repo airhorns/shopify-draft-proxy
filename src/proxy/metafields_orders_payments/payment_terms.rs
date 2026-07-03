@@ -32,6 +32,14 @@ pub(in crate::proxy) fn payment_terms_payload_value(
     selected_json(&payload, selections)
 }
 
+fn payment_terms_node_order_paid(node: &Value) -> bool {
+    node.get("order")
+        .filter(|order| !order.is_null())
+        .and_then(|order| order.get("displayFinancialStatus"))
+        .and_then(Value::as_str)
+        == Some("PAID")
+}
+
 pub(in crate::proxy) fn payment_terms_success_record(
     id: &str,
     name: &str,
@@ -217,7 +225,7 @@ fn payment_schedule_due_state(due_at: Option<&str>, completed_at: Option<&str>) 
         return false;
     };
     let Some(now_epoch) =
-        super::app_shipping_helpers::parse_rfc3339_epoch_seconds("2024-01-01T00:00:00Z")
+        super::app_shipping_helpers::parse_rfc3339_epoch_seconds("2026-07-02T00:00:00Z")
     else {
         return false;
     };
@@ -462,11 +470,6 @@ pub(in crate::proxy) fn payment_terms_update_value(
 ) -> Result<(String, BTreeMap<String, ResolvedValue>), Value> {
     let (payment_terms_id, attrs) = payment_terms_attrs_from_update_field(field);
     let error = match payment_terms_id.as_str() {
-        "gid://shopify/PaymentTerms/999999" => Some(payment_terms_user_error(
-            json!(["input", "paymentTermsId"]),
-            "Payment terms do not exist",
-            "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
-        )),
         "gid://shopify/PaymentTerms/paid-update" => Some(payment_terms_user_error(
             Value::Null,
             "Cannot create payment terms on an Order that has already been paid in full.",
@@ -586,11 +589,29 @@ impl DraftProxy {
                     "paymentTermsUpdate" => match payment_terms_update_value(field) {
                         Ok((terms_id, attrs)) => {
                             let owner_id = self.payment_terms_owner_id(&terms_id);
+                            let has_staged_record =
+                                self.store.staged.payment_terms.contains_key(&terms_id);
+                            let cold_node = if owner_id.is_none() && !has_staged_record {
+                                self.hydrate_payment_terms_node(request, &terms_id)
+                            } else {
+                                None
+                            };
                             // Cold update (no local owner link): hydrate the
                             // PaymentTerms node and reject if its owning Order has
                             // already been paid in full, without staging anything.
-                            if owner_id.is_none()
-                                && self.payment_terms_node_owner_paid(request, &terms_id)
+                            if owner_id.is_none() && !has_staged_record && cold_node.is_none() {
+                                payment_terms_payload_value(
+                                    Value::Null,
+                                    vec![payment_terms_user_error(
+                                        Value::Null,
+                                        "Could not find payment terms.",
+                                        "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
+                                    )],
+                                    &field.selection,
+                                )
+                            } else if cold_node
+                                .as_ref()
+                                .is_some_and(payment_terms_node_order_paid)
                             {
                                 payment_terms_payload_value(
                                     Value::Null,
@@ -792,24 +813,6 @@ impl DraftProxy {
             .get(owner_id)
             .and_then(|owner| owner.get("displayFinancialStatus"))
             .and_then(Value::as_str)
-            == Some("PAID")
-    }
-
-    /// Cold-path eligibility probe for `paymentTermsUpdate`: hydrate the
-    /// PaymentTerms node by id and report whether its owning Order is paid in
-    /// full. Returns false when hydration is unavailable (non-LiveHybrid, missing
-    /// cassette, or a draft-owned node).
-    fn payment_terms_node_owner_paid(&self, request: &Request, terms_id: &str) -> bool {
-        self.hydrate_payment_terms_node(request, terms_id)
-            .and_then(|node| node.get("order").cloned())
-            .filter(|order| !order.is_null())
-            .and_then(|order| {
-                order
-                    .get("displayFinancialStatus")
-                    .and_then(Value::as_str)
-                    .map(str::to_string)
-            })
-            .as_deref()
             == Some("PAID")
     }
 

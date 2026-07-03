@@ -1,62 +1,66 @@
 {
   "scenarioId": "draft-order-complete-stages-resulting-order",
-  "operationNames": ["draftOrderCreate", "draftOrderComplete", "order", "orders"],
+  "operationNames": ["draftOrderComplete"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/local-runtime/2026-04/orders/draft-order-complete-stages-resulting-order.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-complete-parity.json"
   ],
-  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/orders/draftOrderComplete-stages-resulting-order-create.graphql"
+    "documentPath": "config/parity-requests/orders/draftOrderComplete-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/orders/draftOrderComplete-parity-plan.variables.json",
+    "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
+  "notes": "The live capture completes a disposable draft (harry-test-heelo), verifies an empty `userErrors` response, and records immediate downstream `draftOrder(id:)` visibility with the linked regular order. The proxy resolves the precondition draft via a real cold OrdersDraftOrderHydrate forward (the fixture's single upstreamCall) rather than a setup-block seed, then replays completion locally. Expected differences are limited to Shopify-generated completion/order identity values. Replacement for retired synthetic/local-runtime orders evidence. This scenario ID is preserved for continuity but now reuses the real Shopify capture and proxy request contract from config/parity-specs/orders/draftOrderComplete-parity-plan.json (draft-order-complete-live-parity); the old local-runtime cassette is no longer parity evidence.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
+    "expectedDifferences": [
+      {
+        "path": "$.completedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Live Shopify and the local draft proxy complete the draft at independent execution times."
+      },
+      {
+        "path": "$.order.id",
+        "matcher": "shopify-gid:Order",
+        "reason": "Live Shopify and the local draft proxy necessarily allocate different order ids when completing the draft."
+      },
+      {
+        "path": "$.order.name",
+        "matcher": "non-empty-string",
+        "reason": "Live Shopify and the local draft proxy allocate independent merchant-facing order names."
+      },
+      {
+        "path": "$.order.lineItems.nodes[*].id",
+        "matcher": "shopify-gid:LineItem",
+        "reason": "Live Shopify and the local draft proxy necessarily allocate different line item ids on the completed order."
+      }
+    ],
     "targets": [
       {
-        "name": "create-staged-draft",
-        "capturePath": "$.draftOrderCompleteStagesResultingOrder.expected.create",
-        "proxyPath": "$"
+        "name": "mutation-user-errors",
+        "capturePath": "$.mutation.response.data.draftOrderComplete.userErrors",
+        "proxyPath": "$.data.draftOrderComplete.userErrors"
       },
       {
-        "name": "complete-staged-draft",
-        "capturePath": "$.draftOrderCompleteStagesResultingOrder.expected.complete",
-        "proxyPath": "$",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/draftOrderComplete-stages-resulting-order-complete.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
-            },
-            "paymentPending": false
-          }
-        }
+        "name": "mutation-draft-order",
+        "capturePath": "$.mutation.response.data.draftOrderComplete.draftOrder",
+        "proxyPath": "$.data.draftOrderComplete.draftOrder"
       },
       {
-        "name": "read-completed-order-by-id",
-        "capturePath": "$.draftOrderCompleteStagesResultingOrder.expected.readById",
-        "proxyPath": "$",
+        "name": "downstream-completed-draft-order",
+        "capturePath": "$.downstreamRead.response.data.draftOrder",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/draftOrderComplete-stages-resulting-order-read-by-id.graphql",
+          "documentPath": "config/parity-requests/orders/draftOrderComplete-downstream-read.graphql",
           "variables": {
             "id": {
-              "fromProxyResponse": "complete-staged-draft",
-              "path": "$.data.draftOrderComplete.draftOrder.order.id"
+              "fromPrimaryProxyPath": "$.data.draftOrderComplete.draftOrder.id"
             }
           }
-        }
-      },
-      {
-        "name": "read-completed-order-by-name",
-        "capturePath": "$.draftOrderCompleteStagesResultingOrder.expected.readByName",
-        "proxyPath": "$",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/orders/draftOrderComplete-stages-resulting-order-read-by-name.graphql"
-        }
+        },
+        "proxyPath": "$.data.draftOrder"
       }
     ]
-  },
-  "notes": "Executable local-runtime parity for completing a locally staged draft order and then resolving the synthesized regular order through canonical order reads. The scenario earns state through replayed draftOrderCreate and draftOrderComplete requests and uses an empty cassette to prove no runtime Shopify write or read is required for the staged flow."
+  }
 }

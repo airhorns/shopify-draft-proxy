@@ -2,24 +2,201 @@
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "variables": {
-    "discountId": "gid://shopify/DiscountCodeNode/1640468283698",
+    "discountId": "gid://shopify/DiscountCodeNode/1657363923250",
     "unknownDiscountId": "gid://shopify/DiscountCodeNode/0",
-    "ids": ["gid://shopify/DiscountRedeemCode/21667051995442"],
+    "ids": ["gid://shopify/DiscountRedeemCode/22157230440754"],
     "emptyIds": [],
     "search": "code:ANY",
     "blankSearch": "   ",
     "savedSearchId": "gid://shopify/SavedSearch/0"
   },
   "requests": {
+    "setup": {
+      "query": "mutation BulkDeleteSetup($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        ... on DiscountCodeBasic {\n          codes(first: 10) {\n            nodes {\n              id\n              code\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Discount redeem delete validation 20260630150102",
+          "code": "SDPDELBASE20260630150102",
+          "startsAt": "2026-05-07T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      }
+    },
     "validation": {
-      "query": "config/parity-requests/discounts/discount-redeem-code-bulk-delete-validation.graphql",
-      "variablesCapturePath": "$.variables"
+      "query": "mutation BulkDeleteValidation(\n  $discountId: ID!\n  $unknownDiscountId: ID!\n  $ids: [ID!]\n  $emptyIds: [ID!]\n  $search: String\n  $blankSearch: String\n  $savedSearchId: ID!\n) {\n  missing: discountCodeRedeemCodeBulkDelete(discountId: $discountId) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  tooMany: discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $ids, search: $search) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  unknownDiscount: discountCodeRedeemCodeBulkDelete(discountId: $unknownDiscountId, ids: $ids) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  emptyIds: discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $emptyIds) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  blankSearch: discountCodeRedeemCodeBulkDelete(discountId: $discountId, search: $blankSearch) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  invalidSavedSearch: discountCodeRedeemCodeBulkDelete(discountId: $discountId, savedSearchId: $savedSearchId) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "discountId": "gid://shopify/DiscountCodeNode/1657363923250",
+        "unknownDiscountId": "gid://shopify/DiscountCodeNode/0",
+        "ids": ["gid://shopify/DiscountRedeemCode/22157230440754"],
+        "emptyIds": [],
+        "search": "code:ANY",
+        "blankSearch": "   ",
+        "savedSearchId": "gid://shopify/SavedSearch/0"
+      }
     },
     "happy": {
-      "query": "config/parity-requests/discounts/discount-redeem-code-bulk-delete-happy.graphql",
+      "query": "mutation BulkDelete($discountId: ID!, $ids: [ID!]!) {\n  happy: discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $ids) {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
-        "discountId": "gid://shopify/DiscountCodeNode/1640468283698",
-        "ids": ["gid://shopify/DiscountRedeemCode/21667051995442"]
+        "discountId": "gid://shopify/DiscountCodeNode/1657363923250",
+        "ids": ["gid://shopify/DiscountRedeemCode/22157230440754"]
+      }
+    },
+    "cleanup": {
+      "query": "#graphql\n  mutation DiscountRedeemCodeBulkDeleteValidationCleanup($id: ID!) {\n    discountCodeDelete(id: $id) {\n      deletedCodeDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1657363923250"
+      }
+    }
+  },
+  "scopeProbe": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "setup": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeBasicCreate": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1657363923250",
+            "codeDiscount": {
+              "codes": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/DiscountRedeemCode/22157230440754",
+                    "code": "SDPDELBASE20260630150102"
+                  }
+                ]
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
       }
     }
   },
@@ -93,6 +270,17 @@
             }
           ]
         }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 60,
+          "actualQueryCost": 60,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1940,
+            "restoreRate": 100
+          }
+        }
       }
     }
   },
@@ -102,10 +290,21 @@
       "data": {
         "happy": {
           "job": {
-            "id": "gid://shopify/Job/45ed84bf-3490-489b-9950-9a4992c1c4e0",
+            "id": "gid://shopify/Job/d5339b47-ee7b-4ff3-8263-8030a7077f04",
             "done": true
           },
           "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1940,
+            "restoreRate": 100
+          }
         }
       }
     }
@@ -115,42 +314,22 @@
     "payload": {
       "data": {
         "discountCodeDelete": {
-          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640468283698",
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657363923250",
           "userErrors": []
         }
-      }
-    }
-  },
-  "upstreamCalls": [
-    {
-      "operationName": "DiscountHydrate",
-      "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1640468283698"
       },
-      "query": "sha:DiscountHydrate",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "codeDiscountNode": {
-              "id": "gid://shopify/DiscountCodeNode/1640468283698",
-              "codeDiscount": {
-                "__typename": "DiscountCodeBasic",
-                "title": "HAR-785 redeem delete validation 1778020602881",
-                "status": "ACTIVE",
-                "codes": {
-                  "nodes": [
-                    {
-                      "id": "gid://shopify/DiscountRedeemCode/21667051995442",
-                      "code": "HAR785BASE1778020602881"
-                    }
-                  ]
-                }
-              }
-            }
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1940,
+            "restoreRate": 100
           }
         }
       }
     }
-  ]
+  },
+  "upstreamCalls": []
 }

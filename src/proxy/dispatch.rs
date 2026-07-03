@@ -1478,17 +1478,16 @@ impl DraftProxy {
                     let payment_reminder = fields
                         .iter()
                         .any(|field| field.name == "paymentReminderSend")
-                        .then(|| {
-                            payment_reminder_local_data(
-                                &query,
-                                &variables,
-                                &mut self.store.staged.payment_reminder_schedule_ids,
-                            )
-                        })
+                        .then(|| self.payment_reminder_local_data(request, &query, &variables))
                         .flatten();
                     if root_field == "paymentReminderSend" {
                         if let Some(data) = payment_reminder {
                             return ok_json(data);
+                        }
+                    }
+                    if let Some(reminder) = &payment_reminder {
+                        if reminder.get("errors").is_some() {
+                            return ok_json(reminder.clone());
                         }
                     }
                     if let Some(data) =
@@ -1496,9 +1495,6 @@ impl DraftProxy {
                     {
                         let mut data = data;
                         if let Some(reminder) = payment_reminder {
-                            if reminder.get("errors").is_some() {
-                                return ok_json(reminder);
-                            }
                             if let (Some(data), Some(reminder)) = (
                                 data.get_mut("data").and_then(Value::as_object_mut),
                                 reminder.get("data").and_then(Value::as_object),

@@ -1189,17 +1189,61 @@ impl DraftProxy {
         let id = shopify_gid("Order", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
         let order_input = resolved_object_field(&field.arguments, "order").unwrap_or_default();
-        let currency = resolved_string_field(&order_input, "currency")
+        let transaction_inputs = resolved_object_list_field(&order_input, "transactions");
+        let first_transaction = transaction_inputs.first().cloned().unwrap_or_default();
+        let transaction_amount_set = payment_money_set_from_input(&first_transaction);
+        let inferred_input_currency = transaction_amount_set
+            .as_ref()
+            .and_then(|amount_set| {
+                payment_money_currency(amount_set, "shopMoney")
+                    .or_else(|| payment_money_currency(amount_set, "presentmentMoney"))
+            })
+            .or_else(|| {
+                resolved_object_list_field(&order_input, "lineItems")
+                    .into_iter()
+                    .find_map(|line_item| {
+                        resolved_object_field(&line_item, "priceSet")
+                            .or_else(|| resolved_object_field(&line_item, "originalUnitPriceSet"))
+                            .and_then(|price| input_money_currency(&price))
+                    })
+            });
+        let explicit_currency = resolved_string_field(&order_input, "currency")
+            .or_else(|| resolved_string_field(&order_input, "currencyCode"));
+        let currency = explicit_currency
+            .clone()
+            .or_else(|| inferred_input_currency.clone())
             .unwrap_or_else(|| self.store.shop_currency_code());
+        let explicit_presentment_currency =
+            resolved_string_field(&order_input, "presentmentCurrency")
+                .or_else(|| resolved_string_field(&order_input, "presentmentCurrencyCode"));
+        let presentment_currency = explicit_presentment_currency
+            .clone()
+            .or_else(|| {
+                transaction_amount_set
+                    .as_ref()
+                    .and_then(|amount_set| payment_money_currency(amount_set, "presentmentMoney"))
+            })
+            .or_else(|| inferred_input_currency.clone())
+            .unwrap_or_else(|| currency.clone());
+        let mut order_record_input = order_input.clone();
+        if explicit_currency.is_none() {
+            order_record_input.insert(
+                "currency".to_string(),
+                ResolvedValue::String(currency.clone()),
+            );
+        }
+        if explicit_presentment_currency.is_none() {
+            order_record_input.insert(
+                "presentmentCurrency".to_string(),
+                ResolvedValue::String(presentment_currency),
+            );
+        }
         // Base projection: full order math (line items + taxLines, shipping lines +
         // totalShippingPriceSet, subtotals, taxes, discounts). The payment view is
         // layered on top so a payment-field selection still receives the complete
         // order shape rather than the totals-only subset.
-        let mut order = self.build_order_create_record(&id, &order_input);
-        let transaction_inputs = resolved_object_list_field(&order_input, "transactions");
-        let first_transaction = transaction_inputs.first().cloned().unwrap_or_default();
-        let amount_set = payment_money_set_from_input(&first_transaction)
-            .unwrap_or_else(|| money_set("25.0", &currency));
+        let mut order = self.build_order_create_record(&id, &order_record_input);
+        let amount_set = transaction_amount_set.unwrap_or_else(|| money_set("25.0", &currency));
         let amount = payment_money_amount(&amount_set, "presentmentMoney")
             .or_else(|| payment_money_amount(&amount_set, "shopMoney"))
             .unwrap_or_else(|| "25.0".to_string());

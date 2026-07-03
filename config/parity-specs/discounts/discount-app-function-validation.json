@@ -23,5 +23,5 @@
       }
     ]
   },
-  "notes": "HAR-783 live Shopify 2026-04 evidence for app-discount Function identifier validation. The active conformance app exposes payment, validation, and cart-transform Functions but no discount Function, so the scenario captures validation-only branches that do not create discounts: missing identifier, multiple identifiers, unknown functionId, wrong Function API via the released cart-transform Function handle, missing automatic identifier, and unknown automatic functionHandle. The proxy earns Function metadata through cassette-backed shopifyFunctions(handle:) lookups during replay."
+  "notes": "Live Shopify 2026-04 evidence for app-discount Function identifier validation. The active conformance app exposes payment, validation, and cart-transform Functions but no discount Function, so the scenario captures validation-only branches that do not create discounts: missing identifier, multiple identifiers, unknown functionId, wrong Function API via the released cart-transform Function handle, missing automatic identifier, and unknown automatic functionHandle. The proxy earns Function metadata through recorded shopifyFunctions(handle:) upstream reads during replay."
 }

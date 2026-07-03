@@ -8,13 +8,7 @@
     "discountAutomaticDeactivate"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "runtime-staging",
-    "mutation-lifecycle",
-    "downstream-read-parity",
-    "user-errors-parity",
-    "local-runtime-backed"
-  ],
+  "assertionKinds": ["runtime-staging", "mutation-lifecycle", "downstream-read-parity", "user-errors-parity"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-activate-deactivate-edge-cases.json"
   ],

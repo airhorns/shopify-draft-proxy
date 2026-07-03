@@ -1,0 +1,128 @@
+{
+  "capturedAt": "2026-07-02T22:29:06.605Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "scenarioId": "segment-payload-non-null-fields",
+  "cases": [
+    {
+      "name": "segmentPayloadCreate",
+      "documentPath": "config/parity-requests/segments/segment-payload-non-null-fields-create.graphql",
+      "request": {
+        "query": "mutation SegmentPayloadNonNullFieldsCreate($name: String!, $query: String!) {\n  segmentCreate(name: $name, query: $query) {\n    segment {\n      id\n      name\n      query\n      creationDate\n      lastEditDate\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "name": "Payload public fields segment-payload-shape-1783031346003",
+          "query": "number_of_orders >= 1"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/652702384434",
+                "name": "Payload public fields segment-payload-shape-1783031346003",
+                "query": "number_of_orders >= 1",
+                "creationDate": "2026-07-02T22:29:06Z",
+                "lastEditDate": "2026-07-02T22:29:06Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentPayloadUpdate",
+      "documentPath": "config/parity-requests/segments/segment-payload-non-null-fields-update.graphql",
+      "request": {
+        "query": "mutation SegmentPayloadNonNullFieldsUpdate($id: ID!, $name: String, $query: String) {\n  segmentUpdate(id: $id, name: $name, query: $query) {\n    segment {\n      id\n      name\n      query\n      creationDate\n      lastEditDate\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Segment/652702384434",
+          "name": "Payload public fields updated segment-payload-shape-1783031346003",
+          "query": "number_of_orders >= 2"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentUpdate": {
+              "segment": {
+                "id": "gid://shopify/Segment/652702384434",
+                "name": "Payload public fields updated segment-payload-shape-1783031346003",
+                "query": "number_of_orders >= 2",
+                "creationDate": "2026-07-02T22:29:06Z",
+                "lastEditDate": "2026-07-02T22:29:06Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentPayloadRead",
+      "documentPath": "config/parity-requests/segments/segment-payload-non-null-fields-read.graphql",
+      "request": {
+        "query": "query SegmentPayloadNonNullFieldsRead($id: ID!) {\n  segment(id: $id) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Segment/652702384434"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segment": {
+              "id": "gid://shopify/Segment/652702384434",
+              "name": "Payload public fields updated segment-payload-shape-1783031346003",
+              "query": "number_of_orders >= 2",
+              "creationDate": "2026-07-02T22:29:06Z",
+              "lastEditDate": "2026-07-02T22:29:06Z"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": [
+    "Live Shopify evidence for Segment create/update/read payload fields exposed by the public Admin GraphQL schema.",
+    "Admin GraphQL 2025-01 and 2026-04 expose only id, name, query, creationDate, and lastEditDate on Segment for this conformance shop.",
+    "Private Core Segment fields absent from public introspection remain covered by Rust runtime tests instead of parity fixtures."
+  ],
+  "upstreamCalls": []
+}
