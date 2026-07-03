@@ -348,6 +348,12 @@ struct StagedState {
     // Empty for every scenario that does not seed publications, leaving the
     // existing passthrough behavior for those roots untouched.
     publications: BTreeMap<String, Value>,
+    // Current app publication resolved from `currentAppInstallation.publication`
+    // by current-channel publishable mutations in live-hybrid mode. The separate
+    // resolved flag distinguishes "not looked up yet" from "looked up and Shopify
+    // returned no current publication".
+    current_channel_publication_id: Option<String>,
+    current_channel_publication_resolved: bool,
     // Resource gid (Product/Collection) -> set of publication gids the resource
     // is published on. Seeded from `seedProducts`/`seedCollections`
     // `publicationIds` and mutated by `publishablePublish`/`publishableUnpublish`.
@@ -782,6 +788,8 @@ impl Default for StagedState {
             publication_ids: BTreeSet::new(),
             created_publication_ids: BTreeSet::new(),
             publications: BTreeMap::new(),
+            current_channel_publication_id: None,
+            current_channel_publication_resolved: false,
             resource_publications: BTreeMap::new(),
             shop_locales: BTreeMap::new(),
             localization_translations: Vec::new(),

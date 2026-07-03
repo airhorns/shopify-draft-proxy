@@ -6221,7 +6221,7 @@ fn publishable_current_channel_rejects_when_no_current_channel_resolves() {
             r#"
             mutation NoCurrentPublish($id: ID!) {
               publishablePublishToCurrentChannel(id: $id) {
-                publishable { ... on Product { id publishedOnCurrentPublication } }
+                publishable { ... on Product { id } }
                 userErrors { field message code }
               }
             }
@@ -6232,7 +6232,7 @@ fn publishable_current_channel_rejects_when_no_current_channel_resolves() {
             r#"
             mutation NoCurrentUnpublish($id: ID!) {
               publishableUnpublishToCurrentChannel(id: $id) {
-                publishable { ... on Product { id publishedOnCurrentPublication } }
+                publishable { ... on Product { id } }
                 userErrors { field message code }
               }
             }
@@ -6242,11 +6242,14 @@ fn publishable_current_channel_rejects_when_no_current_channel_resolves() {
         let response =
             proxy.process_request(json_graphql_request(query, json!({ "id": product_id })));
         assert_eq!(response.status, 200);
-        assert_eq!(response.body["data"][root]["publishable"], Value::Null);
+        assert_eq!(
+            response.body["data"][root]["publishable"],
+            json!({ "id": product_id })
+        );
         assert_eq!(
             response.body["data"][root]["userErrors"],
             json!([{
-                "field": null,
+                "field": ["id"],
                 "message": "Channel does not exist",
                 "code": "CHANNEL_DOES_NOT_EXIST"
             }])

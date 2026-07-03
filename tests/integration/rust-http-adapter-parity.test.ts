@@ -245,6 +245,8 @@ describe('Rust HTTP adapter route surface', () => {
             deletedDeliveryProfileIds: [],
             publicationIds: [],
             createdPublicationIds: [],
+            currentChannelPublicationId: null,
+            currentChannelPublicationResolved: false,
             publications: {},
             resourcePublications: {},
             locationLimitReached: false,

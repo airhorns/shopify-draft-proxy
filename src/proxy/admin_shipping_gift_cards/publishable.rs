@@ -83,10 +83,14 @@ impl DraftProxy {
                 field.arguments.get("input"),
                 to_current,
             ));
-            let current_channel_id = self.current_channel_publication_id();
+            let current_channel_id = if resource_exists && to_current {
+                self.resolve_current_channel_publication_id(request)
+            } else {
+                None
+            };
             if resource_exists && to_current && current_channel_id.is_none() {
                 user_errors.push(user_error_omit_code(
-                    Value::Null,
+                    ["id"],
                     "Channel does not exist",
                     Some("CHANNEL_DOES_NOT_EXIST"),
                 ));
@@ -95,9 +99,7 @@ impl DraftProxy {
                 error
                     .get("code")
                     .and_then(Value::as_str)
-                    .is_some_and(|code| {
-                        matches!(code, "RESOURCE_DOES_NOT_EXIST" | "CHANNEL_DOES_NOT_EXIST")
-                    })
+                    .is_some_and(|code| code == "RESOURCE_DOES_NOT_EXIST")
             });
             let publishable = if null_publishable {
                 Value::Null

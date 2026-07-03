@@ -53,6 +53,10 @@ const publicationResourceHydrateQuery = await readFile(
   path.join('config', 'parity-requests', 'products', 'publication-resource-hydrate-nodes.graphql'),
   'utf8',
 );
+const currentAppPublicationHydrateQuery = await readFile(
+  path.join('config', 'parity-requests', 'store-properties', 'current-app-publication-hydrate.graphql'),
+  'utf8',
+);
 
 const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
@@ -168,6 +172,20 @@ async function captureHydrate(resourceId: string): Promise<RecordedUpstreamCall>
   };
 }
 
+async function captureCurrentAppPublicationHydrate(): Promise<RecordedUpstreamCall> {
+  const variables = {};
+  const response = await runGraphqlRaw(currentAppPublicationHydrateQuery, variables);
+  return {
+    operationName: 'StorePropertiesCurrentAppPublicationHydrate',
+    variables,
+    query: currentAppPublicationHydrateQuery,
+    response: {
+      status: response.status,
+      body: response.payload,
+    },
+  };
+}
+
 await mkdir(fixtureDir, { recursive: true });
 
 const runId = Date.now().toString(36);
@@ -217,6 +235,7 @@ try {
   cases['unpublishCurrentUnknownId'] = await captureCase(publishableUnpublishCurrentDocument, missingCurrentVariables);
 
   upstreamCalls.push(await captureHydrate(productId));
+  upstreamCalls.push(await captureCurrentAppPublicationHydrate());
   cases['publishCurrentMembership'] = await captureCase(publishableCurrentMembershipDocument, productVariables);
   cases['unpublishCurrentMembership'] = await captureCase(
     publishableCurrentUnpublishMembershipDocument,
@@ -266,12 +285,7 @@ await writeFile(
       notes: [
         'Live Admin API capture for generic publishable top-level id resource-existence validation.',
         'Live Admin API capture for current-channel publish/unpublish payload membership projection on an ACTIVE product.',
-        'The available conformance credential resolves a current channel; no-current-channel live evidence requires a separate app/client with no publishable channel binding.',
       ],
-      blockers: {
-        noCurrentChannel:
-          'No current-channel-negative app credential is available in this workspace; local runtime tests cover the no-current-channel branch until that store/app setup exists.',
-      },
       upstreamCalls,
     },
     null,
@@ -288,7 +302,6 @@ console.log(
       productId,
       caseCount: Object.keys(cases).length,
       cleanupDeletedProductId: cleanup?.payload.data?.productDelete.deletedProductId ?? null,
-      noCurrentChannelCaptured: false,
     },
     null,
     2,

@@ -427,13 +427,55 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn current_channel_publication_id(&self) -> Option<&'static str> {
+    pub(in crate::proxy) fn current_channel_publication_id(&self) -> Option<String> {
+        if self.store.staged.current_channel_publication_resolved {
+            return self.store.staged.current_channel_publication_id.clone();
+        }
         if self.store.base.publication_count == Some(0) && self.store.staged.publications.is_empty()
         {
             None
         } else {
-            Some(CURRENT_CHANNEL_PUBLICATION_ID)
+            Some(CURRENT_CHANNEL_PUBLICATION_ID.to_string())
         }
+    }
+
+    pub(in crate::proxy) fn resolve_current_channel_publication_id(
+        &mut self,
+        request: &Request,
+    ) -> Option<String> {
+        if self.store.staged.current_channel_publication_resolved {
+            return self.store.staged.current_channel_publication_id.clone();
+        }
+        if self.store.base.publication_count == Some(0) && self.store.staged.publications.is_empty()
+        {
+            self.store.staged.current_channel_publication_resolved = true;
+            self.store.staged.current_channel_publication_id = None;
+            return None;
+        }
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return self.current_channel_publication_id();
+        }
+
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": CURRENT_APP_PUBLICATION_HYDRATE_QUERY,
+                "operationName": "StorePropertiesCurrentAppPublicationHydrate",
+                "variables": {},
+            }),
+        );
+        self.store.staged.current_channel_publication_resolved = true;
+        self.store.staged.current_channel_publication_id = if (200..300).contains(&response.status)
+        {
+            response
+                .body
+                .pointer("/data/currentAppInstallation/publication/id")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        } else {
+            None
+        };
+        self.store.staged.current_channel_publication_id.clone()
     }
 
     /// Count resources of the given gid type published on `publication_id` (or on
@@ -647,7 +689,7 @@ impl DraftProxy {
                 "publishedOnCurrentPublication" => {
                     let published = self
                         .current_channel_publication_id()
-                        .map(|id| live_pubs.contains(id))
+                        .map(|id| live_pubs.contains(&id))
                         .unwrap_or(false);
                     json!(published)
                 }
@@ -747,10 +789,14 @@ impl DraftProxy {
                 field.arguments.get("input"),
                 to_current,
             ));
-            let current_channel_id = self.current_channel_publication_id();
+            let current_channel_id = if resource_exists && to_current {
+                self.resolve_current_channel_publication_id(request)
+            } else {
+                None
+            };
             if resource_exists && to_current && current_channel_id.is_none() {
                 user_errors.push(user_error_omit_code(
-                    Value::Null,
+                    ["id"],
                     "Channel does not exist",
                     Some("CHANNEL_DOES_NOT_EXIST"),
                 ));
@@ -761,9 +807,7 @@ impl DraftProxy {
                 // applying this publish, so counts reflect the real baseline.
                 self.hydrate_publishable_resource(&resource_id, request);
                 let publication_ids = if to_current {
-                    current_channel_id
-                        .map(|id| vec![id.to_string()])
-                        .unwrap_or_default()
+                    current_channel_id.map(|id| vec![id]).unwrap_or_default()
                 } else {
                     publishable_input_publication_ids(&field.arguments)
                 };
@@ -798,9 +842,7 @@ impl DraftProxy {
                 error
                     .get("code")
                     .and_then(Value::as_str)
-                    .is_some_and(|code| {
-                        matches!(code, "RESOURCE_DOES_NOT_EXIST" | "CHANNEL_DOES_NOT_EXIST")
-                    })
+                    .is_some_and(|code| code == "RESOURCE_DOES_NOT_EXIST")
             }) {
                 Value::Null
             } else {

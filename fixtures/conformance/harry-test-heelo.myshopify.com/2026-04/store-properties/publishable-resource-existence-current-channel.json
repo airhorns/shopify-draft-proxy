@@ -2,11 +2,11 @@
   "scenarioId": "publishable-resource-existence-current-channel",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "capturedAt": "2026-06-25T04:30:38.249Z",
+  "capturedAt": "2026-07-03T19:00:39.401Z",
   "setup": {
     "product": {
-      "id": "gid://shopify/Product/10220908249394",
-      "title": "Publishable resource existence mqt07u44",
+      "id": "gid://shopify/Product/10230902718770",
+      "title": "Publishable resource existence mr5ati7x",
       "status": "ACTIVE"
     },
     "publications": [
@@ -27,7 +27,7 @@
         "name": "Shopify GraphiQL App"
       },
       {
-        "id": "gid://shopify/Publication/292074258738",
+        "id": "gid://shopify/Publication/302536393010",
         "name": "example.com"
       }
     ]
@@ -173,7 +173,7 @@
     },
     "publishCurrentMembership": {
       "variables": {
-        "id": "gid://shopify/Product/10220908249394"
+        "id": "gid://shopify/Product/10230902718770"
       },
       "response": {
         "status": 200,
@@ -181,7 +181,7 @@
           "data": {
             "publishablePublishToCurrentChannel": {
               "publishable": {
-                "id": "gid://shopify/Product/10220908249394",
+                "id": "gid://shopify/Product/10230902718770",
                 "publishedOnCurrentPublication": true,
                 "resourcePublications": {
                   "nodes": [
@@ -191,16 +191,16 @@
                       },
                       "isPublished": true,
                       "publishable": {
-                        "id": "gid://shopify/Product/10220908249394"
+                        "id": "gid://shopify/Product/10230902718770"
                       }
                     },
                     {
                       "publication": {
-                        "id": "gid://shopify/Publication/292074258738"
+                        "id": "gid://shopify/Publication/302536393010"
                       },
                       "isPublished": true,
                       "publishable": {
-                        "id": "gid://shopify/Product/10220908249394"
+                        "id": "gid://shopify/Product/10230902718770"
                       }
                     }
                   ]
@@ -225,7 +225,7 @@
     },
     "unpublishCurrentMembership": {
       "variables": {
-        "id": "gid://shopify/Product/10220908249394"
+        "id": "gid://shopify/Product/10230902718770"
       },
       "response": {
         "status": 200,
@@ -233,7 +233,7 @@
           "data": {
             "publishableUnpublishToCurrentChannel": {
               "publishable": {
-                "id": "gid://shopify/Product/10220908249394",
+                "id": "gid://shopify/Product/10230902718770",
                 "publishedOnCurrentPublication": false,
                 "resourcePublications": {
                   "nodes": [
@@ -243,7 +243,7 @@
                       },
                       "isPublished": true,
                       "publishable": {
-                        "id": "gid://shopify/Product/10220908249394"
+                        "id": "gid://shopify/Product/10230902718770"
                       }
                     }
                   ]
@@ -272,7 +272,7 @@
     "payload": {
       "data": {
         "productDelete": {
-          "deletedProductId": "gid://shopify/Product/10220908249394",
+          "deletedProductId": "gid://shopify/Product/10230902718770",
           "userErrors": []
         }
       },
@@ -291,12 +291,8 @@
   },
   "notes": [
     "Live Admin API capture for generic publishable top-level id resource-existence validation.",
-    "Live Admin API capture for current-channel publish/unpublish payload membership projection on an ACTIVE product.",
-    "The available conformance credential resolves a current channel; no-current-channel live evidence requires a separate app/client with no publishable channel binding."
+    "Live Admin API capture for current-channel publish/unpublish payload membership projection on an ACTIVE product."
   ],
-  "blockers": {
-    "noCurrentChannel": "No current-channel-negative app credential is available in this workspace; local runtime tests cover the no-current-channel branch until that store/app setup exists."
-  },
   "upstreamCalls": [
     {
       "operationName": "PublicationResourceHydrate",
@@ -342,7 +338,33 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1999,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PublicationResourceHydrate",
+      "variables": {
+        "ids": ["gid://shopify/Product/999999999999"]
+      },
+      "query": "query PublicationResourceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      title\n      handle\n      status\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n    ... on Collection {\n      id\n      title\n      handle\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
                 "restoreRate": 100
               }
             }
@@ -379,33 +401,7 @@
     {
       "operationName": "PublicationResourceHydrate",
       "variables": {
-        "ids": ["gid://shopify/Product/999999999999"]
-      },
-      "query": "query PublicationResourceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      title\n      handle\n      status\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n    ... on Collection {\n      id\n      title\n      handle\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n  }\n}\n",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "nodes": [null]
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 17,
-              "actualQueryCost": 1,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1999,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "PublicationResourceHydrate",
-      "variables": {
-        "ids": ["gid://shopify/Product/10220908249394"]
+        "ids": ["gid://shopify/Product/10230902718770"]
       },
       "query": "query PublicationResourceHydrate($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      title\n      handle\n      status\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n    ... on Collection {\n      id\n      title\n      handle\n      resourcePublications(first: 50) {\n        nodes {\n          publication {\n            id\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
@@ -414,9 +410,9 @@
           "data": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10220908249394",
-                "title": "Publishable resource existence mqt07u44",
-                "handle": "publishable-resource-existence-mqt07u44",
+                "id": "gid://shopify/Product/10230902718770",
+                "title": "Publishable resource existence mr5ati7x",
+                "handle": "publishable-resource-existence-mr5ati7x",
                 "status": "ACTIVE",
                 "resourcePublications": {
                   "nodes": [
@@ -436,7 +432,35 @@
               "actualQueryCost": 4,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1995,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesCurrentAppPublicationHydrate",
+      "variables": {},
+      "query": "#graphql\nquery StorePropertiesCurrentAppPublicationHydrate {\n  currentAppInstallation {\n    publication {\n      id\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "currentAppInstallation": {
+              "publication": {
+                "id": "gid://shopify/Publication/302536393010"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
                 "restoreRate": 100
               }
             }

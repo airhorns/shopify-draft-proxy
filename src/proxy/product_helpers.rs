@@ -41,6 +41,10 @@ pub(in crate::proxy) const PUBLICATION_RESOURCE_HYDRATE_QUERY: &str = include_st
     "../../config/parity-requests/products/publication-resource-hydrate-nodes.graphql"
 );
 
+pub(in crate::proxy) const CURRENT_APP_PUBLICATION_HYDRATE_QUERY: &str = include_str!(
+    "../../config/parity-requests/store-properties/current-app-publication-hydrate.graphql"
+);
+
 pub(in crate::proxy) const CURRENT_CHANNEL_PUBLICATION_ID: &str =
     "gid://shopify/Publication/current-channel";
 

@@ -12,7 +12,7 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/publishable-resource-existence-current-channel.json"
   ],
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live 2026-04 capture for missing top-level publishable ids on generic/current-channel publishable roots and current-channel membership projection after publish/unpublish. The available conformance credential has a current channel, so no-current-channel live evidence is documented in the fixture blocker and covered by runtime tests until a no-channel app credential exists.",
+  "notes": "Live 2026-04 capture for missing top-level publishable ids on generic/current-channel publishable roots and current-channel membership projection after publish/unpublish. Replay earns product existence and current-app publication context through the recorded upstreamCalls cassette.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -65,14 +65,7 @@
           "documentPath": "config/parity-requests/store-properties/publishable-current-channel-membership.graphql",
           "variablesCapturePath": "$.cases.publishCurrentMembership.variables",
           "apiVersion": "2026-04"
-        },
-        "expectedDifferences": [
-          {
-            "path": "$.publishable.resourcePublications.nodes[*].publication.id",
-            "matcher": "shopify-gid:Publication",
-            "reason": "The local current-channel publication uses a synthetic publication gid because supported runtime publishable mutations must not call Shopify to discover the calling app's channel id."
-          }
-        ]
+        }
       },
       {
         "name": "unpublish current channel membership payload",
@@ -82,14 +75,7 @@
           "documentPath": "config/parity-requests/store-properties/publishable-current-channel-unpublish-membership.graphql",
           "variablesCapturePath": "$.cases.unpublishCurrentMembership.variables",
           "apiVersion": "2026-04"
-        },
-        "expectedDifferences": [
-          {
-            "path": "$.publishable.resourcePublications.nodes[*].publication.id",
-            "matcher": "shopify-gid:Publication",
-            "reason": "The local current-channel publication uses a synthetic publication gid because supported runtime publishable mutations must not call Shopify to discover the calling app's channel id."
-          }
-        ]
+        }
       }
     ]
   }

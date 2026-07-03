@@ -218,6 +218,8 @@ impl DraftProxy {
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "createdPublicationIds": self.store.staged.created_publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publications": self.store.staged.publications.clone(),
+                "currentChannelPublicationId": self.store.staged.current_channel_publication_id.clone(),
+                "currentChannelPublicationResolved": self.store.staged.current_channel_publication_resolved,
                 "resourcePublications": self.store.staged.resource_publications.iter().map(|(resource, pubs)| {
                     (resource.clone(), pubs.iter().cloned().collect::<Vec<String>>())
                 }).collect::<std::collections::BTreeMap<String, Vec<String>>>(),
@@ -969,6 +971,14 @@ impl DraftProxy {
                 .collect();
         self.store.staged.publications =
             value_map_from_json(state["stagedState"].get("publications"));
+        self.store.staged.current_channel_publication_id = state["stagedState"]
+            .get("currentChannelPublicationId")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        self.store.staged.current_channel_publication_resolved = state["stagedState"]
+            .get("currentChannelPublicationResolved")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         self.store.staged.resource_publications = state["stagedState"]["resourcePublications"]
             .as_object()
             .map(|map| {

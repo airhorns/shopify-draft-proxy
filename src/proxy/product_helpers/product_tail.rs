@@ -1472,6 +1472,19 @@ fn resource_feedback_scope_is_explicitly_missing(request: &Request) -> bool {
             .any(|scope| scope == "write_resource_feedbacks")
 }
 
+fn app_granted_access_scopes(request: &Request) -> Vec<String> {
+    request_header(request, "x-shopify-draft-proxy-access-scopes")
+        .map(|header| {
+            header
+                .split(',')
+                .map(str::trim)
+                .filter(|scope| !scope.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn product_tail_resource_feedback_access_denied_error(field: &RootFieldSelection) -> Value {
     const REQUIRED_ACCESS: &str = "`write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.";
     json!({
