@@ -1748,6 +1748,15 @@ fn validate_resolved_scalar(
                 include_message: false,
             })
         }
+        "ReturnDeclineReason" => {
+            let ResolvedValue::String(raw) = value else {
+                return None;
+            };
+            (!return_decline_reason_is_allowed(raw)).then(|| ScalarValidationProblem {
+                explanation: return_decline_reason_expected_message(raw),
+                include_message: false,
+            })
+        }
         _ => None,
     }
 }
@@ -1767,6 +1776,18 @@ fn draft_order_applied_discount_type_is_allowed(value: &str) -> bool {
 
 fn draft_order_applied_discount_type_expected_message(value: &str) -> String {
     format!("Expected \"{value}\" to be one of: FIXED_AMOUNT, PERCENTAGE")
+}
+
+const RETURN_DECLINE_REASON_VALUES: &str = "RETURN_PERIOD_ENDED, FINAL_SALE, OTHER";
+
+fn return_decline_reason_is_allowed(value: &str) -> bool {
+    RETURN_DECLINE_REASON_VALUES
+        .split(", ")
+        .any(|candidate| candidate == value)
+}
+
+fn return_decline_reason_expected_message(value: &str) -> String {
+    format!("Expected \"{value}\" to be one of: {RETURN_DECLINE_REASON_VALUES}")
 }
 
 fn fulfillment_event_status_is_allowed(status: &str) -> bool {
@@ -1932,6 +1953,9 @@ fn enum_literal_coercion_value(
         "DraftOrderAppliedDiscountType"
             if !draft_order_applied_discount_type_is_allowed(provided) =>
         {
+            Some(provided.clone())
+        }
+        "ReturnDeclineReason" if !return_decline_reason_is_allowed(provided) => {
             Some(provided.clone())
         }
         _ => None,
@@ -3152,6 +3176,26 @@ fn extend_customer_input_schema(schema: &mut AdminInputSchema) {
 }
 
 fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
+    schema.input_objects.insert(
+        "ReturnDeclineRequestInput".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), input_field(non_null("ID"))),
+            (
+                "declineReason".to_string(),
+                input_field(non_null("ReturnDeclineReason")),
+            ),
+            ("notifyCustomer".to_string(), input_field(named("Boolean"))),
+            ("declineNote".to_string(), input_field(named("String"))),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "returnDeclineRequest".to_string(),
+        BTreeMap::from([(
+            "input".to_string(),
+            mutation_arg(non_null("ReturnDeclineRequestInput")),
+        )]),
+    );
+
     schema.input_objects.insert(
         "DraftOrderAppliedDiscountInput".to_string(),
         BTreeMap::from([

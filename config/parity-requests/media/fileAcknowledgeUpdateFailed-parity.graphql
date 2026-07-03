@@ -1,12 +1,21 @@
-mutation FileAcknowledgeUpdateFailedParity($fileIds: [ID!]!) {
+mutation MediaFileAcknowledgeUpdateFailedSemanticsAck($fileIds: [ID!]!) {
   fileAcknowledgeUpdateFailed(fileIds: $fileIds) {
     files {
       id
       alt
       fileStatus
+      __typename
       ... on MediaImage {
         image {
           url
+        }
+        mediaErrors {
+          code
+          message
+        }
+        mediaWarnings {
+          code
+          message
         }
       }
     }
