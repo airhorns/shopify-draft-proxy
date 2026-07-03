@@ -769,6 +769,90 @@ query($id: ID!) {
 }
 
 #[test]
+fn webhook_subscription_api_version_uses_known_version_inventory() {
+    let cases = [
+        (
+            "2026-04",
+            json!({
+                "handle": "2026-04",
+                "displayName": "2026-04 (Latest)",
+                "supported": true
+            }),
+        ),
+        (
+            "2025-10",
+            json!({
+                "handle": "2025-10",
+                "displayName": "2025-10",
+                "supported": true
+            }),
+        ),
+        (
+            "2026-07",
+            json!({
+                "handle": "2026-07",
+                "displayName": "2026-07 (Release candidate)",
+                "supported": false
+            }),
+        ),
+        (
+            "unstable",
+            json!({
+                "handle": "unstable",
+                "displayName": "unstable",
+                "supported": false
+            }),
+        ),
+        (
+            "2028-10",
+            json!({
+                "handle": "2028-10",
+                "displayName": "2028-10",
+                "supported": false
+            }),
+        ),
+    ];
+
+    for (handle, expected_api_version) in cases {
+        let mut proxy = snapshot_proxy();
+        let mut request = json_graphql_request(
+            r#"# RustWebhookLocalRuntime
+mutation {
+  webhookSubscriptionCreate(
+    topic: ORDERS_CREATE
+    webhookSubscription: {
+      callbackUrl: "https://hooks.example.com/orders-api-version-inventory"
+      format: JSON
+    }
+  ) {
+    webhookSubscription {
+      apiVersion { handle displayName supported }
+    }
+    userErrors { field message }
+  }
+}"#,
+            json!({}),
+        );
+        request.headers.insert(
+            "x-shopify-draft-proxy-api-version".to_string(),
+            handle.to_string(),
+        );
+
+        let response = proxy.process_request(request);
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            response.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["apiVersion"],
+            expected_api_version,
+            "apiVersion projection for {handle}"
+        );
+    }
+}
+
+#[test]
 fn webhook_subscription_payload_fields_round_trip_through_create_update_and_reads() {
     let mut proxy = snapshot_proxy();
 

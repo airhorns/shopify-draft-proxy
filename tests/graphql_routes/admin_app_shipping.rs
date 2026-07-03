@@ -400,6 +400,27 @@ fn bulk_operation_completed_url_is_absolute_and_serves_jsonl_artifact() {
     let parsed_url = url::Url::parse(url).expect("bulk artifact url parses");
     assert_eq!(parsed_url.scheme(), "https");
     assert_eq!(parsed_url.host_str(), Some("localhost"));
+    assert_eq!(parsed_url.port(), Some(0));
+
+    let connection_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadProductBulkArtifactConnection {
+          bulkOperations(first: 5) {
+            nodes { id url }
+            edges { node { id url } }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let connection_url = connection_read.body["data"]["bulkOperations"]["nodes"][0]["url"]
+        .as_str()
+        .unwrap();
+    assert_eq!(connection_url, url);
+    assert_eq!(
+        connection_read.body["data"]["bulkOperations"]["edges"][0]["node"]["url"],
+        json!(url)
+    );
 
     let artifact = proxy.process_request(request_with_body("GET", parsed_url.path(), ""));
     assert_eq!(artifact.status, 200);
