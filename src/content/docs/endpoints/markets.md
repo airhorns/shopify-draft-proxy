@@ -119,9 +119,10 @@ product and variant IDs. Downstream `priceList` / `priceLists` reads expose the
 staged rows in the checked-in scenarios. Validation covers name, currency,
 parent adjustment, `catalogId` existence/taken checks, unknown resource,
 duplicate fixed-price, missing fixed-price, fixed-price `price` /
-`compareAtPrice` currency mismatches, product-level fixed-price, no-op,
-quantity-rule, and price-limit branches represented by parity specs. Captured
-Admin API 2026-04 behavior returns `CATALOG_DOES_NOT_EXIST` or
+`compareAtPrice` currency mismatches, fixed-price missing-variant short-circuit
+behavior, product-level fixed-price, no-op, quantity-rule, and price-limit
+branches represented by parity specs. Captured Admin API 2026-04 behavior
+returns `CATALOG_DOES_NOT_EXIST` or
 `CATALOG_TAKEN` at `["input", "catalogId"]` for price-list catalog relation
 validation. When `priceListCreate` has both a catalog relation error and
 another invalid field such as a duplicate name or invalid parent adjustment, the

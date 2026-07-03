@@ -48,6 +48,8 @@ const FIXED_PRICE_VALIDATION_PRICE_LIST_ID: &str = "gid://shopify/PriceList/1817
 const FIXED_PRICE_VALIDATION_PRODUCT_ID: &str = "gid://shopify/Product/1817001";
 const FIXED_PRICE_VALIDATION_VARIANT_A_ID: &str = "gid://shopify/ProductVariant/1817001";
 const FIXED_PRICE_VALIDATION_VARIANT_B_ID: &str = "gid://shopify/ProductVariant/1817002";
+const FIXED_PRICE_VALIDATION_MISSING_VARIANT_ID: &str =
+    "gid://shopify/ProductVariant/9999991817001";
 
 fn fixed_price_validation_proxy() -> DraftProxy {
     configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
@@ -64,11 +66,45 @@ fn fixed_price_validation_proxy() -> DraftProxy {
             body["variables"]["priceListId"],
             json!(FIXED_PRICE_VALIDATION_PRICE_LIST_ID)
         );
-        assert!(body["variables"]["variantIds"]
+        let requested_variant_ids = body["variables"]["variantIds"]
             .as_array()
-            .is_some_and(|ids| ids
-                .iter()
-                .any(|id| id == &json!(FIXED_PRICE_VALIDATION_VARIANT_A_ID))));
+            .expect("preflight includes variant ids");
+        let product = json!({
+            "__typename": "Product",
+            "id": FIXED_PRICE_VALIDATION_PRODUCT_ID,
+            "title": "Fixed price validation product",
+            "handle": "fixed-price-validation-product",
+            "status": "ACTIVE",
+            "variants": {
+                "nodes": [
+                    { "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID, "title": "Variant A", "sku": "FIXED-COMPARE-A", "price": "10.00", "compareAtPrice": null },
+                    { "id": FIXED_PRICE_VALIDATION_VARIANT_B_ID, "title": "Variant B", "sku": "FIXED-COMPARE-B", "price": "10.00", "compareAtPrice": null }
+                ]
+            }
+        });
+        let mut product_variants = Vec::new();
+        if requested_variant_ids.contains(&json!(FIXED_PRICE_VALIDATION_VARIANT_A_ID)) {
+            product_variants.push(json!({
+                "__typename": "ProductVariant",
+                "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
+                "title": "Variant A",
+                "sku": "FIXED-COMPARE-A",
+                "price": "10.00",
+                "compareAtPrice": null,
+                "product": product.clone()
+            }));
+        }
+        if requested_variant_ids.contains(&json!(FIXED_PRICE_VALIDATION_VARIANT_B_ID)) {
+            product_variants.push(json!({
+                "__typename": "ProductVariant",
+                "id": FIXED_PRICE_VALIDATION_VARIANT_B_ID,
+                "title": "Variant B",
+                "sku": "FIXED-COMPARE-B",
+                "price": "10.00",
+                "compareAtPrice": null,
+                "product": product
+            }));
+        }
         Response {
             status: 200,
             headers: Default::default(),
@@ -90,27 +126,7 @@ fn fixed_price_validation_proxy() -> DraftProxy {
                             }
                         }
                     },
-                    "productVariants": [{
-                        "__typename": "ProductVariant",
-                        "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID,
-                        "title": "Variant A",
-                        "sku": "FIXED-COMPARE-A",
-                        "price": "10.00",
-                        "compareAtPrice": null,
-                        "product": {
-                            "__typename": "Product",
-                            "id": FIXED_PRICE_VALIDATION_PRODUCT_ID,
-                            "title": "Fixed price validation product",
-                            "handle": "fixed-price-validation-product",
-                            "status": "ACTIVE",
-                            "variants": {
-                                "nodes": [
-                                    { "id": FIXED_PRICE_VALIDATION_VARIANT_A_ID, "title": "Variant A", "sku": "FIXED-COMPARE-A", "price": "10.00", "compareAtPrice": null },
-                                    { "id": FIXED_PRICE_VALIDATION_VARIANT_B_ID, "title": "Variant B", "sku": "FIXED-COMPARE-B", "price": "10.00", "compareAtPrice": null }
-                                ]
-                            }
-                        }
-                    }]
+                    "productVariants": product_variants
                 }
             }),
         }
@@ -124,6 +140,96 @@ fn fixed_price_validation_read(proxy: &mut DraftProxy, price_list_id: &str) -> V
     ));
     assert_eq!(response.status, 200);
     response.body["data"]["priceList"].clone()
+}
+
+#[test]
+fn price_list_fixed_prices_add_short_circuits_currency_after_missing_variant() {
+    let mut proxy = fixed_price_validation_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FixedPricesAddMissingVariantCurrencyMismatch($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
+          priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
+            prices { variant { id } price { amount currencyCode } }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "prices": [{
+                "variantId": FIXED_PRICE_VALIDATION_MISSING_VARIANT_ID,
+                "price": { "amount": "10.00", "currencyCode": "EUR" }
+            }]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["priceListFixedPricesAdd"]["prices"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["priceListFixedPricesAdd"]["userErrors"],
+        json!([{
+            "__typename": "PriceListPriceUserError",
+            "field": ["prices", "0", "variantId"],
+            "message": "Product variant ID does not exist.",
+            "code": "VARIANT_NOT_FOUND"
+        }])
+    );
+}
+
+#[test]
+fn price_list_fixed_prices_update_short_circuits_currency_after_missing_variant() {
+    let mut proxy = fixed_price_validation_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FixedPricesUpdateMissingVariantCurrencyMismatch(
+          $priceListId: ID!
+          $pricesToAdd: [PriceListPriceInput!]!
+          $variantIdsToDelete: [ID!]!
+        ) {
+          priceListFixedPricesUpdate(
+            priceListId: $priceListId
+            pricesToAdd: $pricesToAdd
+            variantIdsToDelete: $variantIdsToDelete
+          ) {
+            pricesAdded { variant { id } price { amount currencyCode } }
+            deletedFixedPriceVariantIds
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": FIXED_PRICE_VALIDATION_PRICE_LIST_ID,
+            "pricesToAdd": [{
+                "variantId": FIXED_PRICE_VALIDATION_MISSING_VARIANT_ID,
+                "price": { "amount": "10.00", "currencyCode": "EUR" }
+            }],
+            "variantIdsToDelete": []
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["priceListFixedPricesUpdate"]["pricesAdded"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["priceListFixedPricesUpdate"]["deletedFixedPriceVariantIds"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["priceListFixedPricesUpdate"]["userErrors"],
+        json!([{
+            "__typename": "PriceListPriceUserError",
+            "field": ["pricesToAdd", "0", "variantId"],
+            "message": "Product variant ID does not exist.",
+            "code": "VARIANT_NOT_FOUND"
+        }])
+    );
 }
 
 #[test]
