@@ -9252,25 +9252,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
-    captureId: 'payment-reminder-state-derived-local-runtime',
-    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
-    scriptPath: 'scripts/capture-payment-reminder-state-derived-local-runtime.ts',
-    purpose:
-      'Local-runtime parity for paymentReminderSend resolving a PaymentSchedule created through public orderCreate and paymentTermsCreate requests instead of baked PaymentSchedule GIDs.',
-    requiredAuthScopes: ['local-runtime'],
-    fixtureOutputs: [
-      `${LOCAL_RUNTIME_ROOT}payment-reminder-state-derived-local-staging.json`,
-      'config/parity-specs/payments/payment-reminder-state-derived-local-staging.json',
-      'config/parity-requests/payments/payment-reminder-state-derived-order-create.graphql',
-      'config/parity-requests/payments/payment-reminder-state-derived-payment-terms-create.graphql',
-    ],
-    cleanupBehavior: 'Local-runtime only; supported mutations stage locally and no Shopify cleanup is required.',
-    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
-    notes:
-      'Existing live payment-reminder-send-eligibility capture remains the Shopify evidence for eligible overdue order-owned schedules; this fixture proves the local staged schedule resolution path that would fail against the old literal-GID table.',
-  },
-  {
-    domain: 'payments',
     captureId: 'payment-reminder-send-malformed-gid',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-payment-reminder-malformed-gid-conformance.ts',

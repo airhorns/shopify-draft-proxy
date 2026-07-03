@@ -5782,6 +5782,8 @@ fn payment_reminder_send_resolves_staged_payment_terms_schedule_guardrails() {
     let mut proxy = snapshot_proxy();
     let query = include_str!("../../config/parity-requests/payments/payment-reminder-send.graphql");
 
+    // Exercise generated schedule IDs earned through public GraphQL mutations;
+    // the removed literal-GID table could not handle this path.
     let (_success_order, success_schedule) = stage_reminder_order_payment_schedule(
         &mut proxy,
         Some("reminder-success@example.test"),
@@ -5969,7 +5971,7 @@ fn mark_reminder_order_paid(proxy: &mut DraftProxy, order_id: Value) {
         mutation MarkPaymentReminderOrderPaid($input: OrderMarkAsPaidInput!) {
           orderMarkAsPaid(input: $input) {
             order { id displayFinancialStatus }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -5991,7 +5993,7 @@ fn close_reminder_order(proxy: &mut DraftProxy, order_id: Value) {
         mutation ClosePaymentReminderOrder($input: OrderCloseInput!) {
           orderClose(input: $input) {
             order { id closed closedAt }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
