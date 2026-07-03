@@ -56,7 +56,7 @@ The saved-searches group is scoped to Shopify Admin `SavedSearch` records for pr
 
 ### Registry-only URL redirect roots
 
-URL redirect mutation/import roots are intentionally registered as unimplemented coverage, not supported local behavior. The read roots `urlRedirect` and `urlRedirects` have a narrow local overlay for redirect rows staged by metaobject handle updates, documented in `/endpoints/online-store/`; that does not imply support for URL redirect mutation lifecycle roots.
+URL redirect roots are intentionally registered as unimplemented coverage, not supported local behavior. `urlRedirect`, `urlRedirects`, `urlRedirectsCount`, and URL redirect mutation/import/bulk-delete roots forward upstream in LiveHybrid when unsupported mutation passthrough is enabled. Snapshot reads and mutations fail closed instead of emitting local placeholder data; reject-mode mutations also fail before upstream.
 
 - `urlRedirectSavedSearches` and `urlRedirectsCount` returned access denied requiring `read_online_store_navigation` in the saved-search blocker capture.
 - `urlRedirectCreate` and `urlRedirectImportCreate` returned access denied requiring `write_online_store_navigation`.

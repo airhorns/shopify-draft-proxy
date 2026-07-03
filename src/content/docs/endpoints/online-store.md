@@ -14,10 +14,6 @@ Content roots:
 - Reads: `article`, `articleAuthors`, `articles`, `articleTags`, `blog`, `blogs`, `blogsCount`, `page`, `pages`, `pagesCount`, `comment`, `comments`
 - Mutations: `articleCreate`, `articleUpdate`, `articleDelete`, `blogCreate`, `blogUpdate`, `blogDelete`, `pageCreate`, `pageUpdate`, `pageDelete`, `commentApprove`, `commentSpam`, `commentNotSpam`, `commentDelete`
 
-URL redirect read roots from the metaobject redirect-new-handle slice:
-
-- Reads: `urlRedirect`, `urlRedirects`
-
 Presentation and integration roots:
 
 - Reads: `theme`, `themes`, `scriptTag`, `scriptTags`, `webPixel`, `serverPixel`, `mobilePlatformApplication`, `mobilePlatformApplications`
@@ -31,7 +27,7 @@ Supported lifecycle mutations are staged locally and logged with the original ra
 
 Effective `Article`, `Blog`, `Comment`, and `Page` records are exposed through generic `node(id:)` / `nodes(ids:)` dispatch. Those reads use the same local content serializers as the dedicated content roots, so staged page/article/blog create and update flows are visible through the Admin `Node` interface without runtime Shopify writes.
 
-URL redirect reads are local overlays for redirect rows staged by supported domain behavior, currently `metaobjectUpdate(..., metaobject: { handle, redirectNewHandle: true })` on online-store-renderable metaobjects. Snapshot mode returns local state only. Live-hybrid mode forwards cold `urlRedirect`/`urlRedirects` reads upstream when no local redirect state or requested local ID is present; once local redirect state exists, `urlRedirects` filters with the shared Admin search-query parser and supports `id:`, `path:`, `target:`, and default text terms. URL redirect create/update/delete/import/bulk-delete mutations remain unsupported and must not be treated as locally modeled lifecycle roots.
+URL redirect roots are registry-tracked but unimplemented in the local runtime. LiveHybrid forwards `urlRedirect`, `urlRedirects`, `urlRedirectsCount`, and URL redirect mutation/import/bulk-delete roots upstream when unsupported mutation passthrough is enabled. Snapshot reads and mutations fail closed instead of emitting local placeholder data; reject-mode mutations also fail before upstream. No local URL redirect lifecycle, search/count/pageInfo, or read-after-write behavior is modeled.
 
 ### Content read behavior
 
