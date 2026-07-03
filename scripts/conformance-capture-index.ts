@@ -5471,7 +5471,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'segment-query-grammar',
     scriptPath: 'scripts/capture-segment-query-grammar-conformance.ts',
     purpose:
-      'Segment query grammar support for broad segmentCreate/segmentUpdate save-time validation and `NOT CONTAINS` customer-tag predicates.',
+      'Segment query grammar support for broad segmentCreate/segmentUpdate save-time validation, decimal money values, default abandoned-checkout filters, and `NOT CONTAINS` customer-tag predicates.',
     requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}segment-query-grammar-not-contains.json`,
