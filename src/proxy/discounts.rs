@@ -3981,51 +3981,6 @@ pub(in crate::proxy) fn backup_region_country_code_coercion_error(
     })
 }
 
-pub(in crate::proxy) fn is_known_shipping_package_id(id: &str) -> bool {
-    matches!(
-        id,
-        "gid://shopify/ShippingPackage/1"
-            | "gid://shopify/ShippingPackage/2"
-            | "gid://shopify/ShippingPackage/10"
-    )
-}
-
-pub(in crate::proxy) fn seed_shipping_package(id: &str) -> Value {
-    match id {
-        "gid://shopify/ShippingPackage/10" => json!({
-            "id": "gid://shopify/ShippingPackage/10",
-            "name": "Carrier flat-rate box",
-            "type": "BOX",
-            "boxType": "FLAT_RATE",
-            "default": false,
-            "weight": { "value": 1, "unit": "KILOGRAMS" },
-            "dimensions": { "length": 10, "width": 8, "height": 4, "unit": "CENTIMETERS" },
-            "createdAt": "2026-05-05T00:00:00.000Z",
-            "updatedAt": "2026-05-05T00:00:00.000Z"
-        }),
-        "gid://shopify/ShippingPackage/2" => json!({
-            "id": "gid://shopify/ShippingPackage/2",
-            "name": "Backup mailer",
-            "type": "ENVELOPE",
-            "default": false,
-            "weight": { "value": 0.5, "unit": "KILOGRAMS" },
-            "dimensions": { "length": 8, "width": 6, "height": 1, "unit": "CENTIMETERS" },
-            "createdAt": "2026-04-27T00:00:00.000Z",
-            "updatedAt": "2026-04-27T00:00:00.000Z"
-        }),
-        _ => json!({
-            "id": id,
-            "name": "Starter box",
-            "type": "BOX",
-            "default": true,
-            "weight": { "value": 1, "unit": "KILOGRAMS" },
-            "dimensions": { "length": 10, "width": 8, "height": 4, "unit": "CENTIMETERS" },
-            "createdAt": "2026-04-27T00:00:00.000Z",
-            "updatedAt": "2026-04-27T00:00:00.000Z"
-        }),
-    }
-}
-
 pub(in crate::proxy) fn merge_shipping_package_input(
     package: &mut Value,
     input: &BTreeMap<String, ResolvedValue>,

@@ -202,9 +202,14 @@ settings on active locations and rejects unknown or inactive locations with
 `locationsAvailableForDeliveryProfilesConnection` in snapshot mode and after
 LiveHybrid reads hydrate the existing shipping locations.
 
-Shipping package slices stage changes on known package records and retain the
-original raw GraphQL request for commit replay. Shipping packages have no direct
-Admin GraphQL package read root in the captured schema, so successful staging is
+Shipping package slices stage changes on package records already present in the
+local staged/observed store and retain the original raw GraphQL request for
+commit replay. The runtime does not seed canned package dimensions, weights, or
+names: absent or locally deleted package IDs return Shopify's top-level
+`RESOURCE_NOT_FOUND` envelope, while observed package records preserve their real
+fields across partial updates. Making a package default clears the default flag
+across every known package record. Shipping packages have no direct Admin
+GraphQL package read root in the captured schema, so successful staging is
 verified through local state/log behavior and targeted validation.
 
 Reverse delivery, reverse fulfillment disposal, and order-edit shipping-line
