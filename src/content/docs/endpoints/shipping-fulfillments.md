@@ -188,7 +188,11 @@ and incrementing `version`; unsupported side effects such as rate recalculation
 remain outside this slice. Delivery profile name validation accepts exactly 128
 characters and rejects 129-character names on both create and update with a
 public `UserError` payload containing `field` and `message`; `code` is not
-selectable on the captured Admin GraphQL 2026-04 `UserError` type.
+selectable on the captured Admin GraphQL 2026-04 `UserError` type. Location
+IDs supplied in delivery-profile location groups must resolve from staged,
+observed, or LiveHybrid-hydrated location state; unknown IDs return the public
+`The Location could not be found for this shop.` userError instead of creating a
+synthetic location.
 
 Local pickup mutations stage settings on active local locations and retain the
 original raw GraphQL request for commit replay. `locationLocalPickupEnable`
