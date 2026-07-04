@@ -6,6 +6,8 @@ query DataSaleOptOutNewCustomerDefaultsRead($id: ID!) {
     locale
     verifiedEmail
     state
+    createdAt
+    updatedAt
     defaultEmailAddress {
       emailAddress
     }

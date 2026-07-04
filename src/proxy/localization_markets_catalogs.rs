@@ -254,20 +254,6 @@ fn price_list_catalog_id_has_wrong_gid_type(id: &str) -> bool {
     matches!(shopify_gid_resource_type(id), Some(resource_type) if resource_type != "MarketCatalog")
 }
 
-fn staged_nodes_connection(
-    records: &BTreeMap<String, Value>,
-    selection: &[SelectedField],
-    with_empty_edges: bool,
-) -> Value {
-    let nodes = records.values().cloned().collect::<Vec<_>>();
-    let connection = if with_empty_edges {
-        connection_json_with_empty_edges(nodes)
-    } else {
-        json!({ "nodes": nodes })
-    };
-    selected_json(&connection, selection)
-}
-
 fn selected_record_field(record: &Value, selection: &SelectedField) -> Option<Value> {
     let projected = selected_json(record, std::slice::from_ref(selection));
     projected.get(&selection.response_key).cloned()
@@ -985,12 +971,14 @@ impl DraftProxy {
                         .staged
                         .price_lists
                         .get(&id)
-                        .map(|price_list| selected_json(price_list, &field.selection))
+                        .map(|price_list| selected_price_list_json(price_list, &field.selection))
                         .unwrap_or(Value::Null)
                 }
-                "priceLists" => {
-                    staged_nodes_connection(&self.store.staged.price_lists, &field.selection, false)
-                }
+                "priceLists" => selected_price_lists_connection_with_args(
+                    &self.store.staged.price_lists,
+                    &field.arguments,
+                    &field.selection,
+                ),
                 "webPresences" => {
                     let records = self
                         .store
@@ -1256,15 +1244,12 @@ impl DraftProxy {
     }
 
     fn markets_resolved_values_value(&self, field: &RootFieldSelection) -> Value {
+        let price_inclusivity = self.markets_resolved_price_inclusivity(field);
         let mut payload = serde_json::Map::new();
-        let resolved_market = self.markets_resolved_values_market(field);
         for selection in &field.selection {
             let value = match selection.name.as_str() {
                 "currencyCode" => Some(json!(self.store.shop_currency_code())),
-                "priceInclusivity" => Some(markets_resolved_price_inclusivity_value(
-                    resolved_market,
-                    &selection.selection,
-                )),
+                "priceInclusivity" => Some(selected_json(&price_inclusivity, &selection.selection)),
                 "catalogs" => Some(
                     self.catalogs_connection_from_args(&selection.arguments, &selection.selection),
                 ),
@@ -1293,15 +1278,69 @@ impl DraftProxy {
         Value::Object(payload)
     }
 
-    fn markets_resolved_values_market(&self, field: &RootFieldSelection) -> Option<&Value> {
-        let buyer_signal = resolved_object_field(&field.arguments, "buyerSignal")?;
-        let country_code =
-            resolved_string_field(&buyer_signal, "countryCode")?.to_ascii_uppercase();
-        self.store.staged.markets.values().find(|market| {
-            market_record_country_codes(market)
+    pub(in crate::proxy) fn hydrate_markets_resolved_values_pricing_if_selected(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) {
+        let mut needs_currency = false;
+        let mut needs_tax_flags = false;
+        for field in fields
+            .iter()
+            .filter(|field| field.name == "marketsResolvedValues")
+        {
+            needs_currency |= field
+                .selection
                 .iter()
-                .any(|code| code.eq_ignore_ascii_case(&country_code))
+                .any(|selection| selection.name == "currencyCode");
+            needs_tax_flags |= field
+                .selection
+                .iter()
+                .any(|selection| selection.name == "priceInclusivity");
+        }
+        self.hydrate_shop_pricing_state_if_missing(request, needs_currency, needs_tax_flags);
+    }
+
+    pub(in crate::proxy) fn hydrate_market_currency_defaults_if_needed(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) {
+        let needs_currency = fields.iter().any(market_field_omits_base_currency);
+        self.hydrate_shop_pricing_state_if_missing(request, needs_currency, false);
+    }
+
+    fn markets_resolved_price_inclusivity(&self, field: &RootFieldSelection) -> Value {
+        let matched_market = self.markets_resolved_values_market(field);
+        let duties_included = self.store.shop_duties_included().unwrap_or(false);
+        let taxes_included = matched_market
+            .and_then(market_taxes_included)
+            .or_else(|| self.store.shop_taxes_included())
+            .unwrap_or(false);
+        json!({
+            "dutiesIncluded": duties_included,
+            "taxesIncluded": taxes_included
         })
+    }
+
+    fn markets_resolved_values_market(&self, field: &RootFieldSelection) -> Option<&Value> {
+        let buyer_country = resolved_object_field(&field.arguments, "buyerSignal")
+            .and_then(|buyer_signal| resolved_string_field(&buyer_signal, "countryCode"))
+            .map(|country_code| country_code.to_ascii_uppercase());
+        match buyer_country {
+            Some(country_code) => self.store.staged.markets.values().find(|market| {
+                market_record_enabled(market)
+                    && market_record_country_codes(market)
+                        .iter()
+                        .any(|code| code.eq_ignore_ascii_case(&country_code))
+            }),
+            None => self
+                .store
+                .staged
+                .markets
+                .values()
+                .find(|market| market_record_enabled(market)),
+        }
     }
 
     pub(in crate::proxy) fn market_create_mutation_data(
@@ -4650,7 +4689,7 @@ impl DraftProxy {
         Vec::new()
     }
 
-    fn localization_primary_locale(&self) -> String {
+    pub(in crate::proxy) fn localization_primary_locale(&self) -> String {
         self.localization_shop_locales(None)
             .into_iter()
             .find(|locale| locale.get("primary").and_then(Value::as_bool) == Some(true))
@@ -5069,34 +5108,24 @@ fn market_record_region_type(market: &Value) -> bool {
     }
 }
 
-fn markets_resolved_price_inclusivity_value(
-    market: Option<&Value>,
-    selections: &[SelectedField],
-) -> Value {
-    let price_inclusions = market.and_then(|market| market.get("priceInclusions"));
-    let duties_included = price_inclusions
-        .and_then(|price_inclusions| {
-            price_inclusions
-                .get("inclusiveDutiesPricingStrategy")
-                .or_else(|| price_inclusions.get("dutiesPricingStrategy"))
-        })
-        .and_then(Value::as_str)
-        == Some("INCLUDE_DUTIES_IN_PRICE");
-    let taxes_included = price_inclusions
-        .and_then(|price_inclusions| {
-            price_inclusions
-                .get("inclusiveTaxPricingStrategy")
-                .or_else(|| price_inclusions.get("taxPricingStrategy"))
-        })
-        .and_then(Value::as_str)
-        == Some("INCLUDES_TAXES_IN_PRICE");
-    selected_json(
-        &json!({
-            "dutiesIncluded": duties_included,
-            "taxesIncluded": taxes_included
-        }),
-        selections,
-    )
+fn market_field_omits_base_currency(field: &RootFieldSelection) -> bool {
+    if !matches!(field.name.as_str(), "marketCreate" | "marketUpdate") {
+        return false;
+    }
+    let Some(currency_settings) = resolved_object_field(&field.arguments, "input")
+        .and_then(|input| resolved_object_field(&input, "currencySettings"))
+    else {
+        return false;
+    };
+    !currency_settings.contains_key("baseCurrency")
+}
+
+fn market_taxes_included(market: &Value) -> Option<bool> {
+    match market["priceInclusions"]["inclusiveTaxPricingStrategy"].as_str()? {
+        "INCLUDES_TAXES_IN_PRICE" => Some(true),
+        "ADD_TAXES_AT_CHECKOUT" => Some(false),
+        _ => None,
+    }
 }
 
 fn market_update_currency_settings_json(

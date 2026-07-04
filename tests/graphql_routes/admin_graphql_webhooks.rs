@@ -16,7 +16,7 @@ fn event_empty_read_shapes_match_current_behavior() {
           }
           nodeOnlyEvents: events(first: 5) { nodes { id } }
           eventsCount(query: $query) { count precision }
-          looseCount: eventsCount { count whatever }
+          looseCount: eventsCount { count }
         }
         "#,
         json!({
@@ -51,8 +51,7 @@ fn event_empty_read_shapes_match_current_behavior() {
                     "precision": "EXACT"
                 },
                 "looseCount": {
-                    "count": 0,
-                    "whatever": null
+                    "count": 0
                 }
             }
         })
@@ -473,6 +472,138 @@ fn admin_graphql_rejects_unknown_api_versions() {
 }
 
 #[test]
+fn admin_graphql_rejects_unknown_selection_fields_from_schema_on_non_product_connections() {
+    let mut proxy = snapshot_proxy();
+
+    let unknown_order_field = proxy.process_request(request_with_body(
+        "POST",
+        "/admin/api/2025-01/graphql.json",
+        r#"{"query":"query Repro { orders(first: 1) { nodes { id definitelyNotAnOrderField } } }"}"#,
+    ));
+
+    assert_eq!(unknown_order_field.status, 200);
+    assert_eq!(
+        unknown_order_field.body,
+        json!({
+            "errors": [{
+                "message": "Field 'definitelyNotAnOrderField' doesn't exist on type 'Order'",
+                "locations": [{ "line": 1, "column": 45 }],
+                "path": ["query Repro", "orders", "nodes", "definitelyNotAnOrderField"],
+                "extensions": {
+                    "code": "undefinedField",
+                    "typeName": "Order",
+                    "fieldName": "definitelyNotAnOrderField"
+                }
+            }]
+        })
+    );
+}
+
+#[test]
+fn admin_graphql_validates_inline_fragment_fields_against_type_condition() {
+    let custom_app_id = "gid://shopify/App/347082227713";
+    let mut proxy = snapshot_proxy();
+
+    let mut valid_request = json_graphql_request(
+        r#"
+        query Repro($id: ID!) {
+          node(id: $id) { ... on App { id handle } }
+        }
+        "#,
+        json!({ "id": custom_app_id }),
+    );
+    valid_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let valid = proxy.process_request(valid_request);
+
+    assert_eq!(valid.status, 200);
+    assert_eq!(
+        valid.body["data"]["node"],
+        json!({ "id": custom_app_id, "handle": "shopify-draft-proxy" })
+    );
+    assert!(valid.body.get("errors").is_none());
+
+    let mut invalid_request = json_graphql_request(
+        r#"
+        query Repro($id: ID!) {
+          node(id: $id) { ... on App { definitelyNotAnAppField } }
+        }
+        "#,
+        json!({ "id": custom_app_id }),
+    );
+    invalid_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let invalid = proxy.process_request(invalid_request);
+
+    assert_eq!(invalid.status, 200);
+    assert_eq!(
+        invalid.body["errors"][0]["extensions"],
+        json!({
+            "code": "undefinedField",
+            "typeName": "App",
+            "fieldName": "definitelyNotAnAppField"
+        })
+    );
+}
+
+#[test]
+fn admin_graphql_rejects_plain_user_error_code_selection_for_any_schema_payload() {
+    let mut proxy = snapshot_proxy();
+
+    let customer_create_user_error_code = proxy.process_request(request_with_body(
+        "POST",
+        "/admin/api/2025-01/graphql.json",
+        r#"{"query":"mutation Repro { customerCreate(input: {}) { userErrors { code message } } }"}"#,
+    ));
+
+    assert_eq!(customer_create_user_error_code.status, 200);
+    assert_eq!(
+        customer_create_user_error_code.body,
+        json!({
+            "errors": [{
+                "message": "Field 'code' doesn't exist on type 'UserError'",
+                "locations": [{ "line": 1, "column": 59 }],
+                "path": ["mutation Repro", "customerCreate", "userErrors", "code"],
+                "extensions": {
+                    "code": "undefinedField",
+                    "typeName": "UserError",
+                    "fieldName": "code"
+                }
+            }]
+        })
+    );
+}
+
+#[test]
+fn admin_graphql_rejects_schema_enum_literals_without_root_specific_allowlists() {
+    let mut proxy = snapshot_proxy();
+
+    let invalid_publication_default_state = proxy.process_request(request_with_body(
+        "POST",
+        "/admin/api/2025-01/graphql.json",
+        r#"{"query":"mutation Repro { publicationCreate(input: { defaultState: NOPE }) { userErrors { field message } } }"}"#,
+    ));
+
+    assert_eq!(invalid_publication_default_state.status, 200);
+    assert_eq!(
+        invalid_publication_default_state.body["errors"][0]["message"],
+        json!("Argument 'defaultState' on InputObject 'PublicationCreateInput' has an invalid value (NOPE). Expected type 'PublicationCreateInputPublicationDefaultState'.")
+    );
+    assert_eq!(
+        invalid_publication_default_state.body["errors"][0]["extensions"],
+        json!({
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "InputObject",
+            "argumentName": "defaultState"
+        })
+    );
+}
+
+#[test]
 fn admin_graphql_routes_by_root_field_not_alias_or_fragment_definition() {
     let mut proxy = snapshot_proxy();
 
@@ -650,6 +781,89 @@ fn unknown_mutation_passthrough_observability_and_reject_mode_are_preserved() {
         json!({ "errors": [{ "message": "Unsupported mutation rejected by configuration: urlRedirectCreate" }] })
     );
     assert_eq!(*reject_hits.lock().unwrap(), 0);
+}
+
+#[test]
+fn url_redirect_reads_are_unimplemented_passthrough_roots() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let forwarded_capture = Arc::clone(&forwarded);
+    let mut live_hybrid =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            forwarded_capture.lock().unwrap().push(request);
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "urlRedirects": {
+                            "nodes": [{
+                                "id": "gid://shopify/UrlRedirect/1",
+                                "path": "/old",
+                                "target": "/new"
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": "cursor-1",
+                                "endCursor": "cursor-1"
+                            }
+                        },
+                        "urlRedirectsCount": {
+                            "count": 1,
+                            "precision": "EXACT"
+                        }
+                    }
+                }),
+            }
+        });
+
+    let query = r#"
+        query UrlRedirectPassthrough($query: String) {
+          urlRedirects(first: 10, query: $query) {
+            nodes { id path target }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          urlRedirectsCount(query: $query) { count precision }
+        }
+    "#;
+    let live_response =
+        live_hybrid.process_request(json_graphql_request(query, json!({ "query": "path:/old" })));
+
+    assert_eq!(live_response.status, 200);
+    assert_eq!(
+        live_response.body["data"]["urlRedirects"]["nodes"][0]["path"],
+        json!("/old")
+    );
+    assert_eq!(
+        live_response.body["data"]["urlRedirectsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    let forwarded = forwarded.lock().unwrap();
+    assert_eq!(forwarded.len(), 1);
+    assert_eq!(forwarded[0].path, "/admin/api/2026-04/graphql.json");
+    assert!(forwarded[0].body.contains("UrlRedirectPassthrough"));
+
+    let mut snapshot = snapshot_proxy();
+    let snapshot_response =
+        snapshot.process_request(json_graphql_request(query, json!({ "query": "path:/old" })));
+    assert_eq!(snapshot_response.status, 400);
+    assert_eq!(
+        snapshot_response.body,
+        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: urlRedirects" }] })
+    );
+
+    let mut count_only = snapshot_proxy();
+    let count_only_response = count_only.process_request(json_graphql_request(
+        r#"query UrlRedirectCountOnly($query: String) {
+          urlRedirectsCount(query: $query) { count precision }
+        }"#,
+        json!({ "query": "target:/new" }),
+    ));
+    assert_eq!(count_only_response.status, 400);
+    assert_eq!(
+        count_only_response.body,
+        json!({ "errors": [{ "message": "No domain dispatcher implemented for root field: urlRedirectsCount" }] })
+    );
 }
 
 #[test]
