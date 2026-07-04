@@ -149,12 +149,16 @@ IDs return `null`.
 
 `marketsResolvedValues` and market/catalog/price-list reads have fixture-backed
 empty, fallback, and buyer-country behavior where captured. Resolved value
-`currencyCode` uses the observed shop currency, and `priceInclusivity` is
-derived from the matching active market's price-inclusion settings when the
+`currencyCode` uses the observed shop currency. For `priceInclusivity`, taxes
+come from the matching active market's tax price-inclusion setting when the
 buyer country resolves to that market, then from observed shop tax-inclusion
-flags when no market-specific setting applies. Unsupported catalog, price-list,
-B2B/app catalog, contextual pricing, and richer resolved-value derivations are
-not synthesized beyond the checked-in evidence.
+flags when no market-specific setting applies. Duties stay false unless an
+observed base shop state explicitly provides a duty-inclusion flag; public
+Admin GraphQL 2026-04 accepted `INCLUDE_DUTIES_IN_PRICE` on a Market record but
+still resolved `marketsResolvedValues.priceInclusivity.dutiesIncluded` as
+false for the captured buyer signal. Unsupported catalog, price-list, B2B/app
+catalog, contextual pricing, and richer resolved-value derivations are not
+synthesized beyond the checked-in evidence.
 
 ### Boundaries
 

@@ -5327,7 +5327,7 @@ fn markets_overlay_serves_catalogs_count_and_resolved_values_after_catalog_write
     );
     assert_eq!(
         read.body["data"]["marketsResolvedValues"]["priceInclusivity"],
-        json!({ "dutiesIncluded": true, "taxesIncluded": true })
+        json!({ "dutiesIncluded": false, "taxesIncluded": true })
     );
     assert_eq!(
         read.body["data"]["marketsResolvedValues"]["catalogs"]["nodes"],

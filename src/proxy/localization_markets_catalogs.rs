@@ -833,10 +833,7 @@ impl DraftProxy {
 
     fn markets_resolved_price_inclusivity(&self, field: &RootFieldSelection) -> Value {
         let matched_market = self.markets_resolved_values_market(field);
-        let duties_included = matched_market
-            .and_then(market_duties_included)
-            .or_else(|| self.store.shop_duties_included())
-            .unwrap_or(false);
+        let duties_included = self.store.shop_duties_included().unwrap_or(false);
         let taxes_included = matched_market
             .and_then(market_taxes_included)
             .or_else(|| self.store.shop_taxes_included())
@@ -4566,14 +4563,6 @@ fn market_field_omits_base_currency(field: &RootFieldSelection) -> bool {
         return false;
     };
     !currency_settings.contains_key("baseCurrency")
-}
-
-fn market_duties_included(market: &Value) -> Option<bool> {
-    match market["priceInclusions"]["inclusiveDutiesPricingStrategy"].as_str()? {
-        "INCLUDE_DUTIES_IN_PRICE" => Some(true),
-        "ADD_DUTIES_AT_CHECKOUT" | "NOT_INCLUDED" => Some(false),
-        _ => None,
-    }
 }
 
 fn market_taxes_included(market: &Value) -> Option<bool> {

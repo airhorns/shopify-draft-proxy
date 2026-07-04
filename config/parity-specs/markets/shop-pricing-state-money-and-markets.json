@@ -1,0 +1,147 @@
+{
+  "scenarioId": "shop-pricing-state-money-and-markets",
+  "operationNames": ["productCreate", "sellingPlanGroupCreate", "marketCreate", "marketsResolvedValues"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["shop-currency-parity", "computed-field-parity", "downstream-read-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/shop-pricing-state-money-and-markets.json"
+  ],
+  "runtimeTestFiles": [
+    "tests/graphql_routes/products_saved_searches.rs",
+    "tests/graphql_routes/selling_plans.rs",
+    "tests/graphql_routes/metafields_markets_products_tail.rs"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/shop-pricing-state-product-create.graphql",
+    "variablesCapturePath": "$.operations.productCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-create-money-currency",
+        "capturePath": "$.operations.productCreate.response.payload.data.productCreate",
+        "proxyPath": "$.data.productCreate",
+        "selectedPaths": [
+          "$.userErrors",
+          "$.product.priceRangeV2.minVariantPrice.currencyCode",
+          "$.product.priceRangeV2.maxVariantPrice.currencyCode",
+          "$.product.priceRange.minVariantPrice.currencyCode",
+          "$.product.priceRange.maxVariantPrice.currencyCode"
+        ]
+      },
+      {
+        "name": "selling-plan-products-money-currency",
+        "capturePath": "$.operations.sellingPlanGroupCreate.response.payload.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "selectedPaths": [
+          "$.userErrors",
+          "$.sellingPlanGroup.productsCount",
+          "$.sellingPlanGroup.products.nodes[0].priceRangeV2.minVariantPrice.currencyCode",
+          "$.sellingPlanGroup.products.nodes[0].priceRangeV2.maxVariantPrice.currencyCode",
+          "$.sellingPlanGroup.sellingPlans.nodes[0].pricingPolicies[0].adjustmentValue.currencyCode",
+          "$.sellingPlanGroup.sellingPlans.nodes[1].pricingPolicies[0].adjustmentValue.currencyCode"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/selling-plans/shop-pricing-state-selling-plan-group-create.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": "Shop pricing state group",
+              "options": ["Delivery frequency", "Billing cadence"],
+              "sellingPlansToCreate": [
+                {
+                  "name": "Monthly fixed",
+                  "options": ["Monthly fixed", "Monthly billing"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "MONTH",
+                      "intervalCount": 1
+                    }
+                  },
+                  "pricingPolicies": [
+                    {
+                      "fixed": {
+                        "adjustmentType": "FIXED_AMOUNT",
+                        "adjustmentValue": {
+                          "fixedValue": "5.0"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "Annual fixed",
+                  "options": ["Annual fixed", "Annual billing"],
+                  "category": "SUBSCRIPTION",
+                  "billingPolicy": {
+                    "recurring": {
+                      "interval": "YEAR",
+                      "intervalCount": 1
+                    }
+                  },
+                  "deliveryPolicy": {
+                    "recurring": {
+                      "interval": "YEAR",
+                      "intervalCount": 1
+                    }
+                  },
+                  "pricingPolicies": [
+                    {
+                      "fixed": {
+                        "adjustmentType": "FIXED_AMOUNT",
+                        "adjustmentValue": {
+                          "fixedValue": "8.0"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "resources": {
+              "productIds": [
+                {
+                  "fromProxyResponse": "product-create-money-currency",
+                  "path": "$.data.productCreate.product.id"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "market-create-shop-currency-default-and-inclusions",
+        "capturePath": "$.operations.marketCreate.response.payload.data.marketCreate",
+        "proxyPath": "$.data.marketCreate",
+        "selectedPaths": ["$.userErrors", "$.market.currencySettings", "$.market.priceInclusions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/shop-pricing-state-market-create.graphql",
+          "variablesCapturePath": "$.operations.marketCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "markets-resolved-values-price-inclusivity",
+        "capturePath": "$.operations.marketsResolvedValues.response.payload.data.marketsResolvedValues",
+        "proxyPath": "$.data.marketsResolvedValues",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/shop-pricing-state-markets-resolved-values.graphql",
+          "variablesCapturePath": "$.operations.marketsResolvedValues.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture on a CAD shop creates a product first so local replay must hydrate shop pricing instead of defaulting caller-facing money to USD, attaches that product to a selling-plan group and verifies the group products connection and fixed selling-plan MoneyV2 currency, then creates a Brazil market with omitted baseCurrency and inclusive tax/duty settings and verifies market default currency plus marketsResolvedValues priceInclusivity."
+}
