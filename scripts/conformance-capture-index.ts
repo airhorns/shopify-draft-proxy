@@ -11206,6 +11206,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'carrier-service-connection-query',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-carrier-service-connection-query-conformance.ts',
+    purpose:
+      'DeliveryCarrierService connection query filtering, ID sorting, reverse order, and computed pageInfo for carrierServices.',
+    requiredAuthScopes: ['read_shipping', 'write_shipping'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}carrier-service-connection-query.json`,
+      'config/parity-specs/shipping-fulfillments/carrier-service-connection-query.json',
+      'config/parity-requests/shipping-fulfillments/carrier-service-connection-query-create.graphql',
+      'config/parity-requests/shipping-fulfillments/carrier-service-connection-query-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable inactive carrier services, records a filtered reverse ID connection read, then deletes both carrier services.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'carrier-service-create-required-fields',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-carrier-service-create-required-fields-conformance.ts',
