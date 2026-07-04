@@ -6499,6 +6499,7 @@ fn product_publish_live_hybrid_stages_seeded_product_without_upstream_write() {
 
 #[test]
 fn product_publishable_mutations_return_captured_aggregate_shape() {
+    let product_id = "gid://shopify/Product/publishable-state";
     let mut proxy = snapshot_proxy();
     let restore = proxy.process_request(Request {
         method: "POST".to_string(),
@@ -6510,14 +6511,14 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
             "state": {
                 "baseState": {
                     "products": {
-                        "gid://shopify/Product/9264105488617": {
-                            "id": "gid://shopify/Product/9264105488617",
+                        product_id: {
+                            "id": product_id,
                             "title": "Publishable aggregate product",
                             "handle": "publishable-aggregate-product",
                             "status": "DRAFT"
                         }
                     },
-                    "productOrder": ["gid://shopify/Product/9264105488617"],
+                    "productOrder": [product_id],
                     "savedSearches": {},
                     "savedSearchOrder": [],
                     "shop": {
@@ -6613,14 +6614,14 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
         let response = proxy.process_request(json_graphql_request(
             query,
             json!({
-                "id": "gid://shopify/Product/9264105488617",
+                "id": product_id,
                 "input": [{ "publicationId": "gid://shopify/Publication/82090459369" }]
             }),
         ));
         assert_eq!(
             response.body["data"][root]["publishable"],
             json!({
-                "id": "gid://shopify/Product/9264105488617",
+                "id": product_id,
                 "publishedOnCurrentPublication": false,
                 "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
                 "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
@@ -6682,7 +6683,7 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
         }
         "#,
         json!({
-            "id": "gid://shopify/Product/9264105488617",
+            "id": product_id,
             "input": [{ "publicationId": "gid://shopify/Publication/2" }]
         }),
     ));
@@ -6696,6 +6697,79 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
     assert_eq!(
         staged_count.body["data"]["publishablePublish"]["userErrors"],
         json!([])
+    );
+}
+
+#[test]
+fn publishable_collection_payload_uses_staged_collection_title_handle_and_counts() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    assert_eq!(dump.status, 200);
+    let mut restored = dump.body;
+    restored["state"]["baseState"]["publicationIds"] = json!(["gid://shopify/Publication/base-a"]);
+    restored["state"]["baseState"]["publicationCount"] = json!(1);
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreatePublishableCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id title handle }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "State Backed Collection", "handle": "state-backed-collection" } }),
+    ));
+    assert_eq!(
+        create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let collection = &create.body["data"]["collectionCreate"]["collection"];
+    let collection_id = collection["id"].as_str().unwrap().to_string();
+
+    let publish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublishCollection($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {
+          publishablePublish(id: $id, input: $input) {
+            publishable {
+              ... on Collection {
+                id
+                title
+                handle
+                publishedOnPublication(publicationId: $publicationId)
+                availablePublicationsCount { count precision }
+                resourcePublicationsCount { count precision }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": collection_id,
+            "publicationId": "gid://shopify/Publication/base-a",
+            "input": [{ "publicationId": "gid://shopify/Publication/base-a" }]
+        }),
+    ));
+    assert_eq!(
+        publish.body["data"]["publishablePublish"],
+        json!({
+            "publishable": {
+                "id": collection_id,
+                "title": "State Backed Collection",
+                "handle": "state-backed-collection",
+                "publishedOnPublication": true,
+                "availablePublicationsCount": { "count": 1, "precision": "EXACT" },
+                "resourcePublicationsCount": { "count": 1, "precision": "EXACT" }
+            },
+            "userErrors": []
+        })
     );
 }
 
