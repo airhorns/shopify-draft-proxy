@@ -8321,6 +8321,125 @@ fn delivery_profiles_connection_windows_and_computes_page_info() {
 }
 
 #[test]
+fn delivery_profiles_connection_keeps_default_after_local_create() {
+    let default_id = "gid://shopify/DeliveryProfile/default";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("deliveryProfiles"),
+                "unexpected upstream query: {query}"
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "deliveryProfiles": {
+                            "nodes": [{
+                                "id": default_id,
+                                "name": "General Profile",
+                                "default": true
+                            }],
+                            "edges": [{
+                                "cursor": default_id,
+                                "node": {
+                                    "id": default_id,
+                                    "name": "General Profile",
+                                    "default": true
+                                }
+                            }],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": default_id,
+                                "endCursor": default_id
+                            }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCustomDeliveryProfile($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile { id name default }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "profile": { "name": "Custom staged profile" } }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    let created_id = create.body["data"]["deliveryProfileCreate"]["profile"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryProfilesMergedPage($first: Int) {
+          deliveryProfiles(first: $first) {
+            nodes { id name default }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "first": 2 }),
+    ));
+    assert_eq!(first_page.status, 200);
+    assert_eq!(
+        first_page.body["data"]["deliveryProfiles"],
+        json!({
+            "nodes": [
+                { "id": default_id, "name": "General Profile", "default": true },
+                { "id": created_id, "name": "Custom staged profile", "default": false }
+            ],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": default_id,
+                "endCursor": created_id
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query DeliveryProfilesMergedAfterDefault($first: Int, $after: String) {
+          deliveryProfiles(first: $first, after: $after) {
+            nodes { id name default }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "first": 1, "after": default_id }),
+    ));
+    assert_eq!(second_page.status, 200);
+    assert_eq!(
+        second_page.body["data"]["deliveryProfiles"],
+        json!({
+            "nodes": [
+                { "id": created_id, "name": "Custom staged profile", "default": false }
+            ],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": created_id,
+                "endCursor": created_id
+            }
+        })
+    );
+}
+
+#[test]
 fn delivery_profile_create_uses_observed_location_name() {
     let location_id = "gid://shopify/Location/observed-delivery";
     let mut proxy =
