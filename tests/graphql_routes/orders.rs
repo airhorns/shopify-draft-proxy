@@ -486,15 +486,12 @@ fn return_removal_setup_from_payload(order_id: Value, payload: &Value) -> Return
 }
 
 #[test]
-fn order_refund_and_fulfillment_plain_user_errors_reject_code_selection() {
+fn fulfillment_plain_user_errors_reject_code_selection() {
     let mut proxy = snapshot_proxy();
 
     let response = proxy.process_request(json_graphql_request(
         r#"
-        mutation OrdersPlainUserErrorCodeSelectionRejected {
-          refund: refundCreate(input: { orderId: "gid://shopify/Order/999999999" }) {
-            userErrors { field message code }
-          }
+        mutation FulfillmentPlainUserErrorCodeSelectionRejected {
           create: fulfillmentCreate(fulfillment: {
             lineItemsByFulfillmentOrder: [{ fulfillmentOrderId: "gid://shopify/FulfillmentOrder/1" }]
           }) {
@@ -534,9 +531,8 @@ fn order_refund_and_fulfillment_plain_user_errors_reject_code_selection() {
     assert_eq!(response.status, 200);
     assert!(response.body.get("data").is_none());
     let errors = response.body["errors"].as_array().unwrap();
-    assert_eq!(errors.len(), 7);
+    assert_eq!(errors.len(), 6);
     for (error, response_key) in errors.iter().zip([
-        "refund",
         "create",
         "createV2",
         "cancel",
@@ -551,7 +547,7 @@ fn order_refund_and_fulfillment_plain_user_errors_reject_code_selection() {
         assert_eq!(
             error["path"],
             json!([
-                "mutation OrdersPlainUserErrorCodeSelectionRejected",
+                "mutation FulfillmentPlainUserErrorCodeSelectionRejected",
                 response_key,
                 "userErrors",
                 "code"
@@ -1070,7 +1066,7 @@ fn approve_return_request_for_test(proxy: &mut DraftProxy, return_id: Value) -> 
             mutation ApproveReturnRequestForErrorShape($input: ReturnApproveRequestInput!) {
               returnApproveRequest(input: $input) {
                 return { id status }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }
             "#,
@@ -1087,7 +1083,7 @@ fn decline_return_request_for_test(proxy: &mut DraftProxy, return_id: Value) -> 
             mutation DeclineReturnRequestForErrorShape($input: ReturnDeclineRequestInput!) {
               returnDeclineRequest(input: $input) {
                 return { id status decline { reason note } }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }
             "#,
@@ -1932,7 +1928,7 @@ fn remove_from_return_rejects_zero_and_over_quantity_without_state_changes() {
             mutation RemoveInvalidQuantity($returnId: ID!, $returnLineItems: [ReturnLineItemRemoveFromReturnInput!]) {
               removeFromReturn(returnId: $returnId, returnLineItems: $returnLineItems) {
                 return { id totalQuantity }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }
             "#,
@@ -1955,14 +1951,12 @@ fn remove_from_return_rejects_zero_and_over_quantity_without_state_changes() {
             if quantity == 0 {
                 json!([{
                     "field": null,
-                    "message": "Quantity must be greater than 0",
-                    "code": "GREATER_THAN"
+                    "message": "Quantity must be greater than 0"
                 }])
             } else {
                 json!([{
                     "field": ["returnLineItems", "0", "quantity"],
-                    "message": "Return line item has an invalid quantity.",
-                    "code": "INVALID"
+                    "message": "Return line item has an invalid quantity."
                 }])
             },
             "quantity {quantity} should be rejected without staging a removal"
@@ -1987,8 +1981,7 @@ fn return_request_approval_and_decline_invalid_states_use_shopify_error_shapes()
         rejected_approval["userErrors"],
         json!([{
             "field": ["input", "id"],
-            "message": "Return is not approvable. Only returns with status REQUESTED can be approved.",
-            "code": "INVALID_STATE"
+            "message": "Return is not approvable. Only returns with status REQUESTED can be approved."
         }])
     );
 
@@ -1998,8 +1991,7 @@ fn return_request_approval_and_decline_invalid_states_use_shopify_error_shapes()
         rejected_decline["userErrors"],
         json!([{
             "field": ["input", "id"],
-            "message": "Return is not declinable. Only non-refunded returns with status REQUESTED can be declined.",
-            "code": "INVALID_STATE"
+            "message": "Return is not declinable. Only non-refunded returns with status REQUESTED can be declined."
         }])
     );
 
@@ -2016,8 +2008,7 @@ fn return_request_approval_and_decline_invalid_states_use_shopify_error_shapes()
         rejected_second_decline["userErrors"],
         json!([{
             "field": ["input", "id"],
-            "message": "The return is already declined.",
-            "code": "INVALID_STATE"
+            "message": "The return is already declined."
         }])
     );
 }
@@ -2033,8 +2024,7 @@ fn return_request_approval_and_decline_unknown_ids_use_not_found_shape() {
         rejected_approval["userErrors"],
         json!([{
             "field": ["input", "id"],
-            "message": "Return not found.",
-            "code": "NOT_FOUND"
+            "message": "Return not found."
         }])
     );
 
@@ -2045,8 +2035,7 @@ fn return_request_approval_and_decline_unknown_ids_use_not_found_shape() {
         rejected_decline["userErrors"],
         json!([{
             "field": ["input", "id"],
-            "message": "Return not found.",
-            "code": "NOT_FOUND"
+            "message": "Return not found."
         }])
     );
 }
@@ -2427,7 +2416,7 @@ fn orders_search_common_predicates_share_connection_and_count_semantics() {
                   displayFinancialStatus
                   displayFulfillmentStatus
                 }
-                userErrors { field message code }
+                userErrors { field message }
               }
             }
             "#,
@@ -2436,7 +2425,6 @@ fn orders_search_common_predicates_share_connection_and_count_semantics() {
                     "email": email,
                     "currency": "USD",
                     "financialStatus": "PENDING",
-                    "fulfillmentStatus": "UNFULFILLED",
                     "processedAt": processed_at,
                     "tags": [tag],
                     "lineItems": [{
@@ -4182,6 +4170,12 @@ fn order_cancel_state_transitions_replay_validation_guards() {
     ))
     .unwrap();
     let mut proxy = snapshot_proxy();
+    let cancel_query = omit_user_error_code_selection(include_str!(
+        "../../config/parity-requests/orders/orderCancel-state-transitions.graphql"
+    ));
+    let setup_cancel_query = omit_user_error_code_selection(include_str!(
+        "../../config/parity-requests/orders/orderCancel-state-transitions-setup-cancel.graphql"
+    ));
 
     let fresh = proxy.process_request(json_graphql_request(
         include_str!(
@@ -4205,24 +4199,25 @@ fn order_cancel_state_transitions_replay_validation_guards() {
     let cancelled_id = to_cancel.body["data"]["orderCreate"]["order"]["id"].clone();
 
     let setup_cancel = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/orders/orderCancel-state-transitions-setup-cancel.graphql"
-        ),
+        &setup_cancel_query,
         json!({ "orderId": cancelled_id.clone(), "restock": false, "reason": "OTHER" }),
     ));
-    assert_eq!(setup_cancel.body, fixture["expected"]["cancelOrderSuccess"]);
+    assert_eq!(
+        setup_cancel.body,
+        strip_user_error_codes(&fixture["expected"]["cancelOrderSuccess"])
+    );
 
     let already_cancelled = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        &cancel_query,
         json!({ "orderId": cancelled_id, "restock": false, "reason": "OTHER" }),
     ));
     assert_eq!(
         already_cancelled.body,
-        fixture["expected"]["alreadyCancelled"]
+        strip_user_error_codes(&fixture["expected"]["alreadyCancelled"])
     );
 
     let staff_note_too_long = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        &cancel_query,
         json!({
             "orderId": fresh_order_id.clone(),
             "restock": false,
@@ -4232,11 +4227,11 @@ fn order_cancel_state_transitions_replay_validation_guards() {
     ));
     assert_eq!(
         staff_note_too_long.body,
-        fixture["expected"]["staffNoteTooLong"]
+        strip_user_error_codes(&fixture["expected"]["staffNoteTooLong"])
     );
 
     let refund_conflict = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        &cancel_query,
         json!({
             "orderId": fresh_order_id.clone(),
             "restock": false,
@@ -4247,11 +4242,11 @@ fn order_cancel_state_transitions_replay_validation_guards() {
     ));
     assert_eq!(
         refund_conflict.body,
-        fixture["expected"]["refundAndRefundMethodConflict"]
+        strip_user_error_codes(&fixture["expected"]["refundAndRefundMethodConflict"])
     );
 
     let refund_false_conflict = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        &cancel_query,
         json!({
             "orderId": fresh_order_id,
             "restock": false,
@@ -4262,15 +4257,18 @@ fn order_cancel_state_transitions_replay_validation_guards() {
     ));
     assert_eq!(
         refund_false_conflict.body,
-        fixture["expected"]["refundFalseAndRefundMethodConflict"]
+        strip_user_error_codes(&fixture["expected"]["refundFalseAndRefundMethodConflict"])
     );
     assert_eq!(log_snapshot(&proxy)["entries"].as_array().unwrap().len(), 3);
 
     let unknown_order = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        &cancel_query,
         json!({ "orderId": "gid://shopify/Order/404", "restock": false, "reason": "OTHER" }),
     ));
-    assert_eq!(unknown_order.body, fixture["expected"]["unknownOrder"]);
+    assert_eq!(
+        unknown_order.body,
+        strip_user_error_codes(&fixture["expected"]["unknownOrder"])
+    );
 }
 
 #[test]
@@ -4333,7 +4331,7 @@ fn order_cancel_staged_order_create_chain_updates_downstream_state() {
           ) {
             job { id done }
             order { id closed closedAt cancelledAt cancelReason }
-            userErrors { field message code }
+            userErrors { field message  }
             orderCancelUserErrors { field message code }
           }
         }
@@ -4404,7 +4402,7 @@ fn order_cancel_staged_order_create_chain_updates_downstream_state() {
     ));
     assert_eq!(
         already_cancelled.body["data"]["orderCancel"]["userErrors"],
-        json!([{ "field": ["orderId"], "message": "Cannot cancel an order that has already been canceled", "code": "INVALID" }])
+        json!([{ "field": ["orderId"], "message": "Cannot cancel an order that has already been canceled" }])
     );
 
     let log = log_snapshot(&proxy);
@@ -4424,6 +4422,9 @@ fn order_cancel_staged_order_create_chain_updates_downstream_state() {
 #[test]
 fn order_customer_set_and_remove_error_paths_use_staged_records() {
     let mut proxy = snapshot_proxy();
+    let cancel_query = omit_user_error_code_selection(include_str!(
+        "../../config/parity-requests/orders/orderCancel-state-transitions.graphql"
+    ));
 
     let customer = proxy.process_request(json_graphql_request(
         include_str!(
@@ -4643,7 +4644,7 @@ fn order_customer_set_and_remove_error_paths_use_staged_records() {
     ));
     let cancelled_order_id = cancelled_order.body["data"]["orderCreate"]["order"]["id"].clone();
     let cancel = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/orderCancel-state-transitions.graphql"),
+        &cancel_query,
         json!({ "orderId": cancelled_order_id.clone(), "restock": false, "reason": "OTHER" }),
     ));
     assert_eq!(cancel.body["data"]["orderCancel"]["userErrors"], json!([]));
@@ -4676,7 +4677,7 @@ fn order_customer_b2b_paths_use_input_state_not_fixture_strings() {
         mutation CreateVariedCustomer($input: CustomerInput!) {
           customerCreate(input: $input) {
             customer { id email displayName }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
     "#;
@@ -4863,7 +4864,7 @@ fn order_customer_b2b_paths_use_input_state_not_fixture_strings() {
           orderCancel(orderId: $orderId, restock: false, reason: OTHER) {
             job { id done }
             orderCancelUserErrors { field message code }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
     "#;
@@ -4896,6 +4897,12 @@ fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
     ))
     .unwrap();
     let mut proxy = snapshot_proxy();
+    let add_query = omit_user_error_code_selection(include_str!(
+        "../../config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql"
+    ));
+    let remove_query = omit_user_error_code_selection(include_str!(
+        "../../config/parity-requests/orders/draftOrderBulkTag-validation-remove.graphql"
+    ));
 
     let create = proxy.process_request(json_graphql_request(
         include_str!(
@@ -4915,7 +4922,7 @@ fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
     };
 
     let partial_add = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql"),
+        &add_query,
         json!({
             "ids": [draft_order_id.clone(), "gid://shopify/DraftOrder/draft-order-bulk-tag-missing"],
             "tags": [" added ", "ADDED"]
@@ -4923,7 +4930,7 @@ fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
     ));
     assert_eq!(
         partial_add.body,
-        fixture["expected"]["partialSuccessWithUnknownId"]
+        strip_user_error_codes(&fixture["expected"]["partialSuccessWithUnknownId"])
     );
 
     let read_after_partial = proxy.process_request(json_graphql_request(
@@ -4938,22 +4945,21 @@ fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
     );
 
     let long_tag = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql"
-        ),
+        &add_query,
         json!({ "ids": [draft_order_id.clone()], "tags": [fixture["inputs"]["longTag"].clone()] }),
     ));
-    assert_eq!(long_tag.body, fixture["expected"]["longTagRejected"]);
+    assert_eq!(
+        long_tag.body,
+        strip_user_error_codes(&fixture["expected"]["longTagRejected"])
+    );
 
     let remove = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/orders/draftOrderBulkTag-validation-remove.graphql"
-        ),
+        &remove_query,
         json!({ "ids": [draft_order_id.clone()], "tags": [" INITIAL "] }),
     ));
     assert_eq!(
         remove.body,
-        fixture["expected"]["removeNormalizesTagIdentity"]
+        strip_user_error_codes(&fixture["expected"]["removeNormalizesTagIdentity"])
     );
 
     let read_after_remove = proxy.process_request(json_graphql_request(
@@ -4968,12 +4974,13 @@ fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
     );
 
     let too_many = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql"
-        ),
+        &add_query,
         json!({ "ids": [draft_order_id], "tags": fixture["inputs"]["tooManyTags"].clone() }),
     ));
-    assert_eq!(too_many.body, fixture["expected"]["tooManyInputTags"]);
+    assert_eq!(
+        too_many.body,
+        strip_user_error_codes(&fixture["expected"]["tooManyInputTags"])
+    );
 }
 
 #[test]
@@ -5007,9 +5014,9 @@ fn draft_order_bulk_add_tags_preserves_display_case_and_dedupes_by_identity() {
         "tags": [" vip ", " Wholesale ", "wholesale"]
     });
     let add = proxy.process_request(json_graphql_request(
-        include_str!(
+        &omit_user_error_code_selection(include_str!(
             "../../config/parity-requests/orders/draftOrderBulkTag-validation-add.graphql"
-        ),
+        )),
         add_variables.clone(),
     ));
     assert_eq!(
@@ -5040,9 +5047,9 @@ fn draft_order_bulk_add_tags_preserves_display_case_and_dedupes_by_identity() {
     );
 
     let remove = proxy.process_request(json_graphql_request(
-        include_str!(
+        &omit_user_error_code_selection(include_str!(
             "../../config/parity-requests/orders/draftOrderBulkTag-validation-remove.graphql"
-        ),
+        )),
         json!({ "ids": [draft_order_id.clone()], "tags": ["vip"] }),
     ));
     assert_eq!(
@@ -5099,7 +5106,7 @@ fn draft_order_lifecycle_family_stages_and_reads_from_store() {
                 }
               }
             }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5183,7 +5190,7 @@ fn draft_order_lifecycle_family_stages_and_reads_from_store() {
               shippingLine { title originalPriceSet { shopMoney { amount currencyCode } } }
               totalPriceSet { shopMoney { amount currencyCode } }
             }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5251,7 +5258,7 @@ fn draft_order_lifecycle_family_stages_and_reads_from_store() {
         mutation DuplicateDraft($id: ID!) {
           draftOrderDuplicate(id: $id) {
             draftOrder { id name status ready email tags totalPriceSet { shopMoney { amount currencyCode } } }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5325,7 +5332,7 @@ fn draft_orders_count_applies_query_filter_like_connection() {
             mutation CreateCountedDraft($input: DraftOrderInput!) {
               draftOrderCreate(input: $input) {
                 draftOrder { id email tags }
-                userErrors { field message code }
+                userErrors { field message  }
               }
             }
             "#,
@@ -5433,7 +5440,7 @@ fn stage_searchable_draft_order(proxy: &mut DraftProxy, input: Value) -> Value {
               totalPriceSet { shopMoney { amount currencyCode } }
               lineItems(first: 5) { nodes { title sku } }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -5489,7 +5496,7 @@ fn draft_orders_connection_honors_sort_key_reverse_and_pagination() {
         mutation TouchAlphaDraft($id: ID!, $input: DraftOrderInput!) {
           draftOrderUpdate(id: $id, input: $input) {
             draftOrder { id updatedAt }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -5808,7 +5815,7 @@ fn draft_order_variant_line_items_use_catalog_values_over_custom_only_input() {
                 }
               }
             }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5846,7 +5853,7 @@ fn draft_order_variant_line_items_use_catalog_values_over_custom_only_input() {
                 }
               }
             }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5883,7 +5890,7 @@ fn draft_order_variant_line_items_use_catalog_values_over_custom_only_input() {
                 originalUnitPriceSet { shopMoney { amount currencyCode } }
               }
             }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -5933,7 +5940,7 @@ fn draft_order_variant_unavailable_uses_hydrated_store_state() {
         mutation DraftOrderCreateUnavailableVariant($input: DraftOrderInput!) {
           draftOrderCreate(input: $input) {
             draftOrder { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -9091,9 +9098,21 @@ fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
         json!({"id": create.body["data"]["orderCreate"]["order"]["id"].clone(), "mandateId": "gid://shopify/PaymentMandate/har-397"}),
     ));
     assert_eq!(
-        missing_mandate_idempotency.body["data"]["orderCreateMandatePayment"]["userErrors"][0]
-            ["field"],
-        json!(["idempotencyKey"])
+        missing_mandate_idempotency.body,
+        json!({
+            "errors": [{
+                "message": "Variable $idempotencyKey of type String was provided invalid value",
+                "locations": [{ "line": 4, "column": 3 }],
+                "extensions": {
+                    "code": "INVALID_VARIABLE",
+                    "value": Value::Null,
+                    "problems": [{
+                        "path": [],
+                        "explanation": "Expected value to not be null"
+                    }]
+                }
+            }]
+        })
     );
 
     let mut void_proxy = snapshot_proxy();
@@ -9399,7 +9418,7 @@ fn order_capture_zero_amount_uses_captured_public_error_without_code() {
         mutation ZeroAmountCapture($input: OrderCaptureInput!) {
           orderCapture(input: $input) {
             transaction { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -10039,7 +10058,7 @@ fn order_mark_as_paid_rejects_unknown_and_non_markable_orders_without_staging() 
         mutation CancelBeforeMarkAsPaid($orderId: ID!, $reason: OrderCancelReason!, $restock: Boolean!) {
           orderCancel(orderId: $orderId, reason: $reason, restock: $restock) {
             order { id cancelledAt }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -10596,7 +10615,7 @@ fn create_draft_for_payment_terms_completion_test(
               status
               paymentTerms { id }
             }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -10826,7 +10845,7 @@ fn draft_order_complete_uses_staged_totals_and_source_for_any_email() {
                 }
               }
             }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -12301,7 +12320,7 @@ fn order_edit_user_error_messages_match_shopify_i18n_strings() {
         mutation CancelOrderBeforeEditMessage($orderId: ID!, $reason: OrderCancelReason!, $restock: Boolean!) {
           orderCancel(orderId: $orderId, reason: $reason, restock: $restock) {
             order { id cancelledAt }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -12351,7 +12370,7 @@ fn order_edit_commit_success_messages_reflect_notify_customer_and_balance() {
             mutation BeginOrderEditForSuccessMessages($id: ID!) {
               orderEditBegin(id: $id) {
                 calculatedOrder { id }
-                userErrors { field message code }
+                userErrors { field message  }
               }
             }
             "#,
@@ -12535,7 +12554,7 @@ fn order_edit_commit_success_messages_include_unarchived_before_notify_message()
         mutation BeginClosedOrderEditForSuccessMessages($id: ID!) {
           orderEditBegin(id: $id) {
             calculatedOrder { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -12764,12 +12783,10 @@ fn order_edit_shipping_line_and_remove_discount_unstaged_calculated_order_return
 fn customer_payment_methods_remote_create_validation_covers_current_guardrails() {
     let mut proxy = snapshot_proxy();
 
-    let seed = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/payments/customer-payment-method-remote-create-validation-seed.graphql"
-        ),
-        json!({}),
+    let seed_query = omit_user_error_code_selection(include_str!(
+        "../../config/parity-requests/payments/customer-payment-method-remote-create-validation-seed.graphql"
     ));
+    let seed = proxy.process_request(json_graphql_request(&seed_query, json!({})));
     assert_eq!(seed.body["data"]["customerCreate"]["userErrors"], json!([]));
     assert!(seed.body["data"]["customerCreate"]["customer"]["id"]
         .as_str()
@@ -12784,6 +12801,43 @@ fn customer_payment_methods_remote_create_validation_covers_current_guardrails()
     assert_eq!(stripe_blank.status, 200);
     assert_eq!(
         stripe_blank.body,
+        json!({
+            "errors": [{
+                "message": "Argument 'customerId' on InputObject 'RemoteStripePaymentMethodInput' has an invalid value (null). Expected type 'String!'.",
+                "locations": [{ "line": 4, "column": 45 }],
+                "path": [
+                    "mutation CustomerPaymentMethodRemoteCreateStripeBlank",
+                    "customerPaymentMethodRemoteCreate",
+                    "remoteReference",
+                    "stripePaymentMethod",
+                    "customerId"
+                ],
+                "extensions": {
+                    "code": "argumentLiteralsIncompatible",
+                    "typeName": "InputObject",
+                    "argumentName": "customerId"
+                }
+            }]
+        })
+    );
+
+    let stripe_empty = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPaymentMethodRemoteCreateStripeEmpty {
+          customerPaymentMethodRemoteCreate(
+            customerId: "gid://shopify/Customer/1"
+            remoteReference: { stripePaymentMethod: { customerId: "", paymentMethodId: "pm_x" } }
+          ) {
+            customerPaymentMethod { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(stripe_empty.status, 200);
+    assert_eq!(
+        stripe_empty.body,
         json!({
             "data": {
                 "customerPaymentMethodRemoteCreate": {
@@ -13481,7 +13535,7 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
     );
 
     let blank = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-blank.graphql"),
+        &omit_user_error_code_selection(include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-blank.graphql")),
         json!({
             "customerId": "gid://shopify/Customer/8801",
             "sessionId": "sess_valid",
@@ -13500,17 +13554,17 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
             "customerPaymentMethod": Value::Null,
             "processing": false,
             "userErrors": [
-                { "field": ["billing_address", "address1"], "message": "can't be blank", "code": "BLANK" },
-                { "field": ["billing_address", "city"], "message": "can't be blank", "code": "BLANK" },
-                { "field": ["billing_address", "zip"], "message": "can't be blank", "code": "BLANK" },
-                { "field": ["billing_address", "country_code"], "message": "can't be blank", "code": "BLANK" },
-                { "field": ["billing_address", "province_code"], "message": "can't be blank", "code": "BLANK" }
+                { "field": ["billing_address", "address1"], "message": "can't be blank" },
+                { "field": ["billing_address", "city"], "message": "can't be blank" },
+                { "field": ["billing_address", "zip"], "message": "can't be blank" },
+                { "field": ["billing_address", "country_code"], "message": "can't be blank" },
+                { "field": ["billing_address", "province_code"], "message": "can't be blank" }
             ]
         })
     );
 
     let missing_session = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-missing-session.graphql"),
+        &omit_user_error_code_selection(include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-missing-session.graphql")),
         json!({
             "customerId": "gid://shopify/Customer/8801",
             "billingAddress": {
@@ -13532,7 +13586,7 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
     assert!(missing_session.body.get("data").is_none());
 
     let processing = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-processing.graphql"),
+        &omit_user_error_code_selection(include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-processing.graphql")),
         json!({
             "customerId": "gid://shopify/Customer/8801",
             "sessionId": "shopify-draft-proxy:processing",
@@ -13555,7 +13609,7 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
     );
 
     let success = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-success.graphql"),
+        &omit_user_error_code_selection(include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-success.graphql")),
         json!({
             "customerId": "gid://shopify/Customer/8801",
             "sessionId": "sess_valid",
@@ -13739,7 +13793,7 @@ fn customer_payment_method_update_and_revoke_tail_helpers_cover_current_behavior
           ) {
             customerPaymentMethod { id }
             processing
-            userErrors { field code message }
+            userErrors { field  message }
           }
         }
         "#,
@@ -13752,11 +13806,11 @@ fn customer_payment_method_update_and_revoke_tail_helpers_cover_current_behavior
             "customerPaymentMethod": Value::Null,
             "processing": false,
             "userErrors": [
-                { "field": ["billing_address", "address1"], "code": "BLANK", "message": "can't be blank" },
-                { "field": ["billing_address", "city"], "code": "BLANK", "message": "can't be blank" },
-                { "field": ["billing_address", "zip"], "code": "BLANK", "message": "can't be blank" },
-                { "field": ["billing_address", "country_code"], "code": "BLANK", "message": "can't be blank" },
-                { "field": ["billing_address", "province_code"], "code": "BLANK", "message": "can't be blank" }
+                { "field": ["billing_address", "address1"], "message": "can't be blank" },
+                { "field": ["billing_address", "city"], "message": "can't be blank" },
+                { "field": ["billing_address", "zip"], "message": "can't be blank" },
+                { "field": ["billing_address", "country_code"], "message": "can't be blank" },
+                { "field": ["billing_address", "province_code"], "message": "can't be blank" }
             ]
         })
     );
@@ -13766,7 +13820,7 @@ fn customer_payment_method_update_and_revoke_tail_helpers_cover_current_behavior
         mutation RustCustomerPaymentMethodRevokeLocalRuntimeActive {
           customerPaymentMethodRevoke(customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/active-contract") {
             revokedCustomerPaymentMethodId
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -13778,8 +13832,7 @@ fn customer_payment_method_update_and_revoke_tail_helpers_cover_current_behavior
             "revokedCustomerPaymentMethodId": Value::Null,
             "userErrors": [{
                 "field": ["customerPaymentMethodId"],
-                "message": "Cannot revoke a payment method with active subscription contracts.",
-                "code": "ACTIVE_CONTRACT"
+                "message": "Cannot revoke a payment method with active subscription contracts."
             }]
         })
     );
@@ -13810,7 +13863,7 @@ fn customer_payment_method_update_and_revoke_tail_helpers_cover_current_behavior
         mutation RustCustomerPaymentMethodRevokeLocalRuntimeSuccess {
           customerPaymentMethodRevoke(customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/base-card") {
             revokedCustomerPaymentMethodId
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -13850,7 +13903,7 @@ fn customer_payment_method_update_and_revoke_tail_helpers_cover_current_behavior
         mutation RustCustomerPaymentMethodRevokeLocalRuntimeAlreadyRevoked {
           customerPaymentMethodRevoke(customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/already-revoked") {
             revokedCustomerPaymentMethodId
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,

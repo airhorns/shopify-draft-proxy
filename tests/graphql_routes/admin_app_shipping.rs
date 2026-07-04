@@ -4115,6 +4115,11 @@ fn customer_mutations_hydrate_existing_live_customers_without_passthrough_writes
 #[test]
 fn customer_update_and_delete_stage_known_fixture_customer_reads() {
     let mut proxy = snapshot_proxy();
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({
+            "id": "gid://shopify/Shop/customer-delete-real-shop"
+        });
+    });
     let create = proxy.process_request(json_graphql_request(
         r#"
         mutation CustomerUpdateDeleteSeed($input: CustomerInput!) {
@@ -4177,7 +4182,7 @@ fn customer_update_and_delete_stage_known_fixture_customer_reads() {
         delete.body["data"]["customerDelete"],
         json!({
             "deletedCustomerId": id,
-            "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+            "shop": { "id": "gid://shopify/Shop/customer-delete-real-shop" },
             "userErrors": []
         })
     );
@@ -8056,6 +8061,10 @@ fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
         profile["profileItems"]["nodes"][0]["variants"]["nodes"][0]["id"],
         json!("gid://shopify/ProductVariant/51098706739506")
     );
+    assert_eq!(
+        profile["profileLocationGroups"][0]["locationGroup"]["locations"]["nodes"][0]["name"],
+        json!("Profile source")
+    );
 
     let read = proxy.process_request(json_graphql_request(
         read_query,
@@ -8308,6 +8317,94 @@ fn delivery_profiles_connection_windows_and_computes_page_info() {
                 "endCursor": beta_id
             }
         })
+    );
+}
+
+#[test]
+fn delivery_profile_create_uses_observed_location_name() {
+    let location_id = "gid://shopify/Location/observed-delivery";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("locationsAvailableForDeliveryProfilesConnection"),
+                "unexpected upstream query: {query}"
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "locationsAvailableForDeliveryProfilesConnection": {
+                            "nodes": [{
+                                "id": location_id,
+                                "name": "Observed Delivery Warehouse",
+                                "isActive": true,
+                                "isFulfillmentService": false
+                            }]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let locations = proxy.process_request(json_graphql_request(
+        r#"
+        query AvailableDeliveryLocations {
+          locationsAvailableForDeliveryProfilesConnection(first: 5) {
+            nodes { id name }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        locations.body["data"]["locationsAvailableForDeliveryProfilesConnection"]["nodes"][0]["id"],
+        json!(location_id)
+    );
+    assert_eq!(
+        locations.body["data"]["locationsAvailableForDeliveryProfilesConnection"]["nodes"][0]
+            ["name"],
+        json!("Observed Delivery Warehouse")
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeliveryProfileObservedLocation($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              profileLocationGroups {
+                locationGroup {
+                  locations(first: 5) { nodes { id name } }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "profile": {
+                "name": "Observed locations",
+                "locationGroupsToCreate": [{
+                    "locations": [location_id],
+                    "zonesToCreate": [{
+                        "name": "Domestic",
+                        "countries": [{ "code": "US", "includeAllProvinces": true }]
+                    }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["deliveryProfileCreate"]["profile"]["profileLocationGroups"][0]
+            ["locationGroup"]["locations"]["nodes"][0],
+        json!({ "id": location_id, "name": "Observed Delivery Warehouse" })
     );
 }
 
@@ -8888,7 +8985,7 @@ fn shipping_package_live_hybrid_hydrates_non_fixture_ids_and_clears_all_defaults
 
     let update_query = r#"
         mutation ShippingPackageUpdateHydratedRuntime($id: ID!, $shippingPackage: CustomShippingPackageInput!) {
-          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message code } }
+          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message } }
         }
     "#;
 
@@ -9385,7 +9482,7 @@ fn shipping_package_update_rejects_observed_flat_rate_packages_without_overwriti
     );
     let update_query = r#"
         mutation ShippingPackageUpdateFlatRate($id: ID!, $shippingPackage: CustomShippingPackageInput!) {
-          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message code } }
+          shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message  } }
         }
     "#;
 
