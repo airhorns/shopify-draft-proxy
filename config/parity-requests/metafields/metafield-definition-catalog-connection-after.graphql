@@ -1,0 +1,23 @@
+query MetafieldDefinitionCatalogConnectionAfter($namespace: String!, $after: String!) {
+  secondPage: metafieldDefinitions(ownerType: PRODUCT, namespace: $namespace, first: 1, after: $after) {
+    nodes {
+      id
+      key
+      name
+    }
+    edges {
+      cursor
+      node {
+        id
+        key
+        name
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

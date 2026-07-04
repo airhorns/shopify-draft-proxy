@@ -474,6 +474,13 @@ impl DraftProxy {
                 vec![bulk_operation_run_mutation_empty_file_user_error()],
             );
         }
+        if staged_upload_file_size.is_none() {
+            return bulk_operation_run_mutation_error_response(
+                &response_key,
+                &payload_selection,
+                vec![bulk_operation_run_mutation_no_such_file_user_error()],
+            );
+        }
         if let Some(operation_id) = self.throttled_bulk_operation_id("MUTATION", request) {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
@@ -483,13 +490,6 @@ impl DraftProxy {
                     &format!("A bulk mutation operation for this app and shop is already in progress: {operation_id}."),
                     Some("OPERATION_IN_PROGRESS"),
                 )],
-            );
-        }
-        if staged_upload_file_size.is_none() {
-            return bulk_operation_run_mutation_error_response(
-                &response_key,
-                &payload_selection,
-                vec![bulk_operation_run_mutation_no_such_file_user_error()],
             );
         }
 

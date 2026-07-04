@@ -100,6 +100,8 @@ checked-in scenario. Successful `locationDeactivate` calls with a
 destination in the modeled slice, merge same-name quantity rows when a
 destination level already exists, remove the source level from downstream
 inventory reads, and leave guard/userError branches without relocation.
+Unknown source IDs return `location: null` with a `LOCATION_NOT_FOUND` userError
+and do not stage a synthetic location.
 Captured guard slices include same-destination rejection, inactive-destination
 rejection, active-inventory relocation requirements, only-online-fulfillment
 protection, and permanent deactivation blocks with Shopify field paths and

@@ -800,6 +800,7 @@ pub(in crate::proxy) fn delivery_profile_user_errors_json(
 
 pub(in crate::proxy) fn delivery_profile_create_user_errors(
     profile: &BTreeMap<String, ResolvedValue>,
+    location_exists: &mut impl FnMut(&str) -> bool,
 ) -> Vec<Value> {
     if let Some(error) = delivery_profile_name_user_error(profile) {
         return vec![error];
@@ -829,16 +830,17 @@ pub(in crate::proxy) fn delivery_profile_create_user_errors(
             }
         }
     }
-    delivery_profile_common_shape_user_errors(profile)
+    delivery_profile_common_shape_user_errors(profile, location_exists)
 }
 
 pub(in crate::proxy) fn delivery_profile_update_user_errors(
     profile: &BTreeMap<String, ResolvedValue>,
+    location_exists: &mut impl FnMut(&str) -> bool,
 ) -> Vec<Value> {
     if let Some(error) = delivery_profile_name_user_error(profile) {
         return vec![error];
     }
-    delivery_profile_common_shape_user_errors(profile)
+    delivery_profile_common_shape_user_errors(profile, location_exists)
 }
 
 const DELIVERY_PROFILE_MAX_NAME_LENGTH: usize = 128;
@@ -866,9 +868,13 @@ fn delivery_profile_name_user_error(profile: &BTreeMap<String, ResolvedValue>) -
 
 fn delivery_profile_common_shape_user_errors(
     profile: &BTreeMap<String, ResolvedValue>,
+    location_exists: &mut impl FnMut(&str) -> bool,
 ) -> Vec<Value> {
     for group in resolved_object_list_field(profile, "locationGroupsToCreate") {
-        if delivery_profile_has_unknown_location(&list_string_field(&group, "locations")) {
+        if delivery_profile_has_unknown_location(
+            &list_string_field(&group, "locations"),
+            location_exists,
+        ) {
             return vec![delivery_profile_unknown_location_user_error()];
         }
         for zone in resolved_object_list_field(&group, "zonesToCreate") {
@@ -882,17 +888,21 @@ fn delivery_profile_common_shape_user_errors(
         }
     }
     for group in resolved_object_list_field(profile, "locationGroupsToUpdate") {
-        if delivery_profile_has_unknown_location(&list_string_field(&group, "locationsToAdd")) {
+        if delivery_profile_has_unknown_location(
+            &list_string_field(&group, "locationsToAdd"),
+            location_exists,
+        ) {
             return vec![delivery_profile_unknown_location_user_error()];
         }
     }
     Vec::new()
 }
 
-fn delivery_profile_has_unknown_location(location_ids: &[String]) -> bool {
-    location_ids
-        .iter()
-        .any(|id| id == "gid://shopify/Location/999999999")
+fn delivery_profile_has_unknown_location(
+    location_ids: &[String],
+    location_exists: &mut impl FnMut(&str) -> bool,
+) -> bool {
+    location_ids.iter().any(|id| !location_exists(id))
 }
 
 fn delivery_profile_unknown_location_user_error() -> Value {
@@ -2009,14 +2019,6 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
         ));
     }
     if let Some(note) = resolved_string_field(input, "note") {
-        if b2b_contains_html_tags(&note) {
-            errors.push(b2b_company_user_error(
-                vec!["input", "notes"],
-                "Note contains HTML tags",
-                "INVALID",
-                Some(json!("contains_html_tags")),
-            ));
-        }
         if note.chars().count() > 5000 {
             errors.push(b2b_company_user_error(
                 vec!["input", "notes"],
