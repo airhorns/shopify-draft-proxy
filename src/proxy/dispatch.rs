@@ -1687,6 +1687,9 @@ impl DraftProxy {
             (CapabilityDomain::Events, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {
+                if self.config.read_mode == ReadMode::LiveHybrid {
+                    return (self.upstream_transport)(request.clone());
+                }
                 let fields = try_root_fields!(&query, &variables);
                 ok_json(json!({ "data": event_empty_read_data(&fields) }))
             }
