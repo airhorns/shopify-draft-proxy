@@ -482,7 +482,7 @@ let capture: Record<string, unknown> = {};
 try {
   const buyProductVariables = {
     product: {
-      title: `HAR-195 BXGY buy product ${stamp}`,
+      title: `Conformance BXGY buy product ${stamp}`,
       status: 'ACTIVE',
       vendor: 'HERMES',
       productType: 'CONFORMANCE',
@@ -495,7 +495,7 @@ try {
 
   const getProductVariables = {
     product: {
-      title: `HAR-195 BXGY get product ${stamp}`,
+      title: `Conformance BXGY get product ${stamp}`,
       status: 'ACTIVE',
       vendor: 'HERMES',
       productType: 'CONFORMANCE',
@@ -508,7 +508,7 @@ try {
 
   const collectionVariables = {
     input: {
-      title: `HAR-195 BXGY collection ${stamp}`,
+      title: `Conformance BXGY collection ${stamp}`,
     },
   };
   const collectionCreate = await runGraphql(collectionCreateMutation, collectionVariables);
@@ -519,10 +519,10 @@ try {
     productIds: [getProduct.id],
   });
 
-  const code = `HAR195BXGY${stamp}`;
+  const code = `DRAFTBXGY${stamp}`;
   const codeCreateVariables = {
     input: {
-      title: `HAR-195 code BXGY ${stamp}`,
+      title: `Conformance code BXGY ${stamp}`,
       code,
       startsAt,
       combinesWith: {
@@ -574,8 +574,8 @@ try {
     id: codeDiscountId,
     input: {
       ...codeCreateVariables.input,
-      title: `HAR-195 code BXGY updated ${stamp}`,
-      code: `HAR195BXGYUP${stamp}`,
+      title: `Conformance code BXGY updated ${stamp}`,
+      code: `DRAFTBXGYUP${stamp}`,
       customerGets: {
         value: {
           discountOnQuantity: {
@@ -601,7 +601,7 @@ try {
 
   const automaticCreateVariables = {
     input: {
-      title: `HAR-195 automatic BXGY ${stamp}`,
+      title: `Conformance automatic BXGY ${stamp}`,
       startsAt,
       combinesWith: {
         productDiscounts: true,
@@ -651,7 +651,7 @@ try {
     id: automaticDiscountId,
     input: {
       ...automaticCreateVariables.input,
-      title: `HAR-195 automatic BXGY updated ${stamp}`,
+      title: `Conformance automatic BXGY updated ${stamp}`,
       customerBuys: {
         value: {
           quantity: '3',

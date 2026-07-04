@@ -32,7 +32,7 @@ const scopeProbe = await probeDiscountConformanceScopes(adminOptions);
 assertDiscountConformanceScopes(scopeProbe);
 
 const runId = Date.now();
-const code = `HAR1404NAME${runId}`;
+const code = `DRAFTNAME${runId}`;
 const startsAt = new Date(Date.now() - 60_000).toISOString();
 
 const createDocument = `#graphql
@@ -93,7 +93,7 @@ const deleteDocument = `#graphql
 
 const createVariables = {
   input: {
-    title: `HAR-1404 name independence ${runId}`,
+    title: `Conformance name independence ${runId}`,
     code,
     startsAt,
     combinesWith: {

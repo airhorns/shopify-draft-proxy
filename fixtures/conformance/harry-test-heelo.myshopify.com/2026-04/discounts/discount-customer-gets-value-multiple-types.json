@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-05T22:20:33.430Z",
+  "capturedAt": "2026-07-03T11:13:39.190Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "accessScopes": {
@@ -110,8 +110,8 @@
       "query": "mutation DiscountCustomerGetsValueMultipleTypesCreate($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "HAR-782 HAR782CREATE1778019632675",
-          "code": "HAR782CREATE1778019632675",
+          "title": "Conformance DRAFTCREATE1783077218489",
+          "code": "DRAFTCREATE1783077218489",
           "startsAt": "2026-04-25T00:00:00Z",
           "combinesWith": {
             "productDiscounts": false,
@@ -172,8 +172,8 @@
       "query": "mutation DiscountCustomerGetsValueMultipleTypesCreate($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "HAR-782 HAR782SETUP1778019632675",
-          "code": "HAR782SETUP1778019632675",
+          "title": "Conformance DRAFTSETUP1783077218489",
+          "code": "DRAFTSETUP1783077218489",
           "startsAt": "2026-04-25T00:00:00Z",
           "combinesWith": {
             "productDiscounts": false,
@@ -198,7 +198,7 @@
         "data": {
           "discountCodeBasicCreate": {
             "codeDiscountNode": {
-              "id": "gid://shopify/DiscountCodeNode/1640465957170"
+              "id": "gid://shopify/DiscountCodeNode/1657961283890"
             },
             "userErrors": []
           }
@@ -209,7 +209,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1989,
               "restoreRate": 100
             }
           }
@@ -219,10 +219,10 @@
     "update": {
       "query": "mutation DiscountCustomerGetsValueMultipleTypesUpdate($id: ID!, $input: DiscountCodeBasicInput!) {\n  discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1640465957170",
+        "id": "gid://shopify/DiscountCodeNode/1657961283890",
         "input": {
-          "title": "HAR-782 HAR782UPDATE1778019632675",
-          "code": "HAR782UPDATE1778019632675",
+          "title": "Conformance DRAFTUPDATE1783077218489",
+          "code": "DRAFTUPDATE1783077218489",
           "startsAt": "2026-04-25T00:00:00Z",
           "combinesWith": {
             "productDiscounts": false,
@@ -285,13 +285,13 @@
   "cleanup": {
     "query": "#graphql\n  mutation DiscountCustomerGetsValueMultipleTypesCleanup($id: ID!) {\n    discountCodeDelete(id: $id) {\n      deletedCodeDiscountId\n      userErrors {\n        field\n        message\n        code\n        extraInfo\n      }\n    }\n  }\n",
     "variables": {
-      "id": "gid://shopify/DiscountCodeNode/1640465957170"
+      "id": "gid://shopify/DiscountCodeNode/1657961283890"
     },
     "status": 200,
     "response": {
       "data": {
         "discountCodeDelete": {
-          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640465957170",
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657961283890",
           "userErrors": []
         }
       },

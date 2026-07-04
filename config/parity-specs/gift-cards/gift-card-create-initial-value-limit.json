@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.proxyVariables.initialValueLimit"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-767 captures giftCardCreate initial value validation against the shop giftCardConfiguration.issueLimit. The live fixture documents the configured CAD issue limit and records boundary success at the limit plus GIFT_CARD_LIMIT_EXCEEDED for one cent over and for a well-over-limit value. Proxy replay uses a cassette-backed read-only giftCardConfiguration fetch before local create staging; supported giftCardCreate remains local-only.",
+  "notes": "This scenario captures giftCardCreate initial value validation against the shop giftCardConfiguration.issueLimit. The live fixture documents the configured CAD issue limit and records boundary success at the limit plus GIFT_CARD_LIMIT_EXCEEDED for one cent over and for a well-over-limit value. Proxy replay uses a cassette-backed read-only giftCardConfiguration fetch before local create staging; supported giftCardCreate remains local-only.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

@@ -193,5 +193,5 @@
       }
     ]
   },
-  "notes": "HAR-603 live parity for discount timestamp lifecycle behavior: two code-basic creates produce distinct createdAt values, updating the first discount preserves createdAt and advances updatedAt, and downstream reads observe the persisted staged timestamps. The generic parity runner compares timestamp shape with path-scoped expected differences, while the runtime test file asserts relational ordering and CREATED_AT/UPDATED_AT sort behavior that strict JSON parity cannot express."
+  "notes": "Live parity for discount timestamp lifecycle behavior: two code-basic creates produce distinct createdAt values, updating the first discount preserves createdAt and advances updatedAt, and downstream reads observe the persisted staged timestamps. The generic parity runner compares timestamp shape with path-scoped expected differences, while the runtime test file asserts relational ordering and CREATED_AT/UPDATED_AT sort behavior that strict JSON parity cannot express."
 }

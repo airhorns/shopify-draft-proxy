@@ -108,8 +108,8 @@
     "query": "mutation DiscountMinimumRequirementExclusivity(\n  $bothCode: DiscountCodeBasicInput!\n  $quantityLimit: DiscountCodeBasicInput!\n  $subtotalLimit: DiscountCodeBasicInput!\n  $bothAutomatic: DiscountAutomaticBasicInput!\n) {\n  bothCode: discountCodeBasicCreate(basicCodeDiscount: $bothCode) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  quantityLimit: discountCodeBasicCreate(basicCodeDiscount: $quantityLimit) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  subtotalLimit: discountCodeBasicCreate(basicCodeDiscount: $subtotalLimit) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  bothAutomatic: discountAutomaticBasicCreate(automaticBasicDiscount: $bothAutomatic) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
     "variables": {
       "bothCode": {
-        "title": "HAR-779 BOTH1778019350563",
-        "code": "BOTH1778019350563",
+        "title": "Conformance BOTH1783077234118",
+        "code": "BOTH1783077234118",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "all": "ALL"
@@ -132,8 +132,8 @@
         }
       },
       "quantityLimit": {
-        "title": "HAR-779 QLIMIT1778019350563",
-        "code": "QLIMIT1778019350563",
+        "title": "Conformance QLIMIT1783077234118",
+        "code": "QLIMIT1783077234118",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "all": "ALL"
@@ -153,8 +153,8 @@
         }
       },
       "subtotalLimit": {
-        "title": "HAR-779 SLIMIT1778019350563",
-        "code": "SLIMIT1778019350563",
+        "title": "Conformance SLIMIT1783077234118",
+        "code": "SLIMIT1783077234118",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "all": "ALL"
@@ -174,7 +174,7 @@
         }
       },
       "bothAutomatic": {
-        "title": "HAR-779 automatic 1778019350563",
+        "title": "Conformance automatic 1783077234118",
         "startsAt": "2026-04-25T00:00:00Z",
         "customerGets": {
           "value": {

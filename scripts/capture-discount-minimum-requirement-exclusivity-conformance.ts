@@ -30,7 +30,7 @@ const { runGraphqlRaw } = createAdminGraphqlClient(adminOptions);
 
 function basicInput(code: string): Record<string, unknown> {
   return {
-    title: `HAR-779 ${code}`,
+    title: `Conformance ${code}`,
     code,
     startsAt: '2026-04-25T00:00:00Z',
     context: {
@@ -82,7 +82,7 @@ const variables = {
     },
   },
   bothAutomatic: {
-    title: `HAR-779 automatic ${stamp}`,
+    title: `Conformance automatic ${stamp}`,
     startsAt: '2026-04-25T00:00:00Z',
     customerGets: {
       value: {

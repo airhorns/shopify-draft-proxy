@@ -70,5 +70,5 @@
       }
     ]
   },
-  "notes": "HAR-595 records live 2026-04 Shopify validation-only responses for inverted startsAt/endsAt across code basic, code BXGY, code free shipping, automatic BXGY, and automatic free shipping creates. Live Shopify returned the message `Ends at needs to be after starts_at`; this differs from the issue's quoted `End date must be after start date`, so the proxy follows captured Admin API behavior."
+  "notes": "This scenario records live 2026-04 Shopify validation-only responses for inverted startsAt/endsAt across code basic, code BXGY, code free shipping, automatic BXGY, and automatic free shipping creates. Live Shopify returned the message `Ends at needs to be after starts_at`; this differs from the issue's quoted `End date must be after start date`, so the proxy follows captured Admin API behavior."
 }

@@ -25,8 +25,8 @@
     "documentPath": "config/parity-requests/discounts/discount-bxgy-lifecycle-create.graphql",
     "variables": {
       "codeInput": {
-        "title": "HAR-195 code BXGY 1777150259502",
-        "code": "HAR195BXGY1777150259502",
+        "title": "Conformance code BXGY 1783077188781",
+        "code": "DRAFTBXGY1783077188781",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -42,8 +42,8 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10170555597106"],
-              "productVariantsToAdd": ["gid://shopify/ProductVariant/51098643235122"]
+              "productsToAdd": ["gid://shopify/Product/10230743957810"],
+              "productVariantsToAdd": ["gid://shopify/ProductVariant/51419266384178"]
             }
           }
         },
@@ -58,14 +58,14 @@
           },
           "items": {
             "collections": {
-              "add": ["gid://shopify/Collection/512147128626"]
+              "add": ["gid://shopify/Collection/514070217010"]
             }
           }
         },
         "usesPerOrderLimit": 1
       },
       "automaticInput": {
-        "title": "HAR-195 automatic BXGY 1777150259502",
+        "title": "Conformance automatic BXGY 1783077188781",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -81,7 +81,7 @@
           },
           "items": {
             "collections": {
-              "add": ["gid://shopify/Collection/512147128626"]
+              "add": ["gid://shopify/Collection/514070217010"]
             }
           }
         },
@@ -96,7 +96,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10170555629874"]
+              "productsToAdd": ["gid://shopify/Product/10230743990578"]
             }
           }
         },
@@ -205,8 +205,8 @@
               "fromPrimaryProxyPath": "$.data.discountCodeBxgyCreate.codeDiscountNode.id"
             },
             "input": {
-              "title": "HAR-195 code BXGY updated 1777150259502",
-              "code": "HAR195BXGYUP1777150259502",
+              "title": "Conformance code BXGY updated 1783077188781",
+              "code": "DRAFTBXGYUP1783077188781",
               "startsAt": "2026-04-25T00:00:00Z",
               "combinesWith": {
                 "productDiscounts": true,
@@ -222,8 +222,8 @@
                 },
                 "items": {
                   "products": {
-                    "productsToAdd": ["gid://shopify/Product/10170555597106"],
-                    "productVariantsToAdd": ["gid://shopify/ProductVariant/51098643235122"]
+                    "productsToAdd": ["gid://shopify/Product/10230743957810"],
+                    "productVariantsToAdd": ["gid://shopify/ProductVariant/51419266384178"]
                   }
                 }
               },
@@ -238,7 +238,7 @@
                 },
                 "items": {
                   "collections": {
-                    "add": ["gid://shopify/Collection/512147128626"]
+                    "add": ["gid://shopify/Collection/514070217010"]
                   }
                 }
               },
@@ -259,7 +259,7 @@
               "fromPrimaryProxyPath": "$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id"
             },
             "input": {
-              "title": "HAR-195 automatic BXGY updated 1777150259502",
+              "title": "Conformance automatic BXGY updated 1783077188781",
               "startsAt": "2026-04-25T00:00:00Z",
               "combinesWith": {
                 "productDiscounts": true,
@@ -275,7 +275,7 @@
                 },
                 "items": {
                   "collections": {
-                    "add": ["gid://shopify/Collection/512147128626"]
+                    "add": ["gid://shopify/Collection/514070217010"]
                   }
                 }
               },
@@ -290,7 +290,7 @@
                 },
                 "items": {
                   "products": {
-                    "productsToAdd": ["gid://shopify/Product/10170555629874"]
+                    "productsToAdd": ["gid://shopify/Product/10230743990578"]
                   }
                 }
               },
@@ -369,7 +369,7 @@
             "automaticId": {
               "fromPrimaryProxyPath": "$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id"
             },
-            "code": "HAR195BXGYUP1777150259502"
+            "code": "DRAFTBXGYUP1783077188781"
           }
         }
       },
@@ -387,7 +387,7 @@
             "automaticId": {
               "fromPrimaryProxyPath": "$.data.discountAutomaticBxgyCreate.automaticDiscountNode.id"
             },
-            "code": "HAR195BXGYUP1777150259502"
+            "code": "DRAFTBXGYUP1783077188781"
           }
         }
       },

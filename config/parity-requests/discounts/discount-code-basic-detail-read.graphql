@@ -74,7 +74,7 @@ query DiscountCodeDetailRead($id: ID!, $code: String!) {
         }
       }
     }
-    metafield(namespace: "custom", key: "har192_missing") {
+    metafield(namespace: "custom", key: "draft_missing") {
       id
     }
     metafields(first: 2) {
@@ -108,41 +108,6 @@ query DiscountCodeDetailRead($id: ID!, $code: String!) {
         hasPreviousPage
         startCursor
         endCursor
-      }
-    }
-  }
-  codeDiscountNode(id: $id) {
-    id
-    codeDiscount {
-      __typename
-      ... on DiscountCodeBasic {
-        title
-        status
-        summary
-        startsAt
-        endsAt
-        createdAt
-        updatedAt
-        asyncUsageCount
-        discountClasses
-        combinesWith {
-          productDiscounts
-          orderDiscounts
-          shippingDiscounts
-        }
-        codes(first: 2) {
-          nodes {
-            id
-            code
-            asyncUsageCount
-          }
-          pageInfo {
-            hasNextPage
-            hasPreviousPage
-            startCursor
-            endCursor
-          }
-        }
       }
     }
   }

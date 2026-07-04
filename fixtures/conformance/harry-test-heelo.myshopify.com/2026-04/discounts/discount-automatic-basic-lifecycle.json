@@ -1,11 +1,34 @@
 {
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
+  "shopCurrency": {
+    "query": "query DiscountShopCurrencyHydrate {\n  shop {\n    currencyCode\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "data": {
+        "shop": {
+          "currencyCode": "CAD"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "status": 200
+  },
   "create": {
-    "query": "#graphql\nmutation DiscountAutomaticBasicLifecycleCreate($input: DiscountAutomaticBasicInput!) {\n  discountAutomaticBasicCreate(automaticBasicDiscount: $input) {\n    automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticBasic { title status startsAt endsAt combinesWith { productDiscounts orderDiscounts shippingDiscounts } customerGets { value { __typename ... on DiscountPercentage { percentage } } items { __typename ... on AllDiscountItems { allItems } } appliesOnOneTimePurchase appliesOnSubscription } minimumRequirement { __typename ... on DiscountMinimumQuantity { greaterThanOrEqualToQuantity } ... on DiscountMinimumSubtotal { greaterThanOrEqualToSubtotal { amount currencyCode } } } } } }\n    userErrors { field message code extraInfo }\n  }\n}",
+    "query": "mutation DiscountAutomaticBasicLifecycleCreate($input: DiscountAutomaticBasicInput!) {\n  discountAutomaticBasicCreate(automaticBasicDiscount: $input) {\n    automaticDiscountNode {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountPercentage {\n                percentage\n              }\n            }\n            items {\n              __typename\n              ... on AllDiscountItems {\n                allItems\n              }\n            }\n            appliesOnOneTimePurchase\n            appliesOnSubscription\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumQuantity {\n              greaterThanOrEqualToQuantity\n            }\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
     "variables": {
       "input": {
-        "title": "HAR194LIFECYCLE1777147964006",
+        "title": "Conformance automatic lifecycle 1783078702526",
         "startsAt": "2026-04-25T00:00:00Z",
         "endsAt": null,
         "combinesWith": {
@@ -30,10 +53,10 @@
       "data": {
         "discountAutomaticBasicCreate": {
           "automaticDiscountNode": {
-            "id": "gid://shopify/DiscountAutomaticNode/1638460096818",
+            "id": "gid://shopify/DiscountAutomaticNode/1657965510962",
             "automaticDiscount": {
               "__typename": "DiscountAutomaticBasic",
-              "title": "HAR194LIFECYCLE1777147964006",
+              "title": "Conformance automatic lifecycle 1783078702526",
               "status": "ACTIVE",
               "startsAt": "2026-04-25T00:00:00Z",
               "endsAt": null,
@@ -75,11 +98,11 @@
     "status": 200
   },
   "update": {
-    "query": "#graphql\nmutation DiscountAutomaticBasicLifecycleUpdate($id: ID!, $input: DiscountAutomaticBasicInput!) {\n  discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $input) {\n    automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticBasic { title status startsAt endsAt combinesWith { productDiscounts orderDiscounts shippingDiscounts } customerGets { value { __typename ... on DiscountAmount { amount { amount currencyCode } appliesOnEachItem } } items { __typename ... on AllDiscountItems { allItems } } appliesOnOneTimePurchase appliesOnSubscription } minimumRequirement { __typename ... on DiscountMinimumSubtotal { greaterThanOrEqualToSubtotal { amount currencyCode } } } } } }\n    userErrors { field message code extraInfo }\n  }\n}",
+    "query": "mutation DiscountAutomaticBasicLifecycleUpdate($id: ID!, $input: DiscountAutomaticBasicInput!) {\n  discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $input) {\n    automaticDiscountNode {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          customerGets {\n            value {\n              __typename\n              ... on DiscountAmount {\n                amount {\n                  amount\n                  currencyCode\n                }\n                appliesOnEachItem\n              }\n            }\n            items {\n              __typename\n              ... on AllDiscountItems {\n                allItems\n              }\n            }\n            appliesOnOneTimePurchase\n            appliesOnSubscription\n          }\n          minimumRequirement {\n            __typename\n            ... on DiscountMinimumSubtotal {\n              greaterThanOrEqualToSubtotal {\n                amount\n                currencyCode\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/DiscountAutomaticNode/1638460096818",
+      "id": "gid://shopify/DiscountAutomaticNode/1657965510962",
       "input": {
-        "title": "HAR194LIFECYCLE1777147964006 updated",
+        "title": "Conformance automatic lifecycle updated 1783078702526",
         "startsAt": "2026-04-25T00:00:00Z",
         "endsAt": null,
         "combinesWith": {
@@ -112,10 +135,10 @@
       "data": {
         "discountAutomaticBasicUpdate": {
           "automaticDiscountNode": {
-            "id": "gid://shopify/DiscountAutomaticNode/1638460096818",
+            "id": "gid://shopify/DiscountAutomaticNode/1657965510962",
             "automaticDiscount": {
               "__typename": "DiscountAutomaticBasic",
-              "title": "HAR194LIFECYCLE1777147964006 updated",
+              "title": "Conformance automatic lifecycle updated 1783078702526",
               "status": "ACTIVE",
               "startsAt": "2026-04-25T00:00:00Z",
               "endsAt": null,
@@ -167,21 +190,21 @@
     "status": 200
   },
   "deactivate": {
-    "query": "#graphql\nmutation DiscountAutomaticBasicLifecycleDeactivate($id: ID!) { discountAutomaticDeactivate(id: $id) { automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticBasic { title status startsAt endsAt } } } userErrors { field message code extraInfo } } }",
+    "query": "mutation DiscountAutomaticBasicLifecycleDeactivate($id: ID!) {\n  discountAutomaticDeactivate(id: $id) {\n    automaticDiscountNode {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/DiscountAutomaticNode/1638460096818"
+      "id": "gid://shopify/DiscountAutomaticNode/1657965510962"
     },
     "response": {
       "data": {
         "discountAutomaticDeactivate": {
           "automaticDiscountNode": {
-            "id": "gid://shopify/DiscountAutomaticNode/1638460096818",
+            "id": "gid://shopify/DiscountAutomaticNode/1657965510962",
             "automaticDiscount": {
               "__typename": "DiscountAutomaticBasic",
-              "title": "HAR194LIFECYCLE1777147964006 updated",
+              "title": "Conformance automatic lifecycle updated 1783078702526",
               "status": "EXPIRED",
               "startsAt": "2026-04-25T00:00:00Z",
-              "endsAt": "2026-04-25T20:12:44Z"
+              "endsAt": "2026-07-03T11:38:23Z"
             }
           },
           "userErrors": []
@@ -202,18 +225,18 @@
     "status": 200
   },
   "activate": {
-    "query": "#graphql\nmutation DiscountAutomaticBasicLifecycleActivate($id: ID!) { discountAutomaticActivate(id: $id) { automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticBasic { title status startsAt endsAt } } } userErrors { field message code extraInfo } } }",
+    "query": "mutation DiscountAutomaticBasicLifecycleActivate($id: ID!) {\n  discountAutomaticActivate(id: $id) {\n    automaticDiscountNode {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/DiscountAutomaticNode/1638460096818"
+      "id": "gid://shopify/DiscountAutomaticNode/1657965510962"
     },
     "response": {
       "data": {
         "discountAutomaticActivate": {
           "automaticDiscountNode": {
-            "id": "gid://shopify/DiscountAutomaticNode/1638460096818",
+            "id": "gid://shopify/DiscountAutomaticNode/1657965510962",
             "automaticDiscount": {
               "__typename": "DiscountAutomaticBasic",
-              "title": "HAR194LIFECYCLE1777147964006 updated",
+              "title": "Conformance automatic lifecycle updated 1783078702526",
               "status": "ACTIVE",
               "startsAt": "2026-04-25T00:00:00Z",
               "endsAt": null
@@ -237,14 +260,14 @@
     "status": 200
   },
   "delete": {
-    "query": "#graphql\nmutation DiscountAutomaticBasicLifecycleDelete($id: ID!) { discountAutomaticDelete(id: $id) { deletedAutomaticDiscountId userErrors { field message code extraInfo } } }",
+    "query": "mutation DiscountAutomaticBasicLifecycleDelete($id: ID!) {\n  discountAutomaticDelete(id: $id) {\n    deletedAutomaticDiscountId\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/DiscountAutomaticNode/1638460096818"
+      "id": "gid://shopify/DiscountAutomaticNode/1657965510962"
     },
     "response": {
       "data": {
         "discountAutomaticDelete": {
-          "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1638460096818",
+          "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1657965510962",
           "userErrors": []
         }
       },

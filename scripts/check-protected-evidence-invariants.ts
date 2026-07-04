@@ -10,6 +10,8 @@ import {
 } from './protected-evidence-invariants.js';
 
 const repoRoot = process.cwd();
+const ticketLikeIdentifierPattern = /\bhar[ _-]?\d+/iu;
+
 function readJson(relativePath: string): unknown {
   return JSON.parse(readFileSync(path.join(repoRoot, relativePath), 'utf8')) as unknown;
 }
@@ -49,6 +51,117 @@ function trackedFiles(pathspec: string): string[] {
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
+}
+
+function untrackedFiles(): string[] {
+  const untrackedResult = spawnSync('git', ['ls-files', '--others', '--exclude-standard'], { encoding: 'utf8' });
+  if (untrackedResult.error) throw untrackedResult.error;
+  if (untrackedResult.status !== 0) {
+    process.stderr.write(untrackedResult.stderr);
+    process.exit(untrackedResult.status ?? 1);
+  }
+  return untrackedResult.stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function isExecutableArtifactPath(relativePath: string): boolean {
+  const normalized = relativePath.split(path.sep).join('/');
+  if (
+    normalized.endsWith('.md') ||
+    normalized.endsWith('.mdx') ||
+    normalized.startsWith('docs/') ||
+    normalized.startsWith('.agents/')
+  ) {
+    return false;
+  }
+
+  return (
+    normalized.startsWith('src/') ||
+    normalized.startsWith('scripts/') ||
+    normalized.startsWith('tests/') ||
+    normalized.startsWith('config/') ||
+    normalized.startsWith('fixtures/') ||
+    normalized.startsWith('js/') ||
+    normalized.startsWith('python/') ||
+    normalized.startsWith('ruby/') ||
+    normalized === 'package.json' ||
+    normalized === 'Cargo.toml' ||
+    normalized.startsWith('tsconfig') ||
+    normalized.startsWith('.github/')
+  );
+}
+
+function ticketLikeIdentifierDiffErrors(): string[] {
+  const diffResult = spawnSync(
+    'git',
+    ['diff', '--unified=0', '--no-ext-diff', '--no-color', 'origin/main', '--', '.'],
+    {
+      encoding: 'utf8',
+      maxBuffer: 20 * 1024 * 1024,
+    },
+  );
+  if (diffResult.error) throw diffResult.error;
+  if (diffResult.status !== 0) {
+    process.stderr.write(diffResult.stderr);
+    process.exit(diffResult.status ?? 1);
+  }
+
+  const errors: string[] = [];
+  let currentPath: string | null = null;
+  let newLine = 0;
+
+  for (const line of diffResult.stdout.split('\n')) {
+    const fileMatch = /^\+\+\+ b\/(.+)$/u.exec(line);
+    if (fileMatch) {
+      currentPath = fileMatch[1] ?? null;
+      newLine = 0;
+      continue;
+    }
+    if (line === '+++ /dev/null') {
+      currentPath = null;
+      newLine = 0;
+      continue;
+    }
+
+    const hunkMatch = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/u.exec(line);
+    if (hunkMatch) {
+      newLine = Number.parseInt(hunkMatch[1] ?? '0', 10);
+      continue;
+    }
+
+    if (line.startsWith('+')) {
+      if (currentPath !== null && isExecutableArtifactPath(currentPath) && ticketLikeIdentifierPattern.test(line)) {
+        errors.push(`${currentPath}:${newLine}: added ticket-like identifier: ${line.slice(1).trim()}`);
+      }
+      newLine += 1;
+      continue;
+    }
+
+    if (!line.startsWith('-') && currentPath !== null && newLine > 0) {
+      newLine += 1;
+    }
+  }
+
+  for (const untrackedPath of untrackedFiles()) {
+    if (!isExecutableArtifactPath(untrackedPath)) {
+      continue;
+    }
+
+    const absolutePath = path.join(repoRoot, untrackedPath);
+    if (!existsSync(absolutePath)) {
+      continue;
+    }
+
+    for (const [index, line] of readFileSync(absolutePath, 'utf8').split('\n').entries()) {
+      if (ticketLikeIdentifierPattern.test(line)) {
+        errors.push(`${untrackedPath}:${index + 1}: untracked ticket-like identifier: ${line.trim()}`);
+      }
+    }
+  }
+
+  return errors;
 }
 
 function originMainText(relativePath: string): string | null {
@@ -380,6 +493,7 @@ const adminPlatformErrors = adminPlatformParityEvidenceErrors();
 const bulkOperationsErrors = bulkOperationsParityEvidenceErrors();
 const shippingFulfillmentErrors = shippingFulfillmentParityEvidenceErrors();
 const marketsErrors = marketsParityEvidenceErrors();
+const ticketLikeIdentifierErrors = ticketLikeIdentifierDiffErrors();
 
 if (protectedEvidenceErrors.length > 0) {
   process.stderr.write('Protected parity evidence invariant failures.\n');
@@ -438,6 +552,13 @@ if (marketsErrors.length > 0) {
   for (const error of marketsErrors) process.stderr.write(`- ${error}\n`);
 }
 
+if (ticketLikeIdentifierErrors.length > 0) {
+  process.stderr.write(
+    'Executable artifact changes must not add Linear-style ticket identifiers; use neutral test/capture data instead.\n',
+  );
+  for (const error of ticketLikeIdentifierErrors) process.stderr.write(`- ${error}\n`);
+}
+
 if (
   protectedEvidenceErrors.length > 0 ||
   newNonShopifyStandInErrors.length > 0 ||
@@ -447,7 +568,8 @@ if (
   adminPlatformErrors.length > 0 ||
   bulkOperationsErrors.length > 0 ||
   shippingFulfillmentErrors.length > 0 ||
-  marketsErrors.length > 0
+  marketsErrors.length > 0 ||
+  ticketLikeIdentifierErrors.length > 0
 ) {
   process.exit(1);
 }
@@ -463,3 +585,4 @@ process.stdout.write(
   'shipping-fulfillments protected evidence has no local-runtime parity fixtures or descriptor upstream calls.\n',
 );
 process.stdout.write('Markets parity evidence uses GraphQL upstream cassette queries and live fixture paths.\n');
+process.stdout.write('Executable artifact changes add no Linear-style ticket identifiers.\n');

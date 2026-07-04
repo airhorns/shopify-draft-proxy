@@ -87,7 +87,7 @@ const seedCleanupDocument = `#graphql
 
 function basicInput(code: string): Record<string, unknown> {
   return {
-    title: `HAR-198 ${code}`,
+    title: `Conformance ${code}`,
     code,
     startsAt: '2026-04-25T00:00:00Z',
     combinesWith: {
@@ -122,7 +122,7 @@ function withoutCode(input: Record<string, unknown>): Record<string, unknown> {
 
 function bxgyInput(code: string, productId: string): Record<string, unknown> {
   return {
-    title: `HAR-596 BXGY ${code}`,
+    title: `Conformance BXGY ${code}`,
     code,
     startsAt: '2026-04-25T00:00:00Z',
     combinesWith: {
@@ -163,7 +163,7 @@ function bxgyInput(code: string, productId: string): Record<string, unknown> {
 
 function freeShippingInput(code: string): Record<string, unknown> {
   return {
-    title: `HAR-596 free shipping ${code}`,
+    title: `Conformance free shipping ${code}`,
     code,
     startsAt: '2026-04-25T00:00:00Z',
     combinesWith: {
@@ -209,7 +209,7 @@ const scopeProbe = await probeDiscountConformanceScopes(adminOptions);
 assertDiscountConformanceScopes(scopeProbe);
 
 const stamp = Date.now();
-const duplicateCode = `HAR198DUP${stamp}`;
+const duplicateCode = `DRAFTDUP${stamp}`;
 const duplicateSeedInput = basicInput(duplicateCode);
 const duplicateSeedCreate = await runGraphqlRaw(seedCreateDocument, { input: duplicateSeedInput });
 const duplicateSeedId = readCreatedSeedId(duplicateSeedCreate);
@@ -224,7 +224,7 @@ const tooLongCode = 'X'.repeat(256);
 const validationVariables = {
   duplicate: duplicateSeedInput,
   badRefs: {
-    ...basicInput(`HAR198BADREF${stamp}`),
+    ...basicInput(`DRAFTBADREF${stamp}`),
     customerGets: {
       value: {
         percentage: 0.1,
@@ -241,7 +241,7 @@ const validationVariables = {
     },
   },
   invalidAutomatic: {
-    title: `HAR-198 invalid automatic dates ${stamp}`,
+    title: `Conformance invalid automatic dates ${stamp}`,
     startsAt: '2026-04-25T00:00:00Z',
     endsAt: '2026-04-24T00:00:00Z',
     combinesWith: {
@@ -268,7 +268,7 @@ const validationVariables = {
   },
   blankCodeBxgy: {
     title: '',
-    code: `HAR198BXGY${stamp}`,
+    code: `DRAFTBXGY${stamp}`,
     startsAt: '2026-04-25T00:00:00Z',
     combinesWith: {
       productDiscounts: true,
@@ -335,7 +335,7 @@ const validationVariables = {
   },
   invalidCodeFreeShipping: {
     title: '',
-    code: `HAR198FREE${stamp}`,
+    code: `DRAFTFREE${stamp}`,
     startsAt: '2026-04-25T00:00:00Z',
     combinesWith: {
       productDiscounts: true,
@@ -365,24 +365,24 @@ const validationVariables = {
     },
   },
   unknownUpdateId: 'gid://shopify/DiscountCodeNode/0',
-  unknownUpdate: basicInput(`HAR198UNKNOWN${stamp}`),
+  unknownUpdate: basicInput(`DRAFTUNKNOWN${stamp}`),
   codeBulkIds: ['gid://shopify/DiscountCodeNode/0'],
   automaticBulkIds: ['gid://shopify/DiscountAutomaticNode/0'],
   bulkSearch: 'status:active',
 };
 
 const codeRequiredValidationVariables = {
-  basicMissing: withoutCode(basicInput(`HAR596BASICMISSING${stamp}`)),
+  basicMissing: withoutCode(basicInput(`DRAFTBASICMISSING${stamp}`)),
   basicEmpty: basicInput(''),
   basicNewline: basicInput('abc\ndef'),
   basicTooLong: {
     ...basicInput(tooLongCode),
-    title: `HAR-596 basic too long ${stamp}`,
+    title: `Conformance basic too long ${stamp}`,
   },
-  bxgyMissing: withoutCode(bxgyInput(`HAR596BXGYMISSING${stamp}`, productId)),
+  bxgyMissing: withoutCode(bxgyInput(`DRAFTBXGYMISSING${stamp}`, productId)),
   bxgyEmpty: bxgyInput('', productId),
   bxgyNewline: bxgyInput('abc\ndef', productId),
-  freeShippingMissing: withoutCode(freeShippingInput(`HAR596FREEMISSING${stamp}`)),
+  freeShippingMissing: withoutCode(freeShippingInput(`DRAFTFREEMISSING${stamp}`)),
   freeShippingEmpty: freeShippingInput(''),
   freeShippingNewline: freeShippingInput('abc\ndef'),
 };

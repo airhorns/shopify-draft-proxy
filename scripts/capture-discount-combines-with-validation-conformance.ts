@@ -28,7 +28,7 @@ const { runGraphqlRaw } = createAdminGraphqlClient(adminOptions);
 
 function basicOrderInput(code: string): Record<string, unknown> {
   return {
-    title: `HAR-602 ${code}`,
+    title: `Conformance ${code}`,
     code,
     startsAt: '2026-05-05T00:00:00Z',
     combinesWith: {
@@ -53,7 +53,7 @@ function basicOrderInput(code: string): Record<string, unknown> {
 
 function basicProductInputWithTagOverlap(code: string): Record<string, unknown> {
   return {
-    title: `HAR-602 ${code}`,
+    title: `Conformance ${code}`,
     code,
     startsAt: '2026-05-05T00:00:00Z',
     combinesWith: {
@@ -80,7 +80,7 @@ function basicProductInputWithTagOverlap(code: string): Record<string, unknown> 
 
 function freeShippingInput(code: string): Record<string, unknown> {
   return {
-    title: `HAR-602 ${code}`,
+    title: `Conformance ${code}`,
     code,
     startsAt: '2026-05-05T00:00:00Z',
     combinesWith: {

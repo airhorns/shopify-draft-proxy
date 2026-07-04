@@ -30,9 +30,9 @@ const scopeProbe = await probeDiscountConformanceScopes(adminOptions);
 assertDiscountConformanceScopes(scopeProbe);
 
 const runId = Date.now();
-const scheduledCode = `HAR593S${runId}`;
-const expiredCode = `HAR593E${runId}`;
-const activeCode = `HAR593A${runId}`;
+const scheduledCode = `DRAFTS${runId}`;
+const expiredCode = `DRAFTE${runId}`;
+const activeCode = `DRAFTA${runId}`;
 
 const discountStatusSelection = `#graphql
   codeDiscountNode {
@@ -134,7 +134,7 @@ const readDocument = `#graphql
 
 const listDiscountsDocument = `#graphql
   query DiscountStatusTimeWindowDerivationListExisting {
-    discountNodes(first: 50, query: "title:'HAR-593'") {
+    discountNodes(first: 50, query: "title:'Conformance'") {
       nodes {
         id
         discount {
@@ -175,7 +175,7 @@ const deleteAutomaticDocument = `#graphql
 
 const createVariables = {
   scheduled: {
-    title: `HAR-593 scheduled ${runId}`,
+    title: `Conformance scheduled ${runId}`,
     code: scheduledCode,
     startsAt: '2099-01-01T00:00:00Z',
     context: { all: 'ALL' },
@@ -185,7 +185,7 @@ const createVariables = {
     },
   },
   expired: {
-    title: `HAR-593 expired ${runId}`,
+    title: `Conformance expired ${runId}`,
     code: expiredCode,
     startsAt: '2019-01-01T00:00:00Z',
     endsAt: '2020-01-01T00:00:00Z',
@@ -196,7 +196,7 @@ const createVariables = {
     },
   },
   active: {
-    title: `HAR-593 active ${runId}`,
+    title: `Conformance active ${runId}`,
     code: activeCode,
     startsAt: '2020-01-01T00:00:00Z',
     endsAt: '2099-01-01T00:00:00Z',

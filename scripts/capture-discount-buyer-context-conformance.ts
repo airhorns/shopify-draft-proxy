@@ -75,10 +75,10 @@ const scopeProbe = await probeDiscountConformanceScopes(adminOptions);
 assertDiscountConformanceScopes(scopeProbe);
 
 const runId = Date.now();
-const marker = `har390-buyer-${runId}`;
+const marker = `draft-buyer-${runId}`;
 const startsAt = '2023-01-01T00:00:00Z';
-const initialCode = `HAR390CTX${runId}`;
-const updatedCode = `HAR390SEG${runId}`;
+const initialCode = `DRAFTCTX${runId}`;
+const updatedCode = `DRAFTSEG${runId}`;
 
 const customerCreateDocument = `#graphql
   mutation DiscountBuyerContextCustomerCreate($input: CustomerInput!) {
@@ -349,14 +349,14 @@ const automaticDeleteDocument = `#graphql
 
 const customerCreateVariables = {
   input: {
-    firstName: 'HAR390',
+    firstName: 'DRAFT',
     lastName: 'Buyer Context',
-    email: `har390-buyer-context-${runId}@example.com`,
+    email: `draft-buyer-context-${runId}@example.com`,
     tags: [marker],
   },
 };
 const segmentCreateVariables = {
-  name: `HAR-390 buyer context ${runId}`,
+  name: `Conformance buyer context ${runId}`,
   query: `customer_tags CONTAINS '${marker}'`,
 };
 
@@ -423,7 +423,7 @@ try {
 
   codeCreateVariables = {
     input: {
-      title: `HAR-390 code customer context ${runId}`,
+      title: `Conformance code customer context ${runId}`,
       code: initialCode,
       startsAt,
       combinesWith: {
@@ -457,7 +457,7 @@ try {
   codeUpdateVariables = {
     id: codeDiscountId,
     input: {
-      title: `HAR-390 code segment context ${runId}`,
+      title: `Conformance code segment context ${runId}`,
       code: updatedCode,
       startsAt,
       combinesWith: {
@@ -490,7 +490,7 @@ try {
 
   automaticCreateVariables = {
     input: {
-      title: `HAR-390 automatic customer context ${runId}`,
+      title: `Conformance automatic customer context ${runId}`,
       startsAt,
       combinesWith: {
         productDiscounts: false,
@@ -523,7 +523,7 @@ try {
   automaticUpdateVariables = {
     id: automaticDiscountId,
     input: {
-      title: `HAR-390 automatic segment context ${runId}`,
+      title: `Conformance automatic segment context ${runId}`,
       startsAt,
       combinesWith: {
         productDiscounts: true,

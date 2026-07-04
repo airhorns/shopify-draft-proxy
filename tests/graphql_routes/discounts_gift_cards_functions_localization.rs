@@ -110,7 +110,7 @@ fn restore_proxy_state(proxy: &mut DraftProxy, update: impl FnOnce(&mut Value)) 
 fn seed_legacy_gift_card_base_state(proxy: &mut DraftProxy) {
     let mut cards = serde_json::Map::new();
     for id in [
-        "gid://shopify/GiftCard/har694-active",
+        "gid://shopify/GiftCard/draft-active",
         "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
         "gid://shopify/GiftCard/654773256498",
         "gid://shopify/GiftCard/654865301810",
@@ -125,7 +125,7 @@ fn seed_legacy_gift_card_base_state(proxy: &mut DraftProxy) {
     ] {
         let mut card = legacy_gift_card_fixture(id);
         if id == "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic" {
-            card["note"] = json!("HAR-766 no-op current note");
+            card["note"] = json!("Conformance no-op current note");
             card["expiresOn"] = json!("2030-01-01");
             card["templateSuffix"] = json!("birthday");
             card["initialValue"] = json!({ "amount": "12.5", "currencyCode": "CAD" });
@@ -135,7 +135,7 @@ fn seed_legacy_gift_card_base_state(proxy: &mut DraftProxy) {
         cards.insert(id.to_string(), card);
     }
     for id in [
-        "gid://shopify/GiftCard/har694-deactivated",
+        "gid://shopify/GiftCard/draft-deactivated",
         "gid://shopify/GiftCard/deactivated",
         "gid://shopify/GiftCard/654808318258",
         "gid://shopify/GiftCard/654904197426",
@@ -3232,7 +3232,7 @@ fn discount_automatic_basic_buyer_context_lifecycle_stages_selected_context_read
           }
         }
         "#,
-        json!({ "input": { "title": "HAR-390 automatic customer context 1777346878525", "startsAt": "2026-04-25T00:00:00Z", "context": { "customers": { "add": ["gid://shopify/Customer/10548596015410"] } } } }),
+        json!({ "input": { "title": "Conformance automatic customer context 1777346878525", "startsAt": "2026-04-25T00:00:00Z", "context": { "customers": { "add": ["gid://shopify/Customer/10548596015410"] } } } }),
     ));
     let discount_id = json_string(
         &create.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]["id"],
@@ -3244,7 +3244,7 @@ fn discount_automatic_basic_buyer_context_lifecycle_stages_selected_context_read
             ["automaticDiscount"],
         json!({
             "__typename": "DiscountAutomaticBasic",
-            "title": "HAR-390 automatic customer context 1777346878525",
+            "title": "Conformance automatic customer context 1777346878525",
             "status": "ACTIVE",
             "context": {
                 "__typename": "DiscountCustomers",
@@ -3265,7 +3265,7 @@ fn discount_automatic_basic_buyer_context_lifecycle_stages_selected_context_read
           }
         }
         "#,
-        json!({ "id": discount_id.clone(), "input": { "title": "HAR-390 automatic segment context 1777346878525", "context": { "customerSegments": { "add": ["gid://shopify/Segment/647746715954"] } } } }),
+        json!({ "id": discount_id.clone(), "input": { "title": "Conformance automatic segment context 1777346878525", "context": { "customerSegments": { "add": ["gid://shopify/Segment/647746715954"] } } } }),
     ));
     assert_eq!(
         update.body["data"]["discountAutomaticBasicUpdate"]["userErrors"],
@@ -3298,7 +3298,7 @@ fn discount_automatic_basic_buyer_context_lifecycle_stages_selected_context_read
         read.body["data"]["automaticDiscountNode"]["automaticDiscount"],
         json!({
             "__typename": "DiscountAutomaticBasic",
-            "title": "HAR-390 automatic segment context 1777346878525",
+            "title": "Conformance automatic segment context 1777346878525",
             "context": {
                 "__typename": "DiscountCustomerSegments",
                 "segments": [{
@@ -8175,13 +8175,13 @@ fn gift_card_update_validation_rejects_deactivated_empty_missing_and_long_inputs
           success: giftCardUpdate(id: $activeId, input: { note: $successNote }) { giftCard { id note updatedAt } userErrors { field code message } }
         }"#,
         json!({
-            "activeId": "gid://shopify/GiftCard/har694-active",
-            "deactivatedId": "gid://shopify/GiftCard/har694-deactivated",
+            "activeId": "gid://shopify/GiftCard/draft-active",
+            "deactivatedId": "gid://shopify/GiftCard/draft-deactivated",
             "missingCustomerId": "gid://shopify/Customer/999999999999",
             "recipientId": "gid://shopify/Customer/10582524297522",
             "tooLongPreferredName": "x".repeat(256),
             "tooLongMessage": "x".repeat(201),
-            "successNote": "HAR-694 updated note"
+            "successNote": "Conformance updated note"
         }),
     ));
 
@@ -8193,7 +8193,7 @@ fn gift_card_update_validation_rejects_deactivated_empty_missing_and_long_inputs
             "missingCustomer": { "giftCard": null, "userErrors": [{ "field": ["input", "customerId"], "message": "The customer could not be found.", "code": "CUSTOMER_NOT_FOUND" }] },
             "longRecipientName": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "preferredName"], "code": "TOO_LONG", "message": "preferredName is too long (maximum is 255)" }] },
             "longRecipientMessage": { "giftCard": null, "userErrors": [{ "field": ["input", "recipientAttributes", "message"], "code": "TOO_LONG", "message": "message is too long (maximum is 200)" }] },
-            "success": { "giftCard": { "id": "gid://shopify/GiftCard/har694-active", "note": "HAR-694 updated note", "updatedAt": "2024-01-01T00:00:01.000Z" }, "userErrors": [] }
+            "success": { "giftCard": { "id": "gid://shopify/GiftCard/draft-active", "note": "Conformance updated note", "updatedAt": "2024-01-01T00:00:01.000Z" }, "userErrors": [] }
         })
     );
 }
@@ -8212,7 +8212,7 @@ fn gift_card_update_noop_accepts_same_values_and_rejects_empty_input() {
         }"#,
         json!({
             "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
-            "note": "HAR-766 no-op current note",
+            "note": "Conformance no-op current note",
             "expiresOn": "2030-01-01",
             "templateSuffix": "birthday"
         }),
@@ -8221,7 +8221,7 @@ fn gift_card_update_noop_accepts_same_values_and_rejects_empty_input() {
     assert_eq!(
         response.body["data"],
         json!({
-            "noteNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "note": "HAR-766 no-op current note", "updatedAt": "2024-01-01T00:00:01.000Z" }, "userErrors": [] },
+            "noteNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "note": "Conformance no-op current note", "updatedAt": "2024-01-01T00:00:01.000Z" }, "userErrors": [] },
             "expiresNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "expiresOn": "2030-01-01", "updatedAt": "2024-01-01T00:00:01.000Z" }, "userErrors": [] },
             "templateNoop": { "giftCard": { "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", "templateSuffix": "birthday", "updatedAt": "2024-01-01T00:00:01.000Z" }, "userErrors": [] },
             "emptyInput": { "giftCard": null, "userErrors": [{ "field": ["input"], "message": "At least one argument is required in the input.", "code": "INVALID" }] }
@@ -8937,7 +8937,7 @@ fn gift_card_mutation_user_error_codes_cover_create_update_credit_and_debit_path
 
     let response = proxy.process_request(json_graphql_request(
         r#"mutation GiftCardMutationUserErrorCodes {
-          setupSmallBalance: giftCardCreate(input: { initialValue: "5", code: "har686smallcard" }) { giftCard { id } userErrors { field code message } }
+          setupSmallBalance: giftCardCreate(input: { initialValue: "5", code: "draftsmallcard" }) { giftCard { id } userErrors { field code message } }
           zeroInitialValue: giftCardCreate(input: { initialValue: "0" }) { giftCard { id } userErrors { field code message } }
           missingUpdate: giftCardUpdate(id: "gid://shopify/GiftCard/9999999", input: { note: "x" }) { giftCard { id } userErrors { field code message } }
           negativeCredit: giftCardCredit(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", creditInput: { creditAmount: { amount: "-1", currencyCode: "CAD" } }) { giftCardCreditTransaction { id } userErrors { field code message } }
@@ -9722,24 +9722,24 @@ fn gift_card_lifecycle_stages_update_transactions_deactivate_and_downstream_read
         }"#,
         json!({
             "id": "gid://shopify/GiftCard/654773256498",
-            "updateInput": { "note": "HAR-310 conformance gift card updated", "templateSuffix": "birthday", "expiresOn": "2028-04-26" },
-            "creditInput": { "creditAmount": { "amount": "2.00", "currencyCode": "CAD" }, "note": "HAR-310 credit" },
-            "debitInput": { "debitAmount": { "amount": "3.00", "currencyCode": "CAD" }, "note": "HAR-310 debit" }
+            "updateInput": { "note": "Conformance gift card updated", "templateSuffix": "birthday", "expiresOn": "2028-04-26" },
+            "creditInput": { "creditAmount": { "amount": "2.00", "currencyCode": "CAD" }, "note": "Conformance credit" },
+            "debitInput": { "debitAmount": { "amount": "3.00", "currencyCode": "CAD" }, "note": "Conformance debit" }
         }),
     ));
     assert_eq!(
         lifecycle.body["data"],
         json!({
             "update": {
-                "giftCard": { "note": "HAR-310 conformance gift card updated", "templateSuffix": "birthday", "expiresOn": "2028-04-26", "balance": { "amount": "5.0", "currencyCode": "CAD" } },
+                "giftCard": { "note": "Conformance gift card updated", "templateSuffix": "birthday", "expiresOn": "2028-04-26", "balance": { "amount": "5.0", "currencyCode": "CAD" } },
                 "userErrors": []
             },
             "credit": {
-                "giftCardCreditTransaction": { "note": "HAR-310 credit", "amount": { "amount": "2.0", "currencyCode": "CAD" }, "giftCard": { "balance": { "amount": "7.0", "currencyCode": "CAD" } } },
+                "giftCardCreditTransaction": { "note": "Conformance credit", "amount": { "amount": "2.0", "currencyCode": "CAD" }, "giftCard": { "balance": { "amount": "7.0", "currencyCode": "CAD" } } },
                 "userErrors": []
             },
             "debit": {
-                "giftCardDebitTransaction": { "note": "HAR-310 debit", "amount": { "amount": "-3.0", "currencyCode": "CAD" }, "giftCard": { "balance": { "amount": "4.0", "currencyCode": "CAD" } } },
+                "giftCardDebitTransaction": { "note": "Conformance debit", "amount": { "amount": "-3.0", "currencyCode": "CAD" }, "giftCard": { "balance": { "amount": "4.0", "currencyCode": "CAD" } } },
                 "userErrors": []
             },
             "deactivate": {
@@ -9761,15 +9761,15 @@ fn gift_card_lifecycle_stages_update_transactions_deactivate_and_downstream_read
         }),
     ));
     let expected_card = json!({
-        "note": "HAR-310 conformance gift card updated",
+        "note": "Conformance gift card updated",
         "templateSuffix": "birthday",
         "expiresOn": "2028-04-26",
         "enabled": false,
         "balance": { "amount": "4.0", "currencyCode": "CAD" },
         "transactions": {
             "nodes": [
-                { "note": "HAR-310 credit", "amount": { "amount": "2.0", "currencyCode": "CAD" } },
-                { "note": "HAR-310 debit", "amount": { "amount": "-3.0", "currencyCode": "CAD" } }
+                { "note": "Conformance credit", "amount": { "amount": "2.0", "currencyCode": "CAD" } },
+                { "note": "Conformance debit", "amount": { "amount": "-3.0", "currencyCode": "CAD" } }
             ],
             "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
         }
@@ -10343,8 +10343,8 @@ fn discount_timestamps_create_update_and_code_reads_preserve_staged_values() {
     let first_create = proxy.process_request(json_graphql_request(
         create,
         json!({ "input": {
-            "title": "HAR-603 first 1777990267935",
-            "code": "HAR603A1777990267935",
+            "title": "Conformance first 1777990267935",
+            "code": "DRAFTA1777990267935",
             "startsAt": "2026-05-05T14:10:07.935Z",
             "context": { "all": "ALL" },
             "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
@@ -10362,7 +10362,7 @@ fn discount_timestamps_create_update_and_code_reads_preserve_staged_values() {
     assert_eq!(
         first_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["codeDiscount"]
             ["title"],
-        json!("HAR-603 first 1777990267935")
+        json!("Conformance first 1777990267935")
     );
     assert_eq!(
         first_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["codeDiscount"]
@@ -10372,7 +10372,7 @@ fn discount_timestamps_create_update_and_code_reads_preserve_staged_values() {
     assert_eq!(
         first_create.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["codeDiscount"]
             ["codes"],
-        json!({ "nodes": [{ "code": "HAR603A1777990267935" }] })
+        json!({ "nodes": [{ "code": "DRAFTA1777990267935" }] })
     );
     assert_eq!(
         first_create.body["data"]["discountCodeBasicCreate"]["userErrors"],
@@ -10382,8 +10382,8 @@ fn discount_timestamps_create_update_and_code_reads_preserve_staged_values() {
     let second_create = proxy.process_request(json_graphql_request(
         create,
         json!({ "input": {
-            "title": "HAR-603 second 1777990267935",
-            "code": "HAR603B1777990267935",
+            "title": "Conformance second 1777990267935",
+            "code": "DRAFTB1777990267935",
             "startsAt": "2026-05-05T14:10:07.935Z",
             "context": { "all": "ALL" },
             "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
@@ -10411,8 +10411,8 @@ fn discount_timestamps_create_update_and_code_reads_preserve_staged_values() {
     let update_response = proxy.process_request(json_graphql_request(
         update,
         json!({ "id": first_id, "input": {
-            "title": "HAR-603 first updated 1777990267935",
-            "code": "HAR603A1777990267935",
+            "title": "Conformance first updated 1777990267935",
+            "code": "DRAFTA1777990267935",
             "startsAt": "2026-05-05T14:10:07.935Z",
             "context": { "all": "ALL" },
             "customerGets": { "value": { "percentage": 0.2 }, "items": { "all": true } }
@@ -10436,7 +10436,7 @@ fn discount_timestamps_create_update_and_code_reads_preserve_staged_values() {
     assert_eq!(
         update_response.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]
             ["title"],
-        json!("HAR-603 first updated 1777990267935")
+        json!("Conformance first updated 1777990267935")
     );
     assert_eq!(
         update_response.body["data"]["discountCodeBasicUpdate"]["userErrors"],
@@ -10449,8 +10449,8 @@ fn discount_timestamps_create_update_and_code_reads_preserve_staged_values() {
         json!({
             "firstId": first_id,
             "secondId": second_id,
-            "firstCode": "HAR603A1777990267935",
-            "secondCode": "HAR603B1777990267935"
+            "firstCode": "DRAFTA1777990267935",
+            "secondCode": "DRAFTB1777990267935"
         }),
     ));
     assert_eq!(
@@ -10479,7 +10479,7 @@ fn discount_redeem_code_bulk_live_add_delete_stages_case_insensitive_code_lookup
         create,
         json!({ "input": {
             "title": "Redeem code bulk generic lifecycle",
-            "code": "HAR438BASE1777416023154",
+            "code": "DRAFTBASE1777416023154",
             "startsAt": "2026-04-28T22:39:23Z",
             "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
             "context": { "all": "ALL" },
@@ -10501,7 +10501,7 @@ fn discount_redeem_code_bulk_live_add_delete_stages_case_insensitive_code_lookup
         add,
         json!({
             "discountId": discount_id,
-            "codes": [{ "code": "HAR438ADD1777416023154" }, { "code": "HAR438PLUS1777416023154" }]
+            "codes": [{ "code": "DRAFTADD1777416023154" }, { "code": "DRAFTPLUS1777416023154" }]
         }),
     ));
     assert_eq!(
@@ -10520,9 +10520,9 @@ fn discount_redeem_code_bulk_live_add_delete_stages_case_insensitive_code_lookup
     let read = r#"query AnyBulkRead($id: ID!, $exactAddedCode: String!, $lowerAddedCode: String!, $removedCode: String!) { codeDiscountNode(id: $id) { id codeDiscount { ... on DiscountCodeBasic { codesCount { count precision } } } } exactAdded: codeDiscountNodeByCode(code: $exactAddedCode) { id } lowerAdded: codeDiscountNodeByCode(code: $lowerAddedCode) { id } removed: codeDiscountNodeByCode(code: $removedCode) { id } }"#;
     let read_vars = json!({
         "id": discount_id,
-        "exactAddedCode": "HAR438ADD1777416023154",
-        "lowerAddedCode": "har438add1777416023154",
-        "removedCode": "HAR438BASE1777416023154"
+        "exactAddedCode": "DRAFTADD1777416023154",
+        "lowerAddedCode": "draftadd1777416023154",
+        "removedCode": "DRAFTBASE1777416023154"
     });
     let after_add = proxy.process_request(json_graphql_request(read, read_vars.clone()));
     assert_eq!(
@@ -10583,7 +10583,7 @@ fn discount_redeem_code_bulk_delete_validation_matches_selector_errors_and_happy
         create,
         json!({ "input": {
             "title": "Redeem code bulk delete validation",
-            "code": "HAR1442BASE",
+            "code": "DRAFTBASE",
             "startsAt": "2026-04-27T19:31:14Z",
             "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
             "context": { "all": "ALL" },
@@ -10659,7 +10659,7 @@ fn discount_redeem_code_bulk_delete_validation_matches_selector_errors_and_happy
 fn discount_redeem_code_bulk_add_validation_tracks_async_results_and_downstream_reads() {
     let mut proxy = snapshot_proxy();
     let create = r#"mutation DiscountRedeemCodeBulkValidationCreate($input: DiscountCodeBasicInput!) { discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } } }"#;
-    let created = proxy.process_request(json_graphql_request(create, json!({ "input": { "title": "HAR-784 redeem code validation 1778166762181", "code": "HAR784BASE1778166762181", "startsAt": "2026-05-07T15:11:42.181Z", "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false }, "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } } })));
+    let created = proxy.process_request(json_graphql_request(create, json!({ "input": { "title": "Conformance redeem code validation 1778166762181", "code": "DRAFTBASE1778166762181", "startsAt": "2026-05-07T15:11:42.181Z", "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false }, "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } } })));
     let discount_id = json_string(
         &created.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
         "bulk validation discount id",
@@ -10669,7 +10669,7 @@ fn discount_redeem_code_bulk_add_validation_tracks_async_results_and_downstream_
         created.body["data"]["discountCodeBasicCreate"]["userErrors"],
         json!([])
     );
-    let cross_discount = proxy.process_request(json_graphql_request(create, json!({ "input": { "title": "HAR-784 cross discount validation 1778166762181", "code": "HAR784CROSS1778166762181", "startsAt": "2026-05-07T15:11:42.181Z", "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false }, "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } } })));
+    let cross_discount = proxy.process_request(json_graphql_request(create, json!({ "input": { "title": "Conformance cross discount validation 1778166762181", "code": "DRAFTCROSS1778166762181", "startsAt": "2026-05-07T15:11:42.181Z", "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false }, "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } } })));
     let cross_discount_id = json_string(
         &cross_discount.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["id"],
         "cross discount id",
@@ -10695,7 +10695,7 @@ fn discount_redeem_code_bulk_add_validation_tracks_async_results_and_downstream_
     );
 
     let too_many_codes: Vec<_> = (0..251)
-        .map(|i| json!({ "code": format!("HAR784MAX1778166762181-{i}") }))
+        .map(|i| json!({ "code": format!("DRAFTMAX1778166762181-{i}") }))
         .collect();
     let too_many = proxy.process_request(json_graphql_request(
         add,
@@ -10723,7 +10723,7 @@ fn discount_redeem_code_bulk_add_validation_tracks_async_results_and_downstream_
         json!([{ "field": ["codes"], "message": "Codes can't be blank", "code": "BLANK", "extraInfo": null }])
     );
 
-    let invalid_codes = json!([{"code":""},{"code":"HAR784NL1778166762181\nBAD"},{"code":"HAR784CR1778166762181\rBAD"},{"code":"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"},{"code":"HAR784DUP1778166762181"},{"code":"HAR784DUP1778166762181"},{"code":"HAR784OK1778166762181"}]);
+    let invalid_codes = json!([{"code":""},{"code":"DRAFTNL1778166762181\nBAD"},{"code":"DRAFTCR1778166762181\rBAD"},{"code":"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"},{"code":"DRAFTDUP1778166762181"},{"code":"DRAFTDUP1778166762181"},{"code":"DRAFTOK1778166762181"}]);
     let invalid_add = proxy.process_request(json_graphql_request(
         add,
         json!({ "discountId": discount_id.clone(), "codes": invalid_codes }),
@@ -10784,7 +10784,7 @@ fn discount_redeem_code_bulk_add_validation_tracks_async_results_and_downstream_
     );
 
     let read = r#"query DiscountRedeemCodeBulkValidationRead($discountId: ID!, $duplicateCode: String!, $validCode: String!) { codeDiscountNode(id: $discountId) { codeDiscount { ... on DiscountCodeBasic { codes(first: 10) { nodes { code } } codesCount { count precision } } } } duplicate: codeDiscountNodeByCode(code: $duplicateCode) { id } valid: codeDiscountNodeByCode(code: $validCode) { id } }"#;
-    let read_after_invalid = proxy.process_request(json_graphql_request(read, json!({ "discountId": discount_id.clone(), "duplicateCode": "HAR784DUP1778166762181", "validCode": "HAR784OK1778166762181" })));
+    let read_after_invalid = proxy.process_request(json_graphql_request(read, json!({ "discountId": discount_id.clone(), "duplicateCode": "DRAFTDUP1778166762181", "validCode": "DRAFTOK1778166762181" })));
     assert_eq!(
         read_after_invalid.body["data"]["codeDiscountNode"]["codeDiscount"]["codesCount"],
         json!({ "count": 3, "precision": "EXACT" })
@@ -10798,7 +10798,7 @@ fn discount_redeem_code_bulk_add_validation_tracks_async_results_and_downstream_
         json!(discount_id)
     );
 
-    let conflicts = json!([{"code":"HAR784BASE1778166762181"},{"code":"HAR784CROSS1778166762181"},{"code":"HAR784FRESH1778166762181"}]);
+    let conflicts = json!([{"code":"DRAFTBASE1778166762181"},{"code":"DRAFTCROSS1778166762181"},{"code":"DRAFTFRESH1778166762181"}]);
     let conflicts_add = proxy.process_request(json_graphql_request(
         add,
         json!({ "discountId": discount_id.clone(), "codes": conflicts }),
@@ -10837,11 +10837,11 @@ fn discount_redeem_code_bulk_add_validation_tracks_async_results_and_downstream_
     assert_eq!(
         conflicts_final.body["data"]["discountRedeemCodeBulkCreation"]["codes"]["nodes"][2]
             ["discountRedeemCode"]["code"],
-        json!("HAR784FRESH1778166762181")
+        json!("DRAFTFRESH1778166762181")
     );
 
     let existing_read = r#"query DiscountRedeemCodeBulkValidationExistingRead($discountId: ID!, $sameDiscountCode: String!, $crossDiscountCode: String!, $freshCode: String!) { codeDiscountNode(id: $discountId) { codeDiscount { ... on DiscountCodeBasic { codes(first: 10) { nodes { code } } codesCount { count precision } } } } sameDiscount: codeDiscountNodeByCode(code: $sameDiscountCode) { id } crossDiscount: codeDiscountNodeByCode(code: $crossDiscountCode) { id } fresh: codeDiscountNodeByCode(code: $freshCode) { id } }"#;
-    let read_after_conflicts = proxy.process_request(json_graphql_request(existing_read, json!({ "discountId": discount_id.clone(), "sameDiscountCode": "HAR784BASE1778166762181", "crossDiscountCode": "HAR784CROSS1778166762181", "freshCode": "HAR784FRESH1778166762181" })));
+    let read_after_conflicts = proxy.process_request(json_graphql_request(existing_read, json!({ "discountId": discount_id.clone(), "sameDiscountCode": "DRAFTBASE1778166762181", "crossDiscountCode": "DRAFTCROSS1778166762181", "freshCode": "DRAFTFRESH1778166762181" })));
     assert_eq!(
         read_after_conflicts.body["data"]["codeDiscountNode"]["codeDiscount"]["codesCount"],
         json!({ "count": 4, "precision": "EXACT" })
@@ -10864,7 +10864,7 @@ fn discount_redeem_code_bulk_add_validation_tracks_async_results_and_downstream_
 fn discount_update_edge_cases_reject_bulk_code_change_and_coerce_bxgy() {
     let mut proxy = snapshot_proxy();
     let create_basic = r#"mutation DiscountUpdateEdgeBasicCreate($input: DiscountCodeBasicInput!) { discountCodeBasicCreate(basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } } }"#;
-    let created = proxy.process_request(json_graphql_request(create_basic, json!({ "input": { "title": "HAR-605 bulk rule 1778002393771", "code": "HAR605BULK1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } } })));
+    let created = proxy.process_request(json_graphql_request(create_basic, json!({ "input": { "title": "Conformance bulk rule 1778002393771", "code": "DRAFTBULK1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } } })));
     assert_eq!(
         created.body["data"]["discountCodeBasicCreate"]["userErrors"],
         json!([])
@@ -10876,7 +10876,7 @@ fn discount_update_edge_cases_reject_bulk_code_change_and_coerce_bxgy() {
     assert_synthetic_gid(&bulk_discount_id, "DiscountCodeNode");
 
     let bulk_add = r#"mutation DiscountUpdateEdgeBulkAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) { discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) { bulkCreation { codesCount } userErrors { field message code extraInfo } } }"#;
-    let bulk_added = proxy.process_request(json_graphql_request(bulk_add, json!({ "discountId": bulk_discount_id.clone(), "codes": [{"code":"HAR605BULK1778002393771_1"},{"code":"HAR605BULK1778002393771_2"},{"code":"HAR605BULK1778002393771_3"},{"code":"HAR605BULK1778002393771_4"},{"code":"HAR605BULK1778002393771_5"}] })));
+    let bulk_added = proxy.process_request(json_graphql_request(bulk_add, json!({ "discountId": bulk_discount_id.clone(), "codes": [{"code":"DRAFTBULK1778002393771_1"},{"code":"DRAFTBULK1778002393771_2"},{"code":"DRAFTBULK1778002393771_3"},{"code":"DRAFTBULK1778002393771_4"},{"code":"DRAFTBULK1778002393771_5"}] })));
     assert_eq!(
         bulk_added.body["data"]["discountRedeemCodeBulkAdd"]["bulkCreation"]["codesCount"],
         json!(5)
@@ -10887,7 +10887,7 @@ fn discount_update_edge_cases_reject_bulk_code_change_and_coerce_bxgy() {
     );
 
     let basic_update = r#"mutation DiscountUpdateEdgeBasicUpdate($id: ID!, $input: DiscountCodeBasicInput!) { discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename } } userErrors { field message code extraInfo } } }"#;
-    let code_change = proxy.process_request(json_graphql_request(basic_update, json!({ "id": bulk_discount_id.clone(), "input": { "title": "HAR-605 bulk renamed 1778002393771", "code": "HAR605BULKNEW1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.2 }, "items": { "all": true } } } })));
+    let code_change = proxy.process_request(json_graphql_request(basic_update, json!({ "id": bulk_discount_id.clone(), "input": { "title": "Conformance bulk renamed 1778002393771", "code": "DRAFTBULKNEW1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.2 }, "items": { "all": true } } } })));
     assert_eq!(
         code_change.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"],
         json!(null)
@@ -10898,7 +10898,7 @@ fn discount_update_edge_cases_reject_bulk_code_change_and_coerce_bxgy() {
     );
 
     let create_bxgy = r#"mutation DiscountUpdateEdgeBxgyCreate($input: DiscountCodeBxgyInput!) { discountCodeBxgyCreate(bxgyCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename } } userErrors { field message code extraInfo } } }"#;
-    let bxgy = proxy.process_request(json_graphql_request(create_bxgy, json!({ "input": { "title": "HAR-605 BXGY 1778002393771", "code": "HAR605BXGY1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177504608562"] } } }, "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177504641330"] } } } } })));
+    let bxgy = proxy.process_request(json_graphql_request(create_bxgy, json!({ "input": { "title": "Conformance BXGY 1778002393771", "code": "DRAFTBXGY1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177504608562"] } } }, "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177504641330"] } } } } })));
     assert_eq!(
         bxgy.body["data"]["discountCodeBxgyCreate"]["codeDiscountNode"]["codeDiscount"]
             ["__typename"],
@@ -10910,7 +10910,7 @@ fn discount_update_edge_cases_reject_bulk_code_change_and_coerce_bxgy() {
     );
     assert_synthetic_gid(&bxgy_id, "DiscountCodeNode");
 
-    let bxgy_to_basic = proxy.process_request(json_graphql_request(basic_update, json!({ "id": bxgy_id, "input": { "title": "HAR-605 coerced basic 1778002393771", "code": "HAR605BXGY1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.25 }, "items": { "all": true } } } })));
+    let bxgy_to_basic = proxy.process_request(json_graphql_request(basic_update, json!({ "id": bxgy_id, "input": { "title": "Conformance coerced basic 1778002393771", "code": "DRAFTBXGY1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.25 }, "items": { "all": true } } } })));
     assert_eq!(
         bxgy_to_basic.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]
             ["__typename"],
@@ -10922,7 +10922,7 @@ fn discount_update_edge_cases_reject_bulk_code_change_and_coerce_bxgy() {
     );
 
     let unknown = r#"mutation DiscountUpdateEdgeUnknownUpdate($id: ID!, $input: DiscountCodeBasicInput!) { discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) { codeDiscountNode { id } userErrors { field message code extraInfo } } }"#;
-    let unknown_response = proxy.process_request(json_graphql_request(unknown, json!({ "id": "gid://shopify/DiscountCodeNode/0", "input": { "title": "HAR-605 unknown 1778002393771", "code": "HAR605UNKNOWN1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } } })));
+    let unknown_response = proxy.process_request(json_graphql_request(unknown, json!({ "id": "gid://shopify/DiscountCodeNode/0", "input": { "title": "Conformance unknown 1778002393771", "code": "DRAFTUNKNOWN1778002393771", "startsAt": "2026-04-25T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } } })));
     assert_eq!(
         unknown_response.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"],
         json!(null)
@@ -11057,9 +11057,9 @@ fn discount_status_time_window_derives_create_and_read_filters() {
         }
     "#;
     let created = proxy.process_request(json_graphql_request(create_query, json!({
-        "scheduled": { "title": "HAR-593 scheduled 1777950794226", "code": "HAR593S1777950794226", "startsAt": "2099-01-01T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } },
-        "expired": { "title": "HAR-593 expired 1777950794226", "code": "HAR593E1777950794226", "startsAt": "2019-01-01T00:00:00Z", "endsAt": "2020-01-01T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } },
-        "active": { "title": "HAR-593 active 1777950794226", "code": "HAR593A1777950794226", "startsAt": "2020-01-01T00:00:00Z", "endsAt": "2099-01-01T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } }
+        "scheduled": { "title": "Conformance scheduled 1777950794226", "code": "DRAFTS1777950794226", "startsAt": "2099-01-01T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } },
+        "expired": { "title": "Conformance expired 1777950794226", "code": "DRAFTE1777950794226", "startsAt": "2019-01-01T00:00:00Z", "endsAt": "2020-01-01T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } },
+        "active": { "title": "Conformance active 1777950794226", "code": "DRAFTA1777950794226", "startsAt": "2020-01-01T00:00:00Z", "endsAt": "2099-01-01T00:00:00Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } }
     })));
     assert_eq!(
         created.body["data"]["scheduled"]["codeDiscountNode"]["codeDiscount"]["status"],
@@ -11105,8 +11105,8 @@ fn discount_status_time_window_derives_create_and_read_filters() {
             "scheduledId": scheduled_id,
             "expiredId": expired_id,
             "activeId": active_id,
-            "scheduledQuery": "status:scheduled title:'HAR-593 scheduled 1777950794226'",
-            "expiredQuery": "status:expired title:'HAR-593 expired 1777950794226'"
+            "scheduledQuery": "status:scheduled title:'Conformance scheduled 1777950794226'",
+            "expiredQuery": "status:expired title:'Conformance expired 1777950794226'"
         }),
     ));
     assert_eq!(
@@ -11119,11 +11119,11 @@ fn discount_status_time_window_derives_create_and_read_filters() {
     );
     assert_eq!(
         read.body["data"]["activeNode"]["discount"]["title"],
-        json!("HAR-593 active 1777950794226")
+        json!("Conformance active 1777950794226")
     );
     assert_eq!(
         read.body["data"]["scheduledDiscountNodes"]["nodes"],
-        json!([{ "discount": { "__typename": "DiscountCodeBasic", "title": "HAR-593 scheduled 1777950794226", "status": "SCHEDULED" } }])
+        json!([{ "discount": { "__typename": "DiscountCodeBasic", "title": "Conformance scheduled 1777950794226", "status": "SCHEDULED" } }])
     );
     assert_eq!(
         read.body["data"]["expiredDiscountNodesCount"],
@@ -11141,8 +11141,8 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
         }
     "#;
     let created = proxy.process_request(json_graphql_request(create_query, json!({
-        "codeInput": { "title": "HAR-196 code free shipping 1777150170404", "code": "HAR196FREE1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false }, "context": { "all": "ALL" }, "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "10.00" } }, "destination": { "all": true }, "maximumShippingPrice": "25.00", "appliesOncePerCustomer": true, "usageLimit": 5 },
-        "automaticInput": { "title": "HAR-196 automatic free shipping 1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "endsAt": null, "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false }, "context": { "all": "ALL" }, "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "15.00" } }, "destination": { "all": true }, "maximumShippingPrice": "20.00" }
+        "codeInput": { "title": "Conformance code free shipping 1777150170404", "code": "DRAFTFREE1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false }, "context": { "all": "ALL" }, "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "10.00" } }, "destination": { "all": true }, "maximumShippingPrice": "25.00", "appliesOncePerCustomer": true, "usageLimit": 5 },
+        "automaticInput": { "title": "Conformance automatic free shipping 1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "endsAt": null, "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false }, "context": { "all": "ALL" }, "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "15.00" } }, "destination": { "all": true }, "maximumShippingPrice": "20.00" }
     })));
     assert_eq!(
         created.body["data"]["discountCodeFreeShippingCreate"]["userErrors"],
@@ -11151,7 +11151,7 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
     assert_eq!(
         created.body["data"]["discountCodeFreeShippingCreate"]["codeDiscountNode"]["codeDiscount"]
             ["codes"]["nodes"][0]["code"],
-        json!("HAR196FREE1777150170404")
+        json!("DRAFTFREE1777150170404")
     );
     assert_eq!(
         created.body["data"]["discountCodeFreeShippingCreate"]["codeDiscountNode"]["codeDiscount"]
@@ -11182,7 +11182,7 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
     let code_update = r#"mutation DiscountCodeFreeShippingLifecycleUpdate($id: ID!, $input: DiscountCodeFreeShippingInput!) { discountCodeFreeShippingUpdate(id: $id, freeShippingCodeDiscount: $input) { codeDiscountNode { id codeDiscount { __typename ... on DiscountCodeFreeShipping { title summary destinationSelection { __typename ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOncePerCustomer appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit usageLimit } } } userErrors { field message code extraInfo } } }"#;
     let updated = proxy.process_request(json_graphql_request(
         code_update,
-        json!({ "id": code_id.clone(), "input": { "title": "HAR-196 code free shipping updated 1777150170404", "code": "HAR196SHIP1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false }, "context": { "all": "ALL" }, "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "12.00" } }, "destination": { "countries": { "add": ["CA", "US"] } }, "maximumShippingPrice": "30.00", "appliesOncePerCustomer": false, "appliesOnOneTimePurchase": false, "appliesOnSubscription": true, "usageLimit": 10 } }),
+        json!({ "id": code_id.clone(), "input": { "title": "Conformance code free shipping updated 1777150170404", "code": "DRAFTSHIP1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false }, "context": { "all": "ALL" }, "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "12.00" } }, "destination": { "countries": { "add": ["CA", "US"] } }, "maximumShippingPrice": "30.00", "appliesOncePerCustomer": false, "appliesOnOneTimePurchase": false, "appliesOnSubscription": true, "usageLimit": 10 } }),
     ));
     assert_eq!(
         updated.body["data"]["discountCodeFreeShippingUpdate"]["codeDiscountNode"]["codeDiscount"]
@@ -11202,7 +11202,7 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
     let automatic_update = r#"mutation DiscountAutomaticFreeShippingLifecycleUpdate($id: ID!, $input: DiscountAutomaticFreeShippingInput!) { discountAutomaticFreeShippingUpdate(id: $id, freeShippingAutomaticDiscount: $input) { automaticDiscountNode { id automaticDiscount { __typename ... on DiscountAutomaticFreeShipping { title summary destinationSelection { __typename ... on DiscountCountries { countries includeRestOfWorld } } maximumShippingPrice { amount currencyCode } appliesOnOneTimePurchase appliesOnSubscription recurringCycleLimit } } } userErrors { field message code extraInfo } } }"#;
     let automatic_updated = proxy.process_request(json_graphql_request(
         automatic_update,
-        json!({ "id": automatic_id.clone(), "input": { "title": "HAR-196 automatic free shipping updated 1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false }, "context": { "all": "ALL" }, "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "18.00" } }, "destination": { "countries": { "add": ["US"] } }, "maximumShippingPrice": "18.00" } }),
+        json!({ "id": automatic_id.clone(), "input": { "title": "Conformance automatic free shipping updated 1777150170404", "startsAt": "2026-04-25T20:48:30.404Z", "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false }, "context": { "all": "ALL" }, "minimumRequirement": { "subtotal": { "greaterThanOrEqualToSubtotal": "18.00" } }, "destination": { "countries": { "add": ["US"] } }, "maximumShippingPrice": "18.00" } }),
     ));
     assert_eq!(
         automatic_updated.body["data"]["discountAutomaticFreeShippingUpdate"]
@@ -11216,10 +11216,10 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
     );
 
     let read_query = r#"query DiscountFreeShippingLifecycleRead($codeId: ID!, $automaticId: ID!, $code: String!) { discountNode(id: $codeId) { id discount { __typename ... on DiscountCodeFreeShipping { title status } } } codeDiscountNodeByCode(code: $code) { id } automaticDiscountNode(id: $automaticId) { id automaticDiscount { __typename ... on DiscountAutomaticFreeShipping { title status } } } }"#;
-    let read_after_update = proxy.process_request(json_graphql_request(read_query, json!({ "codeId": code_id.clone(), "automaticId": automatic_id.clone(), "code": "HAR196SHIP1777150170404" })));
+    let read_after_update = proxy.process_request(json_graphql_request(read_query, json!({ "codeId": code_id.clone(), "automaticId": automatic_id.clone(), "code": "DRAFTSHIP1777150170404" })));
     assert_eq!(
         read_after_update.body["data"]["discountNode"]["discount"]["title"],
-        json!("HAR-196 code free shipping updated 1777150170404")
+        json!("Conformance code free shipping updated 1777150170404")
     );
     assert_eq!(
         read_after_update.body["data"]["automaticDiscountNode"]["automaticDiscount"]["status"],
@@ -11252,7 +11252,10 @@ fn discount_free_shipping_lifecycle_stages_code_and_automatic_statuses() {
         code_delete,
         json!({ "id": code_id.clone() }),
     ));
-    let read_after_delete = proxy.process_request(json_graphql_request(read_query, json!({ "codeId": code_id, "automaticId": automatic_id, "code": "HAR196SHIP1777150170404" })));
+    let read_after_delete = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "codeId": code_id, "automaticId": automatic_id, "code": "DRAFTSHIP1777150170404" }),
+    ));
     assert_eq!(read_after_delete.body["data"]["discountNode"], json!(null));
     assert_eq!(
         read_after_delete.body["data"]["codeDiscountNodeByCode"],
@@ -11285,17 +11288,17 @@ fn discount_class_inference_stages_all_discount_classes_and_product_count() {
     let created = proxy.process_request(json_graphql_request(
         create_query,
         json!({
-            "basicAll": { "title": "HAR597CLASS1777950382203 basic order", "code": "HAR597ORDER1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } },
-            "basicProduct": { "title": "HAR597CLASS1777950382203 basic product", "code": "HAR597PRODUCT1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177002799410"] } } } },
-            "basicCollection": { "title": "HAR597CLASS1777950382203 basic collection", "code": "HAR597COLL1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "collections": { "add": ["gid://shopify/Collection/512409665842"] } } } },
-            "bxgy": { "title": "HAR597CLASS1777950382203 bxgy product", "code": "HAR597BXGY1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177002832178"] } } }, "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177002799410"] } } } },
-            "freeShipping": { "title": "HAR597CLASS1777950382203 free shipping", "code": "HAR597SHIP1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "destination": { "all": true } }
+            "basicAll": { "title": "DRAFTCLASS1777950382203 basic order", "code": "DRAFTORDER1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } } },
+            "basicProduct": { "title": "DRAFTCLASS1777950382203 basic product", "code": "DRAFTPRODUCT1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177002799410"] } } } },
+            "basicCollection": { "title": "DRAFTCLASS1777950382203 basic collection", "code": "DRAFTCOLL1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerGets": { "value": { "percentage": 0.1 }, "items": { "collections": { "add": ["gid://shopify/Collection/512409665842"] } } } },
+            "bxgy": { "title": "DRAFTCLASS1777950382203 bxgy product", "code": "DRAFTBXGY1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "customerBuys": { "value": { "quantity": "1" }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177002832178"] } } }, "customerGets": { "value": { "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } } }, "items": { "products": { "productsToAdd": ["gid://shopify/Product/10177002799410"] } } } },
+            "freeShipping": { "title": "DRAFTCLASS1777950382203 free shipping", "code": "DRAFTSHIP1777950382203", "startsAt": "2026-05-05T03:05:22.203Z", "context": { "all": "ALL" }, "destination": { "all": true } }
         }),
     ));
 
     assert_eq!(
         created.body["data"]["basicAll"]["codeDiscountNode"]["codeDiscount"],
-        json!({ "__typename": "DiscountCodeBasic", "title": "HAR597CLASS1777950382203 basic order", "discountClasses": ["ORDER"] })
+        json!({ "__typename": "DiscountCodeBasic", "title": "DRAFTCLASS1777950382203 basic order", "discountClasses": ["ORDER"] })
     );
     assert_eq!(
         created.body["data"]["basicProduct"]["codeDiscountNode"]["codeDiscount"]["discountClasses"],
@@ -11308,11 +11311,11 @@ fn discount_class_inference_stages_all_discount_classes_and_product_count() {
     );
     assert_eq!(
         created.body["data"]["bxgy"]["codeDiscountNode"]["codeDiscount"],
-        json!({ "__typename": "DiscountCodeBxgy", "title": "HAR597CLASS1777950382203 bxgy product", "discountClasses": ["PRODUCT"] })
+        json!({ "__typename": "DiscountCodeBxgy", "title": "DRAFTCLASS1777950382203 bxgy product", "discountClasses": ["PRODUCT"] })
     );
     assert_eq!(
         created.body["data"]["freeShipping"]["codeDiscountNode"]["codeDiscount"],
-        json!({ "__typename": "DiscountCodeFreeShipping", "title": "HAR597CLASS1777950382203 free shipping", "discountClasses": ["SHIPPING"] })
+        json!({ "__typename": "DiscountCodeFreeShipping", "title": "DRAFTCLASS1777950382203 free shipping", "discountClasses": ["SHIPPING"] })
     );
     assert_eq!(
         created.body["data"]["freeShipping"]["userErrors"],
@@ -11321,7 +11324,7 @@ fn discount_class_inference_stages_all_discount_classes_and_product_count() {
 
     let read = proxy.process_request(json_graphql_request(
         r#"query DiscountClassInferenceRead($productQuery: String!) { discountNodesCount(query: $productQuery) { count precision } }"#,
-        json!({ "productQuery": "discount_class:product HAR597CLASS1777950382203" }),
+        json!({ "productQuery": "discount_class:product DRAFTCLASS1777950382203" }),
     ));
     assert_eq!(
         read.body["data"]["discountNodesCount"],
@@ -11341,8 +11344,8 @@ fn discount_code_basic_lifecycle_tracks_status_counts_and_delete_readback() {
         }
     "#;
     let create_input = json!({
-        "title": "HAR-193 lifecycle 1777318334676",
-        "code": "HAR193LIFE1777318334676",
+        "title": "Conformance lifecycle 1777318334676",
+        "code": "DRAFTLIFE1777318334676",
         "startsAt": "2026-04-27T19:31:14.676Z",
         "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
         "context": { "all": "ALL" },
@@ -11365,7 +11368,7 @@ fn discount_code_basic_lifecycle_tracks_status_counts_and_delete_readback() {
     assert_eq!(
         created.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"]["codeDiscount"]
             ["codes"]["nodes"][0]["code"],
-        json!("HAR193LIFE1777318334676")
+        json!("DRAFTLIFE1777318334676")
     );
 
     let update_query = r#"
@@ -11377,8 +11380,8 @@ fn discount_code_basic_lifecycle_tracks_status_counts_and_delete_readback() {
         }
     "#;
     let update_input = json!({
-        "title": "HAR-193 lifecycle updated 1777318334676",
-        "code": "HAR193LIVE1777318334676",
+        "title": "Conformance lifecycle updated 1777318334676",
+        "code": "DRAFTLIVE1777318334676",
         "startsAt": "2026-04-27T19:31:14.676Z",
         "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
         "context": { "all": "ALL" },
@@ -11396,12 +11399,12 @@ fn discount_code_basic_lifecycle_tracks_status_counts_and_delete_readback() {
     assert_eq!(
         updated.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]
             ["title"],
-        json!("HAR-193 lifecycle updated 1777318334676")
+        json!("Conformance lifecycle updated 1777318334676")
     );
     assert_eq!(
         updated.body["data"]["discountCodeBasicUpdate"]["codeDiscountNode"]["codeDiscount"]
             ["codes"]["nodes"][0]["code"],
-        json!("HAR193LIVE1777318334676")
+        json!("DRAFTLIVE1777318334676")
     );
 
     let read_query = r#"
@@ -11414,7 +11417,7 @@ fn discount_code_basic_lifecycle_tracks_status_counts_and_delete_readback() {
     "#;
     let read_active = proxy.process_request(json_graphql_request(
         read_query,
-        json!({ "id": discount_id.clone(), "code": "HAR193LIVE1777318334676" }),
+        json!({ "id": discount_id.clone(), "code": "DRAFTLIVE1777318334676" }),
     ));
     assert_eq!(
         read_active.body["data"]["discountNode"]["discount"]["status"],
@@ -11441,7 +11444,7 @@ fn discount_code_basic_lifecycle_tracks_status_counts_and_delete_readback() {
     );
     let read_expired = proxy.process_request(json_graphql_request(
         read_query,
-        json!({ "id": discount_id.clone(), "code": "HAR193LIVE1777318334676" }),
+        json!({ "id": discount_id.clone(), "code": "DRAFTLIVE1777318334676" }),
     ));
     assert_eq!(
         read_expired.body["data"]["discountNode"]["discount"]["status"],
@@ -11486,7 +11489,7 @@ fn discount_code_basic_lifecycle_tracks_status_counts_and_delete_readback() {
     );
     let read_deleted = proxy.process_request(json_graphql_request(
         read_query,
-        json!({ "id": discount_id, "code": "HAR193LIVE1777318334676" }),
+        json!({ "id": discount_id, "code": "DRAFTLIVE1777318334676" }),
     ));
     assert_eq!(read_deleted.body["data"]["discountNode"], json!(null));
     assert_eq!(
@@ -12078,8 +12081,8 @@ fn discount_code_basic_buyer_context_lifecycle_stages_segment_readback() {
         }
     "#;
     let create_input = json!({
-        "title": "HAR-390 code customer context 1777346878525",
-        "code": "HAR390CTX1777346878525",
+        "title": "Conformance code customer context 1777346878525",
+        "code": "DRAFTCTX1777346878525",
         "startsAt": "2023-01-01T00:00:00Z",
         "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
         "context": { "customers": { "add": ["gid://shopify/Customer/10548596015410"] } },
@@ -12115,8 +12118,8 @@ fn discount_code_basic_buyer_context_lifecycle_stages_segment_readback() {
         }
     "#;
     let update_input = json!({
-        "title": "HAR-390 code segment context 1777346878525",
-        "code": "HAR390SEG1777346878525",
+        "title": "Conformance code segment context 1777346878525",
+        "code": "DRAFTSEG1777346878525",
         "startsAt": "2023-01-01T00:00:00Z",
         "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
         "context": { "customerSegments": { "add": ["gid://shopify/Segment/647746715954"] } },
@@ -12147,10 +12150,10 @@ fn discount_code_basic_buyer_context_lifecycle_stages_segment_readback() {
           discountNode(id: $id) { id discount { __typename ... on DiscountCodeBasic { title context { __typename ... on DiscountCustomerSegments { segments { __typename id name } } } } } }
           codeDiscountNodeByCode(code: $code) { codeDiscount { __typename ... on DiscountCodeBasic { title context { __typename ... on DiscountCustomerSegments { segments { __typename id name } } } } } }
         }
-    "#, json!({ "id": discount_id.clone(), "code": "HAR390SEG1777346878525" })));
+    "#, json!({ "id": discount_id.clone(), "code": "DRAFTSEG1777346878525" })));
     assert_eq!(
         read.body["data"]["discountNode"]["discount"]["title"],
-        json!("HAR-390 code segment context 1777346878525")
+        json!("Conformance code segment context 1777346878525")
     );
     assert_eq!(
         read.body["data"]["codeDiscountNodeByCode"]["codeDiscount"]["context"]["segments"][0]["id"],
@@ -12456,8 +12459,8 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
         }
     "#;
     let code_input = json!({
-        "title": "HAR-195 code BXGY 1777150259502",
-        "code": "HAR195BXGY1777150259502",
+        "title": "Conformance code BXGY 1777150259502",
+        "code": "DRAFTBXGY1777150259502",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
         "context": { "all": "ALL" },
@@ -12466,7 +12469,7 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
         "usesPerOrderLimit": 1
     });
     let automatic_input = json!({
-        "title": "HAR-195 automatic BXGY 1777150259502",
+        "title": "Conformance automatic BXGY 1777150259502",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
         "context": { "all": "ALL" },
@@ -12520,8 +12523,8 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
         }
     "#;
     let code_update_input = json!({
-        "title": "HAR-195 code BXGY updated 1777150259502",
-        "code": "HAR195BXGYUP1777150259502",
+        "title": "Conformance code BXGY updated 1777150259502",
+        "code": "DRAFTBXGYUP1777150259502",
         "startsAt": "2026-04-25T00:00:00Z",
         "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false },
         "context": { "all": "ALL" },
@@ -12536,7 +12539,7 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
     assert_eq!(
         updated_code.body["data"]["discountCodeBxgyUpdate"]["codeDiscountNode"]["codeDiscount"]
             ["title"],
-        json!("HAR-195 code BXGY updated 1777150259502")
+        json!("Conformance code BXGY updated 1777150259502")
     );
     assert_eq!(
         updated_code.body["data"]["discountCodeBxgyUpdate"]["codeDiscountNode"]["codeDiscount"]
@@ -12565,10 +12568,10 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
           codeDiscountNodeByCode(code: $code) { id }
           automaticDiscountNode(id: $automaticId) { id automaticDiscount { __typename ... on DiscountAutomaticBxgy { title status } } }
         }
-    "#, json!({ "codeId": code_id.clone(), "automaticId": automatic_id.clone(), "code": "HAR195BXGYUP1777150259502" })));
+    "#, json!({ "codeId": code_id.clone(), "automaticId": automatic_id.clone(), "code": "DRAFTBXGYUP1777150259502" })));
     assert_eq!(
         read.body["data"]["discountNode"]["discount"]["title"],
-        json!("HAR-195 code BXGY updated 1777150259502")
+        json!("Conformance code BXGY updated 1777150259502")
     );
     assert_eq!(
         read.body["data"]["codeDiscountNodeByCode"]["id"],
@@ -12576,7 +12579,7 @@ fn discount_bxgy_lifecycle_stages_code_and_automatic_readback() {
     );
     assert_eq!(
         read.body["data"]["automaticDiscountNode"]["automaticDiscount"]["title"],
-        json!("HAR-195 automatic BXGY 1777150259502")
+        json!("Conformance automatic BXGY 1777150259502")
     );
 
     let delete_query = r#"

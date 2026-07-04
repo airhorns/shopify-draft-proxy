@@ -373,16 +373,16 @@ const customerCreate = await capture(
   `,
   {
     input: {
-      email: `har-464-gift-card-${Date.now()}@example.com`,
-      firstName: 'HAR-464',
+      email: `conformance-gift-card-${Date.now()}@example.com`,
+      firstName: 'Conformance',
       lastName: 'Gift Card Search',
-      note: 'Disposable customer for HAR-464 gift-card search conformance.',
+      note: 'Disposable customer for gift-card search conformance.',
     },
   },
 );
 const createdCustomerId = readCreatedCustomerId(customerCreate);
 
-const giftCardCode = `HAR310${Date.now()}`;
+const giftCardCode = `DRAFT${Date.now()}`;
 const createInput: {
   initialValue: string;
   code: string;
@@ -397,15 +397,15 @@ const createInput: {
 } = {
   initialValue: '5.00',
   code: giftCardCode,
-  note: 'HAR-310 conformance gift card',
+  note: 'Conformance gift card',
   expiresOn: '2027-04-26',
 };
 if (createdCustomerId !== null) {
   createInput.customerId = createdCustomerId;
   createInput.recipientAttributes = {
     id: createdCustomerId,
-    message: 'HAR-464 recipient message',
-    preferredName: 'HAR-464 recipient',
+    message: 'Conformance recipient message',
+    preferredName: 'Conformance recipient',
   };
 }
 
@@ -436,7 +436,7 @@ const lifecycle: CapturedRequest[] = [];
 if (createdId !== null) {
   const hydrateAfterCreate = await hydrateGiftCard(createdId);
   const updateInput = {
-    note: 'HAR-310 conformance gift card updated',
+    note: 'Conformance gift card updated',
     templateSuffix: 'birthday',
     expiresOn: '2028-04-26',
   };
@@ -445,14 +445,14 @@ if (createdId !== null) {
       amount: '2.00',
       currencyCode: 'CAD',
     },
-    note: 'HAR-310 credit',
+    note: 'Conformance credit',
   };
   const debitInput = {
     debitAmount: {
       amount: '3.00',
       currencyCode: 'CAD',
     },
-    note: 'HAR-310 debit',
+    note: 'Conformance debit',
   };
   const giftCardIdQuery = `id:${giftCardTail(createdId)}`;
   const codeFragmentQuery = `${giftCardIdQuery} AND ${createInput.code.slice(-4)}`;
@@ -945,11 +945,11 @@ if (createdId !== null) {
         storeDomain,
         apiVersion,
         notes: [
-          'HAR-310 captures gift-card schema/access, read/config/count behavior, and lifecycle payloads when the active conformance credential permits them.',
+          'Gift-card capture records gift-card schema/access, read/config/count behavior, and lifecycle payloads when the active conformance credential permits them.',
           'The filtered empty read uses id:999999999999 because Shopify accepts id as a gift-card search field and returns an empty connection/count for a no-match numeric id.',
           'The aliased readEvidence operation byte-matches config/parity-requests/gift-cards/gift-card-read-evidence.graphql for proxy replay.',
           'Credit/debit transaction mutations and transaction-node reads are captured with read_gift_card_transactions and write_gift_card_transactions.',
-          'HAR-464 extends the fixture with a disposable customer-backed gift card and populated-data search filters for date/range, customer_id, recipient_id, source, and initial_value behavior.',
+          'Gift-card capture extends the fixture with a disposable customer-backed gift card and populated-data search filters for date/range, customer_id, recipient_id, source, and initial_value behavior.',
           'The lifecycle proxy replay hydrates the newly created card through the recorded GiftCardHydrate upstream call before staging supported mutations locally.',
           'Notification roots are intentionally not executed by this capture script because they are customer-visible side effects.',
         ],
@@ -1039,10 +1039,10 @@ await writeFile(
       storeDomain,
       apiVersion,
       notes: [
-        'HAR-310 captures gift-card schema/access, read/config/count behavior, and lifecycle payloads when the active conformance credential permits them.',
+        'Gift-card capture records gift-card schema/access, read/config/count behavior, and lifecycle payloads when the active conformance credential permits them.',
         'The filtered empty read uses id:999999999999 because Shopify accepts id as a gift-card search field and returns an empty connection/count for a no-match numeric id.',
         'Credit/debit transaction mutations and transaction-node reads are captured as payloads or access blockers depending on whether the active credential includes gift-card transaction scopes.',
-        'HAR-464 attempts to create a disposable customer-backed gift card so populated-data search filters can be captured when giftCardCreate returns a usable id.',
+        'Gift-card capture attempts to create a disposable customer-backed gift card so populated-data search filters can be captured when giftCardCreate returns a usable id.',
         'Notification roots are intentionally not executed by this capture script because they are customer-visible side effects.',
       ],
       notificationRoots: {

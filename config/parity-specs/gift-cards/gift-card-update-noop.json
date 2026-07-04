@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.proxyVariables.create"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-766 captures Shopify accepting giftCardUpdate inputs whose supplied editable values already equal the current gift card values. The replay first stages an equivalent local gift card, then proves note/expiresOn/templateSuffix no-op updates succeed while a truly empty input still emits missing_all_optional_arguments_error.",
+  "notes": "This scenario captures Shopify accepting giftCardUpdate inputs whose supplied editable values already equal the current gift card values. The replay first stages an equivalent local gift card, then proves note/expiresOn/templateSuffix no-op updates succeed while a truly empty input still emits missing_all_optional_arguments_error.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

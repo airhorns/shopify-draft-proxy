@@ -108,8 +108,8 @@
     "query": "mutation DiscountCombinesWithValidation(\n  $orderTagStacking: DiscountCodeBasicInput!\n  $tagOverlap: DiscountCodeBasicInput!\n  $freeShippingSelfCombine: DiscountCodeFreeShippingInput!\n) {\n  orderTagStacking: discountCodeBasicCreate(basicCodeDiscount: $orderTagStacking) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  tagOverlap: discountCodeBasicCreate(basicCodeDiscount: $tagOverlap) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  freeShippingSelfCombine: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingSelfCombine) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
     "variables": {
       "orderTagStacking": {
-        "title": "HAR-602 ORDER-TAGS-1777940990541",
-        "code": "ORDER-TAGS-1777940990541",
+        "title": "Conformance ORDER-TAGS-1783077209908",
+        "code": "ORDER-TAGS-1783077209908",
         "startsAt": "2026-05-05T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,
@@ -130,8 +130,8 @@
         }
       },
       "tagOverlap": {
-        "title": "HAR-602 TAG-OVERLAP-1777940990541",
-        "code": "TAG-OVERLAP-1777940990541",
+        "title": "Conformance TAG-OVERLAP-1783077209908",
+        "code": "TAG-OVERLAP-1783077209908",
         "startsAt": "2026-05-05T00:00:00Z",
         "combinesWith": {
           "productDiscountsWithTagsOnSameCartLine": {
@@ -154,8 +154,8 @@
         }
       },
       "freeShippingSelfCombine": {
-        "title": "HAR-602 FREE-SHIP-1777940990541",
-        "code": "FREE-SHIP-1777940990541",
+        "title": "Conformance FREE-SHIP-1783077209908",
+        "code": "FREE-SHIP-1783077209908",
         "startsAt": "2026-05-05T00:00:00Z",
         "combinesWith": {
           "productDiscounts": true,

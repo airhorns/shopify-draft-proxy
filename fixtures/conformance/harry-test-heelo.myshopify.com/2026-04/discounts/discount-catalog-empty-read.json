@@ -1,6 +1,6 @@
 {
   "variables": {
-    "query": "title:__har191_discount_empty_probe__",
+    "query": "title:__draft_discount_empty_probe__",
     "first": 2,
     "sortKey": "TITLE",
     "reverse": false,
@@ -25,11 +25,11 @@
     },
     "extensions": {
       "cost": {
-        "requestedQueryCost": 14,
+        "requestedQueryCost": 24,
         "actualQueryCost": 13,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1987,
+          "currentlyAvailable": 1940,
           "restoreRate": 100
         }
       }
@@ -39,7 +39,7 @@
     {
       "operationName": "DiscountCatalogEmptyRead",
       "variables": {
-        "query": "title:__har191_discount_empty_probe__",
+        "query": "title:__draft_discount_empty_probe__",
         "first": 2,
         "sortKey": "TITLE",
         "reverse": false,
@@ -66,11 +66,11 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 14,
+              "requestedQueryCost": 24,
               "actualQueryCost": 13,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1940,
                 "restoreRate": 100
               }
             }

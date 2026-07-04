@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-05T17:33:17.418Z",
+  "capturedAt": "2026-07-03T11:14:20.804Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "accessScopes": {
@@ -108,8 +108,8 @@
   "variables": {
     "createBasic": {
       "input": {
-        "title": "HAR-605 bulk rule 1778002393771",
-        "code": "HAR605BULK1778002393771",
+        "title": "Conformance bulk rule 1783077257567",
+        "code": "DRAFTBULK1783077257567",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "all": "ALL"
@@ -125,30 +125,30 @@
       }
     },
     "bulkAdd": {
-      "discountId": "gid://shopify/DiscountCodeNode/1640428962098",
+      "discountId": "gid://shopify/DiscountCodeNode/1657961742642",
       "codes": [
         {
-          "code": "HAR605BULK1778002393771_1"
+          "code": "DRAFTBULK1783077257567_1"
         },
         {
-          "code": "HAR605BULK1778002393771_2"
+          "code": "DRAFTBULK1783077257567_2"
         },
         {
-          "code": "HAR605BULK1778002393771_3"
+          "code": "DRAFTBULK1783077257567_3"
         },
         {
-          "code": "HAR605BULK1778002393771_4"
+          "code": "DRAFTBULK1783077257567_4"
         },
         {
-          "code": "HAR605BULK1778002393771_5"
+          "code": "DRAFTBULK1783077257567_5"
         }
       ]
     },
     "bulkCodeChange": {
-      "id": "gid://shopify/DiscountCodeNode/1640428962098",
+      "id": "gid://shopify/DiscountCodeNode/1657961742642",
       "input": {
-        "title": "HAR-605 bulk renamed 1778002393771",
-        "code": "HAR605BULKNEW1778002393771",
+        "title": "Conformance bulk renamed 1783077257567",
+        "code": "DRAFTBULKNEW1783077257567",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "all": "ALL"
@@ -165,8 +165,8 @@
     },
     "createBxgy": {
       "input": {
-        "title": "HAR-605 BXGY 1778002393771",
-        "code": "HAR605BXGY1778002393771",
+        "title": "Conformance BXGY 1783077257567",
+        "code": "DRAFTBXGY1783077257567",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "all": "ALL"
@@ -177,7 +177,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10177504608562"]
+              "productsToAdd": ["gid://shopify/Product/10230744154418"]
             }
           }
         },
@@ -192,17 +192,17 @@
           },
           "items": {
             "products": {
-              "productsToAdd": ["gid://shopify/Product/10177504641330"]
+              "productsToAdd": ["gid://shopify/Product/10230744187186"]
             }
           }
         }
       }
     },
     "bxgyToBasic": {
-      "id": "gid://shopify/DiscountCodeNode/1640428994866",
+      "id": "gid://shopify/DiscountCodeNode/1657961775410",
       "input": {
-        "title": "HAR-605 coerced basic 1778002393771",
-        "code": "HAR605BXGY1778002393771",
+        "title": "Conformance coerced basic 1783077257567",
+        "code": "DRAFTBXGY1783077257567",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "all": "ALL"
@@ -220,8 +220,8 @@
     "unknownUpdate": {
       "id": "gid://shopify/DiscountCodeNode/0",
       "input": {
-        "title": "HAR-605 unknown 1778002393771",
-        "code": "HAR605UNKNOWN1778002393771",
+        "title": "Conformance unknown 1783077257567",
+        "code": "DRAFTUNKNOWN1783077257567",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "all": "ALL"
@@ -242,8 +242,8 @@
       "query": "mutation DiscountUpdateEdgeBasicCreate($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "HAR-605 bulk rule 1778002393771",
-          "code": "HAR605BULK1778002393771",
+          "title": "Conformance bulk rule 1783077257567",
+          "code": "DRAFTBULK1783077257567",
           "startsAt": "2026-04-25T00:00:00Z",
           "context": {
             "all": "ALL"
@@ -262,22 +262,22 @@
     "bulkAdd": {
       "query": "mutation DiscountUpdateEdgeBulkAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) {\n  discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {\n    bulkCreation {\n      codesCount\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
-        "discountId": "gid://shopify/DiscountCodeNode/1640428962098",
+        "discountId": "gid://shopify/DiscountCodeNode/1657961742642",
         "codes": [
           {
-            "code": "HAR605BULK1778002393771_1"
+            "code": "DRAFTBULK1783077257567_1"
           },
           {
-            "code": "HAR605BULK1778002393771_2"
+            "code": "DRAFTBULK1783077257567_2"
           },
           {
-            "code": "HAR605BULK1778002393771_3"
+            "code": "DRAFTBULK1783077257567_3"
           },
           {
-            "code": "HAR605BULK1778002393771_4"
+            "code": "DRAFTBULK1783077257567_4"
           },
           {
-            "code": "HAR605BULK1778002393771_5"
+            "code": "DRAFTBULK1783077257567_5"
           }
         ]
       }
@@ -289,8 +289,8 @@
       "query": "mutation DiscountUpdateEdgeBxgyCreate($input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyCreate(bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "HAR-605 BXGY 1778002393771",
-          "code": "HAR605BXGY1778002393771",
+          "title": "Conformance BXGY 1783077257567",
+          "code": "DRAFTBXGY1783077257567",
           "startsAt": "2026-04-25T00:00:00Z",
           "context": {
             "all": "ALL"
@@ -301,7 +301,7 @@
             },
             "items": {
               "products": {
-                "productsToAdd": ["gid://shopify/Product/10177504608562"]
+                "productsToAdd": ["gid://shopify/Product/10230744154418"]
               }
             }
           },
@@ -316,7 +316,7 @@
             },
             "items": {
               "products": {
-                "productsToAdd": ["gid://shopify/Product/10177504641330"]
+                "productsToAdd": ["gid://shopify/Product/10230744187186"]
               }
             }
           }
@@ -328,8 +328,8 @@
       "variables": {
         "id": "gid://shopify/DiscountCodeNode/0",
         "input": {
-          "title": "HAR-605 unknown 1778002393771",
-          "code": "HAR605UNKNOWN1778002393771",
+          "title": "Conformance unknown 1783077257567",
+          "code": "DRAFTUNKNOWN1783077257567",
           "startsAt": "2026-04-25T00:00:00Z",
           "context": {
             "all": "ALL"
@@ -355,7 +355,7 @@
       "data": {
         "discountCodeBasicCreate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640428962098"
+            "id": "gid://shopify/DiscountCodeNode/1657961742642"
           },
           "userErrors": []
         }
@@ -402,7 +402,7 @@
     "payload": {
       "data": {
         "codeDiscountNodeByCode": {
-          "id": "gid://shopify/DiscountCodeNode/1640428962098"
+          "id": "gid://shopify/DiscountCodeNode/1657961742642"
         }
       },
       "extensions": {
@@ -453,7 +453,7 @@
       "data": {
         "discountCodeBxgyCreate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640428994866",
+            "id": "gid://shopify/DiscountCodeNode/1657961775410",
             "codeDiscount": {
               "__typename": "DiscountCodeBxgy"
             }
@@ -480,7 +480,7 @@
       "data": {
         "discountCodeBasicUpdate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640428994866",
+            "id": "gid://shopify/DiscountCodeNode/1657961775410",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic"
             }
@@ -536,7 +536,7 @@
       "payload": {
         "data": {
           "discountCodeDelete": {
-            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640428994866",
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657961775410",
             "userErrors": []
           }
         },
@@ -546,7 +546,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1988,
               "restoreRate": 100
             }
           }
@@ -558,7 +558,7 @@
       "payload": {
         "data": {
           "discountCodeDelete": {
-            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640428962098",
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657961742642",
             "userErrors": []
           }
         },
@@ -580,7 +580,7 @@
       "payload": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177504641330",
+            "deletedProductId": "gid://shopify/Product/10230744187186",
             "userErrors": []
           }
         },
@@ -602,7 +602,7 @@
       "payload": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10177504608562",
+            "deletedProductId": "gid://shopify/Product/10230744154418",
             "userErrors": []
           }
         },

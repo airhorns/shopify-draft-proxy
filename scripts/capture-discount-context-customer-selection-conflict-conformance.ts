@@ -137,10 +137,10 @@ const discountDeleteDocument = `#graphql
 
 function customerInput(index: number): JsonRecord {
   return {
-    firstName: 'HAR-780',
+    firstName: 'Conformance',
     lastName: `Conflict ${index}`,
-    email: `har780-discount-conflict-${runId}-${index}@example.com`,
-    tags: ['har-780', `har-780-${runId}`],
+    email: `draft-discount-conflict-${runId}-${index}@example.com`,
+    tags: ['conformance', `conformance-${runId}`],
   };
 }
 
@@ -161,7 +161,7 @@ function buyerConflict(customerAId: string, customerBId: string): JsonRecord {
 
 function basicInput(code: string, customerAId?: string, customerBId?: string): JsonRecord {
   return {
-    title: `HAR-780 basic ${code}`,
+    title: `Conformance basic ${code}`,
     code,
     startsAt,
     ...(customerAId && customerBId ? buyerConflict(customerAId, customerBId) : { context: { all: 'ALL' } }),
@@ -174,7 +174,7 @@ function basicInput(code: string, customerAId?: string, customerBId?: string): J
 
 function bxgyInput(code: string, productId: string, customerAId?: string, customerBId?: string): JsonRecord {
   return {
-    title: `HAR-780 bxgy ${code}`,
+    title: `Conformance bxgy ${code}`,
     code,
     startsAt,
     ...(customerAId && customerBId ? buyerConflict(customerAId, customerBId) : { context: { all: 'ALL' } }),
@@ -196,7 +196,7 @@ function bxgyInput(code: string, productId: string, customerAId?: string, custom
 
 function freeShippingInput(code: string, customerAId?: string, customerBId?: string): JsonRecord {
   return {
-    title: `HAR-780 shipping ${code}`,
+    title: `Conformance shipping ${code}`,
     code,
     startsAt,
     ...(customerAId && customerBId ? buyerConflict(customerAId, customerBId) : { context: { all: 'ALL' } }),
@@ -206,7 +206,7 @@ function freeShippingInput(code: string, customerAId?: string, customerBId?: str
 
 function appCodeInput(code: string, customerAId: string, customerBId: string): JsonRecord {
   return {
-    title: `HAR-780 app ${code}`,
+    title: `Conformance app ${code}`,
     code,
     startsAt,
     ...buyerConflict(customerAId, customerBId),
@@ -233,9 +233,9 @@ try {
   const customerBId = readRequiredString(customerBCreate, ['data', 'customerCreate', 'customer', 'id'], 'customer B');
   setupCustomerIds.push(customerBId);
 
-  const setupBasicCode = `HAR780SETB${runId}`;
-  const setupBxgyCode = `HAR780SETX${runId}`;
-  const setupFreeShippingCode = `HAR780SETS${runId}`;
+  const setupBasicCode = `DRAFTSETB${runId}`;
+  const setupBxgyCode = `DRAFTSETX${runId}`;
+  const setupFreeShippingCode = `DRAFTSETS${runId}`;
   const setupVariables = {
     basicCode: basicInput(setupBasicCode),
     bxgyCode: bxgyInput(setupBxgyCode, productId),
@@ -248,10 +248,10 @@ try {
   setupDiscountIds.push(readSetupDiscountId(setup, 'freeShippingCode'));
 
   const conflictCreateVariables = {
-    basicCode: basicInput(`HAR780BASIC${runId}`, customerAId, customerBId),
-    bxgyCode: bxgyInput(`HAR780BXGY${runId}`, productId, customerAId, customerBId),
-    freeShippingCode: freeShippingInput(`HAR780SHIP${runId}`, customerAId, customerBId),
-    appCode: appCodeInput(`HAR780APP${runId}`, customerAId, customerBId),
+    basicCode: basicInput(`DRAFTBASIC${runId}`, customerAId, customerBId),
+    bxgyCode: bxgyInput(`DRAFTBXGY${runId}`, productId, customerAId, customerBId),
+    freeShippingCode: freeShippingInput(`DRAFTSHIP${runId}`, customerAId, customerBId),
+    appCode: appCodeInput(`DRAFTAPP${runId}`, customerAId, customerBId),
   };
   const conflictCreate = await runGraphqlRaw(conflictCreateDocument, conflictCreateVariables);
   assertNoTopLevelErrors(conflictCreate, 'context/customerSelection conflict create capture');

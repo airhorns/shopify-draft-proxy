@@ -1,0 +1,343 @@
+{
+  "variables": {
+    "id": "gid://shopify/DiscountCodeNode/1657963970866",
+    "code": "DRAFTCAT1783078137310"
+  },
+  "create": {
+    "data": {
+      "discountCodeBasicCreate": {
+        "codeDiscountNode": {
+          "id": "gid://shopify/DiscountCodeNode/1657963970866",
+          "codeDiscount": {
+            "__typename": "DiscountCodeBasic",
+            "title": "Conformance catalog detail code 1783078137310",
+            "status": "ACTIVE",
+            "summary": "10% off one-time purchase products • Minimum purchase of $1.00",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "endsAt": null,
+            "createdAt": "2026-07-03T11:28:57Z",
+            "updatedAt": "2026-07-03T11:28:57Z",
+            "asyncUsageCount": 0,
+            "discountClasses": ["ORDER"],
+            "combinesWith": {
+              "productDiscounts": false,
+              "orderDiscounts": true,
+              "shippingDiscounts": false
+            },
+            "codes": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/DiscountRedeemCode/22242843590962",
+                  "code": "DRAFTCAT1783078137310",
+                  "asyncUsageCount": 0
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoyMjI0Mjg0MzU5MDk2MiwibGFzdF92YWx1ZSI6IjIyMjQyODQzNTkwOTYyIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoyMjI0Mjg0MzU5MDk2MiwibGFzdF92YWx1ZSI6IjIyMjQyODQzNTkwOTYyIn0="
+              }
+            },
+            "context": {
+              "__typename": "DiscountBuyerSelectionAll",
+              "all": "ALL"
+            },
+            "customerGets": {
+              "value": {
+                "__typename": "DiscountPercentage",
+                "percentage": 0.1
+              },
+              "items": {
+                "__typename": "AllDiscountItems",
+                "allItems": true
+              },
+              "appliesOnOneTimePurchase": true,
+              "appliesOnSubscription": false
+            },
+            "minimumRequirement": {
+              "__typename": "DiscountMinimumSubtotal",
+              "greaterThanOrEqualToSubtotal": {
+                "amount": "1.0",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        },
+        "userErrors": []
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 20,
+        "actualQueryCost": 20,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1980,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "response": {
+    "data": {
+      "discountNode": {
+        "id": "gid://shopify/DiscountCodeNode/1657963970866",
+        "discount": {
+          "__typename": "DiscountCodeBasic",
+          "title": "Conformance catalog detail code 1783078137310",
+          "status": "ACTIVE",
+          "summary": "10% off one-time purchase products • Minimum purchase of $1.00",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "endsAt": null,
+          "createdAt": "2026-07-03T11:28:57Z",
+          "updatedAt": "2026-07-03T11:28:57Z",
+          "asyncUsageCount": 0,
+          "discountClasses": ["ORDER"],
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "codes": {
+            "nodes": [
+              {
+                "id": "gid://shopify/DiscountRedeemCode/22242843590962",
+                "code": "DRAFTCAT1783078137310",
+                "asyncUsageCount": 0
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoyMjI0Mjg0MzU5MDk2MiwibGFzdF92YWx1ZSI6IjIyMjQyODQzNTkwOTYyIn0=",
+              "endCursor": "eyJsYXN0X2lkIjoyMjI0Mjg0MzU5MDk2MiwibGFzdF92YWx1ZSI6IjIyMjQyODQzNTkwOTYyIn0="
+            }
+          },
+          "context": {
+            "__typename": "DiscountBuyerSelectionAll",
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "__typename": "DiscountPercentage",
+              "percentage": 0.1
+            },
+            "items": {
+              "__typename": "AllDiscountItems",
+              "allItems": true
+            },
+            "appliesOnOneTimePurchase": true,
+            "appliesOnSubscription": false
+          },
+          "minimumRequirement": {
+            "__typename": "DiscountMinimumSubtotal",
+            "greaterThanOrEqualToSubtotal": {
+              "amount": "1.0",
+              "currencyCode": "CAD"
+            }
+          }
+        },
+        "metafield": null,
+        "metafields": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        },
+        "events": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjoxODE4NjY2MDI4ODk1MjIsImxhc3RfdmFsdWUiOiIxODE4NjY2MDI4ODk1MjIifQ==",
+              "node": {
+                "__typename": "BasicEvent",
+                "id": "gid://shopify/BasicEvent/181866602889522",
+                "action": "create",
+                "message": "hermes-conformance-products created this discount.",
+                "createdAt": "2026-07-03T11:28:57Z",
+                "subjectId": "gid://shopify/PriceRule/1657963970866",
+                "subjectType": "PRICE_RULE"
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxODE4NjY2MDMwODYxMzAsImxhc3RfdmFsdWUiOiIxODE4NjY2MDMwODYxMzAifQ==",
+              "node": {
+                "__typename": "BasicEvent",
+                "id": "gid://shopify/BasicEvent/181866603086130",
+                "action": "update",
+                "message": "Discount was edited.",
+                "createdAt": "2026-07-03T11:28:57Z",
+                "subjectId": "gid://shopify/PriceRule/1657963970866",
+                "subjectType": "PRICE_RULE"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxODE4NjY2MDI4ODk1MjIsImxhc3RfdmFsdWUiOiIxODE4NjY2MDI4ODk1MjIifQ==",
+            "endCursor": "eyJsYXN0X2lkIjoxODE4NjY2MDMwODYxMzAsImxhc3RfdmFsdWUiOiIxODE4NjY2MDMwODYxMzAifQ=="
+          }
+        }
+      },
+      "codeDiscountNodeByCode": {
+        "id": "gid://shopify/DiscountCodeNode/1657963970866",
+        "codeDiscount": {
+          "__typename": "DiscountCodeBasic",
+          "title": "Conformance catalog detail code 1783078137310"
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 20,
+        "actualQueryCost": 20,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1897,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "DiscountCodeDetailRead",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1657963970866",
+        "code": "DRAFTCAT1783078137310"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "discountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1657963970866",
+              "discount": {
+                "__typename": "DiscountCodeBasic",
+                "title": "Conformance catalog detail code 1783078137310",
+                "status": "ACTIVE",
+                "summary": "10% off one-time purchase products • Minimum purchase of $1.00",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "endsAt": null,
+                "createdAt": "2026-07-03T11:28:57Z",
+                "updatedAt": "2026-07-03T11:28:57Z",
+                "asyncUsageCount": 0,
+                "discountClasses": ["ORDER"],
+                "combinesWith": {
+                  "productDiscounts": false,
+                  "orderDiscounts": true,
+                  "shippingDiscounts": false
+                },
+                "codes": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/DiscountRedeemCode/22242843590962",
+                      "code": "DRAFTCAT1783078137310",
+                      "asyncUsageCount": 0
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjoyMjI0Mjg0MzU5MDk2MiwibGFzdF92YWx1ZSI6IjIyMjQyODQzNTkwOTYyIn0=",
+                    "endCursor": "eyJsYXN0X2lkIjoyMjI0Mjg0MzU5MDk2MiwibGFzdF92YWx1ZSI6IjIyMjQyODQzNTkwOTYyIn0="
+                  }
+                },
+                "context": {
+                  "__typename": "DiscountBuyerSelectionAll",
+                  "all": "ALL"
+                },
+                "customerGets": {
+                  "value": {
+                    "__typename": "DiscountPercentage",
+                    "percentage": 0.1
+                  },
+                  "items": {
+                    "__typename": "AllDiscountItems",
+                    "allItems": true
+                  },
+                  "appliesOnOneTimePurchase": true,
+                  "appliesOnSubscription": false
+                },
+                "minimumRequirement": {
+                  "__typename": "DiscountMinimumSubtotal",
+                  "greaterThanOrEqualToSubtotal": {
+                    "amount": "1.0",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "events": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjoxODE4NjY2MDI4ODk1MjIsImxhc3RfdmFsdWUiOiIxODE4NjY2MDI4ODk1MjIifQ==",
+                    "node": {
+                      "__typename": "BasicEvent",
+                      "id": "gid://shopify/BasicEvent/181866602889522",
+                      "action": "create",
+                      "message": "hermes-conformance-products created this discount.",
+                      "createdAt": "2026-07-03T11:28:57Z",
+                      "subjectId": "gid://shopify/PriceRule/1657963970866",
+                      "subjectType": "PRICE_RULE"
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjoxODE4NjY2MDMwODYxMzAsImxhc3RfdmFsdWUiOiIxODE4NjY2MDMwODYxMzAifQ==",
+                    "node": {
+                      "__typename": "BasicEvent",
+                      "id": "gid://shopify/BasicEvent/181866603086130",
+                      "action": "update",
+                      "message": "Discount was edited.",
+                      "createdAt": "2026-07-03T11:28:57Z",
+                      "subjectId": "gid://shopify/PriceRule/1657963970866",
+                      "subjectType": "PRICE_RULE"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxODE4NjY2MDI4ODk1MjIsImxhc3RfdmFsdWUiOiIxODE4NjY2MDI4ODk1MjIifQ==",
+                  "endCursor": "eyJsYXN0X2lkIjoxODE4NjY2MDMwODYxMzAsImxhc3RfdmFsdWUiOiIxODE4NjY2MDMwODYxMzAifQ=="
+                }
+              }
+            },
+            "codeDiscountNodeByCode": {
+              "id": "gid://shopify/DiscountCodeNode/1657963970866",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "title": "Conformance catalog detail code 1783078137310"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1897,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "query": "query DiscountCodeDetailRead($id: ID!, $code: String!) {\n  discountNode(id: $id) {\n    id\n    discount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        status\n        summary\n        startsAt\n        endsAt\n        createdAt\n        updatedAt\n        asyncUsageCount\n        discountClasses\n        combinesWith {\n          productDiscounts\n          orderDiscounts\n          shippingDiscounts\n        }\n        codes(first: 2) {\n          nodes {\n            id\n            code\n            asyncUsageCount\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        context {\n          __typename\n          ... on DiscountBuyerSelectionAll {\n            all\n          }\n        }\n        customerGets {\n          value {\n            __typename\n            ... on DiscountPercentage {\n              percentage\n            }\n            ... on DiscountAmount {\n              amount {\n                amount\n                currencyCode\n              }\n              appliesOnEachItem\n            }\n          }\n          items {\n            __typename\n            ... on AllDiscountItems {\n              allItems\n            }\n          }\n          appliesOnOneTimePurchase\n          appliesOnSubscription\n        }\n        minimumRequirement {\n          __typename\n          ... on DiscountMinimumSubtotal {\n            greaterThanOrEqualToSubtotal {\n              amount\n              currencyCode\n            }\n          }\n          ... on DiscountMinimumQuantity {\n            greaterThanOrEqualToQuantity\n          }\n        }\n      }\n    }\n    metafield(namespace: \"custom\", key: \"draft_missing\") {\n      id\n    }\n    metafields(first: 2) {\n      nodes {\n        id\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    events(first: 2) {\n      edges {\n        cursor\n        node {\n          __typename\n          ... on BasicEvent {\n            id\n            action\n            message\n            createdAt\n            subjectId\n            subjectType\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  codeDiscountNodeByCode(code: $code) {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n      }\n    }\n  }\n}\n"
+    }
+  ]
+}

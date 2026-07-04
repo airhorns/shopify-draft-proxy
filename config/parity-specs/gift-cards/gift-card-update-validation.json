@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.setup[0].variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-694 captures giftCardUpdate validation branches for deactivated-card protected fields, missing update arguments, changed customerId existence, recipient text length caps, and success. The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, and public recipient length validators surface as top-level INVALID_FIELD_ARGUMENTS, so the live fixture records Shopify field/message evidence and the expected replay payload adds the typed code values required by the internal GiftCardErrorCode contract.",
+  "notes": "This scenario captures giftCardUpdate validation branches for deactivated-card protected fields, missing update arguments, changed customerId existence, recipient text length caps, and success. The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, and public recipient length validators surface as top-level INVALID_FIELD_ARGUMENTS, so the live fixture records Shopify field/message evidence and the expected replay payload adds the typed code values required by the internal GiftCardErrorCode contract.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

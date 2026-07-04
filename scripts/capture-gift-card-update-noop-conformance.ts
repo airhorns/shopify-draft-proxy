@@ -192,7 +192,7 @@ try {
   const createInput = {
     initialValue: '5.00',
     code: `H766N${runSuffix}`,
-    note: 'HAR-766 no-op current note',
+    note: 'Conformance no-op current note',
     expiresOn: '2030-01-01',
     templateSuffix: 'birthday',
   };
@@ -239,7 +239,7 @@ try {
         storeDomain,
         apiVersion,
         notes: [
-          'HAR-766 captures live giftCardUpdate no-op behavior for note, expiresOn, and templateSuffix inputs whose values already equal the current gift card.',
+          'Conformance captures live giftCardUpdate no-op behavior for note, expiresOn, and templateSuffix inputs whose values already equal the current gift card.',
           'Shopify accepts present editable keys even when the values do not change, touches updatedAt, and still rejects an input object with no editable keys.',
           'The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so the live request records field/message only; expected replay data adds the typed code for the empty-input branch.',
           'Setup creates one disposable gift card with known editable fields; cleanup deactivates the setup gift card.',

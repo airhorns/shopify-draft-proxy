@@ -1,18 +1,18 @@
 {
   "variables": {
-    "firstId": "gid://shopify/DiscountCodeNode/1640392130866",
-    "secondId": "gid://shopify/DiscountCodeNode/1640392163634",
-    "firstCode": "HAR603A1777990267935",
-    "secondCode": "HAR603B1777990267935"
+    "firstId": "gid://shopify/DiscountCodeNode/1657961644338",
+    "secondId": "gid://shopify/DiscountCodeNode/1657961677106",
+    "firstCode": "DRAFTA1783077252390",
+    "secondCode": "DRAFTB1783077252390"
   },
   "requests": {
     "firstCreate": {
       "query": "#graphql\n  mutation DiscountTimestampsMonotonicCreate($input: DiscountCodeBasicInput!) {\n    discountCodeBasicCreate(basicCodeDiscount: $input) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        createdAt\n        updatedAt\n        codes(first: 1) {\n          nodes {\n            code\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
       "variables": {
         "input": {
-          "title": "HAR-603 first 1777990267935",
-          "code": "HAR603A1777990267935",
-          "startsAt": "2026-05-05T14:10:07.935Z",
+          "title": "Conformance first 1783077252390",
+          "code": "DRAFTA1783077252390",
+          "startsAt": "2026-07-03T11:13:12.390Z",
           "context": {
             "all": "ALL"
           },
@@ -31,9 +31,9 @@
       "query": "#graphql\n  mutation DiscountTimestampsMonotonicCreate($input: DiscountCodeBasicInput!) {\n    discountCodeBasicCreate(basicCodeDiscount: $input) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        createdAt\n        updatedAt\n        codes(first: 1) {\n          nodes {\n            code\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
       "variables": {
         "input": {
-          "title": "HAR-603 second 1777990267935",
-          "code": "HAR603B1777990267935",
-          "startsAt": "2026-05-05T14:10:07.935Z",
+          "title": "Conformance second 1783077252390",
+          "code": "DRAFTB1783077252390",
+          "startsAt": "2026-07-03T11:13:12.390Z",
           "context": {
             "all": "ALL"
           },
@@ -51,11 +51,11 @@
     "updateFirst": {
       "query": "#graphql\n  mutation DiscountTimestampsMonotonicUpdate($id: ID!, $input: DiscountCodeBasicInput!) {\n    discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        createdAt\n        updatedAt\n        codes(first: 1) {\n          nodes {\n            code\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DiscountCodeNode/1640392130866",
+        "id": "gid://shopify/DiscountCodeNode/1657961644338",
         "input": {
-          "title": "HAR-603 first updated 1777990267935",
-          "code": "HAR603A1777990267935",
-          "startsAt": "2026-05-05T14:10:07.935Z",
+          "title": "Conformance first updated 1783077252390",
+          "code": "DRAFTA1783077252390",
+          "startsAt": "2026-07-03T11:13:12.390Z",
           "context": {
             "all": "ALL"
           },
@@ -186,16 +186,16 @@
       "data": {
         "discountCodeBasicCreate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640392130866",
+            "id": "gid://shopify/DiscountCodeNode/1657961644338",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "HAR-603 first 1777990267935",
-              "createdAt": "2026-05-05T14:11:08Z",
-              "updatedAt": "2026-05-05T14:11:08Z",
+              "title": "Conformance first 1783077252390",
+              "createdAt": "2026-07-03T11:14:12Z",
+              "updatedAt": "2026-07-03T11:14:12Z",
               "codes": {
                 "nodes": [
                   {
-                    "code": "HAR603A1777990267935"
+                    "code": "DRAFTA1783077252390"
                   }
                 ]
               }
@@ -223,16 +223,16 @@
       "data": {
         "discountCodeBasicCreate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640392163634",
+            "id": "gid://shopify/DiscountCodeNode/1657961677106",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "HAR-603 second 1777990267935",
-              "createdAt": "2026-05-05T14:11:09Z",
-              "updatedAt": "2026-05-05T14:11:09Z",
+              "title": "Conformance second 1783077252390",
+              "createdAt": "2026-07-03T11:14:13Z",
+              "updatedAt": "2026-07-03T11:14:13Z",
               "codes": {
                 "nodes": [
                   {
-                    "code": "HAR603B1777990267935"
+                    "code": "DRAFTB1783077252390"
                   }
                 ]
               }
@@ -260,16 +260,16 @@
       "data": {
         "discountCodeBasicUpdate": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640392130866",
+            "id": "gid://shopify/DiscountCodeNode/1657961644338",
             "codeDiscount": {
               "__typename": "DiscountCodeBasic",
-              "title": "HAR-603 first updated 1777990267935",
-              "createdAt": "2026-05-05T14:11:08Z",
-              "updatedAt": "2026-05-05T14:11:10Z",
+              "title": "Conformance first updated 1783077252390",
+              "createdAt": "2026-07-03T11:14:12Z",
+              "updatedAt": "2026-07-03T11:14:15Z",
               "codes": {
                 "nodes": [
                   {
-                    "code": "HAR603A1777990267935"
+                    "code": "DRAFTA1783077252390"
                   }
                 ]
               }
@@ -296,39 +296,39 @@
     "payload": {
       "data": {
         "first": {
-          "id": "gid://shopify/DiscountCodeNode/1640392130866",
+          "id": "gid://shopify/DiscountCodeNode/1657961644338",
           "codeDiscount": {
             "__typename": "DiscountCodeBasic",
-            "title": "HAR-603 first updated 1777990267935",
-            "createdAt": "2026-05-05T14:11:08Z",
-            "updatedAt": "2026-05-05T14:11:10Z"
+            "title": "Conformance first updated 1783077252390",
+            "createdAt": "2026-07-03T11:14:12Z",
+            "updatedAt": "2026-07-03T11:14:15Z"
           }
         },
         "second": {
-          "id": "gid://shopify/DiscountCodeNode/1640392163634",
+          "id": "gid://shopify/DiscountCodeNode/1657961677106",
           "codeDiscount": {
             "__typename": "DiscountCodeBasic",
-            "title": "HAR-603 second 1777990267935",
-            "createdAt": "2026-05-05T14:11:09Z",
-            "updatedAt": "2026-05-05T14:11:09Z"
+            "title": "Conformance second 1783077252390",
+            "createdAt": "2026-07-03T11:14:13Z",
+            "updatedAt": "2026-07-03T11:14:13Z"
           }
         },
         "firstByCode": {
-          "id": "gid://shopify/DiscountCodeNode/1640392130866",
+          "id": "gid://shopify/DiscountCodeNode/1657961644338",
           "codeDiscount": {
             "__typename": "DiscountCodeBasic",
-            "title": "HAR-603 first updated 1777990267935",
-            "createdAt": "2026-05-05T14:11:08Z",
-            "updatedAt": "2026-05-05T14:11:10Z"
+            "title": "Conformance first updated 1783077252390",
+            "createdAt": "2026-07-03T11:14:12Z",
+            "updatedAt": "2026-07-03T11:14:15Z"
           }
         },
         "secondByCode": {
-          "id": "gid://shopify/DiscountCodeNode/1640392163634",
+          "id": "gid://shopify/DiscountCodeNode/1657961677106",
           "codeDiscount": {
             "__typename": "DiscountCodeBasic",
-            "title": "HAR-603 second 1777990267935",
-            "createdAt": "2026-05-05T14:11:09Z",
-            "updatedAt": "2026-05-05T14:11:09Z"
+            "title": "Conformance second 1783077252390",
+            "createdAt": "2026-07-03T11:14:13Z",
+            "updatedAt": "2026-07-03T11:14:13Z"
           }
         }
       },
@@ -350,7 +350,7 @@
     "payload": {
       "data": {
         "discountCodeDelete": {
-          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640392130866",
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657961644338",
           "userErrors": []
         }
       },
@@ -372,7 +372,7 @@
     "payload": {
       "data": {
         "discountCodeDelete": {
-          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640392163634",
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657961677106",
           "userErrors": []
         }
       },

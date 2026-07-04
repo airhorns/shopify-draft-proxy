@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-06T20:08:57.521Z",
+  "capturedAt": "2026-07-03T11:13:45.035Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "accessScopes": {
@@ -114,10 +114,10 @@
           "data": {
             "customerCreate": {
               "customer": {
-                "id": "gid://shopify/Customer/10585953829170",
+                "id": "gid://shopify/Customer/10887246709042",
                 "displayName": "Discount Customer Selection",
-                "email": "har933-customer-selection-1778098135897@example.com",
-                "tags": ["har933-customer-selection-1778098135897"]
+                "email": "draft-customer-selection-1783077222138@example.com",
+                "tags": ["draft-customer-selection-1783077222138"]
               },
               "userErrors": []
             }
@@ -144,9 +144,9 @@
           "data": {
             "segmentCreate": {
               "segment": {
-                "id": "gid://shopify/Segment/648555430194",
-                "name": "HAR-933 customer selection 1778098135897",
-                "query": "customer_tags CONTAINS 'har933-customer-selection-1778098135897'"
+                "id": "gid://shopify/Segment/652729450802",
+                "name": "Conformance customer selection 1783077222138",
+                "query": "customer_tags CONTAINS 'draft-customer-selection-1783077222138'"
               },
               "userErrors": []
             }
@@ -165,16 +165,16 @@
         }
       }
     },
-    "customerId": "gid://shopify/Customer/10585953829170",
-    "segmentId": "gid://shopify/Segment/648555430194"
+    "customerId": "gid://shopify/Customer/10887246709042",
+    "segmentId": "gid://shopify/Segment/652729450802"
   },
   "cases": {
     "allWithCustomers": {
       "query": "mutation DiscountCustomerSelectionInternalConflictsCreate($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "Customer selection HAR933CUST1778098135897",
-          "code": "HAR933CUST1778098135897",
+          "title": "Customer selection DRAFTCUST1783077222138",
+          "code": "DRAFTCUST1783077222138",
           "startsAt": "2026-04-25T00:00:00Z",
           "customerGets": {
             "value": {
@@ -187,7 +187,7 @@
           "customerSelection": {
             "all": true,
             "customers": {
-              "add": ["gid://shopify/Customer/10585953829170"]
+              "add": ["gid://shopify/Customer/10887246709042"]
             }
           }
         }
@@ -229,8 +229,8 @@
       "query": "mutation DiscountCustomerSelectionInternalConflictsCreate($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "Customer selection HAR933SAVE1778098135897",
-          "code": "HAR933SAVE1778098135897",
+          "title": "Customer selection DRAFTSAVE1783077222138",
+          "code": "DRAFTSAVE1783077222138",
           "startsAt": "2026-04-25T00:00:00Z",
           "customerGets": {
             "value": {
@@ -262,8 +262,8 @@
             "extensions": {
               "code": "INVALID_VARIABLE",
               "value": {
-                "title": "Customer selection HAR933SAVE1778098135897",
-                "code": "HAR933SAVE1778098135897",
+                "title": "Customer selection DRAFTSAVE1783077222138",
+                "code": "DRAFTSAVE1783077222138",
                 "startsAt": "2026-04-25T00:00:00Z",
                 "customerGets": {
                   "value": {
@@ -295,8 +295,8 @@
       "query": "mutation DiscountCustomerSelectionInternalConflictsCreate($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "Customer selection HAR933SEG1778098135897",
-          "code": "HAR933SEG1778098135897",
+          "title": "Customer selection DRAFTSEG1783077222138",
+          "code": "DRAFTSEG1783077222138",
           "startsAt": "2026-04-25T00:00:00Z",
           "customerGets": {
             "value": {
@@ -309,7 +309,7 @@
           "customerSelection": {
             "all": true,
             "customerSegments": {
-              "add": ["gid://shopify/Segment/648555430194"]
+              "add": ["gid://shopify/Segment/652729450802"]
             }
           }
         }
@@ -351,8 +351,8 @@
       "query": "mutation DiscountCustomerSelectionInternalConflictsCreate($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "Customer selection HAR933OK1778098135897",
-          "code": "HAR933OK1778098135897",
+          "title": "Customer selection DRAFTOK1783077222138",
+          "code": "DRAFTOK1783077222138",
           "startsAt": "2026-04-25T00:00:00Z",
           "customerGets": {
             "value": {
@@ -364,7 +364,7 @@
           },
           "customerSelection": {
             "customers": {
-              "add": ["gid://shopify/Customer/10585953829170"]
+              "add": ["gid://shopify/Customer/10887246709042"]
             }
           }
         }
@@ -374,7 +374,7 @@
         "data": {
           "discountCodeBasicCreate": {
             "codeDiscountNode": {
-              "id": "gid://shopify/DiscountCodeNode/1640616329522"
+              "id": "gid://shopify/DiscountCodeNode/1657961316658"
             },
             "userErrors": []
           }
@@ -399,7 +399,7 @@
       "payload": {
         "data": {
           "discountCodeDelete": {
-            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640616329522",
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657961316658",
             "userErrors": []
           }
         },
@@ -421,7 +421,7 @@
       "payload": {
         "data": {
           "segmentDelete": {
-            "deletedSegmentId": "gid://shopify/Segment/648555430194",
+            "deletedSegmentId": "gid://shopify/Segment/652729450802",
             "userErrors": []
           }
         },
@@ -443,7 +443,7 @@
       "payload": {
         "data": {
           "customerDelete": {
-            "deletedCustomerId": "gid://shopify/Customer/10585953829170",
+            "deletedCustomerId": "gid://shopify/Customer/10887246709042",
             "userErrors": []
           }
         },

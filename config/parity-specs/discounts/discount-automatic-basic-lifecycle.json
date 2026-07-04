@@ -13,8 +13,8 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-automatic-basic-lifecycle.json"
   ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/discounts/discount-automatic-basic-lifecycle-create.graphql",
-    "variablesCapturePath": "$.create.variables"
+    "documentPath": "config/parity-requests/discounts/discount-shop-currency-hydrate.graphql",
+    "variablesCapturePath": "$.shopCurrency.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Executable parity coverage for locally staged DiscountAutomaticBasic create/update/deactivate/activate/delete. Follow-up proxy requests use the primary local create response ID so the parity run validates local lifecycle continuity while accepting expected live-vs-synthetic IDs and deactivation timestamp differences.",
@@ -25,13 +25,13 @@
         "path": "$.discountAutomaticBasicCreate.automaticDiscountNode.automaticDiscount.status",
         "ignore": true,
         "regrettable": true,
-        "reason": "This older lifecycle fixture used a startsAt value active at live capture time but scheduled against the proxy's deterministic synthetic clock; HAR-593 adds dedicated stable-date status parity."
+        "reason": "This older lifecycle fixture used a startsAt value active at live capture time but scheduled against the proxy's deterministic synthetic clock; a dedicated stable-date status parity scenario covers this branch."
       },
       {
         "path": "$.discountAutomaticBasicUpdate.automaticDiscountNode.automaticDiscount.status",
         "ignore": true,
         "regrettable": true,
-        "reason": "This older lifecycle fixture used a startsAt value active at live capture time but scheduled against the proxy's deterministic synthetic clock; HAR-593 adds dedicated stable-date status parity."
+        "reason": "This older lifecycle fixture used a startsAt value active at live capture time but scheduled against the proxy's deterministic synthetic clock; a dedicated stable-date status parity scenario covers this branch."
       },
       {
         "path": "$.discountAutomaticBasicCreate.automaticDiscountNode.id",
@@ -79,7 +79,11 @@
         "name": "automatic-basic-create-data",
         "capturePath": "$.create.response.data",
         "proxyPath": "$.data",
-        "upstreamCapturePath": null
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-automatic-basic-lifecycle-create.graphql",
+          "variablesCapturePath": "$.create.variables"
+        }
       },
       {
         "name": "automatic-basic-update-data",
@@ -90,36 +94,11 @@
           "documentPath": "config/parity-requests/discounts/discount-automatic-basic-lifecycle-update.graphql",
           "variables": {
             "id": {
-              "fromPrimaryProxyPath": "$.data.discountAutomaticBasicCreate.automaticDiscountNode.id"
+              "fromProxyResponse": "automatic-basic-create-data",
+              "path": "$.data.discountAutomaticBasicCreate.automaticDiscountNode.id"
             },
             "input": {
-              "title": "HAR194LIFECYCLE1777147964006 updated",
-              "startsAt": "2026-04-25T00:00:00Z",
-              "endsAt": null,
-              "combinesWith": {
-                "productDiscounts": true,
-                "orderDiscounts": false,
-                "shippingDiscounts": false
-              },
-              "context": {
-                "all": "ALL"
-              },
-              "minimumRequirement": {
-                "subtotal": {
-                  "greaterThanOrEqualToSubtotal": "10.00"
-                }
-              },
-              "customerGets": {
-                "value": {
-                  "discountAmount": {
-                    "amount": "5.00",
-                    "appliesOnEachItem": false
-                  }
-                },
-                "items": {
-                  "all": true
-                }
-              }
+              "fromCapturePath": "$.update.variables.input"
             }
           }
         }
@@ -133,7 +112,8 @@
           "documentPath": "config/parity-requests/discounts/discount-automatic-basic-lifecycle-deactivate.graphql",
           "variables": {
             "id": {
-              "fromPrimaryProxyPath": "$.data.discountAutomaticBasicCreate.automaticDiscountNode.id"
+              "fromProxyResponse": "automatic-basic-create-data",
+              "path": "$.data.discountAutomaticBasicCreate.automaticDiscountNode.id"
             }
           }
         }
@@ -147,7 +127,8 @@
           "documentPath": "config/parity-requests/discounts/discount-automatic-basic-lifecycle-activate.graphql",
           "variables": {
             "id": {
-              "fromPrimaryProxyPath": "$.data.discountAutomaticBasicCreate.automaticDiscountNode.id"
+              "fromProxyResponse": "automatic-basic-create-data",
+              "path": "$.data.discountAutomaticBasicCreate.automaticDiscountNode.id"
             }
           }
         }
@@ -161,7 +142,8 @@
           "documentPath": "config/parity-requests/discounts/discount-automatic-basic-lifecycle-delete.graphql",
           "variables": {
             "id": {
-              "fromPrimaryProxyPath": "$.data.discountAutomaticBasicCreate.automaticDiscountNode.id"
+              "fromProxyResponse": "automatic-basic-create-data",
+              "path": "$.data.discountAutomaticBasicCreate.automaticDiscountNode.id"
             }
           }
         }

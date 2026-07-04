@@ -1,17 +1,17 @@
 {
   "scenarioId": "discount-automatic-basic-detail-read",
-  "operationNames": ["discountNode", "automaticDiscountNode"],
+  "operationNames": ["discountNode"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "selected-fields", "nested-object-graph", "empty-connection-shape"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discounts/discount-automatic-basic-detail-read.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-automatic-basic-detail-read.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/discounts/discount-automatic-basic-detail-read.graphql",
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable parity coverage for singular native DiscountAutomaticBasic detail roots after creating a temporary automatic discount. The parity harness seeds the captured detail node as normalized discount state before issuing local discountNode/automaticDiscountNode reads. The summary target explicitly protects Shopify's computed automatic-basic summary string.",
+  "notes": "Executable parity coverage for singular native DiscountAutomaticBasic detail roots after creating a temporary automatic discount. The current live capture keeps discountNode as the detail root; Shopify 2026-04 returned an internal error when the same request also selected automaticDiscountNode(id:). The summary target explicitly protects Shopify's computed automatic-basic summary string.",
   "comparison": {
     "mode": "strict-json",
     "targets": [

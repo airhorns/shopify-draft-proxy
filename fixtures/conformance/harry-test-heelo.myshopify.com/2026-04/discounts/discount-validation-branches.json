@@ -159,8 +159,8 @@
       "query": "mutation DiscountValidationBranches(\n  $duplicate: DiscountCodeBasicInput!\n  $badRefs: DiscountCodeBasicInput!\n  $invalidAutomatic: DiscountAutomaticBasicInput!\n  $blankCodeBxgy: DiscountCodeBxgyInput!\n  $blankAutomaticBxgy: DiscountAutomaticBxgyInput!\n  $invalidCodeFreeShipping: DiscountCodeFreeShippingInput!\n  $invalidAutomaticFreeShipping: DiscountAutomaticFreeShippingInput!\n  $unknownUpdateId: ID!\n  $unknownUpdate: DiscountCodeBasicInput!\n  $codeBulkIds: [ID!]\n  $automaticBulkIds: [ID!]\n  $bulkSearch: String\n) {\n  duplicate: discountCodeBasicCreate(basicCodeDiscount: $duplicate) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  badRefs: discountCodeBasicCreate(basicCodeDiscount: $badRefs) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  invalidAutomatic: discountAutomaticBasicCreate(automaticBasicDiscount: $invalidAutomatic) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  blankCodeBxgy: discountCodeBxgyCreate(bxgyCodeDiscount: $blankCodeBxgy) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  blankAutomaticBxgy: discountAutomaticBxgyCreate(automaticBxgyDiscount: $blankAutomaticBxgy) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  invalidCodeFreeShipping: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $invalidCodeFreeShipping) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  invalidAutomaticFreeShipping: discountAutomaticFreeShippingCreate(\n    freeShippingAutomaticDiscount: $invalidAutomaticFreeShipping\n  ) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  unknownUpdate: discountCodeBasicUpdate(id: $unknownUpdateId, basicCodeDiscount: $unknownUpdate) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      extraInfo\n    }\n  }\n  codeBulk: discountCodeBulkDeactivate(ids: $codeBulkIds, search: $bulkSearch) {\n    job {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticBulk: discountAutomaticBulkDelete(ids: $automaticBulkIds, search: $bulkSearch) {\n    job {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "duplicate": {
-          "title": "HAR-198 HAR198DUP1782094942210",
-          "code": "HAR198DUP1782094942210",
+          "title": "Conformance DRAFTDUP1783077263420",
+          "code": "DRAFTDUP1783077263420",
           "startsAt": "2026-04-25T00:00:00Z",
           "combinesWith": {
             "productDiscounts": false,
@@ -185,8 +185,8 @@
           }
         },
         "badRefs": {
-          "title": "HAR-198 HAR198BADREF1782094942210",
-          "code": "HAR198BADREF1782094942210",
+          "title": "Conformance DRAFTBADREF1783077263420",
+          "code": "DRAFTBADREF1783077263420",
           "startsAt": "2026-04-25T00:00:00Z",
           "combinesWith": {
             "productDiscounts": false,
@@ -217,7 +217,7 @@
           }
         },
         "invalidAutomatic": {
-          "title": "HAR-198 invalid automatic dates 1782094942210",
+          "title": "Conformance invalid automatic dates 1783077263420",
           "startsAt": "2026-04-25T00:00:00Z",
           "endsAt": "2026-04-24T00:00:00Z",
           "combinesWith": {
@@ -244,7 +244,7 @@
         },
         "blankCodeBxgy": {
           "title": "",
-          "code": "HAR198BXGY1782094942210",
+          "code": "DRAFTBXGY1783077263420",
           "startsAt": "2026-04-25T00:00:00Z",
           "combinesWith": {
             "productDiscounts": true,
@@ -311,7 +311,7 @@
         },
         "invalidCodeFreeShipping": {
           "title": "",
-          "code": "HAR198FREE1782094942210",
+          "code": "DRAFTFREE1783077263420",
           "startsAt": "2026-04-25T00:00:00Z",
           "combinesWith": {
             "productDiscounts": true,
@@ -342,8 +342,8 @@
         },
         "unknownUpdateId": "gid://shopify/DiscountCodeNode/0",
         "unknownUpdate": {
-          "title": "HAR-198 HAR198UNKNOWN1782094942210",
-          "code": "HAR198UNKNOWN1782094942210",
+          "title": "Conformance DRAFTUNKNOWN1783077263420",
+          "code": "DRAFTUNKNOWN1783077263420",
           "startsAt": "2026-04-25T00:00:00Z",
           "combinesWith": {
             "productDiscounts": false,
@@ -531,7 +531,7 @@
             "actualQueryCost": 100,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1900,
+              "currentlyAvailable": 1849,
               "restoreRate": 100
             }
           }
@@ -542,7 +542,7 @@
   "cleanup": {
     "data": {
       "discountCodeDelete": {
-        "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1655827726642",
+        "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657961808178",
         "userErrors": []
       }
     },
@@ -552,7 +552,7 @@
         "actualQueryCost": 10,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1840,
+          "currentlyAvailable": 1945,
           "restoreRate": 100
         }
       }
@@ -562,7 +562,7 @@
     {
       "operationName": "DiscountUniquenessCheck",
       "variables": {
-        "code": "HAR198DUP1782094942210"
+        "code": "DRAFTDUP1783077263420"
       },
       "query": "query DiscountUniquenessCheck($code: String!) {\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
       "response": {
@@ -570,7 +570,7 @@
         "body": {
           "data": {
             "codeDiscountNodeByCode": {
-              "id": "gid://shopify/DiscountCodeNode/1655827726642"
+              "id": "gid://shopify/DiscountCodeNode/1657961808178"
             }
           },
           "extensions": {

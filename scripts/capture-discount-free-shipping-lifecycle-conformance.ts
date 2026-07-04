@@ -31,8 +31,8 @@ assertDiscountConformanceScopes(scopeProbe);
 
 const runId = Date.now();
 const startsAt = new Date(Date.now() - 60_000).toISOString();
-const initialCode = `HAR196FREE${runId}`;
-const updatedCode = `HAR196SHIP${runId}`;
+const initialCode = `DRAFTFREE${runId}`;
+const updatedCode = `DRAFTSHIP${runId}`;
 
 const codeSelection = `#graphql
   codeDiscountNode {
@@ -312,7 +312,7 @@ const readDocument = `#graphql
 
 const codeCreateVariables = {
   input: {
-    title: `HAR-196 code free shipping ${runId}`,
+    title: `Conformance code free shipping ${runId}`,
     code: initialCode,
     startsAt,
     combinesWith: {
@@ -354,7 +354,7 @@ if (typeof codeDiscountId !== 'string') {
 const codeUpdateVariables = {
   id: codeDiscountId,
   input: {
-    title: `HAR-196 code free shipping updated ${runId}`,
+    title: `Conformance code free shipping updated ${runId}`,
     code: updatedCode,
     startsAt,
     combinesWith: {
@@ -387,7 +387,7 @@ const codeUpdateVariables = {
 
 const automaticCreateVariables = {
   input: {
-    title: `HAR-196 automatic free shipping ${runId}`,
+    title: `Conformance automatic free shipping ${runId}`,
     startsAt,
     endsAt: null,
     combinesWith: {
@@ -428,7 +428,7 @@ if (typeof automaticDiscountId !== 'string') {
 const automaticUpdateVariables = {
   id: automaticDiscountId,
   input: {
-    title: `HAR-196 automatic free shipping updated ${runId}`,
+    title: `Conformance automatic free shipping updated ${runId}`,
     startsAt,
     endsAt: null,
     combinesWith: {

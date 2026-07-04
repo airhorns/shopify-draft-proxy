@@ -30,8 +30,8 @@ const scopeProbe = await probeDiscountConformanceScopes(adminOptions);
 assertDiscountConformanceScopes(scopeProbe);
 
 const runId = Date.now();
-const initialCode = `HAR193LIFE${runId}`;
-const updatedCode = `HAR193LIVE${runId}`;
+const initialCode = `DRAFTLIFE${runId}`;
+const updatedCode = `DRAFTLIVE${runId}`;
 const startsAt = new Date(Date.now() - 60_000).toISOString();
 
 const lifecycleSelection = `#graphql
@@ -194,7 +194,7 @@ const readDocument = `#graphql
 
 const createVariables = {
   input: {
-    title: `HAR-193 lifecycle ${runId}`,
+    title: `Conformance lifecycle ${runId}`,
     code: initialCode,
     startsAt,
     combinesWith: {
@@ -236,7 +236,7 @@ const updateVariables = {
   id: discountId,
   input: {
     ...createVariables.input,
-    title: `HAR-193 lifecycle updated ${runId}`,
+    title: `Conformance lifecycle updated ${runId}`,
     code: updatedCode,
     customerGets: {
       value: {

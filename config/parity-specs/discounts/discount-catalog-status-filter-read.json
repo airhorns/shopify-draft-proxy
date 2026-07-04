@@ -4,14 +4,14 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "selected-fields", "pagination-shape", "search-sort-contract"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discounts/discount-catalog-status-filter-read.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-catalog-status-filter-read.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/discounts/discount-catalog-empty-read.graphql",
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable parity coverage showing `status:active` finds the temporary DiscountCodeBasic fixture through discountNodes and discountNodesCount. The parity harness seeds the captured discount node as base state before issuing the local read.",
+  "notes": "Executable parity coverage showing `status:active` plus a neutral title filter finds the temporary DiscountCodeBasic fixture through discountNodes and discountNodesCount on the shared conformance store.",
   "comparison": {
     "mode": "strict-json",
     "targets": [

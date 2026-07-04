@@ -201,19 +201,19 @@ let cleanupResults: unknown[] = [];
 
 try {
   const buyProductPayload = await runGraphql(productCreateDocument, {
-    product: { title: `HAR-605 buy product ${runId}` },
+    product: { title: `Conformance buy product ${runId}` },
   });
   const buyProductId = readProductId(buyProductPayload);
   cleanup.push(() => runGraphqlRaw(productDeleteDocument, { input: { id: buyProductId } }));
 
   const getProductPayload = await runGraphql(productCreateDocument, {
-    product: { title: `HAR-605 get product ${runId}` },
+    product: { title: `Conformance get product ${runId}` },
   });
   const getProductId = readProductId(getProductPayload);
   cleanup.push(() => runGraphqlRaw(productDeleteDocument, { input: { id: getProductId } }));
 
   const createBasicVariables = {
-    input: basicInput(`HAR-605 bulk rule ${runId}`, `HAR605BULK${runId}`, 0.1),
+    input: basicInput(`Conformance bulk rule ${runId}`, `DRAFTBULK${runId}`, 0.1),
   };
   const createBasic = await runGraphqlRaw(createBasicDocument, createBasicVariables);
   const basicDiscountId = readCreatedDiscountId(createBasic, 'discountCodeBasicCreate');
@@ -221,19 +221,19 @@ try {
 
   const bulkAddVariables = {
     discountId: basicDiscountId,
-    codes: [1, 2, 3, 4, 5].map((index) => ({ code: `HAR605BULK${runId}_${index}` })),
+    codes: [1, 2, 3, 4, 5].map((index) => ({ code: `DRAFTBULK${runId}_${index}` })),
   };
   const bulkAdd = await runGraphqlRaw(bulkAddDocument, bulkAddVariables);
-  const readAfterBulkAdd = await waitForCodeLookup(`HAR605BULK${runId}_5`);
+  const readAfterBulkAdd = await waitForCodeLookup(`DRAFTBULK${runId}_5`);
 
   const bulkCodeChangeVariables = {
     id: basicDiscountId,
-    input: basicInput(`HAR-605 bulk renamed ${runId}`, `HAR605BULKNEW${runId}`, 0.2),
+    input: basicInput(`Conformance bulk renamed ${runId}`, `DRAFTBULKNEW${runId}`, 0.2),
   };
   const bulkCodeChange = await runGraphqlRaw(basicUpdateDocument, bulkCodeChangeVariables);
 
   const createBxgyVariables = {
-    input: bxgyInput(`HAR-605 BXGY ${runId}`, `HAR605BXGY${runId}`, buyProductId, getProductId),
+    input: bxgyInput(`Conformance BXGY ${runId}`, `DRAFTBXGY${runId}`, buyProductId, getProductId),
   };
   const createBxgy = await runGraphqlRaw(createBxgyDocument, createBxgyVariables);
   const bxgyDiscountId = readCreatedDiscountId(createBxgy, 'discountCodeBxgyCreate');
@@ -241,13 +241,13 @@ try {
 
   const bxgyToBasicVariables = {
     id: bxgyDiscountId,
-    input: basicInput(`HAR-605 coerced basic ${runId}`, `HAR605BXGY${runId}`, 0.25),
+    input: basicInput(`Conformance coerced basic ${runId}`, `DRAFTBXGY${runId}`, 0.25),
   };
   const bxgyToBasic = await runGraphqlRaw(basicUpdateDocument, bxgyToBasicVariables);
 
   const unknownUpdateVariables = {
     id: 'gid://shopify/DiscountCodeNode/0',
-    input: basicInput(`HAR-605 unknown ${runId}`, `HAR605UNKNOWN${runId}`, 0.1),
+    input: basicInput(`Conformance unknown ${runId}`, `DRAFTUNKNOWN${runId}`, 0.1),
   };
   const unknownUpdate = await runGraphqlRaw(unknownUpdateDocument, unknownUpdateVariables);
 

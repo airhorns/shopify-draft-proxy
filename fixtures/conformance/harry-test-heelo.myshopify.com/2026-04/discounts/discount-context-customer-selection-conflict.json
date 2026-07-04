@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-05T22:21:13.619Z",
+  "capturedAt": "2026-07-03T11:13:34.874Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "accessScopes": {
@@ -109,8 +109,8 @@
     "query": "mutation DiscountContextCustomerSelectionConflictSetup(\n  $basicCode: DiscountCodeBasicInput!\n  $bxgyCode: DiscountCodeBxgyInput!\n  $freeShippingCode: DiscountCodeFreeShippingInput!\n) {\n  basicCode: discountCodeBasicCreate(basicCodeDiscount: $basicCode) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  bxgyCode: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyCode) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  freeShippingCode: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingCode) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
     "variables": {
       "basicCode": {
-        "title": "HAR-780 basic HAR780SETB1778019670807",
-        "code": "HAR780SETB1778019670807",
+        "title": "Conformance basic DRAFTSETB1783077212571",
+        "code": "DRAFTSETB1783077212571",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "all": "ALL"
@@ -125,8 +125,8 @@
         }
       },
       "bxgyCode": {
-        "title": "HAR-780 bxgy HAR780SETX1778019670807",
-        "code": "HAR780SETX1778019670807",
+        "title": "Conformance bxgy DRAFTSETX1783077212571",
+        "code": "DRAFTSETX1783077212571",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "all": "ALL"
@@ -158,8 +158,8 @@
         }
       },
       "freeShippingCode": {
-        "title": "HAR-780 shipping HAR780SETS1778019670807",
-        "code": "HAR780SETS1778019670807",
+        "title": "Conformance shipping DRAFTSETS1783077212571",
+        "code": "DRAFTSETS1783077212571",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "all": "ALL"
@@ -173,19 +173,19 @@
       "data": {
         "basicCode": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640466022706"
+            "id": "gid://shopify/DiscountCodeNode/1657961087282"
           },
           "userErrors": []
         },
         "bxgyCode": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640466055474"
+            "id": "gid://shopify/DiscountCodeNode/1657961120050"
           },
           "userErrors": []
         },
         "freeShippingCode": {
           "codeDiscountNode": {
-            "id": "gid://shopify/DiscountCodeNode/1640466088242"
+            "id": "gid://shopify/DiscountCodeNode/1657961152818"
           },
           "userErrors": []
         }
@@ -203,28 +203,28 @@
       }
     },
     "discountIds": [
-      "gid://shopify/DiscountCodeNode/1640466022706",
-      "gid://shopify/DiscountCodeNode/1640466055474",
-      "gid://shopify/DiscountCodeNode/1640466088242"
+      "gid://shopify/DiscountCodeNode/1657961087282",
+      "gid://shopify/DiscountCodeNode/1657961120050",
+      "gid://shopify/DiscountCodeNode/1657961152818"
     ],
-    "customerIds": ["gid://shopify/Customer/10582995763506", "gid://shopify/Customer/10582995796274"],
+    "customerIds": ["gid://shopify/Customer/10887246315826", "gid://shopify/Customer/10887246348594"],
     "productId": "gid://shopify/Product/9801098789170"
   },
   "conflictCreate": {
     "query": "mutation DiscountContextCustomerSelectionConflict(\n  $basicCode: DiscountCodeBasicInput!\n  $bxgyCode: DiscountCodeBxgyInput!\n  $freeShippingCode: DiscountCodeFreeShippingInput!\n  $appCode: DiscountCodeAppInput!\n) {\n  basicCode: discountCodeBasicCreate(basicCodeDiscount: $basicCode) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  bxgyCode: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyCode) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  freeShippingCode: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingCode) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  appCode: discountCodeAppCreate(codeAppDiscount: $appCode) {\n    codeAppDiscount {\n      discountId\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
     "variables": {
       "basicCode": {
-        "title": "HAR-780 basic HAR780BASIC1778019670807",
-        "code": "HAR780BASIC1778019670807",
+        "title": "Conformance basic DRAFTBASIC1783077212571",
+        "code": "DRAFTBASIC1783077212571",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "customers": {
-            "add": ["gid://shopify/Customer/10582995763506"]
+            "add": ["gid://shopify/Customer/10887246315826"]
           }
         },
         "customerSelection": {
           "customers": {
-            "add": ["gid://shopify/Customer/10582995796274"]
+            "add": ["gid://shopify/Customer/10887246348594"]
           }
         },
         "customerGets": {
@@ -237,17 +237,17 @@
         }
       },
       "bxgyCode": {
-        "title": "HAR-780 bxgy HAR780BXGY1778019670807",
-        "code": "HAR780BXGY1778019670807",
+        "title": "Conformance bxgy DRAFTBXGY1783077212571",
+        "code": "DRAFTBXGY1783077212571",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "customers": {
-            "add": ["gid://shopify/Customer/10582995763506"]
+            "add": ["gid://shopify/Customer/10887246315826"]
           }
         },
         "customerSelection": {
           "customers": {
-            "add": ["gid://shopify/Customer/10582995796274"]
+            "add": ["gid://shopify/Customer/10887246348594"]
           }
         },
         "customerBuys": {
@@ -277,17 +277,17 @@
         }
       },
       "freeShippingCode": {
-        "title": "HAR-780 shipping HAR780SHIP1778019670807",
-        "code": "HAR780SHIP1778019670807",
+        "title": "Conformance shipping DRAFTSHIP1783077212571",
+        "code": "DRAFTSHIP1783077212571",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "customers": {
-            "add": ["gid://shopify/Customer/10582995763506"]
+            "add": ["gid://shopify/Customer/10887246315826"]
           }
         },
         "customerSelection": {
           "customers": {
-            "add": ["gid://shopify/Customer/10582995796274"]
+            "add": ["gid://shopify/Customer/10887246348594"]
           }
         },
         "destination": {
@@ -295,17 +295,17 @@
         }
       },
       "appCode": {
-        "title": "HAR-780 app HAR780APP1778019670807",
-        "code": "HAR780APP1778019670807",
+        "title": "Conformance app DRAFTAPP1783077212571",
+        "code": "DRAFTAPP1783077212571",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "customers": {
-            "add": ["gid://shopify/Customer/10582995763506"]
+            "add": ["gid://shopify/Customer/10887246315826"]
           }
         },
         "customerSelection": {
           "customers": {
-            "add": ["gid://shopify/Customer/10582995796274"]
+            "add": ["gid://shopify/Customer/10887246348594"]
           }
         },
         "functionHandle": "discount-local"
@@ -372,21 +372,21 @@
     }
   },
   "basicUpdate": {
-    "query": "mutation DiscountContextCustomerSelectionConflictBasicUpdate(\n  $id: ID!\n  $input: DiscountCodeBasicInput!\n) {\n  discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+    "query": "mutation DiscountContextCustomerSelectionConflictBasicUpdate($id: ID!, $input: DiscountCodeBasicInput!) {\n  discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/DiscountCodeNode/1640466022706",
+      "id": "gid://shopify/DiscountCodeNode/1657961087282",
       "input": {
-        "title": "HAR-780 basic HAR780SETB1778019670807",
-        "code": "HAR780SETB1778019670807",
+        "title": "Conformance basic DRAFTSETB1783077212571",
+        "code": "DRAFTSETB1783077212571",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "customers": {
-            "add": ["gid://shopify/Customer/10582995763506"]
+            "add": ["gid://shopify/Customer/10887246315826"]
           }
         },
         "customerSelection": {
           "customers": {
-            "add": ["gid://shopify/Customer/10582995796274"]
+            "add": ["gid://shopify/Customer/10887246348594"]
           }
         },
         "customerGets": {
@@ -419,7 +419,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1977,
             "restoreRate": 100
           }
         }
@@ -427,21 +427,21 @@
     }
   },
   "bxgyUpdate": {
-    "query": "mutation DiscountContextCustomerSelectionConflictBxgyUpdate(\n  $id: ID!\n  $input: DiscountCodeBxgyInput!\n) {\n  discountCodeBxgyUpdate(id: $id, bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+    "query": "mutation DiscountContextCustomerSelectionConflictBxgyUpdate($id: ID!, $input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyUpdate(id: $id, bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/DiscountCodeNode/1640466055474",
+      "id": "gid://shopify/DiscountCodeNode/1657961120050",
       "input": {
-        "title": "HAR-780 bxgy HAR780SETX1778019670807",
-        "code": "HAR780SETX1778019670807",
+        "title": "Conformance bxgy DRAFTSETX1783077212571",
+        "code": "DRAFTSETX1783077212571",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "customers": {
-            "add": ["gid://shopify/Customer/10582995763506"]
+            "add": ["gid://shopify/Customer/10887246315826"]
           }
         },
         "customerSelection": {
           "customers": {
-            "add": ["gid://shopify/Customer/10582995796274"]
+            "add": ["gid://shopify/Customer/10887246348594"]
           }
         },
         "customerBuys": {
@@ -491,7 +491,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1982,
             "restoreRate": 100
           }
         }
@@ -499,21 +499,21 @@
     }
   },
   "freeShippingUpdate": {
-    "query": "mutation DiscountContextCustomerSelectionConflictFreeShippingUpdate(\n  $id: ID!\n  $input: DiscountCodeFreeShippingInput!\n) {\n  discountCodeFreeShippingUpdate(id: $id, freeShippingCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+    "query": "mutation DiscountContextCustomerSelectionConflictFreeShippingUpdate($id: ID!, $input: DiscountCodeFreeShippingInput!) {\n  discountCodeFreeShippingUpdate(id: $id, freeShippingCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
     "variables": {
-      "id": "gid://shopify/DiscountCodeNode/1640466088242",
+      "id": "gid://shopify/DiscountCodeNode/1657961152818",
       "input": {
-        "title": "HAR-780 shipping HAR780SETS1778019670807",
-        "code": "HAR780SETS1778019670807",
+        "title": "Conformance shipping DRAFTSETS1783077212571",
+        "code": "DRAFTSETS1783077212571",
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "customers": {
-            "add": ["gid://shopify/Customer/10582995763506"]
+            "add": ["gid://shopify/Customer/10887246315826"]
           }
         },
         "customerSelection": {
           "customers": {
-            "add": ["gid://shopify/Customer/10582995796274"]
+            "add": ["gid://shopify/Customer/10887246348594"]
           }
         },
         "destination": {
@@ -541,7 +541,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1987,
             "restoreRate": 100
           }
         }
@@ -554,7 +554,7 @@
       "payload": {
         "data": {
           "discountCodeDelete": {
-            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640466022706",
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657961087282",
             "userErrors": []
           }
         },
@@ -564,7 +564,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1989,
+              "currentlyAvailable": 1987,
               "restoreRate": 100
             }
           }
@@ -576,7 +576,7 @@
       "payload": {
         "data": {
           "discountCodeDelete": {
-            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640466055474",
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657961120050",
             "userErrors": []
           }
         },
@@ -598,7 +598,7 @@
       "payload": {
         "data": {
           "discountCodeDelete": {
-            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640466088242",
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1657961152818",
             "userErrors": []
           }
         },
@@ -620,7 +620,7 @@
       "payload": {
         "data": {
           "customerDelete": {
-            "deletedCustomerId": "gid://shopify/Customer/10582995796274",
+            "deletedCustomerId": "gid://shopify/Customer/10887246348594",
             "userErrors": []
           }
         },
@@ -642,7 +642,7 @@
       "payload": {
         "data": {
           "customerDelete": {
-            "deletedCustomerId": "gid://shopify/Customer/10582995763506",
+            "deletedCustomerId": "gid://shopify/Customer/10887246315826",
             "userErrors": []
           }
         },

@@ -128,8 +128,8 @@ function codeInput(
   customerGets: Record<string, unknown>,
 ): Record<string, unknown> {
   return {
-    title: `HAR-599 code BXGY ${suffix} ${stamp}`,
-    code: `HAR599${suffix}${stamp}`,
+    title: `Conformance code BXGY ${suffix} ${stamp}`,
+    code: `DRAFT${suffix}${stamp}`,
     startsAt: '2026-04-25T00:00:00Z',
     combinesWith: {
       productDiscounts: true,
@@ -151,7 +151,7 @@ function automaticInput(
   customerGets: Record<string, unknown>,
 ): Record<string, unknown> {
   return {
-    title: `HAR-599 automatic BXGY ${suffix} ${stamp}`,
+    title: `Conformance automatic BXGY ${suffix} ${stamp}`,
     startsAt: '2026-04-25T00:00:00Z',
     combinesWith: {
       productDiscounts: true,
@@ -182,7 +182,7 @@ let validationResponse: unknown;
 try {
   const buyProductResponse = await runGraphql<ProductCreateData>(productCreateMutation, {
     product: {
-      title: `HAR-599 BXGY buy product ${stamp}`,
+      title: `Conformance BXGY buy product ${stamp}`,
       status: 'ACTIVE',
       vendor: 'HERMES',
       productType: 'CONFORMANCE',
@@ -195,7 +195,7 @@ try {
 
   const getProductResponse = await runGraphql<ProductCreateData>(productCreateMutation, {
     product: {
-      title: `HAR-599 BXGY get product ${stamp}`,
+      title: `Conformance BXGY get product ${stamp}`,
       status: 'ACTIVE',
       vendor: 'HERMES',
       productType: 'CONFORMANCE',

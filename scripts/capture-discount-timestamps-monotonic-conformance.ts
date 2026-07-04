@@ -138,8 +138,8 @@ const deleteDocument = `#graphql
 `;
 
 const runId = Date.now();
-const firstCode = `HAR603A${runId}`;
-const secondCode = `HAR603B${runId}`;
+const firstCode = `DRAFTA${runId}`;
+const secondCode = `DRAFTB${runId}`;
 const startsAt = new Date(Date.now() - 60_000).toISOString();
 
 function basicInput(title: string, code: string, percentage: number) {
@@ -174,10 +174,10 @@ function readCreatedDiscountId(response: unknown, root: 'discountCodeBasicCreate
 }
 
 const firstCreateVariables = {
-  input: basicInput(`HAR-603 first ${runId}`, firstCode, 0.1),
+  input: basicInput(`Conformance first ${runId}`, firstCode, 0.1),
 };
 const secondCreateVariables = {
-  input: basicInput(`HAR-603 second ${runId}`, secondCode, 0.1),
+  input: basicInput(`Conformance second ${runId}`, secondCode, 0.1),
 };
 
 let firstId: string | null = null;
@@ -210,7 +210,7 @@ try {
 
   const updateFirstVariables = {
     id: firstId,
-    input: basicInput(`HAR-603 first updated ${runId}`, firstCode, 0.2),
+    input: basicInput(`Conformance first updated ${runId}`, firstCode, 0.2),
   };
   updateFirst = await runGraphqlRaw(updateDocument, updateFirstVariables);
   const updatedFirstId = readCreatedDiscountId(updateFirst, 'discountCodeBasicUpdate');
@@ -242,7 +242,7 @@ try {
         query: updateDocument,
         variables: {
           id: firstId,
-          input: basicInput(`HAR-603 first updated ${runId}`, firstCode, 0.2),
+          input: basicInput(`Conformance first updated ${runId}`, firstCode, 0.2),
         },
       },
       read: { query: readDocument },
