@@ -326,7 +326,7 @@ fn assert_product_media_type(
 }
 
 #[test]
-fn product_create_media_payload_product_connection_uses_uploaded_before_processing_readback() {
+fn product_create_media_payload_product_connection_uses_uploaded_before_ready_readback() {
     let product_id = "gid://shopify/Product/media-status";
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
         .with_base_products(vec![seed_product(product_id)])
@@ -379,8 +379,8 @@ fn product_create_media_payload_product_connection_uses_uploaded_before_processi
     assert_eq!(read.status, 200);
     assert_eq!(
         read.body["data"]["product"]["media"]["nodes"][0]["status"],
-        json!("PROCESSING"),
-        "the stored downstream read remains the async processing state"
+        json!("READY"),
+        "the stored downstream read deterministically reaches the async ready state"
     );
 }
 
