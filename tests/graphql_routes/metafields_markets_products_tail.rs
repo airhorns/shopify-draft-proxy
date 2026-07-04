@@ -2461,7 +2461,7 @@ fn market_web_presence_current_runtime_helpers_stage_and_validate() {
     let validation_cases = [
         (
             json!({"defaultLocale": "en"}),
-            json!([{ "__typename": "MarketUserError", "field": ["input"], "message": "Requires a domain or subfolder suffix.", "code": "REQUIRES_DOMAIN_OR_SUBFOLDER" }]),
+            json!([{ "__typename": "MarketUserError", "field": ["input"], "message": "One of `subfolderSuffix` or `domainId` is required.", "code": "REQUIRES_DOMAIN_OR_SUBFOLDER" }]),
         ),
         (
             json!({"defaultLocale": "en", "subfolderSuffix": "x"}),
