@@ -50,8 +50,7 @@ query QuantityPricingByVariantUpdateValidationSetup {
   }
 }`;
 
-const preflightQuery = `#graphql
-query MarketsMutationPreflightHydrate($priceListId: ID!) {
+const preflightQuery = `query MarketsMutationPreflightHydrate($priceListId: ID!) {
   priceList(id: $priceListId) {
     __typename
     id
@@ -83,6 +82,7 @@ query MarketsMutationPreflightHydrate($priceListId: ID!) {
             edges {
               cursor
               node {
+                id
                 minimumQuantity
                 price { amount currencyCode }
                 variant { id }

@@ -1596,11 +1596,16 @@ pub(in crate::proxy) fn default_available_language_subtag_name(
         })
 }
 
-pub(in crate::proxy) fn shop_locale_record(locale: &str, name: &str, published: bool) -> Value {
+pub(in crate::proxy) fn shop_locale_record(
+    locale: &str,
+    name: &str,
+    published: bool,
+    primary_locale: &str,
+) -> Value {
     json!({
         "locale": locale,
         "name": name,
-        "primary": locale == "en",
+        "primary": locale == primary_locale,
         "published": published,
         "marketWebPresences": []
     })
@@ -1610,11 +1615,14 @@ pub(in crate::proxy) fn shop_locale_user_error(field: Vec<&str>, message: &str) 
     user_error_omit_code(field, message, None)
 }
 
-pub(in crate::proxy) fn shop_locale_market_web_presence_record(id: &str) -> Value {
+pub(in crate::proxy) fn shop_locale_market_web_presence_record(
+    id: &str,
+    default_locale: &str,
+) -> Value {
     json!({
         "id": id,
         "__typename": "MarketWebPresence",
-        "defaultLocale": { "locale": "en" }
+        "defaultLocale": { "locale": default_locale }
     })
 }
 

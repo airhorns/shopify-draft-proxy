@@ -1,0 +1,266 @@
+{
+  "setup": {
+    "seededCustomers": false,
+    "note": "Unicode-letter email capture. Fixed test emails are cleaned up before mutation, Shopify creates disposable opted-out customers, and the script deletes them after downstream reads.",
+    "accentedLatin": {
+      "preexistingCleanup": null
+    },
+    "cjk": {
+      "preexistingCleanup": null
+    }
+  },
+  "mutation": {
+    "variables": {
+      "email": "héllo@example.com"
+    },
+    "response": {
+      "data": {
+        "dataSaleOptOut": {
+          "customerId": "gid://shopify/Customer/10892698648882",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Customer/10892698648882",
+      "identifier": {
+        "id": "gid://shopify/Customer/10892698648882"
+      },
+      "query": "__customer_parity_no_match__",
+      "first": 5
+    },
+    "response": {
+      "data": {
+        "customer": {
+          "id": "gid://shopify/Customer/10892698648882",
+          "email": "héllo@example.com",
+          "dataSaleOptOut": true,
+          "defaultEmailAddress": {
+            "emailAddress": "héllo@example.com"
+          }
+        },
+        "customerByIdentifier": {
+          "id": "gid://shopify/Customer/10892698648882",
+          "email": "héllo@example.com",
+          "dataSaleOptOut": true,
+          "defaultEmailAddress": {
+            "emailAddress": "héllo@example.com"
+          }
+        },
+        "customers": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 9,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1991,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "cjk": {
+      "mutation": {
+        "variables": {
+          "email": "日本@example.com"
+        },
+        "response": {
+          "data": {
+            "dataSaleOptOut": {
+              "customerId": "gid://shopify/Customer/10892698714418",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "downstreamRead": {
+        "variables": {
+          "id": "gid://shopify/Customer/10892698714418",
+          "identifier": {
+            "id": "gid://shopify/Customer/10892698714418"
+          },
+          "query": "__customer_parity_no_match__",
+          "first": 5
+        },
+        "response": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10892698714418",
+              "email": "日本@example.com",
+              "dataSaleOptOut": true,
+              "defaultEmailAddress": {
+                "emailAddress": "日本@example.com"
+              }
+            },
+            "customerByIdentifier": {
+              "id": "gid://shopify/Customer/10892698714418",
+              "email": "日本@example.com",
+              "dataSaleOptOut": true,
+              "defaultEmailAddress": {
+                "emailAddress": "日本@example.com"
+              }
+            },
+            "customers": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 9,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1991,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "accentedLatin": {
+      "customer": {
+        "response": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10892698648882",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cjk": {
+      "customer": {
+        "response": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10892698714418",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "DataSaleOptOutCustomerLookup",
+      "variables": {
+        "identifier": {
+          "emailAddress": "héllo@example.com"
+        }
+      },
+      "query": "query DataSaleOptOutCustomerLookup($identifier: CustomerIdentifierInput!) {\n  customerByIdentifier(identifier: $identifier) {\n    id\n    email\n    defaultEmailAddress {\n      emailAddress\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerByIdentifier": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "DataSaleOptOutCustomerLookup",
+      "variables": {
+        "identifier": {
+          "emailAddress": "日本@example.com"
+        }
+      },
+      "query": "query DataSaleOptOutCustomerLookup($identifier: CustomerIdentifierInput!) {\n  customerByIdentifier(identifier: $identifier) {\n    id\n    email\n    defaultEmailAddress {\n      emailAddress\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerByIdentifier": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -322,10 +322,13 @@ impl DraftProxy {
         let mapped_orders = self.store.staged.customer_orders.get(id);
         selected_payload_json(selection, |field| match field.name.as_str() {
             "orders" => Some(match mapped_orders {
-                Some(orders) => selected_connection_json_with_args(
+                Some(orders) => selected_staged_connection_with_args(
                     orders.clone(),
                     &field.arguments,
                     &field.selection,
+                    order_search_decision,
+                    order_staged_sort_key,
+                    selected_json,
                     order_connection_cursor,
                 ),
                 None if connection_has_nodes(&customer["orders"]) => project_seeded_connection(
@@ -340,6 +343,7 @@ impl DraftProxy {
                     order_connection_cursor,
                 ),
             }),
+            "addressesV2" => Some(selected_customer_addresses_connection(customer, field)),
             // The `storeCreditAccounts` connection is resolved from the staged
             // store-credit accounts indexed by owner, so a customer read reflects
             // credit/debit mutations (and locally minted accounts) immediately.
@@ -795,7 +799,15 @@ impl DraftProxy {
             .filter(|account| account["owner"]["id"].as_str() == Some(owner_id))
             .cloned()
             .collect::<Vec<_>>();
-        selected_connection_json_with_args(accounts, arguments, selection, value_id_cursor)
+        selected_staged_connection_with_args(
+            accounts,
+            arguments,
+            selection,
+            store_credit_account_search_decision,
+            store_credit_account_sort_key,
+            selected_json,
+            value_id_cursor,
+        )
     }
 
     fn store_credit_account_id_for_owner_currency(
@@ -1359,17 +1371,16 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        let context = self.customer_address_context(&customer_id);
-        let index = context
-            .as_ref()
-            .and_then(|(_, _, nodes, _)| customer_address_node_index(nodes, &address_id));
-        let Some((customer_first, customer_last, existing_nodes, current_default)) = context else {
-            return self.customer_address_missing_result(
+        let Some((customer_first, customer_last, existing_nodes, current_default)) =
+            self.customer_address_context(&customer_id)
+        else {
+            return self.customer_address_missing_customer_result(
                 &address_id,
                 &field.response_key,
                 |errors| customer_address_payload(Value::Null, errors),
             );
         };
+        let index = customer_address_node_index(&existing_nodes, &address_id);
         let Some(index) = index else {
             return self.customer_address_missing_result(
                 &address_id,
@@ -1415,17 +1426,16 @@ impl DraftProxy {
     ) -> (Value, Vec<String>, Vec<Value>) {
         let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         let address_id = resolved_string_field(&field.arguments, "addressId").unwrap_or_default();
-        let context = self.customer_address_context(&customer_id);
-        let index = context
-            .as_ref()
-            .and_then(|(_, _, nodes, _)| customer_address_node_index(nodes, &address_id));
-        let Some((_, _, existing_nodes, current_default)) = context else {
-            return self.customer_address_missing_result(
+        let Some((_, _, existing_nodes, current_default)) =
+            self.customer_address_context(&customer_id)
+        else {
+            return self.customer_address_missing_customer_result(
                 &address_id,
                 &field.response_key,
                 |errors| json!({ "deletedAddressId": Value::Null, "userErrors": errors }),
             );
         };
+        let index = customer_address_node_index(&existing_nodes, &address_id);
         let Some(index) = index else {
             return self.customer_address_missing_result(
                 &address_id,
@@ -1463,10 +1473,6 @@ impl DraftProxy {
     ) -> (Value, Vec<String>, Vec<Value>) {
         let customer_id = resolved_string_field(&field.arguments, "customerId").unwrap_or_default();
         let address_id = resolved_string_field(&field.arguments, "addressId").unwrap_or_default();
-        let context = self.customer_address_context(&customer_id);
-        let index = context
-            .as_ref()
-            .and_then(|(_, _, nodes, _)| customer_address_node_index(nodes, &address_id));
         // Return the full staged customer record; the field's `customer`
         // sub-selection is applied by `selected_json` at the call site.
         let render_customer = |me: &Self| {
@@ -1497,10 +1503,14 @@ impl DraftProxy {
                 )],
             )
         };
-        let Some((_, _, existing_nodes, _)) = context else {
-            // Unknown customer: treat the address as not found.
-            return missing_address_result(self);
+        let Some((_, _, existing_nodes, _)) = self.customer_address_context(&customer_id) else {
+            return self.customer_address_missing_customer_result(
+                &address_id,
+                &field.response_key,
+                |errors| json!({ "customer": Value::Null, "userErrors": errors }),
+            );
         };
+        let index = customer_address_node_index(&existing_nodes, &address_id);
         let Some(index) = index else {
             // Address belongs to another customer (exists somewhere) → userError,
             // but the customer record is still returned. Truly unknown ids return
@@ -1550,6 +1560,31 @@ impl DraftProxy {
         self.store.staged.customers.values().any(|customer| {
             customer_address_node_index(&customer_address_nodes(customer), address_id).is_some()
         })
+    }
+
+    fn customer_address_missing_customer_result(
+        &self,
+        address_id: &str,
+        response_key: &str,
+        build_payload: impl Fn(Vec<Value>) -> Value,
+    ) -> (Value, Vec<String>, Vec<Value>) {
+        if self.customer_address_exists_anywhere(address_id) {
+            (
+                build_payload(vec![user_error_omit_code(
+                    json!(["customerId"]),
+                    "Customer does not exist",
+                    None,
+                )]),
+                Vec::new(),
+                Vec::new(),
+            )
+        } else {
+            (
+                Value::Null,
+                Vec::new(),
+                vec![customer_address_resource_not_found_error(response_key)],
+            )
+        }
     }
 
     /// Shared "addressId not present on this customer" branch for update/delete.
@@ -1874,8 +1909,29 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
         customer_set: bool,
     ) -> (Value, Vec<String>, Vec<Value>) {
-        let (errors, normalized) =
-            self.customer_input_validation_errors(request, input, Some(id), customer_set);
+        let update_address_values = (!customer_set)
+            .then(|| resolved_list_field(input, "addresses"))
+            .flatten();
+        let input_without_update_addresses = if !customer_set && input.contains_key("addresses") {
+            let mut input = input.clone();
+            input.remove("addresses");
+            Some(input)
+        } else {
+            None
+        };
+        let validation_input = input_without_update_addresses.as_ref().unwrap_or(input);
+        let (mut errors, mut normalized) = self.customer_input_validation_errors(
+            request,
+            validation_input,
+            Some(id),
+            customer_set,
+        );
+        if let Some(address_values) = update_address_values {
+            let (addresses, mut address_errors) =
+                self.customer_update_mailing_addresses(&address_values, &existing);
+            errors.append(&mut address_errors);
+            normalized.addresses = Some(addresses);
+        }
         if !errors.is_empty() {
             return (
                 customer_payload(Value::Null, errors),
@@ -1918,6 +1974,87 @@ impl DraftProxy {
             vec![id.to_string()],
             Vec::new(),
         )
+    }
+
+    fn customer_update_mailing_addresses(
+        &mut self,
+        values: &[ResolvedValue],
+        existing_customer: &Value,
+    ) -> (Vec<Value>, Vec<Value>) {
+        let existing_nodes = customer_address_nodes(existing_customer);
+        let existing_by_id = existing_nodes
+            .iter()
+            .filter_map(|node| {
+                node.get("id")
+                    .and_then(Value::as_str)
+                    .map(|id| (id.to_string(), node.clone()))
+            })
+            .collect::<BTreeMap<_, _>>();
+        let mut used_ids = existing_by_id.keys().cloned().collect::<BTreeSet<_>>();
+        let mut errors = Vec::new();
+
+        for (index, value) in values.iter().enumerate() {
+            let Some(input) = resolved_value_object(value) else {
+                continue;
+            };
+            let requested_id = input
+                .contains_key("id")
+                .then(|| resolved_string_field(&input, "id").unwrap_or_default());
+            if let Some(requested_id) = requested_id.as_deref() {
+                if !existing_by_id.contains_key(requested_id) {
+                    errors.push(user_error_omit_code(
+                        customer_address_field_path(false, index, Some("id")),
+                        "Customer address does not exist",
+                        None,
+                    ));
+                    continue;
+                }
+            }
+            let existing = requested_id
+                .as_deref()
+                .and_then(|id| existing_by_id.get(id));
+            let validation_id = requested_id
+                .clone()
+                .unwrap_or_else(|| synthetic_shopify_gid("MailingAddress", index + 1));
+            let (_, mut address_errors) =
+                customer_update_mailing_address(&input, index, existing, &validation_id);
+            errors.append(&mut address_errors);
+        }
+
+        if !errors.is_empty() {
+            return (Vec::new(), errors);
+        }
+
+        let mut addresses = Vec::new();
+        let mut seen = BTreeSet::new();
+        for (index, value) in values.iter().enumerate() {
+            let Some(input) = resolved_value_object(value) else {
+                continue;
+            };
+            let requested_id = input
+                .contains_key("id")
+                .then(|| resolved_string_field(&input, "id").unwrap_or_default());
+            let existing = requested_id
+                .as_deref()
+                .and_then(|id| existing_by_id.get(id));
+            let id = requested_id
+                .unwrap_or_else(|| self.next_customer_update_mailing_address_id(&used_ids));
+            let (address, _) = customer_update_mailing_address(&input, index, existing, &id);
+            if seen.insert(customer_address_dedup_key(&address)) {
+                used_ids.insert(id);
+                addresses.push(address);
+            }
+        }
+        (addresses, Vec::new())
+    }
+
+    fn next_customer_update_mailing_address_id(&mut self, used_ids: &BTreeSet<String>) -> String {
+        loop {
+            let id = self.next_proxy_synthetic_gid("MailingAddress");
+            if !used_ids.contains(&id) {
+                return id;
+            }
+        }
     }
 
     fn sync_customer_metafields_from_owner_store(&mut self, customer_id: &str) {
@@ -2293,11 +2430,15 @@ impl DraftProxy {
         field: &RootFieldSelection,
         input: &BTreeMap<String, ResolvedValue>,
     ) -> Option<(Value, Vec<Value>)> {
-        for field_name in ["emailMarketingConsent", "smsMarketingConsent"] {
+        for field_name in [
+            "emailMarketingConsent",
+            "smsMarketingConsent",
+            "whatsAppMarketingConsent",
+        ] {
             let Some(consent) = resolved_object_field(input, field_name) else {
                 continue;
             };
-            if resolved_string_field(&consent, "marketingState").as_deref() == Some("REDACTED") {
+            if resolved_inline_consent_state(&consent, field_name).as_deref() == Some("REDACTED") {
                 return Some((
                     customer_payload(Value::Null, Vec::new()),
                     vec![json!({
@@ -2332,6 +2473,21 @@ impl DraftProxy {
                     vec![user_error_omit_code(
                         json!(["smsMarketingConsent"]),
                         "A phone number is required to set the SMS consent state.",
+                        None,
+                    )],
+                ),
+                Vec::new(),
+            ));
+        }
+        if input.contains_key("whatsAppMarketingConsent")
+            && resolved_string_field(input, "phone").is_none_or(|phone| phone.trim().is_empty())
+        {
+            return Some((
+                customer_payload(
+                    Value::Null,
+                    vec![user_error_omit_code(
+                        json!(["whatsAppMarketingConsent"]),
+                        "A phone number is required to set the WhatsApp consent state.",
                         None,
                     )],
                 ),
@@ -3368,6 +3524,15 @@ fn customer_address_cursor(address: &Value) -> Option<String> {
         .map(|id| format!("cursor:{id}"))
 }
 
+fn selected_customer_addresses_connection(customer: &Value, field: &SelectedField) -> Value {
+    selected_connection_json_with_args(
+        connection_nodes(&customer["addressesV2"]),
+        &field.arguments,
+        &field.selection,
+        |address| customer_address_cursor(address).unwrap_or_default(),
+    )
+}
+
 fn customer_mailing_addresses(
     values: &[ResolvedValue],
     customer_set: bool,
@@ -3600,6 +3765,115 @@ fn customer_mailing_address(
     (
         customer_address_node_json(CustomerAddressNodeFields {
             id: synthetic_shopify_gid("MailingAddress", index + 1),
+            first_name,
+            last_name,
+            address1,
+            address2,
+            city,
+            company,
+            zip,
+            phone,
+            country,
+            province,
+        }),
+        Vec::new(),
+    )
+}
+
+fn customer_update_mailing_address(
+    input: &BTreeMap<String, ResolvedValue>,
+    index: usize,
+    existing: Option<&Value>,
+    id: &str,
+) -> (Value, Vec<Value>) {
+    let mut errors = customer_address_free_text_errors(input, |field| {
+        customer_address_field_path(false, index, Some(field))
+    });
+
+    let field_value = |key: &str| -> Option<String> {
+        if input.contains_key(key) {
+            customer_address_string(input, key)
+        } else {
+            existing
+                .and_then(|node| node.get(key))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        }
+    };
+
+    let country_present = input.contains_key("countryCode")
+        || input.contains_key("countryCodeV2")
+        || input.contains_key("country");
+    let country_input = if country_present {
+        customer_address_string(input, "countryCode")
+            .or_else(|| customer_address_string(input, "countryCodeV2"))
+            .or_else(|| customer_address_string(input, "country"))
+    } else {
+        existing
+            .and_then(|node| node.get("countryCodeV2"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    };
+
+    let province_present = input.contains_key("provinceCode") || input.contains_key("province");
+    let province_input = if province_present {
+        customer_address_string(input, "provinceCode")
+            .or_else(|| customer_address_string(input, "province"))
+    } else {
+        existing
+            .and_then(|node| node.get("provinceCode"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    };
+    let (country, province) = customer_resolve_address_region(
+        country_input,
+        province_input,
+        customer_address_field_path(false, index, Some("country")),
+        customer_address_field_path(false, index, Some("province")),
+        &mut errors,
+    );
+
+    if !errors.is_empty() {
+        return (Value::Null, errors);
+    }
+
+    let first_name = field_value("firstName");
+    let last_name = field_value("lastName");
+    let address1 = field_value("address1");
+    let address2 = field_value("address2");
+    let city = field_value("city");
+    let company = field_value("company");
+    let zip = field_value("zip");
+    let phone = field_value("phone");
+    let is_blank = [
+        first_name.as_deref(),
+        last_name.as_deref(),
+        address1.as_deref(),
+        address2.as_deref(),
+        city.as_deref(),
+        company.as_deref(),
+        zip.as_deref(),
+        phone.as_deref(),
+        country.as_ref().map(|country| country.code.as_str()),
+        province.as_ref().map(|province| province.code.as_str()),
+    ]
+    .into_iter()
+    .flatten()
+    .all(str::is_empty);
+    if is_blank {
+        return (
+            Value::Null,
+            vec![user_error_omit_code(
+                customer_address_field_path(false, index, None),
+                "Customer address cannot be blank.",
+                None,
+            )],
+        );
+    }
+
+    (
+        customer_address_node_json(CustomerAddressNodeFields {
+            id: id.to_string(),
             first_name,
             last_name,
             address1,
@@ -4504,6 +4778,12 @@ fn customer_update_inline_consent_errors(input: &BTreeMap<String, ResolvedValue>
             "customerEmailMarketingConsentUpdate",
         ));
     }
+    if input.contains_key("whatsAppMarketingConsent") {
+        errors.push(customer_update_inline_consent_error(
+            "whatsAppMarketingConsent",
+            "customerWhatsAppMarketingConsentUpdate",
+        ));
+    }
     errors
 }
 
@@ -4513,6 +4793,18 @@ fn customer_update_inline_consent_error(field: &str, mutation: &str) -> Value {
         &format!("To update {field}, please use the {mutation} Mutation instead"),
         None,
     )
+}
+
+fn resolved_inline_consent_state(
+    consent: &BTreeMap<String, ResolvedValue>,
+    field_name: &str,
+) -> Option<String> {
+    if field_name == "whatsAppMarketingConsent" {
+        resolved_string_field(consent, "marketingState")
+            .or_else(|| resolved_string_field(consent, "state"))
+    } else {
+        resolved_string_field(consent, "marketingState")
+    }
 }
 
 impl DraftProxy {
@@ -4736,11 +5028,13 @@ impl DraftProxy {
         // order transferred from the merged-away source, mirroring Shopify reparenting
         // the source's orders under the resulting customer's identity.
         let result_email = result["email"].as_str().map(str::to_string);
+        let result_metafields = result["metafields"].clone();
 
         self.store
             .staged
             .customers
             .insert(result_id.clone(), result);
+        self.replace_owner_metafields_from_connection(&result_id, &result_metafields);
         self.store.staged.customers.remove(&source_id);
         self.store.staged.customers.tombstone(source_id.clone());
         self.store
@@ -5337,6 +5631,87 @@ fn empty_orders_connection() -> Value {
         "edges": [],
         "pageInfo": empty_page_info()
     })
+}
+
+fn store_credit_account_currency(account: &Value) -> &str {
+    account["balance"]["currencyCode"]
+        .as_str()
+        .unwrap_or_default()
+}
+
+fn store_credit_account_matches_id(account: &Value, value: &str) -> bool {
+    let value = value.trim_matches('"').trim_matches('\'');
+    account
+        .get("id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| resource_id_tail(id) == value || resource_id_path_tail(id) == value)
+}
+
+fn store_credit_account_search_decision(
+    account: &Value,
+    query: Option<&str>,
+) -> StagedSearchDecision {
+    let Some(query) = query else {
+        return StagedSearchDecision::Match;
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+
+    for term in query.split_whitespace() {
+        if term.eq_ignore_ascii_case("AND") {
+            continue;
+        }
+        let term = term.trim().trim_matches('"').trim_matches('\'');
+        if term.is_empty() {
+            continue;
+        }
+        let decision = if let Some((key, value)) = term.split_once(':') {
+            let value = value.trim().trim_matches('"').trim_matches('\'');
+            match key {
+                "id" => {
+                    StagedSearchDecision::from_bool(store_credit_account_matches_id(account, value))
+                }
+                "currency"
+                | "currency_code"
+                | "currencyCode"
+                | "balance.currency_code"
+                | "balance.currencyCode" => StagedSearchDecision::from_bool(
+                    store_credit_account_currency(account).eq_ignore_ascii_case(value),
+                ),
+                _ => StagedSearchDecision::Unsupported,
+            }
+        } else {
+            let needle = term.to_ascii_lowercase();
+            let currency = store_credit_account_currency(account).to_ascii_lowercase();
+            StagedSearchDecision::from_bool(
+                currency.contains(&needle) || store_credit_account_matches_id(account, term),
+            )
+        };
+        match decision {
+            StagedSearchDecision::Match => {}
+            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
+            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
+        }
+    }
+    StagedSearchDecision::Match
+}
+
+fn store_credit_account_sort_key(account: &Value, _sort_key: Option<&str>) -> StagedSortKey {
+    let tail = account
+        .get("id")
+        .and_then(Value::as_str)
+        .map(resource_id_tail)
+        .unwrap_or_default();
+    let id_value = tail
+        .parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()));
+    vec![
+        id_value,
+        StagedSortValue::String(store_credit_account_currency(account).to_ascii_lowercase()),
+    ]
 }
 
 /// Shopify rejects a credit/debit that would push an account past this hard cap.

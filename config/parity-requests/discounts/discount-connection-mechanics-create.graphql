@@ -1,0 +1,103 @@
+mutation DiscountConnectionMechanicsCreate(
+  $zuluCode: DiscountCodeBasicInput!
+  $yankeeAutomatic: DiscountAutomaticBasicInput!
+  $bravoCode: DiscountCodeBasicInput!
+  $alphaAutomatic: DiscountAutomaticBasicInput!
+) {
+  zuluCode: discountCodeBasicCreate(basicCodeDiscount: $zuluCode) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          codes(first: 2) {
+            nodes {
+              id
+              code
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  yankeeAutomatic: discountAutomaticBasicCreate(automaticBasicDiscount: $yankeeAutomatic) {
+    automaticDiscountNode {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+          status
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  bravoCode: discountCodeBasicCreate(basicCodeDiscount: $bravoCode) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          codes(first: 2) {
+            nodes {
+              id
+              code
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  alphaAutomatic: discountAutomaticBasicCreate(automaticBasicDiscount: $alphaAutomatic) {
+    automaticDiscountNode {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+          status
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

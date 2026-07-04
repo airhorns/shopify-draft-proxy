@@ -1,15 +1,77 @@
 use super::*;
 
-pub(in crate::proxy) fn marketing_connection(
+fn marketing_normalized_sort_string(value: Option<&str>) -> StagedSortValue {
+    value
+        .map(|value| StagedSortValue::String(value.to_ascii_lowercase()))
+        .unwrap_or(StagedSortValue::Null)
+}
+
+fn marketing_gid_tail_sort_value(id: Option<&str>) -> StagedSortValue {
+    let tail = id.map(resource_id_tail).unwrap_or_default();
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn marketing_activity_cursor(record: &Value) -> String {
+    format!("cursor:{}", record["id"].as_str().unwrap_or("local"))
+}
+
+fn marketing_event_cursor(record: &Value) -> String {
+    format!("cursor:{}", record["id"].as_str().unwrap_or("local"))
+}
+
+fn marketing_activity_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let id = record["id"].as_str();
+    let primary = match sort_key.unwrap_or("CREATED_AT") {
+        "ID" => marketing_gid_tail_sort_value(id),
+        "TITLE" => marketing_normalized_sort_string(record["title"].as_str()),
+        _ => StagedSortValue::String(record["createdAt"].as_str().unwrap_or_default().to_string()),
+    };
+    vec![primary, marketing_gid_tail_sort_value(id)]
+}
+
+fn marketing_event_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let id = record["id"].as_str();
+    let primary = match sort_key.unwrap_or("ID") {
+        "STARTED_AT" => {
+            StagedSortValue::String(record["startedAt"].as_str().unwrap_or_default().to_string())
+        }
+        _ => marketing_gid_tail_sort_value(id),
+    };
+    vec![primary, marketing_gid_tail_sort_value(id)]
+}
+
+fn marketing_activity_connection(
     records: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
     selection: &[SelectedField],
 ) -> Value {
-    let full = connection_json_with_cursor(
+    selected_staged_connection_with_args(
         records,
-        |_, record| format!("cursor:{}", record["id"].as_str().unwrap_or("local")),
-        empty_page_info(),
-    );
-    selected_json(&full, selection)
+        arguments,
+        selection,
+        marketing_activity_search_decision,
+        marketing_activity_staged_sort_key,
+        selected_json,
+        marketing_activity_cursor,
+    )
+}
+
+fn marketing_event_connection(
+    records: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selection: &[SelectedField],
+) -> Value {
+    selected_staged_connection_with_args(
+        records,
+        arguments,
+        selection,
+        marketing_event_search_decision,
+        marketing_event_staged_sort_key,
+        selected_json,
+        marketing_event_cursor,
+    )
 }
 
 pub(in crate::proxy) fn marketing_activity_payload(
@@ -559,9 +621,7 @@ impl DraftProxy {
                 "marketingActivities" => {
                     let remote_ids = resolved_string_list_arg(&field.arguments, "remoteIds");
                     let ids = resolved_string_list_arg(&field.arguments, "marketingActivityIds");
-                    let query =
-                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
-                    let mut records = self
+                    let records = self
                         .store
                         .staged
                         .marketing_activities
@@ -583,17 +643,11 @@ impl DraftProxy {
                             {
                                 return false;
                             }
-                            if !marketing_record_matches_query(record, &query) {
-                                return false;
-                            }
                             true
                         })
                         .cloned()
                         .collect::<Vec<_>>();
-                    records.sort_by_key(|record| {
-                        record["id"].as_str().unwrap_or_default().to_string()
-                    });
-                    marketing_connection(records, &field.selection)
+                    marketing_activity_connection(records, &field.arguments, &field.selection)
                 }
                 "marketingEvent" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
@@ -614,8 +668,6 @@ impl DraftProxy {
                         .unwrap_or(Value::Null)
                 }
                 "marketingEvents" => {
-                    let query =
-                        resolved_string_field(&field.arguments, "query").unwrap_or_default();
                     let records = self
                         .store
                         .staged
@@ -625,7 +677,6 @@ impl DraftProxy {
                             let id = record["id"].as_str().unwrap_or_default();
                             !self.store.staged.marketing_activities.is_tombstoned(id)
                         })
-                        .filter(|record| marketing_record_matches_query(record, &query))
                         .filter_map(|record| {
                             if record["marketingEvent"].is_null() {
                                 None
@@ -634,7 +685,7 @@ impl DraftProxy {
                             }
                         })
                         .collect();
-                    marketing_connection(records, &field.selection)
+                    marketing_event_connection(records, &field.arguments, &field.selection)
                 }
                 _ => Value::Null,
             };
@@ -1500,45 +1551,274 @@ impl DraftProxy {
     }
 }
 
-pub(in crate::proxy) fn marketing_record_matches_query(record: &Value, query: &str) -> bool {
-    marketing_query_terms(query)
-        .iter()
-        .all(|(field, expected)| {
-            marketing_record_query_value(record, field).is_some_and(|value| {
-                value
-                    .to_ascii_lowercase()
-                    .contains(&expected.to_ascii_lowercase())
-            })
-        })
-}
-
-pub(in crate::proxy) fn marketing_query_terms(query: &str) -> Vec<(String, String)> {
-    query
-        .split_whitespace()
-        .filter_map(|term| {
-            let (field, value) = term.split_once(':')?;
-            let value = value.trim_matches(|ch| ch == '"' || ch == '\'');
-            (!field.is_empty() && !value.is_empty()).then(|| (field.to_string(), value.to_string()))
-        })
-        .collect()
-}
-
-pub(in crate::proxy) fn marketing_record_query_value(
+pub(in crate::proxy) fn marketing_activity_search_decision(
     record: &Value,
-    field: &str,
-) -> Option<String> {
-    match field {
-        "id" => record["id"].as_str(),
-        "remote_id" | "remoteId" => record["remoteId"]
-            .as_str()
-            .or_else(|| record["marketingEvent"]["remoteId"].as_str()),
-        "title" => record["title"].as_str(),
-        "description" => record["marketingEvent"]["description"].as_str(),
-        "status" => record["status"].as_str(),
-        "channel_handle" | "channelHandle" => record["marketingEvent"]["channelHandle"].as_str(),
-        _ => None,
+    query: Option<&str>,
+) -> StagedSearchDecision {
+    marketing_search_decision(record, query, marketing_activity_term_matches)
+}
+
+pub(in crate::proxy) fn marketing_event_search_decision(
+    record: &Value,
+    query: Option<&str>,
+) -> StagedSearchDecision {
+    marketing_search_decision(record, query, marketing_event_term_matches)
+}
+
+fn marketing_search_decision(
+    record: &Value,
+    query: Option<&str>,
+    term_matches: fn(&Value, &str) -> bool,
+) -> StagedSearchDecision {
+    let Some(query) = query else {
+        return StagedSearchDecision::Match;
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return StagedSearchDecision::Match;
     }
-    .map(ToString::to_string)
+    for term in marketing_query_terms(query) {
+        if term.eq_ignore_ascii_case("AND") {
+            continue;
+        }
+        if !term_matches(record, &term) {
+            return StagedSearchDecision::NoMatch;
+        }
+    }
+    StagedSearchDecision::Match
+}
+
+fn marketing_query_terms(query: &str) -> Vec<String> {
+    let mut terms = Vec::new();
+    let mut current = String::new();
+    let mut quote = None;
+
+    for ch in query.chars() {
+        match quote {
+            Some(active_quote) if ch == active_quote => {
+                current.push(ch);
+                quote = None;
+            }
+            Some(_) => current.push(ch),
+            None if ch == '"' || ch == '\'' => {
+                current.push(ch);
+                quote = Some(ch);
+            }
+            None if ch.is_whitespace() => {
+                let term = current.trim();
+                if !term.is_empty() {
+                    terms.push(term.to_string());
+                    current.clear();
+                }
+            }
+            None => current.push(ch),
+        }
+    }
+
+    let term = current.trim();
+    if !term.is_empty() {
+        terms.push(term.to_string());
+    }
+
+    terms
+}
+
+fn marketing_activity_term_matches(record: &Value, term: &str) -> bool {
+    let term = marketing_unquote(term.trim());
+    if term.is_empty() {
+        return true;
+    }
+    let Some((field, value)) = term.split_once(':') else {
+        return marketing_default_query_matches(record, term);
+    };
+    let value = marketing_unquote(value.trim());
+    if value.is_empty() {
+        return true;
+    }
+    match field.to_ascii_lowercase().as_str() {
+        "default" => marketing_default_query_matches(record, value),
+        "app_id" | "appid" | "api_client_id" | "apiclientid" => {
+            marketing_any_text_matches(record, &[&["apiClientId"], &["app", "id"]], value)
+        }
+        "app_name" | "appname" => marketing_any_text_matches(record, &[&["app", "title"]], value),
+        "created_at" | "createdat" => {
+            marketing_ordered_text_matches(marketing_path_string(record, &["createdAt"]), value)
+        }
+        "id" => marketing_id_matches(marketing_path_string(record, &["id"]), value),
+        "marketing_campaign_id" | "marketingcampaignid" => marketing_any_text_matches(
+            record,
+            &[&["marketingCampaignId"], &["marketingCampaign", "id"]],
+            value,
+        ),
+        "remote_id" | "remoteid" => marketing_any_text_matches(
+            record,
+            &[&["remoteId"], &["marketingEvent", "remoteId"]],
+            value,
+        ),
+        "scheduled_to_end_at" | "scheduledtoendat" => marketing_ordered_text_matches(
+            marketing_path_string(record, &["marketingEvent", "scheduledToEndAt"]),
+            value,
+        ),
+        "scheduled_to_start_at" | "scheduledtostartat" => marketing_ordered_text_matches(
+            marketing_path_string(record, &["marketingEvent", "scheduledToStartAt"]),
+            value,
+        ),
+        "tactic" => {
+            marketing_any_text_matches(record, &[&["tactic"], &["marketingEvent", "type"]], value)
+        }
+        "title" => marketing_any_text_matches(record, &[&["title"]], value),
+        "updated_at" | "updatedat" => {
+            marketing_ordered_text_matches(marketing_path_string(record, &["updatedAt"]), value)
+        }
+        "description" => {
+            marketing_any_text_matches(record, &[&["marketingEvent", "description"]], value)
+        }
+        "status" => marketing_any_text_matches(record, &[&["status"]], value),
+        "channel_handle" | "channelhandle" => {
+            marketing_any_text_matches(record, &[&["marketingEvent", "channelHandle"]], value)
+        }
+        _ => marketing_default_query_matches(record, value),
+    }
+}
+
+fn marketing_event_term_matches(record: &Value, term: &str) -> bool {
+    let term = marketing_unquote(term.trim());
+    if term.is_empty() {
+        return true;
+    }
+    let Some((field, value)) = term.split_once(':') else {
+        return marketing_default_query_matches(record, term);
+    };
+    let value = marketing_unquote(value.trim());
+    if value.is_empty() {
+        return true;
+    }
+    match field.to_ascii_lowercase().as_str() {
+        "default" => marketing_default_query_matches(record, value),
+        "id" => marketing_id_matches(marketing_path_string(record, &["id"]), value),
+        "remote_id" | "remoteid" => marketing_any_text_matches(record, &[&["remoteId"]], value),
+        "description" | "title" => marketing_any_text_matches(record, &[&["description"]], value),
+        "channel_handle" | "channelhandle" => {
+            marketing_any_text_matches(record, &[&["channelHandle"]], value)
+        }
+        "started_at" | "startedat" | "scheduled_to_start_at" | "scheduledtostartat" => {
+            marketing_ordered_text_matches(marketing_path_string(record, &["startedAt"]), value)
+        }
+        "scheduled_to_end_at" | "scheduledtoendat" => marketing_ordered_text_matches(
+            marketing_path_string(record, &["scheduledToEndAt"]),
+            value,
+        ),
+        "tactic" | "type" => marketing_any_text_matches(record, &[&["type"]], value),
+        _ => marketing_default_query_matches(record, value),
+    }
+}
+
+fn marketing_unquote(value: &str) -> &str {
+    value.trim_matches(|ch| ch == '"' || ch == '\'')
+}
+
+fn marketing_path_string<'a>(value: &'a Value, path: &[&str]) -> Option<&'a str> {
+    let mut current = value;
+    for segment in path {
+        current = current.get(*segment)?;
+    }
+    current.as_str()
+}
+
+fn marketing_any_text_matches(record: &Value, paths: &[&[&str]], expected: &str) -> bool {
+    paths.iter().any(|path| {
+        marketing_path_string(record, path)
+            .is_some_and(|actual| marketing_text_matches(actual, expected))
+    })
+}
+
+fn marketing_text_matches(actual: &str, expected: &str) -> bool {
+    actual
+        .to_ascii_lowercase()
+        .contains(&expected.to_ascii_lowercase())
+        || resource_id_tail(actual).eq_ignore_ascii_case(expected)
+}
+
+fn marketing_default_query_matches(record: &Value, expected: &str) -> bool {
+    let mut values = Vec::new();
+    marketing_collect_string_values(record, &mut values);
+    values
+        .iter()
+        .any(|actual| marketing_text_matches(actual, expected))
+}
+
+fn marketing_collect_string_values(value: &Value, values: &mut Vec<String>) {
+    match value {
+        Value::String(value) => values.push(value.clone()),
+        Value::Array(items) => {
+            for item in items {
+                marketing_collect_string_values(item, values);
+            }
+        }
+        Value::Object(map) => {
+            for value in map.values() {
+                marketing_collect_string_values(value, values);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn marketing_id_matches(actual: Option<&str>, expected: &str) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    if let Some((operator, target)) = marketing_query_comparison(expected) {
+        return marketing_ordered_compare(
+            resource_id_tail(actual),
+            resource_id_tail(target),
+            operator,
+        );
+    }
+    actual.eq_ignore_ascii_case(expected)
+        || resource_id_tail(actual).eq_ignore_ascii_case(resource_id_tail(expected))
+        || marketing_text_matches(actual, expected)
+}
+
+fn marketing_ordered_text_matches(actual: Option<&str>, expected: &str) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    if let Some((operator, target)) = marketing_query_comparison(expected) {
+        return marketing_ordered_compare(actual, target, operator);
+    }
+    marketing_text_matches(actual, expected)
+}
+
+fn marketing_query_comparison(value: &str) -> Option<(&str, &str)> {
+    for operator in [">=", "<=", ">", "<"] {
+        if let Some(target) = value.strip_prefix(operator) {
+            let target = marketing_unquote(target.trim());
+            if !target.is_empty() {
+                return Some((operator, target));
+            }
+        }
+    }
+    None
+}
+
+fn marketing_ordered_compare(actual: &str, target: &str, operator: &str) -> bool {
+    if let (Ok(actual), Ok(target)) = (actual.parse::<i64>(), target.parse::<i64>()) {
+        return match operator {
+            ">" => actual > target,
+            ">=" => actual >= target,
+            "<" => actual < target,
+            "<=" => actual <= target,
+            _ => false,
+        };
+    }
+    match operator {
+        ">" => actual > target,
+        ">=" => actual >= target,
+        "<" => actual < target,
+        "<=" => actual <= target,
+        _ => false,
+    }
 }
 
 fn input_utm_value(
