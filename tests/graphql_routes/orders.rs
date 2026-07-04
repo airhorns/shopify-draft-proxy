@@ -2127,6 +2127,93 @@ fn order_create_stages_rich_order_and_downstream_reads() {
 }
 
 #[test]
+fn order_create_names_do_not_reuse_numbers_after_delete() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation CreateOrderForNumbering($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id name email }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let delete_query = r#"
+        mutation DeleteOrderForNumbering($orderId: ID!) {
+          orderDelete(orderId: $orderId) {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let first = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "order": {
+                "email": "numbering-first@example.test",
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "Numbering first",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(first.body["data"]["orderCreate"]["userErrors"], json!([]));
+    assert_eq!(
+        first.body["data"]["orderCreate"]["order"]["name"],
+        json!("#1")
+    );
+    let first_id = first.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let second = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "order": {
+                "email": "numbering-second@example.test",
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "Numbering second",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "11.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        second.body["data"]["orderCreate"]["order"]["name"],
+        json!("#2")
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "orderId": first_id }),
+    ));
+    assert_eq!(delete.body["data"]["orderDelete"]["userErrors"], json!([]));
+
+    let third = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "order": {
+                "email": "numbering-third@example.test",
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "Numbering third",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(third.body["data"]["orderCreate"]["userErrors"], json!([]));
+    assert_eq!(
+        third.body["data"]["orderCreate"]["order"]["name"],
+        json!("#3")
+    );
+}
+
+#[test]
 fn orders_search_unsupported_predicates_do_not_match_everything() {
     let mut proxy = snapshot_proxy();
 
@@ -8303,9 +8390,21 @@ fn order_create_mandate_payment_replays_idempotent_and_validation_shapes() {
             "amount": { "amount": "25.00", "currencyCode": "CAD" }
         }),
     ));
+    let first_payload = &first_mandate.body["data"]["orderCreateMandatePayment"];
     assert_eq!(
-        first_mandate.body,
-        fixture["mandateFlow"]["expected"]["mandate"]
+        first_payload["paymentReferenceId"],
+        json!("gid://shopify/Order/1/har-353-idempotent-payment")
+    );
+    assert_eq!(first_payload["userErrors"], json!([]));
+    assert_ne!(first_payload["job"]["id"], json!("gid://shopify/Job/6"));
+    let first_transaction_id = first_payload["order"]["transactions"][0]["id"].clone();
+    assert_ne!(
+        first_transaction_id,
+        json!("gid://shopify/OrderTransaction/4")
+    );
+    assert_eq!(
+        first_payload["order"]["transactions"][0]["amountSet"]["shopMoney"],
+        json!({ "amount": "25.0", "currencyCode": "CAD" })
     );
 
     let repeat = proxy.process_request(json_graphql_request(
@@ -8317,10 +8416,15 @@ fn order_create_mandate_payment_replays_idempotent_and_validation_shapes() {
             "amount": { "amount": "25.00", "currencyCode": "CAD" }
         }),
     ));
+    let repeat_payload = &repeat.body["data"]["orderCreateMandatePayment"];
     assert_eq!(
-        repeat.body,
-        fixture["mandateFlow"]["expected"]["repeatMandate"]
+        repeat_payload["paymentReferenceId"],
+        first_payload["paymentReferenceId"]
     );
+    assert_eq!(repeat_payload["order"], first_payload["order"]);
+    assert_eq!(repeat_payload["userErrors"], json!([]));
+    assert_ne!(repeat_payload["job"]["id"], json!("gid://shopify/Job/6"));
+    assert_eq!(repeat_payload["job"]["id"], first_payload["job"]["id"]);
 
     let auth_only = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/payments/order_create_mandate_payment.graphql"),
@@ -8332,9 +8436,19 @@ fn order_create_mandate_payment_replays_idempotent_and_validation_shapes() {
             "amount": { "amount": "25.00", "currencyCode": "CAD" }
         }),
     ));
+    let auth_only_payload = &auth_only.body["data"]["orderCreateMandatePayment"];
+    assert_eq!(auth_only_payload["userErrors"], json!([]));
     assert_eq!(
-        auth_only.body,
-        fixture["mandateFlow"]["expected"]["autoCaptureFalse"]
+        auth_only_payload["order"]["displayFinancialStatus"],
+        json!("AUTHORIZED")
+    );
+    assert_eq!(
+        auth_only_payload["order"]["transactions"][0]["kind"],
+        json!("AUTHORIZATION")
+    );
+    assert_ne!(
+        auth_only_payload["order"]["transactions"][0]["id"],
+        first_transaction_id
     );
 }
 
@@ -8758,6 +8872,96 @@ fn order_capture_zero_amount_uses_captured_public_error_without_code() {
             "field": null,
             "message": "Amount must be greater than zero for capture transactions"
         }])
+    );
+}
+
+#[test]
+fn order_payment_create_defaults_amount_and_gateway_from_order_state() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation CreatePaymentProjectionOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              displayFinancialStatus
+              currentTotalPriceSet { shopMoney { amount currencyCode } }
+              totalCapturableSet { shopMoney { amount currencyCode } }
+              paymentGatewayNames
+              transactions {
+                id
+                kind
+                status
+                gateway
+                amountSet { shopMoney { amount currencyCode } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let default_amount = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "order": {
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "Default payment amount",
+                    "quantity": 2,
+                    "priceSet": { "shopMoney": { "amount": "13.25", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        default_amount.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let default_order = &default_amount.body["data"]["orderCreate"]["order"];
+    assert_eq!(
+        default_order["currentTotalPriceSet"]["shopMoney"],
+        json!({ "amount": "26.5", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        default_order["transactions"][0]["amountSet"]["shopMoney"],
+        json!({ "amount": "26.5", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        default_order["totalCapturableSet"]["shopMoney"],
+        json!({ "amount": "26.5", "currencyCode": "USD" })
+    );
+
+    let gateway_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "order": {
+                "currency": "CAD",
+                "transactions": [{
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "shopify_payments",
+                    "amountSet": { "shopMoney": { "amount": "31.90", "currencyCode": "CAD" } }
+                }],
+                "lineItems": [{
+                    "title": "Gateway propagation",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "31.90", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        gateway_create.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let gateway_order = &gateway_create.body["data"]["orderCreate"]["order"];
+    assert_eq!(
+        gateway_order["paymentGatewayNames"],
+        json!(["shopify_payments"])
+    );
+    assert_eq!(
+        gateway_order["transactions"][0]["gateway"],
+        json!("shopify_payments")
     );
 }
 

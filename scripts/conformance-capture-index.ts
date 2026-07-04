@@ -9549,6 +9549,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: ['conformance:status', 'conformance:check', 'conformance:parity', 'rust:test'],
   },
   {
+    domain: 'orders',
+    captureId: 'order-create-state-derived-payment-and-count',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-order-create-state-derived-payment-and-count-conformance.ts',
+    purpose:
+      'orderCreate external authorization payment projection plus read-after-write ordersCount exact and limited counts over staged tagged orders.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderCreate-state-derived-payment-and-count.json`,
+      'config/parity-specs/orders/orderCreate-state-derived-payment-and-count.json',
+      'config/parity-requests/orders/orderCreate-state-derived-payment-and-count-create.graphql',
+      'config/parity-requests/orders/orderCreate-state-derived-payment-and-count-count.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable tagged test orders with external authorization transactions, waits for the live order search count to index them, records exact/limited ordersCount responses, then cancels both orders.',
+    expectedStatusChecks: ['conformance:status', 'conformance:check', 'conformance:parity', 'rust:test'],
+  },
+  {
     domain: 'payments',
     captureId: 'order-capture-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
