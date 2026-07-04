@@ -157,8 +157,6 @@ describe('Rust HTTP adapter route surface', () => {
             productVariantOrder: [],
             giftCards: {},
             giftCardConfiguration: null,
-            deliveryProfiles: {},
-            deliveryProfileOrder: [],
             savedSearches: {},
             savedSearchOrder: [],
             shopPolicies: {},
