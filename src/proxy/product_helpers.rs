@@ -10,6 +10,15 @@ pub(in crate::proxy) use self::saved_search::*;
 
 const PRODUCT_STATUS_BASE_VALUES: &[&str] = &["ACTIVE", "ARCHIVED", "DRAFT"];
 const VARIANT_MONEY_UPPER_BOUND: f64 = 1_000_000_000_000_000_000.0;
+pub(in crate::proxy) const PRODUCT_OPTION_NAME_TITLE_DELIMITER: &str = " / ";
+pub(in crate::proxy) const PRODUCT_OPTION_NAME_DELIMITER_MESSAGE: &str =
+    "The name contains unsupported sequence ' / '";
+pub(in crate::proxy) const PRODUCT_CREATE_OPTION_NAME_DELIMITER_MESSAGE: &str =
+    "Name cannot contain the character sequence \" / \"";
+
+pub(in crate::proxy) fn product_option_name_has_title_delimiter(name: &str) -> bool {
+    name.trim().contains(PRODUCT_OPTION_NAME_TITLE_DELIMITER)
+}
 
 // The batched node-hydrate query the proxy forwards to observe pre-existing
 // products / variants / collections in LiveHybrid. Shared verbatim with the
@@ -1319,9 +1328,6 @@ fn sorted_product_collection_nodes_for_connection(
             ))
             .then_with(|| value_id_cursor(&left.1).cmp(&value_id_cursor(&right.1)))
     });
-    if resolved_bool_field(&selection.arguments, "reverse").unwrap_or(false) {
-        indexed.reverse();
-    }
     indexed
         .into_iter()
         .map(|(_, collection)| collection)

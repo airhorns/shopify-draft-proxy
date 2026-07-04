@@ -27,6 +27,21 @@ fn no_dispatcher(domain: &str, root_field: &str) -> Response {
     )
 }
 
+fn customer_payment_methods_only_read(fields: &[RootFieldSelection]) -> bool {
+    !fields.is_empty()
+        && fields.iter().all(|field| {
+            field.name == "customer"
+                && field
+                    .selection
+                    .iter()
+                    .any(|selection| selection.name == "paymentMethods")
+                && field
+                    .selection
+                    .iter()
+                    .all(|selection| matches!(selection.name.as_str(), "id" | "paymentMethods"))
+        })
+}
+
 fn changed_draft_order_tag_ids(
     before: &BTreeMap<String, Vec<String>>,
     after: &BTreeMap<String, Vec<String>>,
@@ -1297,6 +1312,11 @@ impl DraftProxy {
             (CapabilityDomain::Orders, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {
+                if let Some(data) =
+                    self.order_return_local_runtime_data(request, root_field, &query, &variables)
+                {
+                    return ok_json(data);
+                }
                 if self.should_route_owner_metafields_read(&query, &variables) {
                     return self.owner_metafields_read(request, &query, &variables);
                 }
@@ -2303,15 +2323,23 @@ impl DraftProxy {
             (CapabilityDomain::Customers, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query =>
             {
-                if self.should_route_owner_metafields_read(&query, &variables) {
-                    return self.owner_metafields_read(request, &query, &variables);
-                }
                 let fields = try_root_fields!(&query, &variables);
+                if customer_payment_methods_only_read(&fields) {
+                    if let Some(data) =
+                        self.customer_payment_method_local_data(request, &query, &variables)
+                    {
+                        return ok_json(data);
+                    }
+                }
                 // A query may combine `customer*` reads with a standalone
                 // `storeCreditAccount(id:)` read (or carry only the latter).
                 // Each is served from its own staged overlay and the two field
                 // maps are merged into one `data` object.
                 let handle_customers = self.should_handle_customer_overlay_read(&fields);
+                if !handle_customers && self.should_route_owner_metafields_read(&query, &variables)
+                {
+                    return self.owner_metafields_read(request, &query, &variables);
+                }
                 let handle_store_credit = fields
                     .iter()
                     .any(|field| field.name == "storeCreditAccount");

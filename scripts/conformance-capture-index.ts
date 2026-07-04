@@ -2015,6 +2015,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-option-name-delimiter-validation',
+    scriptPath: 'scripts/capture-product-option-name-delimiter-conformance.mts',
+    purpose:
+      'Option name delimiter validation for productOptionsCreate, productOptionUpdate, productCreate inline productOptions, and productSet productOptions.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-option-name-delimiter-validation.json`,
+      'config/parity-specs/products/product-option-name-delimiter-validation.json',
+      'config/parity-requests/products/product-option-name-delimiter-setup.graphql',
+      'config/parity-requests/products/productOptionsCreate-name-delimiter.graphql',
+      'config/parity-requests/products/productOptionUpdate-name-delimiter.graphql',
+      'config/parity-requests/products/productCreate-option-name-delimiter.graphql',
+      'config/parity-requests/products/productSet-option-name-delimiter.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable setup product/options graph and deletes it in best-effort cleanup; delimiter validation branches should not create products.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-options-reorder-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-product-options-reorder-validation-conformance.mts',
@@ -12842,6 +12862,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}store-credit-account-parity.json`,
       'config/parity-specs/customers/store-credit-account-local-staging.json',
+      'config/parity-requests/customers/storeCreditAccount-readback-parity.graphql',
+      'config/parity-requests/customers/storeCreditCustomerCreate-parity.graphql',
     ],
     cleanupBehavior:
       'Creates a disposable customer, credits/debits a real store credit account, debits the remaining balance back to zero, then deletes the customer.',
@@ -13002,6 +13024,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-merge-attached-resources-parity.json`,
       'config/parity-specs/customers/customerMerge-attached-resources-parity.json',
+      'config/parity-requests/customers/customer-merge-attached-resources-downstream-read.graphql',
+      'config/parity-requests/customers/customer-merge-downstream-read.graphql',
     ],
     cleanupBehavior:
       'Creates disposable customer graph; merge consumes source and cleanup removes remaining artifacts.',
