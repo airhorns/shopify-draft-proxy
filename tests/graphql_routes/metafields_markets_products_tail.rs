@@ -9250,7 +9250,24 @@ fn product_delete_validation_distinguishes_inline_missing_null_and_unbound_varia
 #[test]
 fn product_create_length_validation_errors_match_shopify_shapes() {
     let mut proxy = snapshot_proxy();
-    let too_long = "a".repeat(260);
+    let too_long = "a".repeat(256);
+
+    let title = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productCreate-input-validation.graphql"
+        ),
+        json!({
+            "product": {
+                "title": too_long
+            }
+        }),
+    ));
+    assert_eq!(title.status, 200);
+    assert_eq!(title.body["data"]["productCreate"]["product"], json!(null));
+    assert_eq!(
+        title.body["data"]["productCreate"]["userErrors"],
+        json!([{ "field": ["title"], "message": "Title is too long (maximum is 255 characters)" }])
+    );
 
     let handle = proxy.process_request(json_graphql_request(
         include_str!(
@@ -9311,6 +9328,87 @@ fn product_create_length_validation_errors_match_shopify_shapes() {
             { "field": ["customProductType"], "message": "Custom product type is too long (maximum is 255 characters)" }
         ])
     );
+    assert_eq!(state_snapshot(&proxy)["stagedState"]["products"], json!({}));
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
+fn product_set_scalar_length_validation_errors_match_shopify_shapes() {
+    let too_long = "a".repeat(256);
+    let query = include_str!(
+        "../../config/parity-requests/products/productSet-input-length-validation.graphql"
+    );
+    let scenarios = [
+        (
+            json!({
+                "synchronous": true,
+                "input": {
+                    "title": too_long.clone(),
+                    "vendor": "Hermes"
+                }
+            }),
+            json!([
+                { "field": ["input", "title"], "message": "is too long (maximum is 255 characters)" },
+                { "field": ["input"], "message": "Handle is too long (maximum is 255 characters)" }
+            ]),
+        ),
+        (
+            json!({
+                "synchronous": true,
+                "input": {
+                    "title": "Handle length",
+                    "handle": too_long.clone(),
+                    "vendor": "Hermes"
+                }
+            }),
+            json!([
+                { "field": ["input"], "message": "Handle is too long (maximum is 255 characters)" }
+            ]),
+        ),
+        (
+            json!({
+                "synchronous": true,
+                "input": {
+                    "title": "Vendor length",
+                    "vendor": too_long.clone()
+                }
+            }),
+            json!([
+                { "field": ["input"], "message": "Vendor is too long (maximum is 255 characters)" }
+            ]),
+        ),
+        (
+            json!({
+                "synchronous": true,
+                "input": {
+                    "title": "Product type length",
+                    "vendor": "Hermes",
+                    "productType": too_long.clone()
+                }
+            }),
+            json!([
+                { "field": ["input"], "message": "Product type is too long (maximum is 255 characters)" },
+                { "field": ["input"], "message": "Custom product type is too long (maximum is 255 characters)" }
+            ]),
+        ),
+    ];
+
+    for (variables, expected_errors) in scenarios {
+        let mut proxy = snapshot_proxy();
+        let response = proxy.process_request(json_graphql_request(query, variables));
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body["data"]["productSet"]["product"], json!(null));
+        assert_eq!(
+            response.body["data"]["productSet"]["productSetOperation"],
+            json!(null)
+        );
+        assert_eq!(
+            response.body["data"]["productSet"]["userErrors"],
+            expected_errors
+        );
+        assert_eq!(state_snapshot(&proxy)["stagedState"]["products"], json!({}));
+        assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    }
 }
 
 #[test]

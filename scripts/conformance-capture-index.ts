@@ -976,6 +976,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-scalar-length-validation',
+    scriptPath: 'scripts/capture-product-scalar-length-validation-conformance.ts',
+    purpose:
+      'productCreate/productUpdate/productSet 255-character scalar length validation for title, handle, vendor, and productType.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-create-input-validation.json`,
+      `${CAPTURE_ROOT}product-update-input-length-validation.json`,
+      `${CAPTURE_ROOT}product-set-input-length-validation.json`,
+      'config/parity-specs/products/productCreate-input-validation.json',
+      'config/parity-specs/products/productUpdate-input-length-validation.json',
+      'config/parity-specs/products/productSet-input-length-validation.json',
+      'config/parity-requests/products/productUpdate-input-length-validation.graphql',
+      'config/parity-requests/products/productSet-input-length-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable setup product for productUpdate validation, records rejected length branches, and deletes the setup product in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-create-input-fields',
     scriptPath: 'scripts/capture-product-create-input-fields-conformance.ts',
     purpose:
