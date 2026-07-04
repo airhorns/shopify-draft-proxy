@@ -444,6 +444,21 @@
             "reason": "The downstream nested CHF account read sees the proxy-created synthetic StoreCreditAccount GID."
           },
           {
+            "path": "$.customer.queriedStoreCreditAccounts.nodes[0].id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The downstream nested CHF query-filtered account read sees the proxy-created synthetic StoreCreditAccount GID."
+          },
+          {
+            "path": "$.customer.queriedStoreCreditAccounts.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic account-id cursors."
+          },
+          {
+            "path": "$.customer.queriedStoreCreditAccounts.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic account-id cursors."
+          },
+          {
             "path": "$.storeCreditAccount.id",
             "matcher": "shopify-gid:StoreCreditAccount",
             "reason": "The downstream direct account read sees the proxy-created synthetic StoreCreditAccount GID."

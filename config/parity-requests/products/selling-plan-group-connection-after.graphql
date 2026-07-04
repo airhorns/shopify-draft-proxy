@@ -1,0 +1,54 @@
+query SellingPlanGroupConnectionAfterArgs(
+  $productId: ID!
+  $variantId: ID!
+  $topAfter: String!
+  $productAfter: String!
+  $variantAfter: String!
+  $matchQuery: String!
+) {
+  afterWindow: sellingPlanGroups(first: 1, after: $topAfter, query: $matchQuery, sortKey: NAME, reverse: true) {
+    nodes {
+      id
+      name
+      merchantCode
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  product(id: $productId) {
+    id
+    sellingPlanGroups(first: 1, after: $productAfter, reverse: true) {
+      nodes {
+        id
+        name
+        merchantCode
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  productVariant(id: $variantId) {
+    id
+    sellingPlanGroups(first: 1, after: $variantAfter, reverse: true) {
+      nodes {
+        id
+        name
+        merchantCode
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

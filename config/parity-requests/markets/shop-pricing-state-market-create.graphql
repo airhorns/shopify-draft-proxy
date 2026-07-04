@@ -1,0 +1,27 @@
+mutation ShopPricingStateMarketCreate($input: MarketCreateInput!) {
+  marketCreate(input: $input) {
+    market {
+      id
+      name
+      status
+      type
+      currencySettings {
+        baseCurrency {
+          currencyCode
+          currencyName
+        }
+        localCurrencies
+        roundingEnabled
+      }
+      priceInclusions {
+        inclusiveDutiesPricingStrategy
+        inclusiveTaxPricingStrategy
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -12,6 +12,7 @@ type JsonRecord = Record<string, unknown>;
 
 const scenarioId = 'localization-translations-validation-order';
 const disabledLocale = 'it';
+const missingMarketId = 'gid://shopify/Market/999999999999';
 
 const productCreateMutation = `#graphql
   mutation LocalizationTranslationsValidationOrderProductCreate($product: ProductCreateInput!) {
@@ -299,6 +300,52 @@ async function main(): Promise<void> {
       code: 'INVALID_LOCALE_FOR_SHOP',
     });
 
+    const missingMarketNonEnabledLocaleVariables = {
+      resourceId: createdProductId,
+      translations: [
+        {
+          locale: disabledLocale,
+          key: 'title',
+          value: 'Missing market wins over non-enabled locale',
+          marketId: missingMarketId,
+          translatableContentDigest: digest,
+        },
+      ],
+    };
+    const missingMarketNonEnabledLocale = await runGraphql(registerMutation, missingMarketNonEnabledLocaleVariables);
+    assertSingleUserError(
+      payloadField(missingMarketNonEnabledLocale, 'translationsRegister'),
+      'missing market non-enabled locale',
+      {
+        field: ['translations', '0', 'marketId'],
+        message: "The market corresponding to the `marketId` argument doesn't exist",
+        code: 'MARKET_DOES_NOT_EXIST',
+      },
+    );
+
+    const missingMarketPrimaryLocaleVariables = {
+      resourceId: createdProductId,
+      translations: [
+        {
+          locale: primaryLocaleCode,
+          key: 'title',
+          value: 'Missing market wins over primary locale',
+          marketId: missingMarketId,
+          translatableContentDigest: digest,
+        },
+      ],
+    };
+    const missingMarketPrimaryLocale = await runGraphql(registerMutation, missingMarketPrimaryLocaleVariables);
+    assertSingleUserError(
+      payloadField(missingMarketPrimaryLocale, 'translationsRegister'),
+      'missing market primary locale',
+      {
+        field: ['translations', '0', 'marketId'],
+        message: "The market corresponding to the `marketId` argument doesn't exist",
+        code: 'MARKET_DOES_NOT_EXIST',
+      },
+    );
+
     cleanup = await bestEffortCleanup({ runGraphql, createdProductId, shouldRestoreDisabledLocale });
     createdProductId = null;
     shouldRestoreDisabledLocale = false;
@@ -328,6 +375,14 @@ async function main(): Promise<void> {
           blankPrimaryLocale: {
             variables: blankPrimaryLocaleVariables,
             response: blankPrimaryLocale,
+          },
+          missingMarketNonEnabledLocale: {
+            variables: missingMarketNonEnabledLocaleVariables,
+            response: missingMarketNonEnabledLocale,
+          },
+          missingMarketPrimaryLocale: {
+            variables: missingMarketPrimaryLocaleVariables,
+            response: missingMarketPrimaryLocale,
           },
           cleanup,
           upstreamCalls: [

@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write status and error output to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -33,6 +33,14 @@ const runId = Date.now();
 const startsAt = new Date(Date.now() - 60_000).toISOString();
 const initialCode = `HAR196FREE${runId}`;
 const updatedCode = `HAR196SHIP${runId}`;
+const omittedFieldsCode = `HAR196OMIT${runId}`;
+const codeOmittedFieldsUpdateDocument = await readFile(
+  'config/parity-requests/discounts/discount-free-shipping-code-omitted-fields-update.graphql',
+  'utf8',
+);
+const shopSubscriptionCapabilityDocument =
+  'query DraftProxyShopSubscriptionCapability {\n  shop {\n    features {\n      sellsSubscriptions\n    }\n  }\n}\n';
+const shopSubscriptionCapability = await runGraphqlRaw(shopSubscriptionCapabilityDocument, {});
 
 const codeSelection = `#graphql
   codeDiscountNode {
@@ -310,6 +318,105 @@ const readDocument = `#graphql
   }
 `;
 
+const discountHydrateDocument = `#graphql
+  query DiscountHydrate($id: ID!) {
+    codeNode: codeDiscountNode(id: $id) {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+          codes(first: 250) {
+            nodes {
+              id
+              code
+              asyncUsageCount
+            }
+          }
+        }
+        ... on DiscountCodeApp {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountCodeBxgy {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountCodeFreeShipping {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+          codes(first: 250) {
+            nodes {
+              id
+              code
+              asyncUsageCount
+            }
+          }
+          appliesOnOneTimePurchase
+          appliesOnSubscription
+        }
+      }
+    }
+    automaticNode: automaticDiscountNode(id: $id) {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountAutomaticApp {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountAutomaticBxgy {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountAutomaticFreeShipping {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+          appliesOnOneTimePurchase
+          appliesOnSubscription
+        }
+      }
+    }
+  }
+`;
+
 const codeCreateVariables = {
   input: {
     title: `HAR-196 code free shipping ${runId}`,
@@ -350,6 +457,114 @@ const codeDiscountId = (
 if (typeof codeDiscountId !== 'string') {
   throw new Error(`Code free-shipping create did not return an id: ${JSON.stringify(codeCreate)}`);
 }
+
+const codeOmittedFieldsCreateVariables = {
+  input: {
+    title: `HAR-196 code free shipping omitted fields ${runId}`,
+    code: omittedFieldsCode,
+    startsAt,
+    endsAt: null,
+    combinesWith: {
+      productDiscounts: true,
+      orderDiscounts: false,
+      shippingDiscounts: false,
+    },
+    context: {
+      all: 'ALL',
+    },
+    minimumRequirement: {
+      subtotal: {
+        greaterThanOrEqualToSubtotal: '10.00',
+      },
+    },
+    destination: {
+      all: true,
+    },
+    maximumShippingPrice: '25.00',
+    appliesOncePerCustomer: true,
+    appliesOnOneTimePurchase: false,
+    appliesOnSubscription: true,
+    recurringCycleLimit: 1,
+    usageLimit: 5,
+  },
+};
+const codeOmittedFieldsCreate = await runGraphqlRaw(codeCreateDocument, codeOmittedFieldsCreateVariables);
+const codeOmittedFieldsDiscountId = (
+  codeOmittedFieldsCreate.payload as {
+    data?: { discountCodeFreeShippingCreate?: { codeDiscountNode?: { id?: unknown } } };
+  }
+).data?.discountCodeFreeShippingCreate?.codeDiscountNode?.id;
+
+if (typeof codeOmittedFieldsDiscountId !== 'string') {
+  await runGraphqlRaw(codeDeleteDocument, { id: codeDiscountId });
+  throw new Error(
+    `Omitted-fields code free-shipping create did not return an id: ${JSON.stringify(codeOmittedFieldsCreate)}`,
+  );
+}
+
+const hydrateBeforeCodeOmittedFieldsUpdate = await runGraphqlRaw(discountHydrateDocument, {
+  id: codeOmittedFieldsDiscountId,
+});
+const codeOmittedFieldsUpdateVariables = {
+  id: codeOmittedFieldsDiscountId,
+  input: {
+    title: `HAR-196 code free shipping omitted fields ${runId}`,
+    startsAt,
+    combinesWith: {
+      productDiscounts: true,
+      orderDiscounts: false,
+      shippingDiscounts: false,
+    },
+    context: {
+      all: 'ALL',
+    },
+    minimumRequirement: {
+      subtotal: {
+        greaterThanOrEqualToSubtotal: '10.00',
+      },
+    },
+    destination: {
+      all: true,
+    },
+    maximumShippingPrice: '25.00',
+    appliesOncePerCustomer: true,
+    recurringCycleLimit: 1,
+    usageLimit: 5,
+  },
+};
+const codeOmittedFieldsUpdate = await runGraphqlRaw(codeOmittedFieldsUpdateDocument, codeOmittedFieldsUpdateVariables);
+const codeOmittedFieldsPayload = codeOmittedFieldsUpdate.payload as {
+  data?: {
+    discountCodeFreeShippingUpdate?: {
+      codeDiscountNode?: {
+        codeDiscount?: {
+          asyncUsageCount?: unknown;
+          appliesOnOneTimePurchase?: unknown;
+          appliesOnSubscription?: unknown;
+        };
+      };
+      userErrors?: unknown[];
+    };
+  };
+};
+const codeOmittedFieldsDiscount =
+  codeOmittedFieldsPayload.data?.discountCodeFreeShippingUpdate?.codeDiscountNode?.codeDiscount;
+const codeOmittedFieldsUserErrors = codeOmittedFieldsPayload.data?.discountCodeFreeShippingUpdate?.userErrors ?? [];
+if (
+  codeOmittedFieldsUserErrors.length > 0 ||
+  codeOmittedFieldsDiscount?.appliesOnOneTimePurchase !== false ||
+  codeOmittedFieldsDiscount?.appliesOnSubscription !== true ||
+  codeOmittedFieldsDiscount?.asyncUsageCount !== 0
+) {
+  throw new Error(
+    `Code free-shipping omitted-field update did not preserve usage/scope: ${JSON.stringify(
+      codeOmittedFieldsUpdate,
+      null,
+      2,
+    )}`,
+  );
+}
+const codeOmittedFieldsDelete = await runGraphqlRaw(codeDeleteDocument, { id: codeOmittedFieldsDiscountId });
 
 const codeUpdateVariables = {
   id: codeDiscountId,
@@ -479,12 +694,22 @@ const readAfterDelete = await runGraphqlRaw(readDocument, {
 const output = {
   variables: {
     codeDiscountId,
+    codeOmittedFieldsDiscountId,
     automaticDiscountId,
     initialCode,
     updatedCode,
+    omittedFieldsCode,
   },
   requests: {
     codeCreate: { query: codeCreateDocument, variables: codeCreateVariables },
+    codeOmittedFieldsCreate: {
+      query: codeCreateDocument,
+      variables: codeOmittedFieldsCreateVariables,
+    },
+    codeOmittedFieldsUpdate: {
+      query: codeOmittedFieldsUpdateDocument,
+      variables: codeOmittedFieldsUpdateVariables,
+    },
     codeUpdate: { query: codeUpdateDocument, variables: codeUpdateVariables },
     codeDeactivate: { query: codeDeactivateDocument, variables: { id: codeDiscountId } },
     codeActivate: { query: codeActivateDocument, variables: { id: codeDiscountId } },
@@ -497,7 +722,11 @@ const output = {
     read: { query: readDocument },
   },
   scopeProbe,
+  shopSubscriptionCapability,
   codeCreate,
+  codeOmittedFieldsCreate,
+  codeOmittedFieldsUpdate,
+  codeOmittedFieldsDelete,
   codeUpdate,
   automaticCreate,
   automaticUpdate,
@@ -509,6 +738,26 @@ const output = {
   codeDelete,
   automaticDelete,
   readAfterDelete,
+  upstreamCalls: [
+    {
+      operationName: 'DraftProxyShopSubscriptionCapability',
+      variables: {},
+      query: shopSubscriptionCapabilityDocument,
+      response: {
+        status: shopSubscriptionCapability.status,
+        body: shopSubscriptionCapability.payload,
+      },
+    },
+    {
+      operationName: 'DiscountHydrate',
+      variables: { id: codeOmittedFieldsDiscountId },
+      query: discountHydrateDocument,
+      response: {
+        status: hydrateBeforeCodeOmittedFieldsUpdate.status,
+        body: hydrateBeforeCodeOmittedFieldsUpdate.payload,
+      },
+    },
+  ],
 };
 
 const outputPath = path.join(outputDir, 'discount-free-shipping-lifecycle.json');

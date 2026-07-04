@@ -19,8 +19,40 @@ const SHOP_POLICY_TYPE_VALUES: &[&str] = &[
 // match that cassette, causing shop-policy hydration to fail in parity runs and
 // the proxy to fall back to synthetic policy ids/timestamps.
 const SHOP_POLICY_HYDRATE_QUERY: &str = "query StorePropertiesShopBaselineHydrate { shop { id name myshopifyDomain url primaryDomain { id host url sslEnabled } contactEmail email currencyCode enabledPresentmentCurrencies ianaTimezone timezoneAbbreviation timezoneOffset timezoneOffsetMinutes taxesIncluded taxShipping unitSystem weightUnit shopAddress { id address1 address2 city company coordinatesValidated country countryCodeV2 formatted formattedArea latitude longitude phone province provinceCode zip } plan { partnerDevelopment publicDisplayName shopifyPlus } resourceLimits { locationLimit maxProductOptions maxProductVariants redirectLimitReached } features { avalaraAvatax branding bundles { eligibleForBundles ineligibilityReason sellsBundles } captcha cartTransform { eligibleOperations { expandOperation mergeOperation updateOperation } } dynamicRemarketing eligibleForSubscriptionMigration eligibleForSubscriptions giftCards harmonizedSystemCode legacySubscriptionGatewayEnabled liveView paypalExpressSubscriptionGatewayStatus reports sellsSubscriptions showMetrics storefront unifiedMarkets } paymentSettings { supportedDigitalWallets } shopPolicies { id title body type url createdAt updatedAt } } }";
+const SHOP_PRICING_HYDRATE_QUERY: &str =
+    "query DraftProxyShopPricingHydrate { shop { currencyCode taxesIncluded taxShipping } }";
 
 impl DraftProxy {
+    pub(in crate::proxy) fn hydrate_shop_pricing_state_if_missing(
+        &mut self,
+        request: &Request,
+        needs_currency: bool,
+        needs_tax_flags: bool,
+    ) {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return;
+        }
+        let missing_currency = needs_currency && self.store.observed_shop_currency_code().is_none();
+        let missing_tax_flags = needs_tax_flags && self.store.shop_taxes_included().is_none();
+        if !missing_currency && !missing_tax_flags {
+            return;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": SHOP_PRICING_HYDRATE_QUERY,
+                "variables": {}
+            }),
+        );
+        if let Some(shop) = response.body["data"]
+            .get("shop")
+            .filter(|shop| shop.is_object())
+        {
+            self.store.base.shop =
+                shallow_merged_object(self.store.base.shop.clone(), shop.clone());
+        }
+    }
+
     pub(in crate::proxy) fn shop_policy_update(
         &mut self,
         request: &Request,

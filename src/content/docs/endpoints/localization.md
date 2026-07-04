@@ -65,9 +65,11 @@ assuming English, so restored or hydrated shops with a non-English primary keep
 their primary guards and `primary` flags aligned. Staged enable/update/disable
 effects are merged with the baseline for subsequent `shopLocales` reads, and
 accepted `marketWebPresences` references serialize `defaultLocale` from the
-referenced staged or hydrated web-presence record. Web-presence default locales
-serialize as published, while alternates created on the presence remain
-unpublished unless observed state already carries a different association value.
+referenced staged or hydrated web-presence record. When no web-presence record is
+available, the projection falls back to the same resolved primary locale rather
+than a hardcoded language. Web-presence default locales serialize as published,
+while alternates created on the presence remain unpublished unless observed
+state already carries a different association value.
 
 `translationsRegister` and `translationsRemove` are locally modeled for the
 product, collection, product-metafield, and market-scoped translation scenarios.
@@ -92,17 +94,22 @@ translation-key/locale/market combination that exists in staged state. An empty
 `translations: null, userErrors: []` payload.
 For `translationsRegister` rows that violate multiple rules, captured Shopify
 behavior validates locale and market gates before translation-record value and
-digest validation; the market-scoped value-matches-base-translation check runs
-before digest validation, so the local first `userErrors` entry follows that
-precedence. Captured Shopify behavior accepts a market-scoped value matching the
-source content when no shop-level translation exists for that locale/key.
+digest validation, and market existence wins before locale enablement or
+primary-locale validation when a row violates both. The market-scoped
+value-matches-base-translation check runs before digest validation, so the local
+first `userErrors` entry follows that precedence. Captured Shopify behavior
+accepts a market-scoped value matching the source content when no shop-level
+translation exists for that locale/key.
 Market-scoped `translationsRegister` checks market existence from store state or
 upstream hydration and limits market-customizable translation keys to modeled
 resource/key pairs. Modeled Product keys include `title`, `body_html`, and
 `product_type`; modeled Collection keys include `title` and `body_html`.
 Unmodeled market-custom resources such as `PackingSlipTemplate.body` return
-`RESOURCE_NOT_MARKET_CUSTOMIZABLE`. `translationsRemove` with an unknown
-market ID follows the captured Shopify no-op shape without staging removals.
+`RESOURCE_NOT_MARKET_CUSTOMIZABLE`. Missing Product or Collection IDs, and
+resource types the proxy cannot resolve locally such as absent `Menu` IDs,
+return `RESOURCE_NOT_FOUND` on `translationsRegister` and `translationsRemove`
+before staging any translation rows. `translationsRemove` with an unknown market
+ID follows the captured Shopify no-op shape without staging removals.
 
 For modeled Product resources, `translatableResource`,
 `translatableResources`, and `translatableResourcesByIds` project
@@ -120,7 +127,9 @@ Collection resources use the same source-backed projection for title, handle,
 body HTML, and SEO fields that exist in local state.
 Unknown or omitted singular `translatableResource` IDs return `null`, and
 empty `translatableResources` connections remain empty instead of fabricating a
-default resource ID.
+default resource ID. `translatableResources(first:/last:/after:/before:,
+reverse:)` applies `reverse` to the local resource-ID order before computing
+the requested cursor window and selected `pageInfo`.
 
 Collection translation lifecycle and market-scoped translation read support
 remain fixture-backed. Product and product-metafield translation behavior has

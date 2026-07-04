@@ -196,8 +196,8 @@ fn metaobject_definition_record(
         "displayNameKey": display_name_key,
         "access": metaobject_definition_access(input, meta_type),
         "capabilities": metaobject_definition_capabilities(input),
+        "hasThumbnailField": metaobject_definition_has_thumbnail_field(&field_definitions),
         "fieldDefinitions": field_definitions,
-        "hasThumbnailField": false,
         "metaobjectsCount": 0,
         "standardTemplate": Value::Null,
         "createdAt": "2024-01-01T00:00:00.000Z",
@@ -249,8 +249,8 @@ fn metaobject_definition_from_record(record: &Value) -> Option<Value> {
             "renderable": {"enabled": false},
             "translatable": {"enabled": false}
         },
+        "hasThumbnailField": metaobject_definition_has_thumbnail_field(&field_definitions),
         "fieldDefinitions": field_definitions,
-        "hasThumbnailField": false,
         "metaobjectsCount": Value::Null,
         "standardTemplate": Value::Null,
         "createdAt": Value::Null,
@@ -273,6 +273,12 @@ fn metaobject_definition_access(input: &BTreeMap<String, ResolvedValue>, meta_ty
         "storefront": resolved_string_field(&access, "storefront").unwrap_or_else(|| "NONE".to_string()),
         "customerAccount": resolved_string_field(&access, "customerAccount").unwrap_or_else(|| "NONE".to_string())
     })
+}
+
+fn metaobject_definition_has_thumbnail_field(field_definitions: &[Value]) -> bool {
+    field_definitions
+        .iter()
+        .any(|field| field["type"]["name"].as_str() == Some("file_reference"))
 }
 
 fn metaobject_definition_capabilities(input: &BTreeMap<String, ResolvedValue>) -> Value {
@@ -307,11 +313,13 @@ fn metaobject_definition_capabilities(input: &BTreeMap<String, ResolvedValue>) -
 
 /// Normalises an onlineStore capability `data` input into its stored shape. The
 /// admin API accepts `createRedirects` on input but echoes it back as
-/// `canCreateRedirects`, so we translate the field name here.
+/// `canCreateRedirects`, so we translate the field name here. Captured
+/// definition-create behavior defaults omitted `createRedirects` to true when
+/// online-store data is present.
 fn metaobject_online_store_capability_data(data: &BTreeMap<String, ResolvedValue>) -> Value {
     let can_create_redirects = resolved_bool_field(data, "createRedirects")
         .or_else(|| resolved_bool_field(data, "canCreateRedirects"))
-        .unwrap_or(false);
+        .unwrap_or(true);
     json!({
         "urlHandle": resolved_string_field(data, "urlHandle")
             .map_or(Value::Null, |url_handle| json!(url_handle)),
@@ -424,6 +432,13 @@ fn metaobject_definition_type_identity_error(
 
 const MIN_FIELD_KEY_LENGTH: usize = 2;
 const MAX_FIELD_KEY_LENGTH: usize = 64;
+// Source: fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/definition-create-field-validations.json
+// and fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-definition-limit-caps.json
+const METAOBJECT_DEFINITION_FIELD_LIMIT: usize = 40;
+// Source: fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-definition-limit-caps.json
+const METAOBJECT_DEFINITION_ADMIN_FILTERABLE_FIELD_LIMIT: usize = 40;
+// Source: fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-definition-limit-caps.json
+const METAOBJECT_DEFINITION_SHOP_LIMIT: usize = 128;
 const FIELD_KEY_INVALID_MESSAGE: &str = "Key contains one or more invalid characters.";
 
 fn metaobject_definition_is_reserved_type(meta_type: &str) -> bool {
@@ -434,12 +449,8 @@ fn metaobject_definition_is_app_reserved_type(meta_type: &str) -> bool {
     meta_type.starts_with("app--")
 }
 
-fn metaobject_definition_field_limit(meta_type: &str) -> usize {
-    if meta_type.starts_with("shopify--form-") {
-        100
-    } else {
-        40
-    }
+fn metaobject_definition_field_limit(_meta_type: &str) -> usize {
+    METAOBJECT_DEFINITION_FIELD_LIMIT
 }
 
 fn metaobject_definition_max_fields_error(max_fields: usize) -> Value {
@@ -547,10 +558,12 @@ fn metaobject_definition_create_validation_errors(
                 .unwrap_or(false)
         })
         .count();
-    if admin_filterable_count > 40 {
+    if admin_filterable_count > METAOBJECT_DEFINITION_ADMIN_FILTERABLE_FIELD_LIMIT {
         errors.push(metaobject_field_error(
             vec!["definition", "fieldDefinitions"],
-            "Maximum 40 admin filterable fields per metaobject definition",
+            &format!(
+                "Maximum {METAOBJECT_DEFINITION_ADMIN_FILTERABLE_FIELD_LIMIT} admin filterable fields per metaobject definition"
+            ),
             "INVALID",
         ));
     }
@@ -608,10 +621,12 @@ fn metaobject_definition_create_validation_errors(
         }
     }
 
-    if existing_definitions >= 128 {
+    if existing_definitions >= METAOBJECT_DEFINITION_SHOP_LIMIT {
         errors.push(metaobject_field_error(
             vec!["definition"],
-            "Maximum number of metaobject definitions exceeded",
+            &format!(
+                "Total definition count exceeds the limit of {METAOBJECT_DEFINITION_SHOP_LIMIT}"
+            ),
             "MAX_DEFINITIONS_EXCEEDED",
         ));
     }
@@ -1039,6 +1054,7 @@ fn apply_metaobject_definition_field_operations(
                 .unwrap_or(usize::MAX)
         });
     }
+    definition["hasThumbnailField"] = json!(metaobject_definition_has_thumbnail_field(&fields));
     definition["fieldDefinitions"] = json!(fields);
 }
 
@@ -2391,6 +2407,56 @@ fn metaobject_existing_online_store_template_suffix(existing: &Value) -> Option<
     )
 }
 
+fn metaobject_definition_online_store_url_handle(definition: &Value) -> Option<&str> {
+    definition
+        .get("capabilities")?
+        .get("onlineStore")?
+        .get("data")?
+        .get("urlHandle")?
+        .as_str()
+        .filter(|url_handle| !url_handle.is_empty())
+}
+
+fn metaobject_definition_online_store_can_create_redirects(definition: &Value) -> bool {
+    definition["capabilities"]["onlineStore"]["data"]["canCreateRedirects"]
+        .as_bool()
+        .unwrap_or(false)
+}
+
+fn metaobject_definition_input_create_redirects(input: &BTreeMap<String, ResolvedValue>) -> bool {
+    resolved_object_field(input, "capabilities")
+        .and_then(|capabilities| resolved_object_field(&capabilities, "onlineStore"))
+        .and_then(|online_store| resolved_object_field(&online_store, "data"))
+        .and_then(|data| {
+            resolved_bool_field(&data, "createRedirects")
+                .or_else(|| resolved_bool_field(&data, "canCreateRedirects"))
+        })
+        .unwrap_or(false)
+}
+
+fn metaobject_definition_has_renderable_online_store(definition: &Value) -> bool {
+    definition["capabilities"]["renderable"]["enabled"]
+        .as_bool()
+        .unwrap_or(false)
+        && definition["capabilities"]["onlineStore"]["enabled"]
+            .as_bool()
+            .unwrap_or(false)
+        && metaobject_definition_online_store_url_handle(definition).is_some()
+}
+
+fn metaobject_record_has_active_online_store(record: &Value) -> bool {
+    record["capabilities"]["publishable"]["status"].as_str() == Some("ACTIVE")
+        && record
+            .get("capabilities")
+            .and_then(|capabilities| capabilities.get("onlineStore"))
+            .is_some_and(|online_store| !online_store.is_null())
+}
+
+fn metaobject_page_path(definition: &Value, handle: &str) -> Option<String> {
+    let url_handle = metaobject_definition_online_store_url_handle(definition)?;
+    (!handle.is_empty()).then(|| format!("/pages/{url_handle}/{handle}"))
+}
+
 fn metaobject_required_field_errors_for_upsert(
     errors: Vec<Value>,
     definition: &Value,
@@ -2515,6 +2581,226 @@ pub(in crate::proxy) fn metaobject_cursor(record: &Value) -> String {
             .and_then(Value::as_str)
             .unwrap_or("metaobject")
     )
+}
+
+fn metaobject_string_value(record: &Value, field: &str) -> String {
+    record
+        .get(field)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn metaobject_normalized_sort_value(record: &Value, field: &str) -> StagedSortValue {
+    StagedSortValue::String(metaobject_string_value(record, field).to_ascii_lowercase())
+}
+
+fn metaobject_id_sort_value(record: &Value) -> StagedSortValue {
+    let tail = record
+        .get("id")
+        .and_then(Value::as_str)
+        .map(resource_id_tail)
+        .unwrap_or_default();
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn metaobject_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let sort_key = sort_key
+        .unwrap_or("id")
+        .replace('-', "_")
+        .to_ascii_lowercase();
+    let primary = match sort_key.as_str() {
+        "display_name" | "displayname" => metaobject_normalized_sort_value(record, "displayName"),
+        "type" => metaobject_normalized_sort_value(record, "type"),
+        "updated_at" | "updatedat" => StagedSortValue::String(
+            metaobject_string_value(record, "updatedAt").to_ascii_lowercase(),
+        ),
+        "id" => metaobject_id_sort_value(record),
+        _ => metaobject_id_sort_value(record),
+    };
+    vec![primary, metaobject_id_sort_value(record)]
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MetaobjectSearchOperator {
+    Eq,
+    Gt,
+    Gte,
+    Lt,
+    Lte,
+}
+
+fn metaobject_search_value(raw_value: &str) -> (MetaobjectSearchOperator, String) {
+    let value = raw_value.trim().trim_matches('"').trim_matches('\'');
+    if let Some(value) = value.strip_prefix(">=") {
+        (MetaobjectSearchOperator::Gte, value.trim().to_string())
+    } else if let Some(value) = value.strip_prefix('>') {
+        (MetaobjectSearchOperator::Gt, value.trim().to_string())
+    } else if let Some(value) = value.strip_prefix("<=") {
+        (MetaobjectSearchOperator::Lte, value.trim().to_string())
+    } else if let Some(value) = value.strip_prefix('<') {
+        (MetaobjectSearchOperator::Lt, value.trim().to_string())
+    } else {
+        (MetaobjectSearchOperator::Eq, value.to_string())
+    }
+}
+
+fn metaobject_compare_order<T: Ord>(
+    actual: T,
+    expected: T,
+    operator: MetaobjectSearchOperator,
+) -> bool {
+    match operator {
+        MetaobjectSearchOperator::Eq => actual == expected,
+        MetaobjectSearchOperator::Gt => actual > expected,
+        MetaobjectSearchOperator::Gte => actual >= expected,
+        MetaobjectSearchOperator::Lt => actual < expected,
+        MetaobjectSearchOperator::Lte => actual <= expected,
+    }
+}
+
+fn metaobject_text_matches(actual: Option<&str>, raw_value: &str) -> bool {
+    let (_, value) = metaobject_search_value(raw_value);
+    let needle = value.to_ascii_lowercase();
+    if needle.is_empty() {
+        return true;
+    }
+    let actual = actual.unwrap_or_default().to_ascii_lowercase();
+    if let Some(prefix) = needle.strip_suffix('*') {
+        return actual
+            .split(|ch: char| !ch.is_ascii_alphanumeric())
+            .any(|part| part.starts_with(prefix));
+    }
+    actual.contains(&needle)
+}
+
+fn metaobject_id_matches(record: &Value, raw_value: &str) -> bool {
+    let (operator, value) = metaobject_search_value(raw_value);
+    let actual = record.get("id").and_then(Value::as_str).unwrap_or_default();
+    let actual_tail = resource_id_tail(actual);
+    let expected_tail = resource_id_tail(&value);
+    if operator == MetaobjectSearchOperator::Eq {
+        return actual == value || actual_tail == expected_tail;
+    }
+    let Ok(actual_id) = actual_tail.parse::<i64>() else {
+        return false;
+    };
+    let Ok(expected_id) = expected_tail.parse::<i64>() else {
+        return false;
+    };
+    metaobject_compare_order(actual_id, expected_id, operator)
+}
+
+fn metaobject_updated_at_matches(record: &Value, raw_value: &str) -> bool {
+    let (operator, value) = metaobject_search_value(raw_value);
+    let actual = record
+        .get("updatedAt")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    metaobject_compare_order(actual, value, operator)
+}
+
+fn metaobject_field_search_text(field: &Value) -> Option<String> {
+    field
+        .get("value")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .or_else(|| {
+            field.get("jsonValue").map(|value| match value {
+                Value::String(value) => value.clone(),
+                Value::Null => String::new(),
+                value => value.to_string(),
+            })
+        })
+}
+
+fn metaobject_field_matches(record: &Value, key: &str, raw_value: &str) -> bool {
+    record
+        .get("fields")
+        .and_then(Value::as_array)
+        .map(|fields| {
+            fields.iter().any(|field| {
+                field.get("key").and_then(Value::as_str) == Some(key)
+                    && metaobject_text_matches(
+                        metaobject_field_search_text(field).as_deref(),
+                        raw_value,
+                    )
+            })
+        })
+        .unwrap_or(false)
+}
+
+fn metaobject_free_text_matches(record: &Value, raw_value: &str) -> bool {
+    metaobject_text_matches(record.get("displayName").and_then(Value::as_str), raw_value)
+        || metaobject_text_matches(record.get("handle").and_then(Value::as_str), raw_value)
+        || metaobject_text_matches(record.get("type").and_then(Value::as_str), raw_value)
+        || record
+            .get("fields")
+            .and_then(Value::as_array)
+            .map(|fields| {
+                fields.iter().any(|field| {
+                    metaobject_text_matches(
+                        metaobject_field_search_text(field).as_deref(),
+                        raw_value,
+                    )
+                })
+            })
+            .unwrap_or(false)
+}
+
+fn metaobject_search_term_decision(record: &Value, term: &str) -> StagedSearchDecision {
+    let term = term.trim().trim_matches('\'').trim_matches('"');
+    if term.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+    let Some((raw_key, raw_value)) = term.split_once(':') else {
+        return StagedSearchDecision::from_bool(metaobject_free_text_matches(record, term));
+    };
+    let key = raw_key.trim();
+    if key.is_empty() || raw_value.trim().is_empty() {
+        return StagedSearchDecision::Unsupported;
+    }
+    let key_normalized = key.replace('-', "_").to_ascii_lowercase();
+    let matches = match key_normalized.as_str() {
+        "display_name" | "displayname" => {
+            metaobject_text_matches(record.get("displayName").and_then(Value::as_str), raw_value)
+        }
+        "handle" => {
+            metaobject_text_matches(record.get("handle").and_then(Value::as_str), raw_value)
+        }
+        "id" => metaobject_id_matches(record, raw_value),
+        "updated_at" | "updatedat" => metaobject_updated_at_matches(record, raw_value),
+        field_key if field_key.starts_with("fields.") => {
+            let field_key = key.trim_start_matches("fields.");
+            !field_key.is_empty() && metaobject_field_matches(record, field_key, raw_value)
+        }
+        _ => return StagedSearchDecision::Unsupported,
+    };
+    StagedSearchDecision::from_bool(matches)
+}
+
+fn metaobject_search_decision(record: &Value, query: Option<&str>) -> StagedSearchDecision {
+    let Some(query) = query else {
+        return StagedSearchDecision::Match;
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return StagedSearchDecision::Match;
+    }
+    for term in saved_search_query_tokens(query) {
+        if term.eq_ignore_ascii_case("AND") {
+            continue;
+        }
+        match metaobject_search_term_decision(record, &term) {
+            StagedSearchDecision::Match => {}
+            StagedSearchDecision::NoMatch => return StagedSearchDecision::NoMatch,
+            StagedSearchDecision::Unsupported => return StagedSearchDecision::Unsupported,
+        }
+    }
+    StagedSearchDecision::Match
 }
 
 impl DraftProxy {
@@ -2971,7 +3257,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn metaobject_connection(&self, field: &RootFieldSelection) -> Value {
         let meta_type = resolved_string_field(&field.arguments, "type").unwrap_or_default();
-        let mut records: Vec<Value> =
+        let records: Vec<Value> =
             self.store
                 .staged
                 .metaobjects
@@ -2987,30 +3273,19 @@ impl DraftProxy {
                 // by the Admin search index that backs `metaobjects(type:)`.
                 .filter(|record| self.metaobject_visible_in_catalog(record))
                 .collect();
-        // Shopify's default `metaobjects(type:)` ordering is ascending by
-        // creation, which corresponds to ascending numeric id. A lexicographic
-        // sort on the full gid is wrong once ids cross a digit boundary
-        // (".../10" sorts before ".../8" as strings), so compare the trailing
-        // numeric id, falling back to the full string when it is not numeric.
-        fn metaobject_id_sort_key(record: &Value) -> (u64, String) {
-            let id = record.get("id").and_then(Value::as_str).unwrap_or_default();
-            let numeric = id
-                .parse::<u64>()
-                .ok()
-                .or_else(|| resource_id_tail(id).parse::<u64>().ok())
-                .unwrap_or(u64::MAX);
-            (numeric, id.to_string())
-        }
-        records.sort_by(|left, right| {
-            metaobject_id_sort_key(left).cmp(&metaobject_id_sort_key(right))
-        });
-        selected_typed_connection_with_args(
-            &records,
+        selected_staged_connection_with_args(
+            records,
             &field.arguments,
             &field.selection,
+            metaobject_search_decision,
+            metaobject_staged_sort_key,
             |record, selection| self.selected_metaobject(record, selection),
             metaobject_cursor,
         )
+    }
+
+    pub(in crate::proxy) fn has_staged_url_redirects(&self) -> bool {
+        !self.store.staged.url_redirects.is_empty()
     }
 
     pub(in crate::proxy) fn url_redirect_query_data(&self, fields: &[RootFieldSelection]) -> Value {
@@ -3026,52 +3301,67 @@ impl DraftProxy {
                         .unwrap_or(Value::Null)
                 }
                 "urlRedirects" => self.url_redirect_connection(field),
+                "urlRedirectsCount" => {
+                    let result = staged_connection_query(
+                        self.url_redirect_records(),
+                        &field.arguments,
+                        url_redirect_search_decision,
+                        url_redirect_sort_key,
+                        value_id_cursor,
+                    );
+                    selected_count_json(result.total_count, &field.selection)
+                }
                 _ => Value::Null,
             })
         })
     }
 
-    fn url_redirect_connection(&self, field: &RootFieldSelection) -> Value {
-        let query = resolved_string_field(&field.arguments, "query");
+    fn url_redirect_records(&self) -> Vec<Value> {
         let mut records = self
             .store
             .staged
             .url_redirect_order
             .iter()
             .filter_map(|id| self.store.staged.url_redirects.get(id))
-            .filter(|redirect| {
-                query
-                    .as_deref()
-                    .is_none_or(|query| url_redirect_matches_query(redirect, query))
-            })
             .cloned()
             .collect::<Vec<_>>();
-        if records.is_empty() && self.store.staged.url_redirect_order.is_empty() {
-            records = self
-                .store
-                .staged
-                .url_redirects
-                .values()
-                .filter(|redirect| {
-                    query
-                        .as_deref()
-                        .is_none_or(|query| url_redirect_matches_query(redirect, query))
-                })
-                .cloned()
-                .collect();
+        for (id, redirect) in &self.store.staged.url_redirects {
+            if !self.store.staged.url_redirect_order.contains(id) {
+                records.push(redirect.clone());
+            }
         }
-        selected_connection_json_with_args(
-            records,
+        records
+    }
+
+    fn url_redirect_connection(&self, field: &RootFieldSelection) -> Value {
+        let result = staged_connection_query(
+            self.url_redirect_records(),
             &field.arguments,
+            url_redirect_search_decision,
+            url_redirect_sort_key,
+            value_id_cursor,
+        );
+        selected_typed_connection_with_page_info(
+            &result.records,
             &field.selection,
-            |redirect| {
-                redirect
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .unwrap_or("url-redirect")
-                    .to_string()
-            },
+            selected_json,
+            value_id_cursor,
+            result.page_info,
         )
+    }
+
+    fn stage_url_redirect(&mut self, path: String, target: String) -> String {
+        let id = self.next_proxy_synthetic_gid("UrlRedirect");
+        let redirect = json!({
+            "id": id,
+            "path": path,
+            "target": target
+        });
+        if !self.store.staged.url_redirects.contains_key(&id) {
+            self.store.staged.url_redirect_order.push(id.clone());
+        }
+        self.store.staged.url_redirects.insert(id.clone(), redirect);
+        id
     }
 
     pub(in crate::proxy) fn metaobject_create(
@@ -3176,7 +3466,11 @@ impl DraftProxy {
 
         let id = self.next_proxy_synthetic_gid("Metaobject");
         let handle_choice = if let Some(requested_handle) = resolved_string_field(input, "handle") {
-            self.available_metaobject_handle(&meta_type, &requested_handle)
+            if requested_handle.trim().is_empty() {
+                self.available_blank_metaobject_handle(&definition, &input_values, &meta_type, &id)
+            } else {
+                self.available_metaobject_handle(&meta_type, &requested_handle)
+            }
         } else {
             self.available_generated_metaobject_handle(&meta_type, &id)
         };
@@ -3324,6 +3618,11 @@ impl DraftProxy {
             &input_values,
             true,
         );
+        let existing_handle = existing
+            .get("handle")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
         let requested_handle = resolved_string_field(&input, "handle");
         let (next_handle, handle_display_source) = if let Some(handle) = requested_handle.as_deref()
         {
@@ -3347,12 +3646,7 @@ impl DraftProxy {
             }
             (normalized, handle.to_string())
         } else {
-            let existing_handle = existing
-                .get("handle")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string();
-            (existing_handle.clone(), existing_handle)
+            (existing_handle.clone(), existing_handle.clone())
         };
         validation_errors.extend(self.metaobject_display_name_conflict_errors(
             &id,
@@ -3397,6 +3691,18 @@ impl DraftProxy {
             .staged
             .metaobjects
             .insert(id.clone(), record.clone());
+        if resolved_bool_field(&input, "redirectNewHandle").unwrap_or(false)
+            && existing_handle != next_handle
+            && metaobject_definition_has_renderable_online_store(&definition)
+            && metaobject_record_has_active_online_store(&record)
+        {
+            if let (Some(path), Some(target)) = (
+                metaobject_page_path(&definition, &existing_handle),
+                metaobject_page_path(&definition, &next_handle),
+            ) {
+                self.stage_url_redirect(path, target);
+            }
+        }
         staged_ids.push(id);
         self.selected_metaobject_payload(
             &json!({"metaobject": record, "userErrors": []}),
@@ -3999,7 +4305,8 @@ impl DraftProxy {
         let meta_type = definition
             .get("type")
             .and_then(Value::as_str)
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .to_string();
         // A metaobject definition that backs a product option's linked metafield has
         // an immutable display name field: Shopify forbids re-pointing displayNameKey
         // while the definition is linked, because the option values are surfaced by
@@ -4036,7 +4343,7 @@ impl DraftProxy {
             .unwrap_or_default();
         let validation_errors = metaobject_definition_update_validation_errors(
             &definition_input,
-            meta_type,
+            &meta_type,
             &existing_field_definitions,
         );
         if !validation_errors.is_empty() {
@@ -4045,11 +4352,45 @@ impl DraftProxy {
                 &field.selection,
             );
         }
+        let old_url_handle =
+            metaobject_definition_online_store_url_handle(&definition).map(str::to_string);
         let updated = update_metaobject_definition_record(definition, &definition_input);
+        let new_url_handle =
+            metaobject_definition_online_store_url_handle(&updated).map(str::to_string);
+        let redirect_paths = if metaobject_definition_input_create_redirects(&definition_input)
+            && metaobject_definition_online_store_can_create_redirects(&updated)
+            && old_url_handle.is_some()
+            && new_url_handle.is_some()
+            && old_url_handle != new_url_handle
+        {
+            let old_url_handle = old_url_handle.unwrap_or_default();
+            let new_url_handle = new_url_handle.unwrap_or_default();
+            self.store
+                .staged
+                .metaobjects
+                .values()
+                .filter(|record| {
+                    record.get("type").and_then(Value::as_str) == Some(meta_type.as_str())
+                        && metaobject_record_has_active_online_store(record)
+                })
+                .filter_map(|record| {
+                    let handle = record.get("handle").and_then(Value::as_str)?;
+                    Some((
+                        format!("/pages/{old_url_handle}/{handle}"),
+                        format!("/pages/{new_url_handle}/{handle}"),
+                    ))
+                })
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
         self.store
             .staged
             .metaobject_definitions
             .insert(id.clone(), updated.clone());
+        for (path, target) in redirect_paths {
+            self.stage_url_redirect(path, target);
+        }
         staged_ids.push(id);
         selected_json(
             &json!({"metaobjectDefinition": updated, "userErrors": []}),
@@ -4238,6 +4579,18 @@ impl DraftProxy {
         unreachable!("infinite random handle search must return")
     }
 
+    fn available_blank_metaobject_handle(
+        &self,
+        definition: &Value,
+        input_values: &BTreeMap<String, String>,
+        meta_type: &str,
+        id: &str,
+    ) -> MetaobjectHandleChoice {
+        metaobject_keyed_display_name(definition, input_values)
+            .map(|display_name| self.available_metaobject_handle(meta_type, &display_name))
+            .unwrap_or_else(|| self.available_generated_metaobject_handle(meta_type, id))
+    }
+
     fn available_metaobject_handle(
         &self,
         meta_type: &str,
@@ -4298,14 +4651,39 @@ impl DraftProxy {
     }
 }
 
+fn url_redirect_search_decision(redirect: &Value, query: Option<&str>) -> StagedSearchDecision {
+    StagedSearchDecision::from_bool(
+        query.is_none_or(|query| url_redirect_matches_query(redirect, query)),
+    )
+}
+
+fn url_redirect_sort_key(redirect: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    let field = match sort_key.unwrap_or("ID") {
+        "PATH" => "path",
+        "TARGET" => "target",
+        _ => "id",
+    };
+    vec![StagedSortValue::String(
+        redirect
+            .get(field)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_ascii_lowercase(),
+    )]
+}
+
 fn url_redirect_matches_query(redirect: &Value, query: &str) -> bool {
     let query = query.trim();
     if query.is_empty() {
         return true;
     }
     if let Some(path) = query.strip_prefix("path:") {
-        let path = path.trim_matches('"').trim_matches('\'');
+        let path = path.trim().trim_matches('"').trim_matches('\'');
         return redirect.get("path").and_then(Value::as_str) == Some(path);
+    }
+    if let Some(target) = query.strip_prefix("target:") {
+        let target = target.trim().trim_matches('"').trim_matches('\'');
+        return redirect.get("target").and_then(Value::as_str) == Some(target);
     }
     redirect
         .get("path")

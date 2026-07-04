@@ -17,6 +17,21 @@ mutation StoreCreditConformanceCustomerCreate($input: CustomerInput!) {
           hasPreviousPage
         }
       }
+      queriedStoreCreditAccounts: storeCreditAccounts(first: 5, query: "currency_code:CHF") {
+        nodes {
+          id
+          balance {
+            amount
+            currencyCode
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
     }
     userErrors {
       field

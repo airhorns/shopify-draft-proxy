@@ -14,12 +14,13 @@ pub(in crate::proxy) fn web_presence_draft_from_input(
     existing: Option<&Value>,
     errors: &mut Vec<Value>,
     is_create: bool,
+    primary_locale: &str,
 ) -> WebPresenceDraft {
     let mut draft = existing
-        .map(web_presence_draft_from_record)
+        .map(|record| web_presence_draft_from_record(record, primary_locale))
         .unwrap_or_else(|| WebPresenceDraft {
             id: String::new(),
-            default_locale: "en".to_string(),
+            default_locale: primary_locale.to_string(),
             alternate_locales: Vec::new(),
             subfolder_suffix: None,
             domain_id: None,
@@ -79,12 +80,15 @@ pub(in crate::proxy) fn web_presence_draft_from_input(
     draft
 }
 
-pub(in crate::proxy) fn web_presence_draft_from_record(record: &Value) -> WebPresenceDraft {
+pub(in crate::proxy) fn web_presence_draft_from_record(
+    record: &Value,
+    primary_locale: &str,
+) -> WebPresenceDraft {
     WebPresenceDraft {
         id: record["id"].as_str().unwrap_or_default().to_string(),
         default_locale: record["defaultLocale"]["locale"]
             .as_str()
-            .unwrap_or("en")
+            .unwrap_or(primary_locale)
             .to_string(),
         alternate_locales: record["alternateLocales"]
             .as_array()
@@ -132,7 +136,7 @@ pub(in crate::proxy) fn web_presence_validate_routing_and_uniqueness(
     if is_create && !has_subfolder {
         errors.push(market_user_error(
             vec!["input"],
-            "Requires a domain or subfolder suffix.",
+            "One of `subfolderSuffix` or `domainId` is required.",
             json!("REQUIRES_DOMAIN_OR_SUBFOLDER"),
         ));
     }

@@ -1,0 +1,81 @@
+{
+  "scenarioId": "productUpdate-input-length-validation",
+  "operationNames": ["productUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "no-local-staging-on-validation-error"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-update-input-length-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productCreate-input-validation.graphql",
+    "variablesCapturePath": "$.setup.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live 2025-01 capture for productUpdate 256-character title/vendor/productType validation. The comparison creates a local setup product first, then verifies each rejected update returns the unchanged product payload plus Shopify-shaped userErrors.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.productUpdate.product.id",
+        "matcher": "shopify-gid:Product",
+        "reason": "The proxy uses the local setup product id while Shopify returns the captured dev-store product id."
+      }
+    ],
+    "targets": [
+      {
+        "name": "too-long-title-data",
+        "capturePath": "$.scenarios.tooLongTitle.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUpdate-input-length-validation.graphql",
+          "variables": {
+            "product": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+              },
+              "title": {
+                "fromCapturePath": "$.scenarios.tooLongTitle.variables.product.title"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "too-long-vendor-data",
+        "capturePath": "$.scenarios.tooLongVendor.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUpdate-input-length-validation.graphql",
+          "variables": {
+            "product": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+              },
+              "vendor": {
+                "fromCapturePath": "$.scenarios.tooLongVendor.variables.product.vendor"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "too-long-product-type-data",
+        "capturePath": "$.scenarios.tooLongProductType.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUpdate-input-length-validation.graphql",
+          "variables": {
+            "product": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+              },
+              "productType": {
+                "fromCapturePath": "$.scenarios.tooLongProductType.variables.product.productType"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

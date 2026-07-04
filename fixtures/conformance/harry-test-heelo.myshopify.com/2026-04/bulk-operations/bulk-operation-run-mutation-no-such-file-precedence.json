@@ -1,0 +1,705 @@
+{
+  "scenarioId": "bulk-operation-run-mutation-no-such-file-precedence",
+  "capturedAt": "2026-07-03T22:45:02.456Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "productTitle": "Bulk no-such-file precedence bulk-no-such-file-precedence-1783118698042",
+  "successfulRuns": [
+    {
+      "operationName": "BulkOperationRunMutationNoSuchFilePrecedenceSetup1",
+      "query": "#graphql\n  mutation BulkOperationRunMutationOperationInProgress($mutation: String!, $path: String!) {\n    bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "mutation": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+        "path": "tmp/92891250994/bulk/fbba15f4-fef4-4d9a-b8e8-737db39f4b2f/bulk-no-such-file-precedence-1783118698042-1.jsonl"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8005433884978",
+              "status": "CREATED",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-07-03T22:44:58Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BulkOperationRunMutationNoSuchFilePrecedenceSetup2",
+      "query": "#graphql\n  mutation BulkOperationRunMutationOperationInProgress($mutation: String!, $path: String!) {\n    bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "mutation": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+        "path": "tmp/92891250994/bulk/3528bd9f-91c2-4678-8e97-f2b52cbb4594/bulk-no-such-file-precedence-1783118698042-2.jsonl"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8005433950514",
+              "status": "CREATED",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-07-03T22:44:58Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BulkOperationRunMutationNoSuchFilePrecedenceSetup3",
+      "query": "#graphql\n  mutation BulkOperationRunMutationOperationInProgress($mutation: String!, $path: String!) {\n    bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "mutation": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+        "path": "tmp/92891250994/bulk/528552b7-3409-47b5-abbe-8fa07c804c08/bulk-no-such-file-precedence-1783118698042-3.jsonl"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8005434016050",
+              "status": "CREATED",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-07-03T22:44:59Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BulkOperationRunMutationNoSuchFilePrecedenceSetup4",
+      "query": "#graphql\n  mutation BulkOperationRunMutationOperationInProgress($mutation: String!, $path: String!) {\n    bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "mutation": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+        "path": "tmp/92891250994/bulk/71374600-d288-4834-8d9b-5762473a63f1/bulk-no-such-file-precedence-1783118698042-4.jsonl"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8005434081586",
+              "status": "CREATED",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-07-03T22:44:59Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BulkOperationRunMutationNoSuchFilePrecedenceSetup5",
+      "query": "#graphql\n  mutation BulkOperationRunMutationOperationInProgress($mutation: String!, $path: String!) {\n    bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "mutation": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+        "path": "tmp/92891250994/bulk/29e87a61-badc-4e46-8e8f-e0216d1998d1/bulk-no-such-file-precedence-1783118698042-5.jsonl"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8005434114354",
+              "status": "CREATED",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-07-03T22:45:00Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "missingRun": {
+    "operationName": "BulkOperationRunMutationNoSuchFilePrecedence",
+    "query": "#graphql\n  mutation BulkOperationRunMutationOperationInProgress($mutation: String!, $path: String!) {\n    bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+    "variables": {
+      "mutation": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "path": "tmp/92891250994/bulk/29e87a61-badc-4e46-8e8f-e0216d1998d1/missing-d358d693-12a4-4a37-9669-be7ad982bd1c.jsonl"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "bulkOperationRunMutation": {
+          "bulkOperation": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
+              "code": "NO_SUCH_FILE"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cancelAttempts": [
+    {
+      "operationName": "BulkOperationCancelParity",
+      "query": "#graphql\n  mutation BulkOperationCancelParity($id: ID!) {\n    bulkOperationCancel(id: $id) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/8005433884978"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationCancel": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8005433884978",
+              "status": "CANCELING",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-07-03T22:44:58Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BulkOperationCancelParity",
+      "query": "#graphql\n  mutation BulkOperationCancelParity($id: ID!) {\n    bulkOperationCancel(id: $id) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/8005433950514"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationCancel": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8005433950514",
+              "status": "CANCELING",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-07-03T22:44:58Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BulkOperationCancelParity",
+      "query": "#graphql\n  mutation BulkOperationCancelParity($id: ID!) {\n    bulkOperationCancel(id: $id) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/8005434016050"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationCancel": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8005434016050",
+              "status": "CANCELING",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-07-03T22:44:59Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BulkOperationCancelParity",
+      "query": "#graphql\n  mutation BulkOperationCancelParity($id: ID!) {\n    bulkOperationCancel(id: $id) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/8005434081586"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationCancel": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8005434081586",
+              "status": "CANCELING",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-07-03T22:44:59Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BulkOperationCancelParity",
+      "query": "#graphql\n  mutation BulkOperationCancelParity($id: ID!) {\n    bulkOperationCancel(id: $id) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/8005434114354"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationCancel": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8005434114354",
+              "status": "CANCELING",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-07-03T22:45:00Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "productId": "gid://shopify/Product/10231149887794",
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10231149887794",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "productId": "gid://shopify/Product/10231149953330",
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10231149953330",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "productId": "gid://shopify/Product/10231149986098",
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10231149986098",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "productId": "gid://shopify/Product/10231150051634",
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10231150051634",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "productId": "gid://shopify/Product/10231150084402",
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10231150084402",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "BulkOperationHydrate",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/8005433884978"
+      },
+      "query": "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8005433884978",
+              "status": "CREATED",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-07-03T22:44:58Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BulkOperationHydrate",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/8005433950514"
+      },
+      "query": "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8005433950514",
+              "status": "CREATED",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-07-03T22:44:58Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BulkOperationHydrate",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/8005434016050"
+      },
+      "query": "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8005434016050",
+              "status": "CREATED",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-07-03T22:44:59Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BulkOperationHydrate",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/8005434081586"
+      },
+      "query": "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8005434081586",
+              "status": "CREATED",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-07-03T22:44:59Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}"
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "BulkOperationHydrate",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/8005434114354"
+      },
+      "query": "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/8005434114354",
+              "status": "CREATED",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-07-03T22:45:00Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Captures Shopify Admin GraphQL 2026-04 returning NO_SUCH_FILE for a missing bulkOperationRunMutation stagedUploadPath even when five same-type mutation bulk operations are already non-terminal. The executable replay hydrates those non-terminal operations through public bulkOperationCancel requests using the captured upstream cassette before asserting the missing-file userError."
+}

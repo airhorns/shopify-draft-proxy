@@ -1,0 +1,107 @@
+{
+  "scenarioId": "carrier-service-connection-query",
+  "operationNames": ["carrierServices", "carrierServiceCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "pagination-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/carrier-service-connection-query.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-connection-query-create.graphql",
+    "variablesCapturePath": "$.firstCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 evidence for carrierServices connection filtering, sortKey ID, reverse order, and pageInfo after creating two disposable inactive carrier services. The proxy replay stages both carrier services through public carrierServiceCreate mutations before reading the connection. Local Rust tests additionally cover CREATED_AT/UPDATED_AT ordering from staged timestamps because this conformance target's live schema advertises those enum values but returns Query not supported for them.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "first-create-payload",
+        "capturePath": "$.firstCreate.response.payload.data.carrierServiceCreate",
+        "proxyPath": "$.data.carrierServiceCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.carrierService.id",
+            "matcher": "shopify-gid:DeliveryCarrierService",
+            "reason": "The proxy creates a stable synthetic carrier-service ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "second-create-payload",
+        "capturePath": "$.secondCreate.response.payload.data.carrierServiceCreate",
+        "proxyPath": "$.data.carrierServiceCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-connection-query-create.graphql",
+          "variablesCapturePath": "$.secondCreate.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.carrierService.id",
+            "matcher": "shopify-gid:DeliveryCarrierService",
+            "reason": "The proxy creates a stable synthetic carrier-service ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "carrier-services-id-reverse-page",
+        "capturePath": "$.sortedReverseRead.response.payload.data.carrierServices",
+        "proxyPath": "$.data.carrierServices",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-connection-query-read.graphql",
+          "variablesCapturePath": "$.sortedReverseRead.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[0].id",
+            "matcher": "shopify-gid:DeliveryCarrierService",
+            "reason": "The proxy returns the second locally-created carrier service with a synthetic ID."
+          },
+          {
+            "path": "$.nodes[1].id",
+            "matcher": "shopify-gid:DeliveryCarrierService",
+            "reason": "The proxy returns the first locally-created carrier service with a synthetic ID."
+          },
+          {
+            "path": "$.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque connection cursors while the proxy derives stable local cursors."
+          },
+          {
+            "path": "$.edges[0].node.id",
+            "matcher": "shopify-gid:DeliveryCarrierService",
+            "reason": "The proxy returns the second locally-created carrier service with a synthetic ID."
+          },
+          {
+            "path": "$.edges[1].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque connection cursors while the proxy derives stable local cursors."
+          },
+          {
+            "path": "$.edges[1].node.id",
+            "matcher": "shopify-gid:DeliveryCarrierService",
+            "reason": "The proxy returns the first locally-created carrier service with a synthetic ID."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque connection cursors while the proxy derives stable local cursors."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns opaque connection cursors while the proxy derives stable local cursors."
+          }
+        ]
+      }
+    ]
+  }
+}
