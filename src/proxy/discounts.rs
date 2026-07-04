@@ -30,10 +30,194 @@ const DISCOUNT_UNIQUENESS_QUERY: &str =
 /// activate/deactivate transition can be applied against its real dates and
 /// status. Must match the recorded cassette `DiscountHydrate` upstream call
 /// byte-for-byte (the cassette matcher is strict on query text + variables).
-const DISCOUNT_HYDRATE_QUERY: &str = "#graphql\n  query DiscountHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          codes(first: 250) {\n            nodes {\n              id\n              code\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n      }\n    }\n    automaticNode: automaticDiscountNode(id: $id) {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n      }\n    }\n  }\n";
+
+const DISCOUNT_HYDRATE_QUERY: &str = r#"#graphql
+  query DiscountHydrate($id: ID!) {
+    codeNode: codeDiscountNode(id: $id) {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+          codes(first: 250) {
+            nodes {
+              id
+              code
+              asyncUsageCount
+            }
+          }
+        }
+        ... on DiscountCodeApp {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountCodeBxgy {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountCodeFreeShipping {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+      }
+    }
+    automaticNode: automaticDiscountNode(id: $id) {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountAutomaticApp {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountAutomaticBxgy {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountAutomaticFreeShipping {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+      }
+    }
+  }
+"#;
+const DISCOUNT_UPDATE_HYDRATE_QUERY: &str = r#"#graphql
+  query DiscountHydrate($id: ID!) {
+    codeNode: codeDiscountNode(id: $id) {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+          codes(first: 250) {
+            nodes {
+              id
+              code
+              asyncUsageCount
+            }
+          }
+        }
+        ... on DiscountCodeApp {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountCodeBxgy {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountCodeFreeShipping {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+          codes(first: 250) {
+            nodes {
+              id
+              code
+              asyncUsageCount
+            }
+          }
+          appliesOnOneTimePurchase
+          appliesOnSubscription
+        }
+      }
+    }
+    automaticNode: automaticDiscountNode(id: $id) {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountAutomaticApp {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountAutomaticBxgy {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+        }
+        ... on DiscountAutomaticFreeShipping {
+          title
+          status
+          startsAt
+          endsAt
+          updatedAt
+          asyncUsageCount
+          appliesOnOneTimePurchase
+          appliesOnSubscription
+        }
+      }
+    }
+  }
+"#;
 /// Item-entitlement existence probe forwarded before a native discount create /
-/// update is
-/// validated. Discounts that entitle products / variants / collections must
+/// update is validated. Discounts that entitle products / variants / collections must
 /// reject references to entities that do not exist in the shop; rather than
 /// relying on locally injected state, the proxy resolves existence the way
 /// Shopify's own admin does — by looking the referenced nodes up — and observes
@@ -779,7 +963,10 @@ impl DraftProxy {
     ) -> MutationFieldOutcome {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let input = discount_input(field, input_arg);
-        let existing_record = self.discount_record(&id).cloned();
+        let existing_record = self
+            .discount_record(&id)
+            .cloned()
+            .or_else(|| self.hydrate_discount_record_for_update(request, &id));
         let user_errors = match existing_record.as_ref() {
             None => vec![user_error_with_extra_info(
                 ["id"],
@@ -836,7 +1023,6 @@ impl DraftProxy {
             ));
         }
         let input = input.unwrap_or_default();
-        let existing = self.discount_record(&id).cloned();
         let summary = self.discount_summary_for_input(typename, &input);
         let shop_currency_code = self.store.shop_currency_code();
         let mut record = discount_record_from_input(
@@ -844,7 +1030,7 @@ impl DraftProxy {
             discount_kind,
             typename,
             &input,
-            existing.as_ref(),
+            existing_record.as_ref(),
             &shop_currency_code,
             summary,
         );
@@ -1055,13 +1241,26 @@ impl DraftProxy {
     /// when the id resolves to neither a code nor an automatic discount (or no
     /// upstream is available, e.g. snapshot mode).
     fn hydrate_discount_record(&self, request: &Request, id: &str) -> Option<Value> {
+        self.hydrate_discount_record_with_query(request, id, DISCOUNT_HYDRATE_QUERY)
+    }
+
+    fn hydrate_discount_record_for_update(&self, request: &Request, id: &str) -> Option<Value> {
+        self.hydrate_discount_record_with_query(request, id, DISCOUNT_UPDATE_HYDRATE_QUERY)
+    }
+
+    fn hydrate_discount_record_with_query(
+        &self,
+        request: &Request,
+        id: &str,
+        query: &str,
+    ) -> Option<Value> {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return None;
         }
         let response = self.upstream_post(
             request,
             json!({
-                "query": DISCOUNT_HYDRATE_QUERY,
+                "query": query,
                 "variables": { "id": id }
             }),
         );
@@ -1102,7 +1301,7 @@ impl DraftProxy {
                         json!({
                             "id": code_node.get("id").cloned().unwrap_or(Value::Null),
                             "code": code_node.get("code").cloned().unwrap_or(Value::Null),
-                            "asyncUsageCount": 0
+                            "asyncUsageCount": code_node.get("asyncUsageCount").cloned().unwrap_or_else(|| json!(0))
                         })
                     })
                     .collect::<Vec<_>>()
@@ -1119,7 +1318,9 @@ impl DraftProxy {
             "endsAt": disc.get("endsAt").cloned().unwrap_or(Value::Null),
             "createdAt": disc.get("createdAt").cloned().unwrap_or(Value::Null),
             "updatedAt": disc.get("updatedAt").cloned().unwrap_or(Value::Null),
-            "asyncUsageCount": 0,
+            "asyncUsageCount": disc.get("asyncUsageCount").cloned().unwrap_or_else(|| json!(0)),
+            "appliesOnOneTimePurchase": disc.get("appliesOnOneTimePurchase").cloned().unwrap_or(Value::Null),
+            "appliesOnSubscription": disc.get("appliesOnSubscription").cloned().unwrap_or(Value::Null),
             "codes": codes,
             "codesCount": count_object(codes_count)
         }))
@@ -2952,17 +3153,50 @@ fn discount_record_from_input(
             "shippingDiscounts": false
         })
     });
+    let existing_code_matches_input = code.as_ref().is_some_and(|code| {
+        existing
+            .and_then(|record| record["code"].as_str())
+            .map(|existing_code| existing_code == code)
+            .unwrap_or(false)
+    });
     let codes = code
         .as_ref()
         .map(|code| {
-            json!([{
-                "id": synthetic_shopify_gid("DiscountRedeemCode", stable_redeem_code_suffix(code)),
-                "code": code,
-                "asyncUsageCount": 0
-            }])
+            if existing_code_matches_input {
+                existing
+                    .map(|record| record["codes"].clone())
+                    .unwrap_or_else(|| json!([]))
+            } else {
+                json!([{
+                    "id": synthetic_shopify_gid("DiscountRedeemCode", stable_redeem_code_suffix(code)),
+                    "code": code,
+                    "asyncUsageCount": 0
+                }])
+            }
         })
         .or_else(|| existing.map(|record| record["codes"].clone()))
         .unwrap_or_else(|| json!([]));
+    let async_usage_count = existing
+        .and_then(|record| record.get("asyncUsageCount").cloned())
+        .unwrap_or_else(|| json!(0));
+    let customer_gets =
+        discount_customer_gets_for_update(typename, input, existing, shop_currency_code);
+    let applies_on_one_time_purchase = resolved_bool_path(input, &["appliesOnOneTimePurchase"])
+        .map(Value::from)
+        .or_else(|| {
+            existing
+                .and_then(|record| record["appliesOnOneTimePurchase"].as_bool())
+                .map(Value::from)
+        })
+        .unwrap_or(Value::Bool(true));
+    let applies_on_subscription = resolved_bool_path(input, &["appliesOnSubscription"])
+        .map(Value::from)
+        .or_else(|| {
+            existing
+                .and_then(|record| record["appliesOnSubscription"].as_bool())
+                .map(Value::from)
+        })
+        .unwrap_or(Value::Bool(false));
     json!({
         "id": id,
         "kind": kind,
@@ -2974,7 +3208,7 @@ fn discount_record_from_input(
         "endsAt": ends_at,
         "createdAt": created_at,
         "updatedAt": DISCOUNT_DEFAULT_TIMESTAMP,
-        "asyncUsageCount": 0,
+        "asyncUsageCount": async_usage_count,
         "usageLimit": resolved_i64_path(input, &["usageLimit"]).map(Value::from).unwrap_or(Value::Null),
         "usesPerOrderLimit": resolved_i64_path(input, &["usesPerOrderLimit"]).map(Value::from).unwrap_or(Value::Null),
         "recurringCycleLimit": resolved_i64_path(input, &["recurringCycleLimit"])
@@ -2985,13 +3219,13 @@ fn discount_record_from_input(
         "combinesWith": combines_with,
         "context": discount_context_from_input(input),
         "customerBuys": discount_customer_buys_from_input(typename, input),
-        "customerGets": discount_customer_gets_from_input(typename, input, shop_currency_code),
+        "customerGets": customer_gets,
         "minimumRequirement": discount_minimum_requirement_from_input(input, shop_currency_code),
         "destinationSelection": discount_destination_selection_from_input(input),
         "maximumShippingPrice": discount_maximum_shipping_price_from_input(input, shop_currency_code),
         "appliesOncePerCustomer": resolved_bool_path(input, &["appliesOncePerCustomer"]).unwrap_or(false),
-        "appliesOnOneTimePurchase": resolved_bool_path(input, &["appliesOnOneTimePurchase"]).unwrap_or(true),
-        "appliesOnSubscription": resolved_bool_path(input, &["appliesOnSubscription"]).unwrap_or(false),
+        "appliesOnOneTimePurchase": applies_on_one_time_purchase,
+        "appliesOnSubscription": applies_on_subscription,
         "codes": codes,
         "codesCount": count_object(codes.as_array().map(Vec::len).unwrap_or(0)),
         "metafields": discount_metafields_from_input(input)
@@ -3535,6 +3769,41 @@ fn discount_customer_buys_from_input(
         "value": { "__typename": "DiscountQuantity", "quantity": quantity },
         "items": discount_items_from_input(input, &["customerBuys", "items"])
     })
+}
+
+fn discount_customer_gets_for_update(
+    typename: &str,
+    input: &BTreeMap<String, ResolvedValue>,
+    existing: Option<&Value>,
+    shop_currency_code: &str,
+) -> Value {
+    let has_customer_gets = resolved_object_path(
+        Some(&ResolvedValue::Object(input.clone())),
+        &["customerGets"],
+    )
+    .is_some();
+    if !has_customer_gets {
+        if let Some(customer_gets) = existing.and_then(|record| record.get("customerGets")) {
+            return customer_gets.clone();
+        }
+    }
+
+    let mut customer_gets = discount_customer_gets_from_input(typename, input, shop_currency_code);
+    if resolved_bool_path(input, &["customerGets", "appliesOnOneTimePurchase"]).is_none() {
+        if let Some(applies_on_one_time_purchase) =
+            existing.and_then(|record| record["customerGets"]["appliesOnOneTimePurchase"].as_bool())
+        {
+            customer_gets["appliesOnOneTimePurchase"] = json!(applies_on_one_time_purchase);
+        }
+    }
+    if resolved_bool_path(input, &["customerGets", "appliesOnSubscription"]).is_none() {
+        if let Some(applies_on_subscription) =
+            existing.and_then(|record| record["customerGets"]["appliesOnSubscription"].as_bool())
+        {
+            customer_gets["appliesOnSubscription"] = json!(applies_on_subscription);
+        }
+    }
+    customer_gets
 }
 
 fn discount_customer_gets_from_input(

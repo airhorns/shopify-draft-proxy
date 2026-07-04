@@ -8881,6 +8881,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}discount-free-shipping-lifecycle.json`,
       'config/parity-specs/discounts/discount-free-shipping-lifecycle.json',
+      'config/parity-requests/discounts/discount-free-shipping-code-omitted-fields-update.graphql',
     ],
     cleanupBehavior: 'Deletes created free-shipping discounts during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
