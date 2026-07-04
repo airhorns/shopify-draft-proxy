@@ -1,0 +1,36 @@
+mutation ProductOptionUpdateNameDelimiter(
+  $productId: ID!
+  $option: OptionUpdateInput!
+) {
+  productOptionUpdate(productId: $productId, option: $option) {
+    product {
+      id
+      options {
+        id
+        name
+        position
+        values
+        optionValues {
+          id
+          name
+          hasVariants
+        }
+      }
+      variants(first: 10) {
+        nodes {
+          id
+          title
+          selectedOptions {
+            name
+            value
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

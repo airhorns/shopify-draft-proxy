@@ -297,8 +297,36 @@
             }
           }
         }
+      },
+      {
+        "name": "code-free-shipping-hydrated-omitted-fields-preserve-usage-and-scope",
+        "capturePath": "$.codeOmittedFieldsUpdate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.upstreamCalls",
+        "isolatedProxy": true,
+        "selectedPaths": [
+          "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.__typename",
+          "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.title",
+          "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.asyncUsageCount",
+          "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.codes.nodes[0].code",
+          "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.codes.nodes[0].asyncUsageCount",
+          "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.appliesOnOneTimePurchase",
+          "$.discountCodeFreeShippingUpdate.codeDiscountNode.codeDiscount.appliesOnSubscription",
+          "$.discountCodeFreeShippingUpdate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-free-shipping-code-omitted-fields-update.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.variables.codeOmittedFieldsDiscountId"
+            },
+            "input": {
+              "fromCapturePath": "$.requests.codeOmittedFieldsUpdate.variables.input"
+            }
+          }
+        }
       }
     ]
   },
-  "notes": "Promoted from captured-fixture to executable proxy comparison for 2026-04 DiscountCodeFreeShipping and DiscountAutomaticFreeShipping create, update, shared activate/deactivate/delete cleanup, and singular downstream reads. Targets compare deterministic selected fields from the captured fixture, including Shopify's computed summary strings, while leaving live IDs, timestamps, pre-existing catalog rows, and opaque cursors out of the contract."
+  "notes": "Promoted from captured-fixture to executable proxy comparison for 2026-04 DiscountCodeFreeShipping and DiscountAutomaticFreeShipping create, update, shared activate/deactivate/delete cleanup, and singular downstream reads. Targets compare deterministic selected fields from the captured fixture, including Shopify's computed summary strings, while leaving live IDs, timestamps, pre-existing catalog rows, and opaque cursors out of the contract. The isolated omitted-fields target replays a live existing code free-shipping update against a recorded DiscountHydrate cassette so the proxy must preserve hydrated asyncUsageCount, redeem-code usage, appliesOnOneTimePurchase, and appliesOnSubscription when the update input omits them."
 }

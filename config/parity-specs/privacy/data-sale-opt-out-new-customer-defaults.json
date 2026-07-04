@@ -2,7 +2,7 @@
   "scenarioId": "data-sale-opt-out-new-customer-defaults",
   "operationNames": ["dataSaleOptOut", "customer", "customers"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "downstream-read-parity", "search-parity"],
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "search-parity", "timestamp-shape"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/privacy/data-sale-opt-out-new-customer-defaults.json"
   ],
@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured Admin GraphQL 2026-04 evidence for dataSaleOptOut on a fresh email. The mutation creates a new customer with the created-by-dns-form tag, locale en, verifiedEmail true, and state DISABLED; the tag-search read is polled until Shopify indexing returns the new customer. The live capture contradicts the ticket's internal-code expectation that verifiedEmail is false, so this executable parity spec follows observable Admin API behavior.",
+  "notes": "Captured Admin GraphQL 2026-04 evidence for dataSaleOptOut on a fresh email. The mutation creates a new customer with the created-by-dns-form tag, locale en, verifiedEmail true, state DISABLED, and volatile customer createdAt/updatedAt timestamps; the tag-search read is polled until Shopify indexing returns the new customer. The live capture contradicts the ticket's internal-code expectation that verifiedEmail is false, so this executable parity spec follows observable Admin API behavior.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -47,6 +47,16 @@
             "path": "$.id",
             "matcher": "shopify-gid:Customer",
             "reason": "The downstream read uses the proxy-created synthetic customer ID."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy create the customer at different wall-clock instants."
+          },
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy create the customer at different wall-clock instants."
           }
         ]
       },

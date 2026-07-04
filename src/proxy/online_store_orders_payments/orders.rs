@@ -939,14 +939,14 @@ pub(in crate::proxy) fn order_default_fulfillment_order(
 
 pub(in crate::proxy) fn order_create_transaction_record(
     input: &BTreeMap<String, ResolvedValue>,
-    index: usize,
+    id: String,
     currency_code: &str,
 ) -> Value {
     let amount_input = resolved_object_field(input, "amountSet").unwrap_or_default();
     let amount = input_money_amount(&amount_input).unwrap_or(0.0);
     let currency = input_money_currency(&amount_input).unwrap_or_else(|| currency_code.to_string());
     json!({
-        "id": shopify_gid("OrderTransaction", index + 3),
+        "id": id,
         "kind": resolved_string_field(input, "kind").unwrap_or_else(|| "SALE".to_string()),
         "status": resolved_string_field(input, "status").unwrap_or_else(|| "SUCCESS".to_string()),
         "gateway": resolved_string_field(input, "gateway").unwrap_or_else(|| "manual".to_string()),
@@ -1211,6 +1211,29 @@ pub(in crate::proxy) fn normalize_hydrated_order(order: &mut Value) {
 }
 
 impl DraftProxy {
+    pub(in crate::proxy) fn next_order_name(&mut self) -> String {
+        let number = self
+            .store
+            .staged
+            .orders
+            .values()
+            .filter_map(|order| order.get("name").and_then(Value::as_str))
+            .filter_map(|name| name.strip_prefix('#'))
+            .filter_map(|suffix| suffix.parse::<u64>().ok())
+            .fold(
+                self.store.staged.next_order_number.max(1),
+                |next, number| next.max(number.saturating_add(1)),
+            );
+        self.store.staged.next_order_number = number.saturating_add(1);
+        format!("#{number}")
+    }
+
+    pub(in crate::proxy) fn next_order_transaction_id(&mut self) -> String {
+        let number = self.store.staged.order_payment_next_transaction_id.max(3);
+        self.store.staged.order_payment_next_transaction_id = number.saturating_add(1);
+        shopify_gid("OrderTransaction", number)
+    }
+
     fn order_line_inventory_item_id(
         &self,
         line_item: &BTreeMap<String, ResolvedValue>,
@@ -1297,7 +1320,7 @@ impl DraftProxy {
                         .staged
                         .orders
                         .get(&id)
-                        .cloned()
+                        .map(|order| self.payment_terms_owner_record_with_effective_due(order))
                         .unwrap_or(Value::Null);
                     nullable_selected_json(&order, &field.selection)
                 }
@@ -1346,7 +1369,11 @@ impl DraftProxy {
         // compared against Shopify's recorded opaque cursors.
         selected_json(
             &connection_json_with_cursor(
-                result.records,
+                result
+                    .records
+                    .into_iter()
+                    .map(|order| self.payment_terms_owner_record_with_effective_due(&order))
+                    .collect::<Vec<_>>(),
                 |_, order| value_id_cursor(order),
                 result.page_info,
             ),
@@ -2013,7 +2040,7 @@ impl DraftProxy {
     }
 
     pub(super) fn build_order_create_record(
-        &self,
+        &mut self,
         order_id: &str,
         order_input: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
@@ -2071,15 +2098,16 @@ impl DraftProxy {
         let total = (subtotal + shipping_total + tax_total - discount_total).max(0.0);
         let transactions = resolved_object_list_field(order_input, "transactions")
             .into_iter()
-            .enumerate()
-            .map(|(index, transaction)| {
-                order_create_transaction_record(&transaction, index, &currency_code)
+            .map(|transaction| {
+                let transaction_id = self.next_order_transaction_id();
+                order_create_transaction_record(&transaction, transaction_id, &currency_code)
             })
             .collect::<Vec<_>>();
         let financial_status = order_create_financial_status(order_input, &transactions, total);
+        let order_name = self.next_order_name();
         let mut order = json!({
             "id": order_id,
-            "name": format!("#{}", self.store.staged.orders.len() + 1),
+            "name": order_name,
             "email": resolved_string_field(order_input, "email"),
             // Retain the purchasing entity (B2B purchasing company/contact) the
             // order was placed under, the way a real Order exposes it — both so it
@@ -2244,7 +2272,7 @@ impl DraftProxy {
             let field = field?;
             return Some(data_response(
                 &field.response_key,
-                selected_json(&count_object(0), &field.selection),
+                self.staged_orders_count(field),
             ));
         }
         if root_field == "orderCreate" {

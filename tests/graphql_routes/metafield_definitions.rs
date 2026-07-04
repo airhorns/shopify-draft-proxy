@@ -953,7 +953,7 @@ fn metafield_definition_create_resource_type_limit_is_scoped_by_owner_and_app_na
         over_limit["userErrors"],
         json!([{
             "field": ["definition"],
-            "message": "You can only have 256 definitions per resource type.",
+            "message": "Stores can only have 256 definitions for each store resource.",
             "code": "RESOURCE_TYPE_LIMIT_EXCEEDED"
         }])
     );

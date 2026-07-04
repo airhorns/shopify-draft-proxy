@@ -34,5 +34,48 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "EventEmptyRead",
+      "variables": {
+        "eventId": "gid://shopify/BasicEvent/999999999999",
+        "first": 2,
+        "query": "id:999999999999"
+      },
+      "query": "query EventEmptyRead($eventId: ID!, $first: Int!, $query: String!) {\n  event(id: $eventId) {\n    id\n    action\n    appTitle\n    attributeToApp\n    attributeToUser\n    createdAt\n    criticalAlert\n    message\n    ... on BasicEvent {\n      additionalContent\n      additionalData\n      arguments\n      author\n      hasAdditionalContent\n      secondaryMessage\n      subjectId\n      subjectType\n    }\n  }\n  events(first: $first, query: $query, sortKey: ID, reverse: true) {\n    nodes {\n      id\n      action\n      message\n    }\n    edges {\n      cursor\n      node {\n        id\n        action\n        message\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  eventsCount(query: $query) {\n    count\n    precision\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "event": null,
+            "events": {
+              "nodes": [],
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "eventsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
