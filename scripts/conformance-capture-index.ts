@@ -5483,6 +5483,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'shop-pricing-state-money-and-markets',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-shop-pricing-state-money-markets-conformance.mts',
+    purpose:
+      'Non-USD shop pricing-state capture proving product money currency hydration, selling-plan group products connection money currency, market omitted-baseCurrency shop-currency default, and marketsResolvedValues tax-inclusive behavior.',
+    requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options', 'read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}shop-pricing-state-money-and-markets.json`,
+      'config/parity-specs/markets/shop-pricing-state-money-and-markets.json',
+      'config/parity-requests/products/shop-pricing-state-product-create.graphql',
+      'config/parity-requests/selling-plans/shop-pricing-state-selling-plan-group-create.graphql',
+      'config/parity-requests/markets/shop-pricing-state-market-create.graphql',
+      'config/parity-requests/markets/shop-pricing-state-markets-resolved-values.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable product, selling-plan group, and Brazil market; captures resolved values; then deletes the group, market, and product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-create-enabled-without-status',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-create-enabled-without-status-conformance.mts',
