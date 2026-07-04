@@ -137,7 +137,12 @@ Rejected blank-name updates do not stage a replacement name or append a
 mutation-log entry; omitted update names preserve the existing local name while
 applying other staged fields. The local model stores service name, formatted
 name, callback URL, active flag, service-discovery flag, and stable synthetic
-IDs for parity replay.
+IDs for parity replay. `carrierServices(query:)` parses whitespace-separated
+`field:value` tokens for the documented local fields `active` and `id`; multiple
+tokens are combined with AND semantics. Unsupported filter fields or bare search
+terms return an empty local connection rather than widening the result set.
+`sortKey: ID`, `CREATED_AT`, and `UPDATED_AT` plus `reverse` are applied before
+cursor windowing.
 
 Fulfillment and fulfillment-order slices cover fixture-backed top-level reads,
 detail/event reads, hold/release, move, open/report-progress, close,
@@ -189,6 +194,9 @@ remain outside this slice. Delivery profile name validation accepts exactly 128
 characters and rejects 129-character names on both create and update with a
 public `UserError` payload containing `field` and `message`; `code` is not
 selectable on the captured Admin GraphQL 2026-04 `UserError` type.
+`deliveryProfiles(first/last/after/before/reverse:)` uses the staged effective
+profile order to compute page windows and `pageInfo` boundary cursors instead
+of returning a canned connection envelope.
 
 Local pickup mutations stage settings on active local locations and retain the
 original raw GraphQL request for commit replay. `locationLocalPickupEnable`
