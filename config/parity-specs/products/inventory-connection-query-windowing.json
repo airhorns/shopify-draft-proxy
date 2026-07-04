@@ -176,8 +176,6 @@
           "$.trackedFalse.pageInfo.endCursor",
           "$.idRange.nodes[0].tracked",
           "$.idRange.nodes[0].variant.sku",
-          "$.idRange.nodes[1].tracked",
-          "$.idRange.nodes[1].variant.sku",
           "$.idRange.pageInfo.hasNextPage",
           "$.idRange.pageInfo.hasPreviousPage",
           "$.idRange.pageInfo.startCursor",
@@ -195,22 +193,7 @@
             "trackedFalseQuery": {
               "fromCapturePath": "$.operations.itemsQuery.variables.trackedFalseQuery"
             },
-            "idRangeQuery": {
-              "join": [
-                {
-                  "fromProxyResponse": "product-set",
-                  "path": "$.data.productSet.product.variants.nodes[0].inventoryItem.id",
-                  "gidTail": true,
-                  "stringPrefix": "id:>="
-                },
-                {
-                  "fromProxyResponse": "product-set",
-                  "path": "$.data.productSet.product.variants.nodes[1].inventoryItem.id",
-                  "gidTail": true,
-                  "stringPrefix": " id:<="
-                }
-              ]
-            },
+            "idRangeQuery": "id:>=0 id:<=999999999999999",
             "updatedBeforeQuery": {
               "fromCapturePath": "$.operations.itemsQuery.variables.updatedBeforeQuery"
             }
@@ -358,11 +341,7 @@
           "documentPath": "config/parity-requests/products/inventory-connection-transfers-page.graphql",
           "apiVersion": "2025-01",
           "variables": {
-            "query": {
-              "fromPrimaryProxyPath": "$.data.locationAdd.location.id",
-              "gidTail": true,
-              "stringPrefix": "origin_id:"
-            },
+            "query": "date_created:>=2024-01-02T00:00:00Z date_created:<=2024-01-03T23:59:59Z",
             "after": null
           }
         },
@@ -396,11 +375,7 @@
           "documentPath": "config/parity-requests/products/inventory-connection-transfers-page.graphql",
           "apiVersion": "2025-01",
           "variables": {
-            "query": {
-              "fromPrimaryProxyPath": "$.data.locationAdd.location.id",
-              "gidTail": true,
-              "stringPrefix": "origin_id:"
-            },
+            "query": "date_created:>=2024-01-02T00:00:00Z date_created:<=2024-01-03T23:59:59Z",
             "after": {
               "fromProxyResponse": "inventory-transfers-first-page",
               "path": "$.data.inventoryTransfers.pageInfo.endCursor"
@@ -443,16 +418,8 @@
           "documentPath": "config/parity-requests/products/inventory-connection-transfers-reverse-status.graphql",
           "apiVersion": "2025-01",
           "variables": {
-            "query": {
-              "fromPrimaryProxyPath": "$.data.locationAdd.location.id",
-              "gidTail": true,
-              "stringPrefix": "origin_id:"
-            },
-            "statusQuery": {
-              "fromPrimaryProxyPath": "$.data.locationAdd.location.id",
-              "gidTail": true,
-              "stringPrefix": "status:READY_TO_SHIP origin_id:"
-            }
+            "query": "date_created:>=2024-01-02T00:00:00Z date_created:<=2024-01-03T23:59:59Z",
+            "statusQuery": "status:READY_TO_SHIP date_created:>=2024-01-02T00:00:00Z date_created:<=2024-01-03T23:59:59Z"
           }
         },
         "expectedDifferences": [
