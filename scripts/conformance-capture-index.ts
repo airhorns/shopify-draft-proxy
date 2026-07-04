@@ -9603,6 +9603,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}payment-terms-create-reference-not-found.json`,
       'config/parity-specs/payments/payment-terms-create-reference-not-found.json',
+      'config/parity-specs/payments/payment-terms-create-reference-not-found-arbitrary-id.json',
       'config/parity-requests/payments/payment-terms-create-reference-not-found.graphql',
     ],
     cleanupBehavior: 'Validation-only capture; creates no Shopify resources.',

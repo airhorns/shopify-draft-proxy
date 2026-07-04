@@ -347,6 +347,37 @@ pub(in crate::proxy) fn payment_terms_validation_error(
     }
 }
 
+fn payment_terms_create_reference_not_found_payload(
+    reference_id: &str,
+    selections: &[SelectedField],
+) -> Option<Value> {
+    if let Some(id) = shopify_gid_tail_for_type(reference_id, "Order") {
+        let message = format!("Cannot find the specific Order with id {id}.");
+        return Some(payment_terms_payload_value(
+            Value::Null,
+            vec![payment_terms_user_error(
+                Value::Null,
+                &message,
+                "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
+            )],
+            selections,
+        ));
+    }
+    if let Some(id) = shopify_gid_tail_for_type(reference_id, "DraftOrder") {
+        let message = format!("Cannot find the specific Draft order with id {id}.");
+        return Some(payment_terms_payload_value(
+            Value::Null,
+            vec![payment_terms_user_error(
+                Value::Null,
+                &message,
+                "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
+            )],
+            selections,
+        ));
+    }
+    None
+}
+
 pub(in crate::proxy) fn payment_terms_delete_payload_value(
     deleted_id: Value,
     user_errors: Vec<Value>,
@@ -419,41 +450,6 @@ pub(in crate::proxy) fn payment_terms_create_value(
             &field.selection,
         ));
     }
-    if let Some(id) = shopify_gid_tail_for_type(&reference_id, "Order") {
-        if id == "123" {
-            return Err(payment_terms_payload_value(
-                Value::Null,
-                vec![payment_terms_user_error(
-                    Value::Null,
-                    "Cannot find the specific Order with id 123.",
-                    "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
-                )],
-                &field.selection,
-            ));
-        }
-    }
-    if let Some(id) = shopify_gid_tail_for_type(&reference_id, "DraftOrder") {
-        if id == "999999" {
-            return Err(payment_terms_payload_value(
-                Value::Null,
-                vec![payment_terms_user_error(
-                    Value::Null,
-                    "Cannot find the specific Draft order with id 999999.",
-                    "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
-                )],
-                &field.selection,
-            ));
-        }
-    }
-    if let Some(error) =
-        payment_terms_validation_error(&attrs, "PAYMENT_TERMS_CREATION_UNSUCCESSFUL")
-    {
-        return Err(payment_terms_payload_value(
-            Value::Null,
-            vec![error],
-            &field.selection,
-        ));
-    }
 
     let reference_tail = resource_id_tail(&reference_id);
     let id_suffix = if reference_tail.is_empty() {
@@ -480,7 +476,7 @@ pub(in crate::proxy) fn payment_terms_update_value(
             "Cannot create payment terms on an Order where the sales channel does not allow payment terms.",
             "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
         )),
-        _ => payment_terms_validation_error(&attrs, "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"),
+        _ => None,
     };
     if let Some(error) = error {
         return Err(payment_terms_payload_value(
@@ -550,12 +546,13 @@ impl DraftProxy {
                         )
                     }
                     "paymentTermsCreate" => match payment_terms_create_value(field) {
-                        Ok((owner_id, terms_id, attrs)) => {
-                            // Hydrate (and stage) the owner so we can read its
-                            // money and financial status. A paid Order is rejected
-                            // before any payment-terms staging happens.
-                            let (amount, currency) =
-                                self.payment_terms_owner_money(request, &owner_id);
+                        Ok((owner_id, _terms_id, attrs)) => {
+                            if !self.payment_terms_owner_known_or_hydrated(request, &owner_id) {
+                                return payment_terms_create_reference_not_found_payload(
+                                    &owner_id,
+                                    &field.selection,
+                                );
+                            }
                             if self.payment_terms_owner_is_paid(&owner_id) {
                                 payment_terms_payload_value(
                                     Value::Null,
@@ -566,7 +563,19 @@ impl DraftProxy {
                                     )],
                                     &field.selection,
                                 )
+                            } else if let Some(error) = payment_terms_validation_error(
+                                &attrs,
+                                "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
+                            ) {
+                                payment_terms_payload_value(
+                                    Value::Null,
+                                    vec![error],
+                                    &field.selection,
+                                )
                             } else {
+                                let (amount, currency) =
+                                    self.payment_terms_owner_money(request, &owner_id);
+                                let terms_id = self.next_synthetic_gid("PaymentTerms");
                                 let record = payment_terms_record_from_attrs(
                                     &terms_id, &attrs, &amount, &currency,
                                 );
@@ -620,6 +629,15 @@ impl DraftProxy {
                                         "Cannot create payment terms on an Order that has already been paid in full.",
                                         "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
                                     )],
+                                    &field.selection,
+                                )
+                            } else if let Some(error) = payment_terms_validation_error(
+                                &attrs,
+                                "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
+                            ) {
+                                payment_terms_payload_value(
+                                    Value::Null,
+                                    vec![error],
                                     &field.selection,
                                 )
                             } else {
@@ -726,6 +744,24 @@ impl DraftProxy {
         )
     }
 
+    fn payment_terms_owner_known_or_hydrated(&mut self, request: &Request, owner_id: &str) -> bool {
+        if !is_shopify_gid_of_type(owner_id, "Order")
+            && !is_shopify_gid_of_type(owner_id, "DraftOrder")
+        {
+            return true;
+        }
+        if self.store.staged.orders.contains_key(owner_id)
+            || self.store.staged.draft_orders.contains_key(owner_id)
+        {
+            return true;
+        }
+        let Some(owner) = self.hydrate_payment_terms_owner(request, owner_id) else {
+            return false;
+        };
+        self.stage_payment_terms_owner(owner_id, owner);
+        true
+    }
+
     /// Resolves the owning order/draft money used to denominate a payment
     /// schedule. Orders carry presentment money (the schedule is presentment-
     /// denominated); drafts expose shop money. Prefers already-staged owners; in
@@ -745,19 +781,7 @@ impl DraftProxy {
         }
         if let Some(owner) = self.hydrate_payment_terms_owner(request, owner_id) {
             let money = payment_terms_extract_owner_money(&owner);
-            if owner_id.starts_with("gid://shopify/DraftOrder/") {
-                self.store
-                    .staged
-                    .draft_orders
-                    .entry(owner_id.to_string())
-                    .or_insert(owner);
-            } else {
-                self.store
-                    .staged
-                    .orders
-                    .entry(owner_id.to_string())
-                    .or_insert(owner);
-            }
+            self.stage_payment_terms_owner(owner_id, owner);
             if let Some(money) = money {
                 return money;
             }
@@ -840,6 +864,22 @@ impl DraftProxy {
             .get("paymentTerms")
             .filter(|node| !node.is_null())
             .cloned()
+    }
+
+    fn stage_payment_terms_owner(&mut self, owner_id: &str, owner: Value) {
+        if is_shopify_gid_of_type(owner_id, "DraftOrder") {
+            self.store
+                .staged
+                .draft_orders
+                .entry(owner_id.to_string())
+                .or_insert(owner);
+        } else {
+            self.store
+                .staged
+                .orders
+                .entry(owner_id.to_string())
+                .or_insert(owner);
+        }
     }
 
     /// Reads the money already materialized on a staged payment-terms record's
