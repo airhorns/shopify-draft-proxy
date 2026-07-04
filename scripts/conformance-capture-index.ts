@@ -8256,6 +8256,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-connection-mechanics',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-connection-mechanics-conformance.ts',
+    purpose:
+      'Discount connection first/after windows, TITLE and automatic CREATED_AT reverse ordering, discountNodesCount(limit:) precision, and nested DiscountRedeemCodeConnection pageInfo.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-connection-mechanics.json`,
+      'config/parity-specs/discounts/discount-connection-mechanics.json',
+      'config/parity-requests/discounts/discount-connection-mechanics-bulk-add.graphql',
+      'config/parity-requests/discounts/discount-connection-mechanics-create.graphql',
+      'config/parity-requests/discounts/discount-connection-mechanics-read-after.graphql',
+      'config/parity-requests/discounts/discount-connection-mechanics-read-first.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable scheduled code discounts and two disposable scheduled automatic discounts; bulk-adds redeem codes to one code discount; deletes all created discounts after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-add-remove-overlap',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-add-remove-overlap-conformance.ts',
