@@ -16,7 +16,7 @@ fn event_empty_read_shapes_match_current_behavior() {
           }
           nodeOnlyEvents: events(first: 5) { nodes { id } }
           eventsCount(query: $query) { count precision }
-          looseCount: eventsCount { count whatever }
+          looseCount: eventsCount { count }
         }
         "#,
         json!({
@@ -51,8 +51,7 @@ fn event_empty_read_shapes_match_current_behavior() {
                     "precision": "EXACT"
                 },
                 "looseCount": {
-                    "count": 0,
-                    "whatever": null
+                    "count": 0
                 }
             }
         })
@@ -469,6 +468,138 @@ fn admin_graphql_rejects_unknown_api_versions() {
     assert_eq!(
         unknown_version.body,
         json!({ "errors": [{ "message": "Not found" }] })
+    );
+}
+
+#[test]
+fn admin_graphql_rejects_unknown_selection_fields_from_schema_on_non_product_connections() {
+    let mut proxy = snapshot_proxy();
+
+    let unknown_order_field = proxy.process_request(request_with_body(
+        "POST",
+        "/admin/api/2025-01/graphql.json",
+        r#"{"query":"query Repro { orders(first: 1) { nodes { id definitelyNotAnOrderField } } }"}"#,
+    ));
+
+    assert_eq!(unknown_order_field.status, 200);
+    assert_eq!(
+        unknown_order_field.body,
+        json!({
+            "errors": [{
+                "message": "Field 'definitelyNotAnOrderField' doesn't exist on type 'Order'",
+                "locations": [{ "line": 1, "column": 45 }],
+                "path": ["query Repro", "orders", "nodes", "definitelyNotAnOrderField"],
+                "extensions": {
+                    "code": "undefinedField",
+                    "typeName": "Order",
+                    "fieldName": "definitelyNotAnOrderField"
+                }
+            }]
+        })
+    );
+}
+
+#[test]
+fn admin_graphql_validates_inline_fragment_fields_against_type_condition() {
+    let custom_app_id = "gid://shopify/App/347082227713";
+    let mut proxy = snapshot_proxy();
+
+    let mut valid_request = json_graphql_request(
+        r#"
+        query Repro($id: ID!) {
+          node(id: $id) { ... on App { id handle } }
+        }
+        "#,
+        json!({ "id": custom_app_id }),
+    );
+    valid_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let valid = proxy.process_request(valid_request);
+
+    assert_eq!(valid.status, 200);
+    assert_eq!(
+        valid.body["data"]["node"],
+        json!({ "id": custom_app_id, "handle": "shopify-draft-proxy" })
+    );
+    assert!(valid.body.get("errors").is_none());
+
+    let mut invalid_request = json_graphql_request(
+        r#"
+        query Repro($id: ID!) {
+          node(id: $id) { ... on App { definitelyNotAnAppField } }
+        }
+        "#,
+        json!({ "id": custom_app_id }),
+    );
+    invalid_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let invalid = proxy.process_request(invalid_request);
+
+    assert_eq!(invalid.status, 200);
+    assert_eq!(
+        invalid.body["errors"][0]["extensions"],
+        json!({
+            "code": "undefinedField",
+            "typeName": "App",
+            "fieldName": "definitelyNotAnAppField"
+        })
+    );
+}
+
+#[test]
+fn admin_graphql_rejects_plain_user_error_code_selection_for_any_schema_payload() {
+    let mut proxy = snapshot_proxy();
+
+    let customer_create_user_error_code = proxy.process_request(request_with_body(
+        "POST",
+        "/admin/api/2025-01/graphql.json",
+        r#"{"query":"mutation Repro { customerCreate(input: {}) { userErrors { code message } } }"}"#,
+    ));
+
+    assert_eq!(customer_create_user_error_code.status, 200);
+    assert_eq!(
+        customer_create_user_error_code.body,
+        json!({
+            "errors": [{
+                "message": "Field 'code' doesn't exist on type 'UserError'",
+                "locations": [{ "line": 1, "column": 59 }],
+                "path": ["mutation Repro", "customerCreate", "userErrors", "code"],
+                "extensions": {
+                    "code": "undefinedField",
+                    "typeName": "UserError",
+                    "fieldName": "code"
+                }
+            }]
+        })
+    );
+}
+
+#[test]
+fn admin_graphql_rejects_schema_enum_literals_without_root_specific_allowlists() {
+    let mut proxy = snapshot_proxy();
+
+    let invalid_publication_default_state = proxy.process_request(request_with_body(
+        "POST",
+        "/admin/api/2025-01/graphql.json",
+        r#"{"query":"mutation Repro { publicationCreate(input: { defaultState: NOPE }) { userErrors { field message } } }"}"#,
+    ));
+
+    assert_eq!(invalid_publication_default_state.status, 200);
+    assert_eq!(
+        invalid_publication_default_state.body["errors"][0]["message"],
+        json!("Argument 'defaultState' on InputObject 'PublicationCreateInput' has an invalid value (NOPE). Expected type 'PublicationCreateInputPublicationDefaultState'.")
+    );
+    assert_eq!(
+        invalid_publication_default_state.body["errors"][0]["extensions"],
+        json!({
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "InputObject",
+            "argumentName": "defaultState"
+        })
     );
 }
 

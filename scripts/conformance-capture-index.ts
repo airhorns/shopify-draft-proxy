@@ -1458,6 +1458,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/publishable-resource-existence-current-channel.json',
       'config/parity-specs/store-properties/publishable-resource-existence-current-channel.json',
+      'config/parity-specs/store-properties/publishable-current-channel-non-sentinel-membership.json',
       'config/parity-requests/store-properties/publishable-current-channel-membership.graphql',
       'config/parity-requests/store-properties/publishable-current-channel-unpublish-membership.graphql',
       'config/parity-requests/store-properties/current-app-publication-hydrate.graphql',
@@ -7411,7 +7412,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose:
       '2026-04 per-mutation argument and input-object field shapes (deprecated included) used by the central required-field validator.',
     requiredAuthScopes: ['schema introspection access through the active Admin token'],
-    fixtureOutputs: ['config/admin-graphql/2026-04/mutation-schema.json', 'config/admin-graphql-mutation-schema.json'],
+    fixtureOutputs: ['config/admin-graphql/2026-04/mutation-schema.json'],
     cleanupBehavior: 'Read-only introspection; no cleanup expected.',
     expectedStatusChecks: ['conformance:check', 'conformance:status'],
   },
@@ -7425,6 +7426,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: [
       'active Admin API token with Admin GraphQL schema access',
       'read_products',
+      'write_orders',
       'write_products',
       'write_webhooks',
     ],
@@ -7437,6 +7439,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/admin-platform/graphql-base-validation-missing-required-variable.graphql',
       'config/parity-requests/admin-platform/graphql-base-validation-missing-subselection.graphql',
       'config/parity-requests/admin-platform/graphql-base-validation-unknown-mutation-root.graphql',
+      'config/parity-requests/admin-platform/graphql-base-validation-unknown-order-field.graphql',
       'config/parity-requests/admin-platform/graphql-base-validation-unknown-product-field.graphql',
       'config/parity-requests/admin-platform/graphql-base-validation-unknown-query-root.graphql',
     ],
@@ -11632,10 +11635,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose:
       '2026-04 Admin GraphQL output-field connection/list/object schema facts used by request-version-scoped validation.',
     requiredAuthScopes: ['schema introspection access through the active Admin token'],
-    fixtureOutputs: [
-      'config/admin-graphql/2026-04/bulk-query-schema.json',
-      'config/admin-graphql-bulk-query-schema.json',
-    ],
+    fixtureOutputs: ['config/admin-graphql/2026-04/bulk-query-schema.json'],
     cleanupBehavior: 'Read-only introspection; no cleanup expected.',
     expectedStatusChecks: ['conformance:check', 'conformance:status'],
   },
