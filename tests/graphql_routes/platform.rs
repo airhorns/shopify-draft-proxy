@@ -6188,7 +6188,7 @@ fn store_property_node_reads_resolve_shop_records_from_store_state() {
               title
               variants(first: 1) { nodes { id title } }
             }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
