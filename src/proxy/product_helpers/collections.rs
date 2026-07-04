@@ -31,51 +31,47 @@ fn remove_minimal_collection(collections: &mut Vec<Value>, collection_id: &str) 
         .retain(|collection| collection.get("id").and_then(Value::as_str) != Some(collection_id));
 }
 
-pub(in crate::proxy) fn collection_json(collection: &Value, selections: &[SelectedField]) -> Value {
+#[derive(Clone)]
+struct CollectionProductEntry {
+    position: usize,
+    product: ProductRecord,
+    variants: Vec<ProductVariantRecord>,
+}
+
+#[derive(Clone, Copy)]
+enum CollectionProductSortKey {
+    BestSelling,
+    Created,
+    Id,
+    Inventory,
+    Manual,
+    Price,
+    Relevance,
+    Title,
+}
+
+#[derive(Clone, Copy)]
+struct CollectionProductSortPlan {
+    key: CollectionProductSortKey,
+    descending: bool,
+}
+
+fn collection_json(
+    collection: &Value,
+    products: Vec<CollectionProductEntry>,
+    selections: &[SelectedField],
+    shop_currency_code: &str,
+) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "products" => {
-            let sort_key = match selection.arguments.get("sortKey") {
-                Some(ResolvedValue::String(value)) => Some(value.as_str()),
-                _ => None,
-            };
-            let connection_name = match sort_key {
-                Some("COLLECTION_DEFAULT") => "defaultProducts",
-                Some("MANUAL") => "manualProducts",
-                _ => "products",
-            };
-            // A default/best-selling read (anything but an explicit MANUAL sortKey)
-            // honors the collection's configured `sortOrder`. With no sales data a
-            // BEST_SELLING collection surfaces its members by recency — newest product
-            // first — whereas a MANUAL collection keeps its stored position order.
-            let honors_collection_sort_order = !matches!(sort_key, Some("MANUAL"));
-            let sort_order = collection.get("sortOrder").and_then(Value::as_str);
-            Some(
-                collection
-                    .get(connection_name)
-                    .map(|connection| {
-                        let connection = if honors_collection_sort_order
-                            && collection_sort_order_is_recency(sort_order)
-                        {
-                            collection_products_by_recency(connection)
-                        } else {
-                            connection.clone()
-                        };
-                        selected_json(&connection, &selection.selection)
-                    })
-                    .unwrap_or_else(|| selected_empty_connection_json(&selection.selection)),
-            )
-        }
+        "products" => Some(collection_products_connection_json(
+            collection,
+            products.clone(),
+            selection,
+            shop_currency_code,
+        )),
         "hasProduct" => {
             let product_id = resolved_string_field(&selection.arguments, "id").unwrap_or_default();
-            let has_product = collection
-                .get("products")
-                .and_then(|connection| connection.get("nodes"))
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .any(|product| {
-                    product.get("id").and_then(Value::as_str) == Some(product_id.as_str())
-                });
+            let has_product = products.iter().any(|entry| entry.product.id == product_id);
             Some(json!(has_product))
         }
         "productsCount" => Some(
@@ -101,6 +97,179 @@ pub(in crate::proxy) fn collection_json(collection: &Value, selections: &[Select
         ),
         _ => collection.get(&selection.name).cloned(),
     })
+}
+
+fn collection_products_connection_json(
+    collection: &Value,
+    mut products: Vec<CollectionProductEntry>,
+    selection: &SelectedField,
+    shop_currency_code: &str,
+) -> Value {
+    let sort_key = resolved_string_field(&selection.arguments, "sortKey");
+    let sort_plan = collection_product_sort_plan(collection, sort_key.as_deref());
+    let reverse = resolved_bool_field(&selection.arguments, "reverse").unwrap_or(false);
+    match sort_plan.key {
+        CollectionProductSortKey::Manual => products.sort_by_key(|entry| entry.position),
+        _ => products.sort_by(|left, right| {
+            collection_product_sort_key(left, sort_plan.key)
+                .cmp(&collection_product_sort_key(right, sort_plan.key))
+                .then_with(|| {
+                    collection_product_cursor(left).cmp(&collection_product_cursor(right))
+                })
+        }),
+    }
+    if sort_plan.descending ^ reverse {
+        products.reverse();
+    }
+
+    selected_typed_connection_with_args(
+        &products,
+        &selection.arguments,
+        &selection.selection,
+        |entry, selections| {
+            product_json_with_variants_and_currency(
+                &entry.product,
+                &entry.variants,
+                selections,
+                shop_currency_code,
+            )
+        },
+        collection_product_cursor,
+    )
+}
+
+fn collection_product_sort_plan(
+    collection: &Value,
+    sort_key: Option<&str>,
+) -> CollectionProductSortPlan {
+    match sort_key.unwrap_or("COLLECTION_DEFAULT") {
+        "BEST_SELLING" => CollectionProductSortPlan {
+            key: CollectionProductSortKey::BestSelling,
+            descending: true,
+        },
+        "CREATED" => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Created,
+            descending: false,
+        },
+        "ID" => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Id,
+            descending: false,
+        },
+        "INVENTORY" => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Inventory,
+            descending: false,
+        },
+        "MANUAL" => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Manual,
+            descending: false,
+        },
+        "PRICE" => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Price,
+            descending: false,
+        },
+        "RELEVANCE" => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Relevance,
+            descending: true,
+        },
+        "TITLE" => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Title,
+            descending: false,
+        },
+        "COLLECTION_DEFAULT" => collection_default_product_sort_plan(collection),
+        _ => collection_default_product_sort_plan(collection),
+    }
+}
+
+fn collection_default_product_sort_plan(collection: &Value) -> CollectionProductSortPlan {
+    match collection.get("sortOrder").and_then(Value::as_str) {
+        Some("ALPHA_ASC") => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Title,
+            descending: false,
+        },
+        Some("ALPHA_DESC") => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Title,
+            descending: true,
+        },
+        Some("CREATED") => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Created,
+            descending: false,
+        },
+        Some("CREATED_DESC") => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Created,
+            descending: true,
+        },
+        Some("MANUAL") => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Manual,
+            descending: false,
+        },
+        Some("PRICE_ASC") => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Price,
+            descending: false,
+        },
+        Some("PRICE_DESC") => CollectionProductSortPlan {
+            key: CollectionProductSortKey::Price,
+            descending: true,
+        },
+        _ => CollectionProductSortPlan {
+            key: CollectionProductSortKey::BestSelling,
+            descending: true,
+        },
+    }
+}
+
+fn collection_product_sort_key(
+    entry: &CollectionProductEntry,
+    sort_key: CollectionProductSortKey,
+) -> StagedSortKey {
+    let primary = match sort_key {
+        CollectionProductSortKey::BestSelling => collection_product_gid_tail_sort_value(entry),
+        CollectionProductSortKey::Created => {
+            StagedSortValue::String(entry.product.created_at.clone())
+        }
+        CollectionProductSortKey::Id => collection_product_gid_tail_sort_value(entry),
+        CollectionProductSortKey::Inventory => StagedSortValue::I64(entry.product.total_inventory),
+        CollectionProductSortKey::Manual => StagedSortValue::I64(entry.position as i64),
+        CollectionProductSortKey::Price => collection_product_min_price_cents(entry)
+            .map(StagedSortValue::I64)
+            .unwrap_or(StagedSortValue::Null),
+        CollectionProductSortKey::Title => {
+            StagedSortValue::String(entry.product.title.to_ascii_lowercase())
+        }
+        CollectionProductSortKey::Relevance => collection_product_gid_tail_sort_value(entry),
+    };
+    vec![primary, collection_product_gid_tail_sort_value(entry)]
+}
+
+fn collection_product_gid_tail_sort_value(entry: &CollectionProductEntry) -> StagedSortValue {
+    let tail = resource_id_tail(&entry.product.id);
+    tail.parse::<i64>()
+        .map(StagedSortValue::I64)
+        .unwrap_or_else(|_| StagedSortValue::String(tail.to_ascii_lowercase()))
+}
+
+fn collection_product_min_price_cents(entry: &CollectionProductEntry) -> Option<i64> {
+    let prices: Box<dyn Iterator<Item = f64> + '_> = if entry.variants.is_empty() {
+        Box::new(entry.product.variants.iter().filter_map(|variant| {
+            variant
+                .get("price")
+                .and_then(Value::as_str)
+                .and_then(parse_product_price)
+        }))
+    } else {
+        Box::new(
+            entry
+                .variants
+                .iter()
+                .filter_map(|variant| parse_product_price(&variant.price)),
+        )
+    };
+    prices
+        .min_by(|left, right| left.total_cmp(right))
+        .map(|price| (price * 100.0).round() as i64)
+}
+
+fn collection_product_cursor(entry: &CollectionProductEntry) -> String {
+    entry.product.id.clone()
 }
 
 pub(in crate::proxy) fn collection_passthrough_hydration_ids(
@@ -772,7 +941,14 @@ impl DraftProxy {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         self.store
             .collection_by_id(&id)
-            .map(|collection| collection_json(collection, &field.selection))
+            .map(|collection| {
+                collection_json(
+                    collection,
+                    self.collection_product_entries(collection),
+                    &field.selection,
+                    &self.store.shop_currency_code(),
+                )
+            })
             .unwrap_or(Value::Null)
     }
 
@@ -1406,19 +1582,17 @@ impl DraftProxy {
                 vec![collection_user_error(["id"], "Collection does not exist")],
             ));
         };
-        if root_field != "collectionReorderProducts" && collection_is_smart(collection) {
-            let message = if root_field == "collectionRemoveProducts" {
-                "Can't manually remove products from a smart collection"
-            } else {
-                "Can't manually add products to a smart collection"
-            };
+        if root_field == "collectionAddProductsV2" && collection_is_smart(collection) {
             return Some(self.collection_payload_response(
                 query,
                 variables,
                 root_field,
                 None,
                 job_payload.then_some(&Value::Null),
-                vec![collection_user_error(["id"], message)],
+                vec![collection_user_error(
+                    ["id"],
+                    "Can't manually add products to a smart collection",
+                )],
             ));
         }
         None
@@ -1440,10 +1614,16 @@ impl DraftProxy {
         let collection_selection =
             selected_child_selection(&payload_selection, "collection").unwrap_or_default();
         let job_selection = selected_child_selection(&payload_selection, "job").unwrap_or_default();
+        let shop_currency_code = self.store.shop_currency_code();
         ok_json(json!({
             "data": {
                 response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
-                    "collection" => Some(collection.map(|collection| collection_json(collection, &collection_selection)).unwrap_or(Value::Null)),
+                    "collection" => Some(collection.map(|collection| collection_json(
+                        collection,
+                        self.collection_product_entries(collection),
+                        &collection_selection,
+                        &shop_currency_code,
+                    )).unwrap_or(Value::Null)),
                     "job" => Some(job.map(|job| selected_json(job, &job_selection)).unwrap_or(Value::Null)),
                     "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
                     _ => None,
@@ -1490,6 +1670,30 @@ impl DraftProxy {
                     .and_then(Value::as_str)
                     .and_then(|id| self.store.product_by_id(id).cloned())
                     .or_else(|| product_state_from_json(product))
+            })
+            .collect()
+    }
+
+    fn collection_product_entries(&self, collection: &Value) -> Vec<CollectionProductEntry> {
+        collection
+            .get("products")
+            .and_then(|connection| connection.get("nodes"))
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .enumerate()
+            .filter_map(|(position, product)| {
+                let product = product
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .and_then(|id| self.store.product_by_id(id).cloned())
+                    .or_else(|| product_state_from_json(product))?;
+                let variants = self.store.product_variants_for_product(&product.id);
+                Some(CollectionProductEntry {
+                    position,
+                    product,
+                    variants,
+                })
             })
             .collect()
     }
@@ -1722,39 +1926,6 @@ fn collection_create_rule_set_json(input: &BTreeMap<String, ResolvedValue>) -> O
     let rule_set = resolved_object_field(input, "ruleSet")?;
     (!resolved_object_list_field(&rule_set, "rules").is_empty())
         .then(|| collection_rule_set_json(rule_set))
-}
-
-/// Collection sort orders whose default product ordering is by recency (newest
-/// member first). Shopify's default `BEST_SELLING` falls back to this when there is
-/// no sales data, and `CREATED_DESC` is recency by definition.
-fn collection_sort_order_is_recency(sort_order: Option<&str>) -> bool {
-    matches!(sort_order, Some("BEST_SELLING") | Some("CREATED_DESC"))
-}
-
-/// Reorder a collection `products` connection by member recency (highest numeric
-/// gid tail first), keeping `nodes` and any `edges` consistent. The stored
-/// connection preserves membership (insertion) order; this is applied only at
-/// render time for recency-sorted collections.
-fn collection_products_by_recency(connection: &Value) -> Value {
-    fn recency(node: &Value) -> i64 {
-        node.get("id")
-            .and_then(Value::as_str)
-            .map(resource_id_tail)
-            .and_then(|tail| tail.parse::<i64>().ok())
-            .unwrap_or(0)
-    }
-    let mut connection = connection.clone();
-    if let Some(nodes) = connection.get_mut("nodes").and_then(Value::as_array_mut) {
-        nodes.sort_by_key(|n| std::cmp::Reverse(recency(n)));
-    }
-    if let Some(edges) = connection.get_mut("edges").and_then(Value::as_array_mut) {
-        edges.sort_by(|a, b| {
-            let a_node = a.get("node").unwrap_or(a);
-            let b_node = b.get("node").unwrap_or(b);
-            recency(b_node).cmp(&recency(a_node))
-        });
-    }
-    connection
 }
 
 fn apply_collection_products(collection: &mut Value, products: &[ProductRecord]) {

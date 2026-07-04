@@ -11298,6 +11298,331 @@ fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
 }
 
 #[test]
+fn collection_products_connection_windows_and_tracks_staged_membership() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![
+        ProductRecord {
+            id: "gid://shopify/Product/1".to_string(),
+            title: "First Product".to_string(),
+            handle: "first-product".to_string(),
+            status: "ACTIVE".to_string(),
+            ..ProductRecord::default()
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/2".to_string(),
+            title: "Second Product".to_string(),
+            handle: "second-product".to_string(),
+            status: "ACTIVE".to_string(),
+            ..ProductRecord::default()
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/3".to_string(),
+            title: "Third Product".to_string(),
+            handle: "third-product".to_string(),
+            status: "ACTIVE".to_string(),
+            ..ProductRecord::default()
+        },
+    ]);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "Windowed Collection", "sortOrder": "MANUAL" } }),
+    ));
+    let collection_id = create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddProducts($id: ID!, $productIds: [ID!]!) {
+          collectionAddProducts(id: $id, productIds: $productIds) {
+            collection {
+              products(first: 2, sortKey: MANUAL) {
+                nodes { id }
+                edges { cursor node { id } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": collection_id,
+            "productIds": [
+                "gid://shopify/Product/1",
+                "gid://shopify/Product/2",
+                "gid://shopify/Product/3"
+            ]
+        }),
+    ));
+    assert_eq!(
+        add.body["data"]["collectionAddProducts"]["collection"]["products"],
+        json!({
+            "nodes": [
+                { "id": "gid://shopify/Product/1" },
+                { "id": "gid://shopify/Product/2" }
+            ],
+            "edges": [
+                { "cursor": "gid://shopify/Product/1", "node": { "id": "gid://shopify/Product/1" } },
+                { "cursor": "gid://shopify/Product/2", "node": { "id": "gid://shopify/Product/2" } }
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "gid://shopify/Product/1",
+                "endCursor": "gid://shopify/Product/2"
+            }
+        })
+    );
+
+    let after = proxy.process_request(json_graphql_request(
+        r#"
+        query CollectionProductsAfter($id: ID!, $after: String!) {
+          collection(id: $id) {
+            products(first: 1, after: $after, sortKey: MANUAL) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({ "id": collection_id, "after": "gid://shopify/Product/2" }),
+    ));
+    assert_eq!(
+        after.body["data"]["collection"]["products"],
+        json!({
+            "nodes": [{ "id": "gid://shopify/Product/3" }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/Product/3",
+                "endCursor": "gid://shopify/Product/3"
+            }
+        })
+    );
+
+    let remove = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RemoveProducts($id: ID!, $productIds: [ID!]!) {
+          collectionRemoveProducts(id: $id, productIds: $productIds) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": collection_id, "productIds": ["gid://shopify/Product/2"] }),
+    ));
+    assert_eq!(
+        remove.body["data"]["collectionRemoveProducts"]["userErrors"],
+        json!([])
+    );
+
+    let read_after_remove = proxy.process_request(json_graphql_request(
+        r#"
+        query CollectionAfterRemove($id: ID!) {
+          collection(id: $id) {
+            products(first: 10, sortKey: MANUAL) {
+              nodes { id }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({ "id": collection_id }),
+    ));
+    assert_eq!(
+        read_after_remove.body["data"]["collection"]["products"],
+        json!({
+            "nodes": [
+                { "id": "gid://shopify/Product/1" },
+                { "id": "gid://shopify/Product/3" }
+            ],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "gid://shopify/Product/1",
+                "endCursor": "gid://shopify/Product/3"
+            }
+        })
+    );
+}
+
+#[test]
+fn collection_products_connection_honors_sort_keys_and_reverse() {
+    fn sortable_product(
+        id: &str,
+        title: &str,
+        created_at: &str,
+        total_inventory: i64,
+        price: &str,
+    ) -> ProductRecord {
+        ProductRecord {
+            id: id.to_string(),
+            title: title.to_string(),
+            handle: title.to_ascii_lowercase().replace(' ', "-"),
+            status: "ACTIVE".to_string(),
+            created_at: created_at.to_string(),
+            updated_at: created_at.to_string(),
+            total_inventory,
+            variants: vec![json!({
+                "id": format!("{id}/Variant"),
+                "price": price
+            })],
+            ..ProductRecord::default()
+        }
+    }
+
+    let mut proxy = snapshot_proxy().with_base_products(vec![
+        sortable_product(
+            "gid://shopify/Product/10",
+            "Zulu Product",
+            "2024-01-03T00:00:00.000Z",
+            5,
+            "30.00",
+        ),
+        sortable_product(
+            "gid://shopify/Product/2",
+            "Alpha Product",
+            "2024-01-02T00:00:00.000Z",
+            9,
+            "10.00",
+        ),
+        sortable_product(
+            "gid://shopify/Product/30",
+            "Middle Product",
+            "2024-01-01T00:00:00.000Z",
+            1,
+            "20.00",
+        ),
+    ]);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Sorted Collection",
+                "sortOrder": "BEST_SELLING",
+                "products": [
+                    "gid://shopify/Product/10",
+                    "gid://shopify/Product/2",
+                    "gid://shopify/Product/30"
+                ]
+            }
+        }),
+    ));
+    assert_eq!(
+        create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    let collection_id = create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query SortedCollection($id: ID!) {
+          collection(id: $id) {
+            collectionDefault: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { title } }
+            bestSelling: products(first: 10, sortKey: BEST_SELLING) { nodes { title } }
+            manual: products(first: 10, sortKey: MANUAL) { nodes { title } }
+            created: products(first: 10, sortKey: CREATED) { nodes { title createdAt } }
+            idOrder: products(first: 10, sortKey: ID) { nodes { id title } }
+            price: products(first: 10, sortKey: PRICE) { nodes { title } }
+            relevance: products(first: 10, sortKey: RELEVANCE) { nodes { title createdAt } }
+            titleReverse: products(first: 10, sortKey: TITLE, reverse: true) { nodes { title } }
+          }
+        }
+        "#,
+        json!({ "id": collection_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert!(
+        read.body.get("errors").is_none(),
+        "unexpected GraphQL errors: {}",
+        read.body
+    );
+    assert_eq!(
+        read.body["data"]["collection"]["collectionDefault"]["nodes"],
+        json!([
+            { "title": "Middle Product" },
+            { "title": "Zulu Product" },
+            { "title": "Alpha Product" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["collection"]["bestSelling"]["nodes"],
+        json!([
+            { "title": "Middle Product" },
+            { "title": "Zulu Product" },
+            { "title": "Alpha Product" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["collection"]["manual"]["nodes"],
+        json!([
+            { "title": "Zulu Product" },
+            { "title": "Alpha Product" },
+            { "title": "Middle Product" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["collection"]["created"]["nodes"],
+        json!([
+            { "title": "Middle Product", "createdAt": "2024-01-01T00:00:00.000Z" },
+            { "title": "Alpha Product", "createdAt": "2024-01-02T00:00:00.000Z" },
+            { "title": "Zulu Product", "createdAt": "2024-01-03T00:00:00.000Z" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["collection"]["idOrder"]["nodes"],
+        json!([
+            { "id": "gid://shopify/Product/2", "title": "Alpha Product" },
+            { "id": "gid://shopify/Product/10", "title": "Zulu Product" },
+            { "id": "gid://shopify/Product/30", "title": "Middle Product" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["collection"]["price"]["nodes"],
+        json!([
+            { "title": "Alpha Product" },
+            { "title": "Middle Product" },
+            { "title": "Zulu Product" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["collection"]["relevance"]["nodes"],
+        json!([
+            { "title": "Middle Product", "createdAt": "2024-01-01T00:00:00.000Z" },
+            { "title": "Zulu Product", "createdAt": "2024-01-03T00:00:00.000Z" },
+            { "title": "Alpha Product", "createdAt": "2024-01-02T00:00:00.000Z" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["collection"]["titleReverse"]["nodes"],
+        json!([
+            { "title": "Zulu Product" },
+            { "title": "Middle Product" },
+            { "title": "Alpha Product" }
+        ])
+    );
+}
+
+#[test]
 fn collection_delete_payload_includes_shop_on_user_error() {
     let mut proxy = snapshot_proxy();
 
@@ -11726,6 +12051,75 @@ fn collection_validations_and_reorder_are_store_backed() {
             "field": ["id"],
             "message": "Can't manually add products to a smart collection"
         }])
+    );
+    let smart_add_v1 = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SmartAddV1($id: ID!, $productIds: [ID!]!) {
+          collectionAddProducts(id: $id, productIds: $productIds) {
+            collection {
+              id
+              products(first: 5) { nodes { id title handle } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": smart_id,
+            "productIds": ["gid://shopify/Product/first"]
+        }),
+    ));
+    assert_eq!(
+        smart_add_v1.body["data"]["collectionAddProducts"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        smart_add_v1.body["data"]["collectionAddProducts"]["collection"]["products"]["nodes"],
+        json!([{
+            "id": "gid://shopify/Product/first",
+            "title": "First Product",
+            "handle": "first-product"
+        }])
+    );
+    let smart_remove_v1 = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SmartRemoveV1($id: ID!, $productIds: [ID!]!) {
+          collectionRemoveProducts(id: $id, productIds: $productIds) {
+            job { id done query { __typename } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": smart_id,
+            "productIds": ["gid://shopify/Product/first"]
+        }),
+    ));
+    assert_eq!(
+        smart_remove_v1.body["data"]["collectionRemoveProducts"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        smart_remove_v1.body["data"]["collectionRemoveProducts"]["job"]["done"],
+        json!(false)
+    );
+    assert_eq!(
+        smart_remove_v1.body["data"]["collectionRemoveProducts"]["job"]["query"],
+        Value::Null
+    );
+    let smart_read_after_remove = proxy.process_request(json_graphql_request(
+        r#"
+        query SmartReadAfterRemove($id: ID!) {
+          collection(id: $id) {
+            products(first: 5) { nodes { id } }
+          }
+        }
+        "#,
+        json!({ "id": smart_id }),
+    ));
+    assert_eq!(
+        smart_read_after_remove.body["data"]["collection"]["products"]["nodes"],
+        json!([])
     );
     let state_before_smart_reorder = state_snapshot(&proxy);
     let log_len_before_smart_reorder = log_snapshot(&proxy)["entries"].as_array().unwrap().len();
