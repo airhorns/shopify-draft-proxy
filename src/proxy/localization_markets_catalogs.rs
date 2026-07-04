@@ -4030,13 +4030,11 @@ impl DraftProxy {
         &self,
         resource_id: &str,
     ) -> bool {
-        if resource_id.is_empty() {
-            return false;
+        match shopify_gid_resource_type(resource_id) {
+            Some("Product") => self.store.has_localization_product(resource_id),
+            Some("Collection") => self.store.collection_by_id(resource_id).is_some(),
+            _ => false,
         }
-        if resource_id.starts_with("gid://shopify/Product/") {
-            return self.store.has_localization_product(resource_id);
-        }
-        true
     }
 
     fn localization_translatable_content(&self, resource_id: &str) -> Vec<Value> {
