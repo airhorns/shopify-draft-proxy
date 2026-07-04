@@ -1,0 +1,127 @@
+{
+  "scenarioId": "productCreate-category-non-sentinel-parity",
+  "capturedAt": "2026-07-04T23:30:33.790Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "mutation": {
+    "query": "mutation ProductCreateCategoryParity($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n      handle\n      productType\n      category {\n        id\n        fullName\n        name\n        isLeaf\n        level\n        parentId\n      }\n      requiresSellingPlan\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "product": {
+        "title": "Hermes Product Category Non Sentinel 1783207831506",
+        "status": "DRAFT",
+        "category": "gid://shopify/TaxonomyCategory/ap-2-7"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10231718412594",
+              "title": "Hermes Product Category Non Sentinel 1783207831506",
+              "handle": "hermes-product-category-non-sentinel-1783207831506",
+              "productType": "",
+              "category": {
+                "id": "gid://shopify/TaxonomyCategory/ap-2-7",
+                "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Apparel Hangers",
+                "name": "Pet Apparel Hangers",
+                "isLeaf": true,
+                "level": 3,
+                "parentId": "gid://shopify/TaxonomyCategory/ap-2"
+              },
+              "requiresSellingPlan": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "query": "query ProductCreateCategoryDownstreamRead($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    productType\n    category {\n      id\n      fullName\n      name\n      isLeaf\n      level\n      parentId\n    }\n    requiresSellingPlan\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10231718412594"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10231718412594",
+            "title": "Hermes Product Category Non Sentinel 1783207831506",
+            "handle": "hermes-product-category-non-sentinel-1783207831506",
+            "productType": "",
+            "category": {
+              "id": "gid://shopify/TaxonomyCategory/ap-2-7",
+              "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Apparel Hangers",
+              "name": "Pet Apparel Hangers",
+              "isLeaf": true,
+              "level": 3,
+              "parentId": "gid://shopify/TaxonomyCategory/ap-2"
+            },
+            "requiresSellingPlan": false
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 2,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductTaxonomyCategoryHydrate",
+      "variables": {
+        "id": "gid://shopify/TaxonomyCategory/ap-2-7"
+      },
+      "query": "query ProductTaxonomyCategoryHydrate($id: ID!) { node(id: $id) { __typename id ... on TaxonomyCategory { name fullName isLeaf level parentId } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "node": {
+              "__typename": "TaxonomyCategory",
+              "id": "gid://shopify/TaxonomyCategory/ap-2-7",
+              "name": "Pet Apparel Hangers",
+              "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Apparel Hangers",
+              "isLeaf": true,
+              "level": 3,
+              "parentId": "gid://shopify/TaxonomyCategory/ap-2"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

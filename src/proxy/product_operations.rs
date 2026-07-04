@@ -3,6 +3,7 @@ use super::*;
 impl DraftProxy {
     pub(in crate::proxy) fn product_set(
         &mut self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
@@ -191,9 +192,10 @@ impl DraftProxy {
         };
 
         if let Some(category_id) = product_category_input_id(&input) {
-            product
-                .extra_fields
-                .insert("category".to_string(), product_category_value(&category_id));
+            product.extra_fields.insert(
+                "category".to_string(),
+                self.product_category_value_for_input(request, &category_id),
+            );
         }
         if let Some(requires_selling_plan) = input.get("requiresSellingPlan") {
             product.extra_fields.insert(

@@ -725,7 +725,7 @@ fn product_create_unknown_category_returns_derived_category_fields() {
         mutation UnknownCategoryCreate($product: ProductCreateInput!) {
           productCreate(product: $product) {
             product { id category { id fullName name isLeaf level parentId } }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -779,7 +779,7 @@ fn product_set_unknown_category_returns_derived_category_fields() {
         mutation UnknownCategoryProductSet($input: ProductSetInput!) {
           productSet(input: $input) {
             product { id category { id fullName name isLeaf level parentId } }
-            userErrors { field message code }
+            userErrors { field message }
           }
         }
         "#,
@@ -810,6 +810,226 @@ fn product_set_unknown_category_returns_derived_category_fields() {
     ));
     assert_eq!(read.status, 200);
     assert_eq!(read.body["data"]["product"]["category"], expected_category);
+}
+
+#[test]
+fn product_update_unknown_category_returns_derived_category_fields() {
+    let unknown_category = "gid://shopify/TaxonomyCategory/hb-1863";
+    let expected_category = json!({
+        "id": unknown_category,
+        "fullName": "Hb > 1863",
+        "name": "1863",
+        "isLeaf": true,
+        "level": 2,
+        "parentId": "gid://shopify/TaxonomyCategory/hb"
+    });
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CategoryUpdateSeed($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Category update seed" } }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product_id = create.body["data"]["productCreate"]["product"]["id"].clone();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownCategoryUpdate($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product { id category { id fullName name isLeaf level parentId } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "id": product_id,
+                "category": unknown_category
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["productUpdate"]["product"]["category"],
+        expected_category
+    );
+    let updated_id = update.body["data"]["productUpdate"]["product"]["id"].clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownCategoryUpdateRead($id: ID!) {
+          product(id: $id) {
+            category { id fullName name isLeaf level parentId }
+          }
+        }
+        "#,
+        json!({ "id": updated_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["product"]["category"], expected_category);
+}
+
+#[test]
+fn product_category_snapshot_fallback_has_no_former_special_cases() {
+    let cases = [
+        (
+            "gid://shopify/TaxonomyCategory/aa-1-1",
+            json!({
+                "id": "gid://shopify/TaxonomyCategory/aa-1-1",
+                "fullName": "Aa > 1 > 1",
+                "name": "1",
+                "isLeaf": true,
+                "level": 3,
+                "parentId": "gid://shopify/TaxonomyCategory/aa-1"
+            }),
+        ),
+        (
+            "gid://shopify/TaxonomyCategory/na",
+            json!({
+                "id": "gid://shopify/TaxonomyCategory/na",
+                "fullName": "Na",
+                "name": "Na",
+                "isLeaf": true,
+                "level": 1,
+                "parentId": null
+            }),
+        ),
+    ];
+    let mut proxy = snapshot_proxy();
+
+    for (category, expected_category) in cases {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation FormerSpecialCategoryCreate($product: ProductCreateInput!) {
+              productCreate(product: $product) {
+                product { id category { id fullName name isLeaf level parentId } }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({
+                "product": {
+                    "title": format!("Former special category {category}"),
+                    "category": category
+                }
+            }),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(
+            create.body["data"]["productCreate"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            create.body["data"]["productCreate"]["product"]["category"],
+            expected_category
+        );
+    }
+}
+
+#[test]
+fn product_create_live_hybrid_uses_upstream_taxonomy_category_details() {
+    let category_id = "gid://shopify/TaxonomyCategory/ap-2-7";
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let calls = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            calls.lock().unwrap().push(body.clone());
+            assert_eq!(
+                body["operationName"],
+                json!("ProductTaxonomyCategoryHydrate")
+            );
+            assert_eq!(body["variables"]["id"], json!(category_id));
+            assert!(
+                body["query"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains("... on TaxonomyCategory")
+            );
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "node": {
+                            "__typename": "TaxonomyCategory",
+                            "id": category_id,
+                            "name": "Pet Apparel Hangers",
+                            "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Apparel Hangers",
+                            "isLeaf": true,
+                            "level": 3,
+                            "parentId": "gid://shopify/TaxonomyCategory/ap-2"
+                        }
+                    }
+                }),
+            }
+        },
+    );
+
+    let expected_category = json!({
+        "id": category_id,
+        "fullName": "Animals & Pet Supplies > Pet Supplies > Pet Apparel Hangers",
+        "name": "Pet Apparel Hangers",
+        "isLeaf": true,
+        "level": 3,
+        "parentId": "gid://shopify/TaxonomyCategory/ap-2"
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation HydratedCategoryCreate($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id category { id fullName name isLeaf level parentId } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "product": {
+                "title": "Hydrated category create",
+                "category": category_id
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["productCreate"]["product"]["category"],
+        expected_category
+    );
+    let created_id = create.body["data"]["productCreate"]["product"]["id"].clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query HydratedCategoryCreateRead($id: ID!) {
+          product(id: $id) {
+            category { id fullName name isLeaf level parentId }
+          }
+        }
+        "#,
+        json!({ "id": created_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["product"]["category"], expected_category);
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
 }
 
 fn missing_product_hydrate_response() -> Response {

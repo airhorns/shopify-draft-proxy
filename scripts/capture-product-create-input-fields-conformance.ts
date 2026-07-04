@@ -17,6 +17,16 @@ type CaptureEntry = {
   };
 };
 
+type RecordedUpstreamCall = {
+  operationName: string;
+  variables: Record<string, unknown>;
+  query: string;
+  response: {
+    status: number;
+    body: unknown;
+  };
+};
+
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
@@ -47,10 +57,12 @@ const collectionsToJoinReadDocumentPath = path.join(
 );
 
 const categoryFixturePath = path.join(outputDir, 'productCreate-category-parity.json');
+const nonSentinelCategoryFixturePath = path.join(outputDir, 'productCreate-category-non-sentinel-parity.json');
 const requiresSellingPlanFixturePath = path.join(outputDir, 'productCreate-requires-selling-plan-parity.json');
 const collectionsToJoinFixturePath = path.join(outputDir, 'productCreate-collections-to-join-parity.json');
 
 const categorySpecPath = path.join(specDir, 'productCreate-category-parity.json');
+const nonSentinelCategorySpecPath = path.join(specDir, 'productCreate-category-non-sentinel-parity.json');
 const requiresSellingPlanSpecPath = path.join(specDir, 'productCreate-requires-selling-plan-parity.json');
 const collectionsToJoinSpecPath = path.join(specDir, 'productCreate-collections-to-join-parity.json');
 
@@ -106,6 +118,10 @@ const productCreateCategoryDocument = `mutation ProductCreateCategoryParity($pro
       category {
         id
         fullName
+        name
+        isLeaf
+        level
+        parentId
       }
       requiresSellingPlan
     }
@@ -126,11 +142,18 @@ const productCreateCategoryReadDocument = `query ProductCreateCategoryDownstream
     category {
       id
       fullName
+      name
+      isLeaf
+      level
+      parentId
     }
     requiresSellingPlan
   }
 }
 `;
+
+const taxonomyCategoryHydrateQuery =
+  'query ProductTaxonomyCategoryHydrate($id: ID!) { node(id: $id) { __typename id ... on TaxonomyCategory { name fullName isLeaf level parentId } } }';
 
 const productCreateRequiresSellingPlanDocument = `mutation ProductCreateRequiresSellingPlanParity($product: ProductCreateInput!) {
   productCreate(product: $product) {
@@ -296,6 +319,24 @@ function productIdFromCreate(entry: CaptureEntry): string {
   return readStringPath(entry.response.payload, ['data', 'productCreate', 'product', 'id'], 'productCreate id');
 }
 
+async function captureTaxonomyCategoryHydrate(id: string): Promise<RecordedUpstreamCall> {
+  const hydrate = await capture(taxonomyCategoryHydrateQuery, { id });
+  assertNoTopLevelErrors(hydrate, `taxonomy category hydrate ${id}`);
+  const node = readRecord(readPath(hydrate.response.payload, ['data', 'node']));
+  if (node?.['__typename'] !== 'TaxonomyCategory') {
+    throw new Error(`Expected TaxonomyCategory node for ${id}: ${JSON.stringify(hydrate.response.payload)}`);
+  }
+  return {
+    operationName: 'ProductTaxonomyCategoryHydrate',
+    variables: { id },
+    query: taxonomyCategoryHydrateQuery,
+    response: {
+      status: hydrate.response.status,
+      body: hydrate.response.payload,
+    },
+  };
+}
+
 function collectionIdFromCreate(entry: CaptureEntry): string {
   return readStringPath(
     entry.response.payload,
@@ -376,6 +417,38 @@ function categorySpec(): Record<string, unknown> {
       },
       {
         name: 'downstream-read-data',
+        capturePath: '$.downstreamRead.response.payload.data',
+        proxyRequest: {
+          documentPath: categoryReadDocumentPath,
+          apiVersion,
+          variables: {
+            id: { fromPrimaryProxyPath: '$.data.productCreate.product.id' },
+          },
+        },
+        proxyPath: '$.data',
+        expectedDifferences: buildProductIdDifferences('$.product'),
+      },
+    ],
+  });
+}
+
+function nonSentinelCategorySpec(): Record<string, unknown> {
+  return buildSpecBase({
+    scenarioId: 'productCreate-category-non-sentinel-parity',
+    operationNames: ['productCreate'],
+    fixturePath: nonSentinelCategoryFixturePath,
+    requestPath: categoryDocumentPath,
+    notes:
+      'Captured Shopify productCreate with ProductCreateInput.category using a taxonomy category outside the former runtime sentinel IDs, followed by an immediate product readback. This proves the product category resolver does not collapse arbitrary real taxonomy IDs to null category names.',
+    expectedDifferences: buildProductIdDifferences(),
+    targets: [
+      {
+        name: 'non-sentinel-category-mutation-data',
+        capturePath: '$.mutation.response.payload.data',
+        proxyPath: '$.data',
+      },
+      {
+        name: 'non-sentinel-category-downstream-read-data',
         capturePath: '$.downstreamRead.response.payload.data',
         proxyRequest: {
           documentPath: categoryReadDocumentPath,
@@ -568,19 +641,24 @@ await mkdir(specDir, { recursive: true });
 
 const runId = `${Date.now()}`;
 let categoryProductId: string | null = null;
+let nonSentinelCategoryProductId: string | null = null;
 let requiresSellingPlanProductId: string | null = null;
 let collectionsProductId: string | null = null;
 let firstCollectionId: string | null = null;
 let secondCollectionId: string | null = null;
 
 try {
+  const categoryId = 'gid://shopify/TaxonomyCategory/aa-1-1';
+  const nonSentinelCategoryId = 'gid://shopify/TaxonomyCategory/ap-2-7';
+
   const categoryVariables = {
     product: {
       title: `Hermes Product Category ${runId}`,
       status: 'DRAFT',
-      category: 'gid://shopify/TaxonomyCategory/aa-1-1',
+      category: categoryId,
     },
   };
+  const categoryHydrate = await captureTaxonomyCategoryHydrate(categoryId);
   const categoryMutation = await capture(productCreateCategoryDocument, categoryVariables);
   assertNoUserErrors(categoryMutation, 'productCreate', 'category productCreate');
   categoryProductId = productIdFromCreate(categoryMutation);
@@ -604,7 +682,7 @@ try {
     product: {
       title: `Hermes Product Category Type ${runId}`,
       status: 'DRAFT',
-      category: 'gid://shopify/TaxonomyCategory/aa-1-1',
+      category: categoryId,
       productType: 'Boards',
     },
   });
@@ -628,7 +706,40 @@ try {
           categoryAndProductType,
           categoryAndProductTypeCleanup,
         },
-        upstreamCalls: [],
+        upstreamCalls: [categoryHydrate],
+      },
+      null,
+      2,
+    )}\n`,
+  );
+
+  const nonSentinelCategoryVariables = {
+    product: {
+      title: `Hermes Product Category Non Sentinel ${runId}`,
+      status: 'DRAFT',
+      category: nonSentinelCategoryId,
+    },
+  };
+  const nonSentinelCategoryHydrate = await captureTaxonomyCategoryHydrate(nonSentinelCategoryId);
+  const nonSentinelCategoryMutation = await capture(productCreateCategoryDocument, nonSentinelCategoryVariables);
+  assertNoUserErrors(nonSentinelCategoryMutation, 'productCreate', 'non-sentinel category productCreate');
+  nonSentinelCategoryProductId = productIdFromCreate(nonSentinelCategoryMutation);
+  const nonSentinelCategoryDownstreamRead = await capture(productCreateCategoryReadDocument, {
+    id: nonSentinelCategoryProductId,
+  });
+  assertNoTopLevelErrors(nonSentinelCategoryDownstreamRead, 'non-sentinel category downstream read');
+
+  await writeFile(
+    nonSentinelCategoryFixturePath,
+    `${JSON.stringify(
+      {
+        scenarioId: 'productCreate-category-non-sentinel-parity',
+        capturedAt: new Date().toISOString(),
+        storeDomain,
+        apiVersion,
+        mutation: nonSentinelCategoryMutation,
+        downstreamRead: nonSentinelCategoryDownstreamRead,
+        upstreamCalls: [nonSentinelCategoryHydrate],
       },
       null,
       2,
@@ -747,6 +858,7 @@ try {
   await writeFile(collectionsToJoinReadDocumentPath, productCreateCollectionsToJoinReadDocument);
 
   await writeFile(categorySpecPath, `${JSON.stringify(categorySpec(), null, 2)}\n`);
+  await writeFile(nonSentinelCategorySpecPath, `${JSON.stringify(nonSentinelCategorySpec(), null, 2)}\n`);
   await writeFile(requiresSellingPlanSpecPath, `${JSON.stringify(requiresSellingPlanSpec(), null, 2)}\n`);
   await writeFile(collectionsToJoinSpecPath, `${JSON.stringify(collectionsToJoinSpec(), null, 2)}\n`);
 
@@ -754,8 +866,18 @@ try {
     JSON.stringify(
       {
         ok: true,
-        fixtureFiles: [categoryFixturePath, requiresSellingPlanFixturePath, collectionsToJoinFixturePath],
-        specFiles: [categorySpecPath, requiresSellingPlanSpecPath, collectionsToJoinSpecPath],
+        fixtureFiles: [
+          categoryFixturePath,
+          nonSentinelCategoryFixturePath,
+          requiresSellingPlanFixturePath,
+          collectionsToJoinFixturePath,
+        ],
+        specFiles: [
+          categorySpecPath,
+          nonSentinelCategorySpecPath,
+          requiresSellingPlanSpecPath,
+          collectionsToJoinSpecPath,
+        ],
         requestFiles: [
           categoryDocumentPath,
           categoryReadDocumentPath,
@@ -773,6 +895,7 @@ try {
 } finally {
   const cleanup: Record<string, unknown> = {};
   cleanup['categoryProduct'] = await cleanupProduct(categoryProductId);
+  cleanup['nonSentinelCategoryProduct'] = await cleanupProduct(nonSentinelCategoryProductId);
   cleanup['requiresSellingPlanProduct'] = await cleanupProduct(requiresSellingPlanProductId);
   cleanup['collectionsProduct'] = await cleanupProduct(collectionsProductId);
   cleanup['firstCollection'] = await cleanupCollection(firstCollectionId);

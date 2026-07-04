@@ -603,9 +603,10 @@ impl DraftProxy {
         // object on the created product, surfaced through both the mutation payload and
         // downstream reads.
         if let Some(category_id) = product_category_input_id(&input) {
-            product
-                .extra_fields
-                .insert("category".to_string(), product_category_value(&category_id));
+            product.extra_fields.insert(
+                "category".to_string(),
+                self.product_category_value_for_input(request, &category_id),
+            );
         }
 
         // `productCreate` always materializes at least one variant. With `productOptions`,
@@ -905,6 +906,14 @@ impl DraftProxy {
             }
         }
 
+        let mut extra_fields = existing.extra_fields;
+        if let Some(category_id) = product_category_input_id(&input) {
+            extra_fields.insert(
+                "category".to_string(),
+                self.product_category_value_for_input(request, &category_id),
+            );
+        }
+
         let product = ProductRecord {
             id: existing.id,
             created_at: existing.created_at,
@@ -933,7 +942,7 @@ impl DraftProxy {
             media: existing.media,
             variants: existing.variants,
             collections: existing.collections,
-            extra_fields: existing.extra_fields,
+            extra_fields,
         };
         self.store.stage_product(product.clone());
 

@@ -1021,7 +1021,7 @@ impl DraftProxy {
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if root_field == "productSet" =>
             {
-                let outcome = self.product_set(&query, &variables);
+                let outcome = self.product_set(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)

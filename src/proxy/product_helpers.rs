@@ -28,6 +28,8 @@ pub(in crate::proxy) const PRODUCTS_HYDRATE_NODES_OBSERVATION_QUERY: &str = incl
     "../../config/parity-requests/products/products-hydrate-nodes-observation.graphql"
 );
 
+pub(in crate::proxy) const TAXONOMY_CATEGORY_HYDRATE_QUERY: &str = "query ProductTaxonomyCategoryHydrate($id: ID!) { node(id: $id) { __typename id ... on TaxonomyCategory { name fullName isLeaf level parentId } } }";
+
 pub(in crate::proxy) const COLLECTION_REORDER_PRODUCTS_COLLECTION_HYDRATE_QUERY: &str = include_str!(
     "../../config/parity-requests/products/collectionReorderProducts-collection-hydrate.graphql"
 );
@@ -3395,28 +3397,70 @@ pub(in crate::proxy) fn product_category_input_id(
         })
 }
 
-/// Resolve a taxonomy category GID to a stable local category object. Shopify materializes
-/// `category.fullName` from its global product taxonomy; when the local proxy has only the
-/// input GID, derive a deterministic display path from the taxonomy tail instead of
-/// collapsing valid-but-unknown taxonomy IDs to null.
-pub(in crate::proxy) fn product_category_value(id: &str) -> Value {
+impl DraftProxy {
+    /// Resolve a taxonomy category GID to a stable local category object. In live-hybrid
+    /// mode, prefer Shopify's taxonomy node data through the upstream/cassette read path.
+    /// When that source is unavailable, derive a deterministic fallback from the input
+    /// GID tail instead of collapsing valid-but-unknown taxonomy IDs to null.
+    pub(in crate::proxy) fn product_category_value_for_input(
+        &self,
+        request: &Request,
+        id: &str,
+    ) -> Value {
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && shopify_gid_tail_for_type(id, "TaxonomyCategory").is_some()
+        {
+            if let Some(category) = self.hydrate_taxonomy_category_value(request, id) {
+                return category;
+            }
+        }
+
+        derived_product_category_value(id)
+    }
+
+    fn hydrate_taxonomy_category_value(&self, request: &Request, id: &str) -> Option<Value> {
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": TAXONOMY_CATEGORY_HYDRATE_QUERY,
+                "operationName": "ProductTaxonomyCategoryHydrate",
+                "variables": { "id": id }
+            }),
+        );
+        if response.status != 200 || response.body.get("errors").is_some() {
+            return None;
+        }
+        let node = response.body.pointer("/data/node")?;
+        if node.get("__typename").and_then(Value::as_str) != Some("TaxonomyCategory") {
+            return None;
+        }
+
+        let fallback = derived_product_category_value(id);
+        Some(json!({
+            "id": id,
+            "fullName": category_field_or_fallback(node, &fallback, "fullName"),
+            "name": category_field_or_fallback(node, &fallback, "name"),
+            "isLeaf": category_field_or_fallback(node, &fallback, "isLeaf"),
+            "level": category_field_or_fallback(node, &fallback, "level"),
+            "parentId": category_field_or_fallback(node, &fallback, "parentId"),
+        }))
+    }
+}
+
+fn category_field_or_fallback(node: &Value, fallback: &Value, field: &str) -> Value {
+    node.get(field)
+        .filter(|value| !value.is_null())
+        .cloned()
+        .unwrap_or_else(|| fallback.get(field).cloned().unwrap_or(Value::Null))
+}
+
+fn derived_product_category_value(id: &str) -> Value {
     let Some(tail) = shopify_gid_tail_for_type(id, "TaxonomyCategory") else {
         return json!({ "id": id, "fullName": null });
     };
     let tail = tail.split('?').next().unwrap_or(tail);
     if tail.is_empty() {
         return json!({ "id": id, "fullName": null });
-    }
-
-    if tail == "na" {
-        return json!({
-            "id": id,
-            "fullName": "Uncategorized",
-            "name": "Uncategorized",
-            "isLeaf": true,
-            "level": 0,
-            "parentId": null
-        });
     }
 
     let segments: Vec<&str> = tail
@@ -3427,12 +3471,10 @@ pub(in crate::proxy) fn product_category_value(id: &str) -> Value {
         return json!({ "id": id, "fullName": null });
     }
 
-    let labels = captured_taxonomy_category_labels(tail).unwrap_or_else(|| {
-        segments
-            .iter()
-            .map(|segment| taxonomy_category_tail_label(segment))
-            .collect()
-    });
+    let labels = segments
+        .iter()
+        .map(|segment| taxonomy_category_tail_label(segment))
+        .collect::<Vec<_>>();
     let name = labels.last().cloned().unwrap_or_default();
     let full_name = labels.join(" > ");
     let parent_id = if segments.len() > 1 {
@@ -3472,17 +3514,6 @@ fn taxonomy_category_tail_label(segment: &str) -> String {
         })
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-fn captured_taxonomy_category_labels(tail: &str) -> Option<Vec<String>> {
-    match tail {
-        "aa-1-1" => Some(vec![
-            "Apparel & Accessories".to_string(),
-            "Clothing".to_string(),
-            "Activewear".to_string(),
-        ]),
-        _ => None,
-    }
 }
 
 pub(in crate::proxy) fn product_input(
