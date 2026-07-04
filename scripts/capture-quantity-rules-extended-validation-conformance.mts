@@ -54,8 +54,7 @@ query QuantityRulesExtendedValidationSetup($priceListId: ID!, $productId: ID!) {
   }
 }`;
 
-const preflightQuery = `#graphql
-query MarketsMutationPreflightHydrate($priceListId: ID!) {
+const preflightQuery = `query MarketsMutationPreflightHydrate($priceListId: ID!) {
   priceList(id: $priceListId) {
     __typename
     id
@@ -75,7 +74,7 @@ query MarketsMutationPreflightHydrate($priceListId: ID!) {
         }
       }
     }
-    prices(first: 20) {
+    prices(first: 20, originType: FIXED) {
       edges {
         cursor
         node {
@@ -87,8 +86,10 @@ query MarketsMutationPreflightHydrate($priceListId: ID!) {
             edges {
               cursor
               node {
+                id
                 minimumQuantity
                 price { amount currencyCode }
+                variant { id }
               }
             }
           }
@@ -201,7 +202,7 @@ function upstreamCall(variables: Record<string, unknown>, response: ConformanceG
   return {
     operationName: 'MarketsMutationPreflightHydrate',
     variables,
-    query: 'captured preflight used by quantityRulesAdd/quantityRulesDelete local validation',
+    query: preflightQuery.replace(/\s+/gu, ' ').trim(),
     response: {
       status: response.status,
       body: response.payload,
