@@ -4,7 +4,8 @@ use pretty_assertions::assert_eq;
 #[test]
 fn b2b_tax_settings_update_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
-    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+    let company_id = create_b2b_company(&mut proxy, "Tax Settings");
+    let location_id = create_b2b_location(&mut proxy, &company_id, "Tax Settings HQ");
 
     let required_and_nullable = proxy.process_request(json_graphql_request(
         r#"
@@ -28,7 +29,7 @@ fn b2b_tax_settings_update_tail_helpers_cover_current_behavior() {
             "companyLocation": {
                 "id": location_id,
                 "taxSettings": {
-                    "taxExempt": true,
+                    "taxExempt": false,
                     "taxExemptions": []
                 }
             },
@@ -50,7 +51,7 @@ fn b2b_tax_settings_update_tail_helpers_cover_current_behavior() {
     let invalid_literal = proxy.process_request(json_graphql_request(
         r#"
         mutation RustB2BTaxSettingsInvalidEnumLiteral {
-          companyLocationTaxSettingsUpdate(companyLocationId: "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic", exemptionsToAssign: [NOT_A_REAL_EXEMPTION]) {
+          companyLocationTaxSettingsUpdate(companyLocationId: "gid://shopify/CompanyLocation/123", exemptionsToAssign: [NOT_A_REAL_EXEMPTION]) {
             companyLocation { id taxSettings { taxExemptions } }
             userErrors { field message code }
           }
@@ -158,8 +159,9 @@ fn b2b_tax_settings_update_tail_helpers_cover_current_behavior() {
 
 #[test]
 fn b2b_tax_settings_update_registration_only_and_no_knobs_are_successful() {
-    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
     let mut proxy = snapshot_proxy();
+    let company_id = create_b2b_company(&mut proxy, "Tax Registration");
+    let location_id = create_b2b_location(&mut proxy, &company_id, "Tax Registration HQ");
 
     let no_knobs = proxy.process_request(json_graphql_request(
         r#"
@@ -187,7 +189,7 @@ fn b2b_tax_settings_update_registration_only_and_no_knobs_are_successful() {
                 "id": location_id,
                 "taxSettings": {
                     "taxRegistrationId": Value::Null,
-                    "taxExempt": true,
+                    "taxExempt": false,
                     "taxExemptions": []
                 }
             },
@@ -224,7 +226,7 @@ fn b2b_tax_settings_update_registration_only_and_no_knobs_are_successful() {
                 "id": location_id,
                 "taxSettings": {
                     "taxRegistrationId": "VAT-123",
-                    "taxExempt": true,
+                    "taxExempt": false,
                     "taxExemptions": []
                 }
             },
@@ -254,7 +256,7 @@ fn b2b_tax_settings_update_registration_only_and_no_knobs_are_successful() {
             "id": location_id,
             "taxSettings": {
                 "taxRegistrationId": "VAT-123",
-                "taxExempt": true,
+                "taxExempt": false,
                 "taxExemptions": []
             }
         })
@@ -276,9 +278,10 @@ fn b2b_tax_settings_update_registration_only_and_no_knobs_are_successful() {
 
 #[test]
 fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() {
-    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
-
     let mut fresh_proxy = snapshot_proxy();
+    let fresh_company_id = create_b2b_company(&mut fresh_proxy, "Fresh Tax Merge");
+    let fresh_location_id =
+        create_b2b_location(&mut fresh_proxy, &fresh_company_id, "Fresh Tax Merge HQ");
     let assign_and_remove = fresh_proxy.process_request(json_graphql_request(
         r#"
         mutation RustB2BTaxSettingsAssignAndRemove(
@@ -297,7 +300,7 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
         }
         "#,
         json!({
-            "locationId": location_id,
+            "locationId": fresh_location_id,
             "assign": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"],
             "remove": ["US_CA_RESELLER_EXEMPTION"]
         }),
@@ -307,7 +310,7 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
         assign_and_remove.body["data"]["companyLocationTaxSettingsUpdate"],
         json!({
             "companyLocation": {
-                "id": location_id,
+                "id": fresh_location_id,
                 "taxSettings": {
                     "taxExemptions": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
                 }
@@ -317,6 +320,9 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
     );
 
     let mut staged_proxy = snapshot_proxy();
+    let staged_company_id = create_b2b_company(&mut staged_proxy, "Staged Tax Merge");
+    let location_id =
+        create_b2b_location(&mut staged_proxy, &staged_company_id, "Staged Tax Merge HQ");
     let initial = staged_proxy.process_request(json_graphql_request(
         r#"
         mutation RustB2BTaxSettingsInitial(
@@ -437,7 +443,8 @@ fn b2b_tax_settings_update_merges_exemptions_and_preserves_omitted_tax_exempt() 
 #[test]
 fn b2b_location_buyer_experience_configuration_update_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
-    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+    let company_id = create_b2b_company(&mut proxy, "Buyer Experience");
+    let location_id = create_b2b_location(&mut proxy, &company_id, "Buyer Experience HQ");
 
     let empty = proxy.process_request(json_graphql_request(
         r#"
@@ -540,7 +547,7 @@ fn b2b_location_buyer_experience_configuration_update_tail_helpers_cover_current
         json!({
             "companyLocation": {
                 "id": location_id,
-                "taxSettings": { "taxExempt": true },
+                "taxSettings": { "taxExempt": false },
                 "buyerExperienceConfiguration": {
                     "editableShippingAddress": true,
                     "checkoutToDraft": true,
@@ -1411,6 +1418,329 @@ fn b2b_unknown_update_ids_return_resource_not_found_without_staging() {
         assert_eq!(entry["status"], json!("failed"));
         assert_eq!(entry["stagedResourceIds"], json!([]));
     }
+}
+
+#[test]
+fn b2b_magic_synthetic_company_location_id_is_not_treated_as_existing() {
+    let mut proxy = snapshot_proxy();
+    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BMagicLocationUpdate($id: ID!) {
+          companyLocationUpdate(
+            companyLocationId: $id,
+            input: {
+              buyerExperienceConfiguration: {
+                paymentTermsTemplateId: "gid://shopify/PaymentTermsTemplate/4",
+                checkoutToDraft: true,
+                editableShippingAddress: true
+              }
+            }
+          ) {
+            companyLocation { id name taxSettings { taxExempt } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        update.body["data"]["companyLocationUpdate"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["input"],
+                "message": "The company location doesn't exist",
+                "code": "RESOURCE_NOT_FOUND"
+            }]
+        })
+    );
+
+    let tax = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BMagicLocationTax($id: ID!) {
+          companyLocationTaxSettingsUpdate(companyLocationId: $id, taxExempt: true) {
+            companyLocation { id name billingAddress { address1 } taxSettings { taxExempt } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        tax.body["data"]["companyLocationTaxSettingsUpdate"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["companyLocationId"],
+                "message": "The company location doesn't exist",
+                "code": "RESOURCE_NOT_FOUND"
+            }]
+        })
+    );
+
+    let credit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BMagicLocationStoreCredit($id: ID!) {
+          storeCreditAccountCredit(id: $id, creditInput: { creditAmount: { amount: "1.00", currencyCode: USD } }) {
+            storeCreditAccountTransaction { account { owner { ... on CompanyLocation { id name } } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        credit.body["data"]["storeCreditAccountCredit"]["storeCreditAccountTransaction"],
+        Value::Null
+    );
+    assert_eq!(
+        credit.body["data"]["storeCreditAccountCredit"]["userErrors"],
+        json!([{
+            "field": ["id"],
+            "message": "Owner does not exist",
+            "code": "OWNER_NOT_FOUND"
+        }])
+    );
+}
+
+#[test]
+fn b2b_companies_cold_live_hybrid_read_forwards_upstream() {
+    let upstream_body = json!({
+        "data": {
+            "companies": {
+                "nodes": [{
+                    "id": "gid://shopify/Company/upstream",
+                    "name": "Upstream Company"
+                }]
+            }
+        }
+    });
+    let captured = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        let upstream_body = upstream_body.clone();
+        move |request| {
+            captured.lock().expect("captured upstream").push(request);
+            Response {
+                status: 200,
+                headers: Default::default(),
+                body: upstream_body.clone(),
+            }
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BColdCompanies {
+          companies(first: 1) { nodes { id name } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body, upstream_body);
+    let calls = captured.lock().expect("captured upstream");
+    assert_eq!(calls.len(), 1);
+    assert!(calls[0].body.contains("companies(first: 1)"));
+}
+
+#[test]
+fn b2b_company_location_update_hydrates_real_upstream_location() {
+    let location_id = "gid://shopify/CompanyLocation/987654321";
+    let company_id = "gid://shopify/Company/456789";
+    let captured = Arc::new(Mutex::new(Vec::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let captured = Arc::clone(&captured);
+        move |request| {
+            captured
+                .lock()
+                .expect("captured upstream")
+                .push(serde_json::from_str::<Value>(&request.body).expect("upstream body"));
+            b2b_company_location_hydrate_response(location_id, "Hydrated HQ", company_id)
+        }
+    });
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BHydratedLocationUpdate($id: ID!) {
+          companyLocationUpdate(
+            companyLocationId: $id,
+            input: {
+              name: "Updated Real HQ",
+              buyerExperienceConfiguration: {
+                paymentTermsTemplateId: "gid://shopify/PaymentTermsTemplate/4",
+                checkoutToDraft: true,
+                editableShippingAddress: true
+              }
+            }
+          ) {
+            companyLocation {
+              id
+              name
+              taxSettings { taxExempt taxExemptions }
+              buyerExperienceConfiguration {
+                checkoutToDraft
+                editableShippingAddress
+                paymentTermsTemplate { id }
+              }
+              company { id name }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["companyLocationUpdate"],
+        json!({
+            "companyLocation": {
+                "id": location_id,
+                "name": "Updated Real HQ",
+                "taxSettings": {
+                    "taxExempt": false,
+                    "taxExemptions": ["US_CA_RESELLER_EXEMPTION"]
+                },
+                "buyerExperienceConfiguration": {
+                    "checkoutToDraft": true,
+                    "editableShippingAddress": true,
+                    "paymentTermsTemplate": { "id": "gid://shopify/PaymentTermsTemplate/4" }
+                },
+                "company": {
+                    "id": company_id,
+                    "name": "Hydrated Company"
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let readback = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BHydratedLocationRead($id: ID!) {
+          companyLocation(id: $id) {
+            id
+            name
+            taxSettings { taxExempt taxExemptions }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        readback.body["data"]["companyLocation"],
+        json!({
+            "id": location_id,
+            "name": "Updated Real HQ",
+            "taxSettings": {
+                "taxExempt": false,
+                "taxExemptions": ["US_CA_RESELLER_EXEMPTION"]
+            }
+        })
+    );
+
+    let calls = captured.lock().expect("captured upstream");
+    assert_eq!(calls.len(), 1);
+    assert_eq!(
+        calls[0]["operationName"],
+        json!("B2BCompanyLocationHydrate")
+    );
+    assert_eq!(calls[0]["variables"]["id"], json!(location_id));
+    let hydrate_query = calls[0]["query"].as_str().expect("hydrate query");
+    assert!(hydrate_query.contains("companyLocation(id: $id)"));
+    assert!(!hydrate_query.contains("billingSameAsShipping"));
+}
+
+#[test]
+fn b2b_tax_settings_and_store_credit_hydrate_real_company_locations() {
+    let tax_location_id = "gid://shopify/CompanyLocation/987654322";
+    let credit_location_id = "gid://shopify/CompanyLocation/987654323";
+    let company_id = "gid://shopify/Company/456790";
+
+    let tax_calls = Arc::new(Mutex::new(Vec::new()));
+    let mut tax_proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let tax_calls = Arc::clone(&tax_calls);
+        move |request| {
+            tax_calls
+                .lock()
+                .expect("captured tax upstream")
+                .push(serde_json::from_str::<Value>(&request.body).expect("upstream body"));
+            b2b_company_location_hydrate_response(tax_location_id, "Tax Hydrated", company_id)
+        }
+    });
+    let tax = tax_proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BHydratedLocationTax($id: ID!) {
+          companyLocationTaxSettingsUpdate(
+            companyLocationId: $id,
+            taxRegistrationId: "REG-LIVE",
+            taxExempt: true
+          ) {
+            companyLocation { id name taxSettings { taxRegistrationId taxExempt taxExemptions } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": tax_location_id }),
+    ));
+    assert_eq!(
+        tax.body["data"]["companyLocationTaxSettingsUpdate"],
+        json!({
+            "companyLocation": {
+                "id": tax_location_id,
+                "name": "Tax Hydrated",
+                "taxSettings": {
+                    "taxRegistrationId": "REG-LIVE",
+                    "taxExempt": true,
+                    "taxExemptions": ["US_CA_RESELLER_EXEMPTION"]
+                }
+            },
+            "userErrors": []
+        })
+    );
+    assert_eq!(tax_calls.lock().expect("tax calls").len(), 1);
+
+    let credit_calls = Arc::new(Mutex::new(Vec::new()));
+    let mut credit_proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let credit_calls = Arc::clone(&credit_calls);
+        move |request| {
+            credit_calls
+                .lock()
+                .expect("captured credit upstream")
+                .push(serde_json::from_str::<Value>(&request.body).expect("upstream body"));
+            b2b_company_location_hydrate_response(credit_location_id, "Credit Hydrated", company_id)
+        }
+    });
+    let credit = credit_proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BHydratedLocationStoreCredit($id: ID!) {
+          storeCreditAccountCredit(id: $id, creditInput: { creditAmount: { amount: "3.00", currencyCode: USD } }) {
+            storeCreditAccountTransaction {
+              account {
+                balance { amount currencyCode }
+                owner { ... on CompanyLocation { id name } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": credit_location_id }),
+    ));
+    assert_eq!(
+        credit.body["data"]["storeCreditAccountCredit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        credit.body["data"]["storeCreditAccountCredit"]["storeCreditAccountTransaction"]["account"]
+            ["owner"],
+        json!({ "id": credit_location_id, "name": "Credit Hydrated" })
+    );
+    assert_eq!(credit_calls.lock().expect("credit calls").len(), 1);
 }
 
 #[test]
@@ -4129,6 +4459,47 @@ fn create_b2b_company(proxy: &mut DraftProxy, name: &str) -> String {
         .as_str()
         .expect("company id")
         .to_string()
+}
+
+fn b2b_company_location_hydrate_response(
+    location_id: &str,
+    location_name: &str,
+    company_id: &str,
+) -> Response {
+    Response {
+        status: 200,
+        headers: Default::default(),
+        body: json!({
+            "data": {
+                "companyLocation": {
+                    "id": location_id,
+                    "name": location_name,
+                    "externalId": Value::Null,
+                    "note": Value::Null,
+                    "locale": "en",
+                    "phone": Value::Null,
+                    "billingAddress": { "id": "gid://shopify/CompanyAddress/200", "address1": "Upstream Billing" },
+                    "shippingAddress": { "id": "gid://shopify/CompanyAddress/201", "address1": "Upstream Shipping" },
+                    "taxSettings": {
+                        "taxRegistrationId": Value::Null,
+                        "taxExempt": false,
+                        "taxExemptions": ["US_CA_RESELLER_EXEMPTION"]
+                    },
+                    "buyerExperienceConfiguration": {
+                        "editableShippingAddress": false,
+                        "checkoutToDraft": false,
+                        "paymentTermsTemplate": Value::Null,
+                        "deposit": Value::Null
+                    },
+                    "company": {
+                        "id": company_id,
+                        "name": "Hydrated Company",
+                        "locations": { "nodes": [{ "id": location_id }] }
+                    }
+                }
+            }
+        }),
+    }
 }
 
 fn create_b2b_company_contact(proxy: &mut DraftProxy, company_id: &str, title: &str) -> String {

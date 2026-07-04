@@ -8765,7 +8765,22 @@ fn store_credit_result_only_currency_codes_return_top_level_error_without_stagin
 #[test]
 fn store_credit_credit_creates_company_location_account() {
     let mut proxy = snapshot_proxy();
-    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+    let setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CompanyLocationStoreCreditSetup {
+          companyCreate(input: { company: { name: "Store Credit Company" } }) {
+            company { locations(first: 1) { nodes { id } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(setup.body["data"]["companyCreate"]["userErrors"], json!([]));
+    let location_id = setup.body["data"]["companyCreate"]["company"]["locations"]["nodes"][0]["id"]
+        .as_str()
+        .expect("company location id")
+        .to_string();
 
     let response = proxy.process_request(json_graphql_request(
         r#"

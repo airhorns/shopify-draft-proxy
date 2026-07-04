@@ -26,6 +26,36 @@ type B2bPassthroughCascadeArgs<'a> = (
 const B2B_BULK_ACTIONS_MAX_SIZE: usize = 50;
 const B2B_BULK_ACTION_LIMIT_REACHED_MESSAGE: &str =
     "Exceeded max input size of 50. Consider using BulkOperation.";
+const B2B_COMPANY_LOCATION_HYDRATE_QUERY: &str = r#"
+query B2BCompanyLocationHydrate($id: ID!) {
+  companyLocation(id: $id) {
+    id
+    name
+    externalId
+    note
+    locale
+    phone
+    billingAddress { id address1 }
+    shippingAddress { id address1 }
+    taxSettings {
+      taxRegistrationId
+      taxExempt
+      taxExemptions
+    }
+    buyerExperienceConfiguration {
+      editableShippingAddress
+      checkoutToDraft
+      paymentTermsTemplate { id }
+      deposit { __typename }
+    }
+    company {
+      id
+      name
+      locations(first: 50) { nodes { id } }
+    }
+  }
+}
+"#;
 
 impl B2bCompanyLocationDeleteBlocker {
     fn bulk_message(&self, location_id: &str) -> String {
@@ -184,7 +214,8 @@ impl DraftProxy {
                 declined = true;
                 return None;
             }
-            let (payload, status, staged_ids) = self.b2b_tax_settings_update_payload(field);
+            let (payload, status, staged_ids) =
+                self.b2b_tax_settings_update_payload(field, request);
             self.record_mutation_log_with_status(
                 request,
                 query,
@@ -193,7 +224,7 @@ impl DraftProxy {
                 staged_ids,
                 status,
             );
-            Some(selected_json(&payload, &field.selection))
+            Some(self.b2b_payload_selected_json(&payload, &field.selection))
         });
         if declined {
             return None;
@@ -221,7 +252,7 @@ impl DraftProxy {
             {
                 let data = root_payload_json(&fields, |field| {
                     let (payload, status, staged_ids) =
-                        self.b2b_company_location_update_payload(field);
+                        self.b2b_company_location_update_payload_with_hydrate(field, Some(request));
                     self.record_mutation_log_with_status(
                         request,
                         query,
@@ -230,7 +261,7 @@ impl DraftProxy {
                         staged_ids,
                         status,
                     );
-                    Some(selected_json(&payload, &field.selection))
+                    Some(self.b2b_payload_selected_json(&payload, &field.selection))
                 });
                 Some(ok_json(json!({ "data": data })))
             }
@@ -962,25 +993,20 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
+        self.b2b_company_location_update_payload_with_hydrate(field, None)
+    }
+
+    pub(in crate::proxy) fn b2b_company_location_update_payload_with_hydrate(
+        &mut self,
+        field: &RootFieldSelection,
+        request: Option<&Request>,
+    ) -> (Value, &'static str, Vec<String>) {
         let location_id = resolved_string_field(&field.arguments, "companyLocationId")
             .or_else(|| resolved_string_field(&field.arguments, "id"))
             .unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let mut location = match self.store.staged.b2b_locations.get(&location_id).cloned() {
+        let mut location = match self.b2b_company_location_for_mutation(request, &location_id) {
             Some(location) => location,
-            // Shopify always provisions a default, tax-exempt company location on
-            // the shop. An update targeting the synthetic seed location resolves
-            // against that default (so input validation runs) rather than failing
-            // not-found, mirroring real Shopify where the location already exists.
-            None if location_id == b2b_synthetic_seed_company_location_id() => json!({
-                "id": location_id,
-                "name": "HQ",
-                "taxSettings": { "taxExempt": true, "taxExemptions": [] },
-                "buyerExperienceConfiguration":
-                    b2b_buyer_experience_configuration_json(&BTreeMap::new()),
-                "roleAssignmentIds": [],
-                "staffAssignmentIds": []
-            }),
             None => {
                 return (
                     b2b_company_location_payload(
@@ -2604,10 +2630,7 @@ impl DraftProxy {
             "companyLocation" => resolved_string_field(&field.arguments, "id")
                 .is_some_and(|id| self.store.staged.b2b_locations.contains_key(&id)),
             "companyLocations" => !self.store.staged.b2b_locations.is_empty(),
-            // A companies(query:) connection can always be answered from locally
-            // staged state — an empty result is the correct answer once the
-            // matching companies have been deleted.
-            "companies" => true,
+            "companies" => !self.store.staged.b2b_companies.is_empty(),
             _ => false,
         })
     }
@@ -2893,6 +2916,125 @@ impl DraftProxy {
             .iter()
             .filter_map(|id| self.store.staged.b2b_locations.get(id).cloned())
             .collect()
+    }
+
+    pub(in crate::proxy) fn b2b_company_location_for_mutation(
+        &mut self,
+        request: Option<&Request>,
+        location_id: &str,
+    ) -> Option<Value> {
+        if location_id.is_empty() {
+            return None;
+        }
+        self.store
+            .staged
+            .b2b_locations
+            .get(location_id)
+            .cloned()
+            .or_else(|| {
+                request.and_then(|request| {
+                    self.hydrate_b2b_company_location_for_mutation(request, location_id)
+                })
+            })
+    }
+
+    fn hydrate_b2b_company_location_for_mutation(
+        &mut self,
+        request: &Request,
+        location_id: &str,
+    ) -> Option<Value> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": B2B_COMPANY_LOCATION_HYDRATE_QUERY,
+                "operationName": "B2BCompanyLocationHydrate",
+                "variables": { "id": location_id },
+            }),
+        );
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let location = response.body["data"]["companyLocation"].clone();
+        if location.is_null() {
+            return None;
+        }
+        let location = self.normalize_and_stage_hydrated_b2b_company_location(location);
+        Some(location)
+    }
+
+    fn normalize_and_stage_hydrated_b2b_company_location(&mut self, mut location: Value) -> Value {
+        let Some(location_id) = location["id"].as_str().map(str::to_string) else {
+            return location;
+        };
+        if location.get("taxSettings").is_none_or(Value::is_null) {
+            location["taxSettings"] = json!({
+                "taxRegistrationId": Value::Null,
+                "taxExempt": false,
+                "taxExemptions": []
+            });
+        }
+        if location
+            .get("buyerExperienceConfiguration")
+            .is_none_or(Value::is_null)
+        {
+            location["buyerExperienceConfiguration"] =
+                b2b_buyer_experience_configuration_json(&BTreeMap::new());
+        }
+        if location.get("roleAssignmentIds").is_none() {
+            location["roleAssignmentIds"] = json!([]);
+        }
+        if location.get("staffAssignmentIds").is_none() {
+            location["staffAssignmentIds"] = json!([]);
+        }
+
+        if let Some(company) = location
+            .get("company")
+            .cloned()
+            .filter(|value| !value.is_null())
+        {
+            if let Some(company_id) = company["id"].as_str().map(str::to_string) {
+                location["companyId"] = json!(company_id.clone());
+                let mut company_record = self
+                    .store
+                    .staged
+                    .b2b_companies
+                    .get(&company_id)
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        json!({
+                            "id": company_id,
+                            "name": company["name"].as_str().unwrap_or_default(),
+                            "locationIds": [],
+                            "contactIds": [],
+                            "contactRoleIds": [],
+                            "mainContactId": Value::Null
+                        })
+                    });
+                if let Some(name) = company["name"].as_str() {
+                    company_record["name"] = json!(name);
+                }
+                for id in b2b_json_id_list_from_connection(&company["locations"]) {
+                    b2b_push_json_id(&mut company_record, "locationIds", &id);
+                }
+                b2b_push_json_id(&mut company_record, "locationIds", &location_id);
+                self.store
+                    .staged
+                    .b2b_companies
+                    .insert(company_id, company_record);
+            }
+            if let Some(object) = location.as_object_mut() {
+                object.remove("company");
+            }
+        }
+
+        self.store
+            .staged
+            .b2b_locations
+            .insert(location_id, location.clone());
+        location
     }
 
     fn b2b_build_company_location(
@@ -4549,6 +4691,14 @@ fn b2b_json_id_list(record: &Value, field: &str) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn b2b_json_id_list_from_connection(connection: &Value) -> Vec<String> {
+    connection_nodes(connection)
+        .iter()
+        .filter_map(|node| node["id"].as_str())
+        .map(str::to_string)
+        .collect()
 }
 
 fn b2b_push_json_id(record: &mut Value, field: &str, id: &str) {

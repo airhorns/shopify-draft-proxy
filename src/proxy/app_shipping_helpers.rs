@@ -2191,11 +2191,10 @@ impl DraftProxy {
     pub(in crate::proxy) fn b2b_tax_settings_update_payload(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
     ) -> (Value, &'static str, Vec<String>) {
-        let location_id = resolved_string_field(&field.arguments, "companyLocationId")
-            .unwrap_or_else(|| {
-                "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic".to_string()
-            });
+        let location_id =
+            resolved_string_field(&field.arguments, "companyLocationId").unwrap_or_default();
         let tax_exempt_argument = field.raw_arguments.get("taxExempt");
         let tax_exempt_is_null = matches!(
             tax_exempt_argument,
@@ -2207,7 +2206,9 @@ impl DraftProxy {
         );
         let assign = list_string_field(&field.arguments, "exemptionsToAssign");
         let remove = list_string_field(&field.arguments, "exemptionsToRemove");
-        if !b2b_company_location_exists(&self.store.staged.b2b_locations.records, &location_id) {
+        let Some(mut location) =
+            self.b2b_company_location_for_mutation(Some(request), &location_id)
+        else {
             return (
                 b2b_company_location_payload(
                     None,
@@ -2220,7 +2221,7 @@ impl DraftProxy {
                 "failed",
                 Vec::new(),
             );
-        }
+        };
         if tax_exempt_is_null {
             return (
                 b2b_company_location_payload(
@@ -2236,13 +2237,6 @@ impl DraftProxy {
             );
         }
 
-        let mut location = self
-            .store
-            .staged
-            .b2b_locations
-            .get(&location_id)
-            .cloned()
-            .unwrap_or_else(|| b2b_synthetic_seed_company_location(&location_id));
         let mut exemptions = Vec::new();
         if let Some(current_exemptions) = location
             .pointer("/taxSettings/taxExemptions")
@@ -2293,30 +2287,6 @@ impl DraftProxy {
             vec![location_id],
         )
     }
-}
-
-pub(in crate::proxy) fn b2b_company_location_exists(
-    locations: &BTreeMap<String, Value>,
-    location_id: &str,
-) -> bool {
-    locations.contains_key(location_id) || location_id == b2b_synthetic_seed_company_location_id()
-}
-
-pub(in crate::proxy) fn b2b_synthetic_seed_company_location(location_id: &str) -> Value {
-    json!({
-        "id": location_id,
-        "name": "HQ",
-        "billingAddress": { "address1": "Billing HQ" },
-        "taxSettings": {
-            "taxRegistrationId": Value::Null,
-            "taxExempt": true,
-            "taxExemptions": []
-        }
-    })
-}
-
-pub(in crate::proxy) fn b2b_synthetic_seed_company_location_id() -> &'static str {
-    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
 }
 
 pub(in crate::proxy) fn product_tail_resource_feedback_payload(

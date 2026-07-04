@@ -388,7 +388,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn store_credit_account_mutation(
         &mut self,
         root_field: &str,
-        _request: &Request,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
@@ -406,7 +406,7 @@ impl DraftProxy {
             ) {
                 return None;
             }
-            let outcome = self.store_credit_account_mutation_field(field);
+            let outcome = self.store_credit_account_mutation_field(field, request);
             if let Some(log_draft) = outcome.log_draft {
                 log_drafts.push(log_draft);
             }
@@ -430,6 +430,7 @@ impl DraftProxy {
     fn store_credit_account_mutation_field(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
     ) -> MutationFieldOutcome {
         let is_credit = field.name == "storeCreditAccountCredit";
         let input_name = if is_credit {
@@ -453,7 +454,7 @@ impl DraftProxy {
 
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(account_resolution) =
-            self.resolve_store_credit_account_for_mutation(&id, &currency, is_credit)
+            self.resolve_store_credit_account_for_mutation(request, &id, &currency, is_credit)
         else {
             return self.store_credit_error_outcome(
                 field,
@@ -656,7 +657,8 @@ impl DraftProxy {
     }
 
     fn resolve_store_credit_account_for_mutation(
-        &self,
+        &mut self,
+        request: &Request,
         id: &str,
         currency: &str,
         allow_create: bool,
@@ -669,7 +671,7 @@ impl DraftProxy {
                 .contains_key(id)
                 .then(|| StoreCreditAccountMutationResolution::Existing(id.to_string())),
             Some("Customer") | Some("CompanyLocation") => {
-                if !self.store_credit_owner_exists(id) {
+                if !self.store_credit_owner_exists(request, id) {
                     return None;
                 }
                 if let Some(account_id) =
@@ -824,15 +826,15 @@ impl DraftProxy {
             .any(|account| account["owner"]["id"].as_str() == Some(owner_id))
     }
 
-    fn store_credit_owner_exists(&self, owner_id: &str) -> bool {
+    fn store_credit_owner_exists(&mut self, request: &Request, owner_id: &str) -> bool {
         match shopify_gid_resource_type(owner_id) {
             Some("Customer") => {
                 self.store.staged.customers.contains_key(owner_id)
                     && !self.store.staged.customers.is_tombstoned(owner_id)
             }
-            Some("CompanyLocation") => {
-                b2b_company_location_exists(&self.store.staged.b2b_locations.records, owner_id)
-            }
+            Some("CompanyLocation") => self
+                .b2b_company_location_for_mutation(Some(request), owner_id)
+                .is_some(),
             _ => false,
         }
     }
@@ -852,7 +854,7 @@ impl DraftProxy {
                 .b2b_locations
                 .get(owner_id)
                 .cloned()
-                .unwrap_or_else(|| b2b_synthetic_seed_company_location(owner_id)),
+                .unwrap_or_else(|| json!({ "id": owner_id })),
             _ => json!({ "id": owner_id }),
         }
     }
