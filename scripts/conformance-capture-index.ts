@@ -976,6 +976,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-scalar-length-validation',
+    scriptPath: 'scripts/capture-product-scalar-length-validation-conformance.ts',
+    purpose:
+      'productCreate/productUpdate/productSet 255-character scalar length validation for title, handle, vendor, and productType.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-create-input-validation.json`,
+      `${CAPTURE_ROOT}product-update-input-length-validation.json`,
+      `${CAPTURE_ROOT}product-set-input-length-validation.json`,
+      'config/parity-specs/products/productCreate-input-validation.json',
+      'config/parity-specs/products/productUpdate-input-length-validation.json',
+      'config/parity-specs/products/productSet-input-length-validation.json',
+      'config/parity-requests/products/productUpdate-input-length-validation.graphql',
+      'config/parity-requests/products/productSet-input-length-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable setup product for productUpdate validation, records rejected length branches, and deletes the setup product in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-create-input-fields',
     scriptPath: 'scripts/capture-product-create-input-fields-conformance.ts',
     purpose:
@@ -4951,6 +4972,31 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'price-list-read-connections',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-price-list-read-connections-conformance.mts',
+    purpose:
+      'Price-list root connection windows and PriceList.prices read-time product-id/originType/window filtering.',
+    requiredAuthScopes: ['read_markets', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}price-lists-window-first-page.json`,
+      `${CAPTURE_ROOT}price-lists-window-after.json`,
+      `${CAPTURE_ROOT}price-list-prices-window-filtered.json`,
+      'config/parity-specs/markets/price-lists-window-first-page.json',
+      'config/parity-specs/markets/price-lists-window-after.json',
+      'config/parity-specs/markets/price-list-prices-window-filtered.json',
+      'config/parity-requests/markets/price-lists-window-first-page.graphql',
+      'config/parity-requests/markets/price-lists-window-first-page.variables.json',
+      'config/parity-requests/markets/price-lists-window-after.graphql',
+      'config/parity-requests/markets/price-lists-window-after.variables.json',
+      'config/parity-requests/markets/price-list-prices-window-filtered.graphql',
+      'config/parity-requests/markets/price-list-prices-window-filtered.variables.json',
+    ],
+    cleanupBehavior: 'Read-only capture; no cleanup expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'catalogs-connection-read',
     scriptPath: 'scripts/capture-catalogs-connection-read-conformance.mts',
     purpose: 'Catalogs connection query/type/sort/reverse/window/count parity using disposable market catalogs.',
@@ -5441,6 +5487,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Hydrates shop currency, creates one disposable region market with explicit price inclusions and omitted baseCurrency, verifies read-after-write plus resolved values for the created buyer country, records a rejected locations-condition branch, then deletes the created market.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
+    captureId: 'shop-pricing-state-money-and-markets',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-shop-pricing-state-money-markets-conformance.mts',
+    purpose:
+      'Non-USD shop pricing-state capture proving product money currency hydration, selling-plan group products connection money currency, market omitted-baseCurrency shop-currency default, and marketsResolvedValues tax-inclusive behavior.',
+    requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options', 'read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}shop-pricing-state-money-and-markets.json`,
+      'config/parity-specs/markets/shop-pricing-state-money-and-markets.json',
+      'config/parity-requests/products/shop-pricing-state-product-create.graphql',
+      'config/parity-requests/selling-plans/shop-pricing-state-selling-plan-group-create.graphql',
+      'config/parity-requests/markets/shop-pricing-state-market-create.graphql',
+      'config/parity-requests/markets/shop-pricing-state-markets-resolved-values.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable product, selling-plan group, and Brazil market; captures resolved values; then deletes the group, market, and product.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -7229,10 +7295,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-strict-format-residual.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-unicode-letter-email.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/privacy/data-sale-opt-out-new-customer-defaults.json',
+      'config/parity-specs/privacy/data-sale-opt-out-new-customer-defaults.json',
       'config/parity-specs/privacy/data-sale-opt-out-invalid-format.json',
       'config/parity-specs/privacy/data-sale-opt-out-strict-format-residual.json',
       'config/parity-specs/privacy/data-sale-opt-out-unicode-letter-email.json',
       'config/parity-requests/privacy/data-sale-opt-out-customer-lookup.graphql',
+      'config/parity-requests/privacy/data-sale-opt-out-new-customer-defaults-read.graphql',
+      'config/parity-requests/privacy/data-sale-opt-out-new-customer-defaults-tag-search.graphql',
     ],
     cleanupBehavior:
       'Creates/deletes disposable customer records for opt-out probes; invalid-format capture requires no setup and deletes any unexpectedly created customer before failing; strict residual capture deletes the quoted-local success customer.',

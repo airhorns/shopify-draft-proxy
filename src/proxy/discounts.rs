@@ -1,6 +1,5 @@
 use super::*;
 
-const DISCOUNT_DEFAULT_TIMESTAMP: &str = "2026-04-27T19:32:14Z";
 const DISCOUNT_CONTEXT_CUSTOMER_SELECTION_CONFLICT_MESSAGE: &str =
     "Only one of context or customerSelection can be provided.";
 const DISCOUNT_MINIMUM_QUANTITY_UPPER_BOUND: i64 = 2_147_483_647;
@@ -374,19 +373,29 @@ impl DraftProxy {
         }
         let shop_currency_code = self.store.shop_currency_code();
         let summary = self.discount_summary_for_input(typename, &input);
+        let now_epoch = self.current_epoch_seconds();
+        let timestamp = self.next_mutation_timestamp();
         let mut record = discount_record_from_input(
             &id,
             discount_kind,
             typename,
             &input,
             None,
-            &shop_currency_code,
-            summary,
+            DiscountRecordBuildContext {
+                shop_currency_code: &shop_currency_code,
+                summary,
+                timestamp: &timestamp,
+                now_epoch,
+            },
         );
         self.resolve_discount_context_names(&mut record);
         self.stage_discount_record(record.clone());
         MutationFieldOutcome::staged(
-            discount_payload_for_root(&field.name, discount_node_for_record(&record), Vec::new()),
+            discount_payload_for_root(
+                &field.name,
+                self.discount_node_for_record(&record),
+                Vec::new(),
+            ),
             LogDraft::staged(&field.name, "discounts", vec![id]),
         )
     }
@@ -839,19 +848,29 @@ impl DraftProxy {
         let existing = self.discount_record(&id).cloned();
         let summary = self.discount_summary_for_input(typename, &input);
         let shop_currency_code = self.store.shop_currency_code();
+        let now_epoch = self.current_epoch_seconds();
+        let timestamp = self.next_mutation_timestamp();
         let mut record = discount_record_from_input(
             &id,
             discount_kind,
             typename,
             &input,
             existing.as_ref(),
-            &shop_currency_code,
-            summary,
+            DiscountRecordBuildContext {
+                shop_currency_code: &shop_currency_code,
+                summary,
+                timestamp: &timestamp,
+                now_epoch,
+            },
         );
         self.resolve_discount_context_names(&mut record);
         self.stage_discount_record(record.clone());
         MutationFieldOutcome::staged(
-            discount_payload_for_root(&field.name, discount_node_for_record(&record), Vec::new()),
+            discount_payload_for_root(
+                &field.name,
+                self.discount_node_for_record(&record),
+                Vec::new(),
+            ),
             LogDraft::staged(&field.name, "discounts", vec![id]),
         )
     }
@@ -903,21 +922,27 @@ impl DraftProxy {
         }
         let shop_currency_code = self.store.shop_currency_code();
         let summary = self.discount_summary_for_input(typename, &input);
+        let now_epoch = self.current_epoch_seconds();
+        let timestamp = self.next_mutation_timestamp();
         let mut record = discount_record_from_input(
             &id,
             discount_kind,
             typename,
             &input,
             None,
-            &shop_currency_code,
-            summary,
+            DiscountRecordBuildContext {
+                shop_currency_code: &shop_currency_code,
+                summary,
+                timestamp: &timestamp,
+                now_epoch,
+            },
         );
         attach_app_discount_function(&mut record, &function);
         self.stage_discount_record(record.clone());
         MutationFieldOutcome::staged(
             app_discount_payload_for_root(
                 &field.name,
-                discount_body_for_record(&record),
+                self.discount_body_for_record(&record),
                 Vec::new(),
             ),
             LogDraft::staged(&field.name, "discounts", vec![id]),
@@ -965,21 +990,27 @@ impl DraftProxy {
         let existing = self.discount_record(&id).cloned();
         let summary = self.discount_summary_for_input(typename, &input);
         let shop_currency_code = self.store.shop_currency_code();
+        let now_epoch = self.current_epoch_seconds();
+        let timestamp = self.next_mutation_timestamp();
         let mut record = discount_record_from_input(
             &id,
             discount_kind,
             typename,
             &input,
             existing.as_ref(),
-            &shop_currency_code,
-            summary,
+            DiscountRecordBuildContext {
+                shop_currency_code: &shop_currency_code,
+                summary,
+                timestamp: &timestamp,
+                now_epoch,
+            },
         );
         attach_app_discount_function(&mut record, &function);
         self.stage_discount_record(record.clone());
         MutationFieldOutcome::staged(
             app_discount_payload_for_root(
                 &field.name,
-                discount_body_for_record(&record),
+                self.discount_body_for_record(&record),
                 Vec::new(),
             ),
             LogDraft::staged(&field.name, "discounts", vec![id]),
@@ -1041,10 +1072,18 @@ impl DraftProxy {
                 }
             }
         }
-        apply_discount_activate_deactivate(&mut record, activating);
+        let now_epoch = self.current_epoch_seconds();
+        if !discount_transition_is_noop(&record, activating, now_epoch) {
+            let timestamp = self.next_mutation_timestamp();
+            apply_discount_activate_deactivate(&mut record, activating, &timestamp, now_epoch);
+        }
         self.stage_discount_record(record.clone());
         MutationFieldOutcome::staged(
-            discount_payload_for_root(&field.name, discount_node_for_record(&record), Vec::new()),
+            discount_payload_for_root(
+                &field.name,
+                self.discount_node_for_record(&record),
+                Vec::new(),
+            ),
             LogDraft::staged(&field.name, "discounts", vec![id]),
         )
     }
@@ -1281,7 +1320,7 @@ impl DraftProxy {
                         .is_tombstoned(discount_id(record))
                 })
                 .filter(|record| discount_kind(record) == kind)
-                .filter(|record| discount_matches_query(record, search))
+                .filter(|record| self.discount_matches_query(record, search))
                 .map(|record| discount_id(record).to_string())
                 .collect();
         }
@@ -1305,8 +1344,18 @@ impl DraftProxy {
             }
             DiscountBulkAction::Activate | DiscountBulkAction::Deactivate => {
                 let activating = matches!(action, DiscountBulkAction::Activate);
-                if let Some(record) = self.store.staged.discounts.get_mut(id) {
-                    apply_discount_activate_deactivate(record, activating);
+                let now_epoch = self.current_epoch_seconds();
+                if let Some(mut record) = self.store.staged.discounts.get(id).cloned() {
+                    if !discount_transition_is_noop(&record, activating, now_epoch) {
+                        let timestamp = self.next_mutation_timestamp();
+                        apply_discount_activate_deactivate(
+                            &mut record,
+                            activating,
+                            &timestamp,
+                            now_epoch,
+                        );
+                        self.stage_discount_record(record);
+                    }
                 }
             }
         }
@@ -1516,21 +1565,25 @@ impl DraftProxy {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.discount_record(&id)
                         .map(|record| {
-                            selected_discount_admin_node_for_record(record, &field.selection)
+                            self.selected_discount_admin_node_for_record(record, &field.selection)
                         })
                         .unwrap_or(Value::Null)
                 }
                 "codeDiscountNode" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.discount_record(&id)
-                        .map(|record| selected_discount_node_for_record(record, &field.selection))
+                        .map(|record| {
+                            self.selected_discount_node_for_record(record, &field.selection)
+                        })
                         .unwrap_or(Value::Null)
                 }
                 "automaticDiscountNode" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                     self.discount_record(&id)
                         .filter(|record| discount_kind(record) == "automatic")
-                        .map(|record| selected_discount_node_for_record(record, &field.selection))
+                        .map(|record| {
+                            self.selected_discount_node_for_record(record, &field.selection)
+                        })
                         .unwrap_or(Value::Null)
                 }
                 "codeDiscountNodeByCode" => {
@@ -1540,7 +1593,9 @@ impl DraftProxy {
                         .discount_code_index
                         .get(&code.to_ascii_uppercase())
                         .and_then(|id| self.discount_record(id))
-                        .map(|record| selected_discount_node_for_record(record, &field.selection))
+                        .map(|record| {
+                            self.selected_discount_node_for_record(record, &field.selection)
+                        })
                         .unwrap_or(Value::Null)
                 }
                 "discountNodes" => selected_staged_connection_with_args(
@@ -1616,8 +1671,52 @@ impl DraftProxy {
                     .discounts
                     .is_tombstoned(discount_id(record))
             })
-            .cloned()
+            .map(|record| self.discount_record_with_effective_status(record))
             .collect()
+    }
+
+    fn effective_discount_status(&self, record: &Value) -> &'static str {
+        let starts_at = record
+            .get("startsAt")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        discount_status_from_dates(starts_at, &record["endsAt"], self.current_epoch_seconds())
+    }
+
+    fn discount_record_with_effective_status(&self, record: &Value) -> Value {
+        let mut record = record.clone();
+        record["status"] = json!(self.effective_discount_status(&record));
+        record
+    }
+
+    fn selected_discount_node_for_record(
+        &self,
+        record: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
+        let record = self.discount_record_with_effective_status(record);
+        selected_discount_node_for_record(&record, selection)
+    }
+
+    fn selected_discount_admin_node_for_record(
+        &self,
+        record: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
+        let record = self.discount_record_with_effective_status(record);
+        selected_discount_admin_node_for_record(&record, selection)
+    }
+
+    fn discount_body_for_record(&self, record: &Value) -> Value {
+        discount_body_for_record(&self.discount_record_with_effective_status(record))
+    }
+
+    fn discount_node_for_record(&self, record: &Value) -> Value {
+        discount_node_for_record(&self.discount_record_with_effective_status(record))
+    }
+
+    fn discount_matches_query(&self, record: &Value, query: &str) -> bool {
+        discount_matches_query_with_status(record, query, self.effective_discount_status(record))
     }
 
     pub(in crate::proxy) fn discount_node_value_by_id(
@@ -1632,7 +1731,7 @@ impl DraftProxy {
             // `discount`). `discount_node_for_record` emits the right accessor
             // for both kinds; the `discount`-keyed admin node shape is only for
             // the `discountNode(id:)` root field.
-            let value = discount_node_for_record(record);
+            let value = self.discount_node_for_record(record);
             selected_json(&value, selection)
         })
     }
@@ -2914,14 +3013,20 @@ fn discount_numeric_user_error(
     None
 }
 
+struct DiscountRecordBuildContext<'a> {
+    shop_currency_code: &'a str,
+    summary: String,
+    timestamp: &'a str,
+    now_epoch: i64,
+}
+
 fn discount_record_from_input(
     id: &str,
     kind: &str,
     typename: &str,
     input: &BTreeMap<String, ResolvedValue>,
     existing: Option<&Value>,
-    shop_currency_code: &str,
-    summary: String,
+    context: DiscountRecordBuildContext<'_>,
 ) -> Value {
     let title = resolved_string_path(input, &["title"])
         .or_else(|| existing.and_then(|record| record["title"].as_str().map(str::to_string)))
@@ -2930,15 +3035,15 @@ fn discount_record_from_input(
         .or_else(|| existing.and_then(|record| record["code"].as_str().map(str::to_string)));
     let starts_at = resolved_string_path(input, &["startsAt"])
         .or_else(|| existing.and_then(|record| record["startsAt"].as_str().map(str::to_string)))
-        .unwrap_or_else(|| DISCOUNT_DEFAULT_TIMESTAMP.to_string());
+        .unwrap_or_else(|| context.timestamp.to_string());
     let ends_at = resolved_string_path(input, &["endsAt"])
         .map(Value::String)
         .or_else(|| existing.map(|record| record["endsAt"].clone()))
         .unwrap_or(Value::Null);
     let created_at = existing
         .and_then(|record| record["createdAt"].as_str().map(str::to_string))
-        .unwrap_or_else(|| DISCOUNT_DEFAULT_TIMESTAMP.to_string());
-    let status = discount_status_from_dates(&starts_at, &ends_at);
+        .unwrap_or_else(|| context.timestamp.to_string());
+    let status = discount_status_from_dates(&starts_at, &ends_at, context.now_epoch);
     let combines_with = resolved_object_path(
         Some(&ResolvedValue::Object(input.clone())),
         &["combinesWith"],
@@ -2973,7 +3078,7 @@ fn discount_record_from_input(
         "startsAt": starts_at,
         "endsAt": ends_at,
         "createdAt": created_at,
-        "updatedAt": DISCOUNT_DEFAULT_TIMESTAMP,
+        "updatedAt": context.timestamp,
         "asyncUsageCount": 0,
         "usageLimit": resolved_i64_path(input, &["usageLimit"]).map(Value::from).unwrap_or(Value::Null),
         "usesPerOrderLimit": resolved_i64_path(input, &["usesPerOrderLimit"]).map(Value::from).unwrap_or(Value::Null),
@@ -2985,19 +3090,19 @@ fn discount_record_from_input(
         "combinesWith": combines_with,
         "context": discount_context_from_input(input),
         "customerBuys": discount_customer_buys_from_input(typename, input),
-        "customerGets": discount_customer_gets_from_input(typename, input, shop_currency_code),
-        "minimumRequirement": discount_minimum_requirement_from_input(input, shop_currency_code),
+        "customerGets": discount_customer_gets_from_input(typename, input, context.shop_currency_code),
+        "minimumRequirement": discount_minimum_requirement_from_input(input, context.shop_currency_code),
         "destinationSelection": discount_destination_selection_from_input(input),
-        "maximumShippingPrice": discount_maximum_shipping_price_from_input(input, shop_currency_code),
+        "maximumShippingPrice": discount_maximum_shipping_price_from_input(input, context.shop_currency_code),
         "appliesOncePerCustomer": resolved_bool_path(input, &["appliesOncePerCustomer"]).unwrap_or(false),
         "appliesOnOneTimePurchase": resolved_bool_path(input, &["appliesOnOneTimePurchase"]).unwrap_or(true),
         "appliesOnSubscription": resolved_bool_path(input, &["appliesOnSubscription"]).unwrap_or(false),
         "codes": codes,
         "codesCount": count_object(codes.as_array().map(Vec::len).unwrap_or(0)),
-        "metafields": discount_metafields_from_input(input)
+        "metafields": discount_metafields_from_input(input, context.timestamp)
             .or_else(|| existing.map(|record| record["metafields"].clone()))
             .unwrap_or_else(|| json!([])),
-        "summary": summary
+        "summary": context.summary
     })
 }
 
@@ -3159,6 +3264,14 @@ fn discount_search_decision(record: &Value, query: Option<&str>) -> StagedSearch
     StagedSearchDecision::from_bool(discount_matches_query(record, query.unwrap_or_default()))
 }
 
+fn discount_matches_query(record: &Value, query: &str) -> bool {
+    let status = record
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    discount_matches_query_with_status(record, query, status)
+}
+
 fn discount_staged_sort_key(record: &Value, sort_key: Option<&str>) -> StagedSortKey {
     let primary = match sort_key.unwrap_or("ID") {
         "CREATED_AT" => discount_string_sort_value(record, "createdAt"),
@@ -3309,27 +3422,50 @@ enum DiscountBulkAction {
     Delete,
 }
 
-fn apply_discount_activate_deactivate(record: &mut Value, activating: bool) {
-    let current_status = record["status"].as_str().unwrap_or_default();
+fn discount_transition_is_noop(record: &Value, activating: bool, now_epoch: i64) -> bool {
+    let starts_at = record
+        .get("startsAt")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let current_status = discount_status_from_dates(starts_at, &record["endsAt"], now_epoch);
     // An idempotent transition -- activating an already-active discount, or
     // deactivating an already-expired one -- is a no-op: Shopify leaves
     // startsAt/endsAt/updatedAt exactly as they were. A SCHEDULED discount being
     // deactivated is a real transition (it gets an endsAt and becomes EXPIRED).
-    let is_noop = if activating {
+    if activating {
         current_status == "ACTIVE"
     } else {
         current_status == "EXPIRED"
-    };
-    if is_noop {
-        return;
     }
+}
 
+fn apply_discount_activate_deactivate(
+    record: &mut Value,
+    activating: bool,
+    timestamp: &str,
+    now_epoch: i64,
+) {
     record["status"] = json!(if activating { "ACTIVE" } else { "EXPIRED" });
-    record["updatedAt"] = json!(DISCOUNT_DEFAULT_TIMESTAMP);
+    record["updatedAt"] = json!(timestamp);
+    if record
+        .get("startsAt")
+        .and_then(Value::as_str)
+        .and_then(super::app_shipping_helpers::parse_rfc3339_epoch_seconds)
+        .map(|starts_at| starts_at > now_epoch)
+        .unwrap_or(true)
+    {
+        record["startsAt"] = json!(timestamp);
+    }
     if activating {
         record["endsAt"] = Value::Null;
-    } else if record.get("endsAt").and_then(Value::as_str).is_none() {
-        record["endsAt"] = json!(DISCOUNT_DEFAULT_TIMESTAMP);
+    } else if record
+        .get("endsAt")
+        .and_then(Value::as_str)
+        .and_then(super::app_shipping_helpers::parse_rfc3339_epoch_seconds)
+        .map(|ends_at| ends_at > now_epoch)
+        .unwrap_or(true)
+    {
+        record["endsAt"] = json!(timestamp);
     }
 }
 
@@ -3356,18 +3492,18 @@ pub(in crate::proxy) fn is_discount_bulk_action_root(name: &str) -> bool {
     discount_bulk_root_action(name).is_some()
 }
 
-fn discount_matches_query(record: &Value, query: &str) -> bool {
+fn discount_matches_query_with_status(record: &Value, query: &str, status: &str) -> bool {
     let normalized = query.to_ascii_lowercase();
     if normalized.is_empty() {
         return true;
     }
-    if normalized.contains("status:active") && record["status"].as_str() != Some("ACTIVE") {
+    if normalized.contains("status:active") && status != "ACTIVE" {
         return false;
     }
-    if normalized.contains("status:expired") && record["status"].as_str() != Some("EXPIRED") {
+    if normalized.contains("status:expired") && status != "EXPIRED" {
         return false;
     }
-    if normalized.contains("status:scheduled") && record["status"].as_str() != Some("SCHEDULED") {
+    if normalized.contains("status:scheduled") && status != "SCHEDULED" {
         return false;
     }
     if normalized.contains("type:free_shipping") {
@@ -3458,13 +3594,17 @@ fn decimal_string_at_or_above(raw: &str, integer_limit: &str) -> bool {
         || (integer.len() == integer_limit.len() && integer >= integer_limit)
 }
 
-fn discount_status_from_dates(starts_at: &str, ends_at: &Value) -> &'static str {
-    if starts_at > DISCOUNT_DEFAULT_TIMESTAMP {
+fn discount_status_from_dates(starts_at: &str, ends_at: &Value, now_epoch: i64) -> &'static str {
+    if super::app_shipping_helpers::parse_rfc3339_epoch_seconds(starts_at)
+        .map(|starts_at| starts_at > now_epoch)
+        .unwrap_or(false)
+    {
         return "SCHEDULED";
     }
     if ends_at
         .as_str()
-        .map(|ends_at| ends_at <= DISCOUNT_DEFAULT_TIMESTAMP)
+        .and_then(super::app_shipping_helpers::parse_rfc3339_epoch_seconds)
+        .map(|ends_at| ends_at <= now_epoch)
         .unwrap_or(false)
     {
         return "EXPIRED";
@@ -3767,7 +3907,10 @@ fn discount_maximum_shipping_price_from_input(
         .unwrap_or(Value::Null)
 }
 
-fn discount_metafields_from_input(input: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
+fn discount_metafields_from_input(
+    input: &BTreeMap<String, ResolvedValue>,
+    timestamp: &str,
+) -> Option<Value> {
     match input.get("metafields") {
         Some(ResolvedValue::List(metafields)) => Some(Value::Array(
             metafields
@@ -3780,8 +3923,8 @@ fn discount_metafields_from_input(input: &BTreeMap<String, ResolvedValue>) -> Op
                         "key": resolved_string_field(metafield, "key").unwrap_or_default(),
                         "type": resolved_string_field(metafield, "type").unwrap_or_default(),
                         "value": resolved_string_field(metafield, "value").unwrap_or_default(),
-                        "createdAt": DISCOUNT_DEFAULT_TIMESTAMP,
-                        "updatedAt": DISCOUNT_DEFAULT_TIMESTAMP
+                        "createdAt": timestamp,
+                        "updatedAt": timestamp
                     })),
                     _ => None,
                 })
