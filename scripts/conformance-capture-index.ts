@@ -224,6 +224,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-running-mutation-not-found-messages',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-running-mutation-not-found-messages-conformance.mts',
+    purpose:
+      'B2B companyDelete, companyContactCreate, companyAddressDelete, companyLocationAssignRoles, and companyLocationRevokeRoles RESOURCE_NOT_FOUND payloads for never-created IDs.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-running-mutation-not-found-messages.json`,
+      'config/parity-specs/b2b/b2b-running-mutation-not-found-messages.json',
+      'config/parity-requests/b2b/b2b-running-mutation-not-found-messages.graphql',
+    ],
+    cleanupBehavior:
+      'Uses fixed never-created Company, CompanyAddress, and CompanyLocation GIDs only; Shopify rejects before mutation so no cleanup is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-contact-location-assignments-tax',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-contact-location-assignment-conformance.mts',
@@ -3662,7 +3679,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Creates disposable definitions and metaobjects for each capability branch, registers one translation for the translatable branch, captures update and read-after-update evidence, then deletes disposable records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
-      'The parity spec strictly compares public renderable enable validation. The live fixture also records public capability-disable behavior; source-backed conservative local disable guards are covered by focused Gleam runtime tests.',
+      'The parity spec strictly compares public renderable enable validation. The live fixture also records public capability-disable behavior; conservative local disable guards are covered by focused runtime tests.',
   },
   {
     domain: 'metaobjects',
@@ -3829,7 +3846,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}standard-metaobject-templates.json`,
       `${CAPTURE_ROOT}standard-metaobject-definition-enable-catalog.json`,
-      'src/shopify_draft_proxy/proxy/metaobject_standard_templates_data.gleam',
       'config/parity-specs/metaobjects/standard-metaobject-definition-enable-catalog.json',
       'config/parity-requests/metaobjects/standard-metaobject-definition-enable-catalog.graphql',
       'config/parity-requests/metaobjects/standard-metaobject-definition-enable-read.graphql',
@@ -4529,6 +4545,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Enables French with an existing market web presence, removes the staged product-title translation, and disables or restores French locale settings according to the pre-capture shop state.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
+    captureId: 'localization-translatable-resource-absence',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-translatable-resource-absence-conformance.mts',
+    purpose:
+      'Empty translatableResources connection and missing translatableResource null behavior without fabricated default resource IDs.',
+    requiredAuthScopes: ['read_products', 'read_translations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-translatable-resource-absence.json`,
+      'config/parity-specs/localization/localization-translatable-resource-absence.json',
+      'config/parity-requests/localization/localization-translatable-resource-absence.graphql',
+    ],
+    cleanupBehavior: 'Read-only capture; no shop mutations are performed.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -6526,7 +6558,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'location-address-code-derivation',
     scriptPath: 'scripts/capture-location-address-code-derivation-conformance.mts',
     purpose:
-      'locationAdd/locationEdit country and province name derivation from supplied countryCode/provinceCode plus immediate read-after-write behavior.',
+      'locationAdd/locationEdit country and province name derivation from supplied countryCode/provinceCode, including an AE/DU branch outside the old tiny lookup table, plus immediate read-after-write behavior.',
     requiredAuthScopes: ['read_locations', 'write_locations'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}location-address-code-derivation.json`,
@@ -6536,7 +6568,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/store-properties/location-address-code-derivation-read.graphql',
     ],
     cleanupBehavior:
-      'Creates disposable non-online-fulfilling GB, AU, and CA locations, edits the CA location provinceCode, reads each back, then deactivates and deletes them.',
+      'Creates disposable non-online-fulfilling GB, AU, AE, and CA locations, edits the CA location provinceCode, reads each back, then deactivates and deletes them.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -6755,7 +6787,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}root-operation-introspection.json`,
       `${CAPTURE_ROOT}admin-graphql-root-operation-introspection.json`,
-      'src/shopify_draft_proxy/proxy/operation_registry_data.gleam',
+      'src/operation_registry_data.rs',
     ],
     cleanupBehavior: 'Read-only introspection; no cleanup expected.',
     expectedStatusChecks: ['conformance:check', 'conformance:status'],
@@ -9275,23 +9307,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
-    captureId: 'money-bag-presentment-local-runtime',
-    scriptPath: 'scripts/capture-money-bag-presentment-local-runtime.ts',
+    captureId: 'money-bag-presentment',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-money-bag-presentment-conformance.ts',
     purpose:
-      'Executable local-runtime MoneyBag presentment coverage for orderCreate, orderMarkAsPaid, refundCreate, and orderEditBegin/orderEditCommit selected money payloads.',
-    requiredAuthScopes: ['local-runtime'],
+      'Live Shopify Admin GraphQL MoneyBag presentment coverage for orderCreate, orderMarkAsPaid, refundCreate, and orderEditBegin/orderEditCommit selected money payloads.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
     fixtureOutputs: [
-      'fixtures/conformance/local-runtime/2026-05/orders/money-bag-presentment-parity.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/money-bag-presentment-parity.json',
       'config/parity-specs/orders/money-bag-presentment-parity.json',
       'config/parity-requests/orders/money-bag-presentment-single-create.graphql',
-      'config/parity-requests/orders/money-bag-presentment-multi-create.graphql',
       'config/parity-requests/orders/money-bag-presentment-mark-as-paid.graphql',
       'config/parity-requests/orders/money-bag-presentment-refund.graphql',
       'config/parity-requests/orders/money-bag-presentment-order-edit-begin.graphql',
       'config/parity-requests/orders/money-bag-presentment-order-edit-commit.graphql',
     ],
-    cleanupBehavior: 'Local-runtime parity only; no live Shopify objects are created.',
-    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
+    cleanupBehavior:
+      'Creates one disposable multi-currency test order, records edit, mark-as-paid, and refund MoneyBag payloads through public GraphQL, and attempts orderCancel cleanup.',
+    expectedStatusChecks: ['conformance:status', 'conformance:check', 'conformance:parity', 'rust:test'],
   },
   {
     domain: 'payments',
@@ -11126,6 +11159,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-validators.json',
       'config/parity-specs/bulk-operations/bulk-operation-run-mutation-validators.json',
+      'config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no Shopify data is created or mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
+    captureId: 'bulk-operation-run-mutation-connection-validators',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-run-mutation-connection-validators-conformance.ts',
+    purpose:
+      'Records bulkOperationRunMutation inner mutation connection-count and connection-nesting validation errors.',
+    requiredAuthScopes: ['bulk operation access through active Admin token'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-connection-validators.json',
+      'config/parity-specs/bulk-operations/bulk-operation-run-mutation-connection-validators.json',
       'config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql',
     ],
     cleanupBehavior: 'Validation-only capture; no Shopify data is created or mutated.',

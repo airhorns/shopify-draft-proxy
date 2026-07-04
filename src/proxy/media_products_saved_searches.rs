@@ -103,7 +103,12 @@ impl DraftProxy {
             "productsCount" => Some(self.products_count_field(field)),
             "productByIdentifier" => Some(self.product_by_identifier_field(field)),
             "productOperation" => Some(self.product_operation_by_id_field(field)),
+            "productFeed" => Some(self.product_tail_feed_read_field(field)),
+            "productFeeds" => Some(self.product_tail_feeds_read_field(field)),
             "productVariant" => Some(self.product_variant_by_id_field(field)),
+            "node" | "nodes" => self
+                .local_node_query_data(std::slice::from_ref(field), true, None)
+                .and_then(|data| data.get(&field.response_key).cloned()),
             "inventoryItem" => {
                 let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
                 self.product_inventory_item_by_id_value(&id, &field.selection)
@@ -312,7 +317,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn has_product_overlay_state(&self) -> bool {
-        self.store.has_product_state()
+        self.store.has_product_state() || self.store.has_product_feed_state()
     }
 
     pub(in crate::proxy) fn products_connection_value(

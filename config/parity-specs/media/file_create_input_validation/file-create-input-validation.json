@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-create-input-validation.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/media_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/media/file-create-input-validation.graphql",
     "variablesCapturePath": "$.scenarios[0].variables",

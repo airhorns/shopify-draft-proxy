@@ -91,7 +91,7 @@ fn metafields_set_namespace_key_validation(
 }
 
 /// Normalize a metafield `value` STRING the way Shopify echoes it back.
-/// Mirrors Gleam `normalize_metafield_value`. Most types pass through
+/// Matches Shopify echo behavior: Most types pass through
 /// unchanged; date_time gains a `+00:00` offset, rating keys are reordered,
 /// and measurement / list-measurement values are reformatted (float-style
 /// number + UPPERCASE unit). Value strings are built manually because key
@@ -116,7 +116,7 @@ pub(in crate::proxy) fn normalize_metafield_value_string(
 }
 
 /// Compute a metafield `jsonValue` from its type + raw value string.
-/// Mirrors Gleam `parse_metafield_json_value`. jsonValue is compared
+/// Matches Shopify jsonValue behavior: jsonValue is compared
 /// structurally, so these can be built with `json!`/serde maps.
 pub(in crate::proxy) fn metafield_json_value(metafield_type: &str, value: &str) -> Value {
     match metafield_type {
@@ -238,7 +238,7 @@ fn json_string_field(fields: &serde_json::Map<String, Value>, key: &str) -> Opti
 }
 
 /// Read a numeric field as a `jsonValue` number: ints stay ints, floats
-/// collapse to ints when whole. Mirrors Gleam `json_number_field`.
+/// collapse to ints when whole.
 fn json_number_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<Value> {
     match fields.get(key) {
         Some(Value::Number(number)) => {
@@ -268,8 +268,7 @@ fn json_number_from_float(value: f64) -> Value {
 }
 
 /// Read a numeric field as a value-STRING component: ints render `n.0`,
-/// floats render through Shopify's decimal text normalization. Mirrors Gleam
-/// `json_number_string_field`.
+/// floats render through Shopify's decimal text normalization.
 fn json_number_string_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
     match fields.get(key) {
         Some(Value::Number(number)) => {
@@ -662,20 +661,27 @@ fn metafields_set_input_shape_error(
     has_effective_type: bool,
     api_client_id: Option<&str>,
 ) -> Option<Value> {
+    let index = index.to_string();
+    let owner_id = resolved_string_field(input, "ownerId").unwrap_or_default();
     let raw_namespace = resolved_string_field(input, "namespace");
     if app_metafield_namespace_requires_api_client(raw_namespace.as_deref())
         && api_client_id.is_none()
     {
         return Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string(), "namespace"],
+            vec!["metafields", &index, "namespace"],
             "APP_NOT_AUTHORIZED",
             APP_NAMESPACE_IDENTITY_REQUIRED_MESSAGE,
         ));
     }
     let namespace = canonical_app_metafield_namespace(raw_namespace.as_deref(), api_client_id);
     let key = resolved_string_field(input, "key").unwrap_or_default();
-    if let Some(error) = metafields_set_namespace_key_validation(&namespace, &key) {
-        let index = index.to_string();
+    if shopify_gid_resource_type(&owner_id).is_none() {
+        Some(metafields_set_path_user_error(
+            vec!["metafields", &index, "ownerId"],
+            "INVALID_OWNER",
+            "Owner is invalid",
+        ))
+    } else if let Some(error) = metafields_set_namespace_key_validation(&namespace, &key) {
         Some(metafields_set_path_user_error(
             vec!["metafields", &index, error.0],
             error.1,
@@ -686,19 +692,19 @@ fn metafields_set_input_shape_error(
         "shopify_standard" | "protected" | "shopify-l10n-fields"
     ) {
         Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string(), "namespace"],
+            vec!["metafields", &index, "namespace"],
             "",
             &format!("Namespace {namespace} is a reserved namespace"),
         ))
     } else if app_namespace_belongs_to_other_app(&namespace, api_client_id) {
         Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string()],
+            vec!["metafields", &index],
             "APP_NOT_AUTHORIZED",
             "Access to this namespace and key on Metafields for this resource type is not allowed.",
         ))
     } else if !input.contains_key("type") && !has_effective_type {
         Some(metafields_set_path_user_error(
-            vec!["metafields", &index.to_string(), "type"],
+            vec!["metafields", &index, "type"],
             "BLANK",
             "Type can't be blank",
         ))

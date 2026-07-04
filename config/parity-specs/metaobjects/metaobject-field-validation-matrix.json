@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-field-validation-matrix.json"
   ],
-  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-definition-create.graphql",
     "variablesCapturePath": "$.definitionCreate.request.variables",

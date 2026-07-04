@@ -58,6 +58,14 @@ Supported B2B mutations stage locally and retain the original raw mutation body
 for `POST /__meta/commit` replay. Failed local validations are recorded in the
 mutation log as failed and do not stage resource IDs.
 
+Bulk B2B mutations follow Shopify's app/API-client request-level batch cap:
+more than 50 entries returns a single top-level `LIMIT_REACHED` user error with
+the bulk argument as `field`, before parent lookup or per-entry validation, and
+does not mutate staged state. The local B2B dispatch path models app-facing
+Admin API callers; there is no first-party merchant-admin local bypass in the
+proxy, so the cap applies even when the optional
+`x-shopify-draft-proxy-api-client-id` identity header is absent.
+
 The local B2B graph stores staged companies, company locations, company
 addresses embedded on locations, company contacts, contact roles,
 location-role assignments, and location-staff assignments. `company(id:)`,

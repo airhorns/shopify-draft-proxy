@@ -4,6 +4,7 @@ pub(in crate::proxy) fn quantity_rules_mutation_response(
     root_field: &str,
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
+    store: &Store,
 ) -> Response {
     let (response_key, payload_selection) = primary_root_field(query, variables)
         .map(|field| (field.response_key, field.selection))
@@ -11,13 +12,11 @@ pub(in crate::proxy) fn quantity_rules_mutation_response(
     let price_list_id = resolved_string_field(variables, "priceListId").unwrap_or_default();
     let payload = if root_field == "quantityRulesDelete" {
         let variant_ids = list_string_field(variables, "variantIds");
+        let variant_errors = quantity_rules_delete_variant_errors(store, &variant_ids);
         if price_list_id == "gid://shopify/PriceList/0" {
             json!({"deletedQuantityRulesVariantIds": [], "userErrors": [quantity_rule_error(vec!["priceListId"], "PRICE_LIST_DOES_NOT_EXIST", "Price list does not exist.")]})
-        } else if variant_ids
-            .iter()
-            .any(|id| id == "gid://shopify/ProductVariant/0")
-        {
-            json!({"deletedQuantityRulesVariantIds": [], "userErrors": [quantity_rule_error(vec!["variantIds", "0"], "PRODUCT_VARIANT_DOES_NOT_EXIST", "Product variant ID does not exist.")]})
+        } else if !variant_errors.is_empty() {
+            json!({"deletedQuantityRulesVariantIds": [], "userErrors": variant_errors})
         } else if price_list_id == "gid://shopify/PriceList/31575376178" {
             json!({"deletedQuantityRulesVariantIds": [], "userErrors": [quantity_rule_error(vec!["variantIds", "0"], "VARIANT_QUANTITY_RULE_DOES_NOT_EXIST", "Quantity rule for variant associated with the price list provided does not exist.")]})
         } else {
@@ -66,6 +65,26 @@ pub(in crate::proxy) fn quantity_rules_mutation_response(
 
 pub(in crate::proxy) fn quantity_rule_error(field: Vec<&str>, code: &str, message: &str) -> Value {
     user_error_typed("QuantityRuleUserError", field, message, Some(code))
+}
+
+pub(in crate::proxy) fn quantity_rules_delete_variant_errors(
+    store: &Store,
+    variant_ids: &[String],
+) -> Vec<Value> {
+    if !store.has_product_variant_reference_state() {
+        return Vec::new();
+    }
+    let mut errors = Vec::new();
+    for (index, variant_id) in variant_ids.iter().enumerate() {
+        if !store.has_product_variant_reference(variant_id) {
+            errors.push(quantity_rule_error(
+                vec!["variantIds", &index.to_string()],
+                "PRODUCT_VARIANT_DOES_NOT_EXIST",
+                "Product variant ID does not exist.",
+            ));
+        }
+    }
+    errors
 }
 
 pub(in crate::proxy) fn quantity_rules_add_validation_errors(

@@ -8,8 +8,7 @@ const METAFIELD_DELETE_HYDRATE_QUERY: &str = "query MetafieldDeleteHydrateNode($
 impl DraftProxy {
     // metafieldsSet/metafieldsDelete read their `metafields` list from the
     // resolved root-field arguments so inline-document forms work, not only the
-    // `$metafields` variable form (matches the Gleam reference, which reads from
-    // the field arguments). Falls back to top-level variables for safety.
+    // `$metafields` variable form. Falls back to top-level variables for safety.
     pub(in crate::proxy) fn owner_metafields_set(
         &mut self,
         request: &Request,
@@ -35,6 +34,7 @@ impl DraftProxy {
                 inputs
                     .iter()
                     .filter_map(|input| resolved_string_field(input, "ownerId"))
+                    .filter(|owner_id| shopify_gid_resource_type(owner_id).is_some())
                     .collect(),
             );
         }

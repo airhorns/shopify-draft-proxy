@@ -12,7 +12,7 @@ pub(in crate::proxy) const MEDIA_PRODUCT_HYDRATE_QUERY: &str = "query MediaProdu
 // LiveHybrid we read the file's `references` from upstream; in replay this
 // matches the recorded cassette call. Both the product `media` nodes and each
 // variant's attached `media` are hydrated so the cascade and downstream variant
-// reads operate on real owner state. (Gleam parity: PR #794 file media cascade.)
+// reads operate on real owner state. (parity: file media cascade.)
 const MEDIA_FILE_REFERENCES_HYDRATE_QUERY: &str = "query MediaFileReferencesHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on MediaImage {\n      alt\n      fileStatus\n      mediaContentType\n      status\n      preview { image { url width height } }\n      image { url width height }\n      references(first: 50) {\n        nodes {\n          ... on Product {\n            id\n            title\n            handle\n            status\n            media(first: 50) {\n              nodes {\n                id\n                __typename\n                alt\n                fileStatus\n                mediaContentType\n                status\n                preview { image { url width height } }\n                ... on MediaImage { image { url width height } }\n              }\n            }\n            variants(first: 50) {\n              nodes {\n                id\n                title\n                media(first: 10) { nodes { id alt mediaContentType } }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}";
 
 impl DraftProxy {
@@ -107,8 +107,7 @@ impl DraftProxy {
         }
 
         // Each successful mutation reserves a synthetic id for its log entry
-        // before allocating resource ids (Gleam fileCreate reserves a
-        // MutationLogEntry id first), keeping file ids in lockstep with parity.
+        // before allocating resource ids, keeping file ids in lockstep with the synthetic-id contract.
         self.reserve_synthetic_log_id();
         let files = inputs
             .into_iter()
@@ -181,8 +180,7 @@ impl DraftProxy {
         }
 
         // Hydrate referenced products and file-update targets from upstream so
-        // existence/validation checks run against the real records (Gleam parity:
-        // maybe_hydrate_referenced_products + maybe_hydrate_file_update_targets).
+        // existence/validation checks run against the real records.
         self.hydrate_referenced_products(request, &inputs);
         self.hydrate_file_update_targets(request, &inputs);
 
@@ -307,8 +305,7 @@ impl DraftProxy {
                 file["displayName"] = json!(filename);
             }
             // Source/preview updates invalidate the rendered image until the
-            // backend reprocesses it. The immediate payload nulls `image` (Gleam
-            // update_file_record) while the existing `preview`/`url` are retained,
+            // backend reprocesses it. The immediate payload nulls `image` while the existing `preview`/`url` are retained,
             // because regeneration is asynchronous.
             let content_type = file
                 .get("contentType")
@@ -327,9 +324,7 @@ impl DraftProxy {
             if explicit_preview.is_some() {
                 file["image"] = Value::Null;
             }
-            // GenericFile renders `url` from the accepted originalSource (Gleam
-            // next_original_source for FILE). Image-type files defer to async
-            // regeneration and keep their hydrated preview/url instead.
+            // GenericFile renders `url` from the accepted originalSource. Image-type files defer to async regeneration and keep their hydrated preview/url instead.
             if content_type.as_deref() == Some("FILE") {
                 if let Some(source) = &original_source {
                     file["url"] = json!(source);
@@ -342,7 +337,7 @@ impl DraftProxy {
                 .insert(id.clone(), file.clone());
             // Cascade: detaching a file from a product (referencesToRemove)
             // removes that file from the product's media and from every variant
-            // that had it attached (Gleam parity: remove_media_ids_from_variants_for_products).
+            // that had it attached.
             let remove_products = list_string_field(input, "referencesToRemove");
             if !remove_products.is_empty() {
                 self.store
@@ -397,7 +392,7 @@ impl DraftProxy {
         }
         // Cascade: detach the deleted files from every product/variant that
         // referenced them, so subsequent product.media / variant.media reads no
-        // longer surface the removed file (Gleam parity: delete_staged_files).
+        // longer surface the removed file.
         self.store.clear_media_ids(&ids, None);
         let payload = json!({"deletedFileIds": ids, "userErrors": []});
         MutationOutcome::staged(
@@ -519,8 +514,7 @@ impl DraftProxy {
         }
         // Validate every input up front so we know whether the mutation will
         // succeed. A successful mutation reserves a synthetic id for its log
-        // entry before allocating target ids (Gleam reserves a MutationLogEntry
-        // id first), keeping target ids in lockstep with parity.
+        // entry before allocating target ids, keeping target ids in lockstep with the synthetic-id contract.
         let validations: Vec<Vec<Value>> = inputs
             .iter()
             .enumerate()
@@ -789,7 +783,7 @@ impl DraftProxy {
     }
 
     // Files referencing products that do not exist (after hydration) fail with
-    // REFERENCE_TARGET_DOES_NOT_EXIST (Gleam parity: validate_file_update_reference_targets).
+    // REFERENCE_TARGET_DOES_NOT_EXIST.
     fn validate_file_update_reference_targets(
         &self,
         inputs: &[BTreeMap<String, ResolvedValue>],
@@ -1134,7 +1128,7 @@ fn validate_file_update_post_readiness_fields(
             ));
         }
     }
-    // Gleam parity (validate_optional_url): an invalid originalSource OR
+    // Captured validation behavior: an invalid originalSource OR
     // previewImageSource is always reported against the previewImageSource field
     // with the INVALID_IMAGE_SOURCE_URL code, regardless of which field carried it.
     for source_field in ["originalSource", "previewImageSource"] {
@@ -1298,7 +1292,7 @@ fn validate_staged_upload_input(
 }
 
 /// Encode the path-unsafe characters of a staged-upload URL segment, mirroring
-/// the Gleam `encode_upload_segment` (`:` -> `%3A`, `/` -> `%2F`).
+/// Shopify-style staged-upload URL segment encoding (`:` -> `%3A`, `/` -> `%2F`).
 fn encode_upload_segment(value: &str) -> String {
     value.replace(':', "%3A").replace('/', "%2F")
 }
@@ -1306,7 +1300,7 @@ fn encode_upload_segment(value: &str) -> String {
 /// Build a single staged upload target. The synthetic `id`
 /// (`gid://shopify/StagedUploadTarget{index}/{n}`) is allocated by the caller so
 /// that target ids stay in lockstep with the shared synthetic counter, exactly
-/// as Gleam's `make_staged_target` does. URLs and signature material are inert
+/// as required by the staged-upload target model. URLs and signature material are inert
 /// `shopify-draft-proxy.local` placeholders: the proxy never allocates real
 /// external storage, so every signed value is a deterministic placeholder rather
 /// than a captured Shopify secret.
@@ -1551,9 +1545,7 @@ pub(super) fn media_file_record_from_node(node: &Value) -> Option<Value> {
     Some(record)
 }
 
-// Files-connection cursors are the record gid prefixed with `cursor:` (Gleam
-// serializer convention), distinct from the bare-id cursors other connections
-// emit via value_id_cursor.
+// Files-connection cursors are the record gid prefixed with `cursor:`, distinct from the bare-id cursors other connections emit via value_id_cursor.
 fn media_file_cursor(record: &Value) -> String {
     format!("cursor:{}", value_id_cursor(record))
 }
@@ -1607,9 +1599,7 @@ fn infer_content_type_from_source(filename: &str) -> &'static str {
 }
 
 fn mime_type_for_filename(filename: &str, content_type: &str) -> &'static str {
-    // Extension-first derivation (Gleam media/serializers.gleam `derive_mime_type`):
-    // the recognized extension wins regardless of contentType, and only an
-    // unrecognized extension falls back to the contentType default.
+    // Extension-first derivation: the recognized extension wins regardless of contentType, and only an unrecognized extension falls back to the contentType default.
     match file_extension(filename).as_str() {
         "gif" => "image/gif",
         "heic" => "image/heic",

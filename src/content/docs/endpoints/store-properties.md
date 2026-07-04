@@ -41,9 +41,9 @@ read-after-write effects described below and backed by executable evidence.
 
 ### Local behavior
 
-The Rust runtime has scenario-backed store-properties slices for ported parity
-requests and runtime tests. These slices are not general registry support for
-every store-property document.
+The Rust runtime has scenario-backed store-properties slices for parity requests
+and runtime tests. These slices are not general registry support for every
+store-property document.
 
 Shop reads have a local store-backed slice for selected shop metadata,
 including staged shop policies, publication aggregates, primary domain, and safe
@@ -87,7 +87,8 @@ disposable shop.
 
 Location reads and lifecycle mutations have local slices for detail reads,
 unknown-ID null behavior, `locationByIdentifier` selected cases,
-address/country/province derivation, create/edit validation, metafields on
+address/country/province derivation including the captured GB, AU, AE, and CA
+branches, create/edit validation, metafields on
 location add/edit, activate/deactivate state transitions, delete tombstones,
 idempotency directives, resource-limit validation, and selected lifecycle guard
 errors. Successful location mutation slices stage local state, preserve the raw

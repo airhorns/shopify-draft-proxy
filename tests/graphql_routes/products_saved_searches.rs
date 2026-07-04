@@ -72,6 +72,47 @@ fn assert_user_error_with_field_and_code(user_errors: &Value, field: Value, code
     );
 }
 
+fn create_product_for_relationship_test(
+    proxy: &mut DraftProxy,
+    title: &str,
+    combined_listing_role: Option<&str>,
+) -> (String, String) {
+    let mut product = json!({ "title": title });
+    if let Some(role) = combined_listing_role {
+        product["combinedListingRole"] = json!(role);
+    }
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateProductForRelationshipTest($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              id
+              combinedListingRole
+              variants(first: 1) {
+                nodes { id }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "product": product }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product = &response.body["data"]["productCreate"]["product"];
+    (
+        product["id"].as_str().unwrap().to_string(),
+        product["variants"]["nodes"][0]["id"]
+            .as_str()
+            .unwrap()
+            .to_string(),
+    )
+}
+
 fn staged_fulfillment_service_location_id(proxy: &mut DraftProxy, name: &str) -> String {
     let create = proxy.process_request(json_graphql_request(
         r#"
@@ -3506,7 +3547,7 @@ fn product_variant_media_empty_media_ids_return_blank_without_staging() {
 }
 
 #[test]
-fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests() {
+fn product_publication_full_sync_and_feedback_tail_helpers_cover_current_behavior() {
     let mut proxy = snapshot_proxy();
 
     let publication_validation = proxy.process_request(json_graphql_request(
@@ -3989,6 +4030,417 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
 }
 
 #[test]
+fn product_feed_delete_removes_staged_feed_from_reads_and_node() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateFeedForDelete($input: ProductFeedInput) {
+          productFeedCreate(input: $input) {
+            productFeed { id country language status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "country": "US", "language": "EN" } }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productFeedCreate"],
+        json!({
+            "productFeed": {
+                "id": "gid://shopify/ProductFeed/US-EN",
+                "country": "US",
+                "language": "EN",
+                "status": "ACTIVE"
+            },
+            "userErrors": []
+        })
+    );
+
+    let before_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query FeedBeforeDelete($id: ID!) {
+          productFeed(id: $id) { id country language status }
+          productFeeds(first: 10) { nodes { id country language status } }
+          node(id: $id) {
+            __typename
+            id
+            ... on ProductFeed { country language status }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/ProductFeed/US-EN" }),
+    ));
+    assert_eq!(before_delete.status, 200);
+    assert_eq!(
+        before_delete.body["data"]["productFeed"],
+        json!({
+            "id": "gid://shopify/ProductFeed/US-EN",
+            "country": "US",
+            "language": "EN",
+            "status": "ACTIVE"
+        })
+    );
+    assert_eq!(
+        before_delete.body["data"]["productFeeds"]["nodes"],
+        json!([{
+            "id": "gid://shopify/ProductFeed/US-EN",
+            "country": "US",
+            "language": "EN",
+            "status": "ACTIVE"
+        }])
+    );
+    assert_eq!(
+        before_delete.body["data"]["node"],
+        json!({
+            "__typename": "ProductFeed",
+            "id": "gid://shopify/ProductFeed/US-EN",
+            "country": "US",
+            "language": "EN",
+            "status": "ACTIVE"
+        })
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteStagedFeed($id: ID!) {
+          productFeedDelete(id: $id) {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/ProductFeed/US-EN" }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productFeedDelete"],
+        json!({
+            "deletedId": "gid://shopify/ProductFeed/US-EN",
+            "userErrors": []
+        })
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query FeedAfterDelete($id: ID!) {
+          productFeed(id: $id) { id country language status }
+          productFeeds(first: 10) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          node(id: $id) {
+            __typename
+            id
+            ... on ProductFeed { country language status }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/ProductFeed/US-EN" }),
+    ));
+    assert_eq!(after_delete.status, 200);
+    assert_eq!(after_delete.body["data"]["productFeed"], Value::Null);
+    assert_eq!(
+        after_delete.body["data"]["productFeeds"]["nodes"],
+        json!([])
+    );
+    assert_eq!(after_delete.body["data"]["node"], Value::Null);
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteUnknownFeed($id: ID!) {
+          productFeedDelete(id: $id) {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/ProductFeed/999999999" }),
+    ));
+    assert_eq!(unknown.status, 200);
+    assert_eq!(
+        unknown.body["data"]["productFeedDelete"],
+        json!({
+            "deletedId": Value::Null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "ProductFeed does not exist",
+                "code": Value::Null
+            }]
+        })
+    );
+}
+
+#[test]
+fn combined_listing_update_stages_children_and_captured_validation_branches() {
+    let mut proxy = snapshot_proxy();
+    let (parent_id, parent_variant_id) =
+        create_product_for_relationship_test(&mut proxy, "Combined parent", Some("PARENT"));
+    let (child_id, _) = create_product_for_relationship_test(&mut proxy, "Combined child", None);
+    let (plain_parent_id, _) =
+        create_product_for_relationship_test(&mut proxy, "Plain parent", None);
+
+    let non_parent = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NonParent($parentProductId: ID!) {
+          combinedListingUpdate(parentProductId: $parentProductId) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "parentProductId": plain_parent_id }),
+    ));
+    assert_eq!(non_parent.status, 200);
+    assert_user_error_with_field_and_code(
+        &non_parent.body["data"]["combinedListingUpdate"]["userErrors"],
+        json!(["parentProductId"]),
+        "PARENT_PRODUCT_MUST_BE_A_COMBINED_LISTING",
+    );
+
+    let success = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CombinedListingSuccess(
+          $parentProductId: ID!
+          $productsAdded: [ChildProductRelationInput!]
+          $optionsAndValues: [OptionAndValueInput!]
+        ) {
+          combinedListingUpdate(
+            parentProductId: $parentProductId
+            productsAdded: $productsAdded
+            optionsAndValues: $optionsAndValues
+          ) {
+            product { id combinedListingRole }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "parentProductId": parent_id,
+            "productsAdded": [{
+                "childProductId": child_id,
+                "selectedParentOptionValues": [{ "name": "Title", "value": "Default Title" }]
+            }],
+            "optionsAndValues": [{ "name": "Title", "values": ["Default Title"] }]
+        }),
+    ));
+    assert_eq!(success.status, 200);
+    assert_eq!(
+        success.body["data"]["combinedListingUpdate"],
+        json!({
+            "product": {
+                "id": parent_id,
+                "combinedListingRole": "PARENT"
+            },
+            "userErrors": []
+        })
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query CombinedListingRead($parentId: ID!) {
+          product(id: $parentId) {
+            id
+            combinedListingRole
+            combinedListing {
+              parentProduct { id }
+              combinedListingChildren(first: 10) {
+                nodes {
+                  product { id combinedListingRole }
+                  parentVariant { id }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "parentId": parent_id }),
+    ));
+    assert_eq!(downstream.status, 200);
+    assert_eq!(
+        downstream.body["data"]["product"]["combinedListing"]["parentProduct"],
+        json!({ "id": parent_id })
+    );
+    assert_eq!(
+        downstream.body["data"]["product"]["combinedListing"]["combinedListingChildren"]["nodes"],
+        json!([{
+            "product": {
+                "id": child_id,
+                "combinedListingRole": "CHILD"
+            },
+            "parentVariant": { "id": parent_variant_id }
+        }])
+    );
+
+    let already_child = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AlreadyChild(
+          $parentProductId: ID!
+          $productsAdded: [ChildProductRelationInput!]
+          $optionsAndValues: [OptionAndValueInput!]
+        ) {
+          combinedListingUpdate(
+            parentProductId: $parentProductId
+            productsAdded: $productsAdded
+            optionsAndValues: $optionsAndValues
+          ) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "parentProductId": parent_id,
+            "productsAdded": [{
+                "childProductId": child_id,
+                "selectedParentOptionValues": [{ "name": "Title", "value": "Default Title" }]
+            }],
+            "optionsAndValues": [{ "name": "Title", "values": ["Default Title"] }]
+        }),
+    ));
+    assert_eq!(already_child.status, 200);
+    assert_user_error_with_field_and_code(
+        &already_child.body["data"]["combinedListingUpdate"]["userErrors"],
+        json!(["productsAdded"]),
+        "PRODUCT_IS_ALREADY_A_CHILD",
+    );
+}
+
+#[test]
+fn product_variant_relationship_bulk_update_stages_components_and_validation() {
+    let mut proxy = snapshot_proxy();
+    let (_, parent_variant_id) =
+        create_product_for_relationship_test(&mut proxy, "Bundle parent", None);
+    let (_, child_variant_id) =
+        create_product_for_relationship_test(&mut proxy, "Bundle child", None);
+
+    let success = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ComponentSuccess($input: [ProductVariantRelationshipUpdateInput!]!) {
+          productVariantRelationshipBulkUpdate(input: $input) {
+            parentProductVariants {
+              id
+              requiresComponents
+              productVariantComponents(first: 10) {
+                nodes { quantity productVariant { id } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": [{
+                "parentProductVariantId": parent_variant_id,
+                "productVariantRelationshipsToCreate": [{
+                    "id": child_variant_id,
+                    "quantity": 1
+                }]
+            }]
+        }),
+    ));
+    assert_eq!(success.status, 200);
+    assert_eq!(
+        success.body["data"]["productVariantRelationshipBulkUpdate"],
+        json!({
+            "parentProductVariants": [{
+                "id": parent_variant_id,
+                "requiresComponents": true,
+                "productVariantComponents": {
+                    "nodes": [{
+                        "quantity": 1,
+                        "productVariant": { "id": child_variant_id }
+                    }]
+                }
+            }],
+            "userErrors": []
+        })
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query ComponentRead($id: ID!) {
+          productVariant(id: $id) {
+            id
+            requiresComponents
+            productVariantComponents(first: 10) {
+              nodes { quantity productVariant { id } }
+            }
+          }
+        }
+        "#,
+        json!({ "id": parent_variant_id }),
+    ));
+    assert_eq!(downstream.status, 200);
+    assert_eq!(
+        downstream.body["data"]["productVariant"],
+        json!({
+            "id": parent_variant_id,
+            "requiresComponents": true,
+            "productVariantComponents": {
+                "nodes": [{
+                    "quantity": 1,
+                    "productVariant": { "id": child_variant_id }
+                }]
+            }
+        })
+    );
+
+    let parent_as_child = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ComponentParentAsChild($input: [ProductVariantRelationshipUpdateInput!]!) {
+          productVariantRelationshipBulkUpdate(input: $input) {
+            parentProductVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": [{
+                "parentProductVariantId": parent_variant_id,
+                "productVariantRelationshipsToCreate": [{
+                    "id": parent_variant_id,
+                    "quantity": 1
+                }]
+            }]
+        }),
+    ));
+    assert_eq!(parent_as_child.status, 200);
+    assert_user_error_with_field_and_code(
+        &parent_as_child.body["data"]["productVariantRelationshipBulkUpdate"]["userErrors"],
+        json!(["input"]),
+        "CIRCULAR_REFERENCE",
+    );
+
+    let unknown_variants = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ComponentUnknown($input: [ProductVariantRelationshipUpdateInput!]!) {
+          productVariantRelationshipBulkUpdate(input: $input) {
+            parentProductVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": [{
+                "parentProductVariantId": "gid://shopify/ProductVariant/999999999",
+                "productVariantRelationshipsToCreate": [{
+                    "id": "gid://shopify/ProductVariant/999999998",
+                    "quantity": 1
+                }]
+            }]
+        }),
+    ));
+    assert_eq!(unknown_variants.status, 200);
+    assert_user_error_with_field_and_code(
+        &unknown_variants.body["data"]["productVariantRelationshipBulkUpdate"]["userErrors"],
+        json!(["input"]),
+        "PRODUCT_VARIANTS_NOT_FOUND",
+    );
+}
+
+#[test]
 fn product_resource_feedback_validates_mixed_batches_with_per_entry_errors() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
@@ -4094,6 +4546,71 @@ fn product_resource_feedback_validates_mixed_batches_with_per_entry_errors() {
             }]
         })
     );
+}
+
+#[test]
+fn product_resource_feedback_missing_write_scope_returns_top_level_access_denied() {
+    let mut proxy = snapshot_proxy();
+    let mut request = json_graphql_request(
+        r#"
+        mutation ProductFeedbackMissingScope {
+          productFeedback: bulkProductResourceFeedbackCreate(feedbackInput: [{
+            productId: "gid://shopify/Product/optioned",
+            state: REQUIRES_ACTION,
+            feedbackGeneratedAt: "2024-01-01T00:00:00Z",
+            productUpdatedAt: "2024-01-01T00:00:00Z",
+            messages: ["missing scope"]
+          }]) {
+            feedback { productId }
+            userErrors { field message code }
+          }
+          shopFeedback: shopResourceFeedbackCreate(input: {
+            state: ACCEPTED,
+            feedbackGeneratedAt: "2024-01-01T00:00:00Z",
+            messages: ["missing scope"]
+          }) {
+            feedback { state }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    request.headers.insert(
+        "x-shopify-draft-proxy-access-scopes".to_string(),
+        "read_products,write_products".to_string(),
+    );
+
+    let response = proxy.process_request(request);
+    assert_eq!(response.status, 200, "response body: {}", response.body);
+    assert_eq!(response.body["data"]["productFeedback"], Value::Null);
+    assert_eq!(response.body["data"]["shopFeedback"], Value::Null);
+    let errors = response.body["errors"]
+        .as_array()
+        .expect("missing scope response should return top-level errors");
+    assert_eq!(errors.len(), 2, "errors: {errors:?}");
+    assert_eq!(errors[0]["path"], json!(["productFeedback"]));
+    assert_eq!(
+        errors[0]["message"],
+        json!("Access denied for bulkProductResourceFeedbackCreate field. Required access: `write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.")
+    );
+    assert_eq!(errors[1]["path"], json!(["shopFeedback"]));
+    assert_eq!(
+        errors[1]["message"],
+        json!("Access denied for shopResourceFeedbackCreate field. Required access: `write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.")
+    );
+    for error in errors {
+        assert_eq!(error["extensions"]["code"], json!("ACCESS_DENIED"));
+        assert_eq!(
+            error["extensions"]["documentation"],
+            json!("https://shopify.dev/api/usage/access-scopes")
+        );
+        assert_eq!(
+            error["extensions"]["requiredAccess"],
+            json!("`write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.")
+        );
+    }
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 }
 
 #[test]
