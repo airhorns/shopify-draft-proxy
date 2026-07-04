@@ -1,0 +1,1007 @@
+{
+  "capturedAt": "2026-07-03T20:04:20.950Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "seed": {
+    "type": "codex_metaobject_filter_sort_1783109053703",
+    "definitionId": "gid://shopify/MetaobjectDefinition/19570950450",
+    "entries": [
+      {
+        "handle": "charlie-entry",
+        "title": "Charlie",
+        "subtitle": "Lake story",
+        "id": "gid://shopify/Metaobject/203542135090"
+      },
+      {
+        "handle": "alpha-entry",
+        "title": "Alpha",
+        "subtitle": "River note",
+        "id": "gid://shopify/Metaobject/203542167858"
+      },
+      {
+        "handle": "bravo-entry",
+        "title": "Bravo",
+        "subtitle": "Hill note",
+        "id": "gid://shopify/Metaobject/203542200626"
+      }
+    ]
+  },
+  "safety": {
+    "setup": "Creates one temporary metaobject definition and three temporary entries on the disposable conformance shop, waits for the metaobjects(type:) search index, records filter/sort reads, then deletes all created entries and the definition before writing the successful fixture."
+  },
+  "setup": {
+    "entryCreates": [
+      {
+        "name": "entry-create-charlie-entry",
+        "request": {
+          "query": "mutation MetaobjectsFilterSortEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      displayName\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+          "variables": {
+            "metaobject": {
+              "type": "codex_metaobject_filter_sort_1783109053703",
+              "handle": "charlie-entry",
+              "fields": [
+                {
+                  "key": "title",
+                  "value": "Charlie"
+                },
+                {
+                  "key": "subtitle",
+                  "value": "Lake story"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metaobjectCreate": {
+              "metaobject": {
+                "id": "gid://shopify/Metaobject/203542135090",
+                "handle": "charlie-entry",
+                "displayName": "Charlie",
+                "updatedAt": "2026-07-03T20:04:14Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "entry-create-alpha-entry",
+        "request": {
+          "query": "mutation MetaobjectsFilterSortEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      displayName\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+          "variables": {
+            "metaobject": {
+              "type": "codex_metaobject_filter_sort_1783109053703",
+              "handle": "alpha-entry",
+              "fields": [
+                {
+                  "key": "title",
+                  "value": "Alpha"
+                },
+                {
+                  "key": "subtitle",
+                  "value": "River note"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metaobjectCreate": {
+              "metaobject": {
+                "id": "gid://shopify/Metaobject/203542167858",
+                "handle": "alpha-entry",
+                "displayName": "Alpha",
+                "updatedAt": "2026-07-03T20:04:14Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "entry-create-bravo-entry",
+        "request": {
+          "query": "mutation MetaobjectsFilterSortEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      displayName\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+          "variables": {
+            "metaobject": {
+              "type": "codex_metaobject_filter_sort_1783109053703",
+              "handle": "bravo-entry",
+              "fields": [
+                {
+                  "key": "title",
+                  "value": "Bravo"
+                },
+                {
+                  "key": "subtitle",
+                  "value": "Hill note"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metaobjectCreate": {
+              "metaobject": {
+                "id": "gid://shopify/Metaobject/203542200626",
+                "handle": "bravo-entry",
+                "displayName": "Bravo",
+                "updatedAt": "2026-07-03T20:04:14Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    ],
+    "definitionCreate": {
+      "name": "definition-create",
+      "request": {
+        "query": "mutation MetaobjectsFilterSortDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "type": "codex_metaobject_filter_sort_1783109053703",
+            "name": "Metaobject filter sort 1783109053703",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "type": "single_line_text_field",
+                "required": true,
+                "capabilities": {
+                  "adminFilterable": {
+                    "enabled": true
+                  }
+                }
+              },
+              {
+                "key": "subtitle",
+                "name": "Subtitle",
+                "type": "single_line_text_field",
+                "required": false,
+                "capabilities": {
+                  "adminFilterable": {
+                    "enabled": true
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/19570950450",
+              "type": "codex_metaobject_filter_sort_1783109053703"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "reads": {
+    "displayName": {
+      "name": "filter-display-name",
+      "request": {
+        "query": "query MetaobjectsFilterSortRead($type: String!, $query: String, $sortKey: String, $reverse: Boolean) {\n  catalog: metaobjects(type: $type, first: 10, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    edges {\n      cursor\n      node {\n        handle\n        type\n        displayName\n        fields {\n          key\n          value\n          jsonValue\n        }\n      }\n    }\n    nodes {\n      handle\n      type\n      displayName\n      fields {\n        key\n        value\n        jsonValue\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+        "variables": {
+          "type": "codex_metaobject_filter_sort_1783109053703",
+          "query": "display_name:Alpha*",
+          "sortKey": null,
+          "reverse": false
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "catalog": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoyMDM1NDIxNjc4NTgsImxhc3RfdmFsdWUiOjIwMzU0MjE2Nzg1OH0=",
+                "node": {
+                  "handle": "alpha-entry",
+                  "type": "codex_metaobject_filter_sort_1783109053703",
+                  "displayName": "Alpha",
+                  "fields": [
+                    {
+                      "key": "title",
+                      "value": "Alpha",
+                      "jsonValue": "Alpha"
+                    },
+                    {
+                      "key": "subtitle",
+                      "value": "River note",
+                      "jsonValue": "River note"
+                    }
+                  ]
+                }
+              }
+            ],
+            "nodes": [
+              {
+                "handle": "alpha-entry",
+                "type": "codex_metaobject_filter_sort_1783109053703",
+                "displayName": "Alpha",
+                "fields": [
+                  {
+                    "key": "title",
+                    "value": "Alpha",
+                    "jsonValue": "Alpha"
+                  },
+                  {
+                    "key": "subtitle",
+                    "value": "River note",
+                    "jsonValue": "River note"
+                  }
+                ]
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoyMDM1NDIxNjc4NTgsImxhc3RfdmFsdWUiOjIwMzU0MjE2Nzg1OH0=",
+              "endCursor": "eyJsYXN0X2lkIjoyMDM1NDIxNjc4NTgsImxhc3RfdmFsdWUiOjIwMzU0MjE2Nzg1OH0="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "fieldValue": {
+      "name": "filter-field-value",
+      "request": {
+        "query": "query MetaobjectsFilterSortRead($type: String!, $query: String, $sortKey: String, $reverse: Boolean) {\n  catalog: metaobjects(type: $type, first: 10, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    edges {\n      cursor\n      node {\n        handle\n        type\n        displayName\n        fields {\n          key\n          value\n          jsonValue\n        }\n      }\n    }\n    nodes {\n      handle\n      type\n      displayName\n      fields {\n        key\n        value\n        jsonValue\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+        "variables": {
+          "type": "codex_metaobject_filter_sort_1783109053703",
+          "query": "fields.subtitle:Lake*",
+          "sortKey": null,
+          "reverse": false
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "catalog": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoyMDM1NDIxMzUwOTAsImxhc3RfdmFsdWUiOjIwMzU0MjEzNTA5MH0=",
+                "node": {
+                  "handle": "charlie-entry",
+                  "type": "codex_metaobject_filter_sort_1783109053703",
+                  "displayName": "Charlie",
+                  "fields": [
+                    {
+                      "key": "title",
+                      "value": "Charlie",
+                      "jsonValue": "Charlie"
+                    },
+                    {
+                      "key": "subtitle",
+                      "value": "Lake story",
+                      "jsonValue": "Lake story"
+                    }
+                  ]
+                }
+              }
+            ],
+            "nodes": [
+              {
+                "handle": "charlie-entry",
+                "type": "codex_metaobject_filter_sort_1783109053703",
+                "displayName": "Charlie",
+                "fields": [
+                  {
+                    "key": "title",
+                    "value": "Charlie",
+                    "jsonValue": "Charlie"
+                  },
+                  {
+                    "key": "subtitle",
+                    "value": "Lake story",
+                    "jsonValue": "Lake story"
+                  }
+                ]
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoyMDM1NDIxMzUwOTAsImxhc3RfdmFsdWUiOjIwMzU0MjEzNTA5MH0=",
+              "endCursor": "eyJsYXN0X2lkIjoyMDM1NDIxMzUwOTAsImxhc3RfdmFsdWUiOjIwMzU0MjEzNTA5MH0="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "handle": {
+      "name": "filter-handle",
+      "request": {
+        "query": "query MetaobjectsFilterSortRead($type: String!, $query: String, $sortKey: String, $reverse: Boolean) {\n  catalog: metaobjects(type: $type, first: 10, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    edges {\n      cursor\n      node {\n        handle\n        type\n        displayName\n        fields {\n          key\n          value\n          jsonValue\n        }\n      }\n    }\n    nodes {\n      handle\n      type\n      displayName\n      fields {\n        key\n        value\n        jsonValue\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+        "variables": {
+          "type": "codex_metaobject_filter_sort_1783109053703",
+          "query": "handle:bravo-entry",
+          "sortKey": null,
+          "reverse": false
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "catalog": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoyMDM1NDIyMDA2MjYsImxhc3RfdmFsdWUiOiIyMDM1NDIyMDA2MjYifQ==",
+                "node": {
+                  "handle": "bravo-entry",
+                  "type": "codex_metaobject_filter_sort_1783109053703",
+                  "displayName": "Bravo",
+                  "fields": [
+                    {
+                      "key": "title",
+                      "value": "Bravo",
+                      "jsonValue": "Bravo"
+                    },
+                    {
+                      "key": "subtitle",
+                      "value": "Hill note",
+                      "jsonValue": "Hill note"
+                    }
+                  ]
+                }
+              }
+            ],
+            "nodes": [
+              {
+                "handle": "bravo-entry",
+                "type": "codex_metaobject_filter_sort_1783109053703",
+                "displayName": "Bravo",
+                "fields": [
+                  {
+                    "key": "title",
+                    "value": "Bravo",
+                    "jsonValue": "Bravo"
+                  },
+                  {
+                    "key": "subtitle",
+                    "value": "Hill note",
+                    "jsonValue": "Hill note"
+                  }
+                ]
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoyMDM1NDIyMDA2MjYsImxhc3RfdmFsdWUiOiIyMDM1NDIyMDA2MjYifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoyMDM1NDIyMDA2MjYsImxhc3RfdmFsdWUiOiIyMDM1NDIyMDA2MjYifQ=="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "idRangeNoMatch": {
+      "name": "filter-id-range-no-match",
+      "request": {
+        "query": "query MetaobjectsFilterSortRead($type: String!, $query: String, $sortKey: String, $reverse: Boolean) {\n  catalog: metaobjects(type: $type, first: 10, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    edges {\n      cursor\n      node {\n        handle\n        type\n        displayName\n        fields {\n          key\n          value\n          jsonValue\n        }\n      }\n    }\n    nodes {\n      handle\n      type\n      displayName\n      fields {\n        key\n        value\n        jsonValue\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+        "variables": {
+          "type": "codex_metaobject_filter_sort_1783109053703",
+          "query": "id:<0",
+          "sortKey": null,
+          "reverse": false
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "catalog": {
+            "edges": [],
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          },
+          "search": [
+            {
+              "path": ["catalog"],
+              "query": "id:<0",
+              "parsed": {
+                "field": "id",
+                "range_lt": 0
+              },
+              "warnings": [
+                {
+                  "field": "id",
+                  "message": "Expected field to be a positive integer or UUID, received `0`."
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "updatedAtRangeNoMatch": {
+      "name": "filter-updated-at-range-no-match",
+      "request": {
+        "query": "query MetaobjectsFilterSortRead($type: String!, $query: String, $sortKey: String, $reverse: Boolean) {\n  catalog: metaobjects(type: $type, first: 10, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    edges {\n      cursor\n      node {\n        handle\n        type\n        displayName\n        fields {\n          key\n          value\n          jsonValue\n        }\n      }\n    }\n    nodes {\n      handle\n      type\n      displayName\n      fields {\n        key\n        value\n        jsonValue\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+        "variables": {
+          "type": "codex_metaobject_filter_sort_1783109053703",
+          "query": "updated_at:<1900-01-01T00:00:00Z",
+          "sortKey": null,
+          "reverse": false
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "catalog": {
+            "edges": [],
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          },
+          "search": [
+            {
+              "path": ["catalog"],
+              "query": "updated_at:<1900-01-01T00:00:00Z",
+              "parsed": {
+                "and": [
+                  {
+                    "field": "updated_at",
+                    "range_lt": "1900-01-01T00:00:00Z"
+                  },
+                  {
+                    "field": "00",
+                    "match_all": "00Z"
+                  }
+                ]
+              },
+              "warnings": [
+                {
+                  "field": "00",
+                  "message": "Invalid search field for this query.",
+                  "code": "invalid_field"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "displayNameReverse": {
+      "name": "sort-display-name-reverse",
+      "request": {
+        "query": "query MetaobjectsFilterSortRead($type: String!, $query: String, $sortKey: String, $reverse: Boolean) {\n  catalog: metaobjects(type: $type, first: 10, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    edges {\n      cursor\n      node {\n        handle\n        type\n        displayName\n        fields {\n          key\n          value\n          jsonValue\n        }\n      }\n    }\n    nodes {\n      handle\n      type\n      displayName\n      fields {\n        key\n        value\n        jsonValue\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+        "variables": {
+          "type": "codex_metaobject_filter_sort_1783109053703",
+          "query": null,
+          "sortKey": "display_name",
+          "reverse": true
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "catalog": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoyMDM1NDIxMzUwOTAsImxhc3RfdmFsdWUiOiJjaGFybGllIn0=",
+                "node": {
+                  "handle": "charlie-entry",
+                  "type": "codex_metaobject_filter_sort_1783109053703",
+                  "displayName": "Charlie",
+                  "fields": [
+                    {
+                      "key": "title",
+                      "value": "Charlie",
+                      "jsonValue": "Charlie"
+                    },
+                    {
+                      "key": "subtitle",
+                      "value": "Lake story",
+                      "jsonValue": "Lake story"
+                    }
+                  ]
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoyMDM1NDIyMDA2MjYsImxhc3RfdmFsdWUiOiJicmF2byJ9",
+                "node": {
+                  "handle": "bravo-entry",
+                  "type": "codex_metaobject_filter_sort_1783109053703",
+                  "displayName": "Bravo",
+                  "fields": [
+                    {
+                      "key": "title",
+                      "value": "Bravo",
+                      "jsonValue": "Bravo"
+                    },
+                    {
+                      "key": "subtitle",
+                      "value": "Hill note",
+                      "jsonValue": "Hill note"
+                    }
+                  ]
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoyMDM1NDIxNjc4NTgsImxhc3RfdmFsdWUiOiJhbHBoYSJ9",
+                "node": {
+                  "handle": "alpha-entry",
+                  "type": "codex_metaobject_filter_sort_1783109053703",
+                  "displayName": "Alpha",
+                  "fields": [
+                    {
+                      "key": "title",
+                      "value": "Alpha",
+                      "jsonValue": "Alpha"
+                    },
+                    {
+                      "key": "subtitle",
+                      "value": "River note",
+                      "jsonValue": "River note"
+                    }
+                  ]
+                }
+              }
+            ],
+            "nodes": [
+              {
+                "handle": "charlie-entry",
+                "type": "codex_metaobject_filter_sort_1783109053703",
+                "displayName": "Charlie",
+                "fields": [
+                  {
+                    "key": "title",
+                    "value": "Charlie",
+                    "jsonValue": "Charlie"
+                  },
+                  {
+                    "key": "subtitle",
+                    "value": "Lake story",
+                    "jsonValue": "Lake story"
+                  }
+                ]
+              },
+              {
+                "handle": "bravo-entry",
+                "type": "codex_metaobject_filter_sort_1783109053703",
+                "displayName": "Bravo",
+                "fields": [
+                  {
+                    "key": "title",
+                    "value": "Bravo",
+                    "jsonValue": "Bravo"
+                  },
+                  {
+                    "key": "subtitle",
+                    "value": "Hill note",
+                    "jsonValue": "Hill note"
+                  }
+                ]
+              },
+              {
+                "handle": "alpha-entry",
+                "type": "codex_metaobject_filter_sort_1783109053703",
+                "displayName": "Alpha",
+                "fields": [
+                  {
+                    "key": "title",
+                    "value": "Alpha",
+                    "jsonValue": "Alpha"
+                  },
+                  {
+                    "key": "subtitle",
+                    "value": "River note",
+                    "jsonValue": "River note"
+                  }
+                ]
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoyMDM1NDIxMzUwOTAsImxhc3RfdmFsdWUiOiJjaGFybGllIn0=",
+              "endCursor": "eyJsYXN0X2lkIjoyMDM1NDIxNjc4NTgsImxhc3RfdmFsdWUiOiJhbHBoYSJ9"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 8,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1992,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "idReverse": {
+      "name": "sort-id-reverse",
+      "request": {
+        "query": "query MetaobjectsFilterSortRead($type: String!, $query: String, $sortKey: String, $reverse: Boolean) {\n  catalog: metaobjects(type: $type, first: 10, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    edges {\n      cursor\n      node {\n        handle\n        type\n        displayName\n        fields {\n          key\n          value\n          jsonValue\n        }\n      }\n    }\n    nodes {\n      handle\n      type\n      displayName\n      fields {\n        key\n        value\n        jsonValue\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+        "variables": {
+          "type": "codex_metaobject_filter_sort_1783109053703",
+          "query": null,
+          "sortKey": "id",
+          "reverse": true
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "catalog": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoyMDM1NDIyMDA2MjYsImxhc3RfdmFsdWUiOiIyMDM1NDIyMDA2MjYifQ==",
+                "node": {
+                  "handle": "bravo-entry",
+                  "type": "codex_metaobject_filter_sort_1783109053703",
+                  "displayName": "Bravo",
+                  "fields": [
+                    {
+                      "key": "title",
+                      "value": "Bravo",
+                      "jsonValue": "Bravo"
+                    },
+                    {
+                      "key": "subtitle",
+                      "value": "Hill note",
+                      "jsonValue": "Hill note"
+                    }
+                  ]
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoyMDM1NDIxNjc4NTgsImxhc3RfdmFsdWUiOiIyMDM1NDIxNjc4NTgifQ==",
+                "node": {
+                  "handle": "alpha-entry",
+                  "type": "codex_metaobject_filter_sort_1783109053703",
+                  "displayName": "Alpha",
+                  "fields": [
+                    {
+                      "key": "title",
+                      "value": "Alpha",
+                      "jsonValue": "Alpha"
+                    },
+                    {
+                      "key": "subtitle",
+                      "value": "River note",
+                      "jsonValue": "River note"
+                    }
+                  ]
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjoyMDM1NDIxMzUwOTAsImxhc3RfdmFsdWUiOiIyMDM1NDIxMzUwOTAifQ==",
+                "node": {
+                  "handle": "charlie-entry",
+                  "type": "codex_metaobject_filter_sort_1783109053703",
+                  "displayName": "Charlie",
+                  "fields": [
+                    {
+                      "key": "title",
+                      "value": "Charlie",
+                      "jsonValue": "Charlie"
+                    },
+                    {
+                      "key": "subtitle",
+                      "value": "Lake story",
+                      "jsonValue": "Lake story"
+                    }
+                  ]
+                }
+              }
+            ],
+            "nodes": [
+              {
+                "handle": "bravo-entry",
+                "type": "codex_metaobject_filter_sort_1783109053703",
+                "displayName": "Bravo",
+                "fields": [
+                  {
+                    "key": "title",
+                    "value": "Bravo",
+                    "jsonValue": "Bravo"
+                  },
+                  {
+                    "key": "subtitle",
+                    "value": "Hill note",
+                    "jsonValue": "Hill note"
+                  }
+                ]
+              },
+              {
+                "handle": "alpha-entry",
+                "type": "codex_metaobject_filter_sort_1783109053703",
+                "displayName": "Alpha",
+                "fields": [
+                  {
+                    "key": "title",
+                    "value": "Alpha",
+                    "jsonValue": "Alpha"
+                  },
+                  {
+                    "key": "subtitle",
+                    "value": "River note",
+                    "jsonValue": "River note"
+                  }
+                ]
+              },
+              {
+                "handle": "charlie-entry",
+                "type": "codex_metaobject_filter_sort_1783109053703",
+                "displayName": "Charlie",
+                "fields": [
+                  {
+                    "key": "title",
+                    "value": "Charlie",
+                    "jsonValue": "Charlie"
+                  },
+                  {
+                    "key": "subtitle",
+                    "value": "Lake story",
+                    "jsonValue": "Lake story"
+                  }
+                ]
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoyMDM1NDIyMDA2MjYsImxhc3RfdmFsdWUiOiIyMDM1NDIyMDA2MjYifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoyMDM1NDIxMzUwOTAsImxhc3RfdmFsdWUiOiIyMDM1NDIxMzUwOTAifQ=="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 8,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1992,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "cleanup-bravo-entry",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectsFilterSortEntryDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/203542200626"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/203542200626",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-alpha-entry",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectsFilterSortEntryDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/203542167858"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/203542167858",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-charlie-entry",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectsFilterSortEntryDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/203542135090"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/203542135090",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-definition",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectsFilterSortDefinitionDelete($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/19570950450"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/19570950450",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ]
+}

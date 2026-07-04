@@ -1,0 +1,29 @@
+mutation PriceListFixedPricesAddShortCircuit($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
+  priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
+    prices {
+      price {
+        amount
+        currencyCode
+      }
+      compareAtPrice {
+        amount
+        currencyCode
+      }
+      originType
+      variant {
+        id
+        sku
+        product {
+          id
+          title
+        }
+      }
+    }
+    userErrors {
+      __typename
+      field
+      message
+      code
+    }
+  }
+}

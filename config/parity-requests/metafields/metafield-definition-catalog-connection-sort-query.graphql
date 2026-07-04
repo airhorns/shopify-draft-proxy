@@ -1,0 +1,37 @@
+query MetafieldDefinitionCatalogConnectionSortQuery($namespace: String!) {
+  matching: metafieldDefinitions(
+    ownerType: PRODUCT
+    namespace: $namespace
+    first: 10
+    query: "key:alpha"
+    sortKey: NAME
+  ) {
+    nodes {
+      key
+      name
+    }
+  }
+  unknownFilter: metafieldDefinitions(
+    ownerType: PRODUCT
+    namespace: $namespace
+    first: 10
+    query: "unknown:value"
+  ) {
+    nodes {
+      key
+      name
+    }
+  }
+  nameDescending: metafieldDefinitions(
+    ownerType: PRODUCT
+    namespace: $namespace
+    first: 10
+    sortKey: NAME
+    reverse: true
+  ) {
+    nodes {
+      key
+      name
+    }
+  }
+}

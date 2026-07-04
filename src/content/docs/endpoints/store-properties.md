@@ -41,9 +41,9 @@ read-after-write effects described below and backed by executable evidence.
 
 ### Local behavior
 
-The Rust runtime has scenario-backed store-properties slices for ported parity
-requests and runtime tests. These slices are not general registry support for
-every store-property document.
+The Rust runtime has scenario-backed store-properties slices for parity requests
+and runtime tests. These slices are not general registry support for every
+store-property document.
 
 Shop reads have a local store-backed slice for selected shop metadata,
 including staged shop policies, publication aggregates, primary domain, and safe
@@ -87,7 +87,8 @@ disposable shop.
 
 Location reads and lifecycle mutations have local slices for detail reads,
 unknown-ID null behavior, `locationByIdentifier` selected cases,
-address/country/province derivation, create/edit validation, metafields on
+address/country/province derivation including the captured GB, AU, AE, and CA
+branches, create/edit validation, metafields on
 location add/edit, activate/deactivate state transitions, delete tombstones,
 idempotency directives, resource-limit validation, and selected lifecycle guard
 errors. Successful location mutation slices stage local state, preserve the raw
@@ -99,6 +100,8 @@ checked-in scenario. Successful `locationDeactivate` calls with a
 destination in the modeled slice, merge same-name quantity rows when a
 destination level already exists, remove the source level from downstream
 inventory reads, and leave guard/userError branches without relocation.
+Unknown source IDs return `location: null` with a `LOCATION_NOT_FOUND` userError
+and do not stage a synthetic location.
 Captured guard slices include same-destination rejection, inactive-destination
 rejection, active-inventory relocation requirements, only-online-fulfillment
 protection, and permanent deactivation blocks with Shopify field paths and
@@ -108,11 +111,17 @@ Generic publishable mutation slices cover Product and Collection publish/unpubli
 behavior where backed by parity specs. Product-scoped `PublicationInput`
 validation locally rejects duplicate publication IDs, blank or empty
 `publicationId`, unknown publication IDs, and pre-1970 `publishDate` values with
-the captured Shopify field paths/messages. Product current-channel helpers
-update publication aggregates such as `shop.publicationCount` for the modeled
-publication catalog. Unsupported publishable target types return local
-userErrors in the documented scenarios instead of being treated as full support
-for every publishable object.
+the captured Shopify field paths/messages. The top-level publishable `id` must
+resolve to a known Product or Collection from staged/base state, or from a
+LiveHybrid hydrate read, before the mutation stages; missing resources return a
+local `Resource does not exist` userError on `field: ["id"]` and leave the
+mutation log unchanged. Product current-channel helpers stage an internal
+current-channel publication membership when a current channel is available,
+return `Channel does not exist` without staging when the local shop context has
+no current channel, and project `publishedOnCurrentPublication` plus
+`resourcePublications(first:)` from the staged membership set. Unsupported
+publishable target types return local userErrors in the documented scenarios
+instead of being treated as full support for every publishable object.
 
 Business entity reads have safe fixture-backed catalog and fallback behavior,
 including ordered `businessEntities`, primary `businessEntity` fallback,

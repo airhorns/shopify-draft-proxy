@@ -451,7 +451,7 @@ pub(in crate::proxy) fn price_list_price_error(field: Value, message: &str, code
 }
 
 // ----------------------------------------------------------------------------
-// Fixed-price edge model (ported from Gleam markets/serializers.gleam). Price
+// Fixed-price edge model. Price
 // lists carry their fixed prices under `prices.edges[].node`; the helpers below
 // read, build, and rewrite that connection so the handlers are store-backed
 // rather than fabricating seeded records.
@@ -464,8 +464,135 @@ pub(in crate::proxy) fn price_edges(price_list: &Value) -> Vec<Value> {
         .unwrap_or_default()
 }
 
+fn price_edge_cursor(edge: &Value) -> String {
+    edge["cursor"]
+        .as_str()
+        .map(str::to_string)
+        .or_else(|| fixed_price_edge_variant_id(edge))
+        .unwrap_or_default()
+}
+
 pub(in crate::proxy) fn fixed_price_edge_variant_id(edge: &Value) -> Option<String> {
     edge["node"]["variant"]["id"].as_str().map(str::to_string)
+}
+
+fn price_edge_product_id(edge: &Value) -> Option<String> {
+    edge["node"]["variant"]["product"]["id"]
+        .as_str()
+        .map(str::to_string)
+}
+
+fn price_edge_origin_type(edge: &Value) -> Option<&str> {
+    edge["node"]["originType"].as_str()
+}
+
+fn price_edge_matches_id_filter(actual_id: Option<String>, expected: &str) -> bool {
+    let Some(actual_id) = actual_id else {
+        return false;
+    };
+    actual_id == expected || resource_id_tail(&actual_id) == expected
+}
+
+/// Local staged price search intentionally supports only captured ID filters.
+/// Unknown terms resolve to no matches so the proxy does not pretend to emulate
+/// Shopify's broader search grammar without evidence.
+fn price_edge_matches_query(edge: &Value, query: Option<&str>) -> bool {
+    let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+        return true;
+    };
+    query.split_whitespace().all(|term| {
+        let Some((name, expected)) = term.split_once(':') else {
+            return false;
+        };
+        let expected = expected.trim();
+        if expected.is_empty() {
+            return false;
+        }
+        match name.trim() {
+            "variant_id" => {
+                price_edge_matches_id_filter(fixed_price_edge_variant_id(edge), expected)
+            }
+            "product_id" => price_edge_matches_id_filter(price_edge_product_id(edge), expected),
+            _ => false,
+        }
+    })
+}
+
+fn price_edge_matches_args(edge: &Value, arguments: &BTreeMap<String, ResolvedValue>) -> bool {
+    if let Some(origin_type) = resolved_string_field(arguments, "originType") {
+        if price_edge_origin_type(edge) != Some(origin_type.as_str()) {
+            return false;
+        }
+    }
+    price_edge_matches_query(edge, resolved_string_field(arguments, "query").as_deref())
+}
+
+pub(in crate::proxy) fn selected_price_list_prices(
+    price_list: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selection: &[SelectedField],
+) -> Value {
+    let matched = price_edges(price_list)
+        .into_iter()
+        .filter(|edge| price_edge_matches_args(edge, arguments))
+        .collect::<Vec<_>>();
+    let (edges, page_info) = connection_window(&matched, arguments, price_edge_cursor);
+    let nodes = edges
+        .iter()
+        .filter_map(|edge| edge.get("node").cloned())
+        .collect::<Vec<_>>();
+    selected_json(
+        &json!({
+            "edges": edges,
+            "nodes": nodes,
+            "pageInfo": page_info
+        }),
+        selection,
+    )
+}
+
+pub(in crate::proxy) fn selected_price_list_json(
+    price_list: &Value,
+    selection: &[SelectedField],
+) -> Value {
+    let mut record = serde_json::Map::new();
+    for field in selection {
+        if let Some(type_condition) = field.type_condition.as_deref() {
+            if !matches!(type_condition, "PriceList" | "Node") {
+                continue;
+            }
+        }
+        let value = if field.name == "prices" {
+            Some(selected_price_list_prices(
+                price_list,
+                &field.arguments,
+                &field.selection,
+            ))
+        } else {
+            selected_json(price_list, std::slice::from_ref(field))
+                .as_object()
+                .and_then(|projected| projected.get(&field.response_key).cloned())
+        };
+        if let Some(value) = value {
+            record.insert(field.response_key.clone(), value);
+        }
+    }
+    Value::Object(record)
+}
+
+pub(in crate::proxy) fn selected_price_lists_connection_with_args(
+    records: &BTreeMap<String, Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selection: &[SelectedField],
+) -> Value {
+    let records = records.values().cloned().collect::<Vec<_>>();
+    selected_typed_connection_with_args(
+        &records,
+        arguments,
+        selection,
+        selected_price_list_json,
+        value_id_cursor,
+    )
 }
 
 pub(in crate::proxy) fn fixed_price_variant_ids(price_list: &Value) -> Vec<String> {
@@ -640,8 +767,7 @@ fn rebuild_price_list_prices(price_list: &mut Value, edges: Vec<Value>) {
     }
 }
 
-/// Dedupe inputs by `variantId`, keeping the last occurrence (mirrors Gleam
-/// `last_fixed_price_inputs_by_variant`).
+/// Dedupe inputs by `variantId`, keeping the last occurrence.
 fn last_fixed_price_inputs_by_variant(inputs: &[ResolvedValue]) -> Vec<ResolvedValue> {
     let mut accumulator: Vec<ResolvedValue> = Vec::new();
     for input in inputs {
@@ -702,7 +828,7 @@ pub(in crate::proxy) fn delete_fixed_price_nodes(price_list: &mut Value, variant
 }
 
 // ----------------------------------------------------------------------------
-// Fixed-price validation (variant-level), ported from Gleam.
+// Fixed-price validation (variant-level).
 // ----------------------------------------------------------------------------
 
 pub(in crate::proxy) fn price_list_fixed_price_target_errors(
@@ -719,11 +845,13 @@ pub(in crate::proxy) fn price_list_fixed_price_target_errors(
     }
 }
 
-pub(in crate::proxy) fn fixed_price_variant_errors(
+pub(in crate::proxy) fn fixed_price_input_errors(
     store: &Store,
+    price_list: &Value,
     inputs: &[ResolvedValue],
     field_name: &str,
 ) -> Vec<Value> {
+    let expected = price_list_currency(price_list);
     let mut errors = Vec::new();
     for (index, input) in inputs.iter().enumerate() {
         let variant_id = resolved_nonempty_string(input, "variantId").unwrap_or_default();
@@ -733,19 +861,9 @@ pub(in crate::proxy) fn fixed_price_variant_errors(
                 "Product variant ID does not exist.",
                 "VARIANT_NOT_FOUND",
             ));
+            continue;
         }
-    }
-    errors
-}
 
-pub(in crate::proxy) fn fixed_price_currency_errors(
-    price_list: &Value,
-    inputs: &[ResolvedValue],
-    field_name: &str,
-) -> Vec<Value> {
-    let expected = price_list_currency(price_list);
-    let mut errors = Vec::new();
-    for (index, input) in inputs.iter().enumerate() {
         for money_field in ["price", "compareAtPrice"] {
             if let Some(actual) =
                 fixed_price_input_currency(input, money_field).filter(|value| !value.is_empty())
@@ -760,17 +878,6 @@ pub(in crate::proxy) fn fixed_price_currency_errors(
             }
         }
     }
-    errors
-}
-
-pub(in crate::proxy) fn fixed_price_input_errors(
-    store: &Store,
-    price_list: &Value,
-    inputs: &[ResolvedValue],
-    field_name: &str,
-) -> Vec<Value> {
-    let mut errors = fixed_price_variant_errors(store, inputs, field_name);
-    errors.extend(fixed_price_currency_errors(price_list, inputs, field_name));
     errors
 }
 
@@ -812,7 +919,7 @@ pub(in crate::proxy) fn fixed_price_delete_not_fixed_errors(
     errors
 }
 
-/// `read_price_list_id` (serializers.gleam): the mutation's price list id comes
+/// the mutation's price list id comes
 /// from the `priceListId` argument, falling back to `id`, then `input.priceListId`.
 pub(in crate::proxy) fn read_price_list_id(
     arguments: &BTreeMap<String, ResolvedValue>,
@@ -830,7 +937,7 @@ pub(in crate::proxy) fn read_price_list_id(
         .filter(|value| !value.is_empty())
 }
 
-/// `read_fixed_price_update_inputs` (mutations.gleam): the update mutation reads
+/// the update mutation reads
 /// `prices` if present, otherwise `pricesToAdd`, returning the chosen field name
 /// so error paths point at the argument the caller supplied.
 pub(in crate::proxy) fn read_fixed_price_update_inputs(
@@ -847,8 +954,7 @@ pub(in crate::proxy) fn read_fixed_price_update_inputs(
     }
 }
 
-/// The by-product preflight hydrate variables (queries.gleam
-/// `product_fixed_prices_preflight_variables`): a `priceListId`/`priceQuery`
+/// The by-product preflight hydrate variables: a `priceListId`/`priceQuery`
 /// pulled verbatim from the operation variables plus the de-duplicated product
 /// ids referenced by `pricesToAdd` and `pricesToDeleteByProductIds`.
 pub(in crate::proxy) fn product_fixed_prices_preflight_variables(
@@ -935,9 +1041,8 @@ pub(in crate::proxy) fn variant_fixed_prices_preflight_variables(
     Value::Object(output)
 }
 
-/// `product_level_fixed_price_errors` (serializers.gleam): the ordered validation
-/// suite for `priceListFixedPricesByProductUpdate`. Mirrors the Gleam
-/// `combine_error_lists` ordering exactly: no-op, missing add products, missing
+/// the ordered validation
+/// suite for `priceListFixedPricesByProductUpdate`. Preserves captured error ordering: no-op, missing add products, missing
 /// delete products, currency mismatches, duplicate add ids, duplicate delete
 /// ids, mutual-exclusion conflicts, then the fixed-price limit.
 pub(in crate::proxy) fn product_level_fixed_price_errors(
@@ -1047,7 +1152,7 @@ pub(in crate::proxy) fn product_level_fixed_price_errors(
     errors
 }
 
-/// `resulting_fixed_price_variant_ids` (serializers.gleam): the variant ids that
+/// the variant ids that
 /// would remain fixed after applying a by-product update — existing FIXED edges
 /// minus the deleted products' variants, plus the added products' variants.
 fn resulting_fixed_price_variant_ids(
@@ -1209,8 +1314,9 @@ pub(in crate::proxy) fn market_record_from_input(
     name: &str,
     handle: &str,
     region_codes: &[String],
+    shop_currency_code: &str,
 ) -> Value {
-    // Defaults match Gleam market_data (serializers.gleam:226): status falls
+    // Defaults for staged market data: status falls
     // back to ACTIVE only when enabled is explicitly true, otherwise DRAFT;
     // enabled falls back to status==ACTIVE; type is REGION when any region
     // input is present, else NONE.
@@ -1236,7 +1342,7 @@ pub(in crate::proxy) fn market_record_from_input(
         "enabled": enabled,
         "type": market_type,
         "priceInclusions": market_price_inclusions(input),
-        "currencySettings": market_currency_settings_json(input),
+        "currencySettings": market_currency_settings_json(input, shop_currency_code),
         "regionCodes": region_codes,
         "conditions": {
             "regionsCondition": {
@@ -1262,12 +1368,13 @@ pub(in crate::proxy) fn market_price_inclusions(input: &BTreeMap<String, Resolve
 
 pub(in crate::proxy) fn market_currency_settings_json(
     input: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
 ) -> Value {
     let Some(currency_settings) = resolved_object_field(input, "currencySettings") else {
         return Value::Null;
     };
     let currency_code = resolved_string_field(&currency_settings, "baseCurrency")
-        .unwrap_or_else(|| "USD".to_string());
+        .unwrap_or_else(|| shop_currency_code.to_string());
     json!({
         "baseCurrency": {
             "currencyCode": currency_code,
@@ -1616,11 +1723,16 @@ pub(in crate::proxy) fn default_available_language_subtag_name(
         })
 }
 
-pub(in crate::proxy) fn shop_locale_record(locale: &str, name: &str, published: bool) -> Value {
+pub(in crate::proxy) fn shop_locale_record(
+    locale: &str,
+    name: &str,
+    published: bool,
+    primary_locale: &str,
+) -> Value {
     json!({
         "locale": locale,
         "name": name,
-        "primary": locale == "en",
+        "primary": locale == primary_locale,
         "published": published,
         "marketWebPresences": []
     })
@@ -1630,11 +1742,14 @@ pub(in crate::proxy) fn shop_locale_user_error(field: Vec<&str>, message: &str) 
     user_error_omit_code(field, message, None)
 }
 
-pub(in crate::proxy) fn shop_locale_market_web_presence_record(id: &str) -> Value {
+pub(in crate::proxy) fn shop_locale_market_web_presence_record(
+    id: &str,
+    default_locale: &str,
+) -> Value {
     json!({
         "id": id,
         "__typename": "MarketWebPresence",
-        "defaultLocale": { "locale": "en" }
+        "defaultLocale": { "locale": default_locale }
     })
 }
 

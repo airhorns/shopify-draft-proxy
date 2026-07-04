@@ -469,6 +469,22 @@ try {
         ],
       },
     },
+    {
+      name: 'update-inventory-item-cost-negative',
+      query: bulkUpdateMutation,
+      variables: {
+        productId,
+        variants: [{ id: defaultVariantId, inventoryItem: { cost: '-5' } }],
+      },
+    },
+    {
+      name: 'update-inventory-item-cost-too-large',
+      query: bulkUpdateMutation,
+      variables: {
+        productId,
+        variants: [{ id: defaultVariantId, inventoryItem: { cost: '1000000000000000000' } }],
+      },
+    },
   ];
 
   const upstreamCalls = [];

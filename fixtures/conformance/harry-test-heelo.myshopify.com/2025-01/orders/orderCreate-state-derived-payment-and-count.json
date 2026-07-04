@@ -1,0 +1,336 @@
+{
+  "scenarioId": "orderCreate-state-derived-payment-and-count",
+  "capturedAt": "2026-07-04T10:58:37.390Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": "Captured from live Shopify Admin GraphQL. Test orders are created with a unique tag, external authorization transactions, and public orderCreate/orderCount requests, then cancelled in cleanup.",
+  "operations": {
+    "firstCreate": {
+      "query": "mutation OrderCreateStateDerivedPaymentAndCountCreate(\n    $order: OrderCreateOrderInput!\n    $options: OrderCreateOptionsInput\n  ) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        email\n        tags\n        displayFinancialStatus\n        capturable\n        totalCapturable\n        totalCapturableSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        totalOutstandingSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        totalReceivedSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        netPaymentSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        paymentGatewayNames\n        transactions {\n          id\n          kind\n          status\n          gateway\n          amountSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n          parentTransaction {\n            id\n            kind\n            status\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "har-1868-state-derived-20260704105831-1@example.com",
+          "note": "HAR-1868 state-derived payment/count 20260704105831 1",
+          "tags": ["har-1868-state-derived-payment-count", "har-1868-state-derived-20260704105831"],
+          "test": true,
+          "currency": "CAD",
+          "lineItems": [
+            {
+              "title": "State-derived payment/count 20260704105831 1",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "31.90",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "HAR-1868-20260704105831-1"
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "AUTHORIZATION",
+              "status": "SUCCESS",
+              "gateway": "external",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "31.90",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        },
+        "options": null
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8890375733554",
+                "name": "#1718",
+                "email": "har-1868-state-derived-20260704105831-1@example.com",
+                "tags": ["har-1868-state-derived-20260704105831", "har-1868-state-derived-payment-count"],
+                "displayFinancialStatus": "AUTHORIZED",
+                "capturable": true,
+                "totalCapturable": "31.90",
+                "totalCapturableSet": {
+                  "shopMoney": {
+                    "amount": "31.9",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalOutstandingSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalReceivedSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "netPaymentSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "paymentGatewayNames": ["external"],
+                "transactions": [
+                  {
+                    "id": "gid://shopify/OrderTransaction/10636322963762",
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "external",
+                    "amountSet": {
+                      "shopMoney": {
+                        "amount": "31.9",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "parentTransaction": null
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "secondCreate": {
+      "query": "mutation OrderCreateStateDerivedPaymentAndCountCreate(\n    $order: OrderCreateOrderInput!\n    $options: OrderCreateOptionsInput\n  ) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        email\n        tags\n        displayFinancialStatus\n        capturable\n        totalCapturable\n        totalCapturableSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        totalOutstandingSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        totalReceivedSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        netPaymentSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        paymentGatewayNames\n        transactions {\n          id\n          kind\n          status\n          gateway\n          amountSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n          parentTransaction {\n            id\n            kind\n            status\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "har-1868-state-derived-20260704105831-2@example.com",
+          "note": "HAR-1868 state-derived payment/count 20260704105831 2",
+          "tags": ["har-1868-state-derived-payment-count", "har-1868-state-derived-20260704105831"],
+          "test": true,
+          "currency": "CAD",
+          "lineItems": [
+            {
+              "title": "State-derived payment/count 20260704105831 2",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "31.90",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "HAR-1868-20260704105831-2"
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "AUTHORIZATION",
+              "status": "SUCCESS",
+              "gateway": "external",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "31.90",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        },
+        "options": null
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8890375766322",
+                "name": "#1719",
+                "email": "har-1868-state-derived-20260704105831-2@example.com",
+                "tags": ["har-1868-state-derived-20260704105831", "har-1868-state-derived-payment-count"],
+                "displayFinancialStatus": "AUTHORIZED",
+                "capturable": true,
+                "totalCapturable": "31.90",
+                "totalCapturableSet": {
+                  "shopMoney": {
+                    "amount": "31.9",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalOutstandingSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "totalReceivedSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "netPaymentSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "paymentGatewayNames": ["external"],
+                "transactions": [
+                  {
+                    "id": "gid://shopify/OrderTransaction/10636323029298",
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "external",
+                    "amountSet": {
+                      "shopMoney": {
+                        "amount": "31.9",
+                        "currencyCode": "CAD"
+                      }
+                    },
+                    "parentTransaction": null
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "countRead": {
+      "query": "query OrderCreateStateDerivedPaymentAndCountRead($tagQuery: String!, $countLimit: Int!) {\n    exactCount: ordersCount(query: $tagQuery) {\n      count\n      precision\n    }\n    limitedCount: ordersCount(query: $tagQuery, limit: $countLimit) {\n      count\n      precision\n    }\n  }",
+      "variables": {
+        "tagQuery": "tag:har-1868-state-derived-20260704105831",
+        "countLimit": 1
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "exactCount": {
+              "count": 2,
+              "precision": "EXACT"
+            },
+            "limitedCount": {
+              "count": 1,
+              "precision": "AT_LEAST"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "query": "mutation OrderCreateStateDerivedPaymentAndCountCleanup(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8890375733554",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/ef81e24b-d05f-45e7-b784-5f667b6d1b5a",
+                "done": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "query": "mutation OrderCreateStateDerivedPaymentAndCountCleanup(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8890375766322",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/543ffc89-cb3e-4562-92ae-b24f32ce1474",
+                "done": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

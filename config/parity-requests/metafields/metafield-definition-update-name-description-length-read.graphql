@@ -1,0 +1,8 @@
+query MetafieldDefinitionUpdateNameDescriptionLengthRead($identifier: MetafieldDefinitionIdentifierInput!) {
+  metafieldDefinition(identifier: $identifier) {
+    namespace
+    key
+    name
+    description
+  }
+}

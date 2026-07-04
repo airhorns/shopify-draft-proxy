@@ -1,0 +1,10 @@
+query InvalidWebhookSubscriptionSortKey {
+  webhookSubscriptions(first: 1, sortKey: TOPIC) {
+    nodes {
+      id
+    }
+    pageInfo {
+      hasNextPage
+    }
+  }
+}

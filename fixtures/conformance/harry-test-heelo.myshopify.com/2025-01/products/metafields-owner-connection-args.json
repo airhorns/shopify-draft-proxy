@@ -1,0 +1,297 @@
+{
+  "scenarioId": "metafields-owner-connection-args",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-07-03T22:45:30.108Z",
+  "setupProduct": {
+    "query": "#graphql\n  mutation OwnerMetafieldsConnectionArgsProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
+    "variables": {
+      "product": {
+        "title": "Hermes Owner Metafields Connection Args mr5iuoxw",
+        "status": "DRAFT"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10231151493426",
+            "title": "Hermes Owner Metafields Connection Args mr5iuoxw"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "set": {
+    "query": "mutation OwnerMetafieldsConnectionArgsSet($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      namespace\n      key\n      type\n      value\n    }\n    userErrors {\n      field\n      message\n      code\n      elementIndex\n    }\n  }\n}\n",
+    "variables": {
+      "metafields": [
+        {
+          "ownerId": "gid://shopify/Product/10231151493426",
+          "namespace": "connection_args",
+          "key": "alpha",
+          "type": "single_line_text_field",
+          "value": "A mr5iuoxw"
+        },
+        {
+          "ownerId": "gid://shopify/Product/10231151493426",
+          "namespace": "connection_args",
+          "key": "bravo",
+          "type": "single_line_text_field",
+          "value": "B mr5iuoxw"
+        },
+        {
+          "ownerId": "gid://shopify/Product/10231151493426",
+          "namespace": "details",
+          "key": "size",
+          "type": "single_line_text_field",
+          "value": "M mr5iuoxw"
+        },
+        {
+          "ownerId": "gid://shopify/Product/10231151493426",
+          "namespace": "connection_args",
+          "key": "charlie",
+          "type": "single_line_text_field",
+          "value": "C mr5iuoxw"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [
+            {
+              "namespace": "connection_args",
+              "key": "alpha",
+              "type": "single_line_text_field",
+              "value": "A mr5iuoxw"
+            },
+            {
+              "namespace": "connection_args",
+              "key": "bravo",
+              "type": "single_line_text_field",
+              "value": "B mr5iuoxw"
+            },
+            {
+              "namespace": "details",
+              "key": "size",
+              "type": "single_line_text_field",
+              "value": "M mr5iuoxw"
+            },
+            {
+              "namespace": "connection_args",
+              "key": "charlie",
+              "type": "single_line_text_field",
+              "value": "C mr5iuoxw"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterSet": {
+    "query": "query OwnerMetafieldsConnectionArgsRead($id: ID!, $keys: [String!]) {\n  product(id: $id) {\n    rawKeys: metafields(first: 10, keys: [\"bravo\", \"size\"]) {\n      nodes {\n        namespace\n        key\n        type\n        value\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    qualifiedKeys: metafields(first: 10, keys: $keys) {\n      nodes {\n        namespace\n        key\n        type\n        value\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n    reversePage: metafields(first: 2, namespace: \"connection_args\", reverse: true) {\n      nodes {\n        namespace\n        key\n        type\n        value\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10231151493426",
+      "keys": ["details.size", "connection_args.bravo"]
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "product": {
+          "rawKeys": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          },
+          "qualifiedKeys": {
+            "nodes": [
+              {
+                "namespace": "details",
+                "key": "details.size",
+                "type": "single_line_text_field",
+                "value": "M mr5iuoxw"
+              },
+              {
+                "namespace": "connection_args",
+                "key": "connection_args.bravo",
+                "type": "single_line_text_field",
+                "value": "B mr5iuoxw"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          },
+          "reversePage": {
+            "nodes": [
+              {
+                "namespace": "connection_args",
+                "key": "charlie",
+                "type": "single_line_text_field",
+                "value": "C mr5iuoxw"
+              },
+              {
+                "namespace": "connection_args",
+                "key": "bravo",
+                "type": "single_line_text_field",
+                "value": "B mr5iuoxw"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 16,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "delete": {
+    "query": "mutation OwnerMetafieldsConnectionArgsDelete($metafields: [MetafieldIdentifierInput!]!) {\n  metafieldsDelete(metafields: $metafields) {\n    deletedMetafields {\n      ownerId\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "metafields": [
+        {
+          "ownerId": "gid://shopify/Product/10231151493426",
+          "namespace": "connection_args",
+          "key": "bravo"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsDelete": {
+          "deletedMetafields": [
+            {
+              "ownerId": "gid://shopify/Product/10231151493426",
+              "namespace": "connection_args",
+              "key": "bravo"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterDelete": {
+    "query": "query OwnerMetafieldsConnectionArgsPostDelete($id: ID!) {\n  product(id: $id) {\n    postDeleteKeysReverse: metafields(\n      first: 10\n      keys: [\"connection_args.bravo\", \"connection_args.charlie\"]\n      reverse: true\n    ) {\n      nodes {\n        namespace\n        key\n        type\n        value\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10231151493426"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "product": {
+          "postDeleteKeysReverse": {
+            "nodes": [
+              {
+                "namespace": "connection_args",
+                "key": "connection_args.charlie",
+                "type": "single_line_text_field",
+                "value": "C mr5iuoxw"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 7,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1993,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "query": "#graphql\n  mutation OwnerMetafieldsConnectionArgsProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10231151493426"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10231151493426",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

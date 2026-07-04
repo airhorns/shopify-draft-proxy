@@ -1,0 +1,52 @@
+{
+  "scenarioId": "webhook-subscription-pubsub-both-invalid",
+  "operationNames": ["pubSubWebhookSubscriptionCreate", "pubSubWebhookSubscriptionUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "no-local-staging-on-validation-error"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-pubsub-both-invalid.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_graphql_webhooks.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-parity.graphql",
+    "variablesCapturePath": "$.setup.baselineCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity for dedicated Pub/Sub webhook subscription create/update when pubSubProject and pubSubTopic are both invalid. The primary request stages a valid baseline through public GraphQL so the update target can replay against the proxy-created ID; rejected targets assert the complete Shopify userErrors array in order.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "dedicated-create-both-invalid",
+        "capturePath": "$.cases.dedicatedCreateBothInvalid.response.payload.data.pubSubWebhookSubscriptionCreate",
+        "proxyPath": "$.data.pubSubWebhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.cases.dedicatedCreateBothInvalid.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": []
+      },
+      {
+        "name": "dedicated-update-both-invalid",
+        "capturePath": "$.cases.dedicatedUpdateBothInvalid.response.payload.data.pubSubWebhookSubscriptionUpdate",
+        "proxyPath": "$.data.pubSubWebhookSubscriptionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.pubSubWebhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.cases.dedicatedUpdateBothInvalid.variables.webhookSubscription"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": []
+      }
+    ]
+  }
+}

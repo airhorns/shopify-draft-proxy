@@ -1,5 +1,11 @@
 use super::*;
 
+fn format_runtime_timestamp(timestamp: time::OffsetDateTime) -> String {
+    timestamp
+        .format(&time::format_description::well_known::Rfc3339)
+        .expect("UTC timestamps should format as RFC3339")
+}
+
 impl DraftProxy {
     pub fn new(config: Config) -> Self {
         Self {
@@ -9,6 +15,8 @@ impl DraftProxy {
             store: Store::with_default_baseline(),
             next_synthetic_id: 1,
             shop_sells_subscriptions: None,
+            clock: Arc::new(default_runtime_clock),
+            last_mutation_timestamp: None,
             commit_transport: Arc::new(default_commit_transport),
             upstream_transport: Arc::new(default_upstream_transport),
         }
@@ -40,6 +48,34 @@ impl DraftProxy {
         self
     }
 
+    pub fn with_clock(
+        mut self,
+        clock: impl Fn() -> time::OffsetDateTime + Send + Sync + 'static,
+    ) -> Self {
+        self.clock = Arc::new(clock);
+        self.last_mutation_timestamp = None;
+        self
+    }
+
+    pub(in crate::proxy) fn current_time(&self) -> time::OffsetDateTime {
+        (self.clock)()
+    }
+
+    pub(in crate::proxy) fn current_epoch_seconds(&self) -> i64 {
+        self.current_time().unix_timestamp()
+    }
+
+    pub(in crate::proxy) fn next_mutation_timestamp(&mut self) -> String {
+        let mut timestamp = self.current_time();
+        if let Some(previous) = self.last_mutation_timestamp {
+            if timestamp <= previous {
+                timestamp = previous + time::Duration::nanoseconds(1);
+            }
+        }
+        self.last_mutation_timestamp = Some(timestamp);
+        format_runtime_timestamp(timestamp)
+    }
+
     pub(in crate::proxy) fn upstream_post(&self, request: &Request, body: Value) -> Response {
         (self.upstream_transport)(Request {
             method: "POST".to_string(),
@@ -50,6 +86,36 @@ impl DraftProxy {
     }
 
     pub fn process_request(&mut self, request: Request) -> Response {
+        let mut response = self.dispatch_route(request);
+        // Stamp a cheap "has persistable state changed?" signal on every
+        // response so embedders (e.g. the Ruby storage adapter) can decide
+        // whether to persist without diffing or re-dumping the whole state on
+        // reads. The tuple advances on any staged mutation (`log_entries` grows),
+        // on commit (staged entries become `settled`), on reset (all reset to
+        // `0:0:1`), and on restore (fields adopt the dumped values).
+        response
+            .headers
+            .insert("x-sdp-state-version".to_string(), self.state_version());
+        response
+    }
+
+    /// Opaque monotonic-ish token that changes iff persistable proxy state
+    /// changed. Not an ordering guarantee — only equality is meaningful.
+    pub(in crate::proxy) fn state_version(&self) -> String {
+        let settled = self
+            .log_entries
+            .iter()
+            .filter(|entry| entry.get("status") != Some(&json!("staged")))
+            .count();
+        format!(
+            "{}:{}:{}",
+            self.log_entries.len(),
+            settled,
+            self.next_synthetic_id
+        )
+    }
+
+    fn dispatch_route(&mut self, request: Request) -> Response {
         match route(&request) {
             Route::Health => ok_json(json!({
                 "ok": true,
@@ -63,6 +129,7 @@ impl DraftProxy {
                 self.store.clear_staged();
                 self.next_synthetic_id = 1;
                 self.shop_sells_subscriptions = None;
+                self.last_mutation_timestamp = None;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
             }
             Route::MetaDump => self.dump_state(&request),
@@ -160,6 +227,9 @@ impl DraftProxy {
                 "productVariants": product_variant_state_map_json(&self.store.staged.product_variants.records),
                 "productVariantOrder": self.store.staged.product_variants.order,
                 "deletedProductVariantIds": self.store.staged.product_variants.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "productFeeds": self.store.staged.product_feeds.records.clone(),
+                "productFeedOrder": self.store.staged.product_feeds.order,
+                "deletedProductFeedIds": self.store.staged.product_feeds.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "collections": self.store.staged.collections.records.clone(),
                 "deletedCollectionIds": self.store.staged.collections.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "collectionJobs": self.store.staged.collection_jobs.clone(),
@@ -171,6 +241,11 @@ impl DraftProxy {
                 "deletedShopPolicyIds": self.store.staged.shop_policies.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "shippingPackages": self.store.staged.shipping_packages.records.clone(),
                 "deletedShippingPackageIds": deleted_shipping_package_ids,
+                "installedApps": self.store.staged.installed_apps.clone(),
+                "revokedAppAccessScopes": self.store.staged.revoked_app_access_scopes.iter().map(|(app_id, scopes)| {
+                    (app_id.clone(), scopes.iter().cloned().collect::<Vec<_>>())
+                }).collect::<BTreeMap<_, _>>(),
+                "uninstalledAppIds": self.store.staged.uninstalled_app_ids.iter().cloned().collect::<Vec<_>>(),
                 "delegatedAccessTokens": self.store.staged.delegate_access_tokens.clone(),
                 "customers": self.store.staged.customers.records.clone(),
                 "deletedCustomerIds": self.store.staged.customers.tombstones.iter().cloned().collect::<Vec<_>>(),
@@ -210,6 +285,8 @@ impl DraftProxy {
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "createdPublicationIds": self.store.staged.created_publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publications": self.store.staged.publications.clone(),
+                "currentChannelPublicationId": self.store.staged.current_channel_publication_id.clone(),
+                "currentChannelPublicationResolved": self.store.staged.current_channel_publication_resolved,
                 "resourcePublications": self.store.staged.resource_publications.iter().map(|(resource, pubs)| {
                     (resource.clone(), pubs.iter().cloned().collect::<Vec<String>>())
                 }).collect::<std::collections::BTreeMap<String, Vec<String>>>(),
@@ -370,6 +447,9 @@ impl DraftProxy {
         if self.store.staged.next_order_customer_order_id != 1 {
             snapshot["stagedState"]["nextOrderCustomerOrderId"] =
                 json!(self.store.staged.next_order_customer_order_id);
+        }
+        if self.store.staged.next_order_number != 1 {
+            snapshot["stagedState"]["nextOrderNumber"] = json!(self.store.staged.next_order_number);
         }
         if self.store.staged.next_draft_order_bulk_tag_job_id != 1 {
             snapshot["stagedState"]["nextDraftOrderBulkTagJobId"] =
@@ -612,6 +692,9 @@ impl DraftProxy {
                 .function_fulfillment_constraint_rule_order
                 .clone());
         }
+        if let Some(configuration) = &self.store.staged.tax_app_configuration {
+            snapshot["stagedState"]["taxAppConfiguration"] = configuration.clone();
+        }
         if let Some(order) = &self.store.staged.order_edit_existing_order {
             snapshot["stagedState"]["orderEditExistingOrder"] = order.clone();
         }
@@ -626,6 +709,18 @@ impl DraftProxy {
         }
         if let Some(session_order_id) = &self.store.staged.order_edit_existing_session_order_id {
             snapshot["stagedState"]["orderEditExistingSessionOrderId"] = json!(session_order_id);
+        }
+        if !self
+            .store
+            .staged
+            .order_edit_money_bag_calculated_order_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["orderEditMoneyBagCalculatedOrderIds"] = json!(self
+                .store
+                .staged
+                .order_edit_money_bag_calculated_order_ids
+                .clone());
         }
         if let Some(mode) = &self.store.staged.order_edit_existing_mode {
             snapshot["stagedState"]["orderEditExistingMode"] = json!(mode);
@@ -745,6 +840,13 @@ impl DraftProxy {
                 .collect(),
         );
         replace_staged_value_records(
+            &mut self.store.staged.product_feeds,
+            &state["stagedState"],
+            "productFeeds",
+            Some("productFeedOrder"),
+            Some("deletedProductFeedIds"),
+        );
+        replace_staged_value_records(
             &mut self.store.staged.collections,
             &state["stagedState"],
             "collections",
@@ -753,6 +855,31 @@ impl DraftProxy {
         );
         self.store.staged.collection_jobs =
             value_map_from_json(state["stagedState"].get("collectionJobs"));
+        self.store.staged.installed_apps =
+            value_map_from_json(state["stagedState"].get("installedApps"));
+        self.store.staged.revoked_app_access_scopes = state["stagedState"]
+            .get("revokedAppAccessScopes")
+            .and_then(Value::as_object)
+            .map(|records| {
+                records
+                    .iter()
+                    .map(|(app_id, scopes)| {
+                        (
+                            app_id.clone(),
+                            string_array_from_json(scopes).into_iter().collect(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.uninstalled_app_ids = state["stagedState"]
+            .get("uninstalledAppIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.delegate_access_tokens =
+            value_map_from_json(state["stagedState"].get("delegatedAccessTokens"));
         self.store.staged.online_store_integrations =
             value_map_from_json(state["stagedState"].get("onlineStoreIntegrations"));
         self.store.staged.online_store_blogs =
@@ -848,9 +975,9 @@ impl DraftProxy {
             .cloned();
         let base_shop = state["baseState"]
             .get("shop")
-            .filter(|shop| shop.is_object())
+            .filter(|shop| shop.is_object() || shop.is_null())
             .cloned()
-            .unwrap_or_else(|| Store::with_default_baseline().base.shop);
+            .unwrap_or(Value::Null);
         let mut base_shop_policies =
             shop_policy_state_map_from_json(&state["baseState"]["shopPolicies"]);
         let mut base_shop_policy_order =
@@ -897,17 +1024,14 @@ impl DraftProxy {
                         "name": "English",
                         "primary": true,
                         "published": true,
-                        "marketWebPresences": [{
-                            "id": "gid://shopify/MarketWebPresence/62842765618",
-                            "subfolderSuffix": null
-                        }]
+                        "marketWebPresences": []
                     }),
                 )])
             });
         self.store.base.localization_product_ids = state["baseState"]
             .get("localizationProductIds")
             .map(string_array_from_json)
-            .unwrap_or_else(|| vec![LOCALIZATION_BASELINE_PRODUCT_ID.to_string()])
+            .unwrap_or_default()
             .into_iter()
             .collect();
         self.store.staged.publication_ids =
@@ -920,6 +1044,14 @@ impl DraftProxy {
                 .collect();
         self.store.staged.publications =
             value_map_from_json(state["stagedState"].get("publications"));
+        self.store.staged.current_channel_publication_id = state["stagedState"]
+            .get("currentChannelPublicationId")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        self.store.staged.current_channel_publication_resolved = state["stagedState"]
+            .get("currentChannelPublicationResolved")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         self.store.staged.resource_publications = state["stagedState"]["resourcePublications"]
             .as_object()
             .map(|map| {
@@ -1122,6 +1254,11 @@ impl DraftProxy {
             .and_then(Value::as_u64)
             .unwrap_or(1)
             .max(1);
+        self.store.staged.next_order_number = state["stagedState"]
+            .get("nextOrderNumber")
+            .and_then(Value::as_u64)
+            .unwrap_or(1)
+            .max(1);
         self.store.staged.next_refund_id = state["stagedState"]
             .get("nextRefundId")
             .and_then(Value::as_u64)
@@ -1292,6 +1429,8 @@ impl DraftProxy {
             .get("orderEditExistingSessionOrderId")
             .and_then(Value::as_str)
             .map(str::to_string);
+        self.store.staged.order_edit_money_bag_calculated_order_ids =
+            string_map_from_json(state["stagedState"].get("orderEditMoneyBagCalculatedOrderIds"));
         self.store.staged.order_edit_existing_mode = state["stagedState"]
             .get("orderEditExistingMode")
             .and_then(Value::as_str)
@@ -1551,6 +1690,10 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
+        self.store.staged.tax_app_configuration = state["stagedState"]
+            .get("taxAppConfiguration")
+            .filter(|value| value.is_object())
+            .cloned();
         self.log_entries = dump["log"]["entries"]
             .as_array()
             .cloned()
@@ -1565,11 +1708,15 @@ impl DraftProxy {
         let mut next_refund_id = self.store.staged.next_refund_id.max(1);
         let mut next_refund_line_item_id = self.store.staged.next_refund_line_item_id.max(1);
         let mut next_transaction_id = self.store.staged.order_payment_next_transaction_id.max(3);
+        let mut next_order_number = self.store.staged.next_order_number.max(1);
 
         for (order_id, order) in &self.store.staged.orders {
             advance_counter_past_gid_tail(&mut next_order_id, order_id);
             if let Some(record_id) = order.get("id").and_then(Value::as_str) {
                 advance_counter_past_gid_tail(&mut next_order_id, record_id);
+            }
+            if let Some(name) = order.get("name").and_then(Value::as_str) {
+                advance_order_number_past_order_name(&mut next_order_number, name);
             }
             for transaction in json_records(&order["transactions"]) {
                 advance_counter_past_value_id(&mut next_transaction_id, transaction);
@@ -1586,6 +1733,7 @@ impl DraftProxy {
         }
 
         self.store.staged.next_order_id = next_order_id;
+        self.store.staged.next_order_number = next_order_number;
         self.store.staged.next_refund_id = next_refund_id;
         self.store.staged.next_refund_line_item_id = next_refund_line_item_id;
         self.store.staged.order_payment_next_transaction_id = next_transaction_id;
@@ -1621,6 +1769,20 @@ fn value_map_from_json(value: Option<&Value>) -> BTreeMap<String, Value> {
             records
                 .iter()
                 .map(|(id, record)| (id.clone(), record.clone()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn string_map_from_json(value: Option<&Value>) -> BTreeMap<String, String> {
+    value
+        .and_then(Value::as_object)
+        .map(|records| {
+            records
+                .iter()
+                .filter_map(|(key, value)| {
+                    value.as_str().map(|value| (key.clone(), value.to_string()))
+                })
                 .collect()
         })
         .unwrap_or_default()
@@ -1669,6 +1831,16 @@ fn advance_counter_past_gid_tail(counter: &mut u64, id: &str) {
     if let Ok(numeric) = resource_id_tail(id).parse::<u64>() {
         *counter = (*counter).max(numeric.saturating_add(1));
     }
+}
+
+fn advance_order_number_past_order_name(counter: &mut u64, name: &str) {
+    let Some(number) = name
+        .strip_prefix('#')
+        .and_then(|suffix| suffix.parse::<u64>().ok())
+    else {
+        return;
+    };
+    *counter = (*counter).max(number.saturating_add(1));
 }
 
 fn json_records(value: &Value) -> Vec<&Value> {

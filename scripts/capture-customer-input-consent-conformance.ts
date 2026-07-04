@@ -154,6 +154,11 @@ const schemaEvidenceQuery = `#graphql
         name
       }
     }
+    whatsAppConsentInput: __type(name: "CustomerMarketingConsentInput") {
+      inputFields {
+        name
+      }
+    }
   }
 `;
 
@@ -185,6 +190,11 @@ const createVariables = {
       marketingOptInLevel: 'SINGLE_OPT_IN',
       consentUpdatedAt: '2026-04-25T01:05:00Z',
     },
+    whatsAppMarketingConsent: {
+      state: 'SUBSCRIBED',
+      optInLevel: 'SINGLE_OPT_IN',
+      updatedAt: '2026-04-25T01:10:00Z',
+    },
   },
 };
 
@@ -206,6 +216,15 @@ const createSmsConsentMissingPhoneVariables = {
   },
 };
 
+const createWhatsAppConsentMissingPhoneVariables = {
+  input: {
+    firstName: 'Hermes',
+    whatsAppMarketingConsent: {
+      state: 'SUBSCRIBED',
+    },
+  },
+};
+
 const createEmailConsentRedactedVariables = {
   input: {
     email: `hermes-inline-consent-redacted-${stamp}@example.com`,
@@ -215,14 +234,26 @@ const createEmailConsentRedactedVariables = {
   },
 };
 
+const createWhatsAppConsentRedactedVariables = {
+  input: {
+    phone: `+1718${String(stamp).slice(-7).padStart(7, '0')}`,
+    whatsAppMarketingConsent: {
+      state: 'REDACTED',
+    },
+  },
+};
+
 let createResult: ConformanceGraphqlResult | null = null;
 let downstreamRead: ConformanceGraphqlResult | null = null;
 let updateEmailConsent: ConformanceGraphqlResult | null = null;
 let updateSmsConsent: ConformanceGraphqlResult | null = null;
+let updateWhatsAppConsent: ConformanceGraphqlResult | null = null;
 let downstreamAfterRejectedUpdates: ConformanceGraphqlResult | null = null;
 let createEmailConsentMissingEmail: ConformanceGraphqlResult | null = null;
 let createSmsConsentMissingPhone: ConformanceGraphqlResult | null = null;
+let createWhatsAppConsentMissingPhone: ConformanceGraphqlResult | null = null;
 let createEmailConsentRedacted: ConformanceGraphqlResult | null = null;
+let createWhatsAppConsentRedacted: ConformanceGraphqlResult | null = null;
 let customerId: string | null = null;
 
 try {
@@ -265,6 +296,19 @@ try {
   updateSmsConsent = await runGraphqlRequest(customerUpdateMutation, updateSmsVariables);
   assertNoTopLevelErrors(updateSmsConsent, 'customerUpdate inline sms consent rejection');
 
+  const updateWhatsAppVariables = {
+    input: {
+      id: customerId,
+      whatsAppMarketingConsent: {
+        state: 'SUBSCRIBED',
+        optInLevel: 'SINGLE_OPT_IN',
+        updatedAt: '2026-04-25T02:10:00Z',
+      },
+    },
+  };
+  updateWhatsAppConsent = await runGraphqlRequest(customerUpdateMutation, updateWhatsAppVariables);
+  assertNoTopLevelErrors(updateWhatsAppConsent, 'customerUpdate inline WhatsApp consent rejection');
+
   downstreamAfterRejectedUpdates = await runGraphqlRequest(downstreamReadQuery, downstreamVariables);
   assertNoTopLevelErrors(downstreamAfterRejectedUpdates, 'customerUpdate inline consent rejection downstream read');
 
@@ -277,7 +321,18 @@ try {
   createSmsConsentMissingPhone = await runGraphqlRequest(customerCreateMutation, createSmsConsentMissingPhoneVariables);
   assertNoTopLevelErrors(createSmsConsentMissingPhone, 'customerCreate inline sms consent missing phone');
 
+  createWhatsAppConsentMissingPhone = await runGraphqlRequest(
+    customerCreateMutation,
+    createWhatsAppConsentMissingPhoneVariables,
+  );
+  assertNoTopLevelErrors(createWhatsAppConsentMissingPhone, 'customerCreate inline WhatsApp consent missing phone');
+
   createEmailConsentRedacted = await runGraphqlRequest(customerCreateMutation, createEmailConsentRedactedVariables);
+
+  createWhatsAppConsentRedacted = await runGraphqlRequest(
+    customerCreateMutation,
+    createWhatsAppConsentRedactedVariables,
+  );
 } finally {
   for (const disposableCustomerId of [...createdCustomerIds].reverse()) {
     const deleteVariables = { input: { id: disposableCustomerId } };
@@ -355,6 +410,23 @@ const fixture = {
         : null,
       response: updateSmsConsent?.payload ?? null,
     },
+    updateWhatsAppConsent: {
+      operationName: 'CustomerInputInlineConsentUpdate',
+      query: customerUpdateMutation,
+      variables: customerId
+        ? {
+            input: {
+              id: customerId,
+              whatsAppMarketingConsent: {
+                state: 'SUBSCRIBED',
+                optInLevel: 'SINGLE_OPT_IN',
+                updatedAt: '2026-04-25T02:10:00Z',
+              },
+            },
+          }
+        : null,
+      response: updateWhatsAppConsent?.payload ?? null,
+    },
     downstreamAfterRejectedUpdates: {
       operationName: 'CustomerInputInlineConsentRead',
       query: downstreamReadQuery,
@@ -379,11 +451,23 @@ const fixture = {
       variables: createSmsConsentMissingPhoneVariables,
       response: createSmsConsentMissingPhone?.payload ?? null,
     },
+    createWhatsAppConsentMissingPhone: {
+      operationName: 'CustomerInputInlineConsentCreate',
+      query: customerCreateMutation,
+      variables: createWhatsAppConsentMissingPhoneVariables,
+      response: createWhatsAppConsentMissingPhone?.payload ?? null,
+    },
     createEmailConsentRedacted: {
       operationName: 'CustomerInputInlineConsentCreate',
       query: customerCreateMutation,
       variables: createEmailConsentRedactedVariables,
       response: createEmailConsentRedacted?.payload ?? null,
+    },
+    createWhatsAppConsentRedacted: {
+      operationName: 'CustomerInputInlineConsentCreate',
+      query: customerCreateMutation,
+      variables: createWhatsAppConsentRedactedVariables,
+      response: createWhatsAppConsentRedacted?.payload ?? null,
     },
   },
   cleanup,

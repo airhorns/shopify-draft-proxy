@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/store-credit-account-parity.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/customers_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/customers.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/storeCreditCustomerCreate-parity.graphql",
     "variablesCapturePath": "$.setup.createCustomer.request.variables"
@@ -442,6 +442,21 @@
             "path": "$.customer.storeCreditAccounts.nodes[1].id",
             "matcher": "shopify-gid:StoreCreditAccount",
             "reason": "The downstream nested CHF account read sees the proxy-created synthetic StoreCreditAccount GID."
+          },
+          {
+            "path": "$.customer.queriedStoreCreditAccounts.nodes[0].id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The downstream nested CHF query-filtered account read sees the proxy-created synthetic StoreCreditAccount GID."
+          },
+          {
+            "path": "$.customer.queriedStoreCreditAccounts.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic account-id cursors."
+          },
+          {
+            "path": "$.customer.queriedStoreCreditAccounts.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic account-id cursors."
           },
           {
             "path": "$.storeCreditAccount.id",

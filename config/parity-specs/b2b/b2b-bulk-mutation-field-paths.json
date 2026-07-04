@@ -25,7 +25,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "Executable parity coverage for HAR-754 B2B bulk mutation userErrors[].field paths. The live fixture creates disposable B2B companies, contacts, locations, role assignments, and records Shopify's string index field paths for bulk delete, role assignment, role revoke, and staff assignment/removal validation branches.",
   "comparison": {
     "mode": "strict-json",

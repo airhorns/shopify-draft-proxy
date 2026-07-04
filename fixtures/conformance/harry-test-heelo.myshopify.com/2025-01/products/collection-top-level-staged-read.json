@@ -1,0 +1,307 @@
+{
+  "fixtureKind": "collection-top-level-staged-read",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "runId": "1783111849764",
+  "operations": {
+    "firstCreate": {
+      "document": "mutation CollectionTopLevelStagedReadCreate($input: CollectionInput!) {\n  collectionCreate(input: $input) {\n    collection {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "HermesTopLevel1783111849764 Alpha",
+          "handle": "hermes-top-level-1783111849764-alpha"
+        }
+      },
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": {
+              "id": "gid://shopify/Collection/514078638386",
+              "title": "HermesTopLevel1783111849764 Alpha",
+              "handle": "hermes-top-level-1783111849764-alpha"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "secondCreate": {
+      "document": "mutation CollectionTopLevelStagedReadCreate($input: CollectionInput!) {\n  collectionCreate(input: $input) {\n    collection {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "HermesTopLevel1783111849764 Beta",
+          "handle": "hermes-top-level-1783111849764-beta"
+        }
+      },
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": {
+              "id": "gid://shopify/Collection/514078671154",
+              "title": "HermesTopLevel1783111849764 Beta",
+              "handle": "hermes-top-level-1783111849764-beta"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "initialPage1": {
+      "document": "query CollectionTopLevelStagedReadInitialPage1(\n  $firstHandleQuery: String!\n  $sharedQuery: String!\n  $first: Int!\n  $limit: Int!\n) {\n  firstByHandle: collections(first: 10, query: $firstHandleQuery, sortKey: ID) {\n    nodes {\n      id\n      title\n      handle\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n  sharedFirstPage: collections(first: $first, query: $sharedQuery, sortKey: ID) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  sharedCount: collectionsCount(query: $sharedQuery, limit: $limit) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "firstHandleQuery": "handle:hermes-top-level-1783111849764-alpha",
+        "sharedQuery": "title:HermesTopLevel1783111849764*",
+        "first": 1,
+        "limit": 1
+      },
+      "response": {
+        "data": {
+          "firstByHandle": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/514078638386",
+                "title": "HermesTopLevel1783111849764 Alpha",
+                "handle": "hermes-top-level-1783111849764-alpha"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          },
+          "sharedFirstPage": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjo1MTQwNzg2MzgzODYsImxhc3RfdmFsdWUiOjUxNDA3ODYzODM4Nn0=",
+                "node": {
+                  "id": "gid://shopify/Collection/514078638386",
+                  "title": "HermesTopLevel1783111849764 Alpha",
+                  "handle": "hermes-top-level-1783111849764-alpha"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo1MTQwNzg2MzgzODYsImxhc3RfdmFsdWUiOjUxNDA3ODYzODM4Nn0=",
+              "endCursor": "eyJsYXN0X2lkIjo1MTQwNzg2MzgzODYsImxhc3RfdmFsdWUiOjUxNDA3ODYzODM4Nn0="
+            }
+          },
+          "sharedCount": {
+            "count": 1,
+            "precision": "AT_LEAST"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "initialPage2": {
+      "document": "query CollectionTopLevelStagedReadInitialPage2($sharedQuery: String!, $after: String!) {\n  sharedSecondPage: collections(first: 1, query: $sharedQuery, sortKey: ID, after: $after) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "sharedQuery": "title:HermesTopLevel1783111849764*",
+        "after": "eyJsYXN0X2lkIjo1MTQwNzg2MzgzODYsImxhc3RfdmFsdWUiOjUxNDA3ODYzODM4Nn0="
+      },
+      "response": {
+        "data": {
+          "sharedSecondPage": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjo1MTQwNzg2NzExNTQsImxhc3RfdmFsdWUiOjUxNDA3ODY3MTE1NH0=",
+                "node": {
+                  "id": "gid://shopify/Collection/514078671154",
+                  "title": "HermesTopLevel1783111849764 Beta",
+                  "handle": "hermes-top-level-1783111849764-beta"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": true,
+              "startCursor": "eyJsYXN0X2lkIjo1MTQwNzg2NzExNTQsImxhc3RfdmFsdWUiOjUxNDA3ODY3MTE1NH0=",
+              "endCursor": "eyJsYXN0X2lkIjo1MTQwNzg2NzExNTQsImxhc3RfdmFsdWUiOjUxNDA3ODY3MTE1NH0="
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1992,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "document": "mutation CollectionTopLevelStagedReadUpdate($input: CollectionInput!) {\n  collectionUpdate(input: $input) {\n    collection {\n      id\n      title\n      handle\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Collection/514078638386",
+          "title": "HermesTopLevel1783111849764 Alpha Updated",
+          "handle": "hermes-top-level-1783111849764-alpha-updated"
+        }
+      },
+      "response": {
+        "data": {
+          "collectionUpdate": {
+            "collection": {
+              "id": "gid://shopify/Collection/514078638386",
+              "title": "HermesTopLevel1783111849764 Alpha Updated",
+              "handle": "hermes-top-level-1783111849764-alpha-updated"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "postUpdate": {
+      "document": "query CollectionTopLevelStagedReadPostUpdate($oldHandleQuery: String!, $newHandleQuery: String!) {\n  oldByHandle: collections(first: 10, query: $oldHandleQuery, sortKey: ID) {\n    nodes {\n      id\n      title\n      handle\n    }\n  }\n  newByHandle: collections(first: 10, query: $newHandleQuery, sortKey: ID) {\n    nodes {\n      id\n      title\n      handle\n    }\n  }\n}\n",
+      "variables": {
+        "oldHandleQuery": "handle:hermes-top-level-1783111849764-alpha",
+        "newHandleQuery": "handle:hermes-top-level-1783111849764-alpha-updated"
+      },
+      "response": {
+        "data": {
+          "oldByHandle": {
+            "nodes": []
+          },
+          "newByHandle": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/514078638386",
+                "title": "HermesTopLevel1783111849764 Alpha Updated",
+                "handle": "hermes-top-level-1783111849764-alpha-updated"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 9,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1991,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "document": "mutation CollectionTopLevelStagedReadDelete($input: CollectionDeleteInput!) {\n  collectionDelete(input: $input) {\n    deletedCollectionId\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Collection/514078671154"
+        }
+      },
+      "response": {
+        "data": {
+          "collectionDelete": {
+            "deletedCollectionId": "gid://shopify/Collection/514078671154",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "postDelete": {
+      "document": "query CollectionTopLevelStagedReadPostDelete($sharedQuery: String!, $deletedHandleQuery: String!) {\n  remainingShared: collections(first: 10, query: $sharedQuery, sortKey: ID) {\n    nodes {\n      id\n      title\n      handle\n    }\n  }\n  sharedCount: collectionsCount(query: $sharedQuery) {\n    count\n    precision\n  }\n  deletedByHandle: collections(first: 10, query: $deletedHandleQuery, sortKey: ID) {\n    nodes {\n      id\n      title\n      handle\n    }\n  }\n  deletedCount: collectionsCount(query: $deletedHandleQuery) {\n    count\n    precision\n  }\n}\n",
+      "variables": {
+        "sharedQuery": "title:HermesTopLevel1783111849764*",
+        "deletedHandleQuery": "handle:hermes-top-level-1783111849764-beta"
+      },
+      "response": {
+        "data": {
+          "remainingShared": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Collection/514078638386",
+                "title": "HermesTopLevel1783111849764 Alpha Updated",
+                "handle": "hermes-top-level-1783111849764-alpha-updated"
+              }
+            ]
+          },
+          "sharedCount": {
+            "count": 1,
+            "precision": "EXACT"
+          },
+          "deletedByHandle": {
+            "nodes": []
+          },
+          "deletedCount": {
+            "count": 0,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 32,
+            "actualQueryCost": 29,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1971,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  }
+}

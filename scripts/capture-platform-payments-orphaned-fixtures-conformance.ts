@@ -149,6 +149,23 @@ async function capture(client: CaptureClient, query: string, variables: JsonReco
   };
 }
 
+function upstreamReadCall(
+  operationName: string,
+  query: string,
+  variables: JsonRecord,
+  result: ConformanceGraphqlResult<JsonRecord>,
+): JsonRecord {
+  return {
+    operationName,
+    variables,
+    query,
+    response: {
+      status: result.status,
+      body: result.payload,
+    },
+  };
+}
+
 function redactSecrets(value: unknown): unknown {
   return JSON.parse(
     JSON.stringify(value, (_key, entry) =>
@@ -159,18 +176,60 @@ function redactSecrets(value: unknown): unknown {
 
 async function captureEvents(): Promise<string[]> {
   const client = await clientFor('2025-01');
-  const query = await readText('config/parity-requests/events/event-empty-read.graphql');
-  const variables = await readJson<JsonRecord>('config/parity-requests/events/event-empty-read.variables.json');
-  const result = await client.runGraphqlRequest(query, variables);
-  assertNoTopLevelErrors(result, 'event empty read');
+  const written: string[] = [];
 
-  const filePath = outputPath(client.config, 'events', 'event-empty-read.json');
-  await writeJson(filePath, {
-    variables,
-    response: result.payload,
-    upstreamCalls: [],
+  const emptyQuery = await readText('config/parity-requests/events/event-empty-read.graphql');
+  const emptyVariables = await readJson<JsonRecord>('config/parity-requests/events/event-empty-read.variables.json');
+  const emptyResult = await client.runGraphqlRequest(emptyQuery, emptyVariables);
+  assertNoTopLevelErrors(emptyResult, 'event empty read');
+
+  const emptyFilePath = outputPath(client.config, 'events', 'event-empty-read.json');
+  await writeJson(emptyFilePath, {
+    variables: emptyVariables,
+    response: emptyResult.payload,
+    upstreamCalls: [upstreamReadCall('EventEmptyRead', emptyQuery, emptyVariables, emptyResult)],
   });
-  return [filePath];
+  written.push(emptyFilePath);
+
+  const nonEmptyQuery = await readText('config/parity-requests/events/event-non-empty-read.graphql');
+  const discoveryQuery = `#graphql
+    query EventNonEmptyDiscovery($first: Int!) {
+      events(first: $first, sortKey: ID, reverse: true) {
+        nodes {
+          id
+        }
+      }
+    }
+  `;
+  const discoveryResult = await client.runGraphqlRequest(discoveryQuery, { first: 1 });
+  assertNoTopLevelErrors(discoveryResult, 'event non-empty discovery');
+  const discoveryNodes = readArray(readPath(discoveryResult.payload, ['data', 'events', 'nodes']));
+  const eventId = readString(readRecord(discoveryNodes[0])['id']);
+  if (eventId === null) {
+    throw new Error('event non-empty discovery returned no event nodes for the live store');
+  }
+
+  const nonEmptyVariables = { eventId, first: 3 };
+  const nonEmptyVariablesPath = 'config/parity-requests/events/event-non-empty-read.variables.json';
+  await writeJson(nonEmptyVariablesPath, nonEmptyVariables);
+  written.push(nonEmptyVariablesPath);
+
+  const nonEmptyResult = await client.runGraphqlRequest(nonEmptyQuery, nonEmptyVariables);
+  assertNoTopLevelErrors(nonEmptyResult, 'event non-empty read');
+  const nonEmptyNodes = readArray(readPath(nonEmptyResult.payload, ['data', 'events', 'nodes']));
+  if (nonEmptyNodes.length === 0) {
+    throw new Error('event non-empty read returned no event nodes for the live store');
+  }
+
+  const nonEmptyFilePath = outputPath(client.config, 'events', 'event-non-empty-read.json');
+  await writeJson(nonEmptyFilePath, {
+    variables: nonEmptyVariables,
+    response: nonEmptyResult.payload,
+    upstreamCalls: [upstreamReadCall('EventNonEmptyRead', nonEmptyQuery, nonEmptyVariables, nonEmptyResult)],
+  });
+  written.push(nonEmptyFilePath);
+
+  return written;
 }
 
 async function capturePaymentReads(): Promise<string[]> {

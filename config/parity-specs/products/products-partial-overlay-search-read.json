@@ -1,0 +1,36 @@
+{
+  "scenarioId": "products-partial-overlay-search-read",
+  "operationNames": ["nodes", "products", "productsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "search-filter-semantics"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/products-partial-overlay-read.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/products-hydrate-nodes-observation.graphql",
+    "variablesCapturePath": "$.hydrate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "single-product-hydration-observation",
+        "capturePath": "$.hydrate.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "handle-and-barcode-search-after-partial-hydrate",
+        "capturePath": "$.search.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/products-partial-overlay-search-read.graphql",
+          "variablesCapturePath": "$.search.variables"
+        }
+      }
+    ]
+  },
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "notes": "Live capture creates a disposable barcode-bearing product, hydrates a different product through nodes(ids:), then proves handle: and barcode: products/productsCount searches resolve from Shopify's full catalog instead of the partial observed overlay."
+}

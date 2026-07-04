@@ -27,12 +27,23 @@ Local staged mutations:
 ### Behavior notes
 
 - `files` reads serialize normalized `FileRecord` state in snapshot mode and
-  after local file mutations. The local connection uses shared cursor/pageInfo
-  helpers, applies the `reverse` argument over effective in-memory order, and
-  omits files marked deleted by staged `fileDelete`. Full Shopify file search
-  and sort-key semantics are not modeled yet.
-- `fileSavedSearches` currently returns an empty Shopify-like connection in
-  snapshot mode. Saved-search records are not modeled yet.
+  after local file mutations. The local connection uses shared staged-connection
+  helpers for filtering, sort-key ordering, `reverse`, cursor windows, and
+  pageInfo, and omits files marked deleted by staged `fileDelete`. The local
+  `files(query:)` path supports the documented file filters for staged records:
+  free text, `created_at`, `filename`, `id`, `ids`, `media_type`,
+  `original_source`, `original_upload_size`, `product_id`, `status`,
+  `updated_at`, and `used_in`. Unknown file filters do not fail open; they match
+  no staged files.
+- `files(sortKey:)` honors `CREATED_AT`, `FILENAME`, `ID`,
+  `ORIGINAL_UPLOAD_SIZE`, `RELEVANCE`, and `UPDATED_AT` for staged records.
+  `RELEVANCE` falls back to stable ID order because the local query parser does
+  not compute Shopify search relevance scores.
+- `fileSavedSearches` reads use the saved-search domain model for FILE saved
+  searches. Staged FILE saved searches appear in combined `files` /
+  `fileSavedSearches` reads, and `files(savedSearchId:)` resolves the saved
+  search query before applying local filters. Unknown saved-search ids match no
+  staged files rather than returning the full file set.
 - `stagedUploadsCreate` returns inert draft-proxy target metadata so clients can
   observe the mutation payload shape without the proxy creating cloud storage
   objects. Returned URLs use `shopify-draft-proxy.local` placeholders. The JS
@@ -161,23 +172,28 @@ Local staged mutations:
   because the available conformance shop has no seeded way to force Shopify's
   weekly video/model3d throttle or per-shop non-image media limit; no synthetic
   Shopify fixture is checked in for those branches.
-- `fileUpdate` validates file ids, URL fields, alt text length, product references, Shopify's mutually exclusive `originalSource` / `previewImageSource` update rule, READY state, type-specific `originalSource` / `filename` support, filename extension preservation, source plus `revertToVersionId` conflict, missing `revertToVersionId` media versions, and typed-GID mismatches before updating staged records. Captured public Admin GraphQL 2026-04 behavior keeps the 512-character `alt` ceiling, reports non-URL source values as `INVALID_IMAGE_SOURCE_URL` on `previewImageSource`, rejects over-length `originalSource` as a top-level `INVALID_FIELD_ARGUMENTS` error, and accepts over-length `previewImageSource`. For a READY `MediaImage`, Shopify interprets `originalSource` as a preview image source update: the original `image.url` remains unchanged while `preview.image.url` moves to the replacement image. For a READY `GenericFile`, `originalSource` updates the file's direct `url`/source instead. `referencesToAdd` can attach a READY file to product media, and `referencesToRemove` can remove the file from product media while keeping the file visible through Files API reads. Successful updates preserve the existing file status rather than promoting files to `READY`.
+- `fileUpdate` validates file ids, URL fields, alt text length, product references, Shopify's mutually exclusive `originalSource` / `previewImageSource` update rule, READY state, type-specific `originalSource` / `filename` support, filename extension preservation, and typed-GID mismatches before updating staged records. Captured public Admin GraphQL 2026-04 behavior keeps the 512-character `alt` ceiling, reports non-URL source values as `INVALID_IMAGE_SOURCE_URL` on `previewImageSource`, rejects over-length `originalSource` as a top-level `INVALID_FIELD_ARGUMENTS` error, and accepts over-length `previewImageSource`. For a READY `MediaImage`, Shopify interprets `originalSource` as a preview image source update: the original `image.url` remains unchanged while `preview.image.url` moves to the replacement image. For a READY `GenericFile`, `originalSource` updates the file's direct `url`/source instead. `referencesToAdd` can attach a READY file to product media, and `referencesToRemove` can remove the file from product media while keeping the file visible through Files API reads. Successful updates preserve the existing file status rather than promoting files to `READY`.
 - Files API validation userErrors follow captured aggregate behavior. `fileDelete`
   missing IDs aggregate into one `FILE_DOES_NOT_EXIST` entry on `["fileIds"]`
   with comma-joined GIDs. `fileUpdate` missing IDs also aggregate into one
   `FILE_DOES_NOT_EXIST` entry on `["files"]`, but Shopify 2026-04 interpolates
   the id list as a quoted array string such as `["gid://...", "gid://..."]`.
-  Missing IDs preempt alt-length and source-conflict validation. Non-ready
+  This applies only when an `id` value is supplied but resolves to no file.
+  Omitting required `FileUpdateInput.id` fails GraphQL input coercion before
+  resolver execution: variable inputs return a top-level `INVALID_VARIABLE`
+  envelope, inline inputs return `missingRequiredInputObjectAttribute`, and no
+  mutation payload or staged log entry is produced. Missing supplied IDs preempt
+  alt-length and source-conflict validation. Non-ready
   `fileUpdate` inputs collapse to one `NON_READY_STATE` entry with Shopify's
   generic `Non-ready files cannot be updated.` message, and non-ready files
   preempt the ready-file-only `originalSource`/`previewImageSource` conflict.
-  Ready-file target checks then run before the source plus
-  `revertToVersionId` conflict. The public Admin schemas currently checked
-  through 2026-04 do not expose `FileUpdateInput.revertToVersionId`, so the
-  source/version conflict message remains tied to existing internal evidence
-  rather than a public live cassette.
-- In LiveHybrid mode, `fileUpdate` may issue narrow reads before validation: product reads hydrate referenced products, media-version reads validate `revertToVersionId` ownership, and file reads hydrate existing READY Shopify file records needed for local validation/staging. Supported mutation handling still stages locally and does not write upstream at runtime.
-- In Snapshot mode, `fileUpdate.revertToVersionId` existence validation is skipped when the version is not already known through LiveHybrid hydration. The public Admin GraphQL schemas currently checked through 2026-04 and unstable do not expose `FileUpdateInput.revertToVersionId`, so checked-in live conformance can prove the reference-target branch but the version-id branch remains covered by deterministic LiveHybrid cassette tests and internal Shopify behavior notes. When a supplied version is known, the proxy returns a stable `UNSUPPORTED` userError instead of silently succeeding because local media-version rollback snapshots are not modeled yet.
+  The public Admin schemas currently checked through 2026-04 do not expose
+  `FileUpdateInput.revertToVersionId`, so supplying that field fails
+  input-object coercion before the resolver runs.
+- In LiveHybrid mode, `fileUpdate` may issue narrow reads before validation:
+  product reads hydrate referenced products, and file reads hydrate existing
+  READY Shopify file records needed for local validation/staging. Supported
+  mutation handling still stages locally and does not write upstream at runtime.
 - `fileDelete` marks files deleted in local state so downstream reads and product media references can observe the deletion. In LiveHybrid mode, deletes of product-owned media ids may first hydrate the owning product/media relationship from upstream so the local delete can remove that media node from downstream `product.media` reads. The payload's `deletedFileIds` are rebuilt from the local record's actual Files API type (`MediaImage`, `Video`, `GenericFile`, etc.) rather than echoing a caller-supplied alias GID unchanged.
 - Shopify's backend can reject `fileDelete` with `FILE_LOCKED` while another media-processing mutation owns a per-file lock. The proxy has no concurrent Shopify media-processing jobs or cross-request lock manager, so it does not fabricate `FILE_LOCKED`; this remains an explicit fidelity divergence unless a future local processing model introduces lockable file state.
 - `fileAcknowledgeUpdateFailed(fileIds:)` is currently a local

@@ -292,6 +292,11 @@ try {
     ['priceNegative', [{ price: '-5', optionValues: validOptions }]],
     ['priceTooLarge', [{ price: '1000000000000000000', optionValues: validOptions }]],
     ['compareAtPriceTooLarge', [{ price: '10', compareAtPrice: '1000000000000000000', optionValues: validOptions }]],
+    ['inventoryItemCostNegative', [{ price: '10', inventoryItem: { cost: '-5' }, optionValues: validOptions }]],
+    [
+      'inventoryItemCostTooLarge',
+      [{ price: '10', inventoryItem: { cost: '1000000000000000000' }, optionValues: validOptions }],
+    ],
     [
       'weightNegative',
       [

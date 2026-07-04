@@ -56,13 +56,13 @@ App/test harness
             └─ unsupported/unknown -> passthrough or reject according to mode
 ```
 
-`DraftProxy` is instance-owned state, not a singleton. A proxy owns its normalized `Store`, mutation log, registry, synthetic ID counters, and injectable upstream/commit transports. Runtime base/staged resource data belongs under the Store rather than as loose `DraftProxy` fields. Do not introduce global mutable proxy state.
+`DraftProxy` is instance-owned state, not a singleton. A proxy owns its normalized `Store`, mutation log, registry, synthetic ID counters, injectable runtime clock, and injectable upstream/commit transports. Runtime base/staged resource data belongs under the Store rather than as loose `DraftProxy` fields. Do not introduce global mutable proxy state.
 
 ## Primary Rust modules
 
 ### `src/proxy.rs`
 
-- owns `DraftProxy`, `Config`, `ReadMode`, the normalized Store, synthetic identity allocation, registry metadata, and injectable transports
+- owns `DraftProxy`, `Config`, `ReadMode`, the normalized Store, synthetic identity allocation, registry metadata, runtime clock, and injectable transports
 - declares the runtime's domain submodules while keeping proxy state instance-owned instead of global
 
 ### `src/proxy/core.rs`, `src/proxy/routing.rs`, `src/proxy/dispatch.rs`
@@ -72,7 +72,7 @@ App/test harness
 - keep Shopify-like Admin GraphQL route classification and request-body parsing separate from domain handlers
 - run version-scoped base GraphQL validation for captured parse, schema, variable, selection, and argument errors before local domain dispatch
 - run reusable captured-schema input validation before local mutation dispatch when a covered public Admin input object has recorded introspection evidence for the request API version
-- preserve `with_upstream_transport(...)` and `with_commit_transport(...)` test seams so behavior stays deterministic
+- preserve `with_clock(...)`, `with_upstream_transport(...)`, and `with_commit_transport(...)` test seams so behavior stays deterministic
 
 ### `src/proxy/commit.rs`
 
@@ -207,4 +207,4 @@ Keep Shopify-like versioned Admin API paths even when tests use local/snapshot m
 - Keep unsupported passthrough explicit in logs and docs.
 - Marking a root `implemented` only states that the proxy answers it locally; do not call an operation **supported** until its local lifecycle and downstream read-after-write effects are modeled from the store (tracked by runtime tests and conformance coverage).
 - Prefer conformance fixtures over guessed Shopify semantics.
-- Add tests before behavior changes and run the full Rust-port verification loop before pushing.
+- Add tests before behavior changes and run the full verification loop before pushing.

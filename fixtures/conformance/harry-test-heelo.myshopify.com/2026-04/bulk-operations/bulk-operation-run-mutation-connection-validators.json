@@ -1,0 +1,199 @@
+{
+  "capturedAt": "2026-07-04T00:59:20.045Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "request": {
+    "operationName": "BulkOperationRunMutationValidators",
+    "query": "mutation BulkOperationRunMutationValidators($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n"
+  },
+  "observations": {
+    "messages": {
+      "tooManyConnections": "Bulk mutations cannot contain more than 1 connection.",
+      "nestingTooDeep": "Bulk mutations cannot contain more than 1 connection.",
+      "productShopProductsVariantsNested": "Bulk mutations cannot contain more than 1 connection.",
+      "productCollectionsProductsNested": "Bulk mutations cannot contain more than 1 connection.",
+      "customerOrdersLineItemsNested": "Bulk mutations cannot contain more than 1 connection."
+    },
+    "connectionNestedTooDeepCases": [],
+    "countPrecedenceCases": [
+      "tooManyConnections",
+      "nestingTooDeep",
+      "productShopProductsVariantsNested",
+      "productCollectionsProductsNested",
+      "customerOrdersLineItemsNested"
+    ]
+  },
+  "validations": {
+    "tooManyConnections": {
+      "operationName": "BulkOperationRunMutationValidators",
+      "query": "mutation BulkOperationRunMutationValidators($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { variants(first: 1) { edges { node { id } } } media(first: 1) { edges { node { id } } } } } }",
+        "path": "valid"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["mutation"],
+                "message": "Bulk mutations cannot contain more than 1 connection.",
+                "code": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "nestingTooDeep": {
+      "operationName": "BulkOperationRunMutationValidators",
+      "query": "mutation BulkOperationRunMutationValidators($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { variants(first: 1) { edges { node { id media(first: 1) { edges { node { id } } } } } } } } }",
+        "path": "valid"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["mutation"],
+                "message": "Bulk mutations cannot contain more than 1 connection.",
+                "code": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productShopProductsVariantsNested": {
+      "operationName": "BulkOperationRunMutationValidators",
+      "query": "mutation BulkOperationRunMutationValidators($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { shop { products(first: 1) { edges { node { id variants(first: 1) { edges { node { id } } } } } } } } }",
+        "path": "valid"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["mutation"],
+                "message": "Bulk mutations cannot contain more than 1 connection.",
+                "code": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "productCollectionsProductsNested": {
+      "operationName": "BulkOperationRunMutationValidators",
+      "query": "mutation BulkOperationRunMutationValidators($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { collections(first: 1) { edges { node { id products(first: 1) { edges { node { id } } } } } } } } }",
+        "path": "valid"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["mutation"],
+                "message": "Bulk mutations cannot contain more than 1 connection.",
+                "code": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "customerOrdersLineItemsNested": {
+      "operationName": "BulkOperationRunMutationValidators",
+      "query": "mutation BulkOperationRunMutationValidators($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "mutation CustomerCreate($input: CustomerInput!) { customerCreate(input: $input) { customer { orders(first: 1) { edges { node { id lineItems(first: 1) { edges { node { id } } } } } } } } }",
+        "path": "valid"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["mutation"],
+                "message": "Bulk mutations cannot contain more than 1 connection.",
+                "code": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

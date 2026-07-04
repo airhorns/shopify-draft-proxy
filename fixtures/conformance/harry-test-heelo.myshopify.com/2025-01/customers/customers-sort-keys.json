@@ -125,6 +125,20 @@
           }
         },
         {
+          "cursor": "eyJsYXN0X2lkIjoxMDU4NzA0MTcyNjc3MCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwib3R0YXdhIl19",
+          "node": {
+            "id": "gid://shopify/Customer/10587041726770",
+            "displayName": "Hermes SetUpdated",
+            "legacyResourceId": "10587041726770",
+            "defaultAddress": {
+              "country": "Canada",
+              "province": "Ontario",
+              "city": "Ottawa",
+              "formattedArea": "Ottawa ON, Canada"
+            }
+          }
+        },
+        {
           "cursor": "eyJsYXN0X2lkIjoxMDU0MDkxMzgxOTk1NCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwidG9yb250byJdfQ==",
           "node": {
             "id": "gid://shopify/Customer/10540913819954",
@@ -165,27 +179,13 @@
               "formattedArea": "Toronto ON, Canada"
             }
           }
-        },
-        {
-          "cursor": "eyJsYXN0X2lkIjoxMDU0MDkxODgwMDY5MCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwidG9yb250byJdfQ==",
-          "node": {
-            "id": "gid://shopify/Customer/10540918800690",
-            "displayName": "HAR Probe",
-            "legacyResourceId": "10540918800690",
-            "defaultAddress": {
-              "country": "Canada",
-              "province": "Ontario",
-              "city": "Toronto",
-              "formattedArea": "Toronto ON, Canada"
-            }
-          }
         }
       ],
       "pageInfo": {
         "hasNextPage": true,
         "hasPreviousPage": false,
         "startCursor": "eyJsYXN0X2lkIjoxMDU0MDI5NDA0NjAwMiwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwib3R0YXdhIl19",
-        "endCursor": "eyJsYXN0X2lkIjoxMDU0MDkxODgwMDY5MCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwidG9yb250byJdfQ=="
+        "endCursor": "eyJsYXN0X2lkIjoxMDU0MDkxODYzNjg1MCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwidG9yb250byJdfQ=="
       }
     }
   },
@@ -333,6 +333,20 @@
                   }
                 },
                 {
+                  "cursor": "eyJsYXN0X2lkIjoxMDU4NzA0MTcyNjc3MCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwib3R0YXdhIl19",
+                  "node": {
+                    "id": "gid://shopify/Customer/10587041726770",
+                    "displayName": "Hermes SetUpdated",
+                    "legacyResourceId": "10587041726770",
+                    "defaultAddress": {
+                      "country": "Canada",
+                      "province": "Ontario",
+                      "city": "Ottawa",
+                      "formattedArea": "Ottawa ON, Canada"
+                    }
+                  }
+                },
+                {
                   "cursor": "eyJsYXN0X2lkIjoxMDU0MDkxMzgxOTk1NCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwidG9yb250byJdfQ==",
                   "node": {
                     "id": "gid://shopify/Customer/10540913819954",
@@ -373,27 +387,13 @@
                       "formattedArea": "Toronto ON, Canada"
                     }
                   }
-                },
-                {
-                  "cursor": "eyJsYXN0X2lkIjoxMDU0MDkxODgwMDY5MCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwidG9yb250byJdfQ==",
-                  "node": {
-                    "id": "gid://shopify/Customer/10540918800690",
-                    "displayName": "HAR Probe",
-                    "legacyResourceId": "10540918800690",
-                    "defaultAddress": {
-                      "country": "Canada",
-                      "province": "Ontario",
-                      "city": "Toronto",
-                      "formattedArea": "Toronto ON, Canada"
-                    }
-                  }
                 }
               ],
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
                 "startCursor": "eyJsYXN0X2lkIjoxMDU0MDI5NDA0NjAwMiwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwib3R0YXdhIl19",
-                "endCursor": "eyJsYXN0X2lkIjoxMDU0MDkxODgwMDY5MCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwidG9yb250byJdfQ=="
+                "endCursor": "eyJsYXN0X2lkIjoxMDU0MDkxODYzNjg1MCwibGFzdF92YWx1ZSI6WyJjYW5hZGEiLCJvbnRhcmlvIiwidG9yb250byJdfQ=="
               }
             }
           },

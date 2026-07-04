@@ -1,19 +1,22 @@
 {
-  "capturedAt": "2026-05-08T15:18:26.170Z",
+  "capturedAt": "2026-07-03T03:52:53.686Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "summary": "MetaobjectDefinitionCreate field validation capture for reserved field keys, duplicate field input, displayNameKey resolution, invalid field types, hyphen key acceptance, max field count, and reserved shopify--form type max field count.",
+  "summary": "MetaobjectDefinitionCreate field validation capture for reserved field keys, duplicate field input, displayNameKey resolution, valid current field types, invalid field types, hyphen key acceptance, max field count, and reserved shopify--form type max field count.",
   "seed": {
-    "runId": "1778253504912",
-    "hyphenDefinitionId": "gid://shopify/MetaobjectDefinition/17966203186"
+    "runId": "1783050770682",
+    "hyphenDefinitionId": "gid://shopify/MetaobjectDefinition/19557056818",
+    "validJurisdictionDefinitionId": "gid://shopify/MetaobjectDefinition/19556892978",
+    "validListJurisdictionDefinitionId": "gid://shopify/MetaobjectDefinition/19556925746",
+    "validProductTaxonomyDisclosureReferenceDefinitionId": "gid://shopify/MetaobjectDefinition/19556958514"
   },
   "reservedHandle": {
     "name": "reserved-field-key",
     "request": {
-      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        type {\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "definition": {
-          "type": "field_validation_reserved_1778253504912",
+          "type": "field_validation_reserved_1783050770682",
           "name": "Reserved Field Key",
           "displayNameKey": "handle",
           "fieldDefinitions": [
@@ -44,7 +47,7 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 11,
+          "requestedQueryCost": 12,
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
@@ -58,10 +61,10 @@
   "duplicateKey": {
     "name": "duplicate-field-key",
     "request": {
-      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        type {\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "definition": {
-          "type": "field_validation_duplicate_1778253504912",
+          "type": "field_validation_duplicate_1783050770682",
           "name": "Duplicate Field Key",
           "displayNameKey": "title",
           "fieldDefinitions": [
@@ -97,7 +100,7 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 11,
+          "requestedQueryCost": 12,
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
@@ -111,10 +114,10 @@
   "missingDisplayNameKey": {
     "name": "missing-display-name-key",
     "request": {
-      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        type {\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "definition": {
-          "type": "field_validation_display_1778253504912",
+          "type": "field_validation_display_1783050770682",
           "name": "Missing Display Name Key",
           "displayNameKey": "missing",
           "fieldDefinitions": [
@@ -145,7 +148,7 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 11,
+          "requestedQueryCost": 12,
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
@@ -159,10 +162,10 @@
   "unknownFieldType": {
     "name": "unknown-field-type",
     "request": {
-      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        type {\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "definition": {
-          "type": "field_validation_unknown_type_1778248213599",
+          "type": "field_validation_unknown_type_1783050770682",
           "name": "Unknown Field Type",
           "displayNameKey": "title",
           "fieldDefinitions": [
@@ -183,7 +186,7 @@
           "userErrors": [
             {
               "field": ["definition", "fieldDefinitions", "0"],
-              "message": "Type name garbage_type is not a valid type. Valid types are: antenna_gain, area, battery_charge_capacity, battery_energy_capacity, boolean, capacitance, color, concentration, data_storage_capacity, data_transfer_rate, date_time, date, dimension, display_density, distance, duration, electric_current, electrical_resistance, energy, frequency, id, illuminance, inductance, json, language, link, list.antenna_gain, list.area, list.battery_charge_capacity, list.battery_energy_capacity, list.capacitance, list.color, list.concentration, list.data_storage_capacity, list.data_transfer_rate, list.date_time, list.date, list.dimension, list.display_density, list.distance, list.duration, list.electric_current, list.electrical_resistance, list.energy, list.frequency, list.illuminance, list.inductance, list.link, list.luminous_flux, list.mass_flow_rate, list.number_decimal, list.number_integer, list.power, list.pressure, list.rating, list.resolution, list.rotational_speed, list.single_line_text_field, list.sound_level, list.speed, list.temperature, list.thermal_power, list.url, list.voltage, list.volume, list.volumetric_flow_rate, list.weight, luminous_flux, mass_flow_rate, money, multi_line_text_field, number_decimal, number_integer, power, pressure, rating, resolution, rich_text_field, rotational_speed, single_line_text_field, sound_level, speed, temperature, thermal_power, url, voltage, volume, volumetric_flow_rate, weight, company_reference, list.company_reference, customer_reference, list.customer_reference, product_reference, list.product_reference, collection_reference, list.collection_reference, variant_reference, list.variant_reference, file_reference, list.file_reference, product_taxonomy_value_reference, list.product_taxonomy_value_reference, metaobject_reference, list.metaobject_reference, mixed_reference, list.mixed_reference, page_reference, list.page_reference, article_reference, list.article_reference, order_reference, list.order_reference.",
+              "message": "Type name garbage_type is not a valid type. Valid types are: antenna_gain, area, battery_charge_capacity, battery_energy_capacity, boolean, capacitance, color, concentration, data_storage_capacity, data_transfer_rate, date_time, date, dimension, display_density, distance, duration, electric_current, electrical_resistance, energy, frequency, id, illuminance, inductance, json, jurisdiction, language, link, list.antenna_gain, list.area, list.battery_charge_capacity, list.battery_energy_capacity, list.capacitance, list.color, list.concentration, list.data_storage_capacity, list.data_transfer_rate, list.date_time, list.date, list.dimension, list.display_density, list.distance, list.duration, list.electric_current, list.electrical_resistance, list.energy, list.frequency, list.illuminance, list.inductance, list.jurisdiction, list.link, list.luminous_flux, list.mass_flow_rate, list.number_decimal, list.number_integer, list.power, list.pressure, list.rating, list.resolution, list.rotational_speed, list.single_line_text_field, list.sound_level, list.speed, list.temperature, list.thermal_power, list.url, list.voltage, list.volume, list.volumetric_flow_rate, list.weight, luminous_flux, mass_flow_rate, money, multi_line_text_field, number_decimal, number_integer, power, pressure, rating, resolution, rich_text_field, rotational_speed, single_line_text_field, sound_level, speed, temperature, thermal_power, url, voltage, volume, volumetric_flow_rate, weight, company_reference, list.company_reference, customer_reference, list.customer_reference, product_reference, list.product_reference, collection_reference, list.collection_reference, variant_reference, list.variant_reference, file_reference, list.file_reference, product_taxonomy_value_reference, list.product_taxonomy_value_reference, product_taxonomy_disclosure_reference, metaobject_reference, list.metaobject_reference, mixed_reference, list.mixed_reference, disclosure_reference, list.disclosure_reference, page_reference, list.page_reference, article_reference, list.article_reference, order_reference, list.order_reference.",
               "code": "INCLUSION",
               "elementKey": "title",
               "elementIndex": null
@@ -193,7 +196,7 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 11,
+          "requestedQueryCost": 12,
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
@@ -207,10 +210,10 @@
   "unsupportedListFieldType": {
     "name": "unsupported-list-field-type",
     "request": {
-      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        type {\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "definition": {
-          "type": "field_validation_list_type_1778248213599",
+          "type": "field_validation_list_type_1783050770682",
           "name": "Unsupported List Field Type",
           "displayNameKey": "title",
           "fieldDefinitions": [
@@ -231,7 +234,7 @@
           "userErrors": [
             {
               "field": ["definition", "fieldDefinitions", "0"],
-              "message": "Type name list.boolean is not a valid type. Valid types are: antenna_gain, area, battery_charge_capacity, battery_energy_capacity, boolean, capacitance, color, concentration, data_storage_capacity, data_transfer_rate, date_time, date, dimension, display_density, distance, duration, electric_current, electrical_resistance, energy, frequency, id, illuminance, inductance, json, language, link, list.antenna_gain, list.area, list.battery_charge_capacity, list.battery_energy_capacity, list.capacitance, list.color, list.concentration, list.data_storage_capacity, list.data_transfer_rate, list.date_time, list.date, list.dimension, list.display_density, list.distance, list.duration, list.electric_current, list.electrical_resistance, list.energy, list.frequency, list.illuminance, list.inductance, list.link, list.luminous_flux, list.mass_flow_rate, list.number_decimal, list.number_integer, list.power, list.pressure, list.rating, list.resolution, list.rotational_speed, list.single_line_text_field, list.sound_level, list.speed, list.temperature, list.thermal_power, list.url, list.voltage, list.volume, list.volumetric_flow_rate, list.weight, luminous_flux, mass_flow_rate, money, multi_line_text_field, number_decimal, number_integer, power, pressure, rating, resolution, rich_text_field, rotational_speed, single_line_text_field, sound_level, speed, temperature, thermal_power, url, voltage, volume, volumetric_flow_rate, weight, company_reference, list.company_reference, customer_reference, list.customer_reference, product_reference, list.product_reference, collection_reference, list.collection_reference, variant_reference, list.variant_reference, file_reference, list.file_reference, product_taxonomy_value_reference, list.product_taxonomy_value_reference, metaobject_reference, list.metaobject_reference, mixed_reference, list.mixed_reference, page_reference, list.page_reference, article_reference, list.article_reference, order_reference, list.order_reference.",
+              "message": "Type name list.boolean is not a valid type. Valid types are: antenna_gain, area, battery_charge_capacity, battery_energy_capacity, boolean, capacitance, color, concentration, data_storage_capacity, data_transfer_rate, date_time, date, dimension, display_density, distance, duration, electric_current, electrical_resistance, energy, frequency, id, illuminance, inductance, json, jurisdiction, language, link, list.antenna_gain, list.area, list.battery_charge_capacity, list.battery_energy_capacity, list.capacitance, list.color, list.concentration, list.data_storage_capacity, list.data_transfer_rate, list.date_time, list.date, list.dimension, list.display_density, list.distance, list.duration, list.electric_current, list.electrical_resistance, list.energy, list.frequency, list.illuminance, list.inductance, list.jurisdiction, list.link, list.luminous_flux, list.mass_flow_rate, list.number_decimal, list.number_integer, list.power, list.pressure, list.rating, list.resolution, list.rotational_speed, list.single_line_text_field, list.sound_level, list.speed, list.temperature, list.thermal_power, list.url, list.voltage, list.volume, list.volumetric_flow_rate, list.weight, luminous_flux, mass_flow_rate, money, multi_line_text_field, number_decimal, number_integer, power, pressure, rating, resolution, rich_text_field, rotational_speed, single_line_text_field, sound_level, speed, temperature, thermal_power, url, voltage, volume, volumetric_flow_rate, weight, company_reference, list.company_reference, customer_reference, list.customer_reference, product_reference, list.product_reference, collection_reference, list.collection_reference, variant_reference, list.variant_reference, file_reference, list.file_reference, product_taxonomy_value_reference, list.product_taxonomy_value_reference, product_taxonomy_disclosure_reference, metaobject_reference, list.metaobject_reference, mixed_reference, list.mixed_reference, disclosure_reference, list.disclosure_reference, page_reference, list.page_reference, article_reference, list.article_reference, order_reference, list.order_reference.",
               "code": "INCLUSION",
               "elementKey": "title",
               "elementIndex": null
@@ -241,7 +244,259 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 11,
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validJurisdiction": {
+    "name": "valid-jurisdiction-field-type",
+    "request": {
+      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        type {\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "field_validation_jurisdiction_1783050770682",
+          "name": "Valid Jurisdiction Field Type",
+          "displayNameKey": "jurisdiction",
+          "fieldDefinitions": [
+            {
+              "key": "jurisdiction",
+              "name": "jurisdiction",
+              "type": "jurisdiction"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/19556892978",
+            "type": "field_validation_jurisdiction_1783050770682",
+            "displayNameKey": "jurisdiction",
+            "fieldDefinitions": [
+              {
+                "key": "jurisdiction",
+                "type": {
+                  "name": "jurisdiction"
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validListJurisdiction": {
+    "name": "valid-list-jurisdiction-field-type",
+    "request": {
+      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        type {\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "field_validation_list_jurisdiction_1783050770682",
+          "name": "Valid List Jurisdiction Field Type",
+          "displayNameKey": "jurisdictions",
+          "fieldDefinitions": [
+            {
+              "key": "jurisdictions",
+              "name": "jurisdictions",
+              "type": "list.jurisdiction"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/19556925746",
+            "type": "field_validation_list_jurisdiction_1783050770682",
+            "displayNameKey": "jurisdictions",
+            "fieldDefinitions": [
+              {
+                "key": "jurisdictions",
+                "type": {
+                  "name": "list.jurisdiction"
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validProductTaxonomyDisclosureReference": {
+    "name": "valid-product-taxonomy-disclosure-reference-field-type",
+    "request": {
+      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        type {\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "field_validation_product_taxonomy_disclosure_1783050770682",
+          "name": "Valid Product Taxonomy Disclosure Reference Field Type",
+          "displayNameKey": "product_taxonomy_disclosure",
+          "fieldDefinitions": [
+            {
+              "key": "product_taxonomy_disclosure",
+              "name": "product_taxonomy_disclosure",
+              "type": "product_taxonomy_disclosure_reference"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/19556958514",
+            "type": "field_validation_product_taxonomy_disclosure_1783050770682",
+            "displayNameKey": "product_taxonomy_disclosure",
+            "fieldDefinitions": [
+              {
+                "key": "product_taxonomy_disclosure",
+                "type": {
+                  "name": "product_taxonomy_disclosure_reference"
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "standardOnlyDisclosureReference": {
+    "name": "standard-only-disclosure-reference-field-type",
+    "request": {
+      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        type {\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "field_validation_disclosure_reference_1783050770682",
+          "name": "Standard Only Disclosure Reference Field Type",
+          "displayNameKey": "disclosure",
+          "fieldDefinitions": [
+            {
+              "key": "disclosure",
+              "name": "disclosure",
+              "type": "disclosure_reference"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "fieldDefinitions", "0"],
+              "message": "The disclosure_reference type can only be used in standard definitions provided by Shopify.",
+              "code": "INVALID",
+              "elementKey": "disclosure",
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "standardOnlyListDisclosureReference": {
+    "name": "standard-only-list-disclosure-reference-field-type",
+    "request": {
+      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        type {\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "field_validation_list_disclosure_reference_1783050770682",
+          "name": "Standard Only List Disclosure Reference Field Type",
+          "displayNameKey": "disclosures",
+          "fieldDefinitions": [
+            {
+              "key": "disclosures",
+              "name": "disclosures",
+              "type": "list.disclosure_reference"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "fieldDefinitions", "0"],
+              "message": "The disclosure_reference type can only be used in standard definitions provided by Shopify.",
+              "code": "INVALID",
+              "elementKey": "disclosures",
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
@@ -255,10 +510,10 @@
   "hyphenKey": {
     "name": "hyphen-field-key",
     "request": {
-      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        type {\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "definition": {
-          "type": "field_validation_hyphen_1778253504912",
+          "type": "field_validation_hyphen_1783050770682",
           "name": "Hyphen Field Key",
           "displayNameKey": "field-key",
           "fieldDefinitions": [
@@ -276,12 +531,15 @@
       "data": {
         "metaobjectDefinitionCreate": {
           "metaobjectDefinition": {
-            "id": "gid://shopify/MetaobjectDefinition/17966203186",
-            "type": "field_validation_hyphen_1778253504912",
+            "id": "gid://shopify/MetaobjectDefinition/19557056818",
+            "type": "field_validation_hyphen_1783050770682",
             "displayNameKey": "field-key",
             "fieldDefinitions": [
               {
-                "key": "field-key"
+                "key": "field-key",
+                "type": {
+                  "name": "single_line_text_field"
+                }
               }
             ]
           },
@@ -290,11 +548,11 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 11,
-          "actualQueryCost": 11,
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1989,
+            "currentlyAvailable": 1988,
             "restoreRate": 100
           }
         }
@@ -304,10 +562,10 @@
   "tooManyFields": {
     "name": "too-many-field-definitions",
     "request": {
-      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        type {\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "definition": {
-          "type": "field_validation_many_1778253504912",
+          "type": "field_validation_many_1783050770682",
           "name": "Too Many Field Definitions",
           "displayNameKey": "field_1",
           "fieldDefinitions": [
@@ -538,7 +796,7 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 11,
+          "requestedQueryCost": 12,
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
@@ -552,10 +810,10 @@
   "reservedShopifyFormTooManyFields": {
     "name": "reserved-shopify-form-too-many-field-definitions",
     "request": {
-      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "query": "mutation MetaobjectDefinitionCreateFieldValidations($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      displayNameKey\n      fieldDefinitions {\n        key\n        type {\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
       "variables": {
         "definition": {
-          "type": "shopify--form-field-validation-many-1778253504912",
+          "type": "shopify--form-field-validation-many-1783050770682",
           "name": "Reserved Shopify Form Too Many Field Definitions",
           "displayNameKey": "field_1",
           "fieldDefinitions": [
@@ -786,7 +1044,7 @@
       },
       "extensions": {
         "cost": {
-          "requestedQueryCost": 11,
+          "requestedQueryCost": 12,
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
@@ -803,14 +1061,14 @@
       "request": {
         "query": "#graphql\n  mutation DeleteMetaobjectDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/MetaobjectDefinition/17966203186"
+          "id": "gid://shopify/MetaobjectDefinition/19557056818"
         }
       },
       "status": 200,
       "response": {
         "data": {
           "metaobjectDefinitionDelete": {
-            "deletedId": "gid://shopify/MetaobjectDefinition/17966203186",
+            "deletedId": "gid://shopify/MetaobjectDefinition/19557056818",
             "userErrors": []
           }
         },
@@ -821,6 +1079,93 @@
             "throttleStatus": {
               "maximumAvailable": 2000,
               "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-valid-jurisdiction-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation DeleteMetaobjectDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/19556892978"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/19556892978",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-valid-list-jurisdiction-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation DeleteMetaobjectDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/19556925746"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/19556925746",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-valid-product-taxonomy-disclosure-reference-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation DeleteMetaobjectDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/19556958514"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/19556958514",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }

@@ -137,7 +137,12 @@ Rejected blank-name updates do not stage a replacement name or append a
 mutation-log entry; omitted update names preserve the existing local name while
 applying other staged fields. The local model stores service name, formatted
 name, callback URL, active flag, service-discovery flag, and stable synthetic
-IDs for parity replay.
+IDs for parity replay. `carrierServices(query:)` parses whitespace-separated
+`field:value` tokens for the documented local fields `active` and `id`; multiple
+tokens are combined with AND semantics. Unsupported filter fields or bare search
+terms return an empty local connection rather than widening the result set.
+`sortKey: ID`, `CREATED_AT`, and `UPDATED_AT` plus `reverse` are applied before
+cursor windowing.
 
 Fulfillment and fulfillment-order slices cover fixture-backed top-level reads,
 detail/event reads, hold/release, move, open/report-progress, close,
@@ -169,6 +174,12 @@ written into the local order graph and are visible through `fulfillmentOrder`,
 `fulfillmentOrders`, `assignedFulfillmentOrders`, and nested
 `Order.fulfillmentOrders` reads. These slices operate on local order-backed
 fulfillment records and are not a general fulfillment-service execution engine.
+`fulfillmentOrdersSetFulfillmentDeadline` stages `fulfillBy` for every
+requested fulfillment order that exists in local or hydrated order state,
+including `CLOSED` and `CANCELLED` fulfillment orders. When none of the
+requested IDs resolve, it returns `success: false` with a single user error:
+`field: null`, message `Fulfillment orders could not be found.`, and
+`code: null`.
 `fulfillmentOrderMove` resolves the destination from staged or hydrated
 location records; missing or inactive destinations return the local
 `Location not found.` user error, and successful move payloads serialize the
@@ -188,7 +199,13 @@ and incrementing `version`; unsupported side effects such as rate recalculation
 remain outside this slice. Delivery profile name validation accepts exactly 128
 characters and rejects 129-character names on both create and update with a
 public `UserError` payload containing `field` and `message`; `code` is not
-selectable on the captured Admin GraphQL 2026-04 `UserError` type.
+selectable on the captured Admin GraphQL 2026-04 `UserError` type. Location
+IDs supplied in delivery-profile location groups must resolve from staged,
+observed, or LiveHybrid-hydrated location state; unknown IDs return the public
+`The Location could not be found for this shop.` userError instead of creating a
+synthetic location. `deliveryProfiles(first/last/after/before/reverse:)` uses
+the staged effective profile order to compute page windows and `pageInfo`
+boundary cursors instead of returning a canned connection envelope.
 
 Local pickup mutations stage settings on active local locations and retain the
 original raw GraphQL request for commit replay. `locationLocalPickupEnable`
@@ -202,10 +219,16 @@ settings on active locations and rejects unknown or inactive locations with
 `locationsAvailableForDeliveryProfilesConnection` in snapshot mode and after
 LiveHybrid reads hydrate the existing shipping locations.
 
-Shipping package slices stage changes on known package records and retain the
-original raw GraphQL request for commit replay. Shipping packages have no direct
-Admin GraphQL package read root in the captured schema, so successful staging is
-verified through local state/log behavior and targeted validation.
+Shipping package slices stage changes on package records already present in the
+local staged/observed store or hydrated from Shopify in LiveHybrid mode, and
+they retain the original raw GraphQL request for commit replay. The runtime does
+not seed canned package dimensions, weights, or names: absent or locally deleted
+package IDs return Shopify's top-level `RESOURCE_NOT_FOUND` envelope, while
+observed or hydrated package records preserve their real fields across partial
+updates. Making a package default clears the default flag across every known
+package record instead of relying on a fixed ID list. Shipping packages have no
+direct Admin GraphQL package read root in the captured schema, so successful
+staging is verified through local state/log behavior and targeted validation.
 
 Reverse delivery, reverse fulfillment disposal, and order-edit shipping-line
 roots are modeled through the orders and returns local graph when covered by
@@ -229,5 +252,5 @@ with `/endpoints/orders/` and `/endpoints/returns/`.
   calculation, carrier callback execution, carrier service-discovery side
   effects, and full shipping-package discovery/validation remain outside the
   supported local slices.
-- Unsupported mutation documents outside the ported local slices follow the
+- Unsupported mutation documents outside the modeled local slices follow the
   configured unsupported path and must remain visible in logs/observability.

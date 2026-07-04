@@ -1,0 +1,645 @@
+{
+  "setup": {
+    "hydrateProductCreate": {
+      "variables": {
+        "product": {
+          "title": "Partial Overlay Hydrate 1783138509188",
+          "status": "ACTIVE",
+          "vendor": "Conformance",
+          "productType": "Overlay Control"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10231260119346",
+              "title": "Partial Overlay Hydrate 1783138509188",
+              "handle": "partial-overlay-hydrate-1783138509188",
+              "status": "ACTIVE"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "searchProductCreate": {
+      "variables": {
+        "product": {
+          "title": "Partial Overlay Search 1783138509188",
+          "status": "ACTIVE",
+          "vendor": "Conformance",
+          "productType": "Overlay Search"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10231260152114",
+              "title": "Partial Overlay Search 1783138509188",
+              "handle": "partial-overlay-search-1783138509188",
+              "status": "ACTIVE"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "defaultVariantRead": {
+      "variables": {
+        "id": "gid://shopify/Product/10231260152114"
+      },
+      "response": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10231260152114",
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51422583259442",
+                  "sku": null,
+                  "barcode": null
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "variantSetup": {
+      "variables": {
+        "productId": "gid://shopify/Product/10231260152114",
+        "variants": [
+          {
+            "id": "gid://shopify/ProductVariant/51422583259442",
+            "barcode": "8725558509188",
+            "price": "19.95",
+            "inventoryItem": {
+              "sku": "PARTIAL-OVERLAY-3138509188",
+              "tracked": false,
+              "requiresShipping": false
+            }
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productVariantsBulkUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/10231260152114",
+              "title": "Partial Overlay Search 1783138509188",
+              "handle": "partial-overlay-search-1783138509188",
+              "status": "ACTIVE"
+            },
+            "productVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/51422583259442",
+                "sku": "PARTIAL-OVERLAY-3138509188",
+                "barcode": "8725558509188"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "hydrate": {
+    "variables": {
+      "ids": ["gid://shopify/Product/10231260119346"]
+    },
+    "response": {
+      "data": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Product/10231260119346",
+            "title": "Partial Overlay Hydrate 1783138509188",
+            "handle": "partial-overlay-hydrate-1783138509188",
+            "status": "ACTIVE",
+            "totalInventory": 0,
+            "tracksInventory": false,
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51422583226674",
+                  "title": "Default Title",
+                  "sku": null,
+                  "barcode": null,
+                  "price": "0.00",
+                  "compareAtPrice": null,
+                  "taxable": true,
+                  "inventoryPolicy": "DENY",
+                  "inventoryQuantity": 0,
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Title"
+                    }
+                  ],
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53527648043314",
+                    "tracked": false,
+                    "requiresShipping": true
+                  }
+                }
+              ]
+            },
+            "collections": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          }
+        ]
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 21,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "catalog": {
+    "variables": {
+      "productId": "gid://shopify/Product/10231260152114",
+      "first": 5
+    },
+    "response": {
+      "data": {
+        "unobservedProduct": {
+          "id": "gid://shopify/Product/10231260152114",
+          "title": "Partial Overlay Search 1783138509188",
+          "handle": "partial-overlay-search-1783138509188",
+          "status": "ACTIVE",
+          "vendor": "Conformance",
+          "productType": "Overlay Search"
+        },
+        "total": {
+          "count": 1459,
+          "precision": "EXACT"
+        },
+        "products": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMDIzMTI2MDE1MjExNCwibGFzdF92YWx1ZSI6IjIwMjYtMDctMDQgMDQ6MTU6MTAuMDAwMDAwIn0=",
+              "node": {
+                "id": "gid://shopify/Product/10231260152114",
+                "title": "Partial Overlay Search 1783138509188",
+                "handle": "partial-overlay-search-1783138509188",
+                "status": "ACTIVE",
+                "vendor": "Conformance",
+                "productType": "Overlay Search",
+                "tags": [],
+                "updatedAt": "2026-07-04T04:15:10Z"
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMDIzMTI2MDExOTM0NiwibGFzdF92YWx1ZSI6IjIwMjYtMDctMDQgMDQ6MTU6MDkuMDAwMDAwIn0=",
+              "node": {
+                "id": "gid://shopify/Product/10231260119346",
+                "title": "Partial Overlay Hydrate 1783138509188",
+                "handle": "partial-overlay-hydrate-1783138509188",
+                "status": "ACTIVE",
+                "vendor": "Conformance",
+                "productType": "Overlay Control",
+                "tags": [],
+                "updatedAt": "2026-07-04T04:15:09Z"
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjo5ODk5NzMyMzM2OTQ2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wNCAwMjozMToyOC4wMDAwMDAifQ==",
+              "node": {
+                "id": "gid://shopify/Product/9899732336946",
+                "title": "Test Product - 3580",
+                "handle": "test-product-3580",
+                "status": "ACTIVE",
+                "vendor": "harry-test-heelo",
+                "productType": "",
+                "tags": [],
+                "updatedAt": "2026-07-04T02:31:28Z"
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjo5ODk5NzMxNTgzMjgyLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wNCAwMjozMToyOC4wMDAwMDAifQ==",
+              "node": {
+                "id": "gid://shopify/Product/9899731583282",
+                "title": "Test Product - 4375",
+                "handle": "test-product-4376",
+                "status": "ACTIVE",
+                "vendor": "harry-test-heelo",
+                "productType": "",
+                "tags": [],
+                "updatedAt": "2026-07-04T02:31:28Z"
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjo5ODk5NzMwMDc1OTU0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wNCAwMjozMToyOC4wMDAwMDAifQ==",
+              "node": {
+                "id": "gid://shopify/Product/9899730075954",
+                "title": "Test Product - 1398",
+                "handle": "test-product-1398",
+                "status": "ACTIVE",
+                "vendor": "harry-test-heelo",
+                "productType": "",
+                "tags": [],
+                "updatedAt": "2026-07-04T02:31:28Z"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxMDIzMTI2MDE1MjExNCwibGFzdF92YWx1ZSI6IjIwMjYtMDctMDQgMDQ6MTU6MTAuMDAwMDAwIn0=",
+            "endCursor": "eyJsYXN0X2lkIjo5ODk5NzMwMDc1OTU0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wNCAwMjozMToyOC4wMDAwMDAifQ=="
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 16,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "search": {
+    "variables": {
+      "handleQuery": "handle:partial-overlay-search-1783138509188",
+      "barcodeQuery": "barcode:8725558509188"
+    },
+    "response": {
+      "data": {
+        "handleCount": {
+          "count": 1,
+          "precision": "EXACT"
+        },
+        "handleProducts": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMDIzMTI2MDE1MjExNCwibGFzdF92YWx1ZSI6IjEwMjMxMjYwMTUyMTE0In0=",
+              "node": {
+                "id": "gid://shopify/Product/10231260152114",
+                "title": "Partial Overlay Search 1783138509188",
+                "handle": "partial-overlay-search-1783138509188",
+                "status": "ACTIVE"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxMDIzMTI2MDE1MjExNCwibGFzdF92YWx1ZSI6IjEwMjMxMjYwMTUyMTE0In0=",
+            "endCursor": "eyJsYXN0X2lkIjoxMDIzMTI2MDE1MjExNCwibGFzdF92YWx1ZSI6IjEwMjMxMjYwMTUyMTE0In0="
+          }
+        },
+        "barcodeCount": {
+          "count": 1,
+          "precision": "EXACT"
+        },
+        "barcodeProducts": {
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjoxMDIzMTI2MDE1MjExNCwibGFzdF92YWx1ZSI6MTAyMzEyNjAxNTIxMTR9",
+              "node": {
+                "id": "gid://shopify/Product/10231260152114",
+                "title": "Partial Overlay Search 1783138509188",
+                "handle": "partial-overlay-search-1783138509188",
+                "status": "ACTIVE"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxMDIzMTI2MDE1MjExNCwibGFzdF92YWx1ZSI6MTAyMzEyNjAxNTIxMTR9",
+            "endCursor": "eyJsYXN0X2lkIjoxMDIzMTI2MDE1MjExNCwibGFzdF92YWx1ZSI6MTAyMzEyNjAxNTIxMTR9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 30,
+          "actualQueryCost": 28,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1972,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10231260119346"]
+      },
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10231260119346",
+                "title": "Partial Overlay Hydrate 1783138509188",
+                "handle": "partial-overlay-hydrate-1783138509188",
+                "status": "ACTIVE",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51422583226674",
+                      "title": "Default Title",
+                      "sku": null,
+                      "barcode": null,
+                      "price": "0.00",
+                      "compareAtPrice": null,
+                      "taxable": true,
+                      "inventoryPolicy": "DENY",
+                      "inventoryQuantity": 0,
+                      "selectedOptions": [
+                        {
+                          "name": "Title",
+                          "value": "Default Title"
+                        }
+                      ],
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53527648043314",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                },
+                "collections": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsPartialOverlayCatalogRead",
+      "variables": {
+        "productId": "gid://shopify/Product/10231260152114",
+        "first": 5
+      },
+      "query": "query ProductsPartialOverlayCatalogRead($productId: ID!, $first: Int!) {\n  unobservedProduct: product(id: $productId) {\n    id\n    title\n    handle\n    status\n    vendor\n    productType\n  }\n  total: productsCount {\n    count\n    precision\n  }\n  products(first: $first, sortKey: UPDATED_AT, reverse: true) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n        status\n        vendor\n        productType\n        tags\n        updatedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "unobservedProduct": {
+              "id": "gid://shopify/Product/10231260152114",
+              "title": "Partial Overlay Search 1783138509188",
+              "handle": "partial-overlay-search-1783138509188",
+              "status": "ACTIVE",
+              "vendor": "Conformance",
+              "productType": "Overlay Search"
+            },
+            "total": {
+              "count": 1459,
+              "precision": "EXACT"
+            },
+            "products": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDIzMTI2MDE1MjExNCwibGFzdF92YWx1ZSI6IjIwMjYtMDctMDQgMDQ6MTU6MTAuMDAwMDAwIn0=",
+                  "node": {
+                    "id": "gid://shopify/Product/10231260152114",
+                    "title": "Partial Overlay Search 1783138509188",
+                    "handle": "partial-overlay-search-1783138509188",
+                    "status": "ACTIVE",
+                    "vendor": "Conformance",
+                    "productType": "Overlay Search",
+                    "tags": [],
+                    "updatedAt": "2026-07-04T04:15:10Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDIzMTI2MDExOTM0NiwibGFzdF92YWx1ZSI6IjIwMjYtMDctMDQgMDQ6MTU6MDkuMDAwMDAwIn0=",
+                  "node": {
+                    "id": "gid://shopify/Product/10231260119346",
+                    "title": "Partial Overlay Hydrate 1783138509188",
+                    "handle": "partial-overlay-hydrate-1783138509188",
+                    "status": "ACTIVE",
+                    "vendor": "Conformance",
+                    "productType": "Overlay Control",
+                    "tags": [],
+                    "updatedAt": "2026-07-04T04:15:09Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODk5NzMyMzM2OTQ2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wNCAwMjozMToyOC4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/9899732336946",
+                    "title": "Test Product - 3580",
+                    "handle": "test-product-3580",
+                    "status": "ACTIVE",
+                    "vendor": "harry-test-heelo",
+                    "productType": "",
+                    "tags": [],
+                    "updatedAt": "2026-07-04T02:31:28Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODk5NzMxNTgzMjgyLCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wNCAwMjozMToyOC4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/9899731583282",
+                    "title": "Test Product - 4375",
+                    "handle": "test-product-4376",
+                    "status": "ACTIVE",
+                    "vendor": "harry-test-heelo",
+                    "productType": "",
+                    "tags": [],
+                    "updatedAt": "2026-07-04T02:31:28Z"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODk5NzMwMDc1OTU0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wNCAwMjozMToyOC4wMDAwMDAifQ==",
+                  "node": {
+                    "id": "gid://shopify/Product/9899730075954",
+                    "title": "Test Product - 1398",
+                    "handle": "test-product-1398",
+                    "status": "ACTIVE",
+                    "vendor": "harry-test-heelo",
+                    "productType": "",
+                    "tags": [],
+                    "updatedAt": "2026-07-04T02:31:28Z"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDIzMTI2MDE1MjExNCwibGFzdF92YWx1ZSI6IjIwMjYtMDctMDQgMDQ6MTU6MTAuMDAwMDAwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjo5ODk5NzMwMDc1OTU0LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNy0wNCAwMjozMToyOC4wMDAwMDAifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductsPartialOverlaySearchRead",
+      "variables": {
+        "handleQuery": "handle:partial-overlay-search-1783138509188",
+        "barcodeQuery": "barcode:8725558509188"
+      },
+      "query": "query ProductsPartialOverlaySearchRead($handleQuery: String!, $barcodeQuery: String!) {\n  handleCount: productsCount(query: $handleQuery) {\n    count\n    precision\n  }\n  handleProducts: products(first: 5, query: $handleQuery) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n        status\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  barcodeCount: productsCount(query: $barcodeQuery) {\n    count\n    precision\n  }\n  barcodeProducts: products(first: 5, query: $barcodeQuery) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n        status\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "handleCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "handleProducts": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDIzMTI2MDE1MjExNCwibGFzdF92YWx1ZSI6IjEwMjMxMjYwMTUyMTE0In0=",
+                  "node": {
+                    "id": "gid://shopify/Product/10231260152114",
+                    "title": "Partial Overlay Search 1783138509188",
+                    "handle": "partial-overlay-search-1783138509188",
+                    "status": "ACTIVE"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDIzMTI2MDE1MjExNCwibGFzdF92YWx1ZSI6IjEwMjMxMjYwMTUyMTE0In0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMDIzMTI2MDE1MjExNCwibGFzdF92YWx1ZSI6IjEwMjMxMjYwMTUyMTE0In0="
+              }
+            },
+            "barcodeCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "barcodeProducts": {
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjoxMDIzMTI2MDE1MjExNCwibGFzdF92YWx1ZSI6MTAyMzEyNjAxNTIxMTR9",
+                  "node": {
+                    "id": "gid://shopify/Product/10231260152114",
+                    "title": "Partial Overlay Search 1783138509188",
+                    "handle": "partial-overlay-search-1783138509188",
+                    "status": "ACTIVE"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMDIzMTI2MDE1MjExNCwibGFzdF92YWx1ZSI6MTAyMzEyNjAxNTIxMTR9",
+                "endCursor": "eyJsYXN0X2lkIjoxMDIzMTI2MDE1MjExNCwibGFzdF92YWx1ZSI6MTAyMzEyNjAxNTIxMTR9"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 30,
+              "actualQueryCost": 28,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1972,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

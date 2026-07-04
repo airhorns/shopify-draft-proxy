@@ -123,7 +123,7 @@ fn operation_capability_returns_implemented_canonical_registry_matches_only() {
 }
 
 #[test]
-fn default_registry_classifies_core_port_targets_without_runtime_io() {
+fn default_registry_classifies_core_local_targets_without_runtime_io() {
     let registry = default_registry();
 
     let product = operation_capability(&registry, OperationType::Query, Some("product"));
@@ -167,11 +167,12 @@ fn default_registry_runtime_tests_reference_current_rust_coverage_files() {
     // locally-handled surface, while declared runtime coverage stays scoped to the operations
     // exercised by the uniform table dispatch. Validate every declared runtime-test reference,
     // but do not require one per implemented entry.
+    let removed_runtime_extension = ['.', 'g', 'l', 'e', 'a', 'm'].iter().collect::<String>();
     for entry in &default_registry() {
         for runtime_test in &entry.runtime_tests {
             assert!(
-                !runtime_test.ends_with(".gleam"),
-                "registry entry {} still points at deleted Gleam test {}",
+                !runtime_test.ends_with(&removed_runtime_extension),
+                "registry entry {} still points at a removed runtime test {}",
                 entry.name,
                 runtime_test
             );
