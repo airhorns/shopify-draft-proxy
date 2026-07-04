@@ -1,0 +1,142 @@
+{
+  "scenarioId": "catalogs-connection-read",
+  "operationNames": ["marketCreate", "catalogCreate", "catalogs", "catalogsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "query-filter",
+    "type-filter",
+    "sort",
+    "pagination-shape",
+    "count-shape",
+    "local-staging"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalogs-connection-read.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-context-update-market-create.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-alpha-market",
+        "capturePath": "$.cases[0].response.payload.data.marketCreate.userErrors",
+        "proxyPath": "$.data.marketCreate.userErrors"
+      },
+      {
+        "name": "setup-beta-market",
+        "capturePath": "$.cases[1].response.payload.data.marketCreate.userErrors",
+        "proxyPath": "$.data.marketCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-market-create.graphql",
+          "variablesCapturePath": "$.cases[1].variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "setup-alpha-catalog",
+        "capturePath": "$.cases[2].response.payload.data.catalogCreate.userErrors",
+        "proxyPath": "$.data.catalogCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-catalog-create.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "title": { "fromCapturePath": "$.cases[2].variables.input.title" },
+              "status": { "fromCapturePath": "$.cases[2].variables.input.status" },
+              "context": {
+                "marketIds": [{ "fromPrimaryProxyPath": "$.data.marketCreate.market.id" }]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "setup-beta-catalog",
+        "capturePath": "$.cases[3].response.payload.data.catalogCreate.userErrors",
+        "proxyPath": "$.data.catalogCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-catalog-create.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "title": { "fromCapturePath": "$.cases[3].variables.input.title" },
+              "status": { "fromCapturePath": "$.cases[3].variables.input.status" },
+              "context": {
+                "marketIds": [
+                  {
+                    "fromProxyResponse": "setup-beta-market",
+                    "path": "$.data.marketCreate.market.id"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "filtered-first-page-count-and-type-filter",
+        "capturePath": "$.cases[4].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalogs-connection-read.graphql",
+          "variablesCapturePath": "$.cases[4].variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.firstPage.nodes[0].__typename",
+          "$.firstPage.nodes[0].title",
+          "$.firstPage.nodes[0].status",
+          "$.firstPage.edges[0].node.__typename",
+          "$.firstPage.edges[0].node.title",
+          "$.firstPage.edges[0].node.status",
+          "$.firstPage.pageInfo.hasNextPage",
+          "$.firstPage.pageInfo.hasPreviousPage",
+          "$.wrongType.nodes",
+          "$.wrongType.edges",
+          "$.wrongType.pageInfo.hasNextPage",
+          "$.wrongType.pageInfo.hasPreviousPage",
+          "$.limitedCount.count",
+          "$.limitedCount.precision",
+          "$.wrongTypeCount.count",
+          "$.wrongTypeCount.precision"
+        ]
+      },
+      {
+        "name": "filtered-next-page",
+        "capturePath": "$.cases[5].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalogs-connection-next-page.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "query": { "fromCapturePath": "$.cases[5].variables.query" },
+            "first": { "fromCapturePath": "$.cases[5].variables.first" },
+            "after": {
+              "fromProxyResponse": "filtered-first-page-count-and-type-filter",
+              "path": "$.data.firstPage.pageInfo.endCursor"
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.nextPage.nodes[0].__typename",
+          "$.nextPage.nodes[0].title",
+          "$.nextPage.nodes[0].status",
+          "$.nextPage.edges[0].node.__typename",
+          "$.nextPage.edges[0].node.title",
+          "$.nextPage.edges[0].node.status",
+          "$.nextPage.pageInfo.hasNextPage",
+          "$.nextPage.pageInfo.hasPreviousPage"
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture creates two disposable MarketCatalog records, reads them through `catalogs(type: MARKET, query:, sortKey: TITLE, reverse:)` with cursor pagination, verifies `catalogsCount(type: MARKET, query:, limit:)`, and verifies the same query under `type: COMPANY_LOCATION` is empty. Local replay stages the same resources through public GraphQL mutations and compares stable titles/status/type/pageInfo/count fields while leaving live IDs and opaque cursors out of strict comparison."
+}

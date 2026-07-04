@@ -1,0 +1,20 @@
+query OwnerMetafieldsConnectionArgsPostDelete($id: ID!) {
+  product(id: $id) {
+    postDeleteKeysReverse: metafields(
+      first: 10
+      keys: ["connection_args.bravo", "connection_args.charlie"]
+      reverse: true
+    ) {
+      nodes {
+        namespace
+        key
+        type
+        value
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+}

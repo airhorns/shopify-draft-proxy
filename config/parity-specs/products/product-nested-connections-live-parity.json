@@ -1,0 +1,380 @@
+{
+  "scenarioId": "product-nested-connections-live-parity",
+  "operationNames": [
+    "productCreate",
+    "productVariantsBulkCreate",
+    "collectionCreate",
+    "collectionAddProductsV2",
+    "productCreateMedia",
+    "productUpdateMedia",
+    "productVariantAppendMedia"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-nested-connections.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-nested-connections-product-create.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.setup.productCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-product-create-user-errors",
+        "capturePath": "$.setup.productCreate.response.payload.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors"
+      },
+      {
+        "name": "setup-variant-bulk-create",
+        "capturePath": "$.setup.productVariantsBulkCreate.response.payload.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-nested-connections-variant-bulk-create.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variants": {
+              "fromCapturePath": "$.setup.productVariantsBulkCreate.variables.variants"
+            },
+            "strategy": {
+              "fromCapturePath": "$.setup.productVariantsBulkCreate.variables.strategy"
+            }
+          }
+        }
+      },
+      {
+        "name": "setup-collection-create-zulu",
+        "capturePath": "$.setup.collectionCreate.zulu.response.payload.data.collectionCreate.userErrors",
+        "proxyPath": "$.data.collectionCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-nested-connections-collection-create.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.setup.collectionCreate.zulu.variables"
+        }
+      },
+      {
+        "name": "setup-collection-create-alpha",
+        "capturePath": "$.setup.collectionCreate.alpha.response.payload.data.collectionCreate.userErrors",
+        "proxyPath": "$.data.collectionCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-nested-connections-collection-create.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.setup.collectionCreate.alpha.variables"
+        }
+      },
+      {
+        "name": "setup-collection-create-middle",
+        "capturePath": "$.setup.collectionCreate.middle.response.payload.data.collectionCreate.userErrors",
+        "proxyPath": "$.data.collectionCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-nested-connections-collection-create.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.setup.collectionCreate.middle.variables"
+        }
+      },
+      {
+        "name": "setup-collection-add-products-v2-zulu",
+        "capturePath": "$.setup.collectionAddProductsV2.zulu.response.payload.data.collectionAddProductsV2.userErrors",
+        "proxyPath": "$.data.collectionAddProductsV2.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-nested-connections-collection-add-products-v2.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-collection-create-zulu",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "productIds": [
+              {
+                "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "setup-collection-add-products-v2-alpha",
+        "capturePath": "$.setup.collectionAddProductsV2.alpha.response.payload.data.collectionAddProductsV2.userErrors",
+        "proxyPath": "$.data.collectionAddProductsV2.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-nested-connections-collection-add-products-v2.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-collection-create-alpha",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "productIds": [
+              {
+                "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "setup-collection-add-products-v2-middle",
+        "capturePath": "$.setup.collectionAddProductsV2.middle.response.payload.data.collectionAddProductsV2.userErrors",
+        "proxyPath": "$.data.collectionAddProductsV2.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-nested-connections-collection-add-products-v2.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-collection-create-middle",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "productIds": [
+              {
+                "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "setup-product-media-create",
+        "capturePath": "$.setup.productCreateMedia.response.payload.data.productCreateMedia.mediaUserErrors",
+        "proxyPath": "$.data.productCreateMedia.mediaUserErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-nested-connections-product-create-media.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "media": {
+              "fromCapturePath": "$.setup.productCreateMedia.variables.media"
+            }
+          }
+        }
+      },
+      {
+        "name": "setup-product-media-update-ready",
+        "capturePath": "$.setup.productUpdateMedia.response.payload.data.productUpdateMedia.mediaUserErrors",
+        "proxyPath": "$.data.productUpdateMedia.mediaUserErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-nested-connections-product-update-media.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "media": [
+              {
+                "id": {
+                  "fromProxyResponse": "setup-product-media-create",
+                  "path": "$.data.productCreateMedia.media[0].id"
+                }
+              },
+              {
+                "id": {
+                  "fromProxyResponse": "setup-product-media-create",
+                  "path": "$.data.productCreateMedia.media[1].id"
+                }
+              },
+              {
+                "id": {
+                  "fromProxyResponse": "setup-product-media-create",
+                  "path": "$.data.productCreateMedia.media[2].id"
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "setup-variant-media-append",
+        "capturePath": "$.setup.productVariantAppendMedia.response.payload.data.productVariantAppendMedia.userErrors",
+        "proxyPath": "$.data.productVariantAppendMedia.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-nested-connections-variant-append-media.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "variantMedia": [
+              {
+                "variantId": {
+                  "fromProxyResponse": "setup-variant-bulk-create",
+                  "path": "$.data.productVariantsBulkCreate.productVariants[1].id"
+                },
+                "mediaIds": [
+                  {
+                    "fromProxyResponse": "setup-product-media-update-ready",
+                    "path": "$.data.productUpdateMedia.media[1].id"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "variant-sort-read",
+        "capturePath": "$.reads.variantSorts.response.payload.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-nested-connections-variant-sort-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.byNameReverseWindow.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify uses opaque connection cursors while the proxy uses local stable cursors."
+          },
+          {
+            "path": "$.byNameReverseWindow.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify uses opaque connection cursors while the proxy uses local stable cursors."
+          }
+        ]
+      },
+      {
+        "name": "collection-sort-read",
+        "capturePath": "$.reads.collectionSorts.response.payload.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-nested-connections-collection-sort-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.byTitleReverseWindow.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify uses opaque connection cursors while the proxy uses local stable cursors."
+          },
+          {
+            "path": "$.byTitleReverseWindow.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify uses opaque connection cursors while the proxy uses local stable cursors."
+          },
+          {
+            "path": "$.byTitleReverseWindow.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify uses opaque connection cursors while the proxy uses local stable cursors."
+          }
+        ]
+      },
+      {
+        "name": "product-media-first-read",
+        "capturePath": "$.reads.productMediaFirst.response.payload.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-nested-connections-product-media-first.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.media.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify uses opaque connection cursors while the proxy uses local stable cursors."
+          },
+          {
+            "path": "$.media.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify uses opaque connection cursors while the proxy uses local stable cursors."
+          },
+          {
+            "path": "$.media.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify uses opaque connection cursors while the proxy uses local stable cursors."
+          }
+        ]
+      },
+      {
+        "name": "product-media-after-read",
+        "capturePath": "$.reads.productMediaAfter.response.payload.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-nested-connections-product-media-after.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "after": {
+              "fromProxyResponse": "product-media-first-read",
+              "path": "$.data.product.media.edges[0].cursor"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.media.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify uses opaque connection cursors while the proxy uses local stable cursors."
+          },
+          {
+            "path": "$.media.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify uses opaque connection cursors while the proxy uses local stable cursors."
+          },
+          {
+            "path": "$.media.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify uses opaque connection cursors while the proxy uses local stable cursors."
+          }
+        ]
+      },
+      {
+        "name": "variant-media-read",
+        "capturePath": "$.reads.variantMedia.response.payload.data.productVariant",
+        "proxyPath": "$.data.productVariant",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-nested-connections-variant-media-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "variantId": {
+              "fromProxyResponse": "setup-variant-bulk-create",
+              "path": "$.data.productVariantsBulkCreate.productVariants[1].id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.media.edges[*].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify uses opaque connection cursors while the proxy uses local stable cursors."
+          },
+          {
+            "path": "$.media.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify uses opaque connection cursors while the proxy uses local stable cursors."
+          },
+          {
+            "path": "$.media.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify uses opaque connection cursors while the proxy uses local stable cursors."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Captured Shopify nested Product connection mechanics for product.variants sortKey/reverse, product.collections sortKey/reverse/windowing, product.media cursor windows, and ProductVariant.media populated edges/pageInfo. Setup replays only public Admin GraphQL mutations; no proxy state seed is used."
+}

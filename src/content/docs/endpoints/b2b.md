@@ -14,6 +14,7 @@ company-location tax settings, and B2B address behavior.
 The implemented read roots are:
 
 - `companies`
+- `companiesCount`
 - `company`
 - `companyContact`
 - `companyLocation`
@@ -50,7 +51,7 @@ The implemented mutation roots are:
 
 Tracked but unimplemented B2B roots remain registry-only until they have their
 own local lifecycle and downstream read-after-write model. This includes
-`companiesCount`, `companyContactRole`, and `companyContactSendWelcomeEmail`.
+`companyContactRole` and `companyContactSendWelcomeEmail`.
 
 ### Local behavior
 
@@ -69,21 +70,34 @@ proxy, so the cap applies even when the optional
 The local B2B graph stores staged companies, company locations, company
 addresses embedded on locations, company contacts, contact roles,
 location-role assignments, and location-staff assignments. `company(id:)`,
-`companyLocation(id:)`, and `companyLocations` expand that staged graph for
+`companyLocation(id:)`, `companies`, `companiesCount`, and `companyLocations` expand that staged graph for
 read-after-write, including nested `locations`, `contacts`, `contactRoles`,
 `roleAssignments`, and `staffMemberAssignments` connections. LiveHybrid reads
 that do not target staged B2B IDs continue to use the existing upstream or
 fixture-backed read path.
 
-`companies(first:, query:)` is answered from the local B2B graph only after
-company state has been staged or hydrated in the current session. A cold
-LiveHybrid `companies` connection read forwards upstream unchanged so real
-store companies are visible before local B2B writes occur.
+Local B2B list connections use the shared staged-connection path for filtering,
+sorting, `reverse`, cursor windows, and `pageInfo`. `companies` supports
+field-scoped query terms for `id`, `name`, and `external_id`; `companyLocations`
+supports `id`, `name`, `external_id`, and `company_id`. Unsupported or
+unparseable query terms are treated as unsupported local filters and return an
+empty staged connection rather than matching all staged records. `companies`,
+`companyLocations`, `Company.contacts`, `Company.locations`, location/contact
+`roleAssignments`, `Company.contactRoles`, and
+`CompanyLocation.staffMemberAssignments` honor local `sortKey` and `reverse`
+for the modeled staged fields, defaulting to ID order when a sort key has no
+modeled field in local state. `companiesCount` returns the staged company count
+selected through the Shopify `Count` object shape. `companies(first:, query:)`
+and `companiesCount` are answered from the local B2B graph only after company
+state has been staged or hydrated in the current session. Cold LiveHybrid
+company connection/count reads forward upstream unchanged so real store
+companies are visible before local B2B writes occur.
 
 `companyCreate` and `companyUpdate` stage company identity fields, validate
 company name length, strip HTML from accepted names, validate `externalId`
-character set, length, and duplicates, reject HTML or overlong notes, and
-reject `companyUpdate(input.customerSince)` without mutating the staged company.
+character set, length, and duplicates, validate note length while preserving
+note HTML verbatim, and reject `companyUpdate(input.customerSince)` without
+mutating the staged company.
 `companyCreate` can also stage nested company location, contact, and contact
 role setup when those input objects are present. Its nested
 `input.companyLocation` name follows Shopify's create-time fallback of
@@ -95,11 +109,13 @@ role setup when those input objects are present. Its nested
 company-contact lifecycle and keep company `contactIds`, contact customer data,
 role assignments, and downstream contact reads in sync. Deleting or removing
 the current main contact clears the company's `mainContact`. `companyContactCreate`
-requires an email-backed customer reference; omitting `input.email` returns
-`INVALID` at `["input"]` without staging a contact or customer. The nested
-`companyCreate(input.companyContact)` path applies the same requirement at
-`["input", "companyContact"]` before staging any company, location, role, contact,
-or assignment rows.
+stores `title` verbatim, including HTML, but rejects HTML in `firstName` or
+`lastName` with generic `INVALID_INPUT` at `["input"]`. It requires an
+email-backed customer reference; omitting `input.email` returns `INVALID` at
+`["input"]` without staging a contact or customer. The nested
+`companyCreate(input.companyContact)` path applies contact validation under
+`["input", "companyContact"]` before staging any company, location, role,
+contact, or assignment rows.
 
 `companyAssignMainContact` and `companyRevokeMainContact` stage the company's
 single `mainContactId` pointer and derive each contact's `isMainContact` from

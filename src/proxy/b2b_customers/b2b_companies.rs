@@ -354,6 +354,7 @@ impl DraftProxy {
                     field.name.as_str(),
                     "company"
                         | "companies"
+                        | "companiesCount"
                         | "companyContact"
                         | "companyLocation"
                         | "companyLocations"
@@ -447,19 +448,9 @@ impl DraftProxy {
                                 })
                                 .unwrap_or(Value::Null)
                         }
-                        "companyLocations" => {
-                            let locations = self.b2b_ordered_locations();
-                            selected_typed_connection_with_args(
-                                &locations,
-                                &field.arguments,
-                                &field.selection,
-                                |location, selections| {
-                                    self.b2b_company_location_selected_json(location, selections)
-                                },
-                                value_id_cursor,
-                            )
-                        }
+                        "companyLocations" => self.b2b_company_locations_connection(field),
                         "companies" => self.b2b_companies_connection(field),
+                        "companiesCount" => self.b2b_companies_count(field),
                         _ => {
                             declined = true;
                             return None;
@@ -2630,7 +2621,9 @@ impl DraftProxy {
             "companyLocation" => resolved_string_field(&field.arguments, "id")
                 .is_some_and(|id| self.store.staged.b2b_locations.contains_key(&id)),
             "companyLocations" => !self.store.staged.b2b_locations.is_empty(),
-            "companies" => !self.store.staged.b2b_companies.is_empty(),
+            // Cold LiveHybrid company connection/count reads must keep forwarding
+            // upstream so real store companies are not masked by an empty local graph.
+            "companies" | "companiesCount" => !self.store.staged.b2b_companies.is_empty(),
             _ => false,
         })
     }
@@ -2670,41 +2663,57 @@ impl DraftProxy {
             .into_iter()
             .filter_map(|id| resolve(self, &id))
             .collect::<Vec<_>>();
-        selected_typed_connection_with_args(
-            &nodes,
+        selected_staged_connection_with_args(
+            nodes,
             &selection.arguments,
             &selection.selection,
+            b2b_nested_connection_search_decision,
+            |node, sort_key| b2b_nested_connection_sort_key(id_list_field, node, sort_key),
             |node, fields| render(self, node, fields),
             value_id_cursor,
         )
     }
 
     /// Resolves a `companies(first:, query:)` connection from locally staged
-    /// companies, honouring a `name:"…"` search term so deleted companies (and
-    /// companies whose name does not match) are excluded.
+    /// companies. Supported field-scoped query terms match the staged company
+    /// graph; unsupported terms produce an empty local connection.
     fn b2b_companies_connection(&self, field: &RootFieldSelection) -> Value {
-        let name_filter = resolved_string_field(&field.arguments, "query")
-            .as_deref()
-            .and_then(b2b_company_name_query_value);
         let companies = self
             .store
             .staged
             .b2b_companies
             .values()
-            .filter(|company| match &name_filter {
-                Some(value) => company["name"]
-                    .as_str()
-                    .map(|name| name.to_ascii_lowercase().contains(value.as_str()))
-                    .unwrap_or(false),
-                None => true,
-            })
             .cloned()
             .collect::<Vec<_>>();
-        selected_typed_connection_with_args(
-            &companies,
+        selected_staged_connection_with_args(
+            companies,
             &field.arguments,
             &field.selection,
+            b2b_company_search_decision,
+            b2b_company_sort_key,
             |company, selections| self.b2b_company_selected_json(company, selections),
+            value_id_cursor,
+        )
+    }
+
+    fn b2b_companies_count(&self, field: &RootFieldSelection) -> Value {
+        selected_json(
+            &staged_count_with_limit_precision(
+                self.store.staged.b2b_companies.len(),
+                &field.arguments,
+            ),
+            &field.selection,
+        )
+    }
+
+    fn b2b_company_locations_connection(&self, field: &RootFieldSelection) -> Value {
+        selected_staged_connection_with_args(
+            self.b2b_ordered_locations(),
+            &field.arguments,
+            &field.selection,
+            b2b_company_location_search_decision,
+            b2b_company_location_sort_key,
+            |location, selections| self.b2b_company_location_selected_json(location, selections),
             value_id_cursor,
         )
     }
@@ -2764,10 +2773,12 @@ impl DraftProxy {
             "roleAssignments" => {
                 let contact_id = contact["id"].as_str().unwrap_or_default();
                 let assignments = self.b2b_role_assignments_for_contact(contact_id);
-                Some(selected_typed_connection_with_args(
-                    &assignments,
+                Some(selected_staged_connection_with_args(
+                    assignments,
                     &selection.arguments,
                     &selection.selection,
+                    b2b_nested_connection_search_decision,
+                    b2b_role_assignment_sort_key,
                     |assignment, fields| self.b2b_role_assignment_selected_json(assignment, fields),
                     value_id_cursor,
                 ))
@@ -3308,71 +3319,23 @@ impl DraftProxy {
         parsed_root_fields: &[String],
         root_field: &str,
     ) -> Response {
-        self.b2b_passthrough_with_success_cascade(
-            (
+        self.b2b_company_tail_helper_response(
+            request,
+            query,
+            variables,
+            operation_type,
+            parsed_root_fields,
+        )
+        .unwrap_or_else(|| {
+            self.dispatch_unknown_passthrough_or_legacy_error(
                 request,
                 query,
                 variables,
                 operation_type,
                 parsed_root_fields,
                 root_field,
-            ),
-            |fields| {
-                fields
-                    .iter()
-                    .find(|field| field.name == "companyContactCreate")
-                    .cloned()
-            },
-            |proxy, create, response| {
-                if let Some(field) = create {
-                    if let Some(contact_id) = response
-                        .body
-                        .pointer("/data/companyContactCreate/companyContact/id")
-                        .and_then(Value::as_str)
-                        .map(str::to_string)
-                    {
-                        let company_id = resolved_string_field(&field.arguments, "companyId")
-                            .unwrap_or_default();
-                        let input =
-                            resolved_object_field(&field.arguments, "input").unwrap_or_default();
-                        let first = resolved_string_field(&input, "firstName");
-                        let last = resolved_string_field(&input, "lastName");
-                        let title = resolved_string_field(&input, "title");
-                        let customer_id = resolved_string_field(&input, "email").map(|email| {
-                            proxy.b2b_provision_contact_customer(
-                                &email,
-                                first.clone(),
-                                last.clone(),
-                            )
-                        });
-                        let contact = json!({
-                            "id": contact_id,
-                            "companyId": company_id,
-                            "customerId": customer_id.map(Value::String).unwrap_or(Value::Null),
-                            "firstName": first.map(Value::String).unwrap_or(Value::Null),
-                            "lastName": last.map(Value::String).unwrap_or(Value::Null),
-                            "title": title.map(Value::String).unwrap_or(Value::Null),
-                            // A contact added after creation defaults to the shop's primary
-                            // locale ("en") and never becomes the company's main contact.
-                            "locale": resolved_string_field(&input, "locale")
-                                .unwrap_or_else(|| "en".to_string()),
-                            "isMainContact": false
-                        });
-                        proxy
-                            .store
-                            .staged
-                            .b2b_contacts
-                            .insert(contact_id.clone(), contact);
-                        if let Some(mut company) =
-                            proxy.store.staged.b2b_companies.get(&company_id).cloned()
-                        {
-                            b2b_push_json_id(&mut company, "contactIds", &contact_id);
-                            proxy.store.staged.b2b_companies.insert(company_id, company);
-                        }
-                    }
-                }
-            },
-        )
+            )
+        })
     }
 
     pub(in crate::proxy) fn b2b_company_contact_update_with_cascade(
@@ -4347,9 +4310,9 @@ fn b2b_not_found(field: impl Into<UserErrorField>, message: &str) -> Value {
     user_error(field, message, Some("RESOURCE_NOT_FOUND"))
 }
 
-/// Validates a `companyContactCreate` input: a title carrying HTML, a name that
+/// Validates a `companyContactCreate` input: a name carrying HTML, a name that
 /// exceeds Shopify's 255-character limit, a missing email, or an invalid email
-/// each produces a Shopify-shaped user error.
+/// each produces a Shopify-shaped user error. Title values are stored verbatim.
 fn b2b_contact_create_input_errors(
     input: &BTreeMap<String, ResolvedValue>,
     prefix: &[&str],
@@ -4362,18 +4325,16 @@ fn b2b_contact_create_input_errors(
             .chain(std::iter::once(name.to_string()))
             .collect()
     };
-    if let Some(title) = resolved_string_field(input, "title") {
-        if b2b_contains_html_tags(&title) {
-            errors.push(user_error(
-                json!(field_path("title")),
-                "Title contains HTML tags",
-                Some("CONTAINS_HTML_TAGS"),
-            ));
-        }
-    }
     for (name_field, label) in [("firstName", "First name"), ("lastName", "Last name")] {
         if let Some(value) = resolved_string_field(input, name_field) {
-            if value.chars().count() > 255 {
+            if b2b_contains_html_tags(&value) {
+                errors.push(user_error(
+                    json!(prefix),
+                    "Invalid input.",
+                    Some("INVALID_INPUT"),
+                ));
+                break;
+            } else if value.chars().count() > 255 {
                 errors.push(user_error(
                     json!(field_path(name_field)),
                     &format!("{label} is too long"),
@@ -4669,16 +4630,233 @@ fn b2b_passthrough_mutation_succeeded(response: &Response) -> bool {
     true
 }
 
-/// Extracts the lowercased value of a `name:"…"` (or `name:…`) term from a
-/// Shopify search query string, used to filter a companies connection by name.
-fn b2b_company_name_query_value(query: &str) -> Option<String> {
-    let rest = query.split("name:").nth(1)?.trim_start();
-    let value = if let Some(quoted) = rest.strip_prefix('"') {
-        quoted.split('"').next().unwrap_or("")
-    } else {
-        rest.split_whitespace().next().unwrap_or("")
+fn b2b_company_search_decision(company: &Value, query: Option<&str>) -> StagedSearchDecision {
+    b2b_field_scoped_search_decision(query, |field, value| match field {
+        "id" => Some(b2b_search_id_matches(company["id"].as_str(), value)),
+        "name" => Some(b2b_search_string_matches(company["name"].as_str(), value)),
+        "external_id" | "externalid" => Some(b2b_search_string_matches(
+            company["externalId"].as_str(),
+            value,
+        )),
+        _ => None,
+    })
+}
+
+fn b2b_company_location_search_decision(
+    location: &Value,
+    query: Option<&str>,
+) -> StagedSearchDecision {
+    b2b_field_scoped_search_decision(query, |field, value| match field {
+        "id" => Some(b2b_search_id_matches(location["id"].as_str(), value)),
+        "name" => Some(b2b_search_string_matches(location["name"].as_str(), value)),
+        "external_id" | "externalid" => Some(b2b_search_string_matches(
+            location["externalId"].as_str(),
+            value,
+        )),
+        "company_id" | "companyid" => {
+            Some(b2b_search_id_matches(location["companyId"].as_str(), value))
+        }
+        _ => None,
+    })
+}
+
+fn b2b_nested_connection_search_decision(_: &Value, query: Option<&str>) -> StagedSearchDecision {
+    match query.map(str::trim).filter(|query| !query.is_empty()) {
+        Some(_) => StagedSearchDecision::Unsupported,
+        None => StagedSearchDecision::Match,
+    }
+}
+
+fn b2b_field_scoped_search_decision<F>(query: Option<&str>, mut matches: F) -> StagedSearchDecision
+where
+    F: FnMut(&str, &str) -> Option<bool>,
+{
+    let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+        return StagedSearchDecision::Match;
     };
-    (!value.is_empty()).then(|| value.to_ascii_lowercase())
+    let Some(terms) = b2b_field_scoped_query_terms(query) else {
+        return StagedSearchDecision::Unsupported;
+    };
+    let mut matched_any = false;
+    for (field, value) in terms {
+        match matches(&field, &value) {
+            Some(true) => matched_any = true,
+            Some(false) => return StagedSearchDecision::NoMatch,
+            None => return StagedSearchDecision::Unsupported,
+        }
+    }
+    StagedSearchDecision::from_bool(matched_any)
+}
+
+fn b2b_field_scoped_query_terms(query: &str) -> Option<Vec<(String, String)>> {
+    let mut rest = query.trim();
+    let mut terms = Vec::new();
+    while !rest.is_empty() {
+        let colon = rest.find(':')?;
+        let field = rest[..colon].trim();
+        if field.is_empty() || field.chars().any(char::is_whitespace) {
+            return None;
+        }
+        rest = rest[colon + 1..].trim_start();
+        let (raw_value, remaining) = if let Some(quote) = rest
+            .chars()
+            .next()
+            .filter(|quote| matches!(quote, '"' | '\''))
+        {
+            let value_start = quote.len_utf8();
+            let after_quote = &rest[value_start..];
+            let end = after_quote.find(quote)?;
+            (&after_quote[..end], &after_quote[end + quote.len_utf8()..])
+        } else {
+            let end = rest.find(char::is_whitespace).unwrap_or(rest.len());
+            (&rest[..end], &rest[end..])
+        };
+        let value = raw_value.trim();
+        if value.is_empty() {
+            return None;
+        }
+        terms.push((field.to_ascii_lowercase(), value.to_ascii_lowercase()));
+        rest = remaining.trim_start();
+    }
+    Some(terms)
+}
+
+fn b2b_search_string_matches(actual: Option<&str>, query_value: &str) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    let actual = actual.to_ascii_lowercase();
+    if let Some(prefix) = query_value.strip_suffix('*') {
+        !prefix.is_empty() && actual.starts_with(prefix)
+    } else {
+        actual.contains(query_value)
+    }
+}
+
+fn b2b_search_id_matches(actual: Option<&str>, query_value: &str) -> bool {
+    let Some(actual) = actual else {
+        return false;
+    };
+    let actual = actual.to_ascii_lowercase();
+    let tail = resource_id_tail(&actual);
+    let path_tail = resource_id_path_tail(&actual);
+    actual == query_value || tail == query_value || path_tail == query_value
+}
+
+fn b2b_nested_connection_sort_key(
+    id_list_field: &str,
+    record: &Value,
+    sort_key: Option<&str>,
+) -> StagedSortKey {
+    match id_list_field {
+        "locationIds" => b2b_company_location_sort_key(record, sort_key),
+        "contactIds" => b2b_company_contact_sort_key(record, sort_key),
+        "contactRoleIds" => b2b_company_contact_role_sort_key(record, sort_key),
+        "roleAssignmentIds" => b2b_role_assignment_sort_key(record, sort_key),
+        "staffAssignmentIds" => b2b_staff_assignment_sort_key(record, sort_key),
+        _ => b2b_id_sort_key(record),
+    }
+}
+
+fn b2b_company_sort_key(company: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    match b2b_normalized_sort_key(sort_key).as_str() {
+        "NAME" => b2b_sort_key_with_id(b2b_string_sort_value(company, "name"), company),
+        "CREATED_AT" => b2b_sort_key_with_id(b2b_string_sort_value(company, "createdAt"), company),
+        "UPDATED_AT" => b2b_sort_key_with_id(b2b_string_sort_value(company, "updatedAt"), company),
+        _ => b2b_id_sort_key(company),
+    }
+}
+
+fn b2b_company_location_sort_key(location: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    match b2b_normalized_sort_key(sort_key).as_str() {
+        "NAME" => b2b_sort_key_with_id(b2b_string_sort_value(location, "name"), location),
+        "CREATED_AT" => {
+            b2b_sort_key_with_id(b2b_string_sort_value(location, "createdAt"), location)
+        }
+        "UPDATED_AT" => {
+            b2b_sort_key_with_id(b2b_string_sort_value(location, "updatedAt"), location)
+        }
+        _ => b2b_id_sort_key(location),
+    }
+}
+
+fn b2b_company_contact_sort_key(contact: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    match b2b_normalized_sort_key(sort_key).as_str() {
+        "TITLE" | "NAME" => b2b_sort_key_with_id(b2b_string_sort_value(contact, "title"), contact),
+        "CREATED_AT" => b2b_sort_key_with_id(b2b_string_sort_value(contact, "createdAt"), contact),
+        "UPDATED_AT" => b2b_sort_key_with_id(b2b_string_sort_value(contact, "updatedAt"), contact),
+        _ => b2b_id_sort_key(contact),
+    }
+}
+
+fn b2b_company_contact_role_sort_key(role: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    match b2b_normalized_sort_key(sort_key).as_str() {
+        "NAME" => b2b_sort_key_with_id(b2b_string_sort_value(role, "name"), role),
+        _ => b2b_id_sort_key(role),
+    }
+}
+
+fn b2b_role_assignment_sort_key(assignment: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    match b2b_normalized_sort_key(sort_key).as_str() {
+        "COMPANY_CONTACT_ID" | "COMPANYCONTACTID" => b2b_sort_key_with_id(
+            b2b_string_sort_value(assignment, "companyContactId"),
+            assignment,
+        ),
+        "COMPANY_CONTACT_ROLE_ID" | "COMPANYCONTACTROLEID" => b2b_sort_key_with_id(
+            b2b_string_sort_value(assignment, "companyContactRoleId"),
+            assignment,
+        ),
+        "COMPANY_LOCATION_ID" | "COMPANYLOCATIONID" => b2b_sort_key_with_id(
+            b2b_string_sort_value(assignment, "companyLocationId"),
+            assignment,
+        ),
+        _ => b2b_id_sort_key(assignment),
+    }
+}
+
+fn b2b_staff_assignment_sort_key(assignment: &Value, sort_key: Option<&str>) -> StagedSortKey {
+    match b2b_normalized_sort_key(sort_key).as_str() {
+        "COMPANY_LOCATION_ID" | "COMPANYLOCATIONID" => b2b_sort_key_with_id(
+            b2b_string_sort_value(assignment, "companyLocationId"),
+            assignment,
+        ),
+        "STAFF_MEMBER_ID" | "STAFFMEMBERID" => b2b_sort_key_with_id(
+            b2b_string_sort_value(assignment, "staffMemberId"),
+            assignment,
+        ),
+        _ => b2b_id_sort_key(assignment),
+    }
+}
+
+fn b2b_normalized_sort_key(sort_key: Option<&str>) -> String {
+    sort_key.unwrap_or("ID").to_ascii_uppercase()
+}
+
+fn b2b_sort_key_with_id(mut first: StagedSortValue, record: &Value) -> StagedSortKey {
+    if matches!(first, StagedSortValue::String(ref value) if value.is_empty()) {
+        first = StagedSortValue::Null;
+    }
+    let mut key = vec![first];
+    key.extend(b2b_id_sort_key(record));
+    key
+}
+
+fn b2b_id_sort_key(record: &Value) -> StagedSortKey {
+    let id = record["id"].as_str().unwrap_or_default();
+    vec![
+        resource_id_tail(id)
+            .parse::<i64>()
+            .map(StagedSortValue::I64)
+            .unwrap_or(StagedSortValue::Null),
+        StagedSortValue::String(id.to_ascii_lowercase()),
+    ]
+}
+
+fn b2b_string_sort_value(record: &Value, field: &str) -> StagedSortValue {
+    record[field]
+        .as_str()
+        .map(|value| StagedSortValue::String(value.to_ascii_lowercase()))
+        .unwrap_or(StagedSortValue::Null)
 }
 
 fn b2b_json_id_list(record: &Value, field: &str) -> Vec<String> {

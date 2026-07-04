@@ -1,28 +1,58 @@
 {
-  "capturedAt": "2026-05-07T16:50:04.156Z",
+  "capturedAt": "2026-07-03T18:38:11.614Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "scope": "marketCreate priceInclusions and inclusive-pricing validation",
   "selectedLocationId": "gid://shopify/Location/112829759794",
   "cases": [
     {
+      "name": "shop currency hydrates non-USD market defaults",
+      "query": "#graphql\nquery MarketPriceInclusionsShopCurrency {\n  shop {\n    currencyCode\n  }\n}\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "shop": {
+              "currencyCode": "CAD"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "name": "marketCreate accepts nested priceInclusions on a region market",
-      "query": "#graphql\nmutation MarketCreatePriceInclusions($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      type\n      priceInclusions {\n        inclusiveDutiesPricingStrategy\n        inclusiveTaxPricingStrategy\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "query": "#graphql\nmutation MarketCreatePriceInclusions($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      type\n      currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n        localCurrencies\n        roundingEnabled\n      }\n      priceInclusions {\n        inclusiveDutiesPricingStrategy\n        inclusiveTaxPricingStrategy\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "name": "Draft Proxy Pricing 20260507165003",
+          "name": "Draft Proxy Pricing 20260703183809",
           "conditions": {
             "regionsCondition": {
               "regions": [
                 {
-                  "countryCode": "CA"
+                  "countryCode": "DK"
                 }
               ]
             }
           },
+          "currencySettings": {
+            "localCurrencies": true,
+            "roundingEnabled": true
+          },
           "priceInclusions": {
-            "taxPricingStrategy": "ADD_TAXES_AT_CHECKOUT",
-            "dutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE"
+            "taxPricingStrategy": "INCLUDES_TAXES_IN_PRICE",
+            "dutiesPricingStrategy": "ADD_DUTIES_AT_CHECKOUT"
           }
         }
       },
@@ -32,14 +62,22 @@
           "data": {
             "marketCreate": {
               "market": {
-                "id": "gid://shopify/Market/97998045490",
-                "name": "Draft Proxy Pricing 20260507165003",
-                "handle": "draft-proxy-pricing-20260507165003",
+                "id": "gid://shopify/Market/98769862962",
+                "name": "Draft Proxy Pricing 20260703183809",
+                "handle": "draft-proxy-pricing-20260703183809",
                 "status": "DRAFT",
                 "type": "REGION",
+                "currencySettings": {
+                  "baseCurrency": {
+                    "currencyCode": "CAD",
+                    "currencyName": "Canadian Dollar"
+                  },
+                  "localCurrencies": true,
+                  "roundingEnabled": true
+                },
                 "priceInclusions": {
-                  "inclusiveDutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE",
-                  "inclusiveTaxPricingStrategy": "ADD_TAXES_AT_CHECKOUT"
+                  "inclusiveDutiesPricingStrategy": "ADD_DUTIES_AT_CHECKOUT",
+                  "inclusiveTaxPricingStrategy": "INCLUDES_TAXES_IN_PRICE"
                 }
               },
               "userErrors": []
@@ -47,11 +85,11 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 11,
-              "actualQueryCost": 11,
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -61,23 +99,65 @@
     },
     {
       "name": "market read-after-create returns requested priceInclusions",
-      "query": "#graphql\nquery MarketPriceInclusionsRead($id: ID!) {\n  market(id: $id) {\n    id\n    name\n    handle\n    status\n    type\n    priceInclusions {\n      inclusiveDutiesPricingStrategy\n      inclusiveTaxPricingStrategy\n    }\n  }\n}\n",
+      "query": "#graphql\nquery MarketPriceInclusionsRead($id: ID!) {\n  market(id: $id) {\n    id\n    name\n    handle\n    status\n    type\n    currencySettings {\n      baseCurrency {\n        currencyCode\n        currencyName\n      }\n      localCurrencies\n      roundingEnabled\n    }\n    priceInclusions {\n      inclusiveDutiesPricingStrategy\n      inclusiveTaxPricingStrategy\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/Market/97998045490"
+        "id": "gid://shopify/Market/98769862962"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "market": {
-              "id": "gid://shopify/Market/97998045490",
-              "name": "Draft Proxy Pricing 20260507165003",
-              "handle": "draft-proxy-pricing-20260507165003",
+              "id": "gid://shopify/Market/98769862962",
+              "name": "Draft Proxy Pricing 20260703183809",
+              "handle": "draft-proxy-pricing-20260703183809",
               "status": "DRAFT",
               "type": "REGION",
+              "currencySettings": {
+                "baseCurrency": {
+                  "currencyCode": "CAD",
+                  "currencyName": "Canadian Dollar"
+                },
+                "localCurrencies": true,
+                "roundingEnabled": true
+              },
               "priceInclusions": {
-                "inclusiveDutiesPricingStrategy": "INCLUDE_DUTIES_IN_PRICE",
-                "inclusiveTaxPricingStrategy": "ADD_TAXES_AT_CHECKOUT"
+                "inclusiveDutiesPricingStrategy": "ADD_DUTIES_AT_CHECKOUT",
+                "inclusiveTaxPricingStrategy": "INCLUDES_TAXES_IN_PRICE"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketsResolvedValues reflects created market price inclusivity",
+      "query": "#graphql\nquery MarketPriceInclusionsResolvedValuesRead($buyerSignal: BuyerSignalInput!) {\n  marketsResolvedValues(buyerSignal: $buyerSignal) {\n    currencyCode\n    priceInclusivity {\n      dutiesIncluded\n      taxesIncluded\n    }\n  }\n}\n",
+      "variables": {
+        "buyerSignal": {
+          "countryCode": "DK"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketsResolvedValues": {
+              "currencyCode": "CAD",
+              "priceInclusivity": {
+                "dutiesIncluded": false,
+                "taxesIncluded": true
               }
             }
           },
@@ -97,10 +177,10 @@
     },
     {
       "name": "marketCreate rejects inclusive priceInclusions on locationsCondition",
-      "query": "#graphql\nmutation MarketCreatePriceInclusions($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      type\n      priceInclusions {\n        inclusiveDutiesPricingStrategy\n        inclusiveTaxPricingStrategy\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "query": "#graphql\nmutation MarketCreatePriceInclusions($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      handle\n      status\n      type\n      currencySettings {\n        baseCurrency {\n          currencyCode\n          currencyName\n        }\n        localCurrencies\n        roundingEnabled\n      }\n      priceInclusions {\n        inclusiveDutiesPricingStrategy\n        inclusiveTaxPricingStrategy\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "name": "Draft Proxy Location Pricing 20260507165003",
+          "name": "Draft Proxy Location Pricing 20260703183810",
           "conditions": {
             "locationsCondition": {
               "locationIds": ["gid://shopify/Location/112829759794"]
@@ -129,7 +209,7 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 11,
+              "requestedQueryCost": 13,
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
@@ -144,13 +224,13 @@
   ],
   "cleanup": [
     {
-      "id": "gid://shopify/Market/97998045490",
+      "id": "gid://shopify/Market/98769862962",
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "marketDelete": {
-              "deletedId": "gid://shopify/Market/97998045490",
+              "deletedId": "gid://shopify/Market/98769862962",
               "userErrors": []
             }
           },

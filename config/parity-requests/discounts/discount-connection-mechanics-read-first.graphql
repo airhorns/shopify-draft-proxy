@@ -1,0 +1,105 @@
+query DiscountConnectionMechanicsReadFirst($query: String!, $first: Int!, $nestedId: ID!, $countLimit: Int!) {
+  discountNodes(first: $first, query: $query, sortKey: TITLE, reverse: true) {
+    nodes {
+      id
+      discount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+        }
+        ... on DiscountAutomaticBasic {
+          title
+        }
+      }
+    }
+    edges {
+      cursor
+      node {
+        id
+        discount {
+          __typename
+          ... on DiscountCodeBasic {
+            title
+          }
+          ... on DiscountAutomaticBasic {
+            title
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  codeDiscountNodesReverse: codeDiscountNodes(first: 2, query: $query, sortKey: TITLE, reverse: true) {
+    nodes {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  automaticDiscountNodesReverse: automaticDiscountNodes(first: 2, query: $query, sortKey: CREATED_AT, reverse: true) {
+    nodes {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  limitedCount: discountNodesCount(query: $query, limit: $countLimit) {
+    count
+    precision
+  }
+  nestedCode: codeDiscountNode(id: $nestedId) {
+    id
+    codeDiscount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        codes(first: 2) {
+          nodes {
+            code
+          }
+          edges {
+            cursor
+            node {
+              code
+            }
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+        codesCount {
+          count
+          precision
+        }
+      }
+    }
+  }
+}
