@@ -614,11 +614,15 @@ fn product_update_media_ready_image_urls_are_stable_per_media() {
 }
 
 #[test]
-fn product_create_unknown_category_returns_null_full_name() {
+fn product_create_unknown_category_returns_derived_category_fields() {
     let unknown_category = "gid://shopify/TaxonomyCategory/hb-1863";
     let expected_category = json!({
         "id": unknown_category,
-        "fullName": null
+        "fullName": "Hb > 1863",
+        "name": "1863",
+        "isLeaf": true,
+        "level": 2,
+        "parentId": "gid://shopify/TaxonomyCategory/hb"
     });
     let mut proxy = snapshot_proxy();
 
@@ -626,7 +630,7 @@ fn product_create_unknown_category_returns_null_full_name() {
         r#"
         mutation UnknownCategoryCreate($product: ProductCreateInput!) {
           productCreate(product: $product) {
-            product { id category { id fullName } }
+            product { id category { id fullName name isLeaf level parentId } }
             userErrors { field message code }
           }
         }
@@ -653,7 +657,7 @@ fn product_create_unknown_category_returns_null_full_name() {
         r#"
         query UnknownCategoryCreateRead($id: ID!) {
           product(id: $id) {
-            category { id fullName }
+            category { id fullName name isLeaf level parentId }
           }
         }
         "#,
@@ -664,11 +668,15 @@ fn product_create_unknown_category_returns_null_full_name() {
 }
 
 #[test]
-fn product_set_unknown_category_returns_object_with_null_full_name() {
+fn product_set_unknown_category_returns_derived_category_fields() {
     let unknown_category = "gid://shopify/TaxonomyCategory/hb-1863";
     let expected_category = json!({
         "id": unknown_category,
-        "fullName": null
+        "fullName": "Hb > 1863",
+        "name": "1863",
+        "isLeaf": true,
+        "level": 2,
+        "parentId": "gid://shopify/TaxonomyCategory/hb"
     });
     let mut proxy = snapshot_proxy();
 
@@ -676,7 +684,7 @@ fn product_set_unknown_category_returns_object_with_null_full_name() {
         r#"
         mutation UnknownCategoryProductSet($input: ProductSetInput!) {
           productSet(input: $input) {
-            product { id category { id fullName } }
+            product { id category { id fullName name isLeaf level parentId } }
             userErrors { field message code }
           }
         }
@@ -700,7 +708,7 @@ fn product_set_unknown_category_returns_object_with_null_full_name() {
         r#"
         query UnknownCategoryProductSetRead($id: ID!) {
           product(id: $id) {
-            category { id fullName }
+            category { id fullName name isLeaf level parentId }
           }
         }
         "#,

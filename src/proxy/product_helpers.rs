@@ -1367,7 +1367,7 @@ pub(in crate::proxy) fn product_json_with_variants_and_currency(
             product
                 .extra_fields
                 .get("category")
-                .cloned()
+                .map(|value| nullable_selected_json(value, &selection.selection))
                 .unwrap_or(Value::Null),
         ),
         "requiresSellingPlan" => Some(
@@ -2974,18 +2974,94 @@ pub(in crate::proxy) fn product_category_input_id(
         })
 }
 
-/// Resolve a taxonomy category GID to its `{id, fullName}` shape. Shopify materializes
-/// `category.fullName` from its global product taxonomy; we mirror the well-known nodes
-/// the taxonomy exposes and leave unknown nodes unresolved.
+/// Resolve a taxonomy category GID to a stable local category object. Shopify materializes
+/// `category.fullName` from its global product taxonomy; when the local proxy has only the
+/// input GID, derive a deterministic display path from the taxonomy tail instead of
+/// collapsing valid-but-unknown taxonomy IDs to null.
 pub(in crate::proxy) fn product_category_value(id: &str) -> Value {
-    let full_name = match id {
-        "gid://shopify/TaxonomyCategory/aa-1-1" => {
-            json!("Apparel & Accessories > Clothing > Activewear")
-        }
-        "gid://shopify/TaxonomyCategory/na" => json!("Uncategorized"),
-        _ => Value::Null,
+    let Some(tail) = shopify_gid_tail_for_type(id, "TaxonomyCategory") else {
+        return json!({ "id": id, "fullName": null });
     };
-    json!({ "id": id, "fullName": full_name })
+    let tail = tail.split('?').next().unwrap_or(tail);
+    if tail.is_empty() {
+        return json!({ "id": id, "fullName": null });
+    }
+
+    if tail == "na" {
+        return json!({
+            "id": id,
+            "fullName": "Uncategorized",
+            "name": "Uncategorized",
+            "isLeaf": true,
+            "level": 0,
+            "parentId": null
+        });
+    }
+
+    let segments: Vec<&str> = tail
+        .split('-')
+        .filter(|segment| !segment.is_empty())
+        .collect();
+    if segments.is_empty() {
+        return json!({ "id": id, "fullName": null });
+    }
+
+    let labels = captured_taxonomy_category_labels(tail).unwrap_or_else(|| {
+        segments
+            .iter()
+            .map(|segment| taxonomy_category_tail_label(segment))
+            .collect()
+    });
+    let name = labels.last().cloned().unwrap_or_default();
+    let full_name = labels.join(" > ");
+    let parent_id = if segments.len() > 1 {
+        let parent_tail = segments[..segments.len() - 1].join("-");
+        Value::String(shopify_gid("TaxonomyCategory", parent_tail))
+    } else {
+        Value::Null
+    };
+
+    json!({
+        "id": id,
+        "fullName": full_name,
+        "name": name,
+        "isLeaf": true,
+        "level": segments.len(),
+        "parentId": parent_id
+    })
+}
+
+fn taxonomy_category_tail_label(segment: &str) -> String {
+    if segment.chars().all(|character| character.is_ascii_digit()) {
+        return segment.to_string();
+    }
+
+    segment
+        .split('_')
+        .flat_map(|part| part.split_whitespace())
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            let mut chars = part.chars();
+            match chars.next() {
+                Some(first) => {
+                    first.to_ascii_uppercase().to_string() + &chars.as_str().to_ascii_lowercase()
+                }
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn captured_taxonomy_category_labels(tail: &str) -> Option<Vec<String>> {
+    match tail {
+        "aa-1-1" => Some(vec![
+            "Apparel & Accessories".to_string(),
+            "Clothing".to_string(),
+            "Activewear".to_string(),
+        ]),
+        _ => None,
+    }
 }
 
 pub(in crate::proxy) fn product_input(
