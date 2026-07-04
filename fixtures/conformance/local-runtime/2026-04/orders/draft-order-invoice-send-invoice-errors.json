@@ -21,7 +21,7 @@
           "draftOrder": {
             "email": null,
             "id": "gid://shopify/DraftOrder/1",
-            "invoiceUrl": "https://shopify-draft-proxy.local/draft_orders/1/invoice",
+            "invoiceUrl": "https://shopify-draft-proxy.local/draft_orders/gid://shopify/DraftOrder/1/invoice",
             "status": "OPEN"
           },
           "userErrors": []
@@ -45,7 +45,7 @@
           "draftOrder": {
             "email": null,
             "id": "gid://shopify/DraftOrder/1",
-            "invoiceUrl": "https://shopify-draft-proxy.local/draft_orders/1/invoice",
+            "invoiceUrl": "https://shopify-draft-proxy.local/draft_orders/gid://shopify/DraftOrder/1/invoice",
             "status": "OPEN"
           },
           "invoiceErrors": [
@@ -86,7 +86,7 @@
           "draftOrder": {
             "email": null,
             "id": "gid://shopify/DraftOrder/1",
-            "invoiceUrl": "https://shopify-draft-proxy.local/draft_orders/1/invoice",
+            "invoiceUrl": "https://shopify-draft-proxy.local/draft_orders/gid://shopify/DraftOrder/1/invoice",
             "status": "INVOICE_SENT"
           },
           "invoiceErrors": [],
@@ -237,7 +237,7 @@
         },
         "giftCardConfiguration": null,
         "giftCards": {},
-        "localizationProductIds": [],
+        "localizationProductIds": ["gid://shopify/Product/9801098789170"],
         "productOrder": [],
         "productVariantOrder": [],
         "productVariants": {},
@@ -246,11 +246,28 @@
         "publicationIds": [],
         "savedSearchOrder": [],
         "savedSearches": {},
-        "shop": null,
+        "shop": {
+          "currencyCode": "USD",
+          "id": "gid://shopify/Shop/0",
+          "myshopifyDomain": "shopify-draft-proxy.local",
+          "name": "Shopify Draft Proxy",
+          "primaryDomain": {
+            "host": "shopify-draft-proxy.local",
+            "id": "gid://shopify/Domain/1000",
+            "sslEnabled": true,
+            "url": "https://shopify-draft-proxy.local"
+          },
+          "url": "https://shopify-draft-proxy.local"
+        },
         "shopLocales": {
           "en": {
             "locale": "en",
-            "marketWebPresences": [],
+            "marketWebPresences": [
+              {
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "subfolderSuffix": null
+              }
+            ],
             "name": "English",
             "primary": true,
             "published": true
@@ -290,9 +307,7 @@
         "discountRedeemCodeBulkCreations": {},
         "discounts": {},
         "draftOrderOrder": ["gid://shopify/DraftOrder/1"],
-        "draftOrderTags": {
-          "gid://shopify/DraftOrder/1": []
-        },
+        "draftOrderTags": {},
         "draftOrders": {
           "gid://shopify/DraftOrder/1": {
             "cursor": null,
@@ -308,73 +323,15 @@
                 "presentmentCurrencyCode": "USD",
                 "templateName": "DRAFT_ORDER_INVOICE"
               },
-              "__draftProxyLineItems": [
-                {
-                  "appliedDiscount": null,
-                  "custom": true,
-                  "customAttributes": [],
-                  "discountedTotalSet": {
-                    "presentmentMoney": {
-                      "amount": "1.0",
-                      "currencyCode": "USD"
-                    },
-                    "shopMoney": {
-                      "amount": "1.0",
-                      "currencyCode": "USD"
-                    }
-                  },
-                  "id": "gid://shopify/DraftOrderLineItem/11",
-                  "name": "Invoice send local runtime item",
-                  "originalTotalSet": {
-                    "presentmentMoney": {
-                      "amount": "1.0",
-                      "currencyCode": "USD"
-                    },
-                    "shopMoney": {
-                      "amount": "1.0",
-                      "currencyCode": "USD"
-                    }
-                  },
-                  "originalUnitPriceSet": {
-                    "presentmentMoney": {
-                      "amount": "1.0",
-                      "currencyCode": "USD"
-                    },
-                    "shopMoney": {
-                      "amount": "1.0",
-                      "currencyCode": "USD"
-                    }
-                  },
-                  "quantity": 1,
-                  "requiresShipping": true,
-                  "sku": "",
-                  "taxable": true,
-                  "title": "Invoice send local runtime item",
-                  "totalDiscountSet": {
-                    "presentmentMoney": {
-                      "amount": "0.0",
-                      "currencyCode": "USD"
-                    },
-                    "shopMoney": {
-                      "amount": "0.0",
-                      "currencyCode": "USD"
-                    }
-                  },
-                  "variant": null,
-                  "variantTitle": null
-                }
-              ],
               "appliedDiscount": null,
               "billingAddress": null,
-              "completedAt": null,
               "createdAt": "2024-01-01T00:00:00.000Z",
-              "currencyCode": "USD",
               "customAttributes": [],
               "customer": null,
               "email": null,
               "id": "gid://shopify/DraftOrder/1",
               "invoiceSentAt": "2024-01-01T00:00:02.000Z",
-              "invoiceUrl": "https://shopify-draft-proxy.local/draft_orders/1/invoice",
+              "invoiceUrl": "https://shopify-draft-proxy.local/draft_orders/gid://shopify/DraftOrder/1/invoice",
               "lineItems": {
                 "nodes": [
                   {
@@ -384,72 +341,63 @@
                     "discountedTotalSet": {
                       "presentmentMoney": {
                         "amount": "1.0",
-                        "currencyCode": "USD"
+                        "currencyCode": "CAD"
                       },
                       "shopMoney": {
                         "amount": "1.0",
-                        "currencyCode": "USD"
+                        "currencyCode": "CAD"
                       }
                     },
-                    "id": "gid://shopify/DraftOrderLineItem/11",
-                    "name": "Invoice send local runtime item",
+                    "id": "gid://shopify/DraftOrderLineItem/2",
+                    "name": "Invoice error parity item",
                     "originalTotalSet": {
                       "presentmentMoney": {
                         "amount": "1.0",
-                        "currencyCode": "USD"
+                        "currencyCode": "CAD"
                       },
                       "shopMoney": {
                         "amount": "1.0",
-                        "currencyCode": "USD"
+                        "currencyCode": "CAD"
                       }
                     },
                     "originalUnitPriceSet": {
                       "presentmentMoney": {
                         "amount": "1.0",
-                        "currencyCode": "USD"
+                        "currencyCode": "CAD"
                       },
                       "shopMoney": {
                         "amount": "1.0",
-                        "currencyCode": "USD"
+                        "currencyCode": "CAD"
                       }
                     },
                     "quantity": 1,
                     "requiresShipping": true,
-                    "sku": "",
+                    "sku": null,
                     "taxable": true,
-                    "title": "Invoice send local runtime item",
+                    "title": "Invoice error parity item",
                     "totalDiscountSet": {
                       "presentmentMoney": {
                         "amount": "0.0",
-                        "currencyCode": "USD"
+                        "currencyCode": "CAD"
                       },
                       "shopMoney": {
                         "amount": "0.0",
-                        "currencyCode": "USD"
+                        "currencyCode": "CAD"
                       }
                     },
                     "variant": null,
                     "variantTitle": null
                   }
-                ],
-                "pageInfo": {
-                  "endCursor": "gid://shopify/DraftOrderLineItem/11",
-                  "hasNextPage": false,
-                  "hasPreviousPage": false,
-                  "startCursor": "gid://shopify/DraftOrderLineItem/11"
-                }
+                ]
               },
               "name": "#D1",
               "note": null,
-              "order": null,
-              "orderId": null,
               "paymentTerms": null,
               "purchasingEntity": null,
               "ready": true,
               "reserveInventoryUntil": null,
               "shippingAddress": null,
               "shippingLine": null,
-              "sourceName": null,
               "status": "INVOICE_SENT",
               "subtotalPriceSet": {
                 "presentmentMoney": {
@@ -501,7 +449,6 @@
           }
         },
         "giftCards": {},
-        "installedApps": {},
         "locallyCreatedCustomerIds": [],
         "locationLimitReached": false,
         "locationOrder": [],
@@ -525,7 +472,6 @@
         "returnsByOrder": {},
         "reverseDeliveries": {},
         "reverseFulfillmentOrders": {},
-        "revokedAppAccessScopes": {},
         "savedSearchOrder": [],
         "savedSearches": {},
         "shippingPackages": {},
@@ -535,8 +481,7 @@
         "storeCreditAccounts": {},
         "storeCreditTransactionOrder": [],
         "storeCreditTransactions": {},
-        "taggableResources": {},
-        "uninstalledAppIds": []
+        "taggableResources": {}
       }
     },
     "log": {
@@ -557,8 +502,8 @@
           "notes": "Locally staged draftOrderCreate in shopify-draft-proxy.",
           "operationName": "draftOrderCreate",
           "path": "/admin/api/2026-04/graphql.json",
-          "query": "mutation DraftOrderInvoiceSendInvoiceErrorsCreate {\n  draftOrderCreate(\n    input: { lineItems: [{ title: \"Invoice send local runtime item\", quantity: 1, originalUnitPrice: \"1.00\" }] }\n  ) {\n    draftOrder {\n      id\n      status\n      email\n      invoiceUrl\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
-          "rawBody": "{\"query\":\"mutation DraftOrderInvoiceSendInvoiceErrorsCreate {\\n  draftOrderCreate(\\n    input: { lineItems: [{ title: \\\"Invoice send local runtime item\\\", quantity: 1, originalUnitPrice: \\\"1.00\\\" }] }\\n  ) {\\n    draftOrder {\\n      id\\n      status\\n      email\\n      invoiceUrl\\n    }\\n    userErrors {\\n      field\\n      message\\n    }\\n  }\\n}\\n\",\"variables\":{}}",
+          "query": "mutation DraftOrderInvoiceSendInvoiceErrorsCreate {\n  draftOrderCreate(\n    input: { lineItems: [{ title: \"Invoice error parity item\", quantity: 1, originalUnitPrice: \"1.00\" }] }\n  ) {\n    draftOrder {\n      id\n      status\n      email\n      invoiceUrl\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+          "rawBody": "{\"query\":\"mutation DraftOrderInvoiceSendInvoiceErrorsCreate {\\n  draftOrderCreate(\\n    input: { lineItems: [{ title: \\\"Invoice error parity item\\\", quantity: 1, originalUnitPrice: \\\"1.00\\\" }] }\\n  ) {\\n    draftOrder {\\n      id\\n      status\\n      email\\n      invoiceUrl\\n    }\\n    userErrors {\\n      field\\n      message\\n    }\\n  }\\n}\\n\",\"variables\":{}}",
           "stagedResourceIds": ["gid://shopify/DraftOrder/1"],
           "status": "staged",
           "variables": {}

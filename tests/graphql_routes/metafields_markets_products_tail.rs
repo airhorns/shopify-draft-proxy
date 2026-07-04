@@ -21,6 +21,49 @@ fn app_namespace_graphql_request(
     request
 }
 
+fn observed_variant_product(product_id: &str, variant_id: &str) -> ProductRecord {
+    ProductRecord {
+        id: product_id.to_string(),
+        title: "Observed product".to_string(),
+        handle: "observed-product".to_string(),
+        variants: vec![json!({
+            "id": variant_id,
+            "title": "Observed variant",
+            "sku": "OBSERVED"
+        })],
+        ..ProductRecord::default()
+    }
+}
+
+fn create_test_price_list(proxy: &mut DraftProxy, currency: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation TestPriceListSeed($input: PriceListCreateInput!) {
+          priceListCreate(input: $input) {
+            priceList { id currency }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": format!("{} price list", currency),
+                "currency": currency,
+                "parent": { "adjustment": { "type": "PERCENTAGE_DECREASE", "value": 10 } }
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["priceListCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["priceListCreate"]["priceList"]["id"]
+        .as_str()
+        .expect("price list create returns an id")
+        .to_string()
+}
+
 fn assert_no_staged_markets(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
     let state = state_snapshot(proxy);
     let staged_markets = &state["stagedState"]["markets"];
@@ -1158,6 +1201,97 @@ fn metafields_set_live_hybrid_hydrates_list_reference_values_before_validation()
 }
 
 #[test]
+fn metafields_set_does_not_infer_variant_reference_exists_when_hydration_fails() {
+    let owner_id = "gid://shopify/Product/987654450";
+    let variant_id = "gid://shopify/ProductVariant/987654451";
+    let seen_hydrates = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let transport_seen_hydrates = Arc::clone(&seen_hydrates);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            if query.contains("ProductsHydrateNodes") {
+                transport_seen_hydrates
+                    .lock()
+                    .unwrap()
+                    .push(body["variables"]["ids"].clone());
+                return Response {
+                    status: 500,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "reference hydrate unavailable" }] }),
+                };
+            }
+            if query.contains("OwnerMetafieldsHydrateNodes") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "nodes": [{
+                                "__typename": "Product",
+                                "id": owner_id,
+                                "title": "Owner",
+                                "handle": "owner",
+                                "status": "ACTIVE",
+                                "totalInventory": 0,
+                                "tracksInventory": false,
+                                "createdAt": "2026-07-03T00:00:00Z",
+                                "updatedAt": "2026-07-03T00:00:00Z",
+                                "metafields": {
+                                    "nodes": [],
+                                    "pageInfo": {
+                                        "hasNextPage": false,
+                                        "hasPreviousPage": false,
+                                        "startCursor": Value::Null,
+                                        "endCursor": Value::Null
+                                    }
+                                },
+                                "variants": { "nodes": [] }
+                            }]
+                        }
+                    }),
+                };
+            }
+            panic!("unexpected upstream query: {query}");
+        });
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DanglingVariantReferenceUnderHydrationFailure($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id namespace key type value }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{
+            "ownerId": owner_id,
+            "namespace": "custom",
+            "key": "dangling_variant",
+            "type": "variant_reference",
+            "value": variant_id
+        }]}),
+    ));
+
+    assert_eq!(set.status, 200);
+    assert_eq!(
+        set.body["data"]["metafieldsSet"],
+        json!({
+            "metafields": [],
+            "userErrors": [{
+                "field": ["metafields", "0", "value"],
+                "message": format!("Value references non-existent resource {variant_id}."),
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+            }]
+        })
+    );
+    assert_eq!(*seen_hydrates.lock().unwrap(), vec![json!([variant_id])]);
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+}
+
+#[test]
 fn metafields_set_stages_owner_metafield_connections_for_product_and_customer_reads() {
     let mut proxy = snapshot_proxy();
 
@@ -1719,8 +1853,173 @@ fn metafields_app_namespace_requires_request_api_client_id() {
 }
 
 #[test]
+fn quantity_pricing_by_variant_update_uses_store_backed_validation() {
+    let observed_variant_id = "gid://shopify/ProductVariant/50000000001001";
+    let missing_variant_id = "gid://shopify/ProductVariant/50000000001002";
+    let mut proxy = snapshot_proxy().with_base_products(vec![observed_variant_product(
+        "gid://shopify/Product/quantity-pricing-observed",
+        observed_variant_id,
+    )]);
+    let cad_price_list_id = create_test_price_list(&mut proxy, "CAD");
+
+    let unknown_price_list = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityPricingUnknownPriceList($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
+          quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {
+            productVariants { id }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": "gid://shopify/PriceList/50000000001099",
+            "input": {
+                "pricesToAdd": [{
+                    "variantId": observed_variant_id,
+                    "price": { "amount": "12.00", "currencyCode": "CAD" }
+                }],
+                "pricesToDeleteByVariantId": [],
+                "quantityRulesToAdd": [],
+                "quantityRulesToDeleteByVariantId": [],
+                "quantityPriceBreaksToAdd": [],
+                "quantityPriceBreaksToDelete": [],
+                "quantityPriceBreaksToDeleteByVariantId": []
+            }
+        }),
+    ));
+    assert_eq!(
+        unknown_price_list.body["data"]["quantityPricingByVariantUpdate"],
+        json!({
+            "productVariants": null,
+            "userErrors": [{
+                "__typename": "QuantityPricingByVariantUserError",
+                "field": ["priceListId"],
+                "message": "Price list not found.",
+                "code": "PRICE_LIST_NOT_FOUND"
+            }]
+        })
+    );
+
+    let unknown_variant = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityPricingUnknownVariant($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
+          quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {
+            productVariants { id }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": cad_price_list_id,
+            "input": {
+                "pricesToAdd": [{
+                    "variantId": missing_variant_id,
+                    "price": { "amount": "12.00", "currencyCode": "CAD" }
+                }],
+                "pricesToDeleteByVariantId": [],
+                "quantityRulesToAdd": [],
+                "quantityRulesToDeleteByVariantId": [],
+                "quantityPriceBreaksToAdd": [],
+                "quantityPriceBreaksToDelete": [],
+                "quantityPriceBreaksToDeleteByVariantId": []
+            }
+        }),
+    ));
+    assert_eq!(
+        unknown_variant.body["data"]["quantityPricingByVariantUpdate"],
+        json!({
+            "productVariants": null,
+            "userErrors": [{
+                "__typename": "QuantityPricingByVariantUserError",
+                "field": ["input", "pricesToAdd", "0"],
+                "message": "Variant not found.",
+                "code": "PRICE_ADD_VARIANT_NOT_FOUND"
+            }]
+        })
+    );
+
+    let currency_mismatch = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityPricingCurrencyMismatch($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
+          quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {
+            productVariants { id }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": cad_price_list_id,
+            "input": {
+                "pricesToAdd": [{
+                    "variantId": observed_variant_id,
+                    "price": { "amount": "12.00", "currencyCode": "EUR" }
+                }],
+                "pricesToDeleteByVariantId": [],
+                "quantityRulesToAdd": [],
+                "quantityRulesToDeleteByVariantId": [],
+                "quantityPriceBreaksToAdd": [],
+                "quantityPriceBreaksToDelete": [],
+                "quantityPriceBreaksToDeleteByVariantId": []
+            }
+        }),
+    ));
+    assert_eq!(
+        currency_mismatch.body["data"]["quantityPricingByVariantUpdate"],
+        json!({
+            "productVariants": null,
+            "userErrors": [{
+                "__typename": "QuantityPricingByVariantUserError",
+                "field": ["input", "pricesToAdd", "0"],
+                "message": "Currency mismatch.",
+                "code": "PRICE_ADD_CURRENCY_MISMATCH"
+            }]
+        })
+    );
+}
+
+#[test]
+fn quantity_rules_delete_rejects_non_sentinel_missing_price_list() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![observed_variant_product(
+        "gid://shopify/Product/quantity-rule-price-list",
+        "gid://shopify/ProductVariant/50000000002001",
+    )]);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesDeleteMissingPriceList($priceListId: ID!, $variantIds: [ID!]!) {
+          quantityRulesDelete(priceListId: $priceListId, variantIds: $variantIds) {
+            deletedQuantityRulesVariantIds
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "priceListId": "gid://shopify/PriceList/50000000002099",
+            "variantIds": ["gid://shopify/ProductVariant/50000000002001"]
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["quantityRulesDelete"],
+        json!({
+            "deletedQuantityRulesVariantIds": [],
+            "userErrors": [{
+                "__typename": "QuantityRuleUserError",
+                "field": ["priceListId"],
+                "message": "Price list does not exist.",
+                "code": "PRICE_LIST_DOES_NOT_EXIST"
+            }]
+        })
+    );
+}
+
+#[test]
 fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = snapshot_proxy().with_base_products(vec![observed_variant_product(
+        "gid://shopify/Product/quantity-pricing-captured-shapes",
+        "gid://shopify/ProductVariant/49875425296690",
+    )]);
+    let price_list_id = create_test_price_list(&mut proxy, "CAD");
 
     let unknown_price_list = proxy.process_request(json_graphql_request(
         r#"
@@ -1732,7 +2031,7 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
         }
         "#,
         json!({
-            "priceListId": "gid://shopify/PriceList/0",
+            "priceListId": "gid://shopify/PriceList/49875425296999",
             "input": {
                 "pricesToAdd": [{"variantId": "gid://shopify/ProductVariant/49875425296690", "price": {"amount": "12.00", "currencyCode": "CAD"}}],
                 "pricesToDeleteByVariantId": [],
@@ -1760,7 +2059,7 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
         }
         "#,
         json!({
-            "priceListId": "gid://shopify/PriceList/31575376178",
+            "priceListId": price_list_id.clone(),
             "input": {
                 "pricesToAdd": [],
                 "pricesToDeleteByVariantId": ["gid://shopify/ProductVariant/49875425296690", "gid://shopify/ProductVariant/49875425296690"],
@@ -1783,7 +2082,7 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
           quantityRulesDelete(priceListId: $priceListId, variantIds: $variantIds) { deletedQuantityRulesVariantIds userErrors { field code message } }
         }
         "#,
-        json!({"priceListId": "gid://shopify/PriceList/32128106802", "variantIds": ["gid://shopify/ProductVariant/49875425296690"]}),
+        json!({"priceListId": price_list_id.clone(), "variantIds": ["gid://shopify/ProductVariant/49875425296690"]}),
     ));
     assert_eq!(
         cleanup.body["data"]["quantityRulesDelete"],
@@ -1796,7 +2095,7 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
           quantityRulesAdd(priceListId: $priceListId, quantityRules: $quantityRules) { quantityRules { minimum maximum increment productVariant { id } } userErrors { field code message } }
         }
         "#,
-        json!({"priceListId": "gid://shopify/PriceList/32128106802", "quantityRules": [{"variantId": "gid://shopify/ProductVariant/0", "minimum": 2, "maximum": 10, "increment": 2}]}),
+        json!({"priceListId": price_list_id.clone(), "quantityRules": [{"variantId": "gid://shopify/ProductVariant/49875425296691", "minimum": 2, "maximum": 10, "increment": 2}]}),
     ));
     assert_eq!(
         unknown_variant.body["data"]["quantityRulesAdd"]["quantityRules"],
@@ -1813,7 +2112,7 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
           quantityRulesAdd(priceListId: $priceListId, quantityRules: $quantityRules) { quantityRules { minimum maximum increment productVariant { id } } userErrors { __typename field code message } }
         }
         "#,
-        json!({"priceListId": "gid://shopify/PriceList/999", "quantityRules": [{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 2, "maximum": 10, "increment": 2}]}),
+        json!({"priceListId": "gid://shopify/PriceList/49875425296998", "quantityRules": [{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 2, "maximum": 10, "increment": 2}]}),
     ));
     assert_eq!(
         unknown_quantity_rules_price_list.body["data"]["quantityRulesAdd"],
@@ -1826,7 +2125,7 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
           quantityRulesAdd(priceListId: $priceListId, quantityRules: $quantityRules) { quantityRules { minimum maximum increment productVariant { id } } userErrors { __typename field code message } }
         }
         "#,
-        json!({"priceListId": "gid://shopify/PriceList/32128106802", "quantityRules": [{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 2, "maximum": 10, "increment": 2}]}),
+        json!({"priceListId": price_list_id.clone(), "quantityRules": [{"variantId": "gid://shopify/ProductVariant/49875425296690", "minimum": 2, "maximum": 10, "increment": 2}]}),
     ));
     assert_eq!(
         valid_quantity_rules_add.body["data"]["quantityRulesAdd"],
@@ -1878,7 +2177,7 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
               }
             }
             "#,
-            json!({"priceListId": "gid://shopify/PriceList/31575376178", "quantityRules": quantity_rules}),
+            json!({"priceListId": price_list_id.clone(), "quantityRules": quantity_rules}),
         ));
         assert_eq!(
             invalid.body["data"]["quantityRulesAdd"],
@@ -2162,7 +2461,7 @@ fn market_web_presence_current_runtime_helpers_stage_and_validate() {
     let validation_cases = [
         (
             json!({"defaultLocale": "en"}),
-            json!([{ "__typename": "MarketUserError", "field": ["input"], "message": "Requires a domain or subfolder suffix.", "code": "REQUIRES_DOMAIN_OR_SUBFOLDER" }]),
+            json!([{ "__typename": "MarketUserError", "field": ["input"], "message": "One of `subfolderSuffix` or `domainId` is required.", "code": "REQUIRES_DOMAIN_OR_SUBFOLDER" }]),
         ),
         (
             json!({"defaultLocale": "en", "subfolderSuffix": "x"}),
@@ -3306,7 +3605,17 @@ fn bundled_price_list_web_presence_mutations_stage_through_helper_path() {
 
 #[test]
 fn bundled_quantity_rules_delete_checks_staged_price_list_existence() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/quantity-rule-observed".to_string(),
+        title: "Quantity rule observed product".to_string(),
+        handle: "quantity-rule-observed-product".to_string(),
+        variants: vec![json!({
+            "id": "gid://shopify/ProductVariant/49875425296690",
+            "title": "Observed variant",
+            "sku": "OBSERVED"
+        })],
+        ..ProductRecord::default()
+    }]);
 
     let create_price_list = proxy.process_request(json_graphql_request(
         r#"
@@ -3363,6 +3672,47 @@ fn bundled_quantity_rules_delete_checks_staged_price_list_existence() {
         })
     );
 
+    let bundled_unknown_variant = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesDeleteBundledUnknownVariant(
+          $updateId: ID!
+          $updateInput: PriceListUpdateInput!
+          $priceListId: ID!
+          $variantIds: [ID!]!
+        ) {
+          priceListUpdate(id: $updateId, input: $updateInput) {
+            priceList { id name }
+            userErrors { __typename field message code }
+          }
+          quantityRulesDelete(priceListId: $priceListId, variantIds: $variantIds) {
+            deletedQuantityRulesVariantIds
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({
+            "updateId": price_list_id,
+            "updateInput": { "name": "Quantity Rule Prices Missing Variant" },
+            "priceListId": price_list_id,
+            "variantIds": [
+                "gid://shopify/ProductVariant/49875425296690",
+                "gid://shopify/ProductVariant/49875425296691"
+            ]
+        }),
+    ));
+    assert_eq!(
+        bundled_unknown_variant.body["data"]["quantityRulesDelete"],
+        json!({
+            "deletedQuantityRulesVariantIds": [],
+            "userErrors": [{
+                "__typename": "QuantityRuleUserError",
+                "field": ["variantIds", "1"],
+                "message": "Product variant ID does not exist.",
+                "code": "PRODUCT_VARIANT_DOES_NOT_EXIST"
+            }]
+        })
+    );
+
     let bundled_unknown_price_list = proxy.process_request(json_graphql_request(
         r#"
         mutation QuantityRulesDeleteBundledUnknownPriceList(
@@ -3397,6 +3747,53 @@ fn bundled_quantity_rules_delete_checks_staged_price_list_existence() {
                 "field": ["priceListId"],
                 "message": "Price list does not exist.",
                 "code": "PRICE_LIST_DOES_NOT_EXIST"
+            }]
+        })
+    );
+}
+
+#[test]
+fn quantity_rules_delete_uses_observed_variant_state_for_standalone_root() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/quantity-rule-standalone".to_string(),
+        title: "Quantity rule standalone product".to_string(),
+        handle: "quantity-rule-standalone-product".to_string(),
+        variants: vec![json!({
+            "id": "gid://shopify/ProductVariant/50000000000001",
+            "title": "Standalone observed variant",
+            "sku": "STANDALONE"
+        })],
+        ..ProductRecord::default()
+    }]);
+    let price_list_id = create_test_price_list(&mut proxy, "USD");
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation QuantityRulesDeleteObservedVariants($priceListId: ID!, $variantIds: [ID!]!) {
+          quantityRulesDelete(priceListId: $priceListId, variantIds: $variantIds) {
+            deletedQuantityRulesVariantIds
+            userErrors { __typename field message code }
+            }
+        }
+        "#,
+        json!({
+            "priceListId": price_list_id,
+            "variantIds": [
+                "gid://shopify/ProductVariant/50000000000001",
+                "gid://shopify/ProductVariant/50000000000002"
+            ]
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["quantityRulesDelete"],
+        json!({
+            "deletedQuantityRulesVariantIds": [],
+            "userErrors": [{
+                "__typename": "QuantityRuleUserError",
+                "field": ["variantIds", "1"],
+                "message": "Product variant ID does not exist.",
+                "code": "PRODUCT_VARIANT_DOES_NOT_EXIST"
             }]
         })
     );
@@ -6990,6 +7387,223 @@ fn polymorphic_tags_add_remove_split_and_match_case_insensitively() {
         assert_tags_mutation(id, "tagsRemove", json!(["red"]), remove_case_expected);
         assert_tags_mutation(id, "tagsRemove", json!("Red"), json!([]));
     }
+}
+
+#[test]
+fn polymorphic_tags_not_found_returns_payload_user_errors_and_logs_raw_mutations() {
+    let mut product_proxy = snapshot_proxy();
+    let product_id = "gid://shopify/Product/999999999999999";
+    let add = product_proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingProductTagsAdd($id: ID!, $tags: [String!]!) {
+          missingAdd: tagsAdd(id: $id, tags: $tags) {
+            selectedNode: node { ... on Product { selectedId: id } }
+            problems: userErrors { path: field text: message }
+          }
+        }
+        "#,
+        json!({ "id": product_id, "tags": ["vip"] }),
+    ));
+    assert_eq!(add.status, 200);
+    assert_eq!(
+        add.body["data"]["missingAdd"],
+        json!({
+            "selectedNode": null,
+            "problems": [{
+                "path": ["id"],
+                "text": "Product does not exist"
+            }]
+        })
+    );
+    let product_log = log_snapshot(&product_proxy);
+    assert_eq!(product_log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        product_log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("tagsAdd")
+    );
+    assert_eq!(
+        product_log["entries"][0]["stagedResourceIds"],
+        json!([product_id])
+    );
+    assert!(product_log["entries"][0]["rawBody"]
+        .as_str()
+        .is_some_and(|raw_body| raw_body.contains("MissingProductTagsAdd")));
+
+    let mut customer_proxy = snapshot_proxy();
+    let customer_id = "gid://shopify/Customer/999999999999999";
+    let remove = customer_proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingCustomerTagsRemove($id: ID!, $tags: [String!]!) {
+          missingRemove: tagsRemove(id: $id, tags: $tags) {
+            selectedNode: node { ... on Customer { selectedId: id } }
+            problems: userErrors { path: field text: message }
+          }
+        }
+        "#,
+        json!({ "id": customer_id, "tags": ["vip"] }),
+    ));
+    assert_eq!(remove.status, 200);
+    assert_eq!(
+        remove.body["data"]["missingRemove"],
+        json!({
+            "selectedNode": null,
+            "problems": [{
+                "path": ["id"],
+                "text": "Customer does not exist"
+            }]
+        })
+    );
+    let customer_log = log_snapshot(&customer_proxy);
+    assert_eq!(customer_log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        customer_log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("tagsRemove")
+    );
+    assert_eq!(
+        customer_log["entries"][0]["stagedResourceIds"],
+        json!([customer_id])
+    );
+    assert!(customer_log["entries"][0]["rawBody"]
+        .as_str()
+        .is_some_and(|raw_body| raw_body.contains("MissingCustomerTagsRemove")));
+}
+
+#[test]
+fn polymorphic_tags_not_found_messages_cover_supported_taggable_types() {
+    for resource_type in ["Product", "Order", "DraftOrder", "Customer", "Article"] {
+        for root in ["tagsAdd", "tagsRemove"] {
+            let mut proxy = snapshot_proxy();
+            let id = format!("gid://shopify/{resource_type}/999999999999999");
+            let query = format!(
+                r#"
+                mutation SupportedTaggableNotFound($id: ID!, $tags: [String!]!) {{
+                  {root}(id: $id, tags: $tags) {{
+                    node {{ id }}
+                    userErrors {{ field message }}
+                  }}
+                }}
+                "#
+            );
+            let response = proxy.process_request(json_graphql_request(
+                &query,
+                json!({ "id": id, "tags": ["vip"] }),
+            ));
+
+            assert_eq!(response.status, 200, "{root} {resource_type}");
+            assert_eq!(
+                response.body["data"][root],
+                json!({
+                    "node": null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "message": format!("{resource_type} does not exist")
+                    }]
+                }),
+                "{root} {resource_type}"
+            );
+            assert_eq!(
+                log_snapshot(&proxy)["entries"][0]["stagedResourceIds"],
+                json!([format!("gid://shopify/{resource_type}/999999999999999")]),
+                "{root} {resource_type}"
+            );
+        }
+    }
+}
+
+#[test]
+fn polymorphic_tags_live_hybrid_null_hydration_returns_payload_not_found() {
+    let product_hydrates = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_product_hydrates = Arc::clone(&product_hydrates);
+    let mut product_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_product_hydrates.lock().unwrap().push(body.clone());
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("ProductsHydrateNodes")));
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "nodes": [Value::Null] } }),
+            }
+        });
+    let product_id = "gid://shopify/Product/999999999999999";
+    let add = product_proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingProductTagsAddLive($id: ID!, $tags: [String!]!) {
+          tagsAdd(id: $id, tags: $tags) {
+            node { ... on Product { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": product_id, "tags": ["vip"] }),
+    ));
+    assert_eq!(add.status, 200);
+    assert_eq!(
+        add.body["data"]["tagsAdd"],
+        json!({
+            "node": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Product does not exist"
+            }]
+        })
+    );
+    let product_hydrate_bodies = product_hydrates.lock().unwrap();
+    assert_eq!(product_hydrate_bodies.len(), 1);
+    assert_eq!(
+        log_snapshot(&product_proxy)["entries"][0]["stagedResourceIds"],
+        json!([product_id])
+    );
+
+    let customer_hydrates = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_customer_hydrates = Arc::clone(&customer_hydrates);
+    let mut customer_proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value = serde_json::from_str(&request.body).expect("upstream body parses");
+            captured_customer_hydrates
+                .lock()
+                .unwrap()
+                .push(body.clone());
+            assert!(body["query"]
+                .as_str()
+                .is_some_and(|query| query.contains("CustomerHydrate")));
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "customer": Value::Null } }),
+            }
+        });
+    let customer_id = "gid://shopify/Customer/999999999999999";
+    let remove = customer_proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingCustomerTagsRemoveLive($id: ID!, $tags: [String!]!) {
+          tagsRemove(id: $id, tags: $tags) {
+            node { ... on Customer { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": customer_id, "tags": ["vip"] }),
+    ));
+    assert_eq!(remove.status, 200);
+    assert_eq!(
+        remove.body["data"]["tagsRemove"],
+        json!({
+            "node": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Customer does not exist"
+            }]
+        })
+    );
+    let customer_hydrate_bodies = customer_hydrates.lock().unwrap();
+    assert_eq!(customer_hydrate_bodies.len(), 1);
+    assert_eq!(
+        log_snapshot(&customer_proxy)["entries"][0]["stagedResourceIds"],
+        json!([customer_id])
+    );
 }
 
 #[test]

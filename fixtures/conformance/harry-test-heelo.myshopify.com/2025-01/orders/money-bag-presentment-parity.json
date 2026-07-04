@@ -1,0 +1,393 @@
+{
+  "capturedAt": "2026-07-03T16:40:58.616Z",
+  "scenarioId": "money-bag-presentment-parity",
+  "source": "live-shopify-admin-graphql",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": "Live Shopify Admin GraphQL capture for MoneyBag presentment propagation through orderCreate, orderEditBegin, orderEditCommit, orderMarkAsPaid, and refundCreate on one disposable multi-currency order. The edit branch runs before payment/refund because Shopify rejects edit begin on a paid/refunded order. The test order is created through public Admin GraphQL and cancelled in cleanup; no proxy/local-runtime output is used as Shopify evidence.",
+  "orderCreate": {
+    "query": "mutation MoneyBagPresentmentSingleCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalTaxSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalReceivedSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalOutstandingSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n            presentmentMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "order": {
+        "email": "money-bag-presentment-20260703164056@example.com",
+        "note": "money-bag presentment 20260703164056",
+        "tags": ["money-bag-presentment-parity"],
+        "test": true,
+        "currency": "CAD",
+        "presentmentCurrency": "USD",
+        "shippingAddress": {
+          "firstName": "Conformance",
+          "lastName": "MoneyBag",
+          "address1": "123 Queen St W",
+          "city": "Toronto",
+          "provinceCode": "ON",
+          "countryCode": "CA",
+          "zip": "M5H 2M9"
+        },
+        "lineItems": [
+          {
+            "title": "MoneyBag line 20260703164056",
+            "quantity": 1,
+            "sku": "MBAG-20260703164056",
+            "requiresShipping": true,
+            "taxable": true,
+            "priceSet": {
+              "shopMoney": {
+                "amount": "12.00",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "8.00",
+                "currencyCode": "USD"
+              }
+            },
+            "taxLines": [
+              {
+                "title": "Line tax",
+                "rate": 0.125,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "1.50",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "1.00",
+                    "currencyCode": "USD"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "inventoryBehaviour": "BYPASS",
+        "sendReceipt": false,
+        "sendFulfillmentReceipt": false
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8888861458738",
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "13.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "9.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "13.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "9.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalTaxSet": {
+                "shopMoney": {
+                  "amount": "1.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "1.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "13.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "9.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "12.0",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "8.0",
+                        "currencyCode": "USD"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "orderEditBegin": {
+    "query": "mutation MoneyBagPresentmentOrderEditBegin($id: ID!) {\n  orderEditBegin(id: $id) {\n    calculatedOrder {\n      id\n      originalOrder {\n        id\n      }\n      totalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Order/8888861458738"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderEditBegin": {
+            "calculatedOrder": {
+              "id": "gid://shopify/CalculatedOrder/113779409202",
+              "originalOrder": {
+                "id": "gid://shopify/Order/8888861458738"
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "13.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "9.0",
+                  "currencyCode": "USD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "orderEditCommit": {
+    "query": "mutation MoneyBagPresentmentOrderEditCommit($id: ID!) {\n  orderEditCommit(id: $id, notifyCustomer: false) {\n    order {\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/CalculatedOrder/113779409202"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderEditCommit": {
+            "order": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "There must be at least one change to be made."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "markAsPaid": {
+    "query": "mutation MoneyBagPresentmentMarkAsPaid($input: OrderMarkAsPaidInput!) {\n  orderMarkAsPaid(input: $input) {\n    order {\n      id\n      totalOutstandingSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n      transactions {\n        id\n        kind\n        status\n        gateway\n        amountSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Order/8888861458738"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderMarkAsPaid": {
+            "order": {
+              "id": "gid://shopify/Order/8888861458738",
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10633612722482",
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "12.77",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "9.0",
+                      "currencyCode": "USD"
+                    }
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "refund": {
+    "query": "mutation MoneyBagPresentmentRefund($input: RefundInput!) {\n  refundCreate(input: $input) {\n    refund {\n      totalRefundedSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    order {\n      totalRefundedSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n        presentmentMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "input": {
+        "orderId": "gid://shopify/Order/8888861458738",
+        "currency": "USD",
+        "allowOverRefunding": true,
+        "transactions": [
+          {
+            "amount": "5.00",
+            "gateway": "manual",
+            "kind": "REFUND",
+            "orderId": "gid://shopify/Order/8888861458738",
+            "parentId": "gid://shopify/OrderTransaction/10633612722482"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "refundCreate": {
+            "refund": {
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "7.1",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "5.0",
+                  "currencyCode": "USD"
+                }
+              }
+            },
+            "order": {
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "7.1",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "5.0",
+                  "currencyCode": "USD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "query": "mutation OrderCancelParity(\n  $orderId: ID!\n  $restock: Boolean!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean\n  $staffNote: String\n) {\n  orderCancel(\n    orderId: $orderId\n    restock: $restock\n    reason: $reason\n    notifyCustomer: $notifyCustomer\n    staffNote: $staffNote\n  ) {\n    orderCancelUserErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "orderId": "gid://shopify/Order/8888861458738",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "orderCancelUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

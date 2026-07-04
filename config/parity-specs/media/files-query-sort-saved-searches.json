@@ -1,0 +1,209 @@
+{
+  "scenarioId": "media-files-query-sort-saved-searches",
+  "operationNames": ["files", "fileSavedSearches", "fileCreate", "savedSearchCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["downstream-read-parity", "search-filter-parity", "sort-order-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/files-query-sort-saved-searches.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/files-query-sort-saved-searches-create.graphql",
+    "variablesCapturePath": "$.create.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 Files API evidence for files(query:) filename/media_type filters, FileSortKeys.FILENAME ordering with reverse, FILE saved-search reads, and files(savedSearchId:) resolution. The read query scopes records by a unique filename prefix so the live store catalog does not leak unrelated files into the comparison.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "file-create-setup-user-errors",
+        "capturePath": "$.create.response.data.fileCreate.userErrors",
+        "proxyPath": "$.data.fileCreate.userErrors"
+      },
+      {
+        "name": "saved-search-create-setup",
+        "capturePath": "$.savedSearchCreate.response.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/files-query-sort-saved-searches-saved-search-create.graphql",
+          "variablesCapturePath": "$.savedSearchCreate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy generates a local SavedSearch GID; Shopify returns the dev-store SavedSearch GID."
+          }
+        ]
+      },
+      {
+        "name": "files-query-filename-filter",
+        "capturePath": "$.read.response.data.filename",
+        "proxyPath": "$.data.filename",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/files-query-sort-saved-searches-read.graphql",
+          "variables": {
+            "exactFilenameQuery": {
+              "fromCapturePath": "$.read.request.variables.exactFilenameQuery"
+            },
+            "imageQuery": {
+              "fromCapturePath": "$.read.request.variables.imageQuery"
+            },
+            "prefixQuery": {
+              "fromCapturePath": "$.read.request.variables.prefixQuery"
+            },
+            "savedSearchId": {
+              "fromProxyResponse": "saved-search-create-setup",
+              "path": "$.data.savedSearchCreate.savedSearch.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[*].id",
+            "matcher": "shopify-gid:GenericFile",
+            "reason": "The proxy generates local file GIDs; Shopify returns dev-store file GIDs."
+          },
+          {
+            "path": "$.nodes[*].fileStatus",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify file processing status can advance asynchronously; the proxy keeps deterministic staged status."
+          }
+        ]
+      },
+      {
+        "name": "files-query-media-type-filter",
+        "capturePath": "$.read.response.data.imageType",
+        "proxyPath": "$.data.imageType",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/files-query-sort-saved-searches-read.graphql",
+          "variables": {
+            "exactFilenameQuery": {
+              "fromCapturePath": "$.read.request.variables.exactFilenameQuery"
+            },
+            "imageQuery": {
+              "fromCapturePath": "$.read.request.variables.imageQuery"
+            },
+            "prefixQuery": {
+              "fromCapturePath": "$.read.request.variables.prefixQuery"
+            },
+            "savedSearchId": {
+              "fromProxyResponse": "saved-search-create-setup",
+              "path": "$.data.savedSearchCreate.savedSearch.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "files-sort-filename",
+        "capturePath": "$.read.response.data.byFilename",
+        "proxyPath": "$.data.byFilename",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/files-query-sort-saved-searches-read.graphql",
+          "variables": {
+            "exactFilenameQuery": {
+              "fromCapturePath": "$.read.request.variables.exactFilenameQuery"
+            },
+            "imageQuery": {
+              "fromCapturePath": "$.read.request.variables.imageQuery"
+            },
+            "prefixQuery": {
+              "fromCapturePath": "$.read.request.variables.prefixQuery"
+            },
+            "savedSearchId": {
+              "fromProxyResponse": "saved-search-create-setup",
+              "path": "$.data.savedSearchCreate.savedSearch.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "files-sort-filename-reverse",
+        "capturePath": "$.read.response.data.byFilenameReverse",
+        "proxyPath": "$.data.byFilenameReverse",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/files-query-sort-saved-searches-read.graphql",
+          "variables": {
+            "exactFilenameQuery": {
+              "fromCapturePath": "$.read.request.variables.exactFilenameQuery"
+            },
+            "imageQuery": {
+              "fromCapturePath": "$.read.request.variables.imageQuery"
+            },
+            "prefixQuery": {
+              "fromCapturePath": "$.read.request.variables.prefixQuery"
+            },
+            "savedSearchId": {
+              "fromProxyResponse": "saved-search-create-setup",
+              "path": "$.data.savedSearchCreate.savedSearch.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "files-saved-search-id-filter",
+        "capturePath": "$.read.response.data.savedSearchFiles",
+        "proxyPath": "$.data.savedSearchFiles",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/files-query-sort-saved-searches-read.graphql",
+          "variables": {
+            "exactFilenameQuery": {
+              "fromCapturePath": "$.read.request.variables.exactFilenameQuery"
+            },
+            "imageQuery": {
+              "fromCapturePath": "$.read.request.variables.imageQuery"
+            },
+            "prefixQuery": {
+              "fromCapturePath": "$.read.request.variables.prefixQuery"
+            },
+            "savedSearchId": {
+              "fromProxyResponse": "saved-search-create-setup",
+              "path": "$.data.savedSearchCreate.savedSearch.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "file-saved-searches-read",
+        "capturePath": "$.read.response.data.fileSavedSearches",
+        "proxyPath": "$.data.fileSavedSearches",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/files-query-sort-saved-searches-read.graphql",
+          "variables": {
+            "exactFilenameQuery": {
+              "fromCapturePath": "$.read.request.variables.exactFilenameQuery"
+            },
+            "imageQuery": {
+              "fromCapturePath": "$.read.request.variables.imageQuery"
+            },
+            "prefixQuery": {
+              "fromCapturePath": "$.read.request.variables.prefixQuery"
+            },
+            "savedSearchId": {
+              "fromProxyResponse": "saved-search-create-setup",
+              "path": "$.data.savedSearchCreate.savedSearch.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[*].id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy generates a local SavedSearch GID; Shopify returns the dev-store SavedSearch GID."
+          }
+        ]
+      }
+    ]
+  }
+}

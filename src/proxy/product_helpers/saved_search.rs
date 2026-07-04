@@ -487,10 +487,14 @@ pub(in crate::proxy) fn saved_search_known_filter(resource_type: &str, key: &str
             "created_at"
                 | "filename"
                 | "id"
+                | "ids"
                 | "media_type"
                 | "original_source"
+                | "original_upload_size"
+                | "product_id"
                 | "status"
                 | "updated_at"
+                | "used_in"
         ),
         "DISCOUNT_REDEEM_CODE" => matches!(
             base_key,

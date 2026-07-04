@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-06-29T07:04:41.652Z",
+  "capturedAt": "2026-07-03T17:51:41.609Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "captureType": "shipping-settings-replayable-parity",
@@ -286,7 +286,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -446,7 +446,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }
@@ -501,7 +501,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -541,7 +541,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1988,
+                "currentlyAvailable": 1985,
                 "restoreRate": 100
               }
             }
@@ -581,7 +581,142 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "shippingPackageUpdateHardcodedId": {
+      "query": "#graphql\n  mutation ShippingPackageUpdateUnknown($id: ID!, $shippingPackage: CustomShippingPackageInput!) {\n    shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) {\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/ShippingPackage/1",
+        "shippingPackage": {
+          "name": "Hardcoded package",
+          "type": "BOX",
+          "default": false,
+          "weight": {
+            "value": 1.5,
+            "unit": "POUNDS"
+          },
+          "dimensions": {
+            "length": 10,
+            "width": 7,
+            "height": 4,
+            "unit": "INCHES"
+          }
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid id: gid://shopify/ShippingPackage/1",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["shippingPackageUpdate"]
+            }
+          ],
+          "data": {
+            "shippingPackageUpdate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "shippingPackageMakeDefaultHardcodedId": {
+      "query": "#graphql\n  mutation ShippingPackageMakeDefaultUnknown($id: ID!) {\n    shippingPackageMakeDefault(id: $id) {\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/ShippingPackage/1"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid id: gid://shopify/ShippingPackage/1",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["shippingPackageMakeDefault"]
+            }
+          ],
+          "data": {
+            "shippingPackageMakeDefault": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "shippingPackageDeleteHardcodedId": {
+      "query": "#graphql\n  mutation ShippingPackageDeleteUnknown($id: ID!) {\n    shippingPackageDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/ShippingPackage/1"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid id: gid://shopify/ShippingPackage/1",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["shippingPackageDelete"]
+            }
+          ],
+          "data": {
+            "shippingPackageDelete": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
                 "restoreRate": 100
               }
             }
@@ -604,7 +739,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1994,
+                "currentlyAvailable": 1999,
                 "restoreRate": 100
               }
             }
@@ -644,5 +779,174 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingPackageHydrate",
+      "variables": {
+        "id": "gid://shopify/ShippingPackage/999999999999"
+      },
+      "query": "query ShippingPackageHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on ShippingPackage {\n      id\n      name\n      type\n      boxType\n      default\n      weight { value unit }\n      dimensions { length width height unit }\n      createdAt\n      updatedAt\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "No such type ShippingPackage, so it can't be a fragment condition",
+              "locations": [
+                {
+                  "line": 4,
+                  "column": 5
+                }
+              ],
+              "path": ["query ShippingPackageHydrate", "node", "... on ShippingPackage"],
+              "extensions": {
+                "code": "undefinedType",
+                "typeName": "ShippingPackage"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operationName": "ShippingPackageHydrate",
+      "variables": {
+        "id": "gid://shopify/ShippingPackage/999999999999"
+      },
+      "query": "query ShippingPackageHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on ShippingPackage {\n      id\n      name\n      type\n      boxType\n      default\n      weight { value unit }\n      dimensions { length width height unit }\n      createdAt\n      updatedAt\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "No such type ShippingPackage, so it can't be a fragment condition",
+              "locations": [
+                {
+                  "line": 4,
+                  "column": 5
+                }
+              ],
+              "path": ["query ShippingPackageHydrate", "node", "... on ShippingPackage"],
+              "extensions": {
+                "code": "undefinedType",
+                "typeName": "ShippingPackage"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operationName": "ShippingPackageHydrate",
+      "variables": {
+        "id": "gid://shopify/ShippingPackage/999999999999"
+      },
+      "query": "query ShippingPackageHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on ShippingPackage {\n      id\n      name\n      type\n      boxType\n      default\n      weight { value unit }\n      dimensions { length width height unit }\n      createdAt\n      updatedAt\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "No such type ShippingPackage, so it can't be a fragment condition",
+              "locations": [
+                {
+                  "line": 4,
+                  "column": 5
+                }
+              ],
+              "path": ["query ShippingPackageHydrate", "node", "... on ShippingPackage"],
+              "extensions": {
+                "code": "undefinedType",
+                "typeName": "ShippingPackage"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operationName": "ShippingPackageHydrate",
+      "variables": {
+        "id": "gid://shopify/ShippingPackage/1"
+      },
+      "query": "query ShippingPackageHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on ShippingPackage {\n      id\n      name\n      type\n      boxType\n      default\n      weight { value unit }\n      dimensions { length width height unit }\n      createdAt\n      updatedAt\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "No such type ShippingPackage, so it can't be a fragment condition",
+              "locations": [
+                {
+                  "line": 4,
+                  "column": 5
+                }
+              ],
+              "path": ["query ShippingPackageHydrate", "node", "... on ShippingPackage"],
+              "extensions": {
+                "code": "undefinedType",
+                "typeName": "ShippingPackage"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operationName": "ShippingPackageHydrate",
+      "variables": {
+        "id": "gid://shopify/ShippingPackage/1"
+      },
+      "query": "query ShippingPackageHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on ShippingPackage {\n      id\n      name\n      type\n      boxType\n      default\n      weight { value unit }\n      dimensions { length width height unit }\n      createdAt\n      updatedAt\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "No such type ShippingPackage, so it can't be a fragment condition",
+              "locations": [
+                {
+                  "line": 4,
+                  "column": 5
+                }
+              ],
+              "path": ["query ShippingPackageHydrate", "node", "... on ShippingPackage"],
+              "extensions": {
+                "code": "undefinedType",
+                "typeName": "ShippingPackage"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operationName": "ShippingPackageHydrate",
+      "variables": {
+        "id": "gid://shopify/ShippingPackage/1"
+      },
+      "query": "query ShippingPackageHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on ShippingPackage {\n      id\n      name\n      type\n      boxType\n      default\n      weight { value unit }\n      dimensions { length width height unit }\n      createdAt\n      updatedAt\n    }\n  }\n}",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "No such type ShippingPackage, so it can't be a fragment condition",
+              "locations": [
+                {
+                  "line": 4,
+                  "column": 5
+                }
+              ],
+              "path": ["query ShippingPackageHydrate", "node", "... on ShippingPackage"],
+              "extensions": {
+                "code": "undefinedType",
+                "typeName": "ShippingPackage"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
 }

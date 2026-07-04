@@ -865,6 +865,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "deletedLocationIds": [],
                     "deletedOrderIds": [],
                     "deletedOwnerMetafields": [],
+                    "deletedProductFeedIds": [],
                     "deletedProductIds": [
                         "gid://shopify/Product/base"
                     ],
@@ -892,6 +893,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "observedShippingLocations": {},
                     "orders": {},
                     "ownerMetafields": {},
+                    "productFeedOrder": [],
+                    "productFeeds": {},
                     "productOrder": [
                         "gid://shopify/Product/1?shopify-draft-proxy=synthetic"
                     ],

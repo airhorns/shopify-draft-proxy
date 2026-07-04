@@ -823,6 +823,18 @@ fn output_field_type(field: &Value) -> Option<OutputFieldType> {
     Some(OutputFieldType { named_type })
 }
 
+pub(in crate::proxy) fn public_admin_output_field_named_type(
+    api_version: &str,
+    parent_type: &str,
+    field_name: &str,
+) -> Option<&'static str> {
+    public_admin_output_schema(api_version)?
+        .fields_by_parent
+        .get(parent_type)?
+        .get(field_name)
+        .map(|field_type| field_type.named_type.as_str())
+}
+
 fn plain_user_error_code_selection_errors(
     query: &str,
     document: &ParsedDocument,
@@ -2510,6 +2522,13 @@ fn public_admin_input_schema(api_version: &str) -> Option<&'static AdminInputSch
 
 fn extend_graphql_base_validation_input_schema(schema: &mut AdminInputSchema, api_version: &str) {
     let parsed = public_admin_schema_json(api_version, AdminSchemaKind::Mutation);
+    schema.mutation_fields.insert(
+        "bulkOperationRunQuery".to_string(),
+        BTreeMap::from([
+            ("query".to_string(), mutation_arg(non_null("String"))),
+            ("groupObjects".to_string(), mutation_arg(named("Boolean"))),
+        ]),
+    );
     if let Some((name, arguments)) =
         captured_mutation_arguments(&parsed, "pubSubWebhookSubscriptionCreate")
     {
@@ -2746,6 +2765,27 @@ fn extend_publication_input_schema(schema: &mut AdminInputSchema) {
         "publicationDelete".to_string(),
         BTreeMap::from([("id".to_string(), mutation_arg(non_null("ID")))]),
     );
+    for root in ["publishablePublish", "publishableUnpublish"] {
+        schema.mutation_fields.insert(
+            root.to_string(),
+            BTreeMap::from([
+                ("id".to_string(), mutation_arg(non_null("ID"))),
+                (
+                    "input".to_string(),
+                    mutation_arg(non_null_list_of_non_null("PublicationInput")),
+                ),
+            ]),
+        );
+    }
+    for root in [
+        "publishablePublishToCurrentChannel",
+        "publishableUnpublishToCurrentChannel",
+    ] {
+        schema.mutation_fields.insert(
+            root.to_string(),
+            BTreeMap::from([("id".to_string(), mutation_arg(non_null("ID")))]),
+        );
+    }
 }
 
 fn extend_fulfillment_event_input_schema(schema: &mut AdminInputSchema) {

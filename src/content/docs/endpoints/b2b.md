@@ -58,6 +58,14 @@ Supported B2B mutations stage locally and retain the original raw mutation body
 for `POST /__meta/commit` replay. Failed local validations are recorded in the
 mutation log as failed and do not stage resource IDs.
 
+Bulk B2B mutations follow Shopify's app/API-client request-level batch cap:
+more than 50 entries returns a single top-level `LIMIT_REACHED` user error with
+the bulk argument as `field`, before parent lookup or per-entry validation, and
+does not mutate staged state. The local B2B dispatch path models app-facing
+Admin API callers; there is no first-party merchant-admin local bypass in the
+proxy, so the cap applies even when the optional
+`x-shopify-draft-proxy-api-client-id` identity header is absent.
+
 The local B2B graph stores staged companies, company locations, company
 addresses embedded on locations, company contacts, contact roles,
 location-role assignments, and location-staff assignments. `company(id:)`,
@@ -69,8 +77,9 @@ fixture-backed read path.
 
 `companyCreate` and `companyUpdate` stage company identity fields, validate
 company name length, strip HTML from accepted names, validate `externalId`
-character set, length, and duplicates, reject HTML or overlong notes, and
-reject `companyUpdate(input.customerSince)` without mutating the staged company.
+character set, length, and duplicates, validate note length while preserving
+note HTML verbatim, and reject `companyUpdate(input.customerSince)` without
+mutating the staged company.
 `companyCreate` can also stage nested company location, contact, and contact
 role setup when those input objects are present. Its nested
 `input.companyLocation` name follows Shopify's create-time fallback of
@@ -82,11 +91,13 @@ role setup when those input objects are present. Its nested
 company-contact lifecycle and keep company `contactIds`, contact customer data,
 role assignments, and downstream contact reads in sync. Deleting or removing
 the current main contact clears the company's `mainContact`. `companyContactCreate`
-requires an email-backed customer reference; omitting `input.email` returns
-`INVALID` at `["input"]` without staging a contact or customer. The nested
-`companyCreate(input.companyContact)` path applies the same requirement at
-`["input", "companyContact"]` before staging any company, location, role, contact,
-or assignment rows.
+stores `title` verbatim, including HTML, but rejects HTML in `firstName` or
+`lastName` with generic `INVALID_INPUT` at `["input"]`. It requires an
+email-backed customer reference; omitting `input.email` returns `INVALID` at
+`["input"]` without staging a contact or customer. The nested
+`companyCreate(input.companyContact)` path applies contact validation under
+`["input", "companyContact"]` before staging any company, location, role,
+contact, or assignment rows.
 
 `companyAssignMainContact` and `companyRevokeMainContact` stage the company's
 single `mainContactId` pointer and derive each contact's `isMainContact` from

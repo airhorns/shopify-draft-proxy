@@ -1,0 +1,16 @@
+query CollectionTopLevelStagedReadPostUpdate($oldHandleQuery: String!, $newHandleQuery: String!) {
+  oldByHandle: collections(first: 10, query: $oldHandleQuery, sortKey: ID) {
+    nodes {
+      id
+      title
+      handle
+    }
+  }
+  newByHandle: collections(first: 10, query: $newHandleQuery, sortKey: ID) {
+    nodes {
+      id
+      title
+      handle
+    }
+  }
+}

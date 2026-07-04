@@ -172,13 +172,15 @@ impl DraftProxy {
                         }));
                         return None;
                     };
-                    let total = if let Some(amount) = transactions
-                        .first()
-                        .and_then(|transaction| resolved_string_field(transaction, "amount"))
-                    {
-                        let amount = normalize_money_amount(&amount);
-                        let currency = money_bag_currency(&order["totalPriceSet"]);
-                        money_set_pair(&amount, &currency, &amount, &currency)
+                    let total = if let Some(total) = transactions.first().and_then(|transaction| {
+                        money_bag_refund_transaction_total(
+                            &order,
+                            &input,
+                            transaction,
+                            &self.store.shop_currency_code(),
+                        )
+                    }) {
+                        total
                     } else {
                         money_bag_order_money_set(&order, "totalOutstandingSet")
                     };
@@ -253,12 +255,12 @@ impl DraftProxy {
                 "orderEditCommit" => {
                     let calculated_id =
                         resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    let Some(order_id) = self
+                    if !self
                         .store
                         .staged
                         .order_edit_money_bag_calculated_order_ids
-                        .remove(&calculated_id)
-                    else {
+                        .contains_key(&calculated_id)
+                    {
                         early_response = Some(json!({
                             "data": {
                                 field.response_key.clone(): selected_json(
@@ -272,37 +274,12 @@ impl DraftProxy {
                             }
                         }));
                         return None;
-                    };
-                    let mut order = self
-                        .store
-                        .staged
-                        .orders
-                        .get(&order_id)
-                        .cloned()
-                        .unwrap_or(Value::Null);
-                    let order_unarchived = order_edit_order_is_closed(&order);
-                    if order_unarchived {
-                        order["closed"] = json!(false);
-                        order["closedAt"] = Value::Null;
-                        if let Some(order_id) = order["id"].as_str() {
-                            self.store
-                                .staged
-                                .orders
-                                .insert(order_id.to_string(), order.clone());
-                        }
                     }
-                    let notify_customer =
-                        resolved_bool_field(&field.arguments, "notifyCustomer").unwrap_or(false);
-                    let success_messages = order_edit_commit_success_messages(
-                        &order,
-                        notify_customer,
-                        order_unarchived,
-                    );
                     selected_json(
                         &json!({
-                            "order": order,
-                            "successMessages": success_messages,
-                            "userErrors": []
+                            "order": Value::Null,
+                            "successMessages": [],
+                            "userErrors": [user_error_omit_code(["id"], "There must be at least one change to be made.", None)]
                         }),
                         &field.selection,
                     )
@@ -325,8 +302,8 @@ impl DraftProxy {
         let default_currency =
             resolved_string_field(&order_input, "currency").unwrap_or_else(|| "USD".to_string());
         let [shop_amount, shop_currency, presentment_amount, presentment_currency] =
-            line_item_price_set_values(
-                &first_line,
+            line_items_price_set_values(
+                &order_input,
                 ["0.0", &default_currency, "0.0", &default_currency],
                 ["0.0", &default_currency],
                 None,
@@ -413,4 +390,35 @@ fn money_bag_order_money_set(order: &Value, key: &str) -> Value {
     }
     let currency = money_bag_currency(&order["totalPriceSet"]);
     money_set_pair("0.0", &currency, "0.0", &currency)
+}
+
+fn money_bag_refund_transaction_total(
+    order: &Value,
+    input: &BTreeMap<String, ResolvedValue>,
+    transaction: &BTreeMap<String, ResolvedValue>,
+    shop_currency_code: &str,
+) -> Option<Value> {
+    let amount = resolved_string_field(transaction, "amount")?;
+    let amount = normalize_money_amount(&amount);
+    let shop_currency = order_currency(order, shop_currency_code);
+    let parent_amount_set = resolved_string_field(transaction, "parentId")
+        .and_then(|parent_id| order_transaction_by_id(order, &parent_id))
+        .map(|parent| parent["amountSet"].clone());
+    let presentment_currency = resolved_string_field(input, "currency")
+        .or_else(|| resolved_string_field(transaction, "currency"))
+        .or_else(|| resolved_string_field(transaction, "currencyCode"))
+        .or_else(|| {
+            parent_amount_set.as_ref().and_then(|amount_set| {
+                payment_money_currency(amount_set, "presentmentMoney")
+                    .or_else(|| payment_money_currency(amount_set, "shopMoney"))
+            })
+        })
+        .unwrap_or_else(|| order_presentment_currency(order, &shop_currency));
+    let conversion_basis =
+        parent_amount_set.unwrap_or_else(|| money_bag_order_money_set(order, "totalPriceSet"));
+    Some(payment_money_set_for_capture(
+        &conversion_basis,
+        &amount,
+        &presentment_currency,
+    ))
 }
