@@ -9134,6 +9134,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}functions-live-owner-metadata-read.json`,
       'config/parity-specs/functions/functions-live-owner-metadata-read.json',
+      'config/parity-specs/functions/functions-tax-app-configure-authority-boundary.json',
+      'config/parity-requests/functions/functions-tax-app-configure-authority.graphql',
     ],
     cleanupBehavior:
       'Creates validation/cart-transform probe resources only after validation branches are captured, then deletes HAR-416 validations and cart transforms for the captured Function; no Shopify Function execution or tax callbacks are invoked.',
