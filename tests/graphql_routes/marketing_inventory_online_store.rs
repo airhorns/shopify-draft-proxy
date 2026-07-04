@@ -12043,11 +12043,11 @@ fn online_store_articles_published_status_query_controls_visibility() {
     let articles = proxy.process_request(json_graphql_request(
         r#"
         mutation ArticleStatusSetup($blogId: ID!) {
-          published: articleCreate(article: { title: "Published article", blogId: $blogId, author: { name: "Status Author" }, isPublished: true }) {
+          published: articleCreate(article: { title: "Published article", blogId: $blogId, author: { name: "Status Author" }, tags: ["status-tag"], isPublished: true }) {
             article { id title isPublished }
             userErrors { field message code }
           }
-          draft: articleCreate(article: { title: "Draft article", blogId: $blogId, author: { name: "Status Author" }, isPublished: false }) {
+          draft: articleCreate(article: { title: "Draft article", blogId: $blogId, author: { name: "Status Author" }, tags: ["status-tag", "draft-tag"], isPublished: false }) {
             article { id title isPublished }
             userErrors { field message code }
           }
@@ -12073,6 +12073,12 @@ fn online_store_articles_published_status_query_controls_visibility() {
           explicitPublished: articles(first: 10, query: "published_status:published") { nodes { id title isPublished } }
           anyStatus: articles(first: 10, query: "published_status:any") { nodes { id title isPublished } }
           unpublishedOnly: articles(first: 10, query: "published_status:unpublished") { nodes { id title isPublished } }
+          byAuthor: articles(first: 10, query: "published_status:published author:'Status Author'") { nodes { id title isPublished } }
+          byTag: articles(first: 10, query: "published_status:published tag:status-tag") { nodes { id title isPublished } }
+          byBlogTitle: articles(first: 10, query: "published_status:published blog_title:'Article status blog'") { nodes { id title isPublished } }
+          titleSorted: articles(first: 10, query: "published_status:any", sortKey: TITLE) { nodes { id title } }
+          titleSortedReverse: articles(first: 10, query: "published_status:any", sortKey: TITLE, reverse: true) { nodes { id title } }
+          unknownFilter: articles(first: 10, query: "not_a_real_filter:value") { nodes { id title } }
         }
         "#,
         json!({}),
@@ -12080,7 +12086,10 @@ fn online_store_articles_published_status_query_controls_visibility() {
 
     assert_eq!(
         read.body["data"]["defaultPublished"]["nodes"],
-        json!([{"id": published_id, "title": "Published article", "isPublished": true}])
+        json!([
+            {"id": published_id, "title": "Published article", "isPublished": true},
+            {"id": draft_id, "title": "Draft article", "isPublished": false}
+        ])
     );
     assert_eq!(
         read.body["data"]["explicitPublished"]["nodes"],
@@ -12097,6 +12106,237 @@ fn online_store_articles_published_status_query_controls_visibility() {
         read.body["data"]["unpublishedOnly"]["nodes"],
         json!([{"id": draft_id, "title": "Draft article", "isPublished": false}])
     );
+    let published_article =
+        json!([{"id": published_id, "title": "Published article", "isPublished": true}]);
+    assert_eq!(read.body["data"]["byAuthor"]["nodes"], published_article);
+    assert_eq!(read.body["data"]["byTag"]["nodes"], published_article);
+    assert_eq!(read.body["data"]["byBlogTitle"]["nodes"], published_article);
+    assert_eq!(
+        read.body["data"]["titleSorted"]["nodes"],
+        json!([
+            {"id": draft_id, "title": "Draft article"},
+            {"id": published_id, "title": "Published article"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["titleSortedReverse"]["nodes"],
+        json!([
+            {"id": published_id, "title": "Published article"},
+            {"id": draft_id, "title": "Draft article"}
+        ])
+    );
+    assert_eq!(read.body["data"]["unknownFilter"]["nodes"], json!([]));
+}
+
+#[test]
+fn online_store_blog_and_page_connections_filter_sort_and_reverse() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BlogPageConnectionSetup {
+          zBlog: blogCreate(blog: { title: "Zulu content blog" }) {
+            blog { id title }
+            userErrors { field message code }
+          }
+          aBlog: blogCreate(blog: { title: "Alpha content blog" }) {
+            blog { id title }
+            userErrors { field message code }
+          }
+          zPage: pageCreate(page: { title: "Zulu content page", body: "<p>Zulu page body</p>", isPublished: true }) {
+            page { id title isPublished }
+            userErrors { field message code }
+          }
+          aPage: pageCreate(page: { title: "Alpha content page", body: "<p>Alpha page body</p>", isPublished: false }) {
+            page { id title isPublished }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.body["data"]["zBlog"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["aBlog"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["zPage"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["aPage"]["userErrors"], json!([]));
+    let z_blog = create.body["data"]["zBlog"]["blog"]["id"].clone();
+    let a_blog = create.body["data"]["aBlog"]["blog"]["id"].clone();
+    let z_page = create.body["data"]["zPage"]["page"]["id"].clone();
+    let a_page = create.body["data"]["aPage"]["page"]["id"].clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BlogPageConnectionFilters {
+          blogsByTitle: blogs(first: 10, query: "title:'Alpha content blog'") { nodes { id title } }
+          blogsSorted: blogs(first: 10, sortKey: TITLE) { nodes { id title } }
+          blogsSortedReverse: blogs(first: 10, sortKey: TITLE, reverse: true) { nodes { id title } }
+          blogsUnknownFilter: blogs(first: 10, query: "not_a_real_filter:value") { nodes { id title } }
+          pagesByTitle: pages(first: 10, query: "title:'Alpha content page'") { nodes { id title isPublished } }
+          pagesPublished: pages(first: 10, query: "published_status:published") { nodes { id title isPublished } }
+          pagesUnpublished: pages(first: 10, query: "published_status:unpublished") { nodes { id title isPublished } }
+          pagesSorted: pages(first: 10, sortKey: TITLE) { nodes { id title } }
+          pagesSortedReverse: pages(first: 10, sortKey: TITLE, reverse: true) { nodes { id title } }
+          pagesUnknownFilter: pages(first: 10, query: "not_a_real_filter:value") { nodes { id title } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["blogsByTitle"]["nodes"],
+        json!([{"id": a_blog, "title": "Alpha content blog"}])
+    );
+    assert_eq!(
+        read.body["data"]["blogsSorted"]["nodes"],
+        json!([
+            {"id": a_blog, "title": "Alpha content blog"},
+            {"id": z_blog, "title": "Zulu content blog"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["blogsSortedReverse"]["nodes"],
+        json!([
+            {"id": z_blog, "title": "Zulu content blog"},
+            {"id": a_blog, "title": "Alpha content blog"}
+        ])
+    );
+    assert_eq!(read.body["data"]["blogsUnknownFilter"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["pagesByTitle"]["nodes"],
+        json!([{"id": a_page, "title": "Alpha content page", "isPublished": false}])
+    );
+    assert_eq!(
+        read.body["data"]["pagesPublished"]["nodes"],
+        json!([{"id": z_page, "title": "Zulu content page", "isPublished": true}])
+    );
+    assert_eq!(
+        read.body["data"]["pagesUnpublished"]["nodes"],
+        json!([{"id": a_page, "title": "Alpha content page", "isPublished": false}])
+    );
+    assert_eq!(
+        read.body["data"]["pagesSorted"]["nodes"],
+        json!([
+            {"id": a_page, "title": "Alpha content page"},
+            {"id": z_page, "title": "Zulu content page"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["pagesSortedReverse"]["nodes"],
+        json!([
+            {"id": z_page, "title": "Zulu content page"},
+            {"id": a_page, "title": "Alpha content page"}
+        ])
+    );
+    assert_eq!(read.body["data"]["pagesUnknownFilter"]["nodes"], json!([]));
+}
+
+#[test]
+fn online_store_comments_connection_filters_sort_and_reverse_hydrated_state() {
+    let article_id = "gid://shopify/Article/9102";
+    let alpha_comment_id = "gid://shopify/Comment/9103";
+    let zulu_comment_id = "gid://shopify/Comment/9104";
+    let upstream_calls = Arc::new(Mutex::new(0_usize));
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+            let upstream_calls = upstream_calls.clone();
+            move |_request| {
+                *upstream_calls.lock().unwrap() += 1;
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "comments": {
+                                "nodes": [
+                                    {
+                                        "__typename": "Comment",
+                                        "id": zulu_comment_id,
+                                        "status": "SPAM",
+                                        "body": "Zulu comment body",
+                                        "bodyHtml": "<p>Zulu comment body</p>",
+                                        "isPublished": false,
+                                        "publishedAt": null,
+                                        "createdAt": "2026-01-02T00:00:00Z",
+                                        "updatedAt": "2026-01-02T00:00:00Z",
+                                        "article": { "id": article_id, "title": "Hydrated comments article" }
+                                    },
+                                    {
+                                        "__typename": "Comment",
+                                        "id": alpha_comment_id,
+                                        "status": "PUBLISHED",
+                                        "body": "Alpha comment body",
+                                        "bodyHtml": "<p>Alpha comment body</p>",
+                                        "isPublished": true,
+                                        "publishedAt": "2026-01-01T00:00:00Z",
+                                        "createdAt": "2026-01-01T00:00:00Z",
+                                        "updatedAt": "2026-01-01T00:00:00Z",
+                                        "article": { "id": article_id, "title": "Hydrated comments article" }
+                                    }
+                                ],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": "cursor-a",
+                                    "endCursor": "cursor-z"
+                                }
+                            }
+                        }
+                    }),
+                }
+            }
+        });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydrateComments {
+          comments(first: 10) {
+            nodes { id body status isPublished publishedAt createdAt updatedAt article { id title } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(hydrate.status, 200);
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CommentConnectionFilters {
+          bodyQuery: comments(first: 10, query: "body:'Alpha comment'") { nodes { id body status } }
+          statusQuery: comments(first: 10, query: "status:SPAM") { nodes { id body status } }
+          createdSorted: comments(first: 10, sortKey: CREATED_AT) { nodes { id body createdAt } }
+          createdSortedReverse: comments(first: 10, sortKey: CREATED_AT, reverse: true) { nodes { id body createdAt } }
+          unknownFilter: comments(first: 10, query: "not_a_real_filter:value") { nodes { id body } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["bodyQuery"]["nodes"],
+        json!([{"id": alpha_comment_id, "body": "Alpha comment body", "status": "PUBLISHED"}])
+    );
+    assert_eq!(
+        read.body["data"]["statusQuery"]["nodes"],
+        json!([{"id": zulu_comment_id, "body": "Zulu comment body", "status": "SPAM"}])
+    );
+    assert_eq!(
+        read.body["data"]["createdSorted"]["nodes"],
+        json!([
+            {"id": alpha_comment_id, "body": "Alpha comment body", "createdAt": "2026-01-01T00:00:00Z"},
+            {"id": zulu_comment_id, "body": "Zulu comment body", "createdAt": "2026-01-02T00:00:00Z"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["createdSortedReverse"]["nodes"],
+        json!([
+            {"id": zulu_comment_id, "body": "Zulu comment body", "createdAt": "2026-01-02T00:00:00Z"},
+            {"id": alpha_comment_id, "body": "Alpha comment body", "createdAt": "2026-01-01T00:00:00Z"}
+        ])
+    );
+    assert_eq!(read.body["data"]["unknownFilter"]["nodes"], json!([]));
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
 }
 
 #[test]
