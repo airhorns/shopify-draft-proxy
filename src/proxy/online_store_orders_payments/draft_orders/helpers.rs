@@ -5,7 +5,7 @@ pub(in crate::proxy) fn normalize_draft_order_tag(tag: &str) -> String {
 }
 
 pub(in crate::proxy) fn is_valid_draft_order_invoice_template(template: &str) -> bool {
-    template.starts_with("DRAFT_ORDER_") && template != "NOT_A_REAL_TEMPLATE"
+    matches!(template, "DRAFT_ORDER_INVOICE")
 }
 
 pub(in crate::proxy) fn draft_order_invoice_recipient(
@@ -60,25 +60,4 @@ pub(in crate::proxy) fn draft_order_invoice_send_metadata(
     }
     metadata.insert("email".to_string(), Value::Object(email));
     Value::Object(metadata)
-}
-
-pub(in crate::proxy) fn draft_order_invoice_line_item() -> Value {
-    json!({
-        "id": shopify_gid("DraftOrderLineItem", 2),
-        "title": "Invoice error parity item",
-        "name": "Invoice error parity item",
-        "quantity": 1,
-        "sku": Value::Null,
-        "variantTitle": Value::Null,
-        "custom": true,
-        "requiresShipping": true,
-        "taxable": true,
-        "customAttributes": [],
-        "appliedDiscount": Value::Null,
-        "originalUnitPriceSet": money_set_pair("1.0", "CAD", "1.0", "CAD"),
-        "originalTotalSet": money_set_pair("1.0", "CAD", "1.0", "CAD"),
-        "discountedTotalSet": money_set_pair("1.0", "CAD", "1.0", "CAD"),
-        "totalDiscountSet": money_set_pair("0.0", "CAD", "0.0", "CAD"),
-        "variant": Value::Null
-    })
 }

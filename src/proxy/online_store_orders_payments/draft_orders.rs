@@ -3,15 +3,6 @@ use super::*;
 mod helpers;
 pub(in crate::proxy) use self::helpers::*;
 
-pub(in crate::proxy) fn draft_order_create_first_line_title(
-    field: &RootFieldSelection,
-) -> Option<String> {
-    let input = resolved_object_field(&field.arguments, "input")?;
-    let line_items = resolved_object_list_field(&input, "lineItems");
-    let first_line = line_items.first()?;
-    resolved_string_field(first_line, "title")
-}
-
 pub(in crate::proxy) fn draft_order_input_custom_attributes(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
@@ -1980,24 +1971,16 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Response> {
         let fields = root_fields(query, variables)?;
-        if !fields.iter().any(|field| {
-            field.name == "draftOrderInvoiceSend"
-                || (field.name == "draftOrderCreate"
-                    && draft_order_create_first_line_title(field).as_deref()
-                        == Some("Invoice error parity item"))
-        }) {
+        if !fields
+            .iter()
+            .any(|field| field.name == "draftOrderInvoiceSend")
+        {
             return None;
         }
 
         for field in &fields {
             if field.name != "draftOrderInvoiceSend" {
                 continue;
-            }
-            // Forward a hydrate + observe for a draft not created locally this
-            // scenario so the invoice send operates on the real draft instead of a
-            // precondition seed.
-            if let Some(id) = resolved_string_field(&field.arguments, "id") {
-                self.ensure_draft_order_hydrated(request, &id);
             }
             if let Some(template) = resolved_string_field(&field.arguments, "templateName") {
                 if !is_valid_draft_order_invoice_template(&template) {
@@ -2011,6 +1994,17 @@ impl DraftProxy {
                 }
             }
         }
+        for field in &fields {
+            if field.name != "draftOrderInvoiceSend" {
+                continue;
+            }
+            // Forward a hydrate + observe for a draft not created locally this
+            // scenario so the invoice send operates on the real draft instead of a
+            // precondition seed.
+            if let Some(id) = resolved_string_field(&field.arguments, "id") {
+                self.ensure_draft_order_hydrated(request, &id);
+            }
+        }
 
         let mut declined = false;
         let data = root_payload_json(&fields, |field| {
@@ -2018,12 +2012,6 @@ impl DraftProxy {
                 return None;
             }
             let value = match field.name.as_str() {
-                "draftOrderCreate"
-                    if draft_order_create_first_line_title(field).as_deref()
-                        == Some("Invoice error parity item") =>
-                {
-                    Some(self.draft_order_invoice_errors_create(field, request, query, variables))
-                }
                 "draftOrderInvoiceSend" => {
                     Some(self.draft_order_invoice_errors_send(field, request, query, variables))
                 }
@@ -2039,70 +2027,6 @@ impl DraftProxy {
             return None;
         }
         Some(ok_json(json!({ "data": data })))
-    }
-
-    pub(in crate::proxy) fn draft_order_invoice_errors_create(
-        &mut self,
-        field: &RootFieldSelection,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let id = shopify_gid("DraftOrder", self.store.staged.next_draft_order_id);
-        self.store.staged.next_draft_order_id += 1;
-        let email = resolved_string_field(&input, "email")
-            .filter(|email| !email.trim().is_empty())
-            .map(Value::String)
-            .unwrap_or(Value::Null);
-        let shop_currency_code = self.store.shop_currency_code();
-        let record = json!({
-            "id": id,
-            "name": "#D1",
-            "status": "OPEN",
-            "ready": true,
-            "email": email,
-            "note": Value::Null,
-            "purchasingEntity": Value::Null,
-            "customer": Value::Null,
-            "taxExempt": false,
-            "taxesIncluded": false,
-            "reserveInventoryUntil": Value::Null,
-            "paymentTerms": Value::Null,
-            "tags": [],
-            "invoiceUrl": format!("https://shopify-draft-proxy.local/draft_orders/{id}/invoice"),
-            "customAttributes": [],
-            "appliedDiscount": Value::Null,
-            "billingAddress": Value::Null,
-            "shippingAddress": Value::Null,
-            "shippingLine": Value::Null,
-            "createdAt": "2024-01-01T00:00:00.000Z",
-            "updatedAt": "2024-01-01T00:00:00.000Z",
-            "subtotalPriceSet": money_set_pair("1.0", &shop_currency_code, "1.0", &shop_currency_code),
-            "totalDiscountsSet": money_set_pair("0.0", &shop_currency_code, "0.0", &shop_currency_code),
-            "totalShippingPriceSet": money_set_pair("0.0", &shop_currency_code, "0.0", &shop_currency_code),
-            "totalPriceSet": money_set_pair("1.0", &shop_currency_code, "1.0", &shop_currency_code),
-            "totalQuantityOfLineItems": 1,
-            "lineItems": { "nodes": [draft_order_invoice_line_item()] }
-        });
-        self.store
-            .staged
-            .draft_orders
-            .insert(id.clone(), record.clone());
-        self.record_staged_orders_log_entry(
-            request,
-            query,
-            variables,
-            "draftOrderCreate",
-            vec![id],
-        );
-        selected_json(
-            &json!({
-                "draftOrder": record,
-                "userErrors": []
-            }),
-            &field.selection,
-        )
     }
 
     pub(in crate::proxy) fn draft_order_invoice_errors_send(
