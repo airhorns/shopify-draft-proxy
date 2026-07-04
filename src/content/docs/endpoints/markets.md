@@ -59,8 +59,8 @@ local lifecycle/read models and executable evidence for those roots.
 
 ### Local behavior
 
-The Rust runtime has scenario-backed Markets slices for ported parity requests
-and runtime tests. These slices stage local state only for the request families
+The Rust runtime has scenario-backed Markets slices for parity requests and
+runtime tests. These slices stage local state only for the request families
 recognized by the Rust dispatcher and should not be treated as broad registry
 support.
 
@@ -128,6 +128,14 @@ validation. When `priceListCreate` has both a catalog relation error and
 another invalid field such as a duplicate name or invalid parent adjustment, the
 catalog error is returned first. `priceListUpdate` returns `priceList: null` for
 those catalog validation failures while leaving the staged price list unchanged.
+`quantityPricingByVariantUpdate`, `quantityRulesAdd`, and `quantityRulesDelete`
+validate price-list IDs against staged or hydrated price-list records instead of
+accepting arbitrary IDs. Quantity-pricing add-side currency validation compares
+the submitted money currency to the referenced price list's actual currency, and
+quantity-pricing / quantity-rules variant validation uses observed base/staged
+ProductVariant and fixed-price variant state when variant state is available;
+unknown IDs return the Shopify-like variant user error instead of being treated
+as successfully updated or deleted.
 
 Web-presence slices stage create/update/delete behavior for the captured
 subfolder, default-locale, alternate-locale, root-URL, duplicate-language,
@@ -137,6 +145,9 @@ price-list roots with `webPresenceCreate`, `webPresenceUpdate`,
 payload validation as the standalone local paths. Market-localization slices
 stage and remove localized content for captured localizable resources, including
 unknown-resource, too-many-key, digest, market key, and no-op removal branches.
+`marketLocalizableResource` resolves only resource IDs observed in staged
+market-localizable resource state or staged market-scoped translations; unknown
+IDs return `null`.
 
 `marketsResolvedValues` and market/catalog/price-list reads have fixture-backed
 empty, fallback, and buyer-country behavior where captured. Unsupported
@@ -164,5 +175,5 @@ derivations are not synthesized beyond the checked-in evidence.
 - Deprecated `marketWebPresenceCreate`, `marketWebPresenceUpdate`, and
   `marketWebPresenceDelete` aliases are not marked implemented without their
   own payload, cleanup, and validation evidence.
-- Unsupported mutation documents outside the ported local slices follow the
+- Unsupported mutation documents outside the modeled local slices follow the
   configured unsupported path and must remain visible in logs/observability.

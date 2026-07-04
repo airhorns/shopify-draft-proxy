@@ -91,7 +91,7 @@ fn metafields_set_namespace_key_validation(
 }
 
 /// Normalize a metafield `value` STRING the way Shopify echoes it back.
-/// Mirrors Gleam `normalize_metafield_value`. Most types pass through
+/// Matches Shopify echo behavior: Most types pass through
 /// unchanged; date_time gains a `+00:00` offset, rating keys are reordered,
 /// and measurement / list-measurement values are reformatted (float-style
 /// number + UPPERCASE unit). Value strings are built manually because key
@@ -116,7 +116,7 @@ pub(in crate::proxy) fn normalize_metafield_value_string(
 }
 
 /// Compute a metafield `jsonValue` from its type + raw value string.
-/// Mirrors Gleam `parse_metafield_json_value`. jsonValue is compared
+/// Matches Shopify jsonValue behavior: jsonValue is compared
 /// structurally, so these can be built with `json!`/serde maps.
 pub(in crate::proxy) fn metafield_json_value(metafield_type: &str, value: &str) -> Value {
     match metafield_type {
@@ -238,7 +238,7 @@ fn json_string_field(fields: &serde_json::Map<String, Value>, key: &str) -> Opti
 }
 
 /// Read a numeric field as a `jsonValue` number: ints stay ints, floats
-/// collapse to ints when whole. Mirrors Gleam `json_number_field`.
+/// collapse to ints when whole.
 fn json_number_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<Value> {
     match fields.get(key) {
         Some(Value::Number(number)) => {
@@ -268,8 +268,7 @@ fn json_number_from_float(value: f64) -> Value {
 }
 
 /// Read a numeric field as a value-STRING component: ints render `n.0`,
-/// floats render through Shopify's decimal text normalization. Mirrors Gleam
-/// `json_number_string_field`.
+/// floats render through Shopify's decimal text normalization.
 fn json_number_string_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
     match fields.get(key) {
         Some(Value::Number(number)) => {
@@ -1807,44 +1806,83 @@ fn money_bag_currency(money_set: &Value) -> String {
 
 fn money_bag_add_decimal_strings(left: &str, right: &str) -> String {
     let total = left.parse::<f64>().unwrap_or(0.0) + right.parse::<f64>().unwrap_or(0.0);
-    format!("{total:.1}")
+    format_money_amount(total)
 }
 
-fn resolved_money_pair(
-    money: Option<BTreeMap<String, ResolvedValue>>,
-    defaults: [&str; 2],
-) -> [String; 2] {
-    let money = money.unwrap_or_default();
-    [
-        resolved_string_field(&money, "amount").unwrap_or_else(|| defaults[0].to_string()),
-        resolved_string_field(&money, "currencyCode").unwrap_or_else(|| defaults[1].to_string()),
-    ]
+fn line_item_price_values(
+    line_item: &BTreeMap<String, ResolvedValue>,
+    default_shop_currency: &str,
+    default_presentment_currency: &str,
+) -> Option<(f64, String, f64, String)> {
+    let price_set = resolved_object_field(line_item, "priceSet")
+        .or_else(|| resolved_object_field(line_item, "originalUnitPriceSet"))?;
+    let shop_amount = input_money_amount(&price_set).unwrap_or(0.0);
+    let shop_currency =
+        input_money_currency(&price_set).unwrap_or_else(|| default_shop_currency.to_string());
+    let presentment_money = resolved_object_field(&price_set, "presentmentMoney");
+    let presentment_amount = presentment_money
+        .as_ref()
+        .and_then(resolved_money_amount)
+        .unwrap_or(shop_amount);
+    let presentment_currency = presentment_money
+        .as_ref()
+        .and_then(resolved_money_currency)
+        .unwrap_or_else(|| default_presentment_currency.to_string());
+    Some((
+        shop_amount,
+        shop_currency,
+        presentment_amount,
+        presentment_currency,
+    ))
 }
 
-fn line_item_price_set_values(
-    first_line: &BTreeMap<String, ResolvedValue>,
+fn line_items_price_set_values(
+    order_input: &BTreeMap<String, ResolvedValue>,
     absent_price_set: [&str; 4],
     shop_defaults: [&str; 2],
     presentment_defaults: Option<[&str; 2]>,
 ) -> [String; 4] {
-    let Some(price_set) = resolved_object_field(first_line, "priceSet") else {
+    let default_shop_currency = shop_defaults[1];
+    let default_presentment_currency = presentment_defaults
+        .as_ref()
+        .map(|defaults| defaults[1])
+        .unwrap_or(default_shop_currency);
+    let mut shop_total = 0.0;
+    let mut presentment_total = 0.0;
+    let mut shop_currency = default_shop_currency.to_string();
+    let mut presentment_currency = default_presentment_currency.to_string();
+    let mut saw_price = false;
+
+    for line_item in resolved_object_list_field(order_input, "lineItems") {
+        let Some((shop_amount, line_shop_currency, presentment_amount, line_presentment_currency)) =
+            line_item_price_values(
+                &line_item,
+                default_shop_currency,
+                default_presentment_currency,
+            )
+        else {
+            continue;
+        };
+        if !saw_price {
+            shop_currency = line_shop_currency;
+            presentment_currency = line_presentment_currency;
+            saw_price = true;
+        }
+        let quantity = resolved_int_field(&line_item, "quantity")
+            .unwrap_or(1)
+            .max(0) as f64;
+        shop_total += shop_amount * quantity;
+        presentment_total += presentment_amount * quantity;
+    }
+
+    if !saw_price {
         return absent_price_set.map(str::to_string);
-    };
-    let [shop_amount, shop_currency] = resolved_money_pair(
-        resolved_object_field(&price_set, "shopMoney"),
-        shop_defaults,
-    );
-    let presentment_default = presentment_defaults
-        .map(|defaults| defaults.map(str::to_string))
-        .unwrap_or_else(|| [shop_amount.clone(), shop_currency.clone()]);
-    let [presentment_amount, presentment_currency] = resolved_money_pair(
-        resolved_object_field(&price_set, "presentmentMoney"),
-        [&presentment_default[0], &presentment_default[1]],
-    );
+    }
+
     [
-        shop_amount,
+        format_money_amount(shop_total),
         shop_currency,
-        presentment_amount,
+        format_money_amount(presentment_total),
         presentment_currency,
     ]
 }

@@ -207,4 +207,4 @@ Keep Shopify-like versioned Admin API paths even when tests use local/snapshot m
 - Keep unsupported passthrough explicit in logs and docs.
 - Marking a root `implemented` only states that the proxy answers it locally; do not call an operation **supported** until its local lifecycle and downstream read-after-write effects are modeled from the store (tracked by runtime tests and conformance coverage).
 - Prefer conformance fixtures over guessed Shopify semantics.
-- Add tests before behavior changes and run the full Rust-port verification loop before pushing.
+- Add tests before behavior changes and run the full verification loop before pushing.

@@ -26,16 +26,67 @@ function readJsonFile(filePath: string): unknown {
   return JSON.parse(readFileSync(filePath, 'utf8')) as unknown;
 }
 
+function readJsonFromGit(ref: string, relativePath: string): unknown | undefined {
+  const showResult = spawnSync('git', ['show', `${ref}:${relativePath}`], { encoding: 'utf8' });
+  if (showResult.status !== 0) {
+    return undefined;
+  }
+  return JSON.parse(showResult.stdout) as unknown;
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 }
 
 export function fixtureOutputMatchesPath(output: string, fixturePath: string): boolean {
+  if (
+    fixturePath.startsWith('fixtures/conformance/local-runtime/') &&
+    !output.startsWith('fixtures/conformance/local-runtime/')
+  ) {
+    return false;
+  }
+
   const pattern = escapeRegExp(output)
     .replaceAll('<store>', '[^/]+')
     .replaceAll('<api-version>', '[^/]+')
     .replaceAll('<domain-folder>', '[^/]+');
   return new RegExp(`^${pattern}$`, 'u').test(fixturePath);
+}
+
+const nonEvidenceMetadataKeys = new Set(['notes', 'reason', 'runtimeEvidence', 'runtimeTestFiles']);
+
+function stripNonEvidenceMetadata(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(stripNonEvidenceMetadata);
+  }
+
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !nonEvidenceMetadataKeys.has(key))
+      .map(([key, nestedValue]) => [key, stripNonEvidenceMetadata(nestedValue)]),
+  );
+}
+
+function protectedMetadataOnlyChange(changedPath: string, baseRef: string, repoRoot: string): boolean {
+  if (!changedPath.endsWith('.json')) {
+    return false;
+  }
+
+  try {
+    const before = readJsonFromGit(baseRef, changedPath);
+    if (before === undefined) {
+      return false;
+    }
+
+    const after = readJsonFile(path.join(repoRoot, changedPath));
+    return JSON.stringify(stripNonEvidenceMetadata(before)) === JSON.stringify(stripNonEvidenceMetadata(after));
+  } catch {
+    return false;
+  }
 }
 
 export function changedProtectedEvidencePaths(baseRef = 'origin/main'): string[] {
@@ -72,10 +123,18 @@ export function changedProtectedEvidencePaths(baseRef = 'origin/main'): string[]
     .sort((left, right) => left.localeCompare(right));
 }
 
-export function findUnregisteredProtectedEvidenceChanges(changed: string[]): EvidenceInvariantFailure[] {
+export function findUnregisteredProtectedEvidenceChanges(
+  changed: string[],
+  baseRef = 'origin/main',
+  repoRoot = process.cwd(),
+): EvidenceInvariantFailure[] {
   const registeredFixtureOutputs = conformanceCaptureIndex.flatMap((entry) => entry.fixtureOutputs);
   return changed
-    .filter((changedPath) => registeredFixtureOutputs.every((output) => !fixtureOutputMatchesPath(output, changedPath)))
+    .filter(
+      (changedPath) =>
+        !protectedMetadataOnlyChange(changedPath, baseRef, repoRoot) &&
+        registeredFixtureOutputs.every((output) => !fixtureOutputMatchesPath(output, changedPath)),
+    )
     .map((changedPath) => ({
       path: changedPath,
       message: 'changed protected evidence path is not declared by any capture-index fixtureOutputs entry',

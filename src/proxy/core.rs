@@ -50,6 +50,36 @@ impl DraftProxy {
     }
 
     pub fn process_request(&mut self, request: Request) -> Response {
+        let mut response = self.dispatch_route(request);
+        // Stamp a cheap "has persistable state changed?" signal on every
+        // response so embedders (e.g. the Ruby storage adapter) can decide
+        // whether to persist without diffing or re-dumping the whole state on
+        // reads. The tuple advances on any staged mutation (`log_entries` grows),
+        // on commit (staged entries become `settled`), on reset (all reset to
+        // `0:0:1`), and on restore (fields adopt the dumped values).
+        response
+            .headers
+            .insert("x-sdp-state-version".to_string(), self.state_version());
+        response
+    }
+
+    /// Opaque monotonic-ish token that changes iff persistable proxy state
+    /// changed. Not an ordering guarantee — only equality is meaningful.
+    pub(in crate::proxy) fn state_version(&self) -> String {
+        let settled = self
+            .log_entries
+            .iter()
+            .filter(|entry| entry.get("status") != Some(&json!("staged")))
+            .count();
+        format!(
+            "{}:{}:{}",
+            self.log_entries.len(),
+            settled,
+            self.next_synthetic_id
+        )
+    }
+
+    fn dispatch_route(&mut self, request: Request) -> Response {
         match route(&request) {
             Route::Health => ok_json(json!({
                 "ok": true,
@@ -160,6 +190,9 @@ impl DraftProxy {
                 "productVariants": product_variant_state_map_json(&self.store.staged.product_variants.records),
                 "productVariantOrder": self.store.staged.product_variants.order,
                 "deletedProductVariantIds": self.store.staged.product_variants.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "productFeeds": self.store.staged.product_feeds.records.clone(),
+                "productFeedOrder": self.store.staged.product_feeds.order,
+                "deletedProductFeedIds": self.store.staged.product_feeds.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "collections": self.store.staged.collections.records.clone(),
                 "deletedCollectionIds": self.store.staged.collections.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "collectionJobs": self.store.staged.collection_jobs.clone(),
@@ -171,6 +204,11 @@ impl DraftProxy {
                 "deletedShopPolicyIds": self.store.staged.shop_policies.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "shippingPackages": self.store.staged.shipping_packages.records.clone(),
                 "deletedShippingPackageIds": deleted_shipping_package_ids,
+                "installedApps": self.store.staged.installed_apps.clone(),
+                "revokedAppAccessScopes": self.store.staged.revoked_app_access_scopes.iter().map(|(app_id, scopes)| {
+                    (app_id.clone(), scopes.iter().cloned().collect::<Vec<_>>())
+                }).collect::<BTreeMap<_, _>>(),
+                "uninstalledAppIds": self.store.staged.uninstalled_app_ids.iter().cloned().collect::<Vec<_>>(),
                 "delegatedAccessTokens": self.store.staged.delegate_access_tokens.clone(),
                 "customers": self.store.staged.customers.records.clone(),
                 "deletedCustomerIds": self.store.staged.customers.tombstones.iter().cloned().collect::<Vec<_>>(),
@@ -757,6 +795,13 @@ impl DraftProxy {
                 .collect(),
         );
         replace_staged_value_records(
+            &mut self.store.staged.product_feeds,
+            &state["stagedState"],
+            "productFeeds",
+            Some("productFeedOrder"),
+            Some("deletedProductFeedIds"),
+        );
+        replace_staged_value_records(
             &mut self.store.staged.collections,
             &state["stagedState"],
             "collections",
@@ -765,6 +810,31 @@ impl DraftProxy {
         );
         self.store.staged.collection_jobs =
             value_map_from_json(state["stagedState"].get("collectionJobs"));
+        self.store.staged.installed_apps =
+            value_map_from_json(state["stagedState"].get("installedApps"));
+        self.store.staged.revoked_app_access_scopes = state["stagedState"]
+            .get("revokedAppAccessScopes")
+            .and_then(Value::as_object)
+            .map(|records| {
+                records
+                    .iter()
+                    .map(|(app_id, scopes)| {
+                        (
+                            app_id.clone(),
+                            string_array_from_json(scopes).into_iter().collect(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.uninstalled_app_ids = state["stagedState"]
+            .get("uninstalledAppIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.delegate_access_tokens =
+            value_map_from_json(state["stagedState"].get("delegatedAccessTokens"));
         self.store.staged.online_store_integrations =
             value_map_from_json(state["stagedState"].get("onlineStoreIntegrations"));
         self.store.staged.online_store_blogs =

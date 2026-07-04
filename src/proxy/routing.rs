@@ -85,6 +85,10 @@ pub(in crate::proxy) fn supported_admin_graphql_version(version: &str) -> bool {
     SUPPORTED_ADMIN_GRAPHQL_VERSIONS.contains(&version)
 }
 
+pub(in crate::proxy) fn latest_supported_admin_graphql_version() -> Option<&'static str> {
+    SUPPORTED_ADMIN_GRAPHQL_VERSIONS.last().copied()
+}
+
 pub(in crate::proxy) fn version_at_least(
     version: &str,
     minimum_year: u16,

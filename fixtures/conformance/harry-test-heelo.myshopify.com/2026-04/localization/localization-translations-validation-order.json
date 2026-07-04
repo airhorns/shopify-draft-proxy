@@ -2,7 +2,7 @@
   "scenarioId": "localization-translations-validation-order",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "capturedAt": "2026-06-15T13:51:18.741Z",
+  "capturedAt": "2026-07-03T20:11:03.161Z",
   "setup": {
     "initialShopLocales": {
       "data": {
@@ -16,6 +16,12 @@
           {
             "locale": "es",
             "name": "Spanish",
+            "primary": false,
+            "published": false
+          },
+          {
+            "locale": "fr",
+            "name": "French",
             "primary": false,
             "published": false
           }
@@ -37,8 +43,8 @@
     "productCreate": {
       "variables": {
         "product": {
-          "title": "Translation validation order 1781531477167",
-          "handle": "translation-validation-order-1781531477167",
+          "title": "Translation validation order 1783109461664",
+          "handle": "translation-validation-order-1783109461664",
           "status": "DRAFT"
         }
       },
@@ -46,9 +52,9 @@
         "data": {
           "productCreate": {
             "product": {
-              "id": "gid://shopify/Product/10213687198002",
-              "handle": "translation-validation-order-1781531477167",
-              "title": "Translation validation order 1781531477167",
+              "id": "gid://shopify/Product/10230917923122",
+              "handle": "translation-validation-order-1783109461664",
+              "title": "Translation validation order 1783109461664",
               "status": "DRAFT"
             },
             "userErrors": []
@@ -70,7 +76,7 @@
   },
   "setupRead": {
     "variables": {
-      "resourceId": "gid://shopify/Product/10213687198002"
+      "resourceId": "gid://shopify/Product/10230917923122"
     },
     "response": {
       "data": {
@@ -86,22 +92,28 @@
             "name": "Spanish",
             "primary": false,
             "published": false
+          },
+          {
+            "locale": "fr",
+            "name": "French",
+            "primary": false,
+            "published": false
           }
         ],
         "translatableResource": {
-          "resourceId": "gid://shopify/Product/10213687198002",
+          "resourceId": "gid://shopify/Product/10230917923122",
           "translatableContent": [
             {
               "key": "title",
-              "value": "Translation validation order 1781531477167",
-              "digest": "7706e2c22f7ed4846a39adcaaffe8d5ff776966870fb8e3ca97292e2e3458e14",
+              "value": "Translation validation order 1783109461664",
+              "digest": "eab3888b0d3bd274623249ebc08a14f49b5083bef903873def1980ac54157b8d",
               "locale": "en",
               "type": "SINGLE_LINE_TEXT_FIELD"
             },
             {
               "key": "handle",
-              "value": "translation-validation-order-1781531477167",
-              "digest": "debb98f52f5e6022441b60cca5cdc3e26c8c89695657d36e9a47b5ef95256be0",
+              "value": "translation-validation-order-1783109461664",
+              "digest": "0c315720dc3096bf5b3376e79ee276cda72ad949983f497cd2d42060bb90eb47",
               "locale": "en",
               "type": "URI"
             },
@@ -130,13 +142,13 @@
   },
   "blankNonEnabledLocale": {
     "variables": {
-      "resourceId": "gid://shopify/Product/10213687198002",
+      "resourceId": "gid://shopify/Product/10230917923122",
       "translations": [
         {
           "locale": "it",
           "key": "title",
           "value": "",
-          "translatableContentDigest": "7706e2c22f7ed4846a39adcaaffe8d5ff776966870fb8e3ca97292e2e3458e14"
+          "translatableContentDigest": "eab3888b0d3bd274623249ebc08a14f49b5083bef903873def1980ac54157b8d"
         }
       ]
     },
@@ -168,13 +180,13 @@
   },
   "blankPrimaryLocale": {
     "variables": {
-      "resourceId": "gid://shopify/Product/10213687198002",
+      "resourceId": "gid://shopify/Product/10230917923122",
       "translations": [
         {
           "locale": "en",
           "key": "title",
           "value": "",
-          "translatableContentDigest": "7706e2c22f7ed4846a39adcaaffe8d5ff776966870fb8e3ca97292e2e3458e14"
+          "translatableContentDigest": "eab3888b0d3bd274623249ebc08a14f49b5083bef903873def1980ac54157b8d"
         }
       ]
     },
@@ -204,11 +216,89 @@
       }
     }
   },
+  "missingMarketNonEnabledLocale": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10230917923122",
+      "translations": [
+        {
+          "locale": "it",
+          "key": "title",
+          "value": "Missing market wins over non-enabled locale",
+          "marketId": "gid://shopify/Market/999999999999",
+          "translatableContentDigest": "eab3888b0d3bd274623249ebc08a14f49b5083bef903873def1980ac54157b8d"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "translationsRegister": {
+          "translations": [],
+          "userErrors": [
+            {
+              "field": ["translations", "0", "marketId"],
+              "message": "The market corresponding to the `marketId` argument doesn't exist",
+              "code": "MARKET_DOES_NOT_EXIST"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "missingMarketPrimaryLocale": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10230917923122",
+      "translations": [
+        {
+          "locale": "en",
+          "key": "title",
+          "value": "Missing market wins over primary locale",
+          "marketId": "gid://shopify/Market/999999999999",
+          "translatableContentDigest": "eab3888b0d3bd274623249ebc08a14f49b5083bef903873def1980ac54157b8d"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "translationsRegister": {
+          "translations": [],
+          "userErrors": [
+            {
+              "field": ["translations", "0", "marketId"],
+              "message": "The market corresponding to the `marketId` argument doesn't exist",
+              "code": "MARKET_DOES_NOT_EXIST"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
   "cleanup": {
     "productDelete": {
       "data": {
         "productDelete": {
-          "deletedProductId": "gid://shopify/Product/10213687198002",
+          "deletedProductId": "gid://shopify/Product/10230917923122",
           "userErrors": []
         }
       },
@@ -229,9 +319,9 @@
     {
       "operationName": "LocalizationTranslationsValidationOrderSetupRead",
       "variables": {
-        "resourceId": "gid://shopify/Product/10213687198002"
+        "resourceId": "gid://shopify/Product/10230917923122"
       },
-      "query": "query LocalizationTranslationsValidationOrderSetupRead($resourceId: ID!) {\n  shopLocales {\n    locale\n    name\n    primary\n    published\n  }\n  translatableResource(resourceId: $resourceId) {\n    resourceId\n    translatableContent {\n      key\n      value\n      digest\n      locale\n      type\n    }\n  }\n}",
+      "query": "#graphql\n  query LocalizationTranslationsValidationOrderSetupRead($resourceId: ID!) {\n    shopLocales {\n      locale\n      name\n      primary\n      published\n    }\n    translatableResource(resourceId: $resourceId) {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
@@ -248,22 +338,28 @@
                 "name": "Spanish",
                 "primary": false,
                 "published": false
+              },
+              {
+                "locale": "fr",
+                "name": "French",
+                "primary": false,
+                "published": false
               }
             ],
             "translatableResource": {
-              "resourceId": "gid://shopify/Product/10213687198002",
+              "resourceId": "gid://shopify/Product/10230917923122",
               "translatableContent": [
                 {
                   "key": "title",
-                  "value": "Translation validation order 1781531477167",
-                  "digest": "7706e2c22f7ed4846a39adcaaffe8d5ff776966870fb8e3ca97292e2e3458e14",
+                  "value": "Translation validation order 1783109461664",
+                  "digest": "eab3888b0d3bd274623249ebc08a14f49b5083bef903873def1980ac54157b8d",
                   "locale": "en",
                   "type": "SINGLE_LINE_TEXT_FIELD"
                 },
                 {
                   "key": "handle",
-                  "value": "translation-validation-order-1781531477167",
-                  "digest": "debb98f52f5e6022441b60cca5cdc3e26c8c89695657d36e9a47b5ef95256be0",
+                  "value": "translation-validation-order-1783109461664",
+                  "digest": "0c315720dc3096bf5b3376e79ee276cda72ad949983f497cd2d42060bb90eb47",
                   "locale": "en",
                   "type": "URI"
                 },

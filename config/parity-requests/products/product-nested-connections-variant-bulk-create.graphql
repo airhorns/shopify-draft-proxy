@@ -1,0 +1,26 @@
+#graphql
+mutation ProductNestedConnectionsVariantBulkCreate(
+  $productId: ID!
+  $variants: [ProductVariantsBulkInput!]!
+  $strategy: ProductVariantsBulkCreateStrategy
+) {
+  productVariantsBulkCreate(productId: $productId, variants: $variants, strategy: $strategy) {
+    productVariants {
+      id
+      title
+      sku
+      position
+      inventoryPolicy
+      inventoryQuantity
+      inventoryItem {
+        id
+        tracked
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

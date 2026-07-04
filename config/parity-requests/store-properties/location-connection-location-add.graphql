@@ -1,0 +1,14 @@
+mutation LocationConnectionLocationAdd($input: LocationAddInput!) {
+  locationAdd(input: $input) {
+    location {
+      id
+      name
+      isActive
+      fulfillsOnlineOrders
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

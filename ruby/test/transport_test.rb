@@ -102,6 +102,46 @@ class ShopifyDraftProxyTransportTest < Minitest::Test
     server&.close
   end
 
+  def test_commit_raises_commit_error_carrying_the_upstream_failure_detail
+    # A replay the upstream rejects (non-2xx) must stop the commit and surface
+    # the real upstream response, not a bare status.
+    transport = lambda do |_request|
+      {
+        "status" => 500,
+        "headers" => { "content-type" => "application/json" },
+        "body" => JSON.generate("errors" => [{ "message" => "upstream boom" }]),
+      }
+    end
+
+    proxy = ShopifyDraftProxy.create(
+      read_mode: "snapshot",
+      shopify_admin_origin: "https://example.myshopify.com",
+      transport: transport,
+    )
+    assert_equal 200, proxy.process_graphql_request({ query: STAGE_MUTATION }).status
+
+    error = assert_raises(ShopifyDraftProxy::CommitError) do
+      proxy.commit(headers: { "authorization" => "Bearer test" })
+    end
+
+    # The typed error carries the full, inspectable commit result instead of
+    # collapsing it into a status-only message.
+    result = error.result
+    assert_equal false, result.fetch("ok")
+    assert_equal 0, result.fetch("committed")
+    assert_operator result.fetch("failed"), :>=, 1
+    assert_equal 0, result.fetch("stopIndex")
+    assert_match(/status 500/, error.message)
+
+    # The failing attempt preserves the exact upstream response that stopped it.
+    failing = result.fetch("attempts").fetch(0)
+    assert_equal "failed", failing.fetch("status")
+    assert_equal 500, failing.dig("response", "status")
+    assert_equal "upstream boom", failing.dig("response", "body", "errors", 0, "message")
+  ensure
+    proxy&.dispose
+  end
+
   def test_commit_without_staged_mutations_does_not_invoke_transport
     calls = []
     proxy = ShopifyDraftProxy.create(

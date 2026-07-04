@@ -157,36 +157,193 @@ pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
     user_error(Value::Null, message, Some(code))
 }
 
-const DEFAULT_LOCAL_APP_ID: &str = "gid://shopify/App/expected";
+pub(in crate::proxy) const DEFAULT_LOCAL_APP_ID: &str = "gid://shopify/App/local";
+pub(in crate::proxy) const DEFAULT_LOCAL_APP_INSTALLATION_ID: &str =
+    "gid://shopify/AppInstallation/local";
 
-pub(in crate::proxy) fn default_local_app_id() -> &'static str {
-    DEFAULT_LOCAL_APP_ID
+pub(in crate::proxy) fn normalize_app_gid(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        DEFAULT_LOCAL_APP_ID.to_string()
+    } else if trimmed.starts_with("gid://shopify/App/") {
+        trimmed.to_string()
+    } else {
+        format!("gid://shopify/App/{trimmed}")
+    }
 }
 
-pub(in crate::proxy) fn request_app_id(request: &Request) -> String {
-    request_header(request, "x-shopify-draft-proxy-api-client-id")
-        .map(|value| normalize_app_id(&value))
-        .unwrap_or_else(|| DEFAULT_LOCAL_APP_ID.to_string())
+pub(in crate::proxy) fn normalize_app_installation_gid(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        DEFAULT_LOCAL_APP_INSTALLATION_ID.to_string()
+    } else if trimmed.starts_with("gid://shopify/AppInstallation/") {
+        trimmed.to_string()
+    } else {
+        format!("gid://shopify/AppInstallation/{trimmed}")
+    }
 }
 
-pub(in crate::proxy) fn request_matches_current_app(request: &Request, id: &str) -> bool {
-    id == DEFAULT_LOCAL_APP_ID || id == request_app_id(request)
+pub(in crate::proxy) fn request_app_gid(request: &Request) -> String {
+    normalize_app_gid(&request_api_client_id(request))
 }
 
-pub(in crate::proxy) fn local_app_json_with_id(id: &str) -> Value {
+pub(in crate::proxy) fn app_id_from_installation(installation: &Value) -> Option<String> {
+    installation
+        .get("app")
+        .and_then(|app| app.get("id"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+pub(in crate::proxy) fn app_installation_id(installation: &Value) -> Option<String> {
+    installation
+        .get("id")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+pub(in crate::proxy) fn current_app_installation_from_request(request: &Request) -> Value {
+    let explicit_app_id = request_header(request, "x-shopify-draft-proxy-api-client-id");
+    let app_id = normalize_app_gid(explicit_app_id.as_deref().unwrap_or(DEFAULT_LOCAL_APP_ID));
+    let installation_id = request_header(request, "x-shopify-draft-proxy-app-installation-id")
+        .map(|value| normalize_app_installation_gid(&value))
+        .unwrap_or_else(|| {
+            if explicit_app_id.is_some() {
+                format!(
+                    "gid://shopify/AppInstallation/{}?shopify-draft-proxy=synthetic",
+                    resource_id_tail(&app_id)
+                )
+            } else {
+                DEFAULT_LOCAL_APP_INSTALLATION_ID.to_string()
+            }
+        });
+    let handle = request_header(request, "x-shopify-draft-proxy-app-handle")
+        .unwrap_or_else(|| "shopify-draft-proxy".to_string());
+    let title = request_header(request, "x-shopify-draft-proxy-app-title")
+        .unwrap_or_else(|| handle.clone());
+    let access_scopes = request_access_scope_values(request).unwrap_or_else(|| {
+        vec![
+            access_scope_json("read_products", None),
+            access_scope_json("write_products", None),
+        ]
+    });
+    let requested_access_scopes =
+        request_required_access_scope_values(request).unwrap_or_else(|| {
+            if explicit_app_id.is_some()
+                || request_header(request, "x-shopify-draft-proxy-access-scopes").is_some()
+            {
+                Vec::new()
+            } else {
+                vec![access_scope_json("read_products", None)]
+            }
+        });
     json!({
-        "id": id,
-        "handle": "shopify-draft-proxy"
+        "__typename": "AppInstallation",
+        "__draftProxySource": if explicit_app_id.is_some() { "request" } else { "default" },
+        "id": installation_id,
+        "accessScopes": access_scopes,
+        "app": {
+            "__typename": "App",
+            "id": app_id,
+            "handle": handle,
+            "title": title,
+            "requestedAccessScopes": requested_access_scopes
+        }
     })
 }
 
-fn normalize_app_id(value: &str) -> String {
-    let value = value.trim();
-    if value.starts_with("gid://shopify/App/") {
-        value.to_string()
-    } else {
-        shopify_gid("App", value)
+fn request_access_scope_values(request: &Request) -> Option<Vec<Value>> {
+    request_header(request, "x-shopify-draft-proxy-access-scopes")
+        .map(|header| access_scope_values_from_header(&header))
+        .filter(|scopes| !scopes.is_empty())
+}
+
+fn request_required_access_scope_values(request: &Request) -> Option<Vec<Value>> {
+    request_header(request, "x-shopify-draft-proxy-required-access-scopes")
+        .map(|header| access_scope_values_from_header(&header))
+}
+
+fn access_scope_values_from_header(header: &str) -> Vec<Value> {
+    header
+        .split(',')
+        .map(str::trim)
+        .filter(|scope| !scope.is_empty())
+        .map(|scope| access_scope_json(scope, None))
+        .collect()
+}
+
+pub(in crate::proxy) fn access_scope_json(handle: &str, description: Option<&str>) -> Value {
+    json!({
+        "handle": handle,
+        "description": description.map(Value::from).unwrap_or(Value::Null)
+    })
+}
+
+pub(in crate::proxy) fn app_access_scope_handles(installation: &Value) -> BTreeSet<String> {
+    installation
+        .get("accessScopes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|scope| scope.get("handle").and_then(Value::as_str))
+        .map(str::to_string)
+        .collect()
+}
+
+pub(in crate::proxy) fn app_required_access_scope_handles(
+    installation: &Value,
+) -> BTreeSet<String> {
+    installation
+        .pointer("/app/requestedAccessScopes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|scope| scope.get("handle").and_then(Value::as_str))
+        .map(str::to_string)
+        .collect()
+}
+
+pub(in crate::proxy) fn app_access_scope_value(installation: &Value, handle: &str) -> Value {
+    installation
+        .get("accessScopes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .find(|scope| scope.get("handle").and_then(Value::as_str) == Some(handle))
+        .cloned()
+        .unwrap_or_else(|| access_scope_json(handle, None))
+}
+
+pub(in crate::proxy) fn merge_app_installation_json(base: &Value, observed: &Value) -> Value {
+    let mut merged = base.clone();
+    let Some(observed_object) = observed.as_object() else {
+        return merged;
+    };
+    let Some(merged_object) = merged.as_object_mut() else {
+        return observed.clone();
+    };
+    for (key, value) in observed_object {
+        if key == "app" {
+            let mut app = merged_object
+                .get("app")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
+            if let (Some(app_object), Some(observed_app)) = (app.as_object_mut(), value.as_object())
+            {
+                for (app_key, app_value) in observed_app {
+                    if !app_value.is_null() {
+                        app_object.insert(app_key.clone(), app_value.clone());
+                    }
+                }
+                merged_object.insert("app".to_string(), app);
+            } else if !value.is_null() {
+                merged_object.insert(key.clone(), value.clone());
+            }
+        } else if !value.is_null() {
+            merged_object.insert(key.clone(), value.clone());
+        }
     }
+    merged
 }
 
 pub(in crate::proxy) fn app_uninstall_payload_json(
@@ -482,16 +639,26 @@ pub(in crate::proxy) fn money_amount_string_from_resolved(value: Option<&Resolve
 }
 
 pub(in crate::proxy) fn current_app_installation_json(
+    installation: &Value,
     subscriptions: &BTreeMap<String, Value>,
     one_time_purchases: &BTreeMap<String, Value>,
     revoked_access_scopes: &BTreeSet<String>,
-    granted_access_scopes: &[String],
     selections: &[SelectedField],
 ) -> Value {
     let mut fields = serde_json::Map::new();
     for selection in selections {
         let value = match selection.name.as_str() {
-            "id" => Some(json!("gid://shopify/AppInstallation/expected")),
+            "id" => app_installation_id(installation).map(Value::String),
+            "__typename" => Some(json!("AppInstallation")),
+            "app" => installation
+                .get("app")
+                .map(|app| selected_json(app, &selection.selection)),
+            "activeSubscriptions" if subscriptions.is_empty() => Some(
+                installation
+                    .get("activeSubscriptions")
+                    .map(|value| selected_json(value, &selection.selection))
+                    .unwrap_or_else(|| Value::Array(Vec::new())),
+            ),
             "activeSubscriptions" => Some(Value::Array(
                 subscriptions
                     .values()
@@ -499,6 +666,13 @@ pub(in crate::proxy) fn current_app_installation_json(
                     .map(|subscription| selected_json(subscription, &selection.selection))
                     .collect(),
             )),
+            "allSubscriptions"
+                if subscriptions.is_empty() && installation.get("allSubscriptions").is_some() =>
+            {
+                installation
+                    .get("allSubscriptions")
+                    .map(|value| selected_json(value, &selection.selection))
+            }
             "allSubscriptions" => {
                 let node_selection =
                     selected_child_selection(&selection.selection, "nodes").unwrap_or_default();
@@ -508,6 +682,14 @@ pub(in crate::proxy) fn current_app_installation_json(
                         .map(|subscription| selected_json(subscription, &node_selection))
                         .collect::<Vec<_>>()
                 }))
+            }
+            "oneTimePurchases"
+                if one_time_purchases.is_empty()
+                    && installation.get("oneTimePurchases").is_some() =>
+            {
+                installation
+                    .get("oneTimePurchases")
+                    .map(|value| selected_json(value, &selection.selection))
             }
             "oneTimePurchases" => {
                 let node_selection =
@@ -520,62 +702,30 @@ pub(in crate::proxy) fn current_app_installation_json(
                 }))
             }
             "accessScopes" => Some(Value::Array(
-                granted_access_scopes
-                    .iter()
-                    .filter(|scope| !revoked_access_scopes.contains(scope.as_str()))
-                    .map(|scope| selected_json(&json!({ "handle": scope }), &selection.selection))
+                installation
+                    .get("accessScopes")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter(|scope| {
+                        scope
+                            .get("handle")
+                            .and_then(Value::as_str)
+                            .is_none_or(|handle| !revoked_access_scopes.contains(handle))
+                    })
+                    .map(|scope| selected_json(scope, &selection.selection))
                     .collect(),
             )),
-            _ => None,
+            _ => installation
+                .get(selection.name.as_str())
+                .filter(|_| !selection.name.starts_with("__draftProxy"))
+                .map(|value| selected_json(value, &selection.selection)),
         };
         if let Some(value) = value {
             fields.insert(selection.response_key.clone(), value);
         }
     }
     Value::Object(fields)
-}
-
-pub(in crate::proxy) fn app_granted_access_scopes(request: &Request) -> Vec<String> {
-    let parsed = request_header(request, "x-shopify-draft-proxy-access-scopes")
-        .map(|header| {
-            header
-                .split(',')
-                .map(str::trim)
-                .filter(|scope| !scope.is_empty() && app_access_scope_handle_is_valid(scope))
-                .map(str::to_string)
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    if parsed.is_empty() && request_header(request, "x-shopify-draft-proxy-access-scopes").is_none()
-    {
-        vec!["read_products".to_string(), "write_products".to_string()]
-    } else {
-        parsed
-    }
-}
-
-pub(in crate::proxy) fn app_required_access_scopes(request: &Request) -> BTreeSet<String> {
-    request_header(request, "x-shopify-draft-proxy-required-access-scopes")
-        .map(|header| {
-            header
-                .split(',')
-                .map(str::trim)
-                .filter(|scope| !scope.is_empty() && app_access_scope_handle_is_valid(scope))
-                .map(str::to_string)
-                .collect()
-        })
-        .filter(|scopes: &BTreeSet<String>| !scopes.is_empty())
-        .unwrap_or_else(|| BTreeSet::from(["read_products".to_string()]))
-}
-
-pub(in crate::proxy) fn app_access_scope_handle_is_valid(scope: &str) -> bool {
-    let mut parts = scope.split('_');
-    let prefix = parts.next().unwrap_or_default();
-    matches!(prefix, "read" | "write" | "unauthenticated")
-        && parts.clone().next().is_some()
-        && scope
-            .chars()
-            .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_')
 }
 
 pub(in crate::proxy) fn location_deactivate_payload_json(
@@ -650,6 +800,7 @@ pub(in crate::proxy) fn delivery_profile_user_errors_json(
 
 pub(in crate::proxy) fn delivery_profile_create_user_errors(
     profile: &BTreeMap<String, ResolvedValue>,
+    location_exists: &mut impl FnMut(&str) -> bool,
 ) -> Vec<Value> {
     if let Some(error) = delivery_profile_name_user_error(profile) {
         return vec![error];
@@ -679,16 +830,17 @@ pub(in crate::proxy) fn delivery_profile_create_user_errors(
             }
         }
     }
-    delivery_profile_common_shape_user_errors(profile)
+    delivery_profile_common_shape_user_errors(profile, location_exists)
 }
 
 pub(in crate::proxy) fn delivery_profile_update_user_errors(
     profile: &BTreeMap<String, ResolvedValue>,
+    location_exists: &mut impl FnMut(&str) -> bool,
 ) -> Vec<Value> {
     if let Some(error) = delivery_profile_name_user_error(profile) {
         return vec![error];
     }
-    delivery_profile_common_shape_user_errors(profile)
+    delivery_profile_common_shape_user_errors(profile, location_exists)
 }
 
 const DELIVERY_PROFILE_MAX_NAME_LENGTH: usize = 128;
@@ -716,9 +868,13 @@ fn delivery_profile_name_user_error(profile: &BTreeMap<String, ResolvedValue>) -
 
 fn delivery_profile_common_shape_user_errors(
     profile: &BTreeMap<String, ResolvedValue>,
+    location_exists: &mut impl FnMut(&str) -> bool,
 ) -> Vec<Value> {
     for group in resolved_object_list_field(profile, "locationGroupsToCreate") {
-        if delivery_profile_has_unknown_location(&list_string_field(&group, "locations")) {
+        if delivery_profile_has_unknown_location(
+            &list_string_field(&group, "locations"),
+            location_exists,
+        ) {
             return vec![delivery_profile_unknown_location_user_error()];
         }
         for zone in resolved_object_list_field(&group, "zonesToCreate") {
@@ -732,17 +888,21 @@ fn delivery_profile_common_shape_user_errors(
         }
     }
     for group in resolved_object_list_field(profile, "locationGroupsToUpdate") {
-        if delivery_profile_has_unknown_location(&list_string_field(&group, "locationsToAdd")) {
+        if delivery_profile_has_unknown_location(
+            &list_string_field(&group, "locationsToAdd"),
+            location_exists,
+        ) {
             return vec![delivery_profile_unknown_location_user_error()];
         }
     }
     Vec::new()
 }
 
-fn delivery_profile_has_unknown_location(location_ids: &[String]) -> bool {
-    location_ids
-        .iter()
-        .any(|id| id == "gid://shopify/Location/999999999")
+fn delivery_profile_has_unknown_location(
+    location_ids: &[String],
+    location_exists: &mut impl FnMut(&str) -> bool,
+) -> bool {
+    location_ids.iter().any(|id| !location_exists(id))
 }
 
 fn delivery_profile_unknown_location_user_error() -> Value {
@@ -1092,20 +1252,6 @@ pub(in crate::proxy) fn refresh_delivery_profile_counts(profile: &mut Value) {
     profile["productVariantsCount"] = count_object(variant_count);
 }
 
-pub(in crate::proxy) fn delivery_profile_location_record(id: &str) -> Value {
-    json!({
-        "id": id,
-        "name": delivery_profile_location_name(id)
-    })
-}
-
-fn delivery_profile_location_name(id: &str) -> String {
-    match Some(resource_id_path_tail(id)).filter(|tail| !tail.is_empty()) {
-        Some(tail) => format!("Location {tail}"),
-        None => "Delivery profile location".to_string(),
-    }
-}
-
 pub(in crate::proxy) fn delivery_profile_item_for_variant(
     variant_id: &str,
     observed_variant: Option<&Value>,
@@ -1178,10 +1324,11 @@ fn delivery_profile_zone_countries_from_input(
 
 fn delivery_profile_country_record(code: &str) -> Value {
     let rest_of_world = code == "REST_OF_WORLD";
+    let country_name = delivery_profile_country_name(code);
     json!({
         "id": shopify_gid("DeliveryCountry", code),
-        "name": if rest_of_world { "Rest of World" } else { delivery_profile_country_name(code) },
-        "translatedName": if rest_of_world { "Rest of World" } else { delivery_profile_country_name(code) },
+        "name": if rest_of_world { "Rest of World".to_string() } else { country_name.clone() },
+        "translatedName": if rest_of_world { "Rest of World".to_string() } else { country_name },
         "code": {
             "countryCode": if rest_of_world { Value::Null } else { json!(code) },
             "restOfWorld": rest_of_world
@@ -1190,13 +1337,8 @@ fn delivery_profile_country_record(code: &str) -> Value {
     })
 }
 
-fn delivery_profile_country_name(code: &str) -> &'static str {
-    match code {
-        "US" => "United States",
-        "CA" => "Canada",
-        "GB" => "United Kingdom",
-        _ => "Country",
-    }
+fn delivery_profile_country_name(code: &str) -> String {
+    country_name_for_code(code).unwrap_or(code).to_string()
 }
 
 pub(in crate::proxy) fn delivery_price_from_method_input(
@@ -1323,36 +1465,6 @@ pub(in crate::proxy) fn fulfillment_order_deadline_payload_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "success" => Some(Value::Bool(success)),
-            "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
-            _ => None,
-        }
-    })
-}
-
-pub(in crate::proxy) fn collection_publication_record(id: String, published: bool) -> Value {
-    let count = if published { 1 } else { 0 };
-    json!({
-        "id": id,
-        "title": "Hermes Collection Conformance 1777078204269",
-        "handle": "hermes-collection-conformance-1777078204269",
-        "publishedOnCurrentPublication": false,
-        "publishedOnPublication": published,
-        "availablePublicationsCount": count_object(count),
-        "resourcePublicationsCount": count_object(count)
-    })
-}
-
-pub(in crate::proxy) fn publishable_payload_json(
-    publishable: Value,
-    shop: Value,
-    payload_selection: &[SelectedField],
-    publishable_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "publishable" => Some(selected_json(&publishable, publishable_selection)),
-            "shop" => Some(selected_json(&shop, &selection.selection)),
             "userErrors" => selected_user_errors_field(user_errors.as_slice(), selection),
             _ => None,
         }
@@ -1907,14 +2019,6 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
         ));
     }
     if let Some(note) = resolved_string_field(input, "note") {
-        if b2b_contains_html_tags(&note) {
-            errors.push(b2b_company_user_error(
-                vec!["input", "notes"],
-                "Note contains HTML tags",
-                "INVALID",
-                Some(json!("contains_html_tags")),
-            ));
-        }
         if note.chars().count() > 5000 {
             errors.push(b2b_company_user_error(
                 vec!["input", "notes"],
