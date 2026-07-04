@@ -634,6 +634,111 @@ impl DraftProxy {
             .unwrap_or_default()
     }
 
+    pub(in crate::proxy) fn publishable_resource_exists(
+        &mut self,
+        resource_id: &str,
+        request: &Request,
+    ) -> bool {
+        if resource_id.is_empty() {
+            return false;
+        }
+        let resource_type = shopify_gid_resource_type(resource_id);
+        let known = match resource_type {
+            Some("Product") => {
+                self.product_record_by_id(resource_id).is_some()
+                    || self
+                        .store
+                        .staged
+                        .resource_publications
+                        .contains_key(resource_id)
+            }
+            Some("Collection") => {
+                self.store.collection_by_id(resource_id).is_some()
+                    || self
+                        .store
+                        .staged
+                        .resource_publications
+                        .contains_key(resource_id)
+            }
+            _ => false,
+        };
+        if known || self.config.read_mode != ReadMode::LiveHybrid {
+            return known;
+        }
+
+        self.hydrate_publishable_resource(resource_id, request);
+        match resource_type {
+            Some("Product") => {
+                self.product_record_by_id(resource_id).is_some()
+                    || self
+                        .store
+                        .staged
+                        .resource_publications
+                        .contains_key(resource_id)
+            }
+            Some("Collection") => {
+                self.store.collection_by_id(resource_id).is_some()
+                    || self
+                        .store
+                        .staged
+                        .resource_publications
+                        .contains_key(resource_id)
+            }
+            _ => false,
+        }
+    }
+
+    pub(in crate::proxy) fn current_channel_publication_id(&self) -> Option<String> {
+        if self.store.staged.current_channel_publication_resolved {
+            return self.store.staged.current_channel_publication_id.clone();
+        }
+        if self.store.base.publication_count == Some(0) && self.store.staged.publications.is_empty()
+        {
+            None
+        } else {
+            Some(CURRENT_CHANNEL_PUBLICATION_ID.to_string())
+        }
+    }
+
+    pub(in crate::proxy) fn resolve_current_channel_publication_id(
+        &mut self,
+        request: &Request,
+    ) -> Option<String> {
+        if self.store.staged.current_channel_publication_resolved {
+            return self.store.staged.current_channel_publication_id.clone();
+        }
+        if self.store.base.publication_count == Some(0) && self.store.staged.publications.is_empty()
+        {
+            self.store.staged.current_channel_publication_resolved = true;
+            self.store.staged.current_channel_publication_id = None;
+            return None;
+        }
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return self.current_channel_publication_id();
+        }
+
+        let response = self.upstream_post(
+            request,
+            json!({
+                "query": CURRENT_APP_PUBLICATION_HYDRATE_QUERY,
+                "operationName": "StorePropertiesCurrentAppPublicationHydrate",
+                "variables": {},
+            }),
+        );
+        self.store.staged.current_channel_publication_resolved = true;
+        self.store.staged.current_channel_publication_id = if (200..300).contains(&response.status)
+        {
+            response
+                .body
+                .pointer("/data/currentAppInstallation/publication/id")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        } else {
+            None
+        };
+        self.store.staged.current_channel_publication_id.clone()
+    }
+
     /// Count resources of the given gid type published on `publication_id` (or on
     /// any publication when `publication_id` is `None`).
     fn publication_resource_count(
@@ -794,6 +899,16 @@ impl DraftProxy {
     ) -> Value {
         let resource_type = shopify_gid_resource_type(resource_id).unwrap_or("");
         let pubs = self.resource_publication_set(resource_id);
+        let live_pubs = if resource_id.starts_with("gid://shopify/Product/")
+            && self
+                .product_record_by_id(resource_id)
+                .map(|product| product.status != "ACTIVE")
+                .unwrap_or(true)
+        {
+            BTreeSet::new()
+        } else {
+            pubs.clone()
+        };
         let mut out = serde_json::Map::new();
         for sel in selection {
             if let Some(type_condition) = sel.type_condition.as_deref() {
@@ -804,14 +919,58 @@ impl DraftProxy {
             let value = match sel.name.as_str() {
                 "id" => json!(resource_id),
                 "__typename" => json!(resource_type),
+                "title" => match resource_type {
+                    "Product" => self
+                        .product_record_by_id(resource_id)
+                        .map(|product| json!(product.title))
+                        .unwrap_or(Value::Null),
+                    "Collection" => self
+                        .store
+                        .collection_by_id(resource_id)
+                        .and_then(|collection| collection.get("title").cloned())
+                        .unwrap_or(Value::Null),
+                    _ => Value::Null,
+                },
+                "handle" => match resource_type {
+                    "Product" => self
+                        .product_record_by_id(resource_id)
+                        .map(|product| json!(product.handle))
+                        .unwrap_or(Value::Null),
+                    "Collection" => self
+                        .store
+                        .collection_by_id(resource_id)
+                        .and_then(|collection| collection.get("handle").cloned())
+                        .unwrap_or(Value::Null),
+                    _ => Value::Null,
+                },
                 "publishedOnPublication" => {
                     let publication_id = resolved_string_field(&sel.arguments, "publicationId");
                     json!(publication_id.map(|id| pubs.contains(&id)).unwrap_or(false))
                 }
-                "publishedOnCurrentPublication" => json!(false),
+                "publishedOnCurrentPublication" => {
+                    let published = self
+                        .current_channel_publication_id()
+                        .map(|id| live_pubs.contains(&id))
+                        .unwrap_or(false);
+                    json!(published)
+                }
                 "resourcePublicationsCount" | "publicationCount" | "availablePublicationsCount" => {
                     count_object(self.publishable_live_publication_count(resource_id, &pubs))
                 }
+                "resourcePublications" => staged_resource_publication_connection_json(
+                    resource_id,
+                    resource_type,
+                    &live_pubs,
+                    "ResourcePublication",
+                    &sel.selection,
+                ),
+                "resourcePublicationsV2" => staged_resource_publication_connection_json(
+                    resource_id,
+                    resource_type,
+                    &live_pubs,
+                    "ResourcePublicationV2",
+                    &sel.selection,
+                ),
                 _ => continue,
             };
             out.insert(sel.response_key.clone(), value);
@@ -878,14 +1037,41 @@ impl DraftProxy {
                 return None;
             }
             let resource_id = resolved_string_field(&field.arguments, "id")?;
-            let user_errors =
-                publishable_publication_input_errors(field.arguments.get("input"), to_current);
+            let mut user_errors = Vec::new();
+            let resource_exists = self.publishable_resource_exists(&resource_id, request);
+            if !resource_exists {
+                user_errors.push(user_error_omit_code(
+                    ["id"],
+                    "Resource does not exist",
+                    Some("RESOURCE_DOES_NOT_EXIST"),
+                ));
+            }
+            user_errors.extend(publishable_publication_input_errors(
+                field.arguments.get("input"),
+                to_current,
+            ));
+            let current_channel_id = if resource_exists && to_current {
+                self.resolve_current_channel_publication_id(request)
+            } else {
+                None
+            };
+            if resource_exists && to_current && current_channel_id.is_none() {
+                user_errors.push(user_error_omit_code(
+                    ["id"],
+                    "Channel does not exist",
+                    Some("CHANNEL_DOES_NOT_EXIST"),
+                ));
+            }
             if user_errors.is_empty() {
                 // Discover the resource's pre-existing publication membership
                 // (e.g. the default Online Store) by reading upstream before
                 // applying this publish, so counts reflect the real baseline.
                 self.hydrate_publishable_resource(&resource_id, request);
-                let publication_ids = publishable_input_publication_ids(&field.arguments);
+                let publication_ids = if to_current {
+                    current_channel_id.map(|id| vec![id]).unwrap_or_default()
+                } else {
+                    publishable_input_publication_ids(&field.arguments)
+                };
                 let set = self
                     .store
                     .staged
@@ -913,7 +1099,16 @@ impl DraftProxy {
             }
             let publishable_selection =
                 selected_child_selection(&field.selection, "publishable").unwrap_or_default();
-            let publishable = self.publishable_resource_value(&resource_id, &publishable_selection);
+            let publishable = if user_errors.iter().any(|error| {
+                error
+                    .get("code")
+                    .and_then(Value::as_str)
+                    .is_some_and(|code| code == "RESOURCE_DOES_NOT_EXIST")
+            }) {
+                Value::Null
+            } else {
+                self.publishable_resource_value(&resource_id, &publishable_selection)
+            };
             let shop = self.store.effective_shop();
             let payload = selected_payload_json(&field.selection, |selection| {
                 match selection.name.as_str() {
