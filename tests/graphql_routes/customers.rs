@@ -2063,6 +2063,35 @@ fn customer_address_phone_normalizes_international_format_without_inferring_coun
         json!("+14504538")
     );
 
+    let update_country_local = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateAddressCountryLocalPhone($customerId: ID!, $addressId: ID!, $address: MailingAddressInput!) {
+          customerAddressUpdate(
+            customerId: $customerId
+            addressId: $addressId
+            address: $address
+            setAsDefault: true
+          ) {
+            address { id phone countryCodeV2 }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "customerId": customer_id,
+            "addressId": address_id,
+            "address": { "countryCode": "DK", "phone": "12345678" }
+        }),
+    ));
+    assert_eq!(
+        update_country_local.body["data"]["customerAddressUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update_country_local.body["data"]["customerAddressUpdate"]["address"]["phone"],
+        json!("+4512345678")
+    );
+
     let update_raw = proxy.process_request(json_graphql_request(
         r#"
         mutation UpdateAddressRawPhone($customerId: ID!, $addressId: ID!, $address: MailingAddressInput!) {
@@ -2110,6 +2139,50 @@ fn customer_address_phone_normalizes_international_format_without_inferring_coun
     assert_eq!(
         raw_downstream.body["data"]["customer"]["addressesV2"]["nodes"][0]["phone"],
         json!("not a phone")
+    );
+}
+
+#[test]
+fn customer_phone_uses_restored_shop_country_for_bare_numbers() {
+    let mut proxy = snapshot_proxy();
+    restore_state_with(&mut proxy, |state| {
+        state["baseState"]["shop"] = json!({
+            "id": "gid://shopify/Shop/danish-customer-phone",
+            "shopAddress": {
+                "countryCodeV2": "DK",
+                "countryCode": "DK"
+            }
+        });
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerPhoneCountryContext($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id phone defaultPhoneNumber { phoneNumber } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "country-phone@example.test",
+                "phone": "12345678"
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["customerCreate"]["customer"]["phone"],
+        json!("+4512345678")
+    );
+    assert_eq!(
+        create.body["data"]["customerCreate"]["customer"]["defaultPhoneNumber"]["phoneNumber"],
+        json!("+4512345678")
     );
 }
 

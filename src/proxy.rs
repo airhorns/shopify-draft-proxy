@@ -491,9 +491,13 @@ struct StagedState {
 struct InventoryTransferRecord {
     id: String,
     name: String,
+    #[serde(default)]
+    created_at: String,
     status: String,
     origin_location_id: String,
     destination_location_id: String,
+    #[serde(default)]
+    tags: Vec<String>,
     line_items: Vec<InventoryTransferLineItemRecord>,
 }
 
@@ -1984,6 +1988,7 @@ mod metaobjects;
 mod money;
 mod online_store_content;
 mod online_store_orders_payments;
+mod phone;
 mod privacy;
 mod product_helpers;
 mod product_operations;
@@ -2013,6 +2018,7 @@ pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 pub(in crate::proxy) use self::metafields_orders_payments::*;
 pub(in crate::proxy) use self::money::*;
 pub(in crate::proxy) use self::online_store_orders_payments::*;
+pub(in crate::proxy) use self::phone::*;
 pub(in crate::proxy) use self::product_helpers::*;
 pub(in crate::proxy) use self::product_operations::*;
 pub(in crate::proxy) use self::product_options::*;

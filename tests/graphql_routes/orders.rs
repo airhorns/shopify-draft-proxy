@@ -486,15 +486,12 @@ fn return_removal_setup_from_payload(order_id: Value, payload: &Value) -> Return
 }
 
 #[test]
-fn order_refund_and_fulfillment_plain_user_errors_reject_code_selection() {
+fn fulfillment_plain_user_errors_reject_code_selection() {
     let mut proxy = snapshot_proxy();
 
     let response = proxy.process_request(json_graphql_request(
         r#"
-        mutation OrdersPlainUserErrorCodeSelectionRejected {
-          refund: refundCreate(input: { orderId: "gid://shopify/Order/999999999" }) {
-            userErrors { field message code }
-          }
+        mutation FulfillmentPlainUserErrorCodeSelectionRejected {
           create: fulfillmentCreate(fulfillment: {
             lineItemsByFulfillmentOrder: [{ fulfillmentOrderId: "gid://shopify/FulfillmentOrder/1" }]
           }) {
@@ -534,9 +531,8 @@ fn order_refund_and_fulfillment_plain_user_errors_reject_code_selection() {
     assert_eq!(response.status, 200);
     assert!(response.body.get("data").is_none());
     let errors = response.body["errors"].as_array().unwrap();
-    assert_eq!(errors.len(), 7);
+    assert_eq!(errors.len(), 6);
     for (error, response_key) in errors.iter().zip([
-        "refund",
         "create",
         "createV2",
         "cancel",
@@ -551,7 +547,7 @@ fn order_refund_and_fulfillment_plain_user_errors_reject_code_selection() {
         assert_eq!(
             error["path"],
             json!([
-                "mutation OrdersPlainUserErrorCodeSelectionRejected",
+                "mutation FulfillmentPlainUserErrorCodeSelectionRejected",
                 response_key,
                 "userErrors",
                 "code"

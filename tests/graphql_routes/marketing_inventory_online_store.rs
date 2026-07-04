@@ -2457,6 +2457,110 @@ fn inventory_items_connection_lists_staged_inventory_item() {
 }
 
 #[test]
+fn inventory_items_query_filters_window_and_rejects_unknown_tokens() {
+    let mut proxy = inventory_seed_proxy();
+    let (_first_variant_id, first_item_id) = create_inventory_test_item(&mut proxy, "FILTER-ALPHA");
+    let (_second_variant_id, second_item_id) =
+        create_inventory_test_item(&mut proxy, "FILTER-BETA");
+    let second_item_tail = second_item_id
+        .rsplit('/')
+        .next()
+        .unwrap()
+        .split('?')
+        .next()
+        .unwrap();
+
+    let mark_second_untracked = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarkInventoryItemUntracked($id: ID!, $input: InventoryItemInput!) {
+          inventoryItemUpdate(id: $id, input: $input) {
+            inventoryItem { id tracked }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"id": second_item_id, "input": {"tracked": false}}),
+    ));
+    assert_eq!(
+        mark_second_untracked.body["data"]["inventoryItemUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryItemsFiltered($after: String, $idRange: String!) {
+          firstPage: inventoryItems(first: 1) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          secondPage: inventoryItems(first: 1, after: $after) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          unknownFilter: inventoryItems(first: 10, query: "unknown_field:anything") {
+            nodes { id }
+          }
+          invalidTracked: inventoryItems(first: 10, query: "tracked:notaboolean") {
+            nodes { id }
+          }
+          skuQuoted: inventoryItems(first: 10, query: "sku:'FILTER-ALPHA'") {
+            nodes { id }
+          }
+          idRange: inventoryItems(first: 10, query: $idRange) {
+            nodes { id }
+          }
+          trackedFalse: inventoryItems(first: 10, query: "tracked:false") {
+            nodes { id tracked }
+          }
+          updatedBefore: inventoryItems(first: 10, query: "updated_at:<2024-01-01T00:00:00.000Z") {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({
+            "after": first_item_id,
+            "idRange": format!("id:>={second_item_tail}")
+        }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["firstPage"],
+        json!({
+            "nodes": [{"id": first_item_id}],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": first_item_id,
+                "endCursor": first_item_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["nodes"],
+        json!([{ "id": second_item_id }])
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert_eq!(read.body["data"]["unknownFilter"]["nodes"], json!([]));
+    assert_eq!(read.body["data"]["invalidTracked"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["skuQuoted"]["nodes"],
+        json!([{ "id": first_item_id }])
+    );
+    assert_eq!(
+        read.body["data"]["idRange"]["nodes"],
+        json!([{ "id": second_item_id }])
+    );
+    assert_eq!(
+        read.body["data"]["trackedFalse"]["nodes"],
+        json!([{ "id": second_item_id, "tracked": false }])
+    );
+    assert_eq!(read.body["data"]["updatedBefore"]["nodes"], json!([]));
+}
+
+#[test]
 fn order_create_inventory_decrement_uses_staged_default_location() {
     let mut proxy = inventory_seed_proxy();
     let (variant_id, inventory_item_id) = create_inventory_test_item(&mut proxy, "DEFAULT-LOC");
@@ -5883,6 +5987,206 @@ fn inventory_transfer_edit_and_duplicate_stage_locally_without_upstream_passthro
             json!("inventoryTransferDuplicate")
         ]
     );
+}
+
+#[test]
+fn inventory_transfers_connection_filters_sorts_and_windows_staged_records() {
+    let mut proxy = inventory_seed_proxy();
+    let origin_location_id = add_inventory_test_location(&mut proxy, "Origin Stockroom");
+    let destination_location_id = add_inventory_test_location(&mut proxy, "Destination Stockroom");
+    let (_first_variant_id, first_item_id) =
+        create_inventory_test_item(&mut proxy, "TRANSFER-ALPHA");
+    let (second_variant_id, second_item_id) =
+        create_inventory_test_item(&mut proxy, "TRANSFER-BETA");
+
+    let seed_quantities = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedInventoryTransferStock($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "inventory-transfer-connection-stock", "input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": first_item_id, "locationId": origin_location_id, "quantity": 4},
+            {"inventoryItemId": second_item_id, "locationId": origin_location_id, "quantity": 8}
+        ]}}),
+    ));
+    assert_eq!(
+        seed_quantities.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let first_transfer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DraftInventoryTransfer($input: InventoryTransferCreateInput!) {
+          inventoryTransferCreate(input: $input) {
+            inventoryTransfer { id name status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "originLocationId": origin_location_id,
+            "destinationLocationId": destination_location_id,
+            "dateCreated": "2024-01-02T00:00:00Z",
+            "tags": ["alpha"],
+            "lineItems": [{"inventoryItemId": first_item_id, "quantity": 2}]
+        }}),
+    ));
+    assert_eq!(
+        first_transfer.body["data"]["inventoryTransferCreate"]["userErrors"],
+        json!([])
+    );
+    let first_transfer_id = first_transfer.body["data"]["inventoryTransferCreate"]
+        ["inventoryTransfer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let second_transfer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ReadyInventoryTransfer($input: InventoryTransferCreateAsReadyToShipInput!) {
+          inventoryTransferCreateAsReadyToShip(input: $input) {
+            inventoryTransfer { id name status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "originLocationId": origin_location_id,
+            "destinationLocationId": destination_location_id,
+            "dateCreated": "2024-01-03T00:00:00Z",
+            "tags": ["beta"],
+            "lineItems": [{"inventoryItemId": second_item_id, "quantity": 3}]
+        }}),
+    ));
+    assert_eq!(
+        second_transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]["userErrors"],
+        json!([])
+    );
+    let second_transfer_id = second_transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]
+        ["inventoryTransfer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_transfer_name = second_transfer.body["data"]["inventoryTransferCreateAsReadyToShip"]
+        ["inventoryTransfer"]["name"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let origin_location_tail = origin_location_id
+        .rsplit('/')
+        .next()
+        .and_then(|tail| tail.split('?').next())
+        .unwrap()
+        .to_string();
+    let second_item_tail = second_item_id
+        .rsplit('/')
+        .next()
+        .and_then(|tail| tail.split('?').next())
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryTransfersConnection($after: String, $readyQuery: String!, $nameQuery: String!, $variantQuery: String!, $originTailQuery: String!, $itemTailQuery: String!) {
+          firstPage: inventoryTransfers(first: 1, sortKey: NAME) {
+            nodes { id name status totalQuantity }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          secondPage: inventoryTransfers(first: 1, after: $after, sortKey: NAME) {
+            nodes { id name status totalQuantity }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          reversePage: inventoryTransfers(first: 1, sortKey: NAME, reverse: true) {
+            nodes { id name status totalQuantity }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          readyOnly: inventoryTransfers(first: 10, query: $readyQuery, sortKey: NAME) {
+            nodes { id name status totalQuantity }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          byName: inventoryTransfers(first: 10, query: $nameQuery) {
+            nodes { id name }
+          }
+          byVariant: inventoryTransfers(first: 10, query: $variantQuery) {
+            nodes { id name }
+          }
+          byOriginTail: inventoryTransfers(first: 10, query: $originTailQuery, sortKey: NAME) {
+            nodes { id name status }
+          }
+          byInventoryItemTail: inventoryTransfers(first: 10, query: $itemTailQuery) {
+            nodes { id name }
+          }
+          unknownFilter: inventoryTransfers(first: 10, query: "unknown_field:anything") {
+            nodes { id }
+          }
+        }
+        "#,
+        json!({
+            "after": first_transfer_id,
+            "readyQuery": "status:READY_TO_SHIP tag:beta",
+            "nameQuery": second_transfer_name,
+            "variantQuery": format!("product_variant_id:{second_variant_id}"),
+            "originTailQuery": format!("origin_id:{origin_location_tail}"),
+            "itemTailQuery": format!("inventory_item_id:{second_item_tail}")
+        }),
+    ));
+
+    assert_eq!(
+        read.body["data"]["firstPage"],
+        json!({
+            "nodes": [{"id": first_transfer_id, "name": "#T0001", "status": "DRAFT", "totalQuantity": 2}],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": first_transfer_id,
+                "endCursor": first_transfer_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["nodes"],
+        json!([{"id": second_transfer_id, "name": "#T0002", "status": "READY_TO_SHIP", "totalQuantity": 3}])
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["reversePage"]["nodes"],
+        json!([{"id": second_transfer_id, "name": "#T0002", "status": "READY_TO_SHIP", "totalQuantity": 3}])
+    );
+    assert_eq!(
+        read.body["data"]["readyOnly"]["nodes"],
+        json!([{"id": second_transfer_id, "name": "#T0002", "status": "READY_TO_SHIP", "totalQuantity": 3}])
+    );
+    assert_eq!(
+        read.body["data"]["readyOnly"]["pageInfo"],
+        json!({"hasNextPage": false, "hasPreviousPage": false, "startCursor": second_transfer_id, "endCursor": second_transfer_id})
+    );
+    assert_eq!(
+        read.body["data"]["byName"]["nodes"],
+        json!([{ "id": second_transfer_id, "name": "#T0002" }])
+    );
+    assert_eq!(
+        read.body["data"]["byVariant"]["nodes"],
+        json!([{ "id": second_transfer_id, "name": "#T0002" }])
+    );
+    assert_eq!(
+        read.body["data"]["byOriginTail"]["nodes"],
+        json!([
+            {"id": first_transfer_id, "name": "#T0001", "status": "DRAFT"},
+            {"id": second_transfer_id, "name": "#T0002", "status": "READY_TO_SHIP"}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["byInventoryItemTail"]["nodes"],
+        json!([{ "id": second_transfer_id, "name": "#T0002" }])
+    );
+    assert_eq!(read.body["data"]["unknownFilter"]["nodes"], json!([]));
 }
 
 #[test]
