@@ -4016,9 +4016,13 @@ Admin GraphQL 2026-04 on `harry-test-heelo.myshopify.com` returns
 `Bulk mutations cannot contain more than 1 connection.` for
 `bulkOperationRunMutation` inner documents that select a connection nested under
 another connection, such as `productCreate { product { variants { edges { node
-{ media { ... } } } } } }`. The public response does not reach the
-`connection_nested_too_deep` message for that shape because the connection-count
-validator wins first.
+{ media { ... } } } } } }`. The registered
+`bulk-operation-run-mutation-connection-validators` capture also probes nested
+public paths through `ProductCreatePayload.shop.products.variants`,
+`Product.collections.products`, and `Customer.orders.lineItems`; those shapes
+also return the count error. The public response does not reach the
+`connection_nested_too_deep` message for these shapes because the
+connection-count validator wins first.
 
 The same store and a 2025-01 probe showed the same count-first response. Single
 shallow connection selections, and single connections reached through ordinary
