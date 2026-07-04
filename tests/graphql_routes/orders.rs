@@ -12282,9 +12282,26 @@ fn restore_customer_payment_method_state(
     customer_payment_methods: Value,
     customer_index: Value,
 ) {
+    restore_customer_payment_method_state_with_shop(
+        proxy,
+        customer_payment_methods,
+        customer_index,
+        Some("gid://shopify/Shop/source"),
+    );
+}
+
+fn restore_customer_payment_method_state_with_shop(
+    proxy: &mut DraftProxy,
+    customer_payment_methods: Value,
+    customer_index: Value,
+    source_shop_id: Option<&str>,
+) {
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", ""));
     assert_eq!(dump.status, 200);
     let mut restored = dump.body;
+    if let Some(source_shop_id) = source_shop_id {
+        restored["state"]["baseState"]["shop"] = json!({ "id": source_shop_id });
+    }
     restored["state"]["stagedState"]["customerPaymentMethods"] = customer_payment_methods;
     restored["state"]["stagedState"]["customerPaymentMethodCustomerIndex"] = customer_index;
     restored["state"]["stagedState"]["nextCustomerPaymentMethodId"] = json!(1);
@@ -12317,7 +12334,6 @@ fn restore_customer_payment_method_fixture_state(proxy: &mut DraftProxy) {
                         "provinceCode": "ON"
                     }
                 },
-                "__draftProxySourceShopId": "gid://shopify/Shop/source",
                 "revokedAt": Value::Null,
                 "revokedReason": Value::Null,
                 "activeSubscriptionContracts": { "nodes": [] }
@@ -12330,7 +12346,6 @@ fn restore_customer_payment_method_fixture_state(proxy: &mut DraftProxy) {
                     "paypalAccountEmail": Value::Null,
                     "inactive": false
                 },
-                "__draftProxySourceShopId": "gid://shopify/Shop/source",
                 "revokedAt": Value::Null,
                 "revokedReason": Value::Null,
                 "activeSubscriptionContracts": { "nodes": [] }
@@ -12339,7 +12354,6 @@ fn restore_customer_payment_method_fixture_state(proxy: &mut DraftProxy) {
                 "id": "gid://shopify/CustomerPaymentMethod/base-shop-pay",
                 "customer": { "id": "gid://shopify/Customer/8801" },
                 "instrument": { "__typename": "CustomerShopPayAgreement" },
-                "__draftProxySourceShopId": "gid://shopify/Shop/source",
                 "revokedAt": Value::Null,
                 "revokedReason": Value::Null,
                 "activeSubscriptionContracts": { "nodes": [] }
@@ -12352,7 +12366,6 @@ fn restore_customer_payment_method_fixture_state(proxy: &mut DraftProxy) {
                     "lastDigits": Value::Null,
                     "maskedNumber": Value::Null
                 },
-                "__draftProxySourceShopId": "gid://shopify/Shop/source",
                 "revokedAt": Value::Null,
                 "revokedReason": Value::Null,
                 "activeSubscriptionContracts": {
@@ -12367,7 +12380,6 @@ fn restore_customer_payment_method_fixture_state(proxy: &mut DraftProxy) {
                     "lastDigits": Value::Null,
                     "maskedNumber": Value::Null
                 },
-                "__draftProxySourceShopId": "gid://shopify/Shop/source",
                 "revokedAt": "2026-05-01T00:00:00.000Z",
                 "revokedReason": "CUSTOMER_REVOKED",
                 "activeSubscriptionContracts": { "nodes": [] }
@@ -12424,14 +12436,13 @@ fn customer_payment_methods_do_not_seed_fixture_records_for_unhydrated_customers
 #[test]
 fn customer_payment_method_eligibility_uses_record_type_and_source_shop_state() {
     let mut proxy = snapshot_proxy();
-    restore_customer_payment_method_state(
+    restore_customer_payment_method_state_with_shop(
         &mut proxy,
         json!({
             "gid://shopify/CustomerPaymentMethod/card-without-sentinel-name": {
                 "id": "gid://shopify/CustomerPaymentMethod/card-without-sentinel-name",
                 "customer": { "id": "gid://shopify/Customer/8801" },
                 "instrument": { "__typename": "CustomerCreditCard" },
-                "__draftProxySourceShopId": "gid://shopify/Shop/source-from-record",
                 "revokedAt": Value::Null,
                 "revokedReason": Value::Null,
                 "activeSubscriptionContracts": { "nodes": [] }
@@ -12440,7 +12451,6 @@ fn customer_payment_method_eligibility_uses_record_type_and_source_shop_state() 
                 "id": "gid://shopify/CustomerPaymentMethod/shop-pay-without-sentinel-name",
                 "customer": { "id": "gid://shopify/Customer/8801" },
                 "instrument": { "__typename": "CustomerShopPayAgreement" },
-                "__draftProxySourceShopId": "gid://shopify/Shop/source-from-record",
                 "revokedAt": Value::Null,
                 "revokedReason": Value::Null,
                 "activeSubscriptionContracts": { "nodes": [] }
@@ -12452,6 +12462,7 @@ fn customer_payment_method_eligibility_uses_record_type_and_source_shop_state() 
                 "gid://shopify/CustomerPaymentMethod/shop-pay-without-sentinel-name"
             ]
         }),
+        Some("gid://shopify/Shop/source-from-record"),
     );
 
     let response = proxy.process_request(json_graphql_request(

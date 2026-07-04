@@ -449,10 +449,18 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let result = self.matching_collections_query(&field.arguments);
+        let shop_currency_code = self.store.shop_currency_code();
         selected_typed_connection_with_page_info(
             &result.records,
             &field.selection,
-            collection_json,
+            |collection, selection| {
+                collection_json(
+                    collection,
+                    self.collection_product_entries(collection),
+                    selection,
+                    &shop_currency_code,
+                )
+            },
             value_id_cursor,
             result.page_info,
         )

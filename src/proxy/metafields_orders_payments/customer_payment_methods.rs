@@ -10,7 +10,6 @@ pub(in crate::proxy) fn customer_payment_method_seed_record(
         "id": id,
         "customer": { "id": customer_id },
         "instrument": instrument,
-        "__draftProxySourceShopId": Value::Null,
         "revokedAt": Value::Null,
         "revokedReason": Value::Null,
         "activeSubscriptionContracts": { "nodes": [] }
@@ -211,12 +210,7 @@ impl DraftProxy {
         Some(body)
     }
 
-    fn stage_customer_payment_method_record(&mut self, mut record: Value) {
-        if record["__draftProxySourceShopId"].is_null() {
-            if let Some(shop_id) = self.current_payment_method_source_shop_id() {
-                record["__draftProxySourceShopId"] = json!(shop_id);
-            }
-        }
+    fn stage_customer_payment_method_record(&mut self, record: Value) {
         let id = record["id"].as_str().unwrap_or_default().to_string();
         let customer_id = record["customer"]["id"]
             .as_str()
@@ -649,29 +643,28 @@ impl DraftProxy {
         let target_customer_id =
             resolved_string_field(&field.arguments, "targetCustomerId").unwrap_or_default();
         let target_shop_id = resolved_string_field(&field.arguments, "targetShopId");
-        let errors = if let Some(record) =
-            self.store.staged.customer_payment_methods.get(&source_id)
-        {
-            if !customer_payment_method_is_shop_pay(record) {
-                vec![customer_payment_method_invalid_instrument_error(
-                    "customerPaymentMethodId",
-                )]
-            } else if self.customer_payment_method_same_shop(record, target_shop_id.as_deref()) {
-                vec![user_error(
-                    ["targetShopId"],
-                    "Target shop is not eligible for payment method duplication",
-                    Some("SAME_SHOP"),
-                )]
+        let errors =
+            if let Some(record) = self.store.staged.customer_payment_methods.get(&source_id) {
+                if !customer_payment_method_is_shop_pay(record) {
+                    vec![customer_payment_method_invalid_instrument_error(
+                        "customerPaymentMethodId",
+                    )]
+                } else if self.customer_payment_method_same_shop(target_shop_id.as_deref()) {
+                    vec![user_error(
+                        ["targetShopId"],
+                        "Target shop is not eligible for payment method duplication",
+                        Some("SAME_SHOP"),
+                    )]
+                } else {
+                    Vec::new()
+                }
             } else {
-                Vec::new()
-            }
-        } else {
-            vec![user_error(
-                ["customerPaymentMethodId"],
-                "Customer payment method does not exist.",
-                Some("NOT_FOUND"),
-            )]
-        };
+                vec![user_error(
+                    ["customerPaymentMethodId"],
+                    "Customer payment method does not exist.",
+                    Some("NOT_FOUND"),
+                )]
+            };
         selected_json(
             &json!({
                 "encryptedDuplicationData": if errors.is_empty() {
@@ -836,27 +829,11 @@ impl DraftProxy {
         )
     }
 
-    fn current_payment_method_source_shop_id(&self) -> Option<String> {
-        self.store
-            .base
-            .shop
-            .get("id")
-            .and_then(Value::as_str)
-            .map(str::to_string)
-    }
-
-    fn customer_payment_method_same_shop(
-        &self,
-        record: &Value,
-        target_shop_id: Option<&str>,
-    ) -> bool {
+    fn customer_payment_method_same_shop(&self, target_shop_id: Option<&str>) -> bool {
         let Some(target_shop_id) = target_shop_id else {
             return false;
         };
-        let source_shop_id = record
-            .get("__draftProxySourceShopId")
-            .and_then(Value::as_str)
-            .or_else(|| self.store.base.shop.get("id").and_then(Value::as_str));
+        let source_shop_id = self.store.base.shop.get("id").and_then(Value::as_str);
         source_shop_id == Some(target_shop_id)
     }
 
