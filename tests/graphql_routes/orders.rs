@@ -7867,9 +7867,25 @@ fn order_create_mandate_payment_replays_idempotent_and_validation_shapes() {
             "amount": { "amount": "25.00", "currencyCode": "CAD" }
         }),
     ));
+    let first_payload = &first_mandate.body["data"]["orderCreateMandatePayment"];
+    assert_eq!(first_payload["userErrors"], json!([]));
     assert_eq!(
-        first_mandate.body,
-        fixture["mandateFlow"]["expected"]["mandate"]
+        first_payload["paymentReferenceId"],
+        json!("gid://shopify/Order/1/har-353-idempotent-payment")
+    );
+    assert_eq!(first_payload["job"]["done"], json!(true));
+    assert!(first_payload["job"]["id"]
+        .as_str()
+        .expect("job id")
+        .starts_with("gid://shopify/Job/"));
+    let first_transaction_id = first_payload["order"]["transactions"][0]["id"].clone();
+    assert_eq!(
+        first_payload["order"]["transactions"][0]["paymentReferenceId"],
+        json!("gid://shopify/Order/1/har-353-idempotent-payment")
+    );
+    assert_eq!(
+        first_payload["order"]["transactions"][0]["amountSet"]["shopMoney"]["amount"],
+        json!("25.0")
     );
 
     let repeat = proxy.process_request(json_graphql_request(
@@ -7881,9 +7897,11 @@ fn order_create_mandate_payment_replays_idempotent_and_validation_shapes() {
             "amount": { "amount": "25.00", "currencyCode": "CAD" }
         }),
     ));
+    let repeat_payload = &repeat.body["data"]["orderCreateMandatePayment"];
+    assert_eq!(repeat_payload["userErrors"], json!([]));
     assert_eq!(
-        repeat.body,
-        fixture["mandateFlow"]["expected"]["repeatMandate"]
+        repeat_payload["order"]["transactions"][0]["id"],
+        first_transaction_id
     );
 
     let auth_only = proxy.process_request(json_graphql_request(
@@ -7896,10 +7914,126 @@ fn order_create_mandate_payment_replays_idempotent_and_validation_shapes() {
             "amount": { "amount": "25.00", "currencyCode": "CAD" }
         }),
     ));
+    let auth_payload = &auth_only.body["data"]["orderCreateMandatePayment"];
+    assert_eq!(auth_payload["userErrors"], json!([]));
     assert_eq!(
-        auth_only.body,
-        fixture["mandateFlow"]["expected"]["autoCaptureFalse"]
+        auth_payload["order"]["transactions"][1]["kind"],
+        json!("AUTHORIZATION")
     );
+    assert_ne!(
+        auth_payload["order"]["transactions"][1]["id"],
+        first_transaction_id
+    );
+}
+
+#[test]
+fn order_payment_create_defaults_omitted_amount_to_outstanding_total() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-create-local-staging.graphql"
+        ),
+        json!({
+            "order": {
+                "currency": "CAD",
+                "transactions": [{
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "manual"
+                }],
+                "lineItems": [{
+                    "title": "default outstanding payment amount",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "31.90", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    assert_eq!(
+        create.body["data"]["orderCreate"]["order"]["transactions"][0]["amountSet"]["shopMoney"]
+            ["amount"],
+        json!("31.9")
+    );
+    assert_ne!(
+        create.body["data"]["orderCreate"]["order"]["transactions"][0]["amountSet"]["shopMoney"]
+            ["amount"],
+        json!("25.0")
+    );
+}
+
+#[test]
+fn order_create_mandate_payment_allocates_distinct_transaction_ids() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreatePendingMandateOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "currency": "CAD",
+                "lineItems": [{
+                    "title": "mandate default outstanding",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "37.50", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let first = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-mandate-local-staging.graphql"
+        ),
+        json!({
+            "id": order_id.clone(),
+            "mandateId": "gid://shopify/PaymentMandate/default-amount",
+            "idempotencyKey": "first-default-mandate",
+            "autoCapture": false
+        }),
+    ));
+    assert_eq!(first.status, 200);
+    let first_payload = &first.body["data"]["orderCreateMandatePayment"];
+    assert_eq!(first_payload["userErrors"], json!([]));
+    let first_transaction = &first_payload["order"]["transactions"][0];
+    assert_eq!(
+        first_transaction["amountSet"]["shopMoney"]["amount"],
+        json!("37.5")
+    );
+
+    let second = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-mandate-local-staging.graphql"
+        ),
+        json!({
+            "id": order_id,
+            "mandateId": "gid://shopify/PaymentMandate/default-amount",
+            "idempotencyKey": "second-default-mandate",
+            "autoCapture": false
+        }),
+    ));
+    assert_eq!(second.status, 200);
+    let second_payload = &second.body["data"]["orderCreateMandatePayment"];
+    assert_eq!(second_payload["userErrors"], json!([]));
+    let second_transaction = &second_payload["order"]["transactions"][1];
+
+    assert_eq!(
+        second_transaction["amountSet"]["shopMoney"]["amount"],
+        json!("37.5")
+    );
+    assert_ne!(first_transaction["id"], second_transaction["id"]);
 }
 
 #[test]
