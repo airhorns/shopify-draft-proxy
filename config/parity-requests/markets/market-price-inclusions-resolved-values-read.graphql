@@ -1,0 +1,10 @@
+#graphql
+query MarketPriceInclusionsResolvedValuesRead($buyerSignal: BuyerSignalInput!) {
+  marketsResolvedValues(buyerSignal: $buyerSignal) {
+    currencyCode
+    priceInclusivity {
+      dutiesIncluded
+      taxesIncluded
+    }
+  }
+}

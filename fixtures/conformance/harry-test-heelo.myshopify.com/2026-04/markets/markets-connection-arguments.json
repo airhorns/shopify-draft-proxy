@@ -1,0 +1,283 @@
+{
+  "scenarioId": "markets-connection-arguments",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-07-04T03:15:27.236Z",
+  "scope": "markets query/sortKey/reverse connection arguments",
+  "queryToken": "ZZZDPConn20260704031525",
+  "cases": [
+    {
+      "name": "marketCreate 1",
+      "query": "mutation MarketsConnectionArgumentsCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      status\n      enabled\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "ZZZDPConn20260704031525 Alpha",
+          "enabled": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/98773991730",
+                "name": "ZZZDPConn20260704031525 Alpha",
+                "status": "ACTIVE",
+                "enabled": true,
+                "type": "NONE"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketCreate 2",
+      "query": "mutation MarketsConnectionArgumentsCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      status\n      enabled\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "ZZZDPConn20260704031525 Beta",
+          "enabled": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/98774024498",
+                "name": "ZZZDPConn20260704031525 Beta",
+                "status": "ACTIVE",
+                "enabled": true,
+                "type": "NONE"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketCreate 3",
+      "query": "mutation MarketsConnectionArgumentsCreate($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market {\n      id\n      name\n      status\n      enabled\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "ZZZDPConn20260704031525 Gamma",
+          "enabled": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/98774057266",
+                "name": "ZZZDPConn20260704031525 Gamma",
+                "status": "ACTIVE",
+                "enabled": true,
+                "type": "NONE"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "markets query sort reverse",
+      "query": "query MarketsConnectionArgumentsRead($first: Int!, $query: String!, $reverse: Boolean!) {\n  filtered: markets(first: $first, query: $query, sortKey: NAME, reverse: $reverse) {\n    nodes {\n      id\n      name\n      status\n      type\n    }\n    edges {\n      cursor\n      node {\n        id\n        name\n        status\n        type\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "variables": {
+        "first": 2,
+        "query": "status:ACTIVE",
+        "reverse": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "filtered": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/98774057266",
+                  "name": "ZZZDPConn20260704031525 Gamma",
+                  "status": "ACTIVE",
+                  "type": "NONE"
+                },
+                {
+                  "id": "gid://shopify/Market/98774024498",
+                  "name": "ZZZDPConn20260704031525 Beta",
+                  "status": "ACTIVE",
+                  "type": "NONE"
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3NDA1NzI2NiwibGFzdF92YWx1ZSI6IlpaWkRQQ29ubjIwMjYwNzA0MDMxNTI1IEdhbW1hIn0=",
+                  "node": {
+                    "id": "gid://shopify/Market/98774057266",
+                    "name": "ZZZDPConn20260704031525 Gamma",
+                    "status": "ACTIVE",
+                    "type": "NONE"
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo5ODc3NDAyNDQ5OCwibGFzdF92YWx1ZSI6IlpaWkRQQ29ubjIwMjYwNzA0MDMxNTI1IEJldGEifQ==",
+                  "node": {
+                    "id": "gid://shopify/Market/98774024498",
+                    "name": "ZZZDPConn20260704031525 Beta",
+                    "status": "ACTIVE",
+                    "type": "NONE"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo5ODc3NDA1NzI2NiwibGFzdF92YWx1ZSI6IlpaWkRQQ29ubjIwMjYwNzA0MDMxNTI1IEdhbW1hIn0=",
+                "endCursor": "eyJsYXN0X2lkIjo5ODc3NDAyNDQ5OCwibGFzdF92YWx1ZSI6IlpaWkRQQ29ubjIwMjYwNzA0MDMxNTI1IEJldGEifQ=="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "name": "marketDelete cleanup",
+      "query": "#graphql\nmutation MarketsConnectionArgumentsCleanup($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/98774057266"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/98774057266",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketDelete cleanup",
+      "query": "#graphql\nmutation MarketsConnectionArgumentsCleanup($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/98774024498"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/98774024498",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketDelete cleanup",
+      "query": "#graphql\nmutation MarketsConnectionArgumentsCleanup($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Market/98773991730"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/98773991730",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

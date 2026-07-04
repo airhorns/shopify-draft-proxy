@@ -1051,35 +1051,26 @@ impl DraftProxy {
         for id in &ids {
             self.ensure_shipping_fulfillment_order_hydrated(request, id);
         }
-        let unknown = ids
+        let known_ids: Vec<String> = ids
             .iter()
-            .any(|id| self.shipping_fulfillment_order_location(id).is_none());
-        let closed_or_cancelled = ids.iter().any(|id| {
-            self.shipping_fulfillment_order_by_id(id)
-                .is_some_and(|order| {
-                    matches!(order["status"].as_str(), Some("CLOSED") | Some("CANCELLED"))
-                })
-        });
-        let (success, errors) = if unknown {
+            .filter(|id| self.shipping_fulfillment_order_location(id).is_some())
+            .cloned()
+            .collect();
+        let (success, errors) = if known_ids.is_empty() {
             (
                 false,
                 vec![user_error(
-                    ["base"],
-                    "The fulfillment orders could not be found.",
-                    Some("FULFILLMENT_ORDERS_NOT_FOUND"),
+                    Value::Null,
+                    "Fulfillment orders could not be found.",
+                    None,
                 )],
-            )
-        } else if closed_or_cancelled {
-            (
-                false,
-                vec![user_error(["base"], "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.", None)],
             )
         } else {
             let deadline = resolved_string_field(&arguments, "fulfillmentDeadline")
                 .map(|value| shopify_datetime_seconds(&value))
                 .unwrap_or_default();
             let timestamp = self.next_shipping_fulfillment_timestamp();
-            for id in &ids {
+            for id in &known_ids {
                 self.store
                     .staged
                     .fulfillment_order_deadlines

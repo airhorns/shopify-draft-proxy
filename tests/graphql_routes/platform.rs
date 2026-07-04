@@ -1417,7 +1417,9 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
     let mut proxy = snapshot_proxy();
     let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
     let mut restored = dump.body.clone();
-    restored["state"]["baseState"]["shop"]["shopAddress"]["countryCodeV2"] = json!("CA");
+    restored["state"]["baseState"]["shop"]["myshopifyDomain"] =
+        json!("backup-region-gb.myshopify.com");
+    restored["state"]["baseState"]["shop"]["shopAddress"]["countryCodeV2"] = json!("GB");
     let restore = proxy.process_request(request_with_body(
         "POST",
         "/__meta/restore",
@@ -1483,7 +1485,7 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
     let current_country = proxy.process_request(json_graphql_request(
         r#"
         mutation BackupRegionUpdateCurrentCountry {
-          backupRegionUpdate(region: { countryCode: CA }) {
+          backupRegionUpdate(region: { countryCode: GB }) {
             backupRegion { __typename id name ... on MarketRegionCountry { code } }
             userErrors { field message code }
           }
@@ -1496,9 +1498,9 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
         json!({
             "backupRegion": {
                 "__typename": "MarketRegionCountry",
-                "id": "gid://shopify/MarketRegionCountry/local-CA",
-                "name": "Canada",
-                "code": "CA"
+                "id": "gid://shopify/MarketRegionCountry/local-GB",
+                "name": "United Kingdom",
+                "code": "GB"
             },
             "userErrors": []
         })
@@ -1721,6 +1723,47 @@ fn backup_region_update_uses_staged_market_region_and_computed_coercion_location
     assert_ne!(
         invalid_country_location.body["errors"][0]["locations"][0],
         json!({ "line": 2, "column": 30 })
+    );
+}
+
+#[test]
+fn backup_region_update_does_not_infer_country_from_shop_domain() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy.process_request(request_with_body("POST", "/__meta/dump", "{}"));
+    let mut restored = dump.body.clone();
+    restored["state"]["baseState"]["shop"] = json!({
+        "id": "gid://shopify/Shop/1991",
+        "name": "Domain-only shop",
+        "myshopifyDomain": "harry-test-heelo.myshopify.com"
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BackupRegionUpdateDomainOnlyCanada {
+          backupRegionUpdate(region: { countryCode: CA }) {
+            backupRegion { __typename id name ... on MarketRegionCountry { code } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        response.body["data"]["backupRegionUpdate"],
+        json!({
+            "backupRegion": null,
+            "userErrors": [{
+                "field": ["region"],
+                "message": "Region not found.",
+                "code": "REGION_NOT_FOUND"
+            }]
+        })
     );
 }
 
@@ -3060,6 +3103,249 @@ fn generic_location_add_stages_location_and_downstream_reads() {
 }
 
 #[test]
+fn top_level_locations_connection_filters_sorts_windows_and_counts() {
+    let mut proxy = snapshot_proxy();
+    let zulu_id = add_platform_location(&mut proxy, "Zulu Connection", false);
+    let alpha_id = add_platform_location(&mut proxy, "Alpha Connection", false);
+    let beta_id = add_platform_location(&mut proxy, "Beta Connection", false);
+    let fulfillment_service = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedLegacyLocation($name: String!) {
+          fulfillmentServiceCreate(
+            name: $name
+            trackingSupport: true
+            inventoryManagement: true
+            requiresShippingMethod: true
+          ) {
+            fulfillmentService {
+              location { id name isActive isFulfillmentService }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "name": "Carrier Connection" }),
+    ));
+    assert_eq!(
+        fulfillment_service.body["data"]["fulfillmentServiceCreate"]["userErrors"],
+        json!([])
+    );
+    let legacy_location_id = fulfillment_service.body["data"]["fulfillmentServiceCreate"]
+        ["fulfillmentService"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeactivateConnectionLocation($locationId: ID!) {
+          locationDeactivate(locationId: $locationId) @idempotent(key: "locations-connection-filter") {
+            location { id name isActive }
+            locationDeactivateUserErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "locationId": beta_id }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["locationDeactivate"]["locationDeactivateUserErrors"],
+        json!([])
+    );
+    assert_eq!(
+        deactivate.body["data"]["locationDeactivate"]["location"],
+        json!({
+            "id": beta_id,
+            "name": "Beta Connection",
+            "isActive": false
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query LocationConnectionRead($alphaCursor: String!, $zuluCursor: String!) {
+          defaultLocations: locations(first: 10) {
+            nodes { id name isActive isFulfillmentService }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          includeInactive: locations(first: 10, includeInactive: true) {
+            nodes { id name isActive isFulfillmentService }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          includeLegacy: locations(first: 10, includeLegacy: true) {
+            nodes { id name isActive isFulfillmentService }
+          }
+          queryAlpha: locations(first: 10, query: "name:Alpha") {
+            nodes { id name isActive }
+          }
+          nameFirst: locations(first: 1, sortKey: NAME) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          afterAlpha: locations(first: 1, after: $alphaCursor) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          beforeZulu: locations(last: 1, before: $zuluCursor) {
+            nodes { id name }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          reversed: locations(first: 10, reverse: true) {
+            nodes { id name }
+          }
+          activeCount: locationsCount { count precision }
+          inactiveCount: locationsCount(includeInactive: true) { count precision }
+          legacyCount: locationsCount(includeLegacy: true) { count precision }
+          limitedCount: locationsCount(includeInactive: true, includeLegacy: true, limit: 3) { count precision }
+          queryCount: locationsCount(query: "name:Alpha") { count precision }
+        }
+        "#,
+        json!({
+            "alphaCursor": alpha_id,
+            "zuluCursor": zulu_id
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["defaultLocations"],
+        json!({
+            "nodes": [
+                {
+                    "id": alpha_id,
+                    "name": "Alpha Connection",
+                    "isActive": true,
+                    "isFulfillmentService": false
+                },
+                {
+                    "id": zulu_id,
+                    "name": "Zulu Connection",
+                    "isActive": true,
+                    "isFulfillmentService": false
+                }
+            ],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": alpha_id,
+                "endCursor": zulu_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["includeInactive"]["nodes"],
+        json!([
+            {
+                "id": alpha_id,
+                "name": "Alpha Connection",
+                "isActive": true,
+                "isFulfillmentService": false
+            },
+            {
+                "id": beta_id,
+                "name": "Beta Connection",
+                "isActive": false,
+                "isFulfillmentService": false
+            },
+            {
+                "id": zulu_id,
+                "name": "Zulu Connection",
+                "isActive": true,
+                "isFulfillmentService": false
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["includeLegacy"]["nodes"],
+        json!([
+            {
+                "id": alpha_id,
+                "name": "Alpha Connection",
+                "isActive": true,
+                "isFulfillmentService": false
+            },
+            {
+                "id": legacy_location_id,
+                "name": "Carrier Connection",
+                "isActive": true,
+                "isFulfillmentService": true
+            },
+            {
+                "id": zulu_id,
+                "name": "Zulu Connection",
+                "isActive": true,
+                "isFulfillmentService": false
+            }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["queryAlpha"]["nodes"],
+        json!([{ "id": alpha_id, "name": "Alpha Connection", "isActive": true }])
+    );
+    assert_eq!(
+        read.body["data"]["nameFirst"],
+        json!({
+            "nodes": [{ "id": alpha_id, "name": "Alpha Connection" }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": alpha_id,
+                "endCursor": alpha_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["afterAlpha"],
+        json!({
+            "nodes": [{ "id": zulu_id, "name": "Zulu Connection" }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": zulu_id,
+                "endCursor": zulu_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["beforeZulu"],
+        json!({
+            "nodes": [{ "id": alpha_id, "name": "Alpha Connection" }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": alpha_id,
+                "endCursor": alpha_id
+            }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["reversed"]["nodes"],
+        json!([
+            { "id": zulu_id, "name": "Zulu Connection" },
+            { "id": alpha_id, "name": "Alpha Connection" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["activeCount"],
+        json!({ "count": 4, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["inactiveCount"],
+        json!({ "count": 4, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["legacyCount"],
+        json!({ "count": 4, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["limitedCount"],
+        json!({ "count": 3, "precision": "AT_LEAST" })
+    );
+    assert_eq!(
+        read.body["data"]["queryCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+}
+
+#[test]
 fn generic_location_edit_stages_location_validates_and_downstream_reads() {
     let mut proxy = snapshot_proxy();
     let primary = proxy.process_request(json_graphql_request(
@@ -3266,8 +3552,11 @@ fn generic_location_edit_stages_location_validates_and_downstream_reads() {
         json!({ "id": primary_id, "name": "Edited Primary" })
     );
     assert_eq!(
-        read.body["data"]["locations"]["nodes"][0],
-        json!({ "id": primary_id, "name": "Edited Primary" })
+        read.body["data"]["locations"]["nodes"],
+        json!([
+            { "id": backup_id, "name": "Edit Backup" },
+            { "id": primary_id, "name": "Edited Primary" }
+        ])
     );
 
     let log = log_snapshot(&proxy);
@@ -4660,6 +4949,46 @@ fn location_deactivate_state_machine_errors_match_captured_codes_fields_and_loca
 }
 
 #[test]
+fn location_deactivate_rejects_unknown_non_fixture_location_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let unknown_location_id = "gid://shopify/Location/424242424244";
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownLocationDeactivate($locationId: ID!) {
+          locationDeactivate(locationId: $locationId) @idempotent(key: "unknown-location") {
+            location { id name isActive }
+            locationDeactivateUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": unknown_location_id }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["locationDeactivate"],
+        json!({
+            "location": null,
+            "locationDeactivateUserErrors": [{
+                "field": ["locationId"],
+                "message": "Location not found.",
+                "code": "LOCATION_NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query UnknownLocationRead($locationId: ID!) {
+          location(id: $locationId) { id name isActive }
+        }
+        "#,
+        json!({ "locationId": unknown_location_id }),
+    ));
+    assert_eq!(read.body["data"]["location"], Value::Null);
+}
+
+#[test]
 fn location_by_identifier_custom_id_miss_returns_null_with_not_found_error() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
@@ -5686,7 +6015,7 @@ fn fulfillment_order_status_invalid_state_rejections_do_not_mutate_order_reads()
 }
 
 #[test]
-fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_orders() {
+fn fulfillment_order_deadline_stages_existing_orders_and_reports_all_missing_ids() {
     let order_id = "gid://shopify/Order/7005001";
     let open_a_id = "gid://shopify/FulfillmentOrder/70050011";
     let open_b_id = "gid://shopify/FulfillmentOrder/70050012";
@@ -5762,9 +6091,9 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
         json!({
             "success": false,
             "userErrors": [{
-                "field": ["base"],
-                "message": "The fulfillment orders could not be found.",
-                "code": "FULFILLMENT_ORDERS_NOT_FOUND"
+                "field": null,
+                "message": "Fulfillment orders could not be found.",
+                "code": null
             }]
         })
     );
@@ -5778,18 +6107,18 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
     ));
     assert_eq!(
         mixed.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
-        unknown.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"]
+        json!({ "success": true, "userErrors": [] })
     );
 
     let after_mixed =
         proxy.process_request(json_graphql_request(read_query, json!({ "id": order_id })));
     assert_eq!(
         after_mixed.body["data"]["order"]["fulfillmentOrders"]["nodes"][0]["fulfillBy"],
-        json!(null)
+        json!("2026-12-01T00:00:00Z")
     );
 
     for id in [closed_id, cancelled_id] {
-        let rejected = proxy.process_request(json_graphql_request(
+        let set_deadline = proxy.process_request(json_graphql_request(
             mutation,
             json!({
                 "fulfillmentOrderIds": [id],
@@ -5797,15 +6126,8 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
             }),
         ));
         assert_eq!(
-            rejected.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
-            json!({
-                "success": false,
-                "userErrors": [{
-                    "field": ["base"],
-                    "message": "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.",
-                    "code": null
-                }]
-            })
+            set_deadline.body["data"]["fulfillmentOrdersSetFulfillmentDeadline"],
+            json!({ "success": true, "userErrors": [] })
         );
     }
 
@@ -5832,8 +6154,8 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
     for (id, status, fulfill_by) in [
         (open_a_id, "OPEN", json!("2026-12-01T00:00:00Z")),
         (open_b_id, "OPEN", json!("2026-12-01T00:00:00Z")),
-        (closed_id, "CLOSED", Value::Null),
-        (cancelled_id, "CANCELLED", Value::Null),
+        (closed_id, "CLOSED", json!("2026-12-01T00:00:00Z")),
+        (cancelled_id, "CANCELLED", json!("2026-12-01T00:00:00Z")),
     ] {
         let node = nodes
             .iter()
