@@ -512,7 +512,7 @@ fn standard_metafield_definition_reenable_preserves_id_and_merges_update_params(
             ownerType: PRODUCT
             namespace: "descriptors"
             key: "subtitle"
-            access: { admin: PUBLIC_READ_WRITE, storefront: PUBLIC_READ }
+            access: { admin: MERCHANT_READ_WRITE, storefront: PUBLIC_READ }
             capabilities: { adminFilterable: { enabled: true } }
           ) {
             createdDefinition {
@@ -2682,7 +2682,7 @@ fn metafields_set_uses_matching_definition_type_when_input_type_is_omitted() {
         mutation MetafieldsSetDefinitionTypeProduct($product: ProductCreateInput!) {
           productCreate(product: $product) {
             product { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
@@ -2960,7 +2960,7 @@ fn metafield_definition_delete_rejects_reserved_namespace_without_delete_all_fla
         mutation ReservedNamespaceGuardProductCreate {
           productCreate(product: { title: "Reserved namespace guard product" }) {
             product { id }
-            userErrors { field message code }
+            userErrors { field message  }
           }
         }
         "#,
