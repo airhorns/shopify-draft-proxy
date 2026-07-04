@@ -2455,37 +2455,20 @@ impl DraftProxy {
     }
 
     fn inventory_location_is_active(&self, location_id: &str) -> bool {
-        self.inventory_location_record(location_id)
-            .and_then(|location| location.get("isActive"))
-            .and_then(Value::as_bool)
+        self.location_for_read(location_id)
+            .and_then(|location| location.get("isActive").and_then(Value::as_bool))
             .unwrap_or(true)
     }
 
-    fn inventory_location_display_name(&self, location_id: &str) -> String {
-        self.inventory_location_record(location_id)
-            .and_then(|location| location.get("name"))
-            .and_then(Value::as_str)
-            .map(str::to_string)
+    pub(in crate::proxy) fn inventory_location_display_name(&self, location_id: &str) -> String {
+        self.location_for_read(location_id)
+            .and_then(|location| {
+                location
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
             .unwrap_or_else(|| inventory_location_name(location_id).to_string())
-    }
-
-    fn inventory_location_record(&self, location_id: &str) -> Option<&Value> {
-        self.store
-            .staged
-            .locations
-            .get(location_id)
-            .or_else(|| {
-                self.store
-                    .staged
-                    .observed_shipping_locations
-                    .get(location_id)
-            })
-            .or_else(|| {
-                self.store
-                    .staged
-                    .fulfillment_service_locations
-                    .get(location_id)
-            })
     }
 
     fn inventory_item_id_is_missing(&self, inventory_item_id: &str) -> bool {

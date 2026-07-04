@@ -617,33 +617,7 @@ impl DraftProxy {
                     address[field] = json!(value);
                 }
             }
-            if let Some(country_code) = resolved_string_field(&address_input, "countryCode") {
-                if let Some(country) = location_country_name(&country_code) {
-                    address["country"] = json!(country);
-                }
-            }
-            // Shopify derives the full province name from the effective
-            // country + province codes whenever the address is edited. A
-            // province-only edit (no countryCode in the input) still re-derives
-            // the name from the country code already on the record.
-            let effective_country_code = address
-                .get("countryCode")
-                .and_then(Value::as_str)
-                .map(str::to_string);
-            let effective_province_code = address
-                .get("provinceCode")
-                .and_then(Value::as_str)
-                .filter(|code| !code.is_empty())
-                .map(str::to_string);
-            address["province"] = match (
-                effective_country_code.as_deref(),
-                effective_province_code.as_deref(),
-            ) {
-                (Some(country), Some(province)) => province_name_for_code(country, province)
-                    .map(Value::from)
-                    .unwrap_or(Value::Null),
-                _ => Value::Null,
-            };
+            apply_location_address_display_names(&mut address);
             location["address"] = address;
         }
         let metafields = self.location_metafields_from_input(&location_id, input);
@@ -789,7 +763,7 @@ impl DraftProxy {
         if self.location_limit_reached() {
             errors.push(user_error(
                 ["input"],
-                "You have reached the maximum number of locations (200)",
+                &self.location_limit_reached_message(),
                 Some("INVALID"),
             ));
         }
@@ -942,9 +916,6 @@ impl DraftProxy {
         {
             return;
         }
-        if fixture_location_deactivate_state_machine_location(location_id).is_some() {
-            return;
-        }
         let response = self.upstream_post(
             request,
             json!({
@@ -992,6 +963,13 @@ impl DraftProxy {
         );
         if !(200..300).contains(&response.status) {
             return;
+        }
+        if let Some(shop) = response.body["data"]
+            .get("shop")
+            .filter(|shop| shop.is_object())
+        {
+            self.store.base.shop =
+                shallow_merged_object(self.store.base.shop.clone(), shop.clone());
         }
         if location_limit_reached_in_response(&response.body).unwrap_or(false) {
             self.store.staged.location_limit_reached = true;
@@ -1135,7 +1113,6 @@ impl DraftProxy {
                     .get(location_id)
                     .cloned()
             })
-            .or_else(|| fixture_location_deactivate_state_machine_location(location_id))
     }
 
     /// A location is eligible for local-pickup mutations only when it resolves
@@ -1188,6 +1165,9 @@ impl DraftProxy {
     }
 
     fn location_limit_reached(&self) -> bool {
+        let Some(limit) = self.hydrated_location_limit() else {
+            return self.store.staged.location_limit_reached;
+        };
         self.store.staged.location_limit_reached
             || self
                 .store
@@ -1196,7 +1176,24 @@ impl DraftProxy {
                 .values()
                 .filter(|location| location.get("isActive").and_then(Value::as_bool) == Some(true))
                 .count()
-                >= 200
+                >= limit
+    }
+
+    fn hydrated_location_limit(&self) -> Option<usize> {
+        self.store
+            .base
+            .shop
+            .get("resourceLimits")
+            .and_then(|limits| limits.get("locationLimit"))
+            .and_then(Value::as_u64)
+            .and_then(|limit| usize::try_from(limit).ok())
+            .filter(|limit| *limit > 0)
+    }
+
+    fn location_limit_reached_message(&self) -> String {
+        self.hydrated_location_limit()
+            .map(|limit| format!("You have reached the maximum number of locations ({limit})"))
+            .unwrap_or_else(|| "You have reached the maximum number of locations".to_string())
     }
 
     pub(in crate::proxy) fn location_deactivate(
@@ -1323,7 +1320,7 @@ impl DraftProxy {
         json!({
             "__typename": "Location",
             "id": location_id,
-            "name": self.location_display_name(location_id),
+            "name": "Location",
             "isActive": true,
             "activatable": true,
             "deactivatable": true,
@@ -1338,16 +1335,6 @@ impl DraftProxy {
         })
     }
 
-    fn location_display_name(&self, location_id: &str) -> String {
-        if location_id.ends_with("/1") {
-            "Source location".to_string()
-        } else if location_id.ends_with("/2") {
-            "Destination location".to_string()
-        } else {
-            "Location".to_string()
-        }
-    }
-
     fn location_deactivate_destination_is_inactive(&self, destination_id: &str) -> bool {
         self.location_for_read(destination_id)
             .and_then(|location| {
@@ -1356,7 +1343,7 @@ impl DraftProxy {
                     .and_then(Value::as_bool)
                     .map(|is_active| !is_active)
             })
-            .unwrap_or(false)
+            .unwrap_or(true)
     }
 
     fn has_other_online_order_fulfillment_location(&self, location_id: &str) -> bool {
@@ -1553,13 +1540,11 @@ pub(in crate::proxy) fn country_name_for_code(country_code: &str) -> Option<&'st
         "ZA" => "South Africa",
         "SG" => "Singapore",
         "HK" => "Hong Kong SAR",
+        "AE" => "United Arab Emirates",
         _ => return None,
     })
 }
 
-/// Shopify derives the full province/state name from the `provinceCode` for
-/// countries with administrative subdivisions (US, CA, AU). Countries without
-/// subdivisions (e.g. GB) carry no province, so this returns `None`.
 fn province_name_for_code(country_code: &str, province_code: &str) -> Option<&'static str> {
     Some(match (country_code, province_code) {
         ("US", "AL") => "Alabama",
@@ -1634,38 +1619,55 @@ fn province_name_for_code(country_code: &str, province_code: &str) -> Option<&'s
         ("AU", "TAS") => "Tasmania",
         ("AU", "VIC") => "Victoria",
         ("AU", "WA") => "Western Australia",
+        ("AE", "DU") => "Dubai",
         _ => return None,
     })
 }
 
-/// Build the `address` object for a staged location from a Location*Input
-/// address, deriving the full country/province names from the supplied codes the
-/// way Shopify does. Absent codes serialize as null (not empty string).
-fn location_address_json(address_input: &BTreeMap<String, ResolvedValue>) -> Value {
-    let country_code = resolved_string_field(address_input, "countryCode");
-    let province_code =
-        resolved_string_field(address_input, "provinceCode").filter(|code| !code.is_empty());
-    let country = country_code
+fn apply_location_address_display_names(address: &mut Value) {
+    let country_code = address
+        .get("countryCode")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let province_code = address
+        .get("provinceCode")
+        .and_then(Value::as_str)
+        .filter(|code| !code.is_empty())
+        .map(str::to_string);
+    address["country"] = country_code
         .as_deref()
         .and_then(country_name_for_code)
         .map(Value::from)
         .unwrap_or(Value::Null);
-    let province = match (country_code.as_deref(), province_code.as_deref()) {
-        (Some(country), Some(province)) => province_name_for_code(country, province)
-            .map(Value::from)
-            .unwrap_or(Value::Null),
-        _ => Value::Null,
-    };
-    json!({
+    address["province"] = country_code
+        .as_deref()
+        .zip(province_code.as_deref())
+        .and_then(|(country_code, province_code)| {
+            province_name_for_code(country_code, province_code)
+        })
+        .map(Value::from)
+        .unwrap_or(Value::Null);
+}
+
+/// Build the `address` object for a staged location from a Location*Input
+/// address. Code-derived display names flow through the same helper used by
+/// edits, while hydrated records remain authoritative for partial edits.
+fn location_address_json(address_input: &BTreeMap<String, ResolvedValue>) -> Value {
+    let country_code = resolved_string_field(address_input, "countryCode");
+    let province_code =
+        resolved_string_field(address_input, "provinceCode").filter(|code| !code.is_empty());
+    let mut address = json!({
         "address1": resolved_string_field(address_input, "address1"),
         "address2": resolved_string_field(address_input, "address2"),
         "city": resolved_string_field(address_input, "city"),
-        "country": country,
+        "country": Value::Null,
         "countryCode": country_code,
-        "province": province,
+        "province": Value::Null,
         "provinceCode": province_code,
         "zip": resolved_string_field(address_input, "zip")
-    })
+    });
+    apply_location_address_display_names(&mut address);
+    address
 }
 
 fn input_was_variable(field: &RootFieldSelection) -> bool {
@@ -1984,14 +1986,6 @@ fn location_delete_payload_selected_json(
     })
 }
 
-fn location_country_name(country_code: &str) -> Option<&'static str> {
-    if matches!(country_code, "CA" | "US" | "GB" | "AU") {
-        country_name_for_code(country_code)
-    } else {
-        None
-    }
-}
-
 fn location_delete_user_error(code: &str, message: &str) -> Value {
     user_error(["locationId"], message, Some(code))
 }
@@ -2188,97 +2182,4 @@ fn location_limit_reached_in_response(body: &Value) -> Option<bool> {
         })
         .count();
     Some(active_merchant_managed_count >= limit || (has_next_page && nodes.len() >= limit))
-}
-
-fn fixture_location_deactivate_state_machine_location(location_id: &str) -> Option<Value> {
-    match location_id {
-        "gid://shopify/Location/112831103282" => Some(json!({
-            "id": location_id,
-            "name": "HAR-658 lifecycle 20260505013332",
-            "isActive": true,
-            "activatable": true,
-            "deactivatable": true,
-            "fulfillsOnlineOrders": false,
-            "hasActiveInventory": false,
-            "hasUnfulfilledOrders": false,
-            "deletable": false,
-            "shipsInventory": false,
-            "isFulfillmentService": false,
-            "address": {},
-            "metafields": []
-        })),
-        "gid://shopify/Location/112849125682" => Some(json!({
-            "id": location_id,
-            "name": "location-deactivate-state-machine source 20260506013233",
-            "isActive": true,
-            "activatable": true,
-            "deactivatable": true,
-            "fulfillsOnlineOrders": false,
-            "hasActiveInventory": false,
-            "hasUnfulfilledOrders": false,
-            "deletable": false,
-            "shipsInventory": false
-        })),
-        "gid://shopify/Location/112849158450" => Some(json!({
-            "id": location_id,
-            "name": "location-deactivate-state-machine inactive destination 20260506013233",
-            "isActive": false,
-            "activatable": true,
-            "deactivatable": true,
-            "fulfillsOnlineOrders": false,
-            "hasActiveInventory": false,
-            "hasUnfulfilledOrders": false,
-            "deletable": true,
-            "shipsInventory": false
-        })),
-        "gid://shopify/Location/inactive" => Some(json!({
-            "id": location_id,
-            "name": "Inactive location",
-            "isActive": false,
-            "activatable": true,
-            "deactivatable": true,
-            "fulfillsOnlineOrders": false,
-            "hasActiveInventory": false,
-            "hasUnfulfilledOrders": false,
-            "deletable": true,
-            "shipsInventory": false
-        })),
-        "gid://shopify/Location/112849191218" => Some(json!({
-            "id": location_id,
-            "name": "location-deactivate-state-machine active inventory 20260506013233",
-            "isActive": true,
-            "activatable": true,
-            "deactivatable": true,
-            "fulfillsOnlineOrders": false,
-            "hasActiveInventory": true,
-            "hasUnfulfilledOrders": false,
-            "deletable": false,
-            "shipsInventory": false
-        })),
-        "gid://shopify/Location/112849223986" => Some(json!({
-            "id": location_id,
-            "name": "location-deactivate-state-machine only online 20260506013233",
-            "isActive": true,
-            "activatable": true,
-            "deactivatable": true,
-            "fulfillsOnlineOrders": true,
-            "hasActiveInventory": false,
-            "hasUnfulfilledOrders": false,
-            "deletable": false,
-            "shipsInventory": false
-        })),
-        "gid://shopify/Location/106318430514" => Some(json!({
-            "id": location_id,
-            "name": "Shop location",
-            "isActive": true,
-            "activatable": true,
-            "deactivatable": false,
-            "fulfillsOnlineOrders": true,
-            "hasActiveInventory": true,
-            "hasUnfulfilledOrders": true,
-            "deletable": false,
-            "shipsInventory": true
-        })),
-        _ => None,
-    }
 }
