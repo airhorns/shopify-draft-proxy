@@ -4758,6 +4758,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'web-presence-create-requires-domain-or-subfolder',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-web-presence-create-requires-domain-or-subfolder-conformance.mts',
+    purpose:
+      'Focused webPresenceCreate validation for missing domainId and subfolderSuffix, proving the exact REQUIRES_DOMAIN_OR_SUBFOLDER userError message.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}web-presence-create-requires-domain-or-subfolder.json`,
+      'config/parity-specs/markets/web-presence-create-requires-domain-or-subfolder.json',
+      'config/parity-requests/markets/web-presence-create-requires-domain-or-subfolder.graphql',
+    ],
+    cleanupBehavior: 'Validation-only mutation rejects before creating a web presence; no cleanup is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-lifecycle-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-lifecycle-validation-conformance.mts',
@@ -5797,6 +5813,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable segment for update validation, deletes it during cleanup, and avoids thousands of live segment-limit setup writes by using local parity-runner setup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
+    captureId: 'segment-name-failure-query-grammar',
+    scriptPath: 'scripts/capture-segment-name-failure-query-grammar-conformance.ts',
+    purpose:
+      'segmentCreate/segmentUpdate validation ordering where Change-level name failures short-circuit CDP query grammar validation while query blank/length errors still aggregate.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-create-name-failure-short-circuits-query-grammar.json`,
+      'config/parity-specs/segments/segment-create-name-failure-short-circuits-query-grammar.json',
+      'config/parity-requests/segments/segment-update-name-query-validation-order.graphql',
+    ],
+    cleanupBehavior:
+      'Uses validation-only segmentCreate requests for name/query failures, creates one disposable segment for segmentUpdate validation ordering, then deletes it during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -10384,7 +10416,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-return-status-preconditions-conformance.mts',
     purpose:
-      'returnClose, returnReopen, returnCancel, and removeFromReturn status-machine/editability preconditions, idempotent no-op branches, and processed-return cancel rejection.',
+      'returnClose, returnReopen, returnCancel, removeFromReturn, and returnProcess status-machine/editability preconditions, idempotent no-op branches, processed-return cancel rejection, and missing-return NOT_FOUND userError shapes.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns', 'write_fulfillments'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}returnClose-Reopen-Cancel-state-preconditions.json`,
@@ -10392,6 +10424,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/orders/return-cancel-state-precondition.graphql',
       'config/parity-requests/orders/return-close-state-precondition.graphql',
       'config/parity-requests/orders/remove-from-return-state-precondition.graphql',
+      'config/parity-requests/orders/return-process-recorded.graphql',
       'config/parity-requests/orders/return-reopen-state-precondition.graphql',
       'config/parity-requests/orders/return-order-hydrate.graphql',
       'config/parity-requests/orders/return-remove-from-return-state-precondition-read.graphql',
@@ -10503,6 +10536,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql',
     ],
     cleanupBehavior: 'Cancels disposable order and records cleanup captures.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-order-set-deadline-closed-not-found',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-order-set-deadline-closed-not-found-conformance.ts',
+    purpose:
+      'fulfillmentOrdersSetFulfillmentDeadline success on an existing closed fulfillment order and all-ids-unresolvable userError shape.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-set-deadline-closed-not-found.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-set-deadline-closed-not-found.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-set-deadline-order-create.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable order, closes its fulfillment order through fulfillmentOrderCancel, captures deadline mutation behavior and unknown-id validation, then cancels the disposable order.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -11389,6 +11439,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'bulk-operations',
+    captureId: 'bulk-operation-run-mutation-no-such-file-precedence',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-run-mutation-no-such-file-precedence-conformance.ts',
+    purpose:
+      'bulkOperationRunMutation missing staged upload returns NO_SUCH_FILE before same-type mutation in-progress throttle handling.',
+    requiredAuthScopes: ['bulk operation access through active Admin token', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-no-such-file-precedence.json',
+      'config/parity-specs/bulk-operations/bulk-operation-run-mutation-no-such-file-precedence.json',
+    ],
+    cleanupBehavior:
+      'Uploads and starts five disposable product bulk mutations, records a missing stagedUploadPath validation response, cancels the non-terminal operations, and best-effort deletes any disposable products that completed.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'webhooks',
     captureId: 'webhook-subscriptions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
@@ -12263,6 +12329,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable customer, records address-list create/update/read behavior, then deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    captureId: 'customer-update-inline-address-id-semantics',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-customer-update-inline-addresses-conformance.mts',
+    purpose:
+      'customerUpdate CustomerInput.addresses id-aware update, unknown-id validation, replacement-list, and downstream read behavior.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-update-inline-address-id-semantics.json`,
+      'config/parity-specs/customers/customer-update-inline-address-id-semantics.json',
+      'config/parity-requests/customers/customer-update-inline-addresses-create.graphql',
+      'config/parity-requests/customers/customer-update-inline-addresses-read.graphql',
+      'config/parity-requests/customers/customer-update-inline-addresses-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable customer with two addresses, records inline address update/error/create branches, then deletes it.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

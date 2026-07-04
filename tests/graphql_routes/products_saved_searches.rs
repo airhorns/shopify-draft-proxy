@@ -8780,6 +8780,24 @@ fn segment_mutations_validate_inputs_without_operation_name_markers() {
     );
     assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
 
+    let blank_name_invalid_query = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "", "query": "not a valid segment query ???" }),
+    ));
+    assert_eq!(blank_name_invalid_query.status, 200);
+    assert_eq!(
+        blank_name_invalid_query.body["data"]["segmentCreate"],
+        json!({
+            "segment": null,
+            "userErrors": [{
+                "__typename": "UserError",
+                "field": ["name"],
+                "message": "Name can't be blank"
+            }]
+        })
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+
     let long_name = proxy.process_request(json_graphql_request(
         create_query,
         json!({ "name": "N".repeat(256), "query": "number_of_orders >= 1" }),
@@ -8787,6 +8805,23 @@ fn segment_mutations_validate_inputs_without_operation_name_markers() {
     assert_eq!(long_name.status, 200);
     assert_eq!(
         long_name.body["data"]["segmentCreate"],
+        json!({
+            "segment": null,
+            "userErrors": [{
+                "__typename": "UserError",
+                "field": ["name"],
+                "message": "Name is too long (maximum is 255 characters)"
+            }]
+        })
+    );
+
+    let long_name_invalid_query = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "N".repeat(256), "query": "not a valid segment query ???" }),
+    ));
+    assert_eq!(long_name_invalid_query.status, 200);
+    assert_eq!(
+        long_name_invalid_query.body["data"]["segmentCreate"],
         json!({
             "segment": null,
             "userErrors": [{
@@ -8812,6 +8847,39 @@ fn segment_mutations_validate_inputs_without_operation_name_markers() {
     assert_eq!(
         padded.body["data"]["segmentCreate"]["segment"]["query"],
         json!("number_of_orders >= 1")
+    );
+
+    let update_blank_name_invalid_query = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocalSegmentUpdateValidationOrder($id: ID!, $name: String, $query: String) {
+          segmentUpdate(id: $id, name: $name, query: $query) {
+            segment { id }
+            userErrors { __typename field message }
+          }
+        }
+        "#,
+        json!({
+            "id": segment_id,
+            "name": "",
+            "query": "not a valid segment query ???"
+        }),
+    ));
+    assert_eq!(update_blank_name_invalid_query.status, 200);
+    assert_eq!(
+        update_blank_name_invalid_query.body["data"]["segmentUpdate"],
+        json!({
+            "segment": null,
+            "userErrors": [{
+                "__typename": "UserError",
+                "field": ["name"],
+                "message": "Name can't be blank"
+            }]
+        })
+    );
+    assert_eq!(
+        log_snapshot(&proxy)["entries"].as_array().unwrap().len(),
+        1,
+        "failed segmentUpdate validation must not append a staged mutation log entry"
     );
 
     let unknown = proxy.process_request(json_graphql_request(

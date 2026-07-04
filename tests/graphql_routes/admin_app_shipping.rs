@@ -1832,6 +1832,61 @@ fn bulk_operation_run_mutation_empty_file_error_precedes_in_progress_throttle() 
 }
 
 #[test]
+fn bulk_operation_run_mutation_no_such_file_error_precedes_in_progress_throttle() {
+    let hydrated_operations = (0..5)
+        .map(|index| {
+            let id = format!("gid://shopify/BulkOperation/991000000010{index}");
+            (id.clone(), mutation_bulk_operation_fixture(&id))
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut proxy = live_hybrid_proxy_with_bulk_operation_hydration(hydrated_operations);
+
+    for index in 0..5 {
+        let id = format!("gid://shopify/BulkOperation/991000000010{index}");
+        let operation = cancel_bulk_operation(&mut proxy, &id, "2026-04");
+        assert_eq!(operation["type"], json!("MUTATION"));
+        assert_eq!(operation["status"], json!("CANCELING"));
+    }
+    let log_before = log_snapshot(&proxy);
+
+    let mut run_request = json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+            "path": "tmp/92891250994/bulk/missing/missing-import.jsonl"
+        }),
+    );
+    run_request.path = "/admin/api/2026-04/graphql.json".to_string();
+    let response = proxy.process_request(run_request);
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
+            "code": "NO_SUCH_FILE"
+        }])
+    );
+    assert_eq!(
+        log_snapshot(&proxy),
+        log_before,
+        "missing-file validation must not append a bulk mutation log entry"
+    );
+}
+
+#[test]
 fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
     let id = "gid://shopify/BulkOperation/7749099127090";
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
@@ -3283,6 +3338,78 @@ fn customer_update_rejects_inline_marketing_consent_without_mutating_customer() 
         sms_errors
     );
 
+    let whatsapp_rejection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerUpdateInlineWhatsAppConsent($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id firstName lastName displayName tags }
+            userErrors { field message }
+            customerUpdateUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": id,
+                "firstName": "ShouldNot",
+                "lastName": "Apply",
+                "tags": ["mutated"],
+                "whatsAppMarketingConsent": {
+                    "marketingState": "SUBSCRIBED"
+                }
+            }
+        }),
+    ));
+    let whatsapp_errors = json!([{
+        "field": ["whatsAppMarketingConsent"],
+        "message": "To update whatsAppMarketingConsent, please use the customerWhatsAppMarketingConsentUpdate Mutation instead"
+    }]);
+    assert_eq!(
+        whatsapp_rejection.body["data"]["customerUpdate"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        whatsapp_rejection.body["data"]["customerUpdate"]["userErrors"],
+        whatsapp_errors
+    );
+    assert_eq!(
+        whatsapp_rejection.body["data"]["customerUpdate"]["customerUpdateUserErrors"],
+        whatsapp_errors
+    );
+
+    let whatsapp_rejection_unknown_customer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerUpdateInlineWhatsAppConsentUnknownCustomer($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id }
+            userErrors { field message }
+            customerUpdateUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/Customer/999999999999999",
+                "whatsAppMarketingConsent": {
+                    "marketingState": "SUBSCRIBED"
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        whatsapp_rejection_unknown_customer.body["data"]["customerUpdate"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        whatsapp_rejection_unknown_customer.body["data"]["customerUpdate"]["userErrors"],
+        whatsapp_errors
+    );
+    assert_eq!(
+        whatsapp_rejection_unknown_customer.body["data"]["customerUpdate"]
+            ["customerUpdateUserErrors"],
+        whatsapp_errors
+    );
+
     let both_rejection = proxy.process_request(json_graphql_request(
         r#"
         mutation CustomerUpdateInlineConsentBoth($input: CustomerInput!) {
@@ -4278,6 +4405,115 @@ fn customer_create_supports_consent_precondition_shapes_without_synthesizing_mis
         json!("hermes-consent-email-only-1777943566021@example.com")
     );
     assert_eq!(email_customer["defaultPhoneNumber"], Value::Null);
+}
+
+#[test]
+fn customer_create_rejects_inline_whatsapp_marketing_consent_validation_failures_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let no_phone = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateWhatsAppConsentNoPhone($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "firstName": "Hermes",
+                "whatsAppMarketingConsent": {
+                    "marketingState": "SUBSCRIBED"
+                }
+            }
+        }),
+    ));
+    assert_eq!(no_phone.body.get("errors"), None);
+    assert_eq!(
+        no_phone.body["data"]["customerCreate"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        no_phone.body["data"]["customerCreate"]["userErrors"],
+        json!([{
+            "field": ["whatsAppMarketingConsent"],
+            "message": "A phone number is required to set the WhatsApp consent state."
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["customers"],
+        json!({})
+    );
+
+    let redacted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateWhatsAppConsentRedacted($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "phone": "+14155556025",
+                "whatsAppMarketingConsent": {
+                    "marketingState": "REDACTED"
+                }
+            }
+        }),
+    ));
+    assert_eq!(redacted.body["data"]["customerCreate"], Value::Null);
+    assert_eq!(
+        redacted.body["errors"],
+        json!([{
+            "message": "Cannot specify REDACTED as a marketing state input",
+            "path": ["customerCreate"],
+            "extensions": { "code": "INVALID" }
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["customers"],
+        json!({})
+    );
+
+    let public_shape_redacted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateWhatsAppConsentPublicShapeRedacted($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "phone": "+14155556026",
+                "whatsAppMarketingConsent": {
+                    "state": "REDACTED"
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        public_shape_redacted.body["data"]["customerCreate"],
+        Value::Null
+    );
+    assert_eq!(
+        public_shape_redacted.body["errors"],
+        json!([{
+            "message": "Cannot specify REDACTED as a marketing state input",
+            "path": ["customerCreate"],
+            "extensions": { "code": "INVALID" }
+        }])
+    );
+    assert_eq!(log_snapshot(&proxy)["entries"], json!([]));
+    assert_eq!(
+        state_snapshot(&proxy)["stagedState"]["customers"],
+        json!({})
+    );
 }
 
 #[test]
