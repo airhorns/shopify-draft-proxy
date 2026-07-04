@@ -27,7 +27,7 @@ Supported lifecycle mutations are staged locally and logged with the original ra
 
 Effective `Article`, `Blog`, `Comment`, and `Page` records are exposed through generic `node(id:)` / `nodes(ids:)` dispatch. Those reads use the same local content serializers as the dedicated content roots, so staged page/article/blog create and update flows are visible through the Admin `Node` interface without runtime Shopify writes.
 
-URL redirect roots are registry-tracked but unimplemented in the local runtime. LiveHybrid forwards `urlRedirect`, `urlRedirects`, `urlRedirectsCount`, and URL redirect mutation/import/bulk-delete roots upstream when unsupported mutation passthrough is enabled. Snapshot reads and mutations fail closed instead of emitting local placeholder data; reject-mode mutations also fail before upstream. No local URL redirect lifecycle, search/count/pageInfo, or read-after-write behavior is modeled.
+URL redirect mutation/import/bulk-delete roots are registry-tracked but unimplemented in the local runtime. Cold LiveHybrid reads for `urlRedirect`, `urlRedirects`, and `urlRedirectsCount` forward upstream, and cold snapshot reads fail closed instead of emitting local placeholder data. The local runtime does expose staged URL redirects created by supported metaobject online-store handle changes: those staged reads support `urlRedirect(id:)`, `urlRedirects(query:)`, `urlRedirectsCount(query:)`, `path:` and `target:` filters, `ID`/`PATH`/`TARGET` sort keys, `reverse`, and cursor windows for the staged redirect slice. This staged readback does not make URL redirect create/update/delete/import roots supported; those mutations still passthrough or reject according to unsupported-mutation mode.
 
 ### Content read behavior
 
